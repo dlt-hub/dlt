@@ -209,6 +209,7 @@ def test_yields_parent_relation(norm: RelationalNormalizer) -> None:
             "a": [{"id": "level4"}],
             "b": {
                 "a": [{"id": "level5"}],
+                "a_2": [{"id": "level5"}],
             },
             "c": "x",
         },
@@ -231,15 +232,17 @@ def test_yields_parent_relation(norm: RelationalNormalizer) -> None:
         ("table__f__o", ("table", "f"), ("o",)),
         # "table__f__b" is not yielded as it is fully flattened into table__f
         ("table__f__b__a", ("table", "f"), ("b", "a")),
-        # same for table__d -> fully flattened into table
-        ("table__d__a", ("table",), ("d", "a")),
-        ("table__d__b__a", ("table",), ("d", "b", "a")),
         # table__e is yielded it however only contains linking information
         ("table__e", ("table",), ("e",)),
         ("table__e__o", ("table", "e"), ("o",)),
         ("table__e__b__a", ("table", "e"), ("b", "a")),
+        # same for table__d -> fully flattened into table
+        ("table__d__a", ("table",), ("d", "a")),
+        ("table__d__b__a", ("table",), ("d", "b", "a")),
+        ("table__d__b__a_2", ("table",), ("d", "b", "a_2")),
     ]
     parents = list(r[0] for r in rows)
+    print(parents)
     assert parents == expected_parents
 
     # make sure that table__e is just linking
@@ -826,12 +829,12 @@ def test_normalize_and_shorten_deterministically() -> None:
     tag = NamingConvention._compute_tag(
         "short_ident_1__short_ident_2__short_ident_3", NamingConvention._DEFAULT_COLLISION_PROB
     )
-    assert tag in root_data_keys[0]
+    assert tag in root_data_keys[1]
     # long:SO+LONG:_>16 shortened on normalized name
     tag = NamingConvention._compute_tag(
         "long+long:SO+LONG:_>16", NamingConvention._DEFAULT_COLLISION_PROB
     )
-    assert tag in root_data_keys[1]
+    assert tag in root_data_keys[0]
     # table name in second row
     table_name = rows[1][0][0]
     tag = NamingConvention._compute_tag(
@@ -1175,3 +1178,86 @@ def add_dlt_root_id_propagation(norm: RelationalNormalizer) -> None:
         },
     )
     norm._reset()
+
+
+def test_propagation_mapping_cache_not_stale_after_extend_table(norm: RelationalNormalizer) -> None:
+    """Test that propagation mapping cache is cleared when extend_table modifies it.
+
+    Scenario: We have root propagation configured. We normalize "users" table which
+    populates the cache. Then extend_table("users") adds table-specific propagation.
+    When we normalize again, the new table-specific propagation should be used.
+    """
+    # Set up initial propagation config with root propagation only
+    add_dlt_root_id_propagation(norm)
+
+    with Container().injectable_context(
+        DestinationCapabilitiesContext(supported_merge_strategies=["delete-insert"])
+    ):
+        # Normalize "users" - this populates the cache for ("users", True)
+        # At this point, only root propagation exists (no table-specific for "users")
+        row = {"_dlt_id": "user_123", "orders": [{"item": "book"}]}
+        rows_before = list(norm._normalize_row(row, {}, ("users",), _r_lvl=1000, is_root=True))
+
+        # Verify root propagation works - nested rows have _dlt_root_id
+        nested_before = [r for r in rows_before if r[0][0] == "users__orders"]
+        assert len(nested_before) == 1
+        assert nested_before[0][1]["_dlt_root_id"] == "user_123"
+
+        # Now extend_table adds table-specific propagation for "users"
+        # This happens when table disposition changes to merge
+        users_table = new_table("users", write_disposition="merge")
+        norm.schema.update_table(users_table)
+
+        # Add a custom field to propagate (simulating additional table config)
+        prop_config = norm.schema._normalizers_config["json"]["config"]["propagation"]
+        prop_config["tables"]["users"]["custom_field"] = "propagated_custom"
+
+        # The cache for ("users", True) should be cleared
+        # Normalize again with a row that has custom_field
+        row2 = {"_dlt_id": "user_456", "custom_field": "my_value", "orders": [{"item": "pen"}]}
+        rows_after = list(norm._normalize_row(row2, {}, ("users",), _r_lvl=1000, is_root=True))
+
+        # Verify the new table-specific propagation is applied
+        nested_after = [r for r in rows_after if r[0][0] == "users__orders"]
+        assert len(nested_after) == 1
+        assert nested_after[0][1]["_dlt_root_id"] == "user_456"
+        # This would fail if cache was stale - custom_field propagation wouldn't be there
+        assert nested_after[0][1].get("propagated_custom") == "my_value"
+
+
+def test_propagation_mapping_cache_not_stale_after_remove_table(norm: RelationalNormalizer) -> None:
+    """Test that propagation mapping cache is cleared when remove_table modifies it.
+
+    Scenario: We have table-specific propagation for "users". We normalize which
+    populates the cache. Then remove_table("users") removes the propagation.
+    When we normalize again, the table-specific propagation should no longer apply.
+    """
+    # Set up propagation with table-specific config for "users"
+    add_dlt_root_id_propagation(norm)
+    prop_config = norm.schema._normalizers_config["json"]["config"]["propagation"]
+    prop_config["tables"]["users"] = {"custom_field": "propagated_custom"}
+
+    # Normalize "users" - this populates the cache for ("users", True)
+    row = {"_dlt_id": "user_123", "custom_field": "my_value", "orders": [{"item": "book"}]}
+    rows_before = list(norm._normalize_row(row, {}, ("users",), _r_lvl=1000, is_root=True))
+
+    # Verify table-specific propagation works
+    nested_before = [r for r in rows_before if r[0][0] == "users__orders"]
+    assert len(nested_before) == 1
+    assert nested_before[0][1]["_dlt_root_id"] == "user_123"
+    assert nested_before[0][1].get("propagated_custom") == "my_value"
+
+    # Now remove_table clears the table-specific propagation for "users"
+    norm.remove_table("users")
+
+    # The cache for ("users", True) should be cleared
+    # Normalize again
+    rows_after = list(norm._normalize_row(row, {}, ("users",), _r_lvl=1000, is_root=True))
+
+    # Verify table-specific propagation no longer applies
+    nested_after = [r for r in rows_after if r[0][0] == "users__orders"]
+    assert len(nested_after) == 1
+    # Root propagation should still work
+    assert nested_after[0][1]["_dlt_root_id"] == "user_123"
+    # But table-specific propagation should be gone (would fail if cache was stale)
+    assert "propagated_custom" not in nested_after[0][1]
