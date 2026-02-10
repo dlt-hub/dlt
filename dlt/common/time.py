@@ -1,4 +1,3 @@
-import contextlib
 import datetime  # noqa: I251
 import re
 import sys
@@ -51,23 +50,20 @@ def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool:
     return timestamp <= (max_inclusive or FUTURE_TIMESTAMP)
 
 
-def parse_iso_like_datetime(value: str) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
+def parse_iso_like_datetime(value: str) -> Union[DateTime, Date, Time]:
     """Parses ISO8601 string into pendulum datetime, date or time. Preserves timezone info.
-    Note: naive datetimes will be generated from string without timezone
 
-       we use internal pendulum parse function. the generic function, for example, parses string "now" as now()
-       it also tries to parse ISO intervals but the code is very low quality
+    Note: naive datetimes will be generated from string without timezone.
     """
-    # only iso dates are allowed
-    dtv = None
-    with contextlib.suppress(ValueError):
+    try:
         dtv = parse_iso8601(value)
-    # now try to parse a set of ISO like dates
-    if not dtv:
+    except ValueError:
+        # fallback for formats like "2024" (year only) or "2024/01/15"
         dtv = parse_datetime_common(value, **pendulum_options)
-    # this is what pendulum.instance does but datetime is checked first
+
+    # parse_iso8601 returns datetime with pendulum's FixedTimezone already attached
     if isinstance(dtv, datetime.datetime):
-        return create_dt(
+        return DateTime(
             dtv.year,
             dtv.month,
             dtv.day,
@@ -75,14 +71,12 @@ def parse_iso_like_datetime(value: str) -> Union[pendulum.DateTime, pendulum.Dat
             dtv.minute,
             dtv.second,
             dtv.microsecond,
-            tz=dtv.tzinfo,
+            tzinfo=dtv.tzinfo,
             fold=dtv.fold,
         )
     if isinstance(dtv, datetime.date):
         return Date(dtv.year, dtv.month, dtv.day)
     if isinstance(dtv, datetime.time):
-        # NOTE: Time disregards timezones on `add` and `subtract`
-        # TODO: we are better off switching to regular datetime.time
         return Time(
             dtv.hour,
             dtv.minute,
@@ -91,7 +85,6 @@ def parse_iso_like_datetime(value: str) -> Union[pendulum.DateTime, pendulum.Dat
             tzinfo=dtv.tzinfo,
             fold=dtv.fold,
         )
-
     raise ValueError(f"Interval ISO 8601 not supported: `{value}`")
 
 
@@ -108,7 +101,7 @@ def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
     """
     if isinstance(value, datetime.datetime):
         # both py datetime and pendulum datetime are handled here
-        value = create_dt(
+        value = DateTime(
             value.year,
             value.month,
             value.day,
@@ -116,7 +109,7 @@ def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
             value.minute,
             value.second,
             value.microsecond,
-            tz=value.tzinfo,
+            tzinfo=value.tzinfo,
             fold=value.fold,
         )
         return value.in_tz(UTC).date()
@@ -163,10 +156,29 @@ def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
     Returns:
         pendulum.DateTime object that preserver original timezone
     """
+    if isinstance(value, str):
+        # fast path for ISO datetime strings
+        try:
+            dtv = parse_iso8601(value)
+            if isinstance(dtv, datetime.datetime):
+                return DateTime(
+                    dtv.year,
+                    dtv.month,
+                    dtv.day,
+                    dtv.hour,
+                    dtv.minute,
+                    dtv.second,
+                    dtv.microsecond,
+                    tzinfo=dtv.tzinfo,
+                    fold=dtv.fold,
+                )
+        except ValueError:
+            pass
+
     if isinstance(value, datetime.datetime):
         # both py datetime and pendulum datetime are handled here
-        # pendulum.instance assigns UTC by default. tz=None will keep naive datetime on datetime.datetime
-        return create_dt(
+        # pendulum.instance assigns UTC by default. tzinfo=None will keep naive datetime
+        return DateTime(
             value.year,
             value.month,
             value.day,
@@ -174,11 +186,11 @@ def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
             value.minute,
             value.second,
             value.microsecond,
-            tz=value.tzinfo,
+            tzinfo=value.tzinfo,
             fold=value.fold,
         )
     elif isinstance(value, datetime.date):
-        return create_dt(value.year, value.month, value.day, tz=None)
+        return DateTime(value.year, value.month, value.day)
     elif isinstance(value, (int, float, str)):
         result = _datetime_from_ts_or_iso(value)
         if isinstance(result, datetime.time):
@@ -186,7 +198,7 @@ def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
         if isinstance(result, pendulum.DateTime):
             return result
         # naive datetime from date
-        return create_dt(result.year, result.month, result.day, tz=None)
+        return DateTime(result.year, result.month, result.day)
     raise TypeError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
 
 
@@ -385,6 +397,7 @@ def _datetime_from_ts_or_iso(
 ) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
     if isinstance(value, (int, float)):
         return pendulum.from_timestamp(value)
+
     try:
         return parse_iso_like_datetime(value)
     except ValueError as outer_ex:
