@@ -102,9 +102,7 @@ def display_run_context_info() -> None:
             )
 
 
-def add_mcp_arg_parser(
-    subparsers: Any, description: str, help_str: str, default_sse_port: int
-) -> None:
+def add_mcp_arg_parser(subparsers: Any, description: str, help_str: str, default_port: int) -> None:
     command_parser = subparsers.add_parser(
         "mcp",
         description=description,
@@ -112,10 +110,15 @@ def add_mcp_arg_parser(
     )
     command_parser.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
     command_parser.add_argument(
+        "--sse",
+        action="store_true",
+        help="Use legacy SSE transport instead of streamable-http",
+    )
+    command_parser.add_argument(
         "--port",
         type=int,
-        default=default_sse_port,
-        help=f"SSE port to use (default: {default_sse_port})",
+        default=default_port,
+        help=f"Port for the MCP server (default: {default_port})",
     )
 
 
