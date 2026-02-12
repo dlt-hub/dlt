@@ -1,5 +1,5 @@
 from copy import copy
-from typing import List, Dict, Sequence, Set, Any, Optional, Tuple
+from typing import Callable, List, Dict, Sequence, Set, Any, Optional, Tuple
 from abc import abstractmethod
 from functools import lru_cache
 
@@ -92,9 +92,13 @@ class ItemsNormalizer:
 
 
 class ModelItemsNormalizer(ItemsNormalizer):
-    def _normalize_casefold(self, ident: str) -> str:
-        return self.config.destination_capabilities.casefold_identifier(
-            self.schema.naming.normalize_identifier(ident)
+    @property
+    def _normalize_casefold(self) -> Callable[[str], str]:
+        from dlt.common.libs.sqlglot import create_outer_select_identifier_normalizer
+
+        return create_outer_select_identifier_normalizer(
+            self.schema.naming,
+            self.config.destination_capabilities.casefold_identifier,
         )
 
     def _adjust_outer_select_with_dlt_columns(

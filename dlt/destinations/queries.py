@@ -5,64 +5,29 @@ import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.common.destination.capabilities import TCasefoldIdentifier
+from dlt.common.libs.sqlglot import normalize_query_identifiers, bind_query
 from dlt.destinations.sql_client import SqlClientBase
 
 
 def _normalize_query(
     qualified_query: sge.Query,
-    sqlglot_schema: SQLGlotSchema,
+    sqlglot_schema: Any,
     *,
-    # TODO ideally, we don't have to pass an SQLClient around just to get `.make_qualified_table_name_path()`
     sql_client: SqlClientBase[Any],
     casefold_identifier: TCasefoldIdentifier,
 ) -> sge.Query:
-    """Normalizes a qualified query compliant with the dlt schema into the namespace of the source dataset"""
+    """Backward compatibility wrapper for bind_query.
 
-    qualified_query = qualified_query.copy()
-    is_casefolding = casefold_identifier is not str
-
-    # preserve "column" names in original selects which are done in dlt schema namespace
-    orig_selects: Dict[int, str] = None
-    if is_casefolding:
-        orig_selects = {}
-        for i, proj in enumerate(qualified_query.selects):
-            orig_selects[i] = proj.name or proj.args["alias"].name
-
-    # case fold all identifiers and quote
-    for node in qualified_query.walk():
-        if isinstance(node, sge.Table):
-            # expand named of known tables. this is currently clickhouse things where
-            # we use dataset.table in queries but render those as dataset___table
-            if sqlglot_schema.column_names(node):
-                expanded_path = sql_client.make_qualified_table_name_path(
-                    node.name, quote=False, casefold=False
-                )
-                # set the table name
-                if node.name != expanded_path[-1]:
-                    node.this.set("this", expanded_path[-1])
-                # set the dataset/schema name
-                if node.db != expanded_path[-2]:
-                    node.set("db", sqlglot.to_identifier(expanded_path[-2], quoted=False))
-                # set the catalog name
-                if len(expanded_path) == 3:
-                    if node.db != expanded_path[0]:
-                        node.set("catalog", sqlglot.to_identifier(expanded_path[0], quoted=False))
-        # quote and case-fold identifiers, TODO: maybe we could be more intelligent, but then we need to unquote ibis
-        if isinstance(node, sge.Identifier):
-            if is_casefolding:
-                node.set("this", casefold_identifier(node.this))
-            node.set("quoted", True)
-
-    # add aliases to output selects to stay compatible with dlt schema after the query
-    if orig_selects:
-        for i, orig in orig_selects.items():
-            case_folded_orig = casefold_identifier(orig)
-            if case_folded_orig != orig:
-                # somehow we need to alias just top select in UNION (tested on Snowflake)
-                sel_expr = qualified_query.selects[i]
-                qualified_query.selects[i] = sge.alias_(sel_expr, orig, quoted=True)
-
-    return qualified_query
+    TODO: remove after next dlthub release
+    """
+    return bind_query(
+        qualified_query,
+        sqlglot_schema,
+        expand_table_name=lambda name: sql_client.make_qualified_table_name_path(
+            name, quote=False, casefold=False
+        ),
+        casefold_identifier=casefold_identifier,
+    )
 
 
 def build_row_counts_expr(

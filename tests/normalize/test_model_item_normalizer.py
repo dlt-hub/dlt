@@ -3,7 +3,8 @@ import pytest
 import os
 from concurrent.futures import ThreadPoolExecutor
 import sqlglot
-from typing import Iterator, List, Tuple, NamedTuple, Union, Optional
+import sqlglot.expressions
+from typing import Iterator, List, Tuple, NamedTuple, Union, Optional, cast
 from packaging.version import Version
 
 from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
@@ -659,3 +660,54 @@ def test_model_normalizer_edge_cases_on_duckdb(
             _, _, _ = extract_normalize_retrieve(
                 model_normalize, model, schema, "my_table", dialect
             )
+
+
+@pytest.mark.parametrize("caps", [get_caps("duckdb")], indirect=True, ids=["duckdb"])
+def test_variant_column_names_preserved(
+    caps: DestinationCapabilitiesContext,
+) -> None:
+    """
+    Test that variant column names (with __v_ pattern) are preserved during normalization.
+
+    Regression test for issue #3625: variant columns like value__v_double were being
+    incorrectly normalized to value_v_double (losing the double underscore path separator).
+    """
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = "False"
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = "False"
+    model_normalize = next(init_normalize())
+    dialect = caps.sqlglot_dialect
+
+    # Create a query that selects variant columns
+    model_query = "SELECT value__v_double, confidence__v_text, nested__col__v_bool FROM my_table"
+    model = SqlModel.from_query_string(query=model_query, dialect=dialect)
+
+    # Create schema with variant columns
+    variant_cols = ["value__v_double", "confidence__v_text", "nested__col__v_bool"]
+    schema = create_schema_with_complete_columns("my_table", "double", variant_cols)
+
+    # Mark columns as variants in the schema
+    for col in variant_cols:
+        schema.tables["my_table"]["columns"][col]["variant"] = True
+
+    _, normalized_query, _ = extract_normalize_retrieve(
+        model_normalize, model, schema, "my_table", dialect
+    )
+
+    # Parse the normalized query to check column names
+    parsed_query = cast(sqlglot.expressions.Select, sqlglot.parse_one(normalized_query, read=dialect))
+
+    # Get the aliases from the outer SELECT
+    aliases = [select.alias for select in parsed_query.selects]
+
+    # Verify that variant column names are preserved (double underscores intact)
+    # BUG: Currently this will FAIL because _normalize_casefold uses normalize_identifier
+    # which collapses __ to _, turning value__v_double into value_v_double
+    assert (
+        "value__v_double" in aliases
+    ), f"Variant column 'value__v_double' was not preserved. Got aliases: {aliases}"
+    assert (
+        "confidence__v_text" in aliases
+    ), f"Variant column 'confidence__v_text' was not preserved. Got aliases: {aliases}"
+    assert (
+        "nested__col__v_bool" in aliases
+    ), f"Variant column 'nested__col__v_bool' was not preserved. Got aliases: {aliases}"

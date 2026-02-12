@@ -9,7 +9,7 @@ from sqlglot.schema import MappingSchema as SQLGlotSchema
 import dlt
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.dataset.lineage import compute_columns_schema
-from dlt.destinations.queries import build_row_counts_expr, build_select_expr, _normalize_query
+from dlt.destinations.queries import build_row_counts_expr, build_select_expr, bind_query
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 
 
@@ -129,10 +129,12 @@ ORDER BY i.id ASC
     )
 
     with duckdb_destination_client.sql_client as sql_client:
-        normalized_query_expr = _normalize_query(
+        normalized_query_expr = bind_query(
             qualified_query=cast(sge.Query, qualified_query_expr),
             sqlglot_schema=sqlglot_schema,
-            sql_client=sql_client,
+            expand_table_name=lambda name: sql_client.make_qualified_table_name_path(
+                name, quote=False, casefold=False
+            ),
             casefold_identifier=sql_client.capabilities.casefold_identifier,
         )
         normalized_query = normalized_query_expr.sql()
