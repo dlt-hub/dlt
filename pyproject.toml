@@ -174,7 +174,7 @@ lancedb = [
     "pyarrow>=16.0.0",
     "duckdb>=1.4.3",
     # duckdb >= 1.4.0 doesn't work with ibis < 11.0.0
-    "ibis-framework>=12.0.0"
+    "ibis-framework>=12.0.0 ; python_version >= '3.10'"
 ]
 deltalake = [
     "deltalake>=0.25.1",
