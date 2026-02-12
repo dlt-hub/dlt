@@ -1,17 +1,16 @@
-from typing import Dict, Any, List
+from typing import Any, List
 
-import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.common.destination.capabilities import TCasefoldIdentifier
-from dlt.common.libs.sqlglot import normalize_query_identifiers, bind_query
+from dlt.common.libs.sqlglot import bind_query
 from dlt.destinations.sql_client import SqlClientBase
 
 
 def _normalize_query(
     qualified_query: sge.Query,
-    sqlglot_schema: Any,
+    sqlglot_schema: SQLGlotSchema,
     *,
     sql_client: SqlClientBase[Any],
     casefold_identifier: TCasefoldIdentifier,

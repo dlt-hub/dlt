@@ -1,5 +1,5 @@
 from typing import List, Optional, Set, cast
-
+import importlib
 import pytest
 import sqlglot
 import sqlglot.expressions as sge
@@ -15,6 +15,7 @@ from dlt.common.libs.sqlglot import (
     validate_no_star_select,
     build_outer_select_statement,
     reorder_or_adjust_outer_select,
+    normalize_query_identifiers,
 )
 from dlt.common.schema.typing import TDataType, TColumnType, TTableSchemaColumns
 from dlt.common.schema.exceptions import CannotCoerceNullException
@@ -567,9 +568,6 @@ def test_reorder_or_adjust_outer_select(dialect: TSqlGlotDialect) -> None:
     ],
 )
 def test_normalize_query_identifiers(naming_convention: str) -> None:
-    import importlib
-    from dlt.common.libs.sqlglot import normalize_query_identifiers
-
     # import the naming convention module
     if naming_convention == "snake_case":
         naming_module_path = "dlt.common.normalizers.naming.snake_case"

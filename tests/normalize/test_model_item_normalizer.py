@@ -694,7 +694,9 @@ def test_variant_column_names_preserved(
     )
 
     # Parse the normalized query to check column names
-    parsed_query = cast(sqlglot.expressions.Select, sqlglot.parse_one(normalized_query, read=dialect))
+    parsed_query = cast(
+        sqlglot.expressions.Select, sqlglot.parse_one(normalized_query, read=dialect)
+    )
 
     # Get the aliases from the outer SELECT
     aliases = [select.alias for select in parsed_query.selects]
