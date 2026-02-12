@@ -1,11 +1,12 @@
-from typing import List
+from typing import List, TYPE_CHECKING, Optional
 
 import sqlalchemy as sa
-from alembic.runtime.migration import MigrationContext
-from alembic.operations import Operations
 from sqlalchemy.schema import CreateColumn
 
 from dlt.common import logger
+
+if TYPE_CHECKING:
+    from alembic.operations import Operations
 
 
 class ListBuffer:
@@ -31,7 +32,20 @@ class MigrationMaker:
         self._buf = ListBuffer()
         self.dialect = dialect
 
-        # Try to create MigrationContext, fallback to None if dialect not supported
+        # Try to create MigrationContext, fallback to None if alembic not available or dialect not supported
+        self.ctx = None
+        self.ops: Optional["Operations"] = None
+
+        try:
+            from alembic.runtime.migration import MigrationContext
+            from alembic.operations import Operations
+        except ModuleNotFoundError:
+            logger.warning(
+                f"Alembic not installed, falling back to direct SQL generation for {dialect.name}. "
+                "Install the sqlalchemy extra (dlt[sqlalchemy]) for full ALTER TABLE support."
+            )
+            return
+
         try:
             self.ctx = MigrationContext(
                 dialect,
@@ -45,12 +59,11 @@ class MigrationMaker:
             )
             self.ops = Operations(self.ctx)
         except KeyError:
-            # dialect was not found
+            # dialect is not supported by alembic
             logger.warning(
-                f"Alembic migrations not available for {dialect}, falling back to SQL generation."
+                f"Alembic does not support dialect {dialect.name}, falling back to direct SQL"
+                " generation."
             )
-            self.ctx = None
-            self.ops = None
 
     def add_column(self, table_name: str, column: sa.Column, schema: str) -> None:
         if self.ops:
