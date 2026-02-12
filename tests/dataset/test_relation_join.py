@@ -1,11 +1,115 @@
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Sequence, Union
 
 import pytest
+import sqlglot.expressions as sge
 
 import dlt
 from dlt.common.schema.typing import TTableReference
-from dlt.dataset.relation import _resolve_reference_chain, _to_join_ref
+from dlt.dataset.relation import (
+    _build_join_condition_from_pairs,
+    _resolve_reference_chain,
+    _to_join_ref,
+)
 from tests.dataset.conftest import TLoadsFixture
+
+
+@dataclass(frozen=True)
+class JoinExpectation:
+    kind: str
+    pairs: list[tuple[str, str, str, str]]
+    target_table: str
+
+
+def _resolve_other(dataset: dlt.Dataset, other: Any) -> Any:
+    return other(dataset) if callable(other) else other
+
+
+def _identifier_name(identifier: Union[sge.Expression, str, None]) -> str:
+    if identifier is None:
+        raise AssertionError("Expected identifier")
+    if isinstance(identifier, sge.Identifier):
+        return identifier.name
+    if isinstance(identifier, str):
+        return identifier
+    if hasattr(identifier, "name"):
+        return identifier.name
+    return str(identifier)
+
+
+def _column_ref(column: sge.Column) -> tuple[str, str]:
+    table = _identifier_name(column.args.get("table"))
+    name = _identifier_name(column.args.get("this"))
+    return table, name
+
+
+def _flatten_on_pairs(expr: sge.Expression) -> list[tuple[str, str, str, str]]:
+    pairs: list[tuple[str, str, str, str]] = []
+
+    def _visit(node: sge.Expression) -> None:
+        if isinstance(node, sge.And):
+            _visit(node.this)
+            _visit(node.expression)
+            return
+        if not isinstance(node, sge.EQ):
+            raise AssertionError(f"Unexpected join condition: {node}")
+        left = node.this
+        right = node.expression
+        if not isinstance(left, sge.Column) or not isinstance(right, sge.Column):
+            raise AssertionError(f"Expected column join, got: {node}")
+        left_table, left_col = _column_ref(left)
+        right_table, right_col = _column_ref(right)
+        pairs.append((left_table, left_col, right_table, right_col))
+
+    _visit(expr)
+    return pairs
+
+
+def _magic_other_table(other: Union[str, dlt.Relation]) -> str:
+    if isinstance(other, dlt.Relation):
+        if not other.origin_table_name:
+            raise AssertionError("Expected relation with origin table")
+        return other.origin_table_name
+    return other
+
+
+def _expected_magic_join_plan(
+    schema: dlt.Schema,
+    origin_table: str,
+    other_table: str,
+    joined_aliases: dict[str, str],
+    next_alias_index: int,
+) -> tuple[list[JoinExpectation], dict[str, str], int]:
+    refs = _resolve_reference_chain(schema, origin_table, other_table)
+    alias_map = joined_aliases.copy()
+    base_alias = alias_map[origin_table]
+    start_index = next_alias_index
+    expectations: list[JoinExpectation] = []
+
+    for ref in refs:
+        if ref.target_table in alias_map:
+            base_alias = alias_map[ref.target_table]
+            continue
+        right_alias = f"t{start_index}"
+        pairs = [
+            (base_alias, left_col, right_alias, right_col) for left_col, right_col in ref.on_pairs
+        ]
+        expectations.append(
+            JoinExpectation(
+                kind=ref.direction,
+                pairs=pairs,
+                target_table=ref.target_table,
+            )
+        )
+        alias_map[ref.target_table] = right_alias
+        base_alias = right_alias
+        start_index += 1
+
+    return expectations, alias_map, start_index
+
+
+def _get_joins(rel: dlt.Relation) -> list[sge.Join]:
+    return rel.sqlglot_expression.args.get("joins") or []
 
 
 @pytest.mark.parametrize(
@@ -43,17 +147,33 @@ from tests.dataset.conftest import TLoadsFixture
             "LEFT",
             "'columns' or 'referenced_columns' are empty",
         ),
+        (
+            TTableReference(
+                table="users__orders",
+                referenced_table="users",
+                columns=["user_id", "tenant_id"],
+                referenced_columns=["id"],
+            ),
+            "RIGHT",
+            "'columns' or 'referenced_columns' are empty",
+        ),
     ],
     ids=[
         "missing-table",
         "missing-referenced-table",
         "empty-columns",
         "empty-referenced-columns",
+        "columns-length-mismatch",
     ],
 )
 def test_to_join_ref_rejects_malformed(ref: TTableReference, direction: str, match: str) -> None:
     with pytest.raises(ValueError, match=match):
         _to_join_ref(ref, direction)  # type: ignore[arg-type]
+
+
+def test_build_join_condition_rejects_empty_pairs() -> None:
+    with pytest.raises(ValueError, match="Cannot build join condition from empty column pairs"):
+        _build_join_condition_from_pairs([], left_alias="a", right_alias="b")
 
 
 def test_resolve_reference_chain_rejects_self_join(dataset_with_loads: TLoadsFixture) -> None:
@@ -63,44 +183,52 @@ def test_resolve_reference_chain_rejects_self_join(dataset_with_loads: TLoadsFix
 
 
 @pytest.mark.parametrize(
-    "left,right,expected_len,expected_first_direction",
+    "dataset_with_loads,left,right,expected_directions",
     [
-        ("users__orders", "users", 1, "RIGHT"),
-        ("users", "users__orders", 1, "LEFT"),
+        pytest.param("with_root_key", "users__orders", "users", ["RIGHT"], id="child-to-parent"),
+        pytest.param("with_root_key", "users", "users__orders", ["LEFT"], id="parent-to-child"),
+        pytest.param(
+            "with_root_key",
+            "users__orders__items",
+            "users",
+            ["RIGHT"],
+            id="items-to-root-root-key",
+        ),
+        pytest.param(
+            "without_root_key",
+            "users__orders__items",
+            "users",
+            ["RIGHT", "RIGHT"],
+            id="items-to-root-parent-key",
+        ),
+        pytest.param(
+            "with_root_key",
+            "users",
+            "users__orders__items",
+            ["LEFT"],
+            id="root-to-items-root-key",
+        ),
+        pytest.param(
+            "without_root_key",
+            "users",
+            "users__orders__items",
+            ["LEFT", "LEFT"],
+            id="root-to-items-parent-key",
+        ),
     ],
-    ids=["child-to-parent", "parent-to-child"],
+    indirect=["dataset_with_loads"],
 )
-def test_resolve_reference_chain_direction_and_hops(
+def test_resolve_reference_chain_matrix(
     dataset_with_loads: TLoadsFixture,
     left: str,
     right: str,
-    expected_len: int,
-    expected_first_direction: str,
+    expected_directions: Sequence[str],
 ) -> None:
     dataset, _, _ = dataset_with_loads
     refs = _resolve_reference_chain(dataset.schema, left, right)
 
-    assert len(refs) == expected_len
-    assert refs[0]["direction"] == expected_first_direction
-
-
-@pytest.mark.parametrize(
-    "dataset_with_loads,expected_len",
-    [
-        pytest.param("with_root_key", 1, id="root_key-True"),
-        pytest.param("without_root_key", 2, id="root_key-False"),
-    ],
-    indirect=["dataset_with_loads"],
-)
-def test_resolve_reference_chain_multi_hop(
-    dataset_with_loads: TLoadsFixture,
-    expected_len: int,
-) -> None:
-    dataset, _, _ = dataset_with_loads
-    refs = _resolve_reference_chain(dataset.schema, "users__orders__items", "users")
-
-    assert len(refs) == expected_len
-    assert refs[0]["direction"] == "RIGHT"
+    assert [ref.direction for ref in refs] == list(expected_directions)
+    assert len(refs) == len(expected_directions)
 
 
 def test_resolve_reference_chain_rejects_unrelated_tables(
@@ -138,40 +266,52 @@ def test_origin_table_name_preserved_across_transformations(
     "case_id,build_rel,other,match",
     [
         (
+            "self-join",
+            lambda ds: ds.table("users"),
+            "users",
+            "Cannot join a table to itself",
+        ),
+        (
+            "unrelated-tables",
+            lambda ds: ds.table("users__orders"),
+            "products",
+            "Unable to resolve reference chain",
+        ),
+        (
             "self-not-joinable-select",
             lambda ds: ds.table("users__orders").select("order_id"),
             "users",
-            "join-graph relation",
+            "not a join-graph relation",
         ),
         (
             "self-not-joinable-where",
             lambda ds: ds.table("users__orders").where("order_id", "gt", 0),
             "users",
-            "join-graph relation",
+            "not a join-graph relation",
         ),
         (
             "self-not-joinable-order-by",
             lambda ds: ds.table("users__orders").order_by("order_id"),
             "users",
-            "join-graph relation",
+            "not a join-graph relation",
         ),
         (
             "self-not-joinable-limit",
             lambda ds: ds.table("users__orders").limit(1),
             "users",
-            "join-graph relation",
+            "not a join-graph relation",
         ),
         (
             "self-not-joinable-agg",
             lambda ds: ds.table("users__orders").select("order_id").max(),
             "users",
-            "join-graph relation",
+            "not a join-graph relation",
         ),
         (
             "other-not-joinable",
             lambda ds: ds.table("users__orders"),
             lambda ds: ds.table("users").select("id"),
-            "Cannot ensure joinability of relation",
+            "not a join-graph relation",
         ),
         (
             "invalid-other-type",
@@ -189,12 +329,12 @@ def test_origin_table_name_preserved_across_transformations(
             "query-relation-not-joinable",
             lambda ds: ds.query("SELECT * FROM users"),
             "users__orders",
-            "base or join-graph relation",
+            "no base table",
         ),
     ],
     ids=lambda v: v if isinstance(v, str) else None,
 )
-def test_join_rejection_matrix(
+def test_magic_join_rejection_matrix(
     dataset_with_loads: TLoadsFixture,
     case_id: str,
     build_rel: Any,
@@ -203,59 +343,112 @@ def test_join_rejection_matrix(
 ) -> None:
     dataset, _, _ = dataset_with_loads
     rel = build_rel(dataset)
-    target = other(dataset) if callable(other) else other
+    target = _resolve_other(dataset, other)
 
     with pytest.raises(ValueError, match=match):
         rel.join(target)
 
 
 @pytest.mark.parametrize(
-    "case_id,build_rel,other,expected_origin,min_expected_joins",
+    "dataset_with_loads,case_id,build_rel,other",
     [
-        (
-            "single-hop-by-name",
+        pytest.param(
+            "with_root_key",
+            "child-to-parent",
             lambda ds: ds.table("users__orders"),
             "users",
-            "users__orders",
-            1,
+            id="child-to-parent",
         ),
-        (
-            "single-hop-by-relation",
-            lambda ds: ds.table("users__orders"),
+        pytest.param(
+            "with_root_key",
+            "parent-to-child",
             lambda ds: ds.table("users"),
             "users__orders",
-            1,
+            id="parent-to-child",
         ),
-        (
-            "chained-two-hops",
+        pytest.param(
+            "with_root_key",
+            "multi-hop-to-root",
+            lambda ds: ds.table("users__orders__items"),
+            "users",
+            id="multi-hop-to-root",
+        ),
+        pytest.param(
+            "without_root_key",
+            "multi-hop-to-root-parent-key",
+            lambda ds: ds.table("users__orders__items"),
+            "users",
+            id="multi-hop-to-root-parent-key",
+        ),
+        pytest.param(
+            "with_root_key",
+            "chain-with-existing-join",
             lambda ds: ds.table("users__orders").join("users"),
             "users__orders__items",
-            "users__orders",
-            2,
+            id="chain-with-existing-join",
+        ),
+        pytest.param(
+            "without_root_key",
+            "reuse-joined-alias",
+            lambda ds: ds.table("users__orders__items").join("users__orders"),
+            "users",
+            id="reuse-joined-alias",
+        ),
+        pytest.param(
+            "with_root_key",
+            "joinable-graph-other",
+            lambda ds: ds.table("users__orders__items"),
+            lambda ds: ds.table("users__orders").join("users"),
+            id="joinable-graph-other",
         ),
     ],
-    ids=lambda v: v if isinstance(v, str) else None,
+    indirect=["dataset_with_loads"],
 )
-def test_join_success_matrix(
+def test_magic_join_plan_matrix(
     dataset_with_loads: TLoadsFixture,
     case_id: str,
     build_rel: Any,
     other: Any,
-    expected_origin: str,
-    min_expected_joins: int,
 ) -> None:
     dataset, _, _ = dataset_with_loads
     rel = build_rel(dataset)
-    target = other(dataset) if callable(other) else other
+    target = _resolve_other(dataset, other)
+    existing_joins = _get_joins(rel)
+
+    assert rel.origin_table_name is not None
+    other_table = _magic_other_table(target)
+    initial_aliases = rel._joined_table_aliases or {rel.origin_table_name: "t0"}
+    next_index = (
+        rel._next_join_alias_index
+        if rel._next_join_alias_index is not None
+        else len(initial_aliases)
+    )
+    expected_joins, expected_aliases, expected_next_index = _expected_magic_join_plan(
+        dataset.schema,
+        rel.origin_table_name,
+        other_table,
+        initial_aliases,
+        next_index,
+    )
 
     joined = rel.join(target)
 
-    assert isinstance(joined, dlt.Relation)
-    assert joined.origin_table_name == expected_origin
+    assert joined.origin_table_name == rel.origin_table_name
     assert joined._is_joinable_graph is True
 
-    joins = joined._sqlglot_expression.args.get("joins", [])
-    assert len(joins) >= min_expected_joins
+    actual_joins = _get_joins(joined)
+    new_joins = actual_joins[len(existing_joins) :]
+    assert len(new_joins) == len(expected_joins)
+
+    for actual, expected in zip(new_joins, expected_joins):
+        assert actual.args.get("kind") == expected.kind
+        assert isinstance(actual.this, sge.Table)
+        assert _identifier_name(actual.this.this) == expected.target_table
+        actual_pairs = _flatten_on_pairs(actual.args["on"])
+        assert set(actual_pairs) == set(expected.pairs)
+
+    assert joined._joined_table_aliases == expected_aliases
+    assert joined._next_join_alias_index == expected_next_index
 
 
 def test_join_rejoin_existing_target_is_idempotent(dataset_with_loads: TLoadsFixture) -> None:
@@ -282,7 +475,8 @@ def test_e2e_join_single_hop_row_count(dataset_with_loads: TLoadsFixture) -> Non
     df = rel.df()
 
     assert df is not None
-    assert len(df) == _total_rows(load_stats, "users__orders")
+    # 4 orders, no user has no orders which would create more rows due to child -> parent join
+    assert len(df) == 4
 
 
 @pytest.mark.parametrize(
@@ -309,11 +503,3 @@ def test_e2e_join_chain_row_count(dataset_with_loads: TLoadsFixture) -> None:
 
     assert df is not None
     assert len(df) == _total_rows(load_stats, "users__orders__items")
-
-
-def test_e2e_join_rejects_transformed_relation(dataset_with_loads: TLoadsFixture) -> None:
-    dataset, _, _ = dataset_with_loads
-    transformed = dataset.table("users__orders").select("order_id")
-
-    with pytest.raises(ValueError, match="join-graph relation"):
-        transformed.join("users")
