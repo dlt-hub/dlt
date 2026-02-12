@@ -174,7 +174,7 @@ lancedb = [
     "pyarrow>=16.0.0",
     "duckdb>=1.4.3",
     # duckdb >= 1.4.0 doesn't work with ibis < 11.0.0
-    "ibis-framework>=11.0.0"
+    "ibis-framework>=12.0.0"
 ]
 deltalake = [
     "deltalake>=0.25.1",
@@ -196,7 +196,7 @@ postgis = [
 ]
 workspace = [
     "duckdb>=0.9",
-    "ibis-framework>=10.5.0 ; python_version >= '3.10'",
+    "ibis-framework>=12.0.0 ; python_version >= '3.10'",
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
     "mcp>=1.2.1 ; python_version >= '3.10'",
@@ -289,8 +289,8 @@ pipeline = [
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
 ibis = [
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=10.5.0 ; python_version >= '3.10' and python_version < '3.13'",
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=10.5.0 ; python_version >= '3.13'"
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=12.0.0 ; python_version >= '3.10' and python_version < '3.13'",
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=12.0.0 ; python_version >= '3.13'"
 ]
 streamlit = ["streamlit>=1.40.0,<2 ; python_version >= '3.9' and python_version != '3.9.7' and python_version < '3.14'"]
 dashboard-tests = [
