@@ -61,6 +61,14 @@ def exec_info_names() -> List[TExecInfoNames]:
         names.append("gcp_cloud_function")
     if is_streamlit():
         names.append("streamlit")
+    if is_claude_code():
+        names.append("claude_code")
+    if is_claude_code_cli():
+        names.append("claude_code_cli")
+    if is_cursor():
+        names.append("cursor")
+    if is_codex():
+        names.append("codex")
     return names
 
 
@@ -74,6 +82,47 @@ def is_github_actions() -> bool:
 
 def is_streamlit() -> bool:
     return "STREAMLIT_SERVER_PORT" in os.environ
+
+
+def is_claude_code() -> bool:
+    """Return True if running under Claude Code (CLI or API).
+
+    Detects CLAUDECODE environment variable set by Claude Code.
+    https://code.claude.com/docs/en/settings
+    """
+    return os.environ.get("CLAUDECODE") == "1"
+
+
+def is_claude_code_cli() -> bool:
+    """Return True if running under Claude Code CLI specifically.
+
+    Detects CLAUDECODE=1 and CLAUDE_CODE_ENTRYPOINT=cli environment variables.
+    Note: Both claude_code and claude_code_cli will be present when running via CLI.
+    https://code.claude.com/docs/en/settings
+    """
+    return os.environ.get("CLAUDECODE") == "1" and os.environ.get("CLAUDE_CODE_ENTRYPOINT") == "cli"
+
+
+def is_cursor() -> bool:
+    """Return True if running in Cursor IDE Agent.
+
+    Detects CURSOR_AGENT environment variable set when Cursor Agent is running.
+    https://cursor.com/docs/agent/terminal
+    """
+    return os.environ.get("CURSOR_AGENT") is not None
+
+
+def is_codex() -> bool:
+    """Return True if running in OpenAI Codex.
+
+    Detects CODEX_CI, CODEX_THREAD_ID, or CODEX_SANDBOX environment variables.
+    https://developers.openai.com/codex/cli/features/
+    """
+    return (
+        os.environ.get("CODEX_CI") == "1"
+        or os.environ.get("CODEX_THREAD_ID") is not None
+        or os.environ.get("CODEX_SANDBOX") is not None
+    )
 
 
 def is_notebook() -> bool:
