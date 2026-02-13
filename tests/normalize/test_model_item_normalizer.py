@@ -701,9 +701,7 @@ def test_variant_column_names_preserved(
     # Get the aliases from the outer SELECT
     aliases = [select.alias for select in parsed_query.selects]
 
-    # Verify that variant column names are preserved (double underscores intact)
-    # BUG: Currently this will FAIL because _normalize_casefold uses normalize_identifier
-    # which collapses __ to _, turning value__v_double into value_v_double
+    # verify that variant column names are preserved (double underscores intact)
     assert (
         "value__v_double" in aliases
     ), f"Variant column 'value__v_double' was not preserved. Got aliases: {aliases}"

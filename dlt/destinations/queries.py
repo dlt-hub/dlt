@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Any, List
 
 import sqlglot.expressions as sge
@@ -22,8 +23,8 @@ def _normalize_query(
     return bind_query(
         qualified_query,
         sqlglot_schema,
-        expand_table_name=lambda name: sql_client.make_qualified_table_name_path(
-            name, quote=False, casefold=False
+        expand_table_name=partial(
+            sql_client.make_qualified_table_name_path, quote=False, casefold=False
         ),
         casefold_identifier=casefold_identifier,
     )

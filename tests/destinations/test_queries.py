@@ -1,3 +1,4 @@
+from functools import partial
 from typing import cast
 
 import duckdb
@@ -132,8 +133,8 @@ ORDER BY i.id ASC
         normalized_query_expr = bind_query(
             qualified_query=cast(sge.Query, qualified_query_expr),
             sqlglot_schema=sqlglot_schema,
-            expand_table_name=lambda name: sql_client.make_qualified_table_name_path(
-                name, quote=False, casefold=False
+            expand_table_name=partial(
+                sql_client.make_qualified_table_name_path, quote=False, casefold=False
             ),
             casefold_identifier=sql_client.capabilities.casefold_identifier,
         )

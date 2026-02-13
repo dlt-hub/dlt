@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections.abc import Collection
 
+from functools import partial
 from typing import overload, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING
 from textwrap import indent
 from contextlib import contextmanager
@@ -248,8 +249,10 @@ class Relation(WithSqlClient):
             query = bind_query(
                 qualified_query=_qualified_query,
                 sqlglot_schema=self._dataset.sqlglot_schema,
-                expand_table_name=lambda name: self.sql_client.make_qualified_table_name_path(
-                    name, quote=False, casefold=False
+                expand_table_name=partial(
+                    self.sql_client.make_qualified_table_name_path,
+                    quote=False,
+                    casefold=False,
                 ),
                 casefold_identifier=self.sql_client.capabilities.casefold_identifier,
             )
