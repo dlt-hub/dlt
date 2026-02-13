@@ -848,20 +848,6 @@ def build_outer_select_statement(
     return outer_select, needs_reordering
 
 
-def create_outer_select_identifier_normalizer(
-    naming_convention: Any,  # NamingConvention instance
-    casefold_identifier: Callable[[str], str],
-) -> Callable[[str], str]:
-    """Create a normalization function for outer SELECT identifiers."""
-
-    def _normalizer(identifier: str) -> str:
-        # use normalize_path() to preserve __ separators in already-normalized names
-        normalized = naming_convention.normalize_path(identifier)
-        return casefold_identifier(normalized)
-
-    return _normalizer
-
-
 def reorder_or_adjust_outer_select(
     outer_parsed_select: sge.Select,
     columns: TTableSchemaColumns,
@@ -940,7 +926,12 @@ def normalize_query_identifiers(
             if isinstance(node.parent, sge.Table):
                 continue
 
-            normalized = naming_convention.normalize_path(node.this)
+            # table qualifiers in column references must use normalize_tables_path
+            # to stay consistent with table names in FROM/JOIN
+            if isinstance(node.parent, sge.Column) and node.arg_key == "table":
+                normalized = naming_convention.normalize_tables_path(node.this)
+            else:
+                normalized = naming_convention.normalize_path(node.this)
             if node.this != normalized:
                 node.set("this", normalized)
 

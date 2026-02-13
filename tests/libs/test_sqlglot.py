@@ -17,6 +17,7 @@ from dlt.common.libs.sqlglot import (
     reorder_or_adjust_outer_select,
     normalize_query_identifiers,
 )
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNaming
 from dlt.common.schema.typing import TDataType, TColumnType, TTableSchemaColumns
 from dlt.common.schema.exceptions import CannotCoerceNullException
 
@@ -629,3 +630,37 @@ def test_normalize_query_identifiers(naming_convention: str) -> None:
     assert expected_col_alias_with_path in normalized_sql
     assert expected_variant_alias in normalized_sql
     assert expected_table_alias_with_path in normalized_sql
+
+
+def test_normalize_query_identifiers_table_qualified_columns() -> None:
+    """Table qualifiers in column references must use normalize_tables_path,
+    consistent with the FROM clause table name normalization."""
+
+    class _TablePrefixNaming(SnakeCaseNaming):
+        """Naming convention where normalize_table_identifier diverges from
+        normalize_identifier — table names get a 'tbl_' prefix."""
+
+        def normalize_table_identifier(self, identifier: str) -> str:
+            return "tbl_" + super().normalize_table_identifier(identifier)
+
+    naming = _TablePrefixNaming()
+
+    query = cast(
+        sge.Query,
+        sqlglot.parse_one(
+            "SELECT MyTable.my_col, MyTable.other_col FROM MyTable WHERE MyTable.id > 10"
+        ),
+    )
+
+    normalized = normalize_query_identifiers(query, naming)
+    normalized_sql = normalized.sql()
+
+    # table name in FROM and table qualifiers in column references must both
+    # go through normalize_tables_path → "tbl_my_table"
+    expected_table = naming.normalize_tables_path("MyTable")
+    assert expected_table == "tbl_my_table"
+
+    assert f"FROM {expected_table}" in normalized_sql
+    assert f"{expected_table}.my_col" in normalized_sql
+    assert f"{expected_table}.other_col" in normalized_sql
+    assert f"{expected_table}.id" in normalized_sql
