@@ -144,8 +144,12 @@ class pipeline_drop:
         try:
             self.pipeline.load()
         except Exception:
-            # Clear extracted state on failure so command can run again
-            self.pipeline.drop_pending_packages()
+            # Abort all pending packages so command can run again
+            self.pipeline.abort_packages()
+            try:
+                self.pipeline.load()  # Process the abort
+            except Exception:
+                pass  # Abort flag is set, will be processed on next load
             with self.pipeline.managed_state() as state:
                 force_state_extract(state)
             # Restore original schema file so all tables are known on next run
@@ -209,15 +213,7 @@ class pipeline_abort:
             load_ids: Specific load package IDs to abort. If empty, all normalized packages are aborted.
         """
         self.pipeline = pipeline
-        load_storage = pipeline._get_load_storage()
-        normalize_storage = pipeline._get_normalize_storage()
-
-        # Use prepare_abort_packages to collect info
-        result = prepare_abort_packages(
-            load_storage,
-            normalize_storage,
-            load_ids=list(load_ids) if load_ids else None,
-        )
+        result = pipeline.abort_packages(load_ids, dry_run=True)
         self.info = result.info
         self.load_ids = list(result.info["packages_to_abort"].keys())
 
@@ -226,24 +222,8 @@ class pipeline_abort:
         return not self.load_ids
 
     def __call__(self) -> LoadInfo:
-        load_storage = self.pipeline._get_load_storage()
-        normalize_storage = self.pipeline._get_normalize_storage()
-
-        # Delete extracted packages
-        for load_id in self.info["extracted_packages_to_delete"]:
-            normalize_storage.extracted_packages.delete_package(load_id)
-
-        # Delete other normalized packages (not being aborted)
-        for load_id in self.info["packages_to_delete"]:
-            load_storage.normalized_packages.delete_package(load_id)
-
-        # Set abort flag on packages to abort
-        for load_id in self.load_ids:
-            load_storage.normalized_packages.set_abort_flag(load_id)
-
+        self.pipeline.abort_packages(self.load_ids)
         load_info = self.pipeline.load()
-
         self.pipeline.drop()
         self.pipeline.sync_destination()
-
         return load_info

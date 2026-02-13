@@ -144,6 +144,7 @@ from dlt.pipeline.state_sync import (
     state_resource,
     default_pipeline_state,
 )
+from dlt.pipeline.abort import prepare_abort_packages, _AbortDryRunResult
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import prepare_refresh_source
 
@@ -1049,6 +1050,28 @@ class Pipeline(SupportsPipeline):
         normalize_storage = self._get_normalize_storage()
         for load_id in normalize_storage.extracted_packages.list_packages():
             normalize_storage.extracted_packages.delete_package(load_id)
+
+    def abort_packages(
+        self, load_ids: Sequence[str] = None, dry_run: bool = False
+    ) -> _AbortDryRunResult:
+        load_storage = self._get_load_storage()
+        normalize_storage = self._get_normalize_storage()
+
+        result = prepare_abort_packages(
+            load_storage,
+            normalize_storage,
+            load_ids=list(load_ids) if load_ids else None,
+        )
+
+        if not dry_run:
+            for lid in result.info["extracted_packages_to_delete"]:
+                normalize_storage.extracted_packages.delete_package(lid)
+            for lid in result.info["packages_to_delete"]:
+                load_storage.normalized_packages.delete_package(lid)
+            for lid in result.info["packages_to_abort"]:
+                load_storage.normalized_packages.set_abort_flag(lid)
+
+        return result
 
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None) -> TSchemaTables:
