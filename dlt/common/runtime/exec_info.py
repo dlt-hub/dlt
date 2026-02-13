@@ -109,7 +109,7 @@ def is_cursor() -> bool:
     Detects CURSOR_AGENT environment variable set when Cursor Agent is running.
     https://cursor.com/docs/agent/terminal
     """
-    return os.environ.get("CURSOR_AGENT") is not None
+    return os.environ.get("CURSOR_AGENT") == "1"
 
 
 def is_codex() -> bool:
