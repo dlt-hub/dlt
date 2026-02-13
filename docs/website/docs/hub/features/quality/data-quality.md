@@ -8,16 +8,166 @@ keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 🚧 This feature is under development. Interested in becoming an early tester? [Join dltHub early access](https://info.dlthub.com/waiting-list).
 :::
 
-dltHub will allow you to define data validation rules in Python. This ensures your data meets expected quality standards at the ingestion step.
+dltHub data quality features include metrics for monitoring dataset properties over time, and checks to validate them against expectations. Metrics are quantitative measures (e.g., max value, row count, distinct value count) and checks are rules with pass / fail outcomes (e.g., "does column `order_id` contain unique values?"). Together, they offer visibility and allow to catch data issues early
 
-## Key features
-With dltHub, you will be able to:
+Metrics and checks are defined via Python code. The extensive configuration allows you to specify what to monitor and validate, when, how, and where to store results.
 
-* Define data tests and quality contracts in Python.
-* Apply both row-level and batch-level validation.
-* Enforce constraints on distributions, boundaries, and expected values.
 
-Stay tuned for updates as we expand these capabilities! 🚀
+## Metrics
+
+A **data quality metric** or **metric** a function applied to data that returns a scalar value describing a property of the data. A metric can take as input a column, a table, or the full dataset (i.e., all tables and historical metrics).
+
+### Available metrics
+
+Here's the list of built-in metrics:
+
+```python
+from dlt.hub import data_quality as dq
+
+# column-level
+dq.metrics.column.maximum("col")
+dq.metrics.column.minimum("col")
+dq.metrics.column.mean("col")
+dq.metrics.column.median("col")
+dq.metrics.column.mode("col")
+dq.metrics.column.sum("col")
+dq.metrics.column.standard_deviation("col")
+dq.metrics.column.quantile("col", quantile=0.95)
+dq.metrics.column.null_count("col")
+dq.metrics.column.null_rate("col")
+dq.metrics.column.unique_count("col")
+dq.metrics.column.average_length("col")
+dq.metrics.column.minimum_length("col")
+dq.metrics.column.maximum_length("col")
+
+# table-level
+dq.metrics.table.row_count()  # Number of rows in table
+dq.metrics.table.unique_count()  # Number of distinct / unique rows in table
+dq.metrics.table.null_row_count()  # Number of rows where all columns are null
+
+# dataset-level
+dq.metrics.dataset.total_row_count()  # Total number of rows
+dq.metrics.dataset.load_row_count()  # Rows added in latest load
+dq.metrics.dataset.latest_loaded_at()  # Timestamp of most recent load
+```
+
+:::note
+If you have built-in metrics requests, let us know. Custom metrics are planned.
+:::
+
+### Define metrics
+#### Static
+
+You can define metrics along your `@dlt.resource` via the new decorato `@with_metrics`. It is available under the `dlt.hub.data_quality` module, commonly imported as `dq`. Inside the decorator, you can set the individual metrics available through `dq.metrics.column.`, `dq.metrics.table.`, or `dq.metrics.dataset.`.
+
+The next snippet defines 3 metrics on the `customers` resource: the mean of the `amount` column, the number of null values in the `email` column, and the total number of rows in the table. 
+
+:::note
+Only column-level and table-level metrics can be defined on a `@dlt.resource`. To set dataset-level metrics, use `@with_metrics` on the `@dlt.source`.
+:::
+
+
+```python
+import dlt
+from dlt.hub import data_quality as dq
+
+@dq.with_metrics(
+    dq.metrics.column.mean("amount"),
+    dq.metrics.column.null_count("email"),
+    dq.metrics.table.row_count()
+)
+@dlt.resource
+def customers():
+    yield data
+```
+
+The next snippet shows how to add dataset-level metrics to a source. The `total_row_count` is added on the `crm` source.
+
+```python
+import dlt
+from dlt.hub import data_quality as dq
+
+@dq.with_metrics(
+    dq.metrics.column.mean("amount"),
+    dq.metrics.column.null_count("email"),
+    dq.metrics.table.row_count()
+)
+@dlt.resource
+def customers():
+    yield data
+
+
+@dq.with_metrics(
+    dq.metrics.dataset.total_row_count()
+)
+@dlt.source
+def crm():
+    return [customers]
+```
+
+#### Dynamic
+
+Similar to the static approach, you can add metrics to an instantiated resource or source object using `with_metrics`. This is particularly useful when using built-in sources and resources like `filesystem`, `rest_api` or `sql_database`.
+
+```python
+import dlt
+from dlt.hub import data_quality as dq
+
+@dlt.resource
+def customers():
+    yield data
+
+# later
+customers = dq.with_metrics(
+    customers,
+    dq.metrics.column.mean("amount"),
+    dq.metrics.column.null_count("email"),
+    dq.metrics.table.row_count()
+)
+```
+
+### Compute metrics
+
+After loading data, compute metrics by running the special data quality metrics source:
+
+```python
+pipeline = dlt.pipeline("my_pipeline", destination=dlt.destinations.duckdb())
+pipeline.run(customers())
+dq.run_metrics(pipeline)
+```
+
+This executes all metrics defined on your resources and stores results in the `_dlt_dq_metrics` table.
+
+### Read metrics
+
+The convenience function `dq.read_metric()` allows you to retrieve stored metrics with some metadata. This makes it easy to build reporting, dashboard, or analytics over this data.
+
+The function produces a `dlt.Relation` which can be converted to a list, pandas dataframe, arrow table, etc.
+
+```python
+dataset = pipeline.dataset()
+# column-level `mean` as pandas.DataFrame
+dq.read_metric(
+    dataset, 
+    table="customers", 
+    column="amount", 
+    metric="mean"
+).df()
+
+# table-level `row_count` as list of tuples
+dq.read_metric(
+    dataset, 
+    table="customers", 
+    metric="row_count"
+).fetchall()
+
+# dataset-level `total_row_count` as pyarrow.Table
+dq.read_metric(
+    dataset, 
+    metric="total_row_count"
+).arrow()
+```
+
 
 ## Checks
 A **data quality check** or **check** is a function applied to data that returns a **check result** or **result** (can be boolean, integer, float, etc.). The result that is converted to a success / fail **check outcome** or **outcome** (boolean) based on a **decision**.
@@ -82,7 +232,7 @@ Notes:
 - Should have testing utilities that makes it easy to unit test checks (same utilities as transformations)
 
 
-### Lifecycle
+## Data quality lifecycle
 Data quality checks can be executed at different stages of the pipeline lifecycle. This choice has several impacts, including:
 - the **input data** available for the check
 - the compute resources used
