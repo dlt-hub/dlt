@@ -6,7 +6,7 @@
     "start": "cd .. && make preprocess-docs && concurrently --kill-others \"make preprocess-docs-watch \" \"cd website && docusaurus start\"",
     "build": "uv run npm run update-versions && cd .. && make preprocess-docs && cd website && docusaurus build --out-dir build/docs",
     "clear": "docusaurus clear",
-    "serve": "docusaurus serve",
+    "serve": "docusaurus serve --dir build/docs",
     "clear-versions": "node tools/clear_versions.js",
     "update-versions": "node tools/update_versions.js",
     "build:cloudflare": "npm run build",
