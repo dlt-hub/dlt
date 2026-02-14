@@ -101,9 +101,10 @@ def self_signed_cert() -> Iterator[str]:
         cert_file.write(cert.public_bytes(serialization.Encoding.PEM))
         cert_path = cert_file.name
 
-    yield cert_path
-
-    os.remove(cert_path)
+    try:
+        yield cert_path
+    finally:
+        os.remove(cert_path)
 
 
 @pytest.fixture

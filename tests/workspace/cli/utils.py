@@ -23,8 +23,10 @@ WORKSPACE_CLI_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cl
 def auto_echo_default_choice() -> Iterator[None]:
     """Always answer default in CLI interactions"""
     echo.ALWAYS_CHOOSE_DEFAULT = True
-    yield
-    echo.ALWAYS_CHOOSE_DEFAULT = False
+    try:
+        yield
+    finally:
+        echo.ALWAYS_CHOOSE_DEFAULT = False
 
 
 @pytest.fixture(scope="session")
