@@ -40,6 +40,7 @@ from dlt.common.schema.typing import (
     TTableSchema,
 )
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
+from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.destination.client import FollowupJobRequest, SupportsStagingDestination, LoadJob
 from dlt.destinations.sql_jobs import (
     SqlStagingCopyFollowupJob,
@@ -246,16 +247,30 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
         self.type_mapper = self.capabilities.get_type_mapper()
+        self.allow_merge_to_append_fallback = True
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
-        # only truncate tables in iceberg mode
-        truncate_tables = []
-        super().initialize_storage(truncate_tables)
+        # truncate only iceberg tables via SQL (DELETE FROM ... WHERE 1=1)
+        # non-iceberg (HIVE external) tables have data on staging filesystem
+        if truncate_tables:
+            truncate_tables = [
+                t
+                for t in truncate_tables
+                if self._is_iceberg_table(self.prepare_load_table(t), self.in_staging_dataset_mode)
+            ]
+        super().initialize_storage(truncate_tables or None)
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         load_table = super().prepare_load_table(table_name)
         if self._is_s3_table():
             load_table["table_format"] = "iceberg"
+        if load_table["write_disposition"] == "merge":
+            merge_strategy = resolve_merge_strategy(
+                self.schema.tables, load_table, self.capabilities
+            )
+            if merge_strategy is None:
+                logger.warning(f"Falling back to `append` on `{table_name}`.")
+                load_table["write_disposition"] = "append"
         return load_table
 
     def _from_db_type(
@@ -306,7 +321,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             manager.process_lf_tags_database()
         except Exception as e:
             logger.error(f"Failed to manage lakeformation tags: {e}")
-            raise e
+            raise
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool

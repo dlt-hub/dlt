@@ -1,12 +1,13 @@
-from typing import Optional, Union, Set, Any, Iterable, Literal
-
-from dlt.common.utils import without_none
-from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema.typing import TColumnType, TDataType, TColumnSchema
-
+from typing import Callable, Dict, List, Optional, Tuple, Union, Set, Any, Iterable, Literal
+import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.expressions import DataType, DATA_TYPE
 from sqlglot.optimizer.scope import build_scope
+
+from dlt.common.utils import without_none
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.schema.typing import TColumnType, TDataType, TColumnSchema, TTableSchemaColumns
+from dlt.common.schema.exceptions import CannotCoerceNullException
 
 
 TSqlGlotDialect = Literal[
@@ -633,3 +634,389 @@ def build_typed_literal(
         return sge.Tuple(expressions=[_literal(v) for v in value])
     else:
         return _literal(value)
+
+
+DLT_SUBQUERY_NAME = "_dlt_subquery"
+
+
+class SqlModel:
+    """A SqlModel is a named tuple that contains a query and a dialect.
+    It is used to represent a SQL query and the dialect to use for parsing it.
+    """
+
+    __slots__ = ("_query", "_dialect")
+
+    def __init__(self, query: str, dialect: Optional[str] = None) -> None:
+        self._query = query
+        self._dialect = dialect
+
+    def to_sql(self) -> str:
+        return self._query
+
+    @property
+    def query_dialect(self) -> str:
+        return self._dialect
+
+    @classmethod
+    def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
+        """Creates a SqlModel from a raw SQL query string using sqlglot.
+        Ensures that the parsed query is an instance of sqlglot.exp.Select.
+
+        Args:
+            query: The raw SQL query string.
+            dialect: The SQL dialect to use for parsing.
+
+        Returns:
+            An instance of SqlModel with the normalized query and dialect.
+
+        Raises:
+            ValueError: If the parsed query is not an instance of sqlglot.exp.Select.
+        """
+        parsed_query = sqlglot.parse_one(query, read=dialect)
+
+        if not isinstance(parsed_query, sge.Select):
+            raise ValueError("Only SELECT statements are allowed to create a `SqlModel`.")
+
+        normalized_query = parsed_query.sql(dialect=dialect)
+        return cls(query=normalized_query, dialect=dialect)
+
+
+def uuid_expr_for_dialect(dialect: TSqlGlotDialect, load_id: str) -> sge.Expression:
+    """Generates a UUID expression based on the specified dialect.
+
+    Args:
+        dialect: The SQL dialect for which the UUID expression needs to be generated.
+        load_id: The load ID used for deterministic UUID generation (redshift).
+
+    Returns:
+        A SQL expression that generates a UUID for the specified dialect.
+    """
+    # NOTE: redshift and sqlite don't have an in-built uuid function
+    if dialect == "redshift":
+        row_num = sge.Window(
+            this=sge.Anonymous(this="row_number"),
+            partition_by=None,
+            order=None,
+        )
+        concat_expr = sge.func(
+            "CONCAT",
+            sge.Literal.string(load_id),
+            sge.Literal.string("-"),
+            row_num,
+        )
+        return sge.func("MD5", concat_expr)
+    elif dialect == "sqlite":
+        return sge.func(
+            "lower",
+            sge.func("hex", sge.func("randomblob", sge.Literal.number(16))),
+        )
+    elif dialect == "clickhouse":
+        return sge.func("generateUUIDv4")
+    # NOTE: UUID in Athena creates a native UUID data type
+    # which needs to be typecasted
+    elif dialect == "athena":
+        return sge.Cast(this=sge.func("UUID"), to=sge.DataType.build("VARCHAR"))
+    else:
+        return sge.func("UUID")
+
+
+def get_select_column_names(
+    selects: List[sge.Expression],
+    dialect: Optional[TSqlGlotDialect] = None,
+) -> List[str]:
+    """Extract output column names from a SELECT clause's expression list.
+
+    Handles Alias (returns alias), Column and Dot (returns output_name with
+    fallback to name — needed for BigQuery quoted identifiers that parse as Dot).
+    Raises ValueError for star expressions or unsupported expression types.
+
+    Args:
+        selects: The ``.selects`` list from a parsed SELECT statement.
+        dialect: SQL dialect used only for error message formatting.
+
+    Returns:
+        Column output names in SELECT order.
+    """
+    names: List[str] = []
+    for select in selects:
+        if isinstance(select, sge.Star):
+            raise ValueError(
+                "Star expressions are not supported."
+                " Please rewrite the query to explicitly specify columns."
+            )
+        if isinstance(select, sge.Alias):
+            names.append(select.alias)
+        elif isinstance(select, sge.Column) or isinstance(select, sge.Dot):
+            if isinstance(select.this, sge.Star):
+                raise ValueError(
+                    "Star expressions are not supported."
+                    " Please rewrite the query to explicitly specify columns."
+                )
+            name = select.output_name or select.name
+            names.append(name)
+        else:
+            sql_text = select.sql(dialect) if dialect else str(select)
+            raise ValueError(
+                "\n\nUnsupported SELECT expression in the model query:\n\n"
+                f"  {sql_text}\n\nOnly simple column selections like `column`"
+                " or `column AS alias` are currently supported.\n"
+            )
+    return names
+
+
+def filter_select_column_names(
+    selects: List[sge.Expression],
+    discard_columns: Set[str],
+    normalize_fn: Callable[[str], str],
+    dialect: Optional[TSqlGlotDialect] = None,
+) -> List[str]:
+    """Return SELECT column names excluding those whose normalized form is in discard_columns.
+
+    Preserves original SELECT order.
+
+    Args:
+        selects: The ``.selects`` list from a parsed SELECT statement.
+        discard_columns: Set of normalized column names to exclude.
+        normalize_fn: Callable that normalizes a column name (e.g. casefold).
+        dialect: SQL dialect used only for error message formatting.
+
+    Returns:
+        Remaining column names in their original SELECT order.
+    """
+    all_names = get_select_column_names(selects, dialect)
+    return [name for name in all_names if normalize_fn(name) not in discard_columns]
+
+
+def validate_no_star_select(parsed_select: sge.Select, dialect: TSqlGlotDialect) -> None:
+    """Raises ValueError if the SELECT statement contains a star expression.
+
+    Args:
+        parsed_select: The parsed SELECT statement.
+        dialect: The SQL dialect (used for error message formatting).
+    """
+    if any(
+        isinstance(expr, sge.Star)
+        or (isinstance(expr, sge.Column) and isinstance(expr.this, sge.Star))
+        for expr in parsed_select.selects
+    ):
+        raise ValueError(
+            "\n\nA `SELECT *` was detected in the model query:\n\n"
+            f"{parsed_select.sql(dialect)}\n\n"
+            "Model queries using a star (`*`) expression cannot be normalized. "
+            "Please rewrite the query to explicitly specify the columns to be selected.\n"
+        )
+
+
+def build_outer_select_statement(
+    select_dialect: TSqlGlotDialect,
+    parsed_select: sge.Select,
+    columns: TTableSchemaColumns,
+    normalize_casefold_fn: Callable[[str], str],
+) -> Tuple[sge.Select, bool]:
+    """Wraps the parsed SELECT in a subquery and builds an outer SELECT statement.
+
+    Args:
+        select_dialect: The SQL dialect to use for parsing and formatting.
+        parsed_select: The parsed SELECT statement.
+        columns: The schema columns to match.
+        normalize_casefold_fn: A callable that normalizes and casefolds an identifier.
+
+    Returns:
+        Tuple of the outer SELECT statement and a flag indicating if reordering is needed.
+    """
+    subquery = parsed_select.subquery(alias=DLT_SUBQUERY_NAME)
+
+    column_names = get_select_column_names(parsed_select.selects, select_dialect)
+
+    selected_columns: List[str] = []
+    outer_selects: List[sge.Expression] = []
+    for name in column_names:
+        norm_casefolded = normalize_casefold_fn(name)
+        selected_columns.append(norm_casefolded)
+
+        column_ref = sge.Dot(
+            this=sqlglot.to_identifier(DLT_SUBQUERY_NAME),
+            expression=sqlglot.to_identifier(name, quoted=True),
+        )
+
+        outer_selects.append(column_ref.as_(norm_casefolded, quoted=True))
+
+    needs_reordering = selected_columns != list(columns.keys())
+
+    outer_select = sqlglot.select(*outer_selects).from_(subquery)
+
+    return outer_select, needs_reordering
+
+
+def reorder_or_adjust_outer_select(
+    outer_parsed_select: sge.Select,
+    columns: TTableSchemaColumns,
+    normalize_casefold_fn: Callable[[str], str],
+    schema_name: str,
+    table_name: str,
+) -> None:
+    """Reorders or adjusts the SELECT statement to match the schema.
+
+    Adds missing columns as NULL and removes extra columns not in the schema.
+
+    Args:
+        outer_parsed_select: The parsed outer SELECT statement.
+        columns: The schema columns to match.
+        normalize_casefold_fn: A callable that normalizes and casefolds an identifier.
+        schema_name: The schema name (used for error messages).
+        table_name: The table name (used for error messages).
+    """
+    alias_map = {expr.alias.lower(): expr for expr in outer_parsed_select.selects}
+
+    new_selects: List[sge.Expression] = []
+    for col in columns:
+        lower_col = col.lower()
+        expr = alias_map.get(lower_col)
+        if expr:
+            new_selects.append(expr)
+        else:
+            if columns[col]["nullable"]:
+                new_selects.append(
+                    sge.Alias(
+                        this=sge.Null(),
+                        alias=sqlglot.to_identifier(normalize_casefold_fn(col), quoted=True),
+                    )
+                )
+            else:
+                exc = CannotCoerceNullException(schema_name, table_name, col)
+                exc.args = (
+                    exc.args[0]
+                    + " — column is missing from the SELECT clause but is non-nullable and must"
+                    " be explicitly selected",
+                )
+                raise exc
+
+    outer_parsed_select.set("expressions", new_selects)
+
+
+def normalize_query_identifiers(
+    query: sge.Query,
+    naming_convention: Any,
+) -> sge.Query:
+    """Normalize all logical identifiers in a query to match the naming convention.
+
+    Normalizes table names, column names, and aliases. Does not modify database
+    or catalog names. Call before bind_query to ensure identifiers match the
+    dlt schema naming.
+
+    Args:
+        query: Query with logical (possibly unnormalized) identifiers
+        naming_convention: Naming convention to apply
+
+    Returns:
+        Query with all identifiers normalized
+    """
+    query = query.copy()
+
+    for node in query.walk():
+        # normalize table names
+        if isinstance(node, sge.Table):
+            normalized = naming_convention.normalize_tables_path(node.name)
+            if node.name != normalized:
+                node.this.set("this", normalized)
+
+        # normalize column and other identifiers (but not table/db/catalog)
+        elif isinstance(node, sge.Identifier):
+            # skip identifiers that are part of Table nodes (table/db/catalog names)
+            if isinstance(node.parent, sge.Table):
+                continue
+
+            # table qualifiers in column references must use normalize_tables_path
+            # to stay consistent with table names in FROM/JOIN
+            if isinstance(node.parent, sge.Column) and node.arg_key == "table":
+                normalized = naming_convention.normalize_tables_path(node.this)
+            else:
+                normalized = naming_convention.normalize_path(node.this)
+            if node.this != normalized:
+                node.set("this", normalized)
+
+        # normalize aliases
+        elif isinstance(node, sge.Alias) and node.alias:
+            normalized = naming_convention.normalize_path(node.alias)
+            if node.alias != normalized:
+                node.set("alias", sqlglot.to_identifier(normalized, quoted=False))
+
+    return query
+
+
+def bind_query(
+    qualified_query: sge.Query,
+    sqlglot_schema: Any,  # SQLGlotSchema
+    *,
+    expand_table_name: Callable[[str], List[str]],
+    casefold_identifier: Callable[[str], str],
+) -> sge.Query:
+    """Binds a logical query (compliant with dlt schema) to physical tables in the destination dataset.
+
+    This function performs name resolution/binding - a standard query processing step that maps
+    logical identifiers to actual database objects. It takes a query using dlt's logical naming
+    convention and adapts it for execution on the destination database.
+    Note that outer select list after binding preserve select list in `qualified_query`.
+
+    Binding steps performed:
+    1. **Table name expansion**: Resolves table references to fully qualified physical paths
+       (e.g., for ClickHouse: `dataset.table` → `dataset___table`)
+    2. **Identifier case-folding**: Applies destination-specific case transformation
+       (`str.upper` for Snowflake, `str.lower` for most databases, `str` for case-sensitive)
+    3. **Identifier quoting**: Quotes all identifiers for safe execution and to preserve
+       exact casing (e.g., `column_name` → `"column_name"`)
+    4. **Alias preservation**: For case-folding destinations, adds aliases to SELECT columns
+       to maintain compatibility with dlt schema naming (e.g., `SELECT "VALUE" AS "value"`)
+
+    Args:
+        qualified_query: SQLGlot query expression with qualified table/column references
+        sqlglot_schema: Schema mapping for name validation and column resolution
+        expand_table_name: Function that expands table name to fully qualified path [catalog, schema, table]
+        casefold_identifier: Case transformation function (`str`, `str.upper`, or `str.lower`)
+
+    Returns:
+        Bound query expression ready for execution on the destination database
+    """
+    qualified_query = qualified_query.copy()
+    is_casefolding = casefold_identifier is not str
+
+    # preserve "column" names in original selects which are done in dlt schema namespace
+    orig_selects: Dict[int, str] = None
+    if is_casefolding:
+        orig_selects = {}
+        for i, proj in enumerate(qualified_query.selects):
+            orig_selects[i] = proj.name or proj.args["alias"].name
+
+    # case fold all identifiers and quote
+    for node in qualified_query.walk():
+        if isinstance(node, sge.Table):
+            # expand named of known tables. this is currently clickhouse things where
+            # we use dataset.table in queries but render those as dataset___table
+            if sqlglot_schema.column_names(node):
+                expanded_path = expand_table_name(node.name)
+                # set the table name
+                if node.name != expanded_path[-1]:
+                    node.this.set("this", expanded_path[-1])
+                # set the dataset/schema name
+                if node.db != expanded_path[-2]:
+                    node.set("db", sqlglot.to_identifier(expanded_path[-2], quoted=False))
+                # set the catalog name
+                if len(expanded_path) == 3:
+                    if node.db != expanded_path[0]:
+                        node.set("catalog", sqlglot.to_identifier(expanded_path[0], quoted=False))
+        # quote and case-fold identifiers, TODO: maybe we could be more intelligent, but then we need to unquote ibis
+        if isinstance(node, sge.Identifier):
+            if is_casefolding:
+                node.set("this", casefold_identifier(node.this))
+            node.set("quoted", True)
+
+    # add aliases to output selects to stay compatible with dlt schema after the query
+    if orig_selects:
+        for i, orig in orig_selects.items():
+            case_folded_orig = casefold_identifier(orig)
+            if case_folded_orig != orig:
+                # somehow we need to alias just top select in UNION (tested on Snowflake)
+                sel_expr = qualified_query.selects[i]
+                qualified_query.selects[i] = sge.alias_(sel_expr, orig, quoted=True)
+
+    return qualified_query

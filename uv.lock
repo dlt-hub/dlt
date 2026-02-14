@@ -1728,25 +1728,6 @@ wheels = [
 ]
 
 [[package]]
-name = "databricks-sql-connector-core"
-version = "4.0.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "alembic", marker = "python_full_version >= '3.10'" },
-    { name = "lz4", marker = "python_full_version >= '3.10'" },
-    { name = "oauthlib", marker = "python_full_version >= '3.10'" },
-    { name = "openpyxl", marker = "python_full_version >= '3.10'" },
-    { name = "pandas", marker = "python_full_version >= '3.10'" },
-    { name = "requests", marker = "python_full_version >= '3.10'" },
-    { name = "thrift", marker = "python_full_version >= '3.10'" },
-    { name = "urllib3", marker = "python_full_version >= '3.10'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/97/b5/71761c9baa913ecea180f3f16a6836087011e2cae73c013e009e2af4c2a2/databricks_sql_connector_core-4.0.1.tar.gz", hash = "sha256:98b41686afb683d8f0771cb755a63b6e9061fb7396feca6528f7d9253c40d5f1", size = 303315, upload-time = "2024-10-10T11:15:17.283Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/5e/506bf3a397f0c08eeb0311352f98719307eb66c32f73242e1fb06d0d26cf/databricks_sql_connector_core-4.0.1-py3-none-any.whl", hash = "sha256:d989dc902b1bc6ec453dfa894c29ada3f58c674323fdd9121e7caa3da1507be3", size = 311445, upload-time = "2024-10-10T11:15:14.707Z" },
-]
-
-[[package]]
 name = "db-dtypes"
 version = "1.4.3"
 source = { registry = "https://pypi.org/simple" }
@@ -2060,7 +2041,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.21.0"
+version = "1.21.1a0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2171,7 +2152,7 @@ hub = [
 ]
 lancedb = [
     { name = "duckdb" },
-    { name = "ibis-framework" },
+    { name = "ibis-framework", marker = "python_full_version >= '3.10'" },
     { name = "lancedb" },
     { name = "pyarrow" },
 ]
@@ -2291,7 +2272,6 @@ dev = [
     { name = "requests-mock" },
     { name = "ruff" },
     { name = "sqlfluff" },
-    { name = "sqlglot" },
     { name = "types-cachetools" },
     { name = "types-click" },
     { name = "types-deprecated" },
@@ -2385,8 +2365,8 @@ requires-dist = [
     { name = "grpcio", marker = "extra == 'bigquery'", specifier = ">=1.50.0" },
     { name = "grpcio", marker = "extra == 'gcp'", specifier = ">=1.50.0" },
     { name = "humanize", specifier = ">=4.4.0" },
-    { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=10.5.0" },
-    { name = "ibis-framework", marker = "extra == 'lancedb'", specifier = ">=11.0.0" },
+    { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'lancedb'", specifier = ">=12.0.0" },
+    { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=12.0.0" },
     { name = "jsonpath-ng", specifier = ">=1.5.3" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.22.0" },
     { name = "marimo", marker = "extra == 'workspace'", specifier = ">=0.14.5" },
@@ -2445,7 +2425,7 @@ requires-dist = [
     { name = "sqlalchemy", marker = "extra == 'pyiceberg'", specifier = ">=1.4" },
     { name = "sqlalchemy", marker = "extra == 'sql-database'", specifier = ">=1.4" },
     { name = "sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=1.4" },
-    { name = "sqlglot", specifier = ">=25.4.0,!=28.1" },
+    { name = "sqlglot", specifier = ">=25.4.0" },
     { name = "tenacity", specifier = ">=8.0.2" },
     { name = "tomlkit", specifier = ">=0.11.3" },
     { name = "typing-extensions", specifier = ">=4.8.0" },
@@ -2501,7 +2481,6 @@ dev = [
     { name = "requests-mock", specifier = ">=1.10.0,<2" },
     { name = "ruff", specifier = ">=0.3.2,<0.4" },
     { name = "sqlfluff", specifier = ">=2.3.2,<3" },
-    { name = "sqlglot", specifier = "<28.1" },
     { name = "types-cachetools", specifier = ">=4.2.9" },
     { name = "types-click", specifier = ">=7.1.8,<8" },
     { name = "types-deprecated", specifier = ">=1.2.9.2,<2" },
@@ -2519,8 +2498,8 @@ dev = [
     { name = "types-tqdm", specifier = ">=4.66.0.2,<5" },
 ]
 ibis = [
-    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13'", specifier = ">=10.5.0" },
-    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'", specifier = ">=10.5.0" },
+    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13'", specifier = ">=12.0.0" },
+    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'", specifier = ">=12.0.0" },
 ]
 pipeline = [
     { name = "alive-progress", specifier = ">=3.1.1,<4" },
@@ -3833,20 +3812,20 @@ wheels = [
 
 [[package]]
 name = "ibis-framework"
-version = "11.0.0"
+version = "12.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "atpublic" },
-    { name = "parsy" },
-    { name = "python-dateutil" },
-    { name = "sqlglot" },
-    { name = "toolz" },
-    { name = "typing-extensions" },
-    { name = "tzdata" },
+    { name = "atpublic", marker = "python_full_version >= '3.10'" },
+    { name = "parsy", marker = "python_full_version >= '3.10'" },
+    { name = "python-dateutil", marker = "python_full_version >= '3.10'" },
+    { name = "sqlglot", marker = "python_full_version >= '3.10'" },
+    { name = "toolz", marker = "python_full_version >= '3.10'" },
+    { name = "typing-extensions", marker = "python_full_version >= '3.10'" },
+    { name = "tzdata", marker = "python_full_version >= '3.10'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/93/c8/f03c7c6e8ab96e5efd67ea5ce6eaf575bde78b4bfb9115f283d5e6e19ea2/ibis_framework-11.0.0.tar.gz", hash = "sha256:0249185eaabb800e224f448cc06ce8ba168df00b269e132d62629f462eca8842", size = 1237767, upload-time = "2025-10-15T13:12:10.01Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f2/8e/2e7ad9bdeaf45350da7beeb67a0d4317d400dac882825eb7c3bd4d3c6ae1/ibis_framework-12.0.0.tar.gz", hash = "sha256:238624f2c14fdab8382ca2f4f667c3cdb81e29844cd5f8db8a325d0743767c61", size = 1351369, upload-time = "2026-02-07T14:31:13.171Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/c0/2851a8a55d0fea03b80fd45815069b686e032938fc68fa9d91ac776c148c/ibis_framework-11.0.0-py3-none-any.whl", hash = "sha256:92ff82a96f4eac7f86fa9b6a315e04b5a8f9ed3d186539d88f48e628363f2e72", size = 1935652, upload-time = "2025-10-15T13:12:07.954Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/b3/11d406849715b47c9d69bb22f50874f80caee96bd1cbe7b61abbebbf5a05/ibis_framework-12.0.0-py3-none-any.whl", hash = "sha256:0bbd790f268da9cb87926d5eaad2b827a573927113c4ed3be5095efa89b9e512", size = 2079219, upload-time = "2026-02-07T14:31:10.646Z" },
 ]
 
 [package.optional-dependencies]
@@ -3873,7 +3852,7 @@ clickhouse = [
     { name = "rich", marker = "python_full_version >= '3.10'" },
 ]
 databricks = [
-    { name = "databricks-sql-connector-core", marker = "python_full_version >= '3.10'" },
+    { name = "databricks-sql-connector", marker = "python_full_version >= '3.10'" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' and python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.10.*' or python_full_version >= '3.13'" },
     { name = "pandas", marker = "python_full_version >= '3.10'" },
@@ -8795,11 +8774,11 @@ wheels = [
 
 [[package]]
 name = "sqlglot"
-version = "27.29.0"
+version = "28.10.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d1/50/766692a83468adb1bde9e09ea524a01719912f6bc4fdb47ec18368320f6e/sqlglot-27.29.0.tar.gz", hash = "sha256:2270899694663acef94fa93497971837e6fadd712f4a98b32aee1e980bc82722", size = 5503507, upload-time = "2025-10-29T13:50:24.594Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/7d/1479ac3543caada917c3781893d3f846c810aec6355eb7b2f58df68f999b/sqlglot-28.10.0.tar.gz", hash = "sha256:f3d4759164ad854176980b3a47eb0c7ef699118dfa80beeb93e010885637b211", size = 5739594, upload-time = "2026-02-04T14:22:18.26Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/70/20c1912bc0bfebf516d59d618209443b136c58a7cff141afa7cf30969988/sqlglot-27.29.0-py3-none-any.whl", hash = "sha256:9a5ea8ac61826a7763de10cad45a35f0aa9bfcf7b96ee74afb2314de9089e1cb", size = 526060, upload-time = "2025-10-29T13:50:22.061Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/34/c5de8f3c110bd066ebfa31b2d948dd33b691c7ccea39065e37f97f3f30a1/sqlglot-28.10.0-py3-none-any.whl", hash = "sha256:d442473bfd2340776dfc88382de3df456b9c5b66974623e554c6ad6426ba365e", size = 597042, upload-time = "2026-02-04T14:22:16.534Z" },
 ]
 
 [[package]]

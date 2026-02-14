@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.21.0"
+version = "1.21.1a0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.15"
@@ -56,7 +56,7 @@ dependencies = [
     "packaging>=21.1",
     "pluggy>=1.3.0",
     "win-precise-time>=1.4.2 ; os_name == 'nt' and python_version < '3.13'",
-    "sqlglot>=25.4.0,!=28.1",
+    "sqlglot>=25.4.0",
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0",
 ]
@@ -174,7 +174,7 @@ lancedb = [
     "pyarrow>=16.0.0",
     "duckdb>=1.4.3",
     # duckdb >= 1.4.0 doesn't work with ibis < 11.0.0
-    "ibis-framework>=11.0.0"
+    "ibis-framework>=12.0.0 ; python_version >= '3.10'"
 ]
 deltalake = [
     "deltalake>=0.25.1",
@@ -196,7 +196,7 @@ postgis = [
 ]
 workspace = [
     "duckdb>=0.9",
-    "ibis-framework>=10.5.0 ; python_version >= '3.10'",
+    "ibis-framework>=12.0.0 ; python_version >= '3.10'",
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
     "mcp>=1.2.1 ; python_version >= '3.10'",
@@ -259,8 +259,6 @@ dev = [
     "pydoclint>=0.6.5,<0.7",
     "types-paramiko>=3.5.0.20250708",
     "graphviz>=0.21",
-    # limits sqlglot - remove when #3489 is fixed
-    "sqlglot<28.1",
 ]
 
 # NOTE: those dependencies are used to test built in sources
@@ -291,8 +289,8 @@ pipeline = [
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
 ibis = [
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=10.5.0 ; python_version >= '3.10' and python_version < '3.13'",
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=10.5.0 ; python_version >= '3.13'"
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=12.0.0 ; python_version >= '3.10' and python_version < '3.13'",
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=12.0.0 ; python_version >= '3.13'"
 ]
 streamlit = ["streamlit>=1.40.0,<2 ; python_version >= '3.9' and python_version != '3.9.7' and python_version < '3.14'"]
 dashboard-tests = [
@@ -355,6 +353,7 @@ include = [
     "docs/**/*.py",
 ]
 exclude = [
+    ".venv",
     "docs/website/.dlt-repo",
     "tests/reflection/module_cases/syntax_error.py",
     "docs/website/docs/general-usage/transformations/transformation-snippets.py",

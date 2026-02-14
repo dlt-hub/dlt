@@ -107,11 +107,6 @@ def catalog_config(request):
     return request.getfixturevalue(fixture_name)
 
 
-# ----------------------------------------------------------------------------
-# Validation and Error Handling Tests
-# ----------------------------------------------------------------------------
-
-
 def test_get_catalog_rejects_unsupported_types():
     """Should reject unsupported catalog types."""
     with pytest.raises(ValueError, match="Unsupported catalog type"):
@@ -316,11 +311,6 @@ def test_rest_catalog_namespace_operations():
             raise
 
 
-# ----------------------------------------------------------------------------
-# REST Catalog Smoke Test (no docker required)
-# ----------------------------------------------------------------------------
-
-
 def test_rest_catalog_smoke_test():
     """Smoke test: verify REST catalog config is loaded and connection attempt fails as expected.
 
@@ -343,11 +333,6 @@ def test_rest_catalog_smoke_test():
     # ConnectionError proves REST config was loaded (SQLite would never raise this)
     with pytest.raises(ConnectionError):
         get_catalog("rest_smoke_test", iceberg_catalog_config=config)
-
-
-# ----------------------------------------------------------------------------
-# Parametrized Integration Tests (SQLite + PostgreSQL + REST)
-# ----------------------------------------------------------------------------
 
 
 def test_catalog_from_env_vars_parametrized(catalog_config, tmp_path, monkeypatch):

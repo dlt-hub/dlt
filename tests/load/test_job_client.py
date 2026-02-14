@@ -1143,7 +1143,7 @@ def test_many_schemas_single_dataset(
     ids=lambda x: x.name,
 )
 def test_schema_retrieval(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("schema_test", dev_mode=True)
+    p = destination_config.setup_pipeline("schema_test" + uniq_id(), dev_mode=True)
     from dlt.common.schema import utils
 
     # we create 2 versions of 2 schemas
@@ -1233,9 +1233,6 @@ def normalize_rows(rows: List[Dict[str, Any]], naming: NamingConvention) -> None
 def get_columns_and_row_all_types(destination_config: DestinationClientConfiguration):
     exclude_types = []
     if destination_config.destination_type in ["databricks", "clickhouse", "motherduck"]:
-        exclude_types.append("time")
-    # Fabric Warehouse has issues with TIME type - exclude for now
-    if destination_config.destination_type == "fabric":
         exclude_types.append("time")
     if destination_config.destination_name == "sqlalchemy_sqlite":
         exclude_types.extend(["decimal", "wei"])

@@ -182,7 +182,7 @@ def test_pydantic_columns_with_contracts(yield_list: bool) -> None:
             yield from users_list
 
     pipeline = dlt.pipeline(destination="duckdb")
-    info = pipeline.run(users([user.dict(), user.dict()]))
+    info = pipeline.run(users([user.model_dump(), user.model_dump()]))
     assert_load_info(info)
     print(pipeline.last_trace.last_normalize_info)
     # data is passing validation, all filled in
@@ -193,10 +193,10 @@ def test_pydantic_columns_with_contracts(yield_list: bool) -> None:
     }
 
     # produce two users with extra attrs in the child model but set the rows to discard so nothing is loaded
-    u1 = user.dict()
+    u1 = user.model_dump()
     u1["user_labels"][0]["extra_1"] = "extra"
     u1["user_labels"][1]["extra_1"] = "extra"
-    u2 = user.dict()
+    u2 = user.model_dump()
     u2["user_labels"][0]["is_extra"] = True
 
     r = users([u1, u2])

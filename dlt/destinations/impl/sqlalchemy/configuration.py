@@ -7,30 +7,113 @@ import dataclasses
 from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
+from dlt.common.configuration.specs.base_configuration import NotResolved
 from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.storages.configuration import WithLocalFiles
+from dlt.common.typing import Annotated
 from dlt.common.warnings import DltDeprecationWarning
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine, Dialect, Connection
 
 
+class ManagedEngine:
+    """Thread-safe engine lifecycle with ref-counted connection borrowing.
+
+    Owned engines (created from URL) are disposed when the last borrowed
+    connection is returned. External engines are never disposed.
+    """
+
+    def __init__(
+        self,
+        credentials: "SqlalchemyCredentials",
+        engine: Optional["Engine"] = None,
+    ) -> None:
+        self._credentials = credentials
+        self._conn_lock = threading.RLock()
+        self._conn_borrows: int = 0
+        if engine is not None:
+            # external engine — not owned, not disposed by us
+            self._engine: Optional["Engine"] = engine
+            self._conn_owner: bool = False
+        else:
+            # owned engine — lazily created, disposed when refcount hits 0
+            self._engine = None
+            self._conn_owner = True
+
+    @property
+    def engine(self) -> "Engine":
+        """Lazily creates the engine for owned instances, returns external engine otherwise."""
+        import sqlalchemy as sa
+
+        if self._engine is None:
+            engine_kwargs = self._credentials._resolve_engine_kwargs()
+            self._engine = sa.create_engine(
+                self._credentials.to_url().render_as_string(hide_password=False),
+                **engine_kwargs,
+            )
+        return self._engine
+
+    def borrow_conn(self) -> "Connection":
+        """Borrow a connection from the engine. Must be returned via return_conn."""
+        with self._conn_lock:
+            engine_ = self.engine
+            self._conn_borrows += 1
+        try:
+            return engine_.connect()
+        except Exception:
+            with self._conn_lock:
+                self._conn_borrows -= 1
+                if self._conn_borrows == 0 and self._conn_owner:
+                    self._dispose_engine()
+            raise
+
+    def return_conn(self, borrowed_conn: "Connection") -> None:
+        """Return a borrowed connection. Disposes owned engine when refcount hits 0."""
+        with self._conn_lock:
+            borrowed_conn.close()
+            assert self._conn_borrows > 0, "Returning connection when borrows is 0"
+            self._conn_borrows -= 1
+            if self._conn_borrows == 0 and self._conn_owner:
+                self._dispose_engine()
+
+    def _dispose_engine(self) -> None:
+        if self._conn_borrows > 0:
+            warnings.warn(
+                f"Disposing engine {self._engine.url} with {self._conn_borrows} open conns."
+            )
+        if self._engine:
+            self._engine.dispose()
+            self._engine = None
+
+    def __del__(self) -> None:
+        if getattr(self, "_engine", None) and getattr(self, "_conn_owner", False):
+            self._dispose_engine()
+
+
 @configspec(init=False)
 class SqlalchemyCredentials(ConnectionStringCredentials):
-    if TYPE_CHECKING:
-        _engine: Optional["Engine"] = None
-
     engine_kwargs: Optional[Dict[str, Any]] = None
     """Additional keyword arguments passed to `sqlalchemy.create_engine`"""
 
     engine_args: Optional[Dict[str, Any]] = None
     """DEPRECATED: use engine_kwargs instead"""
 
+    managed_engine: Annotated[Optional[ManagedEngine], NotResolved()] = None
+
     def __init__(
         self, connection_string: Optional[Union[str, Dict[str, Any], "Engine"]] = None
     ) -> None:
         super().__init__(connection_string)  # type: ignore[arg-type]
-        self._conn_lock = threading.RLock()
+
+    def copy(self: "SqlalchemyCredentials") -> "SqlalchemyCredentials":
+        new_obj = super().copy()
+        # copy always holds the engine as unmanaged (never disposes)
+        if self.managed_engine is not None and self.managed_engine._engine is not None:
+            new_obj.managed_engine = ManagedEngine(new_obj, engine=self.managed_engine._engine)
+        else:
+            new_obj.managed_engine = None
+        return new_obj
 
     def _resolve_engine_kwargs(self) -> Dict[str, Any]:
         if self.engine_kwargs and self.engine_args:
@@ -54,6 +137,7 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         from sqlalchemy.engine import Engine
 
         if isinstance(native_value, Engine):
+            # triggers setter which creates ManagedEngine wrapping external engine
             self.engine = native_value
             super().parse_native_representation(
                 native_value.url.render_as_string(hide_password=False)
@@ -61,75 +145,26 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         else:
             super().parse_native_representation(native_value)
 
-    def borrow_conn(self) -> "Connection":
-        # obtain a lock because we have refcount concurrency
-        with self._conn_lock:
-            engine_ = self.engine
-            # track open connections to properly close it
-            self._conn_borrows += 1
-
-        try:
-            return engine_.connect()
-        except Exception:
-            with self._conn_lock:
-                self._conn_borrows -= 1
-                if self._conn_borrows == 0 and self._conn_owner:
-                    self._delete_conn()
-            raise
-
-    def return_conn(self, borrowed_conn: "Connection") -> None:
-        # close the borrowed conn
-        with self._conn_lock:
-            borrowed_conn.close()
-            # close the main conn if the last borrowed conn was closed
-            assert self._conn_borrows > 0, "Returning connection when borrows is 0"
-            self._conn_borrows -= 1
-            if self._conn_borrows == 0 and self._conn_owner:
-                self._delete_conn()
-
-    def _delete_conn(self) -> None:
-        if self._conn_borrows > 0:
-            warnings.warn(
-                f"Disposing engine {self._engine.url} with {self._conn_borrows} open conns."
-            )
-        self._engine.dispose()
-        delattr(self, "_engine")
-
-    def __del__(self) -> None:
-        if hasattr(self, "_engine") and self._conn_owner:
-            self._delete_conn()
+    def _ensure_managed_engine(self) -> ManagedEngine:
+        """Lazily create ManagedEngine on first access."""
+        if self.managed_engine is None:
+            external = getattr(self, "_external_engine", None)
+            self.managed_engine = ManagedEngine(self, engine=external)
+        return self.managed_engine
 
     @property
     def engine(self) -> Optional["Engine"]:
-        import sqlalchemy as sa
-
-        # get existing or open and set new engine
-        self._engine = getattr(
-            self,
-            "_engine",
-            None,
-        )
-        if self._engine is None:
-            engine_kwargs = self._resolve_engine_kwargs()
-            self._engine = sa.create_engine(
-                self.to_url().render_as_string(hide_password=False), **engine_kwargs
-            )
-        # set as owner if not yet set
-        self._conn_owner = getattr(self, "_conn_owner", True)
-        self._conn_borrows = getattr(self, "_conn_borrows", 0)
-        return self._engine
+        return self._ensure_managed_engine().engine
 
     @engine.setter
     def engine(self, value: "Engine") -> None:
-        self._engine = value
-        self._conn_owner = False
-        self._conn_borrows = 0
+        # backward compat: create ManagedEngine wrapping external engine
+        self._external_engine = value
+        self.managed_engine = ManagedEngine(self, engine=value)
 
-    def get_dialect(self) -> Optional[Type["Dialect"]]:
+    def get_dialect_class(self) -> Optional[Type["Dialect"]]:
         if not self.drivername:
             return None
-        # Type-ignore because of ported URL class has no get_dialect method,
-        # but here sqlalchemy should be available
         if engine := self.engine:
             return type(engine.dialect)
         return self.to_url().get_dialect()  # type: ignore[attr-defined,no-any-return]
@@ -192,8 +227,8 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
     engine_args: Dict[str, Any] = dataclasses.field(default_factory=dict)
     """DEPRECATED: use engine_kwargs instead"""
 
-    def get_dialect(self) -> Type["Dialect"]:
-        return self.credentials.get_dialect()
+    def get_dialect_class(self) -> Type["Dialect"]:
+        return self.credentials.get_dialect_class()
 
     def get_backend_name(self) -> str:
         return self.credentials.get_backend_name()

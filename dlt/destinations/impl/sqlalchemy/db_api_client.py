@@ -1,4 +1,19 @@
-from typing import Optional, Iterator, Any, Sequence, AnyStr, Union, Tuple, List, Dict, Set, cast
+from __future__ import annotations
+
+from typing import (
+    Optional,
+    Iterator,
+    Any,
+    Sequence,
+    AnyStr,
+    Union,
+    Tuple,
+    List,
+    Dict,
+    Set,
+    cast,
+    TYPE_CHECKING,
+)
 from contextlib import contextmanager
 from functools import wraps
 import inspect
@@ -24,6 +39,9 @@ from dlt.destinations.sql_client import SqlClientBase, raise_database_error
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 from dlt.destinations.impl.sqlalchemy.alter_table import MigrationMaker
 from dlt.destinations.sql_client import DBApiCursorImpl
+
+if TYPE_CHECKING:
+    from dlt.destinations.impl.sqlalchemy.dialect import DialectCapabilities
 
 
 class SqlaTransactionWrapper(DBTransaction):
@@ -81,6 +99,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     ) -> None:
         super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self.credentials = credentials
+        self._dialect_caps: DialectCapabilities = capabilities.dialect_capabilities
         self._current_connection: Optional[Connection] = None
         self._current_transaction: Optional[SqlaTransactionWrapper] = None
         self.metadata = sa.MetaData()
@@ -101,7 +120,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     def open_connection(self) -> Connection:
         if self._current_connection is None:
-            self._current_connection = self.credentials.borrow_conn()
+            self._current_connection = self.credentials.managed_engine.borrow_conn()
             if self.dialect_name == "sqlite":
                 self._sqlite_reattach_dataset_if_exists(self.dataset_name)
         return self._current_connection
@@ -126,7 +145,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
         try:
             if self._current_connection is not None:
-                self.credentials.return_conn(self._current_connection)
+                self.credentials.managed_engine.return_conn(self._current_connection)
         finally:
             self._current_connection = None
 
@@ -405,58 +424,26 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             missing_columns = [c for c in all_columns if c.name not in reflected.columns]
         return existing, missing_columns, reflected is not None
 
-    @staticmethod
-    def _make_database_exception(e: Exception) -> Exception:
+    def _make_database_exception(self, e: Exception) -> Exception:  # type: ignore[override]
+        # NOTE: override uses self (not static) because it needs _dialect_caps
+        from dlt.destinations.impl.sqlalchemy.dialect import GENERIC_TERMINAL_PATTERNS
+
         if isinstance(e, sa.exc.NoSuchTableError):
             return DatabaseUndefinedRelation(e)
-        msg = str(e).lower()
+
         if isinstance(e, (sa.exc.ProgrammingError, sa.exc.OperationalError)):
-            patterns = [
-                # MySQL / MariaDB
-                r"unknown database",  # Missing schema
-                r"doesn't exist",  # Missing table
-                r"unknown table",  # Missing table
-                # SQLite
-                r"no such table",  # Missing table
-                r"no such database",  # Missing table
-                # PostgreSQL / Trino / Vertica / Exasol (database)
-                r"does not exist",  # Missing schema, relation
-                # r"does not exist",  # Missing table
-                # MSSQL
-                r"invalid object name",  # Missing schema or table
-                # Oracle
-                r"ora-00942: table or view does not exist",  # Missing schema or table
-                # SAP HANA
-                r"invalid schema name",  # Missing schema
-                r"invalid table name",  # Missing table
-                # DB2
-                r"is an undefined name",  # SQL0204N... Missing schema or table
-                # Apache Hive
-                r"table not found",  # Missing table
-                r"database does not exist",
-                # Exasol
-                r" not found",
-            ]
-            # entity not found
-            for pat_ in patterns:
-                if pat_ in msg:
-                    return DatabaseUndefinedRelation(e)
-            terminal_patterns = [
-                "no such",
-                "not found",
-                "not exist",
-                "unknown",
-            ]
-            for pat_ in terminal_patterns:
-                if pat_ in msg:
+            if self._dialect_caps.is_undefined_relation(e) is True:
+                return DatabaseUndefinedRelation(e)
+            msg = str(e).lower()
+            for pat in GENERIC_TERMINAL_PATTERNS:
+                if pat in msg:
                     return DatabaseTerminalException(e)
             return DatabaseTransientException(e)
         elif isinstance(e, sa.exc.IntegrityError):
             return DatabaseTerminalException(e)
         elif isinstance(e, sa.exc.DatabaseError):
-            if "oracle" in msg:
-                if "00942" in msg and "does not exist" in msg:  # ORA-00942
-                    return DatabaseUndefinedRelation(e)
+            if self._dialect_caps.is_undefined_relation(e) is True:
+                return DatabaseUndefinedRelation(e)
             return DatabaseTransientException(e)
         elif isinstance(e, sa.exc.SQLAlchemyError):
             return DatabaseTransientException(e)

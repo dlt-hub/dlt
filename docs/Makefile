@@ -1,4 +1,9 @@
+.DEFAULT_GOAL := help
 
+# Add " ## description" after any target name to include it in `make help` output.
+# Example:  my-target: ## Does something useful
+help: ## Shows this help message
+	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-28s %s\n", $$1, $$2}'
 
 dev: ## Prepares development environment for docs tooling
 	uv sync 

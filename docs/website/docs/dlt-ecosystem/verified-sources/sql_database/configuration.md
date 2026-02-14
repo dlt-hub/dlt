@@ -568,3 +568,9 @@ info = pipeline.run(
 print(info)
 ```
 With the dataset above and a local PostgreSQL instance, the `ConnectorX` backend is 2x faster than the `PyArrow` backend.
+
+### Custom backends
+
+You can write your own table loader backend by subclassing `BaseTableLoader` (for an entirely different data access method) or `TableLoader` (to customize row loading within SQLAlchemy). Pass your class via the `table_loader_class` parameter or register it as a named backend with `register_table_loader_backend`.
+
+See [Custom table loaders](advanced.md#custom-table-loaders) in the advanced guide for the full class hierarchy, examples (including an ADBC Arrow backend), and details on the backend registry.

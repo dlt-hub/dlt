@@ -1346,7 +1346,7 @@ def row_tuples_to_arrow(
         # TODO if converting to arrow fail, should we raise or skip column?
         except PyToArrowConversionException as e:
             e.field_name = column_name
-            raise e
+            raise
 
         field = pa.field(
             name=column_name, type=arrow_array.type, nullable=column_schema.get("nullable", True)

@@ -22,6 +22,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TPartialTableSchema,
 )
+from dlt.common.libs.sqlglot import filter_select_column_names
 from dlt.common.normalizers.json import helpers as normalize_helpers
 
 from dlt.extract.hints import HintsMeta, TResourceHints
@@ -260,6 +261,14 @@ class Extractor:
         Computes new table and does contract checks, if false is returned, the table may not be created and no items should be written
         """
         computed_tables = self._compute_tables(resource, items, meta)
+        # pre-merge authoritative schema from validator into self.schema
+        # so authoritative columns bypass contract checks via diff
+        if resource.validator:
+            auth_schema = resource.validator.compute_table_schema(items, meta)
+            if auth_schema:
+                self.schema.update_table(
+                    auth_schema, normalize_identifiers=True, merge_compound_props=False
+                )
         for computed_table in computed_tables:
             table_name = computed_table["name"]
             # get or compute contract
@@ -271,29 +280,18 @@ class Extractor:
             # this is a new table so allow evolve once
             if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
                 computed_table["x-normalizer"] = {"evolve-columns-once": True}
-            existing_table = self.schema.tables.get(table_name, None)
-            if existing_table:
-                diff_table = utils.diff_table(
-                    self.schema.name,
-                    existing_table,
-                    computed_table,
-                    additive_compound_props=False,
-                )
-            else:
-                diff_table = computed_table
 
             # apply contracts
-            diff_table, filters = self.schema.apply_schema_contract(
-                schema_contract, diff_table, data_item=items
+            computed_table, filters = self.schema.apply_schema_contract(
+                schema_contract, computed_table, data_item=items
             )
 
             # merge with schema table
-            if diff_table:
-                # diff table identifiers already normalized
+            if computed_table:
+                # computed table identifiers already normalized
                 self.schema.update_table(
-                    diff_table,
+                    computed_table,
                     normalize_identifiers=False,
-                    from_diff=bool(existing_table),
                     merge_compound_props=False,
                 )
 
@@ -321,9 +319,35 @@ class ObjectExtractor(Extractor):
 
 
 class ModelExtractor(Extractor):
-    """Extracts text items and writes them row by row into a text file"""
+    """Extracts model items (SQL Relations) with data_type contract enforcement."""
 
-    pass
+    def _compute_and_update_tables(
+        self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
+    ) -> TDataItems:
+        items = super()._compute_and_update_tables(resource, root_table_name, items, meta)
+        return self._apply_contract_filters(items, root_table_name)
+
+    def _apply_contract_filters(self, items: TDataItems, table_name: str) -> TDataItems:
+        """Apply data_type contract filters to model items (Relations)."""
+        filtered_columns = self._filtered_columns.get(table_name)
+        if not filtered_columns:
+            return items
+
+        if any(mode == "discard_row" for mode in filtered_columns.values()):
+            return items.limit(0)  # type: ignore[union-attr]
+
+        discard_value_cols = {
+            name for name, mode in filtered_columns.items() if mode == "discard_value"
+        }
+        if discard_value_cols:
+            selects = items.sqlglot_expression.selects  # type: ignore[union-attr]
+            remaining = filter_select_column_names(
+                selects, discard_value_cols, self.naming.normalize_identifier
+            )
+            if len(remaining) < len(selects):
+                items = items.select(*remaining)  # type: ignore[union-attr]
+
+        return items
 
 
 class ArrowExtractor(Extractor):
@@ -461,7 +485,7 @@ class ArrowExtractor(Extractor):
         # arrow tables override the latter so the resultant schema is the same as if
         # they are sent separately
         for item in items:
-            computed_tables = super()._compute_tables(resource, item, Any)
+            computed_tables = super()._compute_tables(resource, item, meta)
             for computed_table in computed_tables:
                 arrow_table = arrow_tables.get(computed_table["name"])
                 # Merge the columns to include primary_key and other hints that may be set on the resource

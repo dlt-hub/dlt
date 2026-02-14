@@ -14,6 +14,7 @@ from dlt.common.libs.pyarrow import (
     remove_columns,
     normalize_py_arrow_item,
 )
+from dlt.extract.hints import make_hints
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import (
@@ -755,3 +756,67 @@ def test_count_rows_in_items(item_factory, expected_rows):
             count_rows_in_items(item)
     else:
         assert count_rows_in_items(item) == expected_rows
+
+
+def test_arrow_table_variant_hints() -> None:
+    """Arrow tables dispatched to table variants should use variant-specific hints.
+
+    Verifies that ArrowExtractor passes meta through to compute_table_schema
+    so that variant column hints (e.g. primary_key, write_disposition) are
+    applied correctly to the extracted arrow data.
+    """
+
+    table_a = pa.table({"id": [1, 2], "value": ["A", "B"]})
+    table_b = pa.table({"id": [3, 4], "amount": [10.5, 20.0]})
+
+    @dlt.resource(primary_key="id")
+    def variant_arrow():
+        # dispatch arrow table to variant "table_a" with a specific column type
+        yield dlt.mark.with_hints(
+            table_a,
+            make_hints(
+                table_name="table_a",
+                write_disposition="replace",
+                columns=[{"name": "value", "data_type": "text"}],
+            ),
+            create_table_variant=True,
+        )
+        # dispatch arrow table to variant "table_b" with merge disposition
+        yield dlt.mark.with_hints(
+            table_b,
+            make_hints(
+                table_name="table_b",
+                write_disposition="merge",
+            ),
+            create_table_variant=True,
+        )
+        # dispatch another arrow table to table_a via with_table_name
+        # (uses previously created variant hints)
+        yield dlt.mark.with_table_name(
+            pa.table({"id": [5, 6], "value": ["C", "D"]}),
+            "table_a",
+        )
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+    pipeline.run(variant_arrow())
+
+    schema = pipeline.default_schema
+
+    # table_a should have the variant's write_disposition and column hints
+    assert schema.tables["table_a"]["write_disposition"] == "replace"
+    assert "id" in schema.tables["table_a"]["columns"]
+    assert schema.tables["table_a"]["columns"]["id"]["primary_key"] is True
+    assert "value" in schema.tables["table_a"]["columns"]
+    assert schema.tables["table_a"]["columns"]["value"]["data_type"] == "text"
+
+    # table_b should have merge disposition and primary_key from resource
+    assert schema.tables["table_b"]["write_disposition"] == "merge"
+    assert "id" in schema.tables["table_b"]["columns"]
+    assert schema.tables["table_b"]["columns"]["id"]["primary_key"] is True
+    assert "amount" in schema.tables["table_b"]["columns"]
+
+    # verify row counts: table_a got 2+2=4 rows, table_b got 2 rows
+    rows = load_tables_to_dicts(pipeline, "table_a")
+    assert len(rows["table_a"]) == 4
+    rows = load_tables_to_dicts(pipeline, "table_b")
+    assert len(rows["table_b"]) == 2

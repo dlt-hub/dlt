@@ -8,6 +8,7 @@ from typing import (
     Iterator,
     List,
     Sequence,
+    Set,
     IO,
     Tuple,
     Optional,
@@ -333,6 +334,7 @@ def destinations_configs(
     with_table_format: Union[TTableFormat, Sequence[TTableFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
+    supports_file_format: Optional[TLoaderFileFormat] = None,
     **attr_subset: Any,  # generic attribute filter; useful if above params are not specific enough
 ) -> List[DestinationTestConfiguration]:
     """Generate a filtered list of destination test configurations for parametrized tests.
@@ -373,6 +375,8 @@ def destinations_configs(
         with_table_format: Keep only configs with table_format matching this value(s).
         supports_merge: Keep only configs where supports_merge equals this value.
         supports_dbt: Keep only configs where supports_dbt equals this value.
+        supports_file_format: Keep only configs whose destination capabilities include
+            this format in supported_loader_file_formats or supported_staging_file_formats.
         **attr_subset: Generic filter - keep configs where the named attribute matches
             any of the provided values.
 
@@ -447,7 +451,7 @@ def destinations_configs(
     if default_sql_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type=destination)
-            for destination in SQL_DESTINATIONS
+            for destination in sorted(SQL_DESTINATIONS)
             if destination
             not in (
                 "athena",
@@ -554,7 +558,7 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
-                credentials=dict(path=str(Path(FILE_BUCKET) / f"qdrant_data_{worker}")),
+                credentials=dict(path="qdrant_data"),
                 extra_info="local-file",
             ),
             DestinationTestConfiguration(
@@ -914,6 +918,19 @@ def destinations_configs(
         destination_configs = [
             conf for conf in destination_configs if conf.supports_dbt == supports_dbt
         ]
+    if supports_file_format is not None:
+        _fmt_cache: Dict[str, Set[str]] = {}
+
+        def _dest_has_format(conf: DestinationTestConfiguration) -> bool:
+            dt = conf.destination_type
+            if dt not in _fmt_cache:
+                caps = conf.raw_capabilities()
+                _fmt_cache[dt] = set(caps.supported_loader_file_formats or []) | set(
+                    caps.supported_staging_file_formats or []
+                )
+            return supports_file_format in _fmt_cache[dt]
+
+        destination_configs = [conf for conf in destination_configs if _dest_has_format(conf)]
 
     # filter by other attributes
     for attr_name, allowed_values in attr_subset.items():
