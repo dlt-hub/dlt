@@ -1736,8 +1736,8 @@ def test_source_postprocessor() -> None:
     multi_resource.add_postprocessor(lambda s: s.with_resources("alpha"))
 
     source = multi_resource()
-    assert "alpha" in source.resources
-    assert "beta" not in source.resources
+    assert "alpha" in source.selected_resources
+    assert "beta" not in source.selected_resources
     assert list(source) == [1, 2, 3]
 
 
