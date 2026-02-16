@@ -330,11 +330,16 @@ module.exports = function llmsTxtPlugin(_context, options) {
           }
         } else {
           const stem = innerRel.replace(/\.html$/, '');
-          // Try .md, then .mdx, then index.md/mdx (category pages), then slug map
+          const lastSegment = path.basename(stem);
+          // Try .md, then .mdx, then index.md/mdx (category pages),
+          // then dir-collapsed stem/stem.md (Docusaurus collapses foo/foo.md → foo.html),
+          // then slug map
           const candidateMd = path.join(route.sourceDir, stem + '.md');
           const candidateMdx = path.join(route.sourceDir, stem + '.mdx');
           const candidateIndexMd = path.join(route.sourceDir, stem, 'index.md');
           const candidateIndexMdx = path.join(route.sourceDir, stem, 'index.mdx');
+          const candidateSameMd = path.join(route.sourceDir, stem, lastSegment + '.md');
+          const candidateSameMdx = path.join(route.sourceDir, stem, lastSegment + '.mdx');
           const slugMap = slugMaps[route.sourceDir] || {};
 
           if (fs.existsSync(candidateMd)) {
@@ -345,6 +350,10 @@ module.exports = function llmsTxtPlugin(_context, options) {
             sourceFile = candidateIndexMd;
           } else if (fs.existsSync(candidateIndexMdx)) {
             sourceFile = candidateIndexMdx;
+          } else if (fs.existsSync(candidateSameMd)) {
+            sourceFile = candidateSameMd;
+          } else if (fs.existsSync(candidateSameMdx)) {
+            sourceFile = candidateSameMdx;
           } else if (slugMap[stem]) {
             sourceFile = slugMap[stem];
           }
@@ -358,6 +367,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
           htmlRel: relPosix,
           mdRel: relPosix.replace(/\.html$/, '.md'),
           sourceFile,
+          sourceDir: route.sourceDir,
           isMaster: route.isMaster,
         });
       }
@@ -427,13 +437,30 @@ module.exports = function llmsTxtPlugin(_context, options) {
           let group = null;
           let sidebarOrder = null;
 
-          if (sidebarInfo && sidebarInfo.docMap[docId]) {
-            const entry = sidebarInfo.docMap[docId];
-            group = entry.group;  // may be '' for top-level
-            sidebarOrder = entry.order;
+          // Try exact docId first, then docId/index (category pages where
+          // foo/index.md is built as foo.html but sidebar uses foo/index),
+          // then docId/basename (dir-collapsed: foo/foo.md → foo.html but
+          // sidebar uses foo/foo), then the original source doc ID (for slug
+          // overrides where the URL differs from the source filename)
+          const docBasename = path.basename(docId);
+          const sourceDocId = path.relative(page.sourceDir, page.sourceFile)
+            .split(path.sep).join('/')
+            .replace(/\.(md|mdx)$/, '');
+          const sidebarEntry = sidebarInfo && (
+            sidebarInfo.docMap[docId] ||
+            sidebarInfo.docMap[docId + '/index'] ||
+            sidebarInfo.docMap[docId + '/' + docBasename] ||
+            sidebarInfo.docMap[sourceDocId]
+          );
+          if (sidebarEntry) {
+            group = sidebarEntry.group;  // may be '' for top-level
+            sidebarOrder = sidebarEntry.order;
             if (group) sidebarGroupSet.add(group);
+          } else if (sidebarInfo) {
+            // Page not in sidebar — skip it from llms.txt
+            continue;
           } else {
-            // Fallback: directory-based grouping
+            // No sidebar available — fall back to directory-based grouping
             const groupPath = pathPrefix
               ? page.mdRel.slice(pathPrefix.length)
               : page.mdRel;
