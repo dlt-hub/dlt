@@ -4,6 +4,7 @@ from types import ModuleType
 from functools import update_wrapper, wraps
 from typing import (
     Any,
+    Awaitable,
     Callable,
     Dict,
     Iterator,
@@ -108,15 +109,19 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         self.spec: Type[BaseConfiguration] = None
         self.parallelized: bool = None
         self._impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
-        self._postprocessors: List[Callable[[TDltSourceImpl], TDltSourceImpl]] = []
+        self._postprocessors: List[
+            Callable[[TDltSourceImpl], Union[TDltSourceImpl, Awaitable[TDltSourceImpl]]]
+        ] = []
 
-    def add_postprocessor(self, func: Callable[[TDltSourceImpl], TDltSourceImpl]) -> None:
+    def add_postprocessor(
+        self, func: Callable[[TDltSourceImpl], Union[TDltSourceImpl, Awaitable[TDltSourceImpl]]]
+    ) -> None:
         """Adds a callback that receives and returns a DltSource after it is created."""
         self._postprocessors.append(func)
 
     def _apply_postprocessors(self, source: TDltSourceImpl) -> TDltSourceImpl:
         for func in self._postprocessors:
-            source = func(source)
+            source = func(source)  # type: ignore[assignment]
         return source
 
     def clone(

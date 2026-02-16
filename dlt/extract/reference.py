@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import (
+    Awaitable,
     Callable,
     Dict,
     List,
     Any,
     Generic,
     Tuple,
+    Union,
     overload,
     ClassVar,
     Type,
@@ -55,7 +57,9 @@ class SourceFactory(ABC, Generic[TSourceFunParams, TDltSourceImpl]):
         pass
 
     @abstractmethod
-    def add_postprocessor(self, func: Callable[[TDltSourceImpl], TDltSourceImpl]) -> None:
+    def add_postprocessor(
+        self, func: Callable[[TDltSourceImpl], Union[TDltSourceImpl, Awaitable[TDltSourceImpl]]]
+    ) -> None:
         """Adds a callback that receives and returns a DltSource after it is created."""
 
     @abstractmethod

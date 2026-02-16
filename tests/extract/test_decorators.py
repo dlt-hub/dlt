@@ -1773,3 +1773,21 @@ def test_source_postprocessor_preserved_on_clone() -> None:
     cloned = cloneable.clone(section="new_section")
     source = cloned()
     assert list(source) == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_async_source_postprocessor() -> None:
+    @dlt.source
+    async def async_multi():
+        return dlt.resource([1, 2, 3], name="alpha"), dlt.resource([4, 5], name="beta")
+
+    async def select_alpha(s: Awaitable[DltSource]) -> DltSource:
+        source = await s
+        return source.with_resources("alpha")
+
+    async_multi.add_postprocessor(select_alpha)  # type: ignore[arg-type]
+
+    source = await async_multi()  # type: ignore[misc]
+    assert "alpha" in source.selected_resources
+    assert "beta" not in source.selected_resources
+    assert list(source) == [1, 2, 3]
