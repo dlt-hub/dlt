@@ -639,7 +639,7 @@ class Relation(WithSqlClient):
         return sge.Select(expressions=[sge.Star()]).from_(
             sge.Table(
                 this=sge.to_identifier(self._origin_table_name, quoted=True),
-                alias=sge.TableAlias(this="t0"),
+                alias=sge.TableAlias(this=sge.to_identifier("t0", quoted=False)),
             )
         )
 
