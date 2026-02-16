@@ -330,15 +330,21 @@ module.exports = function llmsTxtPlugin(_context, options) {
           }
         } else {
           const stem = innerRel.replace(/\.html$/, '');
-          // Try .md, then .mdx, then slug map
+          // Try .md, then .mdx, then index.md/mdx (category pages), then slug map
           const candidateMd = path.join(route.sourceDir, stem + '.md');
           const candidateMdx = path.join(route.sourceDir, stem + '.mdx');
+          const candidateIndexMd = path.join(route.sourceDir, stem, 'index.md');
+          const candidateIndexMdx = path.join(route.sourceDir, stem, 'index.mdx');
           const slugMap = slugMaps[route.sourceDir] || {};
 
           if (fs.existsSync(candidateMd)) {
             sourceFile = candidateMd;
           } else if (fs.existsSync(candidateMdx)) {
             sourceFile = candidateMdx;
+          } else if (fs.existsSync(candidateIndexMd)) {
+            sourceFile = candidateIndexMd;
+          } else if (fs.existsSync(candidateIndexMdx)) {
+            sourceFile = candidateIndexMdx;
           } else if (slugMap[stem]) {
             sourceFile = slugMap[stem];
           }
