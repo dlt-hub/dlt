@@ -71,6 +71,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
           uv sync --group pipeline --group sources --extra duckdb --extra parquet --extra filesystem --extra cli --extra sql_database --group adbc ${{ matrix.dbms_extras }}
 
