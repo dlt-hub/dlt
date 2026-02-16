@@ -191,6 +191,15 @@ class PostgresSourceDB:
         _make_precision_table("has_precision", False)
         _make_precision_table("has_precision_nullable", True)
 
+        Table(
+            "camelCaseTable",
+            self.metadata,
+            Column("userId", Integer(), primary_key=True, autoincrement=True),
+            Column("firstName", Text(), nullable=False),
+            Column("isActive", Boolean(), nullable=False),
+            Column("createdAt", DateTime(timezone=True), nullable=False),
+        )
+
         if self.with_unsupported_types:
             Table(
                 "has_unsupported_types",
@@ -386,11 +395,30 @@ class PostgresSourceDB:
             conn.execute(table_pk.insert().values(rows_pk))
             conn.execute(table_fk.insert().values(rows_fk))
 
+    def _fake_camel_case_data(self, n: int = 100) -> None:
+        table = self.metadata.tables[f"{self.schema}.camelCaseTable"]
+        # not added to table_infos: camelCase name is not directly
+        # queryable in destinations that normalise identifiers
+        person = mimesis.Person()
+        dev = mimesis.Development()
+        dt = mimesis.Datetime()
+        rows = [
+            dict(
+                firstName=person.name(),
+                isActive=dev.boolean(),
+                createdAt=dt.datetime(timezone="UTC"),
+            )
+            for _ in range(n)
+        ]
+        with self.engine.begin() as conn:
+            conn.execute(table.insert().values(rows))
+
     def insert_data(self) -> None:
         self._fake_chat_data()
         self._fake_precision_data("has_precision")
         self._fake_precision_data("has_precision_nullable", null_n=10)
         self._fake_composite_foreign_key_data()
+        self._fake_camel_case_data()
         if self.with_unsupported_types:
             self._fake_unsupported_data()
 

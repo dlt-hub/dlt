@@ -35,7 +35,7 @@ from dlt._workspace.cli._pipeline_files import (
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
 )
-from dlt._workspace.cli.exceptions import CliCommandInnerException
+from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli._ai_command import SUPPORTED_IDES, TSupportedIde
 
 
@@ -173,6 +173,27 @@ def init_pipeline_at_destination(
             - The type of the source (e.g., "template", "core", "verified").
             - Name of the selected ide for dlthub sources (defaults to "cursor")
     """
+    # extract source name from dlthub source name: dlthub:<name>
+    # TODO: add new source type
+    is_dlthub_source, display_source_name, source_name = _get_source_display_name(source_name)
+    # source and destination names are used as Python identifiers in generated code
+    if not is_valid_schema_name(display_source_name):
+        fmt.error(
+            "Source name %s is not a valid Python identifier. Use snake_case names"
+            " containing only lowercase letters, numbers and underscores (max %d"
+            " characters)."
+            % (fmt.bold(display_source_name), InvalidSchemaName.MAXIMUM_SCHEMA_NAME_LENGTH)
+        )
+        raise CliCommandException()
+    if destination_type and not is_valid_schema_name(destination_type):
+        fmt.error(
+            "Destination name %s is not a valid Python identifier. Use snake_case"
+            " names containing only lowercase letters, numbers and underscores (max"
+            " %d characters)."
+            % (fmt.bold(destination_type), InvalidSchemaName.MAXIMUM_SCHEMA_NAME_LENGTH)
+        )
+        raise CliCommandException()
+
     # try to import the destination and get config spec
     if destination_type:
         destination_reference = Destination.from_reference(destination_type)
@@ -184,9 +205,6 @@ def init_pipeline_at_destination(
 
     # discover type of source
     source_type: files_ops.TSourceType = "template"
-    # extract source name from dlthub source name: dlthub:<name>
-    # TODO: add new source type
-    is_dlthub_source, display_source_name, source_name = _get_source_display_name(source_name)
     if source_name in files_ops.get_sources_names(core_sources_storage, source_type="core"):
         source_type = "core"
     # do not look into verified sources when setting up dlthub source
@@ -271,8 +289,6 @@ def init_pipeline_at_destination(
             remote_modified = {file_name: None for file_name in source_configuration.files}
         else:
             # is single file template source
-            if not is_valid_schema_name(source_name):
-                raise InvalidSchemaName(source_name)
             source_configuration = files_ops.get_template_configuration(
                 templates_storage, source_name, display_source_name
             )
