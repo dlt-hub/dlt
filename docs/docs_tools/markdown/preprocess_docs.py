@@ -113,7 +113,9 @@ def watch() -> None:
         print("File watcher stopped.")
 
 
-def process_doc_file(file_name: str, verbose: bool = False) -> Tuple[int, int, int, bool]:
+def process_doc_file(
+    file_name: str, verbose: bool = False
+) -> Tuple[int, int, int, bool]:
     """Process a single documentation file."""
     ext = os.path.splitext(file_name)[1]
     if ext not in MOVE_FILES_EXTENSION:
