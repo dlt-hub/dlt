@@ -113,7 +113,7 @@ def watch() -> None:
         print("File watcher stopped.")
 
 
-def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
+def process_doc_file(file_name: str, verbose: bool = False) -> Tuple[int, int, int, bool]:
     """Process a single documentation file."""
     ext = os.path.splitext(file_name)[1]
     if ext not in MOVE_FILES_EXTENSION:
@@ -149,14 +149,15 @@ def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
     new_file_content = "\n".join(lines)
 
     if existing_file_content != new_file_content:
-        print(f"Updating {target_file_name}")
+        if verbose:
+            print(f"Updating {target_file_name}")
         with open(target_file_name, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
     return snippet_count, tuba_count, capabilities_count, True
 
 
-def preprocess_docs() -> Tuple[int, int, int, int]:
+def preprocess_docs(verbose: bool = False) -> Tuple[int, int, int, int]:
     """Preprocess all docs in the docs folder."""
     print("Processing docs...")
     processed_files = 0
@@ -165,13 +166,14 @@ def preprocess_docs() -> Tuple[int, int, int, int]:
     processed_capabilities_blocks = 0
 
     for file_name in walk_sync(MD_SOURCE_DIR):
-        print(f"Processing file: {file_name}")
+        if verbose:
+            print(f"Processing file: {file_name}")
         if "jaffle_shop" in file_name:
             continue
         if file_name.endswith(".py"):
             continue
         snippet_count, tuba_count, capabilities_count, processed = process_doc_file(
-            file_name
+            file_name, verbose=verbose
         )
         if not processed:
             continue
@@ -247,13 +249,13 @@ def process_example_change(file_path: str) -> None:
         process_doc_file(target_file_name)
 
 
-def process_docs(incremental_run: bool = False) -> None:
+def process_docs(incremental_run: bool = False, verbose: bool = False) -> None:
     """Main processing function."""
     if not incremental_run and os.path.exists(MD_TARGET_DIR):
         shutil.rmtree(MD_TARGET_DIR)
 
     sync_examples()
-    preprocess_docs()
+    preprocess_docs(verbose=verbose)
     check_docs()
 
 
@@ -265,14 +267,19 @@ def main() -> None:
         action="store_true",
         help="Watch for file changes and reprocess automatically",
     )
-    print("Parsing args")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print per-file processing and update messages",
+    )
     args = parser.parse_args()
 
     if args.watch:
         print("Watching for file changes...")
         watch()
     else:
-        process_docs()
+        process_docs(verbose=args.verbose)
 
 
 if __name__ == "__main__":
