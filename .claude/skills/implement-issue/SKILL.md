@@ -81,7 +81,39 @@ Based on research, conclude one of:
 
 Report findings to the human before moving on.
 
-### 4. Draft implementation plan
+### 4. Set up workspace
+
+Before planning, create the working environment so plan-mode exploration runs against a clean branch.
+
+#### 4a. Determine branch name
+
+Use the category from step 2 and the issue number:
+```
+{category}/{issue-number}-{short-description}
+```
+
+Example: `fix/3529-dedup-sort-escape`
+
+#### 4b. Create worktree and dev environment
+
+Invoke the `/worktree-issue` skill with the branch name:
+```
+/worktree-issue {branch-name}
+```
+
+This creates the worktree, checks out a new branch from `origin/devel`, and runs `/worktree-make-dev`.
+
+Note the worktree path — referred to as `WORKTREE` below.
+
+Verify that the cwd is now inside the worktree:
+
+```
+pwd
+```
+
+If `pwd` does not show `WORKTREE`, run `cd WORKTREE` and verify again. Stop with an error if the cwd cannot be set. Once confirmed, subsequent Bash calls will run inside the worktree automatically.
+
+### 5. Draft implementation plan
 
 Enter plan mode and design a plan that **will pass the `/review-pr` skill**. The review-pr skill checks:
 
@@ -93,6 +125,7 @@ Enter plan mode and design a plan that **will pass the `/review-pr` skill**. The
 
 The plan must include:
 
+- **Working environment**: Worktree path, branch name, and `cd` instruction (see `@.claude/rules/worktree.md`).
 - **Root cause**: Precise code location and explanation.
 - **Fix**: Minimal change following existing patterns in surrounding code.
 - **Test**: A test that **fails without the fix and passes with it**. Place tests where similar functionality is already tested. Follow `@CLAUDE.md` test guidelines (parallel safety, platform independence, proper fixtures).
@@ -101,30 +134,6 @@ The plan must include:
 - **Files changed**: List with expected line counts.
 
 Present the plan via ExitPlanMode for human approval.
-
-### 5. Set up workspace
-
-After plan approval, create the working environment:
-
-#### 5a. Determine branch name
-
-Use the category from step 2 and the issue number:
-```
-{category}/{issue-number}-{short-description}
-```
-
-Example: `fix/3529-dedup-sort-escape`
-
-#### 5b. Create worktree and dev environment
-
-Invoke the `/worktree-issue` skill with the branch name:
-```
-/worktree-issue {branch-name}
-```
-
-This creates the worktree, checks out a new branch from `origin/devel`, and runs `/worktree-make-dev`.
-
-Note the worktree path — referred to as `WORKTREE` below.
 
 ### 6. Implement the fix
 
@@ -160,7 +169,7 @@ Skip this step when the code path is fully internal and you can reason about cor
 #### 7c. Format and lint
 
 ```
-cd WORKTREE && make format && make lint
+make format && make lint
 ```
 
 Both must pass cleanly. Fix any issues before reporting.

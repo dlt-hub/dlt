@@ -74,7 +74,17 @@ Use `/worktree-make-dev` skill to set up the development environment in the work
 
 Note which secrets source was used — this determines what destinations can be tested.
 
-### 6. Report
+### 6. Verify cwd
+
+After dev setup, verify the cwd is still in the worktree:
+
+```
+pwd
+```
+
+If `pwd` does not show the worktree path, run `cd <worktree-path>` and verify again. Stop with an error if the cwd cannot be set.
+
+### 7. Report
 
 Report the worktree info and available test destinations:
 

@@ -7,10 +7,8 @@ paths:
 
 ## Formatting
 - Line length: 100 chars (black + isort, profile "black")
-- `NOTE:` and `TODO:` prefixes are uppercase (`# NOTE: this may change`)
-- f-strings for formatting, `.format()` only for runtime templates
 
-## Code reuse
+## Code and patterns reuse
 - Obvious utils and patterns are already in code base
 - When in doubt look at the code around the changes you are making - not only style but coding patterns and code organization
 - When using a util function or any other function from the code base - look at existing usage if in doubt how it works
@@ -30,6 +28,7 @@ Use the `auto-docstring-rules` skill for full conventions including public API, 
 - Always use full generic parametrization -- `Dict[str, Any]` not `dict`
 - Type aliases use T-prefix PascalCase (`TDataItem`, `TLoaderFileFormat`) -- see @dlt/common/typing.py
 - `TypedDict` for structured dicts, `NamedTuple` for lightweight immutable data
+- Prefer `functools.partial` over `lambda` when currying
 
 ## Exceptions
 - Inherit from `DltException`; use `TerminalException`/`TransientException` mixins -- see @dlt/common/exceptions.py

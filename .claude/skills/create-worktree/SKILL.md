@@ -50,7 +50,21 @@ git worktree list
     - If `--pr` was given, then also: `cd <worktree-path> && gh pr checkout <number>`
 - `gh pr checkout` handles fetching, fork tracking, and branch setup automatically.
 
-### 3. Report
+### 3. Switch cwd
+
+```
+cd <worktree-path>
+```
+
+Then verify the switch took effect:
+
+```
+pwd
+```
+
+If `pwd` does not show the worktree path, stop with an error — the cwd did not persist.
+
+### 4. Report
 
 ```
 Worktree ready: <worktree-path>

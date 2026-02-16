@@ -28,6 +28,14 @@ Use the number to form the worktree name `review-pr-<number>`.
 
 Invoke the `/create-worktree review-pr-<number> --pr <number>` skill to create an isolated worktree for this PR. Note the worktree path from the skill output — referred to as `WORKTREE` below.
 
+Verify that the cwd is now inside the worktree:
+
+```
+pwd
+```
+
+If `pwd` does not show `WORKTREE`, run `cd WORKTREE` and verify again. Stop with an error if the cwd cannot be set. Once confirmed, subsequent Bash calls will run inside the worktree automatically.
+
 ### 2. Fetch PR metadata and diff
 
 Use `gh` to collect all PR information in parallel:
@@ -42,13 +50,13 @@ If the PR diff (from step 2) touches `pyproject.toml`, run the automated depende
 First, fetch the latest `devel` from origin so the comparison is against the current state:
 
 ```
-cd WORKTREE && git fetch origin devel
+git fetch origin devel
 ```
 
 Then run the script — always compare against `origin/devel` regardless of the PR's base branch:
 
 ```
-cd WORKTREE && python tools/check_dependency_changes.py origin/devel
+python tools/check_dependency_changes.py origin/devel
 ```
 
 The script finds the merge-base, simulates a three-way merge (like GitHub), and reports:
