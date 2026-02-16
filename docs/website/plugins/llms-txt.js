@@ -8,6 +8,28 @@
  *
  * MDX/React imports and self-closing component tags are stripped during
  * copy since they are navigation/UI widgets, not content.
+ *
+ * ## Sidebar-based grouping
+ *
+ * Pages in llms.txt are grouped by sidebar category labels (e.g.
+ * "Getting started", "Sources > REST APIs") instead of filesystem
+ * directories. The plugin walks the Docusaurus sidebar tree up to
+ * `groupDepth` levels (default 2), joining category labels with " > ".
+ * Pages not found in any sidebar fall back to directory-based grouping.
+ * Within each group, pages appear in sidebar traversal order; fallback
+ * pages are sorted alphabetically.
+ *
+ * ## Plugin options (in docusaurus.config.js)
+ *
+ *   siteTitle        - Title for the main llms.txt header
+ *   siteDescription  - Description blockquote in the main llms.txt
+ *   excludeFromMd    - Path patterns to exclude from .md file generation
+ *   excludeFromIndex - Path patterns to exclude from llms.txt indexes
+ *   groupDepth       - Number of sidebar category levels for group names (default: 2)
+ *   separateIndexes  - Array of { prefix, title, description, sidebar? } objects.
+ *                      Each entry produces a separate llms.txt under the given prefix.
+ *                      If `sidebar` names a sidebar (e.g. 'hubSidebar'), that sidebar's
+ *                      structure is used for grouping; otherwise falls back to directories.
  */
 const fs = require('fs');
 const path = require('path');
@@ -105,6 +127,68 @@ function cleanMarkdown(content) {
   return result.join('\n');
 }
 
+/**
+ * Walk a Docusaurus sidebar tree and build a mapping from doc IDs to their
+ * sidebar group and display order.
+ *
+ * @param {Array} sidebarItems - Top-level sidebar items array
+ * @param {number} groupDepth - How many category levels deep to use for group names
+ * @returns {{docMap: Object, groupOrder: string[]}}
+ */
+function buildSidebarMap(sidebarItems, groupDepth = 2) {
+  const docMap = {};       // { [docId]: { group: string, order: number } }
+  const groupOrder = [];   // group names in sidebar traversal order
+  let order = 0;
+
+  function addDoc(docId, group) {
+    if (!docId || docMap[docId]) return;
+    if (group && !groupOrder.includes(group)) {
+      groupOrder.push(group);
+    }
+    docMap[docId] = {group: group || '', order: order++};
+  }
+
+  function walk(items, breadcrumb) {
+    for (const item of items) {
+      if (typeof item === 'string') {
+        // Direct doc reference like 'reference/installation'
+        const group = breadcrumb.slice(0, groupDepth).join(' > ');
+        addDoc(item, group);
+        continue;
+      }
+
+      if (!item || typeof item !== 'object') continue;
+
+      if (item.type === 'ref' || item.type === 'link') {
+        // Cross-sidebar refs and external URLs — skip
+        continue;
+      }
+
+      if (item.type === 'doc') {
+        const group = breadcrumb.slice(0, groupDepth).join(' > ');
+        addDoc(item.id, group);
+        continue;
+      }
+
+      if (item.type === 'category') {
+        const newBreadcrumb = [...breadcrumb, item.label];
+        // If the category itself links to a doc, include it
+        if (item.link && item.link.type === 'doc' && item.link.id) {
+          const group = newBreadcrumb.slice(0, groupDepth).join(' > ');
+          addDoc(item.link.id, group);
+        }
+        if (item.items) {
+          walk(item.items, newBreadcrumb);
+        }
+        continue;
+      }
+    }
+  }
+
+  walk(sidebarItems, []);
+  return {docMap, groupOrder};
+}
+
 // --- Plugin ----------------------------------------------------------------
 
 /**
@@ -164,6 +248,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
     excludeFromMd = ['api_reference/'],
     excludeFromIndex = ['devel/'],
     separateIndexes = [],
+    groupDepth = 2,
   } = options;
 
   return {
@@ -293,34 +378,100 @@ module.exports = function llmsTxtPlugin(_context, options) {
         (p) => p.isMaster && !excludeFromIndex.some((pat) => p.mdRel.includes(pat))
       );
 
+      // Load sidebar definitions and build sidebar maps
+      let sidebars = {};
+      const sidebarsPath = path.join(siteDir, 'sidebars.js');
+      try {
+        sidebars = require(sidebarsPath);
+      } catch (e) {
+        console.warn(`[llms-txt] Could not load sidebars.js: ${e.message}`);
+      }
+
+      // Build sidebar map for main docs (docsSidebar)
+      let mainSidebarMap = null;
+      if (sidebars.docsSidebar) {
+        mainSidebarMap = buildSidebarMap(sidebars.docsSidebar, groupDepth);
+        console.log(
+          `[llms-txt] Main sidebar map: ${Object.keys(mainSidebarMap.docMap).length} docs in ${mainSidebarMap.groupOrder.length} groups`
+        );
+      }
+
       /**
        * Build llms.txt content from a set of pages.
        * @param {string} title - The title for the llms.txt header
        * @param {string} description - Description for the blockquote
        * @param {Array} pageList - Pages to include
-       * @param {string} stripPrefix - Prefix to strip from mdRel for grouping
+       * @param {Object|null} sidebarInfo - {docMap, groupOrder} from buildSidebarMap, or null
+       * @param {string} pathPrefix - Prefix to strip from mdRel for directory-based fallback grouping
        */
-      function buildLlmsTxt(title, description, pageList, stripPrefix = '') {
-        // Group by first path segment (after stripping prefix)
+      function buildLlmsTxt(title, description, pageList, sidebarInfo, pathPrefix = '') {
         const groups = {};
         const topLevel = [];
+        const sidebarGroupSet = new Set(); // track which groups came from sidebar
+
         for (const page of pageList) {
           const content = fs.readFileSync(page.sourceFile, 'utf8');
           const fm = readFrontmatter(content);
           const pageTitle = fm.title || path.basename(page.mdRel, '.md');
           const pageDesc = fm.description || '';
 
-          const groupPath = stripPrefix
-            ? page.mdRel.slice(stripPrefix.length)
-            : page.mdRel;
-          const parts = groupPath.split('/');
-          if (parts.length === 1) {
-            topLevel.push({mdRel: page.mdRel, title: pageTitle, description: pageDesc});
+          // Derive docId (strip .md extension only — keep full path for sidebar lookup)
+          const docId = page.mdRel.replace(/\.md$/, '');
+
+          let group = null;
+          let sidebarOrder = null;
+
+          if (sidebarInfo && sidebarInfo.docMap[docId]) {
+            const entry = sidebarInfo.docMap[docId];
+            group = entry.group;  // may be '' for top-level
+            sidebarOrder = entry.order;
+            if (group) sidebarGroupSet.add(group);
           } else {
-            const group = parts[0];
-            if (!groups[group]) groups[group] = [];
-            groups[group].push({mdRel: page.mdRel, title: pageTitle, description: pageDesc});
+            // Fallback: directory-based grouping
+            const groupPath = pathPrefix
+              ? page.mdRel.slice(pathPrefix.length)
+              : page.mdRel;
+            const parts = groupPath.split('/');
+            group = parts.length > 1 ? parts[0] : '';
           }
+
+          const entry = {
+            mdRel: page.mdRel,
+            title: pageTitle,
+            description: pageDesc,
+            sidebarOrder,
+          };
+
+          if (!group) {
+            topLevel.push(entry);
+          } else {
+            if (!groups[group]) groups[group] = [];
+            groups[group].push(entry);
+          }
+        }
+
+        // Build ordered group list: sidebar groups first (in sidebar order), then fallback groups alphabetically
+        const orderedGroups = [];
+        if (sidebarInfo) {
+          for (const g of sidebarInfo.groupOrder) {
+            if (groups[g]) orderedGroups.push(g);
+          }
+        }
+        const fallbackGroups = Object.keys(groups)
+          .filter((g) => !orderedGroups.includes(g))
+          .sort();
+        orderedGroups.push(...fallbackGroups);
+
+        // Sort pages within each group: sidebar-ordered first, then alphabetical fallback
+        function sortPages(pages) {
+          return pages.sort((a, b) => {
+            if (a.sidebarOrder != null && b.sidebarOrder != null) {
+              return a.sidebarOrder - b.sidebarOrder;
+            }
+            if (a.sidebarOrder != null) return -1;
+            if (b.sidebarOrder != null) return 1;
+            return a.title.localeCompare(b.title);
+          });
         }
 
         let txt = `# ${title}\n\n`;
@@ -330,25 +481,23 @@ module.exports = function llmsTxtPlugin(_context, options) {
         }
 
         if (topLevel.length > 0) {
-          for (const p of topLevel.sort((a, b) => a.title.localeCompare(b.title))) {
+          for (const p of sortPages(topLevel)) {
             const desc = p.description ? `: ${p.description}` : '';
             txt += `- [${p.title}](${baseUrl}${p.mdRel})${desc}\n`;
           }
           txt += '\n';
         }
 
-        const sortedGroups = Object.keys(groups).sort();
-        for (const group of sortedGroups) {
+        for (const group of orderedGroups) {
           txt += `## ${group}\n`;
-          const sortedPages = groups[group].sort((a, b) => a.title.localeCompare(b.title));
-          for (const p of sortedPages) {
+          for (const p of sortPages(groups[group])) {
             const desc = p.description ? `: ${p.description}` : '';
             txt += `- [${p.title}](${baseUrl}${p.mdRel})${desc}\n`;
           }
           txt += '\n';
         }
 
-        return {txt, groups: sortedGroups, count: pageList.length};
+        return {txt, groups: orderedGroups, count: pageList.length};
       }
 
       // Generate separate llms.txt files for configured prefixes
@@ -360,7 +509,16 @@ module.exports = function llmsTxtPlugin(_context, options) {
 
         if (matching.length === 0) continue;
 
-        const {txt, groups, count} = buildLlmsTxt(sep.title, sep.description, matching, prefix);
+        // Build sidebar map for this separate index if configured
+        let sepSidebarMap = null;
+        if (sep.sidebar && sidebars[sep.sidebar]) {
+          sepSidebarMap = buildSidebarMap(sidebars[sep.sidebar], groupDepth);
+          console.log(
+            `[llms-txt] ${sep.sidebar} map: ${Object.keys(sepSidebarMap.docMap).length} docs in ${sepSidebarMap.groupOrder.length} groups`
+          );
+        }
+
+        const {txt, groups, count} = buildLlmsTxt(sep.title, sep.description, matching, sepSidebarMap, prefix);
         const sepPath = path.join(outDir, prefix, 'llms.txt');
         const sepDir = path.dirname(sepPath);
         if (!fs.existsSync(sepDir)) {
@@ -374,7 +532,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
 
       // Generate main llms.txt from remaining pages
       const {txt: mainTxt, groups: mainGroups, count: mainCount} = buildLlmsTxt(
-        siteTitle, siteDescription, remainingPages
+        siteTitle, siteDescription, remainingPages, mainSidebarMap
       );
       fs.writeFileSync(path.join(outDir, 'llms.txt'), mainTxt);
       console.log(

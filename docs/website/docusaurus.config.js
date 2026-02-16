@@ -123,11 +123,13 @@ const config = {
         siteDescription: 'dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 8000+ source connectors.',
         excludeFromMd: ['api_reference/'],
         excludeFromIndex: ['devel/'],
+        groupDepth: 2,
         separateIndexes: [
           {
             prefix: 'hub/',
             title: 'dltHub',
             description: 'dltHub is a managed platform for dlt pipelines with a web UI, pipeline runner, and collaboration features.',
+            sidebar: 'hubSidebar',
           },
         ],
       },

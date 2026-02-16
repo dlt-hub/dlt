@@ -111,8 +111,8 @@ The docs build generates LLM-optimized output following the [llms.txt specificat
 
 ### What the plugin produces
 
-- **`/docs/llms.txt`** — Index of all master-version doc pages (excluding hub) with titles and descriptions, grouped by directory. This is the primary entry point for LLM agents.
-- **`/docs/hub/llms.txt`** — Separate index for dltHub pages, with its own title and description. Configured via `separateIndexes` in the plugin options.
+- **`/docs/llms.txt`** — Index of all master-version doc pages (excluding hub) with titles and descriptions, grouped by sidebar category (e.g. "Getting started", "Sources > REST APIs"). This is the primary entry point for LLM agents.
+- **`/docs/hub/llms.txt`** — Separate index for dltHub pages, grouped by `hubSidebar` categories. Configured via `separateIndexes` in the plugin options.
 - **`.md` files next to each HTML page** — For every doc page like `/docs/general-usage/schema`, a clean markdown version is available at `/docs/general-usage/schema.md`. These are copied from the preprocessed source files (with snippets already resolved), not reverse-converted from HTML.
 
 ### How it works
@@ -120,7 +120,7 @@ The docs build generates LLM-optimized output following the [llms.txt specificat
 1. **Discovers pages** from the HTML build output (all `*.html` files).
 2. **Maps each HTML path** back to its source `.md` file in `versioned_docs/version-{name}/` or `docs_processed/`, handling custom `slug:` frontmatter.
 3. **Copies source `.md` files** with cleanup: strips MDX `import` lines and self-closing React component tags (`<Header/>`, `<DocCardList/>`, etc.) that are UI-only widgets.
-4. **Generates `llms.txt`** from the master version pages, reading `title` and `description` from YAML frontmatter. Pages matching a `separateIndexes` prefix (e.g. `hub/`) are split into their own `llms.txt` at that prefix path and removed from the main index.
+4. **Generates `llms.txt`** from the master version pages, reading `title` and `description` from YAML frontmatter. Pages are grouped by sidebar categories from `sidebars.js` (up to `groupDepth` levels, joined with " > "); pages not in any sidebar fall back to directory-based grouping. Pages matching a `separateIndexes` prefix (e.g. `hub/`) are split into their own `llms.txt` at that prefix path and removed from the main index.
 
 ### What gets excluded or separated
 
