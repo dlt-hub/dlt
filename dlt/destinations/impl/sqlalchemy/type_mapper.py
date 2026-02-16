@@ -14,6 +14,15 @@ from dlt.common.schema.typing import TColumnSchema
 
 # TODO: base type mapper should be a generic class to support TypeEngine instead of str types
 class SqlalchemyTypeMapper(DataTypeMapper):
+    """Maps dlt data types to SQLAlchemy column types and back.
+
+    to_destination_type dispatches to per-type visitor methods named
+    _db_type_from_<dlt_type>_type (e.g. _db_type_from_json_type). Subclasses
+    can override individual visitors to customize mapping for a single dlt type
+    without reimplementing the full dispatch. Overriding to_destination_type
+    directly is still supported for backward compatibility.
+    """
+
     def __init__(
         self,
         capabilities: DestinationCapabilitiesContext,
@@ -71,41 +80,89 @@ class SqlalchemyTypeMapper(DataTypeMapper):
             precision, scale = self.capabilities.decimal_precision
         return sa.Numeric(precision, scale)
 
+    def db_type_from_text_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "text" — variable-length string, optional precision sets max length."""
+        precision = column.get("precision")
+        length = precision
+        if length is None and column.get("unique"):
+            length = 128
+        if length is None:
+            return sa.Text()
+        else:
+            return sa.String(length=length)
+
+    def db_type_from_double_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "double" — 64-bit IEEE 754 floating point."""
+        return self._create_double_type()
+
+    def db_type_from_bool_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "bool" — true/false."""
+        return sa.Boolean()
+
+    def db_type_from_timestamp_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "timestamp" — date and time with optional timezone and fractional seconds."""
+        return self._create_date_time_type(
+            "timestamp", column.get("precision"), column.get("timezone")
+        )
+
+    def db_type_from_bigint_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "bigint" — integer with optional precision (16, 32, 64 bits)."""
+        return self._db_integer_type(column.get("precision"))
+
+    def db_type_from_binary_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "binary" — raw bytes, optional precision sets max length."""
+        return sa.LargeBinary(length=column.get("precision"))
+
+    def db_type_from_json_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "json" — arbitrary nested JSON data."""
+        return sa.JSON(none_as_null=True)
+
+    def db_type_from_decimal_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "decimal" — arbitrary-precision decimal number."""
+        return self._to_db_decimal_type(column)
+
+    def db_type_from_wei_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "wei" — large-precision integer for blockchain wei values."""
+        wei_precision, wei_scale = self.capabilities.wei_precision
+        return sa.Numeric(precision=wei_precision, scale=wei_scale)
+
+    def db_type_from_date_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "date" — calendar date without time component."""
+        return sa.Date()
+
+    def db_type_from_time_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        """Converts dlt "time" — time of day with optional timezone and fractional seconds."""
+        return self._create_date_time_type("time", column.get("precision"), column.get("timezone"))
+
     def to_destination_type(  # type: ignore[override]
         self, column: TColumnSchema, table: PreparedTableSchema = None
     ) -> sqltypes.TypeEngine:
         sc_t = column["data_type"]
-        precision = column.get("precision")
-        # TODO: Precision and scale for supported types
-        if sc_t == "text":
-            length = precision
-            if length is None and column.get("unique"):
-                length = 128
-            if length is None:
-                return sa.Text()
-            else:
-                return sa.String(length=length)
-        elif sc_t == "double":
-            return self._create_double_type()
-        elif sc_t == "bool":
-            return sa.Boolean()
-        elif sc_t == "timestamp":
-            return self._create_date_time_type(sc_t, precision, column.get("timezone"))
-        elif sc_t == "bigint":
-            return self._db_integer_type(precision)
-        elif sc_t == "binary":
-            return sa.LargeBinary(length=precision)
-        elif sc_t == "json":
-            return sa.JSON(none_as_null=True)
-        elif sc_t == "decimal":
-            return self._to_db_decimal_type(column)
-        elif sc_t == "wei":
-            wei_precision, wei_scale = self.capabilities.wei_precision
-            return sa.Numeric(precision=wei_precision, scale=wei_scale)
-        elif sc_t == "date":
-            return sa.Date()
-        elif sc_t == "time":
-            return self._create_date_time_type(sc_t, precision, column.get("timezone"))
+        method = getattr(self, f"db_type_from_{sc_t}_type", None)
+        if method is not None:
+            return method(column, table)  # type: ignore[no-any-return]
         raise TerminalValueError(f"Unsupported data type: `{sc_t}`")
 
     def _from_db_integer_type(self, db_type: sa.Integer) -> TColumnSchema:
@@ -164,43 +221,37 @@ class SqlalchemyTypeMapper(DataTypeMapper):
 
 
 class MssqlVariantTypeMapper(SqlalchemyTypeMapper):
-    def to_destination_type(  # type: ignore[override]
-        self, column: TColumnSchema, table: PreparedTableSchema = None
+    def db_type_from_text_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
     ) -> sqltypes.TypeEngine:
-        dt = super().to_destination_type(column, table)
+        dt = super().db_type_from_text_type(column, table)
         precision = column.get("precision")
-        # TODO: Precision and scale for supported types
-        if column["data_type"] == "text":
-            length = precision
-            if length is None and column.get("unique"):
-                length = 4000  # max regular varchar
-            if length is None:
-                return dt.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
-            else:
-                return dt.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
-        return dt
+        length = precision
+        if length is None and column.get("unique"):
+            length = 4000  # max regular varchar
+        if length is None:
+            return dt.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
+        else:
+            return dt.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
 
 
 class MysqlVariantTypeMapper(SqlalchemyTypeMapper):
-    def to_destination_type(  # type: ignore[override]
-        self, column: TColumnSchema, table: PreparedTableSchema = None
+    def db_type_from_double_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
     ) -> sqltypes.TypeEngine:
-        dt = super().to_destination_type(column, table)
-        sc_t = column["data_type"]
-        if sc_t == "double":
-            from sqlalchemy.dialects.mysql import DOUBLE
+        from sqlalchemy.dialects.mysql import DOUBLE
 
-            return DOUBLE()
-        elif sc_t == "timestamp":
-            # Special case, type_descriptor does not return the specific datetime type
-            from sqlalchemy.dialects.mysql import DATETIME
+        return DOUBLE()
 
-            precision = column.get("precision")
-            precision = (
-                precision if precision is not None else self.capabilities.timestamp_precision
-            )
-            return DATETIME(fsp=precision)
-        return dt
+    def db_type_from_timestamp_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        # Special case, type_descriptor does not return the specific datetime type
+        from sqlalchemy.dialects.mysql import DATETIME
+
+        precision = column.get("precision")
+        precision = precision if precision is not None else self.capabilities.timestamp_precision
+        return DATETIME(fsp=precision)
 
 
 class HexVarBinary(sa.TypeDecorator):
@@ -213,8 +264,8 @@ class HexVarBinary(sa.TypeDecorator):
 
 
 class JSONString(sa.TypeDecorator):
-    """
-    A custom SQLAlchemy type that stores JSON data as a string in the database.
+    """Custom SQLAlchemy type that stores JSON data as a string in the database.
+
     Automatically serializes Python objects to JSON strings on write and
     deserializes JSON strings back to Python objects on read.
     """
@@ -239,13 +290,13 @@ class JSONString(sa.TypeDecorator):
 
 
 class TrinoVariantTypeMapper(SqlalchemyTypeMapper):
-    def to_destination_type(  # type: ignore[override]
-        self, column: TColumnSchema, table: PreparedTableSchema = None
+    def db_type_from_binary_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
     ) -> sqltypes.TypeEngine:
-        dt = super().to_destination_type(column, table)
-        sc_t = column["data_type"]
-        if sc_t == "binary":
-            return dt.with_variant(HexVarBinary(), "trino")  # type: ignore[no-any-return]
-        if sc_t == "json":
-            return JSONString()
-        return dt
+        dt = super().db_type_from_binary_type(column, table)
+        return dt.with_variant(HexVarBinary(), "trino")  # type: ignore[no-any-return]
+
+    def db_type_from_json_type(
+        self, column: TColumnSchema, table: PreparedTableSchema
+    ) -> sqltypes.TypeEngine:
+        return JSONString()

@@ -1243,19 +1243,21 @@ def yield_client_with_storage(
 
     with cm_yield_client(destination, dataset_name, default_config_values, schema_name) as client:
         client.initialize_storage()
-        yield client
-        if client.is_storage_initialized():
-            try:
-                client.drop_storage()
-            except Exception as exc:
-                print(f"drop dataset {dataset_name}: {exc}")
-        if isinstance(client, WithStagingDataset):
-            with client.with_staging_dataset():
-                if client.is_storage_initialized():
-                    try:
-                        client.drop_storage()
-                    except Exception as exc:
-                        print(f"drop dataset {dataset_name} STAGING: {exc}")
+        try:
+            yield client
+        finally:
+            if client.is_storage_initialized():
+                try:
+                    client.drop_storage()
+                except Exception as exc:
+                    print(f"drop dataset {dataset_name}: {exc}")
+            if isinstance(client, WithStagingDataset):
+                with client.with_staging_dataset():
+                    if client.is_storage_initialized():
+                        try:
+                            client.drop_storage()
+                        except Exception as exc:
+                            print(f"drop dataset {dataset_name} STAGING: {exc}")
 
 
 def delete_dataset(client: SqlClientBase[Any], normalized_dataset_name: str) -> None:

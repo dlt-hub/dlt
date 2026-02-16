@@ -92,10 +92,10 @@ class ItemsNormalizer:
 
 
 class ModelItemsNormalizer(ItemsNormalizer):
-    def _normalize_casefold(self, ident: str) -> str:
-        return self.config.destination_capabilities.casefold_identifier(
-            self.schema.naming.normalize_identifier(ident)
-        )
+    def _normalize_casefold(self, identifier: str) -> str:
+        # use normalize_path() to preserve __ separators in already-normalized names
+        normalized = self.schema.naming.normalize_path(identifier)
+        return self.config.destination_capabilities.casefold_identifier(normalized)
 
     def _adjust_outer_select_with_dlt_columns(
         self,

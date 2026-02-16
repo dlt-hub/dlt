@@ -97,9 +97,6 @@ def test_default_pipeline() -> None:
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(
-        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
-    )
     # default dataset name is not created until a destination that requires it is set
     assert p.dataset_name is None
     assert p.destination is None
@@ -117,6 +114,13 @@ def test_default_pipeline() -> None:
     p.extract(["a", "b", "c"], table_name="data")
     # `_pipeline` is removed from default schema name
     assert p.default_schema_name in ["dlt_pytest", "dlt"]
+
+
+def test_default_pipelines_dir() -> None:
+    p = dlt.pipeline("test_pipeline" + uniq_id())
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
+    )
 
 
 def test_pipeline_runtime_configuration() -> None:
@@ -149,9 +153,6 @@ def test_default_pipeline_dataset_layout(environment) -> None:
         dataset_name_layout % "dlt_pipeline_dataset",
     ]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(
-        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
-    )
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_dataset_names
     assert p.default_schema_name is None

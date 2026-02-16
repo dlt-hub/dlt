@@ -25,7 +25,7 @@ logs/
 # playwright dumps
 test-results/
 # temporary directory used by marimo for layout, caching, HTML snapshots; see marimo docs
-**/__marimo__  
+**/__marimo__
 **.lancedb
 *.lance
 
@@ -142,6 +142,9 @@ test-results/
 
 # VS Code
 **/.vscode
+
+# Zed IDE
+**/.zed
 
 # MAC OS X
 **/.DS_Store

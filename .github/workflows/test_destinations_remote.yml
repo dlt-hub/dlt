@@ -118,7 +118,7 @@ jobs:
               destinations: "[\"mssql\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra mssql --extra s3 --extra gs --extra az --extra parquet --group adbc"
-              pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
               post_install_commands: "uv run dbc install mssql"
               always_run_all_tests: true
 
@@ -127,14 +127,14 @@ jobs:
               destinations: "[\"synapse\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra synapse --extra parquet"
-              pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
 
             # Fabric
             - name: fabric
               destinations: "[\"fabric\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra fabric"
-              pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
 
             # Postgres and Redshift (used to be test_destinations.yml)
             - name: redshift

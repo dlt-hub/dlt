@@ -16,7 +16,13 @@ from typing import (
 )
 
 from dlt.common.reflection.inspect import isasyncgenfunction, isgeneratorfunction
-from dlt.common.typing import AnyFun, AnyType, TDataItems, resolve_single_annotation
+from dlt.common.typing import (
+    AnyFun,
+    AnyType,
+    TDataItems,
+    is_subclass,
+    resolve_single_annotation,
+)
 from dlt.common.utils import get_callable_name, uniq_id
 
 from dlt.extract.exceptions import (
@@ -353,8 +359,7 @@ class Pipe(SupportsPipe):
                 return_annotation = resolve_single_annotation(
                     sig.return_annotation, globalns=globals()
                 )
-                if inspect.isclass(return_annotation):
-                    return issubclass(return_annotation, DltResource)
+                return is_subclass(return_annotation, DltResource)
 
         return False
 

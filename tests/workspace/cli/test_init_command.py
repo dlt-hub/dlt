@@ -126,6 +126,26 @@ def test_init_command_pipeline_default_template(
     assert len(visitor.known_resource_calls) == 1
 
 
+@pytest.mark.parametrize(
+    "source_name,destination",
+    [
+        ("robin-ai", "bigquery"),  # hyphen
+        ("dlthub:robin-ai", "bigquery"),  # dlthub prefix with hyphen
+        ("123source", "bigquery"),  # starts with digit
+        ("my source", "bigquery"),  # space
+        ("valid_source", "big-query"),  # invalid destination
+    ],
+    ids=["hyphen", "dlthub_hyphen", "digit_start", "space", "invalid_dest"],
+)
+def test_init_command_invalid_identifiers(
+    repo_dir: str, workspace_files: FileStorage, source_name: str, destination: str
+) -> None:
+    from dlt._workspace.cli.exceptions import CliCommandException
+
+    with pytest.raises(CliCommandException):
+        _init_command.init_command(source_name, destination, repo_dir)
+
+
 def test_default_source_file_selection() -> None:
     templates_storage = files_ops.get_single_file_templates_storage()
 
@@ -701,7 +721,6 @@ def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
     random_vibez = [
         "news_api",
         "alpaca",
-        "robin",
         "kwanko",
         "powerlink",
         "mysql_instance",
@@ -709,7 +728,7 @@ def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
         "coalesce",
         "jobnimbus",
         "perplexity_ai",
-        "wordpress_site",
+        "robin_api",
     ]
 
     for source_name in random_vibez:

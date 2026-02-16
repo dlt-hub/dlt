@@ -3,7 +3,7 @@ import pytest
 import sys
 import time
 import multiprocessing
-from typing import ClassVar, Tuple, Type
+from typing import ClassVar, Iterator, Tuple, Type
 
 from dlt.common.runtime import signals
 from dlt.common.configuration import resolve_configuration, configspec
@@ -76,10 +76,14 @@ _counter = 0
 
 
 @pytest.fixture(autouse=True)
-def default_args() -> None:
+def default_args() -> Iterator[None]:
     signals._received_signal = 0
     global _counter
     _counter = 0
+    try:
+        yield
+    finally:
+        signals._received_signal = 0
 
 
 # test runner functions
