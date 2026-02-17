@@ -414,4 +414,3 @@ test-e2e-dashboard-headed: ## Runs dashboard e2e tests with visible browser
 
 create-test-pipelines: ## Creates test pipelines for manual dashboard testing
 	uv run python tests/workspace/helpers/dashboard/example_pipelines.py
-	
