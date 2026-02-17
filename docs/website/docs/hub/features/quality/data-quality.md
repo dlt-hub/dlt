@@ -8,16 +8,176 @@ keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 🚧 This feature is under development. Interested in becoming an early tester? [Join dltHub early access](https://info.dlthub.com/waiting-list).
 :::
 
-dltHub will allow you to define data validation rules in Python. This ensures your data meets expected quality standards at the ingestion step.
+dltHub data quality features include metrics for monitoring dataset properties over time, and checks to validate them against expectations. Together, they offer visibility and allow to catch data issues early. Metrics and checks are defined via Python code. The extensive configuration allows you to specify what to monitor and validate, when, how, and where to store results.
 
-## Key features
-With dltHub, you will be able to:
+This page covers the basics of metrics and checks. You should notice a lot of symmetry (e.g., `with_metrics()` and `with_checks()`). The later parts of this page cover notions applicable to both. 
 
-* Define data tests and quality contracts in Python.
-* Apply both row-level and batch-level validation.
-* Enforce constraints on distributions, boundaries, and expected values.
+## Metrics
 
-Stay tuned for updates as we expand these capabilities! 🚀
+A **data quality metric** or **metric** a function applied to data that returns a scalar value describing a property of the data. A metric can take as input a column, a table, or the full dataset (i.e., all tables and historical metrics).
+
+### Define metrics
+#### Static
+
+You can define metrics along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_metrics`. It is available under the `dlt.hub.data_quality` module, commonly imported as `dq`. Inside the decorator, you can set the individual metrics available through `dq.metrics.column.`, `dq.metrics.table.`, or `dq.metrics.dataset.`.
+
+The next snippet defines 3 metrics on the `customers` resource: the mean of the `amount` column, the number of null values in the `email` column, and the total number of rows in the table. 
+
+:::note
+Only column-level and table-level metrics can be defined on a `@dlt.resource`. To set dataset-level metrics, use `@with_metrics` on the `@dlt.source`.
+:::
+
+
+```python
+import dlt
+from dlt.hub import data_quality as dq
+
+@dq.with_metrics(
+    dq.metrics.column.mean("amount"),
+    dq.metrics.column.null_count("email"),
+    dq.metrics.table.row_count()
+)
+@dlt.resource
+def customers():
+    yield data
+```
+
+The next snippet shows how to add dataset-level metrics to a source. The `total_row_count` is added on the `crm` source.
+
+```python
+import dlt
+from dlt.hub import data_quality as dq
+
+@dq.with_metrics(
+    dq.metrics.column.mean("amount"),
+    dq.metrics.column.null_count("email"),
+    dq.metrics.table.row_count()
+)
+@dlt.resource
+def customers():
+    yield data
+
+
+@dq.with_metrics(
+    dq.metrics.dataset.total_row_count()
+)
+@dlt.source
+def crm():
+    return [customers]
+```
+
+#### Dynamic
+
+Similar to the static approach, you can add metrics to an instantiated resource or source object using `with_metrics`. This is particularly useful when using built-in sources and resources like `filesystem`, `rest_api` or `sql_database`.
+
+```python
+import dlt
+from dlt.hub import data_quality as dq
+
+@dlt.resource
+def customers():
+    yield from ...
+
+# later; this mutates the resource object and sets metrics
+dq.with_metrics(
+    customers,
+    dq.metrics.column.mean("amount"),
+    dq.metrics.column.null_count("email"),
+    dq.metrics.table.row_count()
+)
+```
+
+### Available metrics
+
+Here's the list of built-in metrics:
+
+```python
+from dlt.hub import data_quality as dq
+
+# column-level
+dq.metrics.column.maximum("col")
+dq.metrics.column.minimum("col")
+dq.metrics.column.mean("col")
+dq.metrics.column.median("col")
+dq.metrics.column.mode("col")
+dq.metrics.column.sum("col")
+dq.metrics.column.standard_deviation("col")
+dq.metrics.column.quantile("col", quantile=0.95)
+dq.metrics.column.null_count("col")
+dq.metrics.column.null_rate("col")
+dq.metrics.column.unique_count("col")
+dq.metrics.column.average_length("col")
+dq.metrics.column.minimum_length("col")
+dq.metrics.column.maximum_length("col")
+
+# table-level
+dq.metrics.table.row_count()  # Number of rows in table
+dq.metrics.table.unique_count()  # Number of distinct / unique rows in table
+dq.metrics.table.null_row_count()  # Number of rows where all columns are null
+
+# dataset-level
+dq.metrics.dataset.total_row_count()  # Total number of rows
+dq.metrics.dataset.load_row_count()  # Rows added in latest load
+dq.metrics.dataset.latest_loaded_at()  # Timestamp of most recent load
+```
+
+:::note
+If you have built-in metrics requests, let us know. Custom metrics are planned.
+:::
+
+### Compute metrics
+
+Pass the pipeline to `dq.enable_data_quality()` to enable metrics. This will set a flag on the pipeline state to compute metrics and write results to destination after each `pipeline.run()` call.
+
+```python
+pipeline = dlt.pipeline("my_pipeline", destination="duckdb")
+
+dq.enable_data_quality(pipeline)
+
+pipeline.run(customers)
+```
+
+Since the flag is stored on the pipeline state, instantiating this pipeline from another script or notebook will remember that metrics are enabled and compute metrics when `pipeline.run()` is called.
+
+```python
+# another_file.py
+pipeline = dlt.attach("my_pipeline")
+
+# this will compute metrics too
+pipeline.run(customers)
+```
+
+
+### Read metrics
+
+The convenience function `dq.read_metric()` allows you to retrieve stored metrics with some metadata. This makes it easy to build reporting, dashboard, or analytics over this data.
+
+The function produces a `dlt.Relation` which can be converted to a list, pandas dataframe, arrow table, etc.
+
+```python
+dataset = pipeline.dataset()
+# column-level `mean` as pandas.DataFrame
+dq.read_metric(
+    dataset, 
+    table="customers", 
+    column="amount", 
+    metric="mean"
+).df()
+
+# table-level `row_count` as list of tuples
+dq.read_metric(
+    dataset, 
+    table="customers", 
+    metric="row_count"
+).fetchall()
+
+# dataset-level `total_row_count` as pyarrow.Table
+dq.read_metric(
+    dataset, 
+    metric="total_row_count"
+).arrow()
+```
+
 
 ## Checks
 A **data quality check** or **check** is a function applied to data that returns a **check result** or **result** (can be boolean, integer, float, etc.). The result that is converted to a success / fail **check outcome** or **outcome** (boolean) based on a **decision**.
@@ -26,71 +186,106 @@ A **data quality check** or **check** is a function applied to data that returns
 A **test** verifies that **code** behaves as expected. A **check** verifies that the **data** meets some expectations. Code tests enable you to make changes with confidence and data checks help monitor your live systems.
 :::
 
-For example, the check `is_in(column_name, accepted_values)` verifies that the column only includes accepted values. Running the check counts successful records to compute the success rate (**result**). The **outcome** will be a success if success rate is 100%, i.e., all records succeeded the check (**decision**).
+### Define checks
+#### Static
 
-This snippet shows a single `is_in()` check being ran against the `orders` table in the `point_of_sale` dataset.
+You can define checks along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_checks` available under the `dlt.hub.data_quality` module. Inside the decorator, you can set the individual checks available through `dq.checks.`.
+
+This snippet shows a single `is_in()` check being ran against the `orders` table.
 
 ```py
 import dlt
 from dlt.hub import data_quality as dq
 
-dataset = dlt.dataset("duckdb", "point_of_sale")
-checks = [
-    dq.checks.is_in("payment_methods", ["card", "cash", "voucher"])
-]
-
-# prepare a query to execute all checks
-check_plan = dq.prepare_checks(dataset["orders"], checks=checks)
-# execute checks and get results in-memory
-check_plan.df()
+@dq.with_metrics(
+    dq.checks.is_in("payment_methods", ["card", "cash", "voucher"]),
+)
+@dlt.resource
+def orders():
+    yield from ...
 ```
 
+#### Dynamic
 
-### Check level
-The **check level** indicates the granularity of the **check result**. For instance:
-- **Row-level** checks produce a result per record. It's possible to inspect which specific records pass / failed the check.
+Similar to the static approach, you can add checks to an instantiated resource or source object using `with_checks`. This is particularly useful when using built-in sources and resources like `filesystem`, `rest_api` or `sql_database`.
 
-- **Table-level** checks produce a result per table (e.g., result is "the number of unique values" and decision is "is this greater than 5?"). 
+```python
+import dlt
+from dlt.hub import data_quality as dq
 
-    These checks can often be rewritten as row-level checks (e.g., "is this value unique?")
+@dlt.resource
+def orders():
+    yield data
 
-- **Dataset-level** checks produce a result per dataset. This typically involves multiple tables, temporal comparisons, or pipeline information (e.g., "the number of rows in 'orders' is higher than the number of rows in 'customers')
+# later; this mutates the resource object and sets checks
+dq.with_checks(
+    orders,
+    dq.checks.is_in("payment_methods", ["card", "cash", "voucher"]),
+)
+```
 
-:::important
-Notice that the **check level** relates to the result and not the **input data** of the check. For instance, a row-level check can involve multiple tables as input.
-:::
+### Available checks
 
-
-### Built-in checks
-The library `dlthub` includes many built-in checks: `is_in()`, `is_unique()`, `is_primary_key()`, and more. The built-in `case()` and `where()` simplify custom row and table-level checks respectively.
-
-For example, the following are equivalent:
+Here's the list of built-in checks:
 
 ```py
 from dlt.hub import data_quality as dq
 
-dq.checks.is_unique("foo")
-dq.checks.case("COUNT(*) OVER (PARTITION BY foo) > 1")
+dq.checks.is_unique("col")
+dq.checks.is_not_null("col")
+dq.checks.is_primary_key("col")  # valid primary key
+dq.checks.is_foreign_key("col", "other_table", "other_col")  # valid foreign key
+dq.checks.is_in("foo", ["bar", "baz"])  # valid values
+dq.checks.case("col < 0")  # row-wise check
+dq.checks.where("col > 10")  # table-wise check
 ```
 
+### Compute checks
 
-### Custom checks (WIP)
-Can be implemented as a `dlt.hub.transformation` that matches a specific schema or as subclass of `_BaseCheck` for full control. This allows to use any language supported by transformations, allowing eager/lazy and in-memory/on-backend execution.
+Pass the pipeline to `dq.enable_data_quality()` to enable checks. This will set a flag on the pipeline state to compute checks and write results to destination after each `pipeline.run()` call.
 
-Notes:
-- Should have utilities to statically validate check definitions (especially lazy)
-- Should have testing utilities that makes it easy to unit test checks (same utilities as transformations)
+```python
+pipeline = dlt.pipeline("my_pipeline", destination="duckdb")
 
+dq.enable_data_quality(pipeline)
 
-### Lifecycle
-Data quality checks can be executed at different stages of the pipeline lifecycle. This choice has several impacts, including:
-- the **input data** available for the check
-- the compute resources used
-- the **actions** available (e.g., drop invalid load)
+pipeline.run(customers)
+```
+
+Since the flag is stored on the pipeline state, instantiating this pipeline from another script or notebook will remember that metrics are enabled and compute checks when `pipeline.run()` is called.
+
+```python
+# another_file.py
+pipeline = dlt.attach("my_pipeline")
+
+# this will compute checks too
+pipeline.run(customers)
+```
+
+### Read checks
+
+The convenience function `dq.read_check()` allows you to retrieve stored checks with some metadata. This makes it easy to build reporting, dashboard, or analytics over this data.
+
+The function produces a `dlt.Relation` which can be converted to a list, pandas dataframe, arrow table, etc.
+
+```python
+dataset = pipeline.dataset()
+dq.read_check(
+    dataset,
+    table="orders",
+    column="payment_method", 
+).df()
+```
+
+## Lifecycle
+Data quality (both metrics and checks) can be executed at different stages of the pipeline lifecycle. This impacts several aspects including:
+- available **input data**
+- compute resources used
+- **actions** available after a failed check (e.g., prevent invalid data load)
 
 <!--How does this affect transactions? How do we handle errors in the data quality part-->
 
-#### Post-load
+### Post-load
 The post-load execution is the simplest option. The pipeline goes through `Extract -> Normalize -> Load` as usual. Then, the checks are executed on the destination.
 
 Properties:
@@ -111,7 +306,12 @@ sequenceDiagram
     Dataset->>Dataset: Run Checks
 ```
 
-#### Pre-load (staging)
+### Pre-load (staging)
+:::warning
+Work in progress. Currently unavailable.
+:::
+
+
 The pre-load execution via staging dataset allows to execute checks on the destination and trigger actions before data is loaded into the dataset. This is effectively using **post-load** checks before a 2nd load phase.
 
 :::info
@@ -143,7 +343,10 @@ sequenceDiagram
 ```
 
 
-#### Pre-load (in-memory)
+### Pre-load (in-memory)
+:::warning
+Work in progress. Currently unavailable.
+:::
 
 The pre-load execution in-memory will execute checks using `duckdb` against the load packages (i.e., temporary files) stored on the machine that runs `dlt`. This allows to trigger actions before data is loaded into the destination.
 
@@ -169,27 +372,12 @@ sequenceDiagram
     Pipeline->>Dataset: Load
 ```
 
-## Migration and versioning (WIP)
-
-As the real-world change, their can be addition, removal, or modification of data quality checks for your pipeline / dataset. This is require for proper auditing.
-
-For example, the check `is_in("division", ["europe", "america"])` defined in 2024 could evolve to `is_in("division", ["europe", "america", "asia"])` in 2026.
-
-Notes:
-- checks need to be serialized and hashed (trivial for lazy checks)
-- checks can be stored on schema (consequently on the destination too)
-- this is the same challenge as versioning transformations
-
-## Action (WIP)
-After running checks, **actions** can be triggered based on the **check result** or **check outcome**. 
-
-Notes:
-- actions can be configured globally or per-check
-- planned actions: drop data, quarantine data (move to a special dataset), resolve (e.g., fill value, set default, apply transformation), fail (prevents load), raise/alert (sends notification)
-- This needs to be configurable from outside the source code (e.g., via `config.toml`). The same checks would require different action during development vs. prod
-
-
-## Metrics
+## Roadmap
+- Define checks that depend on metrics (this should reduce verbosity)
+- Support user-defined group-by metrics
+- Support completely custom checks via `@dlt.hub.transformation` (e.g., SQL, SQLGlot, Ibis, Narwhals, Polars)
+- Trigger actions based on check result or outcome (e.g., send Slack notification)
+- Track metrics and checks changes via `dlt.Schema` versioning
 
 
 
