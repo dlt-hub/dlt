@@ -182,6 +182,38 @@ def test_resolve_reference_chain_rejects_self_join(dataset_with_loads: TLoadsFix
         _resolve_reference_chain(dataset.schema, "users", "users")
 
 
+@pytest.mark.parametrize("dataset_with_loads", ["with_root_key"], indirect=True)
+def test_join_rejects_cross_dataset(dataset_with_loads: TLoadsFixture) -> None:
+    """Test that joining relations from different datasets raises an error."""
+    import dlt
+    import tempfile
+    import pathlib
+
+    dataset, _, _ = dataset_with_loads
+
+    with tempfile.TemporaryDirectory() as tmp:
+        pipeline = dlt.pipeline(
+            pipeline_name="other_dataset",
+            pipelines_dir=str(pathlib.Path(tmp) / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(pathlib.Path(tmp) / "other.db")),
+            dev_mode=True,
+        )
+
+        @dlt.resource
+        def other_data():
+            yield {"id": 1, "name": "test"}
+
+        pipeline.run([other_data])
+        other_dataset = pipeline.dataset()
+
+        # Try to join with a relation from the other dataset
+        rel = dataset.table("users")
+        other_rel = other_dataset.table("other_data")
+
+        with pytest.raises(ValueError, match="different datasets"):
+            rel.join(other_rel)
+
+
 @pytest.mark.parametrize(
     "dataset_with_loads,left,right,expected_directions",
     [

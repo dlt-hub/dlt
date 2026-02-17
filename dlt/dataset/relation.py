@@ -548,6 +548,12 @@ class Relation(WithSqlClient):
     def _resolve_magic_join_target(self, other: str | Self) -> str:
         """Resolve magic-join target table name from input."""
         if isinstance(other, Relation):
+            # TODO: remove once we allow cross-dataset joins
+            if other._dataset is not self._dataset:
+                raise ValueError(
+                    "Cannot join relations from different datasets: "
+                    f"'{other._dataset.dataset_name}' vs '{self._dataset.dataset_name}'"
+                )
             if not other._is_joinable_graph:
                 raise ValueError(f"Relation `{other}` is not a join-graph relation.")
             other_table = other._origin_table_name
