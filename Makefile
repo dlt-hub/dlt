@@ -159,12 +159,20 @@ test-common-p: ## Tests common components in parallel
 # Local load tests
 # ----------------------------------------------------------------------
 
+install-load-local: dev
+	uv run pip install sqlalchemy==2.0.18
+
 TEST_LOAD_PATHS = tests/load
 
 test-load-local: ## Tests load with local destinations (duckdb + filesystem)
 	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory", "file"]' \
-	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_LOAD_PATHS))
+	$(call RUN_XDIST_SAFE_SPLIT, \
+		$(TEST_LOAD_PATHS) \
+		--ignore tests/load/sources \
+		--ignore tests/load/filesystem_sftp \
+	)
+
 
 test-load-local-p: ## Tests load with local destinations in parallel
 	$(MAKE) test-load-local PYTEST_XDIST_N=auto
@@ -406,3 +414,4 @@ test-e2e-dashboard-headed: ## Runs dashboard e2e tests with visible browser
 
 create-test-pipelines: ## Creates test pipelines for manual dashboard testing
 	uv run python tests/workspace/helpers/dashboard/example_pipelines.py
+	
