@@ -20,7 +20,7 @@ from tests.load.utils import (
     destinations_configs,
 )
 from tests.pipeline.utils import assert_load_info
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 
 @pytest.mark.parametrize(
@@ -68,7 +68,9 @@ def test_all_catalogs(catalog: str) -> None:
     assert ds.table_foo["foo"].fetchall() == [(1,), (2,)]
 
     # test lake location
-    expected_location = pathlib.Path(TEST_STORAGE_ROOT, DUCKLAKE_STORAGE_PATTERN % ducklake_name)
+    expected_location = pathlib.Path(
+        get_test_storage_root(), DUCKLAKE_STORAGE_PATTERN % ducklake_name
+    )
     assert expected_location.exists()
     # test dataset in lake
     assert (expected_location / pipeline.dataset_name).exists()
@@ -77,7 +79,7 @@ def test_all_catalogs(catalog: str) -> None:
     catalog_location = pipeline.destination_client().config.credentials.catalog.database  # type: ignore
     if "." in catalog_location:
         # it is a file
-        assert pathlib.Path(TEST_STORAGE_ROOT, catalog_location).exists()
+        assert pathlib.Path(get_test_storage_root(), catalog_location).exists()
 
 
 @pytest.mark.parametrize(

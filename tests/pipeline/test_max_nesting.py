@@ -181,7 +181,7 @@ def test_update_table_nesting_level_source():
     )
 
     # change the max_table_nesting level of the source and load another formerly unloaded resource
-    source.max_table_nesting = 4  # type: ignore
+    source.max_table_nesting = 4
     pipeline.run(source().with_resources("base_table_1", "base_table_2"))
 
     # for base_table_1 it will stay the same since it is already loaded
@@ -222,7 +222,7 @@ def test_nesting_levels_reset_after_drop(nesting_defininition_location: str):
     if nesting_defininition_location == "resource":
         base_table_1.max_table_nesting = 3
     else:
-        source.max_table_nesting = 3  # type: ignore[attr-defined]
+        source.max_table_nesting = 3
     pipeline.run(source())
 
     all_table_names = pipeline.default_schema.data_table_names()

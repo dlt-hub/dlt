@@ -12,7 +12,7 @@ from dlt.extract.source import DltSource
 from dlt.extract.state import resource_state
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
-from tests.utils import clean_test_storage, TEST_STORAGE_ROOT
+from tests.utils import clean_test_storage, get_test_storage_root
 from tests.pipeline.utils import (
     assert_load_info,
     load_table_counts,
@@ -295,7 +295,7 @@ def test_refresh_drop_resources(
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        subset=["duckdb", "filesystem", "iceberg"],
+        subset=["duckdb", "filesystem", "iceberg", "athena"],
         table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
@@ -366,7 +366,7 @@ def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        subset=["duckdb", "filesystem", "iceberg"],
+        subset=["duckdb", "filesystem", "iceberg", "athena"],
         table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
@@ -604,8 +604,12 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
 def test_changing_write_disposition_with_refresh(
     destination_config: DestinationTestConfiguration, refresh: str
 ):
-    """NOTE: this test simply tests wether truncating of tables and deleting schema versions will produce"""
+    """NOTE: this test simply tests whether truncating of tables and deleting schema versions will produce"""
     """errors on a non-existing dataset (it should not)"""
     pipeline = destination_config.setup_pipeline("test", dev_mode=True, refresh=refresh)
-    pipeline.run([1, 2, 3], table_name="items", write_disposition="append")
-    pipeline.run([1, 2, 3], table_name="items", write_disposition="merge")
+    pipeline.run(
+        [1, 2, 3], table_name="items", write_disposition="append", **destination_config.run_kwargs
+    )
+    pipeline.run(
+        [1, 2, 3], table_name="items", write_disposition="merge", **destination_config.run_kwargs
+    )

@@ -8,7 +8,14 @@ import sqlglot
 from dlt.common.data_types.type_helpers import coerce_value, py_type_to_sc_type
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination.capabilities import adjust_column_schema_to_capabilities
-from dlt.common.libs.sqlglot import TSqlGlotDialect
+from dlt.common.libs.sqlglot import (
+    SqlModel,
+    TSqlGlotDialect,
+    build_outer_select_statement,
+    reorder_or_adjust_outer_select,
+    uuid_expr_for_dialect,
+    validate_no_star_select,
+)
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
@@ -59,55 +66,6 @@ except MissingDependencyException:
     pa = None
 
 
-DLT_SUBQUERY_NAME = "_dlt_subquery"
-
-
-class SqlModel:
-    """
-    A SqlModel is a named tuple that contains a query and a dialect.
-    It is used to represent a SQL query and the dialect to use for parsing it.
-    """
-
-    __slots__ = ("_query", "_dialect")
-
-    def __init__(self, query: str, dialect: Optional[str] = None) -> None:
-        self._query = query
-        self._dialect = dialect
-
-    def to_sql(self) -> str:
-        return self._query
-
-    @property
-    def query_dialect(self) -> str:
-        return self._dialect
-
-    @classmethod
-    def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
-        """
-        Creates a SqlModel from a raw SQL query string using sqlglot.
-        Ensures that the parsed query is an instance of sqlglot.exp.Select.
-
-        Args:
-            query (str): The raw SQL query string.
-            dialect (Optional[str]): The SQL dialect to use for parsing.
-
-        Returns:
-            SqlModel: An instance of SqlModel with the normalized query and dialect.
-
-        Raises:
-            ValueError: If the parsed query is not an instance of sqlglot.exp.Select.
-        """
-
-        parsed_query = sqlglot.parse_one(query, read=dialect)
-
-        # Ensure the parsed query is a SELECT statement
-        if not isinstance(parsed_query, sqlglot.exp.Select):
-            raise ValueError("Only SELECT statements are allowed to create a `SqlModel`.")
-
-        normalized_query = parsed_query.sql(dialect=dialect)
-        return cls(query=normalized_query, dialect=dialect)
-
-
 class ItemsNormalizer:
     def __init__(
         self,
@@ -134,53 +92,10 @@ class ItemsNormalizer:
 
 
 class ModelItemsNormalizer(ItemsNormalizer):
-    def _normalize_casefold(self, ident: str) -> str:
-        return self.config.destination_capabilities.casefold_identifier(
-            self.schema.naming.normalize_identifier(ident)
-        )
-
-    def _uuid_expr_for_dialect(self, dialect: TSqlGlotDialect) -> sqlglot.exp.Expression:
-        """
-        Generates a UUID expression based on the specified dialect.
-
-        Args:
-            dialect (str): The SQL dialect for which the UUID expression needs to be generated.
-
-        Returns:
-            sqlglot.exp.Expression: A SQL expression that generates a UUID for the specified dialect.
-        """
-
-        # NOTE: redshift and sqlite don't have an in-built uuid function
-        if dialect == "redshift":
-            row_num = sqlglot.exp.Window(
-                this=sqlglot.exp.Anonymous(this="row_number"),
-                partition_by=None,
-                order=None,
-            )
-            concat_expr = sqlglot.exp.func(
-                "CONCAT",
-                sqlglot.exp.Literal.string(self.load_id),
-                sqlglot.exp.Literal.string("-"),
-                row_num,
-            )
-            return sqlglot.exp.func("MD5", concat_expr)
-        elif dialect == "sqlite":
-            return sqlglot.exp.func(
-                "lower",
-                sqlglot.exp.func(
-                    "hex", sqlglot.exp.func("randomblob", sqlglot.exp.Literal.number(16))
-                ),
-            )
-        elif dialect == "clickhouse":
-            return sqlglot.exp.func("generateUUIDv4")
-        # NOTE: UUID in Athena creates a native UUID data type
-        # which needs to be typecasted
-        elif dialect == "athena":
-            return sqlglot.exp.Cast(
-                this=sqlglot.exp.func("UUID"), to=sqlglot.exp.DataType.build("VARCHAR")
-            )
-        else:
-            return sqlglot.exp.func("UUID")
+    def _normalize_casefold(self, identifier: str) -> str:
+        # use normalize_path() to preserve __ separators in already-normalized names
+        normalized = self.schema.naming.normalize_path(identifier)
+        return self.config.destination_capabilities.casefold_identifier(normalized)
 
     def _adjust_outer_select_with_dlt_columns(
         self,
@@ -250,7 +165,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                         f"Received row id type: '{row_id_type}'."
                     )
                 dlt_id_expr = sqlglot.exp.Alias(
-                    this=self._uuid_expr_for_dialect(sql_dialect),
+                    this=uuid_expr_for_dialect(sql_dialect, self.load_id),
                     alias=sqlglot.to_identifier(NORM_C_DLT_ID, quoted=True),
                 )
                 outer_parsed_select.selects.append(dlt_id_expr)
@@ -266,106 +181,6 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 table_updates.append(partial_table)
 
         return schema_update or None
-
-    def _reorder_or_adjust_outer_select(
-        self,
-        outer_parsed_select: sqlglot.exp.Select,
-        columns: TTableSchemaColumns,
-        root_table_name: str,
-    ) -> None:
-        """
-        Reorders or adjusts the SELECT statement to match the schema:
-        1. Adds missing columns as NULL.
-        2. Removes extra columns not in the schema.
-
-        Args:
-            outer_parsed_select (sqlglot.exp.Select): The parsed outer SELECT statement.
-            columns (TTableSchemaColumns): The schema columns to match.
-        """
-        # Map alias name -> expression
-        alias_map = {expr.alias.lower(): expr for expr in outer_parsed_select.selects}
-
-        # Build new selects list in correct schema column order
-        new_selects = []
-        for col in columns:
-            lower_col = col.lower()
-            expr = alias_map.get(lower_col)
-            if expr:
-                new_selects.append(expr)
-            # If there's no such column select, just put null if nullable
-            else:
-                if columns[col]["nullable"]:
-                    new_selects.append(
-                        sqlglot.exp.Alias(
-                            this=sqlglot.exp.Null(),
-                            alias=sqlglot.to_identifier(self._normalize_casefold(col), quoted=True),
-                        )
-                    )
-                else:
-                    exc = CannotCoerceNullException(self.schema.name, root_table_name, col)
-                    exc.args = (
-                        exc.args[0]
-                        + " — column is missing from the SELECT clause but is non-nullable and must"
-                        " be explicitly selected",
-                    )
-                    raise exc
-
-        outer_parsed_select.set("expressions", new_selects)
-
-    def _build_outer_select_statement(
-        self,
-        select_dialect: TSqlGlotDialect,
-        parsed_select: sqlglot.exp.Select,
-        columns: TTableSchemaColumns,
-    ) -> Tuple[sqlglot.exp.Select, bool]:
-        """
-        Wraps the parsed SELECT statement in a subquery and builds an outer SELECT statement.
-
-        Args:
-            select_dialect (str): The SQL dialect to use for parsing and formatting.
-            parsed_select (sqlglot.exp.Select): The parsed SELECT statement.
-            columns (TTableSchemaColumns): The schema columns to match.
-
-        Returns:
-            Tuple[sqlglot.exp.Select, bool]: The outer SELECT statement and a flag indicating if reordering is needed.
-        """
-        # Wrap parsed select in a subquery
-        subquery = parsed_select.subquery(alias=DLT_SUBQUERY_NAME)
-
-        # Build outer SELECT list
-        selected_columns = []
-        outer_selects: List[sqlglot.exp.Expression] = []
-        for select in parsed_select.selects:
-            if isinstance(select, sqlglot.exp.Alias):
-                name = select.alias
-
-                # NOTE: for bigquery, quoted identifiers are treated as sqlglot.exp.Dot
-            elif isinstance(select, sqlglot.exp.Column) or isinstance(select, sqlglot.exp.Dot):
-                name = select.output_name or select.name
-
-            else:
-                raise ValueError(
-                    "\n\nUnsupported SELECT expression in the model query:\n\n "
-                    f" {select.sql(select_dialect)}\n\nOnly simple column selections like `column`"
-                    " or `column AS alias` are currently supported.\n"
-                )
-
-            norm_casefolded = self._normalize_casefold(name)
-            selected_columns.append(norm_casefolded)
-
-            column_ref = sqlglot.exp.Dot(
-                this=sqlglot.to_identifier(DLT_SUBQUERY_NAME),
-                expression=sqlglot.to_identifier(name, quoted=True),
-            )
-
-            outer_selects.append(column_ref.as_(norm_casefolded, quoted=True))
-
-        needs_reordering = selected_columns != list(columns.keys())
-
-        # Create the outer select statement
-        outer_select = sqlglot.select(*outer_selects).from_(subquery)
-
-        return outer_select, needs_reordering
 
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
         self._maybe_cancel()
@@ -385,21 +200,13 @@ class ModelItemsNormalizer(ItemsNormalizer):
         if not isinstance(parsed_select, sqlglot.exp.Select):
             raise ValueError("Only SELECT statements should be used as `SqlModel` queries.")
 
-        # Star selects are not allowed
-        if any(
-            isinstance(expr, sqlglot.exp.Star)
-            or (isinstance(expr, sqlglot.exp.Column) and isinstance(expr.this, sqlglot.exp.Star))
-            for expr in parsed_select.selects
-        ):
-            raise ValueError(
-                "\n\nA `SELECT *` was detected in the model query:\n\n"
-                f"{parsed_select.sql(sql_dialect)}\n\n"
-                "Model queries using a star (`*`) expression cannot be normalized. "
-                "Please rewrite the query to explicitly specify the columns to be selected.\n"
-            )
+        validate_no_star_select(parsed_select, sql_dialect)
 
-        outer_parsed_select, needs_reordering = self._build_outer_select_statement(
-            sql_dialect, parsed_select, self.schema.get_table_columns(root_table_name)
+        outer_parsed_select, needs_reordering = build_outer_select_statement(
+            sql_dialect,
+            parsed_select,
+            self.schema.get_table_columns(root_table_name),
+            self._normalize_casefold,
         )
 
         schema_updates = []
@@ -411,8 +218,12 @@ class ModelItemsNormalizer(ItemsNormalizer):
             schema_updates.append(dlt_col_update)
 
         if needs_reordering:
-            self._reorder_or_adjust_outer_select(
-                outer_parsed_select, self.schema.get_table_columns(root_table_name), root_table_name
+            reorder_or_adjust_outer_select(
+                outer_parsed_select,
+                self.schema.get_table_columns(root_table_name),
+                self._normalize_casefold,
+                self.schema.name,
+                root_table_name,
             )
 
         # TODO the dialect here should be the "destination dialect"; i.e., the transpilation output

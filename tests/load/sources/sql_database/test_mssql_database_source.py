@@ -1,3 +1,5 @@
+from typing import List
+
 import pytest
 
 import dlt
@@ -10,7 +12,10 @@ from dlt.common.utils import uniq_id
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources import DltResource
 
-from tests.load.sources.sql_database.utils import assert_incremental_chunks
+from tests.load.sources.sql_database.utils import (
+    assert_extracted_uuids_are_strings,
+    assert_incremental_chunks,
+)
 from tests.pipeline.utils import (
     assert_load_info,
     assert_schema_on_data,
@@ -191,3 +196,92 @@ def test_sql_table_high_datetime(
             load_tables_to_dicts(pipeline, "app_user")["app_user"][0]["some_datetime2"]
             == ensure_pendulum_datetime_utc("2918-08-01 00:00:00.000").naive()
         )
+
+
+@pytest.mark.parametrize("backend", ["pyarrow", "sqlalchemy", "pandas"])
+def test_uniqueidentifier_data_type(
+    mssql_db: MSSQLSourceDB,
+    backend: TableBackend,
+) -> None:
+    """UNIQUEIDENTIFIER as merge key must not create duplicates due to casing mismatch.
+
+    Reproduces the user case from #3299: initial load followed by incremental merge with
+    both updates and inserts must not create duplicate rows.
+    """
+    import uuid
+
+    pipeline = make_pipeline("duckdb")
+    rc = mssql_db.table_infos["app_user"]["row_count"]
+
+    # reuse sql_table resource for both loads
+    table = sql_table(
+        credentials=mssql_db.credentials,
+        table="app_user",
+        schema=mssql_db.schema,
+        backend=backend,
+        reflection_level="full",
+        write_disposition="merge",
+        primary_key="some_uniqueidentifier",
+        incremental=dlt.sources.incremental(
+            "updated_at",
+            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
+        ),
+    )
+
+    # 1. initial full load with UUID as merge primary key
+    info = pipeline.run(table, loader_file_format="parquet")
+    assert_load_info(info)
+
+    # schema must have data_type="text" for the UNIQUEIDENTIFIER column
+    uid_col = pipeline.default_schema.tables["app_user"]["columns"]["some_uniqueidentifier"]
+    assert uid_col["data_type"] == "text"
+
+    rows_after_initial = load_tables_to_dicts(pipeline, "app_user")["app_user"]
+    assert len(rows_after_initial) == rc
+    for val in (row["some_uniqueidentifier"] for row in rows_after_initial):
+        uuid.UUID(val)  # validates well-formed
+
+    # 2. update 3 existing rows' updated_at AND insert 10 new rows, then merge
+    # updated_at set far in the future so updated rows enter the incremental window
+    future_ts = ensure_pendulum_datetime_utc("2030-01-01T00:00:00+00:00")
+    for i, row in enumerate(rows_after_initial[:3]):
+        mssql_db.update_row(
+            {"updated_at": future_ts.add(seconds=i)},
+            f"id = {row['id']}",
+        )
+    mssql_db.generate_users(n=10)
+
+    info = pipeline.run(table, loader_file_format="parquet")
+    assert_load_info(info)
+
+    rows_after_merge = load_tables_to_dicts(pipeline, "app_user")["app_user"]
+    # merge must not create duplicates: rc initial + 10 new
+    assert len(rows_after_merge) == rc + 10
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_uniqueidentifier_yields_str(
+    mssql_db: MSSQLSourceDB,
+    backend: TableBackend,
+) -> None:
+    """The resource must yield UNIQUEIDENTIFIER values as Python str, never uuid.UUID objects."""
+    import uuid
+
+    if backend == "connectorx":
+        pytest.importorskip("sqlalchemy", minversion="2.0")
+
+    table = sql_table(
+        credentials=mssql_db.credentials,
+        table="app_user",
+        schema=mssql_db.schema,
+        backend=backend,
+        reflection_level="full",
+    )
+
+    all_uuids: List[str] = []
+    for item in table:
+        all_uuids.extend(assert_extracted_uuids_are_strings("some_uniqueidentifier", item))
+
+    assert len(all_uuids) == mssql_db.table_infos["app_user"]["row_count"]
+    for val in all_uuids:
+        uuid.UUID(val)  # validates well-formed

@@ -5,6 +5,7 @@
 #
 
 from typing import Any
+from pathlib import Path
 from unittest.mock import patch
 
 import duckdb
@@ -19,6 +20,7 @@ from dlt._workspace._templates._single_file_templates.arrow_pipeline import (
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
 )
+from tests.utils import get_test_storage_root
 
 SUCCESS_PIPELINE_DUCKDB = "success_pipeline_duckdb"
 SUCCESS_PIPELINE_FILESYSTEM = "success_pipeline_filesystem"
@@ -119,9 +121,10 @@ def create_success_pipeline_duckdb(pipelines_dir: str = None, db_conn: Any = Non
 
 
 def create_success_pipeline_filesystem(
-    pipelines_dir: str = None, bucket_url: str = "_storage/data"
+    pipelines_dir: str = None,
 ):
     """Create a test pipeline with filesystem destination, properties see `run_success_pipeline`"""
+    bucket_url: str = str(Path(get_test_storage_root()) / "data")
 
     pipeline = dlt.pipeline(
         pipeline_name=SUCCESS_PIPELINE_FILESYSTEM,

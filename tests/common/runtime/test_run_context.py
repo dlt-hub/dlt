@@ -20,7 +20,7 @@ from dlt.common.storages.configuration import _make_file_url
 from dlt.common.utils import set_working_dir
 
 import tests
-from tests.utils import MockableRunContext, TEST_STORAGE_ROOT, disable_temporary_telemetry
+from tests.utils import MockableRunContext, get_test_storage_root, disable_temporary_telemetry
 
 
 @pytest.fixture(autouse=True)
@@ -73,7 +73,7 @@ def test_run_context() -> None:
 
 
 def test_context_without_module() -> None:
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         ctx = PluggableRunContext()
         with Container().injectable_context(ctx):
             assert ctx.context.module is None

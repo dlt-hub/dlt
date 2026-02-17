@@ -22,7 +22,7 @@ from dlt.extract.hints import TResourceNestedHints, make_hints
 from dlt.extract.items_transform import ValidateItem
 
 from dlt.extract.items import TableNameMeta, DataItemWithMeta
-from tests.utils import MockPipeline, clean_test_storage, TEST_STORAGE_ROOT
+from tests.utils import MockPipeline, clean_test_storage, get_test_storage_root
 from tests.extract.utils import expect_extracted_file
 
 NESTED_DATA = [
@@ -42,7 +42,9 @@ NESTED_DATA = [
 def extract_step() -> Extract:
     clean_test_storage(init_normalize=True)
     schema_storage = SchemaStorage(
-        SchemaStorageConfiguration(schema_volume_path=os.path.join(TEST_STORAGE_ROOT, "schemas")),
+        SchemaStorageConfiguration(
+            schema_volume_path=os.path.join(get_test_storage_root(), "schemas")
+        ),
         makedirs=True,
     )
     return Extract(schema_storage, NormalizeStorageConfiguration())
@@ -822,3 +824,81 @@ def test_add_metrics(extract_step: Extract, as_single_batch: bool) -> None:
         "high_priority_count": 2,
         "low_priority_count": 3,
     }
+
+
+def test_object_mixed_case_columns_normalized(extract_step: Extract) -> None:
+    """Column hints with PascalCase names are normalized to snake_case in the schema.
+
+    Also verifies that a nullable hint-only column (not present in the data) is persisted
+    with its normalized name and properties.
+    """
+
+    @dlt.resource(
+        name="mixed_case",
+        columns={
+            "Numbers": {"data_type": "bigint"},
+            "Strings": {"data_type": "text"},
+            # hint-only column not present in yielded data
+            "ExtraCol": {"data_type": "double", "nullable": True},
+        },
+    )
+    def mixed_case_resource():
+        yield {"Numbers": 1, "Strings": "a"}
+
+    source = DltSource(dlt.Schema("object_test"), "module", [mixed_case_resource])
+    extract_step.extract(source, 20, 1)
+
+    schema_table = source.schema.tables["mixed_case"]
+    col_names = list(schema_table["columns"].keys())
+    # only normalized (snake_case) names
+    assert "numbers" in col_names
+    assert "strings" in col_names
+    assert "Numbers" not in col_names
+    assert "Strings" not in col_names
+    assert "ExtraCol" not in col_names
+    # hint properties preserved through normalization
+    assert schema_table["columns"]["numbers"]["data_type"] == "bigint"
+    assert schema_table["columns"]["strings"]["data_type"] == "text"
+    # hint-only column persisted with normalized name
+    assert "extra_col" in col_names
+    assert schema_table["columns"]["extra_col"]["data_type"] == "double"
+    assert schema_table["columns"]["extra_col"]["nullable"] is True
+
+
+def test_object_special_char_columns_normalized(extract_step: Extract) -> None:
+    """Column hints with special characters (e.g. ^) are normalized in the schema."""
+
+    @dlt.resource(
+        name="special_chars",
+        columns={"col^New": {"data_type": "bigint"}, "col2": {"data_type": "bigint"}},
+    )
+    def special_chars_resource():
+        yield {"col^New": 1, "col2": 2}
+
+    source = DltSource(dlt.Schema("object_test"), "module", [special_chars_resource])
+    extract_step.extract(source, 20, 1)
+
+    schema_table = source.schema.tables["special_chars"]
+    col_names = list(schema_table["columns"].keys())
+    # col^New normalized to col_new
+    assert "col_new" in col_names
+    assert "col2" in col_names
+    assert "col^New" not in col_names
+
+
+def test_object_dynamic_table_mixed_case_normalized(extract_step: Extract) -> None:
+    """Dynamic table names with mixed case are normalized in the schema."""
+
+    @dlt.resource(name="dynamic_res")
+    def dynamic_resource():
+        yield dlt.mark.with_table_name({"id": 1}, "MyTable")
+        yield dlt.mark.with_table_name({"id": 2}, "AnotherTable")
+
+    source = DltSource(dlt.Schema("object_test"), "module", [dynamic_resource])
+    extract_step.extract(source, 20, 1)
+
+    table_names = list(source.schema.tables.keys())
+    assert "my_table" in table_names
+    assert "another_table" in table_names
+    assert "MyTable" not in table_names
+    assert "AnotherTable" not in table_names

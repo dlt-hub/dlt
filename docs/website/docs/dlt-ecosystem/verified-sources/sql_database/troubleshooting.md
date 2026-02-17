@@ -92,9 +92,12 @@ This approach can help resolve connection-related issues.
 ### Notes on specific databases
 
 #### Oracle
-1. When using the `oracledb` dialect in thin mode, we are getting protocol errors. Use thick mode or the `cx_oracle` (old) client.
+1. We recommend to use the `oracledb` dialect in thin mode instead of the `cx_oracle` (old) client. It is the setup that we test and support. Note that `oracledb` is not supported in `SQLAlchemy` below 2.0.
 2. Mind that `SQLAlchemy` translates Oracle identifiers into lower case! Keep the default `dlt` naming convention (`snake_case`) when loading data. We'll support more naming conventions soon.
-3. `Connectorx` is for some reason slower for Oracle than the `PyArrow` backend.  
+3. `Connectorx` is not compatible with `oracledb` in thin mode. In thick mode with `cx_oracle` it is for some reason slower for Oracle than the `PyArrow` backend, so it is not recommended for Oracle.
+4. To preserve the original DB type semantics and avoid data loss, NUMBER is always treated as decimal, with sqlalchemy backend keeping the original DB precision and scale and pyarrow setting the default ones. pandas is generally discouraged when it comes to decimals, not only for Oracle
+5. For the `TIMESTAMP WITH TIME ZONE` columns, both `cx_Oracle` and `oracledb` truncate timezone info in select results, so it's not possible to fetch actual timezone data.
+
   
 See [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/oracledb#installing-and-setting-up-oracle-db) for information and code on setting up and benchmarking on Oracle.
 
@@ -116,8 +119,14 @@ No issues were found for these databases. Postgres is the only backend where we 
 
 In the `SQLAlchemy` backend, the JSON data type is represented as a Python object, and in the `PyArrow` backend, it is represented as a JSON string. At present, it does not work correctly with `pandas` and `ConnectorX`, which cast Python objects to `str`, generating invalid JSON strings that cannot be loaded into the destination.
 
-#### UUID  
-UUIDs are represented as strings by default. You can switch this behavior by using `table_adapter_callback` to modify properties of the UUID type for a particular column. (See the code example [here](./configuration#pyarrow) for how to modify the data type properties of a particular column.)
+#### UUID
+UUID columns (PostgreSQL `UUID`, MSSQL `UNIQUEIDENTIFIER`, and SQLAlchemy 2.0 generic `Uuid`) are
+mapped to `dlt` data type `text` and always yielded as strings. This ensures consistent
+casing across initial and incremental loads regardless of the backend used.
+
+You can switch this behavior by using `table_adapter_callback` to modify properties of the UUID type
+for a particular column. (See the code example [here](./configuration#pyarrow) for how to modify the
+data type properties of a particular column.)
 
 ### Notes on data loading
 

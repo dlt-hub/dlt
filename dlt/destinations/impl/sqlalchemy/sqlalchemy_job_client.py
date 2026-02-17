@@ -30,6 +30,7 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
+from dlt.destinations.impl.sqlalchemy.dialect import DialectCapabilities
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations._adbc_jobs import has_adbc_driver as adbc_has_driver
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -62,6 +63,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             config.credentials,
             capabilities,
         )
+        self._dialect_caps: DialectCapabilities = self.sql_client._dialect_caps
 
         self.schema = schema
         self.capabilities = capabilities
@@ -90,13 +92,14 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             if pk_columns:
                 table_columns.append(sa.PrimaryKeyConstraint(*pk_columns))  # type: ignore[arg-type]
 
-        return sa.Table(
+        table = sa.Table(
             schema_table["name"],
             self.sql_client.metadata,
             *table_columns,
             extend_existing=True,
             schema=self.sql_client.dataset_name,
         )
+        return self._dialect_caps.adapt_table(table, schema_table)
 
     def _to_column_object(
         self, schema_column: TColumnSchema, table: PreparedTableSchema
@@ -141,8 +144,12 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             return SqlalchemyJsonLInsertJob(file_path, table_obj)
         elif parsed_file.file_format == "parquet":
             table_obj = self._to_table_object(table)
-            # if driver for a given dialect is installed
-            if adbc_has_driver(self.config.credentials.engine.dialect.name)[0]:
+            dialect_name = self.config.credentials.engine.dialect.name
+            # Skip ADBC for SQLite: Python's sqlite3 and adbc_driver_sqlite bundle different
+            # SQLite versions. In WAL mode, both libraries mmap the same -shm index file but
+            # have separate internal state, causing page-level corruption when writing.
+            # See: https://github.com/tensorflow/tensorboard/issues/1467
+            if dialect_name != "sqlite" and adbc_has_driver(dialect_name)[0]:
                 return SqlalchemyParquetADBCJob(file_path, table_obj)
             else:
                 return SqlalchemyParquetInsertJob(file_path, table_obj)

@@ -109,6 +109,3 @@ jobs:
   #   needs: [test_common, authorize_run_from_fork]
   #   uses: ./.github/workflows/test_tools_dbt_cloud.yml
   #   secrets: inherit
-
-
-

@@ -37,6 +37,25 @@ else:
 TTypeAdapter = Callable[[TypeEngineAny], Optional[Union[TypeEngineAny, Type[TypeEngineAny]]]]
 
 
+def _is_uuid_type(sql_t: TypeEngineAny) -> bool:
+    """Detect UUID-like types across SQLAlchemy 1.4 and 2.0.
+
+    SA 2.0 has a common sqltypes.Uuid base for PG UUID, MSSQL UNIQUEIDENTIFIER, etc.
+    SA 1.4 has none of that: PG UUID exposes `as_uuid` but MSSQL UNIQUEIDENTIFIER
+    has neither `as_uuid` nor a Uuid base class — only its __visit_name__ identifies it.
+    """
+    # SA 2.0: common Uuid base type
+    if hasattr(sqltypes, "Uuid") and isinstance(sql_t, sqltypes.Uuid):
+        return True
+    # SA 1.4: PG UUID has as_uuid but no Uuid base
+    if hasattr(sql_t, "as_uuid"):
+        return True
+    # SA 1.4: MSSQL UNIQUEIDENTIFIER has neither as_uuid nor Uuid base
+    if getattr(sql_t, "__visit_name__", None) == "UNIQUEIDENTIFIER":
+        return True
+    return False
+
+
 class TReflectedHints(TypedDict, total=False):
     columns: TTableSchemaColumns
     references: Optional[List[TTableReference]]
@@ -62,8 +81,9 @@ def default_table_adapter(
 
     for col in table._columns:  # type: ignore[attr-defined]
         sql_t = col.type
-        if hasattr(sqltypes, "Uuid") and isinstance(sql_t, sqltypes.Uuid):
-            # emit uuids as string by default
+        if _is_uuid_type(sql_t) and hasattr(sql_t, "as_uuid"):
+            # emit uuids as string by default (PG UUID and SA 2.0 Uuid have as_uuid,
+            # MSSQL UNIQUEIDENTIFIER on SA 1.4 does not — pyodbc already returns strings)
             sql_t.as_uuid = False
 
 
@@ -108,7 +128,7 @@ def sqla_col_to_column_schema(
 
     add_precision = reflection_level == "full_with_precision"
 
-    if hasattr(sqltypes, "Uuid") and isinstance(sql_t, sqltypes.Uuid):
+    if _is_uuid_type(sql_t):
         # we represent UUID as text by default, see default_table_adapter
         col["data_type"] = "text"
     elif isinstance(sql_t, sqltypes.Numeric):

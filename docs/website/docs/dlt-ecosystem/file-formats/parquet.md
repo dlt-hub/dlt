@@ -34,6 +34,7 @@ pip install "dlt[parquet]"
 `dlt` uses [destination capabilities](../../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) to configure the parquet writer:
 * It uses decimal and wei precision to pick the right **decimal type** and sets precision and scale.
 * It uses timestamp precision to pick the right **timestamp type** resolution (seconds, microseconds, or nanoseconds).
+* It uses `supports_dictionary_encoding` to control whether constant columns (like `_dlt_load_id`) use dictionary-encoded Arrow arrays. Dictionary encoding is memory-efficient for repeated values but not supported by all destinations. Defaults to `true`.
 
 ## Writer settings
 
