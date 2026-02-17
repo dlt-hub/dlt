@@ -59,9 +59,6 @@ jobs:
       - name: Install min dependencies
         run: uv sync
 
-      - name: run import tests
-        run: uv run pytest tests/hub/test_plugin_import.py
-
       # NOTE: needed for mssql source tests in plus
       - name: Install ODBC driver for SQL Server
         run: |

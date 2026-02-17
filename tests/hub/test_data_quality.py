@@ -1,4 +1,5 @@
 import dlt
+from dlt.extract import DltResource
 
 
 def test_direct_module_import():
@@ -22,3 +23,17 @@ def test_data_quality_entrypoints():
     assert dlt.hub.data_quality.checks.is_not_null is dq.checks.is_not_null  # type: ignore[attr-defined,unused-ignore]
     assert dlt.hub.data_quality.CheckSuite is dq.CheckSuite  # type: ignore[attr-defined,unused-ignore]
     assert dlt.hub.data_quality.prepare_checks is dq.prepare_checks  # type: ignore[attr-defined,unused-ignore]
+
+    from dlthub.data_quality import with_checks
+    from dlthub.data_quality import with_metrics
+
+    @with_checks(
+        dq.checks.is_not_null("foo"),
+        dq.checks.is_unique("value"),
+    )
+    @with_metrics(dq.metrics.table.row_count())
+    @dlt.resource
+    def checked_resource():
+        pass
+
+    assert type(checked_resource()) is DltResource

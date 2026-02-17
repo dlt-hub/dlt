@@ -1,5 +1,7 @@
 import dlt
 
+from tests.hub.utils import ephemeral_license
+
 
 def test_runner_instance() -> None:
     pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
@@ -8,5 +10,6 @@ def test_runner_instance() -> None:
     def my_resource():
         return [1, 2, 3]
 
-    load_info = dlt.hub.runner(pipeline).run(my_resource())
+    with ephemeral_license():
+        load_info = dlt.hub.runner(pipeline).run(my_resource())
     print(load_info)

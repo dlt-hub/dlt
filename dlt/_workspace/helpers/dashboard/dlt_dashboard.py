@@ -616,7 +616,7 @@ def section_data_quality_raw_table(
         try:
             # Import constants from data_quality module (using private names to avoid conflicts)
             from dlthub.data_quality.storage import (
-                DLT_CHECKS_RESULTS_TABLE_NAME as _DLT_CHECKS_RESULTS_TABLE_NAME,
+                DLT_CHECKS_TABLE_NAME as _DLT_CHECKS_RESULTS_TABLE_NAME,
                 DLT_DATA_QUALITY_SCHEMA_NAME as _DLT_DATA_QUALITY_SCHEMA_NAME,
             )
 
