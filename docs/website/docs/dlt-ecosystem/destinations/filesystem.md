@@ -1,3 +1,9 @@
+---
+title: Cloud storage and filesystem
+description: Store data in remote file systems and cloud storage services like AWS S3, Google Cloud Storage, or Azure Blob Storage
+keywords: [filesystem, s3, gcs, azure, cloud storage, data lake, staging]
+---
+
 # Cloud storage and filesystem
 The filesystem destination stores data in remote file systems and cloud storage services like **AWS S3**, **Google Cloud Storage**, or **Azure Blob Storage**. Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging area for other destinations, but you can also quickly build a data lake with it.
 
