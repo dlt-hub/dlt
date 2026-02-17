@@ -133,9 +133,8 @@ def test_init_command_pipeline_default_template(
         ("dlthub:robin-ai", "bigquery"),  # dlthub prefix with hyphen
         ("123source", "bigquery"),  # starts with digit
         ("my source", "bigquery"),  # space
-        ("valid_source", "big-query"),  # invalid destination
     ],
-    ids=["hyphen", "dlthub_hyphen", "digit_start", "space", "invalid_dest"],
+    ids=["hyphen", "dlthub_hyphen", "digit_start", "space"],
 )
 def test_init_command_invalid_identifiers(
     repo_dir: str, workspace_files: FileStorage, source_name: str, destination: str
@@ -144,6 +143,20 @@ def test_init_command_invalid_identifiers(
 
     with pytest.raises(CliCommandException):
         _init_command.init_command(source_name, destination, repo_dir)
+
+
+def test_init_command_dotted_destination_accepted(
+    repo_dir: str, workspace_files: FileStorage
+) -> None:
+    """Dotted destination references like dlt.destinations.dremio must not be
+    rejected by the source name identifier validation."""
+    from dlt._workspace.cli.exceptions import CliCommandException
+
+    # must not raise CliCommandException for invalid identifier
+    try:
+        _init_command.init_command("debug", "dlt.destinations.duckdb", repo_dir)
+    except CliCommandException:
+        pytest.fail("Dotted destination name was incorrectly rejected as invalid identifier")
 
 
 def test_default_source_file_selection() -> None:

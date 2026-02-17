@@ -185,15 +185,6 @@ def init_pipeline_at_destination(
             % (fmt.bold(display_source_name), InvalidSchemaName.MAXIMUM_SCHEMA_NAME_LENGTH)
         )
         raise CliCommandException()
-    if destination_type and not is_valid_schema_name(destination_type):
-        fmt.error(
-            "Destination name %s is not a valid Python identifier. Use snake_case"
-            " names containing only lowercase letters, numbers and underscores (max"
-            " %d characters)."
-            % (fmt.bold(destination_type), InvalidSchemaName.MAXIMUM_SCHEMA_NAME_LENGTH)
-        )
-        raise CliCommandException()
-
     # try to import the destination and get config spec
     if destination_type:
         destination_reference = Destination.from_reference(destination_type)
