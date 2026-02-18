@@ -199,7 +199,7 @@ workspace = [
     "ibis-framework>=12.0.0 ; python_version >= '3.10'",
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
-    "mcp>=1.8.0 ; python_version >= '3.10'",
+    "mcp>=1.13.0 ; python_version >= '3.10'",
     "pathspec>=0.11.2",
 ]
 dbml = [
