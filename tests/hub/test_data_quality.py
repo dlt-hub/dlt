@@ -19,18 +19,18 @@ def test_data_quality_entrypoints():
     from dlt.hub import data_quality as dq
 
     # access a single check
-    assert dq.checks.is_not_null is not None
-    assert dq.CheckSuite is not None
-    assert dq.prepare_checks is not None
+    assert dq.checks.is_not_null is not None  # type: ignore[attr-defined,unused-ignore]
+    assert dq.CheckSuite is not None  # type: ignore[attr-defined,unused-ignore]
+    assert dq.prepare_checks is not None  # type: ignore[attr-defined,unused-ignore]
 
-    from dlt.hub.data_quality import with_checks
-    from dlt.hub.data_quality import with_metrics
+    from dlt.hub.data_quality import with_checks  # type: ignore[attr-defined,unused-ignore]
+    from dlt.hub.data_quality import with_metrics  # type: ignore[attr-defined,unused-ignore]
 
     @with_checks(
-        dq.checks.is_not_null("foo"),
-        dq.checks.is_unique("value"),
+        dq.checks.is_not_null("foo"),  # type: ignore[attr-defined,unused-ignore]
+        dq.checks.is_unique("value"),  # type: ignore[attr-defined,unused-ignore]
     )
-    @with_metrics(dq.metrics.table.row_count())
+    @with_metrics(dq.metrics.table.row_count())  # type: ignore[attr-defined,unused-ignore]
     @dlt.resource
     def checked_resource():
         pass
