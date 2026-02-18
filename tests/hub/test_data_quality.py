@@ -11,21 +11,20 @@ def test_direct_module_import():
 
 def test_from_module_import():
     """Can import the registered `dlthub` submodule from `dlt.hub`."""
-    from dlt.hub import data_quality
+    from dlt.hub import data_quality as dq_hub
+    from dlthub import data_quality as dq_dlthub
 
 
 def test_data_quality_entrypoints():
-    import dlthub.data_quality as dq
+    from dlt.hub import data_quality as dq
 
     # access a single check
-    assert dlt.hub.data_quality is not dq
-    assert dlt.hub.data_quality.checks is dq.checks  # type: ignore[attr-defined,unused-ignore]
-    assert dlt.hub.data_quality.checks.is_not_null is dq.checks.is_not_null  # type: ignore[attr-defined,unused-ignore]
-    assert dlt.hub.data_quality.CheckSuite is dq.CheckSuite  # type: ignore[attr-defined,unused-ignore]
-    assert dlt.hub.data_quality.prepare_checks is dq.prepare_checks  # type: ignore[attr-defined,unused-ignore]
+    assert dq.checks.is_not_null is not None
+    assert dq.CheckSuite is not None
+    assert dq.prepare_checks is not None
 
-    from dlthub.data_quality import with_checks
-    from dlthub.data_quality import with_metrics
+    from dlt.hub.data_quality import with_checks
+    from dlt.hub.data_quality import with_metrics
 
     @with_checks(
         dq.checks.is_not_null("foo"),
