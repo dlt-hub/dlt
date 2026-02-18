@@ -3,9 +3,14 @@ from typing import Any
 
 import dlt
 from tests.pipeline.utils import load_table_counts
-from tests.hub.conftest import auto_issue_license as auto_issue_license
+from tests.hub.utils import issue_ephemeral_license
 
 pytest.importorskip("dlthub")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def auto_issue_license():
+    yield from issue_ephemeral_license()
 
 
 @pytest.fixture(scope="function")

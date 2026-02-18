@@ -4,7 +4,9 @@ from tests.hub.utils import ephemeral_license
 
 
 def test_runner_instance() -> None:
-    pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+    pipeline = dlt.pipeline(
+        pipeline_name="my_pipeline", destination=dlt.destinations.filesystem("_data")
+    )
 
     @dlt.resource(table_name="my_table")
     def my_resource():
