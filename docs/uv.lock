@@ -834,7 +834,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.21.1a0"
+version = "1.22.0"
 source = { editable = "../" }
 dependencies = [
     { name = "click" },
@@ -929,8 +929,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.20.0,<0.22" },
-    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.20.0,<0.22" },
+    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.20.0,<0.23" },
+    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.0,<0.23" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lancedb'", specifier = ">=1.4.3" },
@@ -1048,6 +1048,7 @@ dev = [
     { name = "flake8-print", specifier = ">=5.0.0,<6" },
     { name = "flake8-tidy-imports", specifier = ">=4.8.0" },
     { name = "graphviz", specifier = ">=0.21" },
+    { name = "griffe", specifier = ">=1.10.0" },
     { name = "isort", specifier = ">=5.12.0,<6" },
     { name = "mypy", specifier = ">=1.11.0,<1.13.0" },
     { name = "pip", specifier = ">=24.0.0" },
@@ -1084,6 +1085,7 @@ ibis = [
     { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13'", specifier = ">=12.0.0" },
     { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'", specifier = ">=12.0.0" },
 ]
+ibis-bare = [{ name = "ibis-framework", marker = "python_full_version >= '3.10'", specifier = ">=12.0.0" }]
 pipeline = [
     { name = "alive-progress", specifier = ">=3.1.1,<4" },
     { name = "cffi", specifier = ">=1.16" },
@@ -1213,15 +1215,16 @@ wheels = [
 
 [[package]]
 name = "dlthub"
-version = "0.20.1"
+version = "0.22.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "python-jose" },
     { name = "ruamel-yaml" },
+    { name = "sqlglot" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/77/1b/2c079f22243462e914026172094411ed7ef1fc96c8089e0ca66d1a14038a/dlthub-0.20.1.tar.gz", hash = "sha256:7b3a188abc28601fd4bdf8f17e7925ef729d4f91fb67a6b4eb5c5dc5a04ac3a2", size = 158432, upload-time = "2025-12-09T15:18:10.813Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/af/fe84689f8742a7a3dc3e538faf5bc001a70168a34c6375e17eb15d2ce3e1/dlthub-0.22.0.tar.gz", hash = "sha256:cede29e2d0340b48e6ec3d287b9573340707273509f4f697b23d7f4981d86b9d", size = 169355, upload-time = "2026-02-17T15:15:56.941Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/21/94/b2a87853102c6aa08606b2708d8f678b1e39855e8227fe111e37c32631b6/dlthub-0.20.1-py3-none-any.whl", hash = "sha256:c4d4e0c4515cd68f316ccd02c9ecc007332c861ae6f92a488f7e961935e7f1a0", size = 209767, upload-time = "2025-12-09T15:18:09.067Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/33/0cb13a6a0ac6d416efe69265131b625ad08754824dbbbac5accc1c5c12f6/dlthub-0.22.0-py3-none-any.whl", hash = "sha256:7b57ce78613607f49c169152f3d544aed90aed6783a0bb82d2dfe0f92b2a4713", size = 225911, upload-time = "2026-02-17T15:15:55.011Z" },
 ]
 
 [[package]]

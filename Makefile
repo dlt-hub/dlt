@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: install-uv has-uv dev lint test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database
+.PHONY: install-uv has-uv dev lint test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-hub-minimal test-hub-minimal test-hub install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database
 
 PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
 .SILENT:has-uv
@@ -268,6 +268,19 @@ TEST_WORKSPACE_PATHS = tests/workspace
 
 test-workspace:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_WORKSPACE_PATHS))
+
+# ----------------------------------------------------------------------
+# CI: hub minimal (no ibis)
+# ----------------------------------------------------------------------
+
+install-hub-minimal:
+	uv sync $(UV_SYNC_ARGS) --extra hub --group ibis-bare
+
+test-hub-minimal:
+	$(PYTEST_BASE) tests/hub --ignore=tests/hub/test_data_quality.py --ignore=tests/hub/test_destinations.py
+
+test-hub:
+	$(PYTEST_BASE) tests/hub
 
 # ----------------------------------------------------------------------
 # CI: full pipeline + sources + destinations
