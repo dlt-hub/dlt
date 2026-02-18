@@ -2453,7 +2453,7 @@ adbc = [
 ]
 airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.12'", specifier = ">=2.8.0,<3" }]
 dashboard-tests = [
-    { name = "playwright", specifier = ">=1.56.0,<2" },
+    { name = "playwright", specifier = ">=1.58.0,<2" },
     { name = "pytest-playwright", specifier = ">=0.7.1,<1" },
 ]
 dbt = [
