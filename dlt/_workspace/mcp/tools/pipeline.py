@@ -1,6 +1,8 @@
 # mypy: disable-error-code="return-value, no-any-return"
+from typing import Any, Dict, List
+
+import sqlglot
 from mcp.server.fastmcp.exceptions import ToolError
-from typing import Any
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
@@ -9,7 +11,7 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt._workspace.mcp.tools import helpers
 
 
-def available_pipelines() -> list[str]:
+def available_pipelines() -> List[str]:
     """List all available dlt pipelines. Each pipeline has several tables."""
     pipelines_dir = get_dlt_pipelines_dir()
     storage = FileStorage(pipelines_dir)
@@ -17,7 +19,7 @@ def available_pipelines() -> list[str]:
     return dirs
 
 
-def available_tables(pipeline_name: str) -> dict[str, Any]:
+def available_tables(pipeline_name: str) -> Dict[str, Any]:
     """List all available tables in the specified pipeline."""
     pipeline = dlt.attach(pipeline_name)
     return {
@@ -28,14 +30,14 @@ def available_tables(pipeline_name: str) -> dict[str, Any]:
     }
 
 
-def table_preview(pipeline_name: str, table_name: str) -> dict[str, Any]:
+def table_preview(pipeline_name: str, table_name: str) -> str:
     """Get the first row from the specified table."""
     pipeline = dlt.attach(pipeline_name)
 
-    # TODO refactor try/except to specific line or at the tool manager level
+    # TODO: refactor try/except to specific line or at the tool manager level
     # the inconsistent errors are probably due to database locking
     try:
-        return pipeline.dataset()[table_name].limit(1).df().to_dict()
+        return helpers.format_csv(pipeline.dataset()[table_name].limit(1).arrow())
     except Exception as e:
         raise ToolError(
             "Tool `table_preview()` failed. Verify the `pipeline_name` and the `table_name`. "
@@ -43,11 +45,11 @@ def table_preview(pipeline_name: str, table_name: str) -> dict[str, Any]:
         ) from e
 
 
-def table_schema(pipeline_name: str, table_name: str) -> dict[str, Any]:
+def table_schema(pipeline_name: str, table_name: str) -> Dict[str, Any]:
     """Get the schema of the specified table."""
     from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
-    # TODO refactor try/except to specific line or at the tool manager level
+    # TODO: refactor try/except to specific line or at the tool manager level
     # the inconsistent errors are probably due to database locking
     try:
         pipeline = dlt.attach(pipeline_name)
@@ -55,7 +57,7 @@ def table_schema(pipeline_name: str, table_name: str) -> dict[str, Any]:
 
         # get schema and clone the table
         schema = dataset.schema
-        table_schema: dict[str, Any] = schema.get_table(table_name)  # type: ignore[assignment]
+        table_schema: Dict[str, Any] = schema.get_table(table_name)  # type: ignore[assignment]
         # add sql dialect which is destination type
         if isinstance(dataset.sql_client, DuckDbSqlClient):
             dialect = "duckdb"
@@ -83,8 +85,16 @@ def table_schema(pipeline_name: str, table_name: str) -> dict[str, Any]:
 def execute_sql_query(pipeline_name: str, sql_select_query: str) -> str:
     """Executes SELECT SQL statement for simple data analysis.
 
-    Use the `table_schema()` tool to get the available columns and use their fully qualified name in the SQL query.
+    Use the `table_schema()` tool to get the available columns and use their fully qualified
+    name in the SQL query.
     """
+    parsed = sqlglot.parse(sql_select_query)
+    if any(
+        isinstance(expr, (sqlglot.exp.Insert, sqlglot.exp.Update, sqlglot.exp.Delete))
+        for expr in parsed
+    ):
+        raise ToolError("Data modification statements are not allowed")
+
     pipeline = dlt.attach(pipeline_name)
     dataset = pipeline.dataset()
     result = dataset(sql_select_query).arrow()

@@ -71,15 +71,19 @@ def clean_workspace(run_context: RunContextBase, args: argparse.Namespace) -> No
 
 
 @utils.track_command("workspace", track_before=True, operation="mcp")
-def start_mcp(run_context: WorkspaceRunContext, port: int, stdio: bool) -> None:
+def start_mcp(run_context: WorkspaceRunContext, port: int, stdio: bool, sse: bool) -> None:
     from dlt._workspace.mcp import WorkspaceMCP
 
-    transport = "stdio" if stdio else "sse"
-    if transport:
-        # write to stderr. stdin is the comm channel
+    if stdio:
+        transport = "stdio"
+    elif sse:
+        transport = "sse"
+    else:
+        transport = "streamable-http"
+    if transport != "stdio":
         fmt.echo("Starting dlt MCP server", err=True)
     mcp_server = WorkspaceMCP(f"dlt: {run_context.name}@{run_context.profile}", port=port)
-    mcp_server.run(transport)
+    mcp_server.run(transport=transport)
 
 
 @utils.track_command("dashboard", True)
