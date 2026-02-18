@@ -2293,6 +2293,9 @@ ibis = [
     { name = "ibis-framework", extra = ["bigquery", "clickhouse", "databricks", "duckdb", "postgres", "snowflake"], marker = "python_full_version >= '3.10'" },
     { name = "ibis-framework", extra = ["mssql"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
 ]
+ibis-bare = [
+    { name = "ibis-framework", marker = "python_full_version >= '3.10'" },
+]
 pipeline = [
     { name = "alive-progress" },
     { name = "cffi" },
@@ -2502,6 +2505,7 @@ ibis = [
     { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13'", specifier = ">=12.0.0" },
     { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'", specifier = ">=12.0.0" },
 ]
+ibis-bare = [{ name = "ibis-framework", marker = "python_full_version >= '3.10'", specifier = ">=12.0.0" }]
 pipeline = [
     { name = "alive-progress", specifier = ">=3.1.1,<4" },
     { name = "cffi", specifier = ">=1.16" },
