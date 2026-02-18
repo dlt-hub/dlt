@@ -1,7 +1,6 @@
-from typing import Any, Dict, Optional, Annotated, TYPE_CHECKING, List
-from typing_extensions import TypeAlias, Callable
+from typing import Any, Callable, Dict, Optional, TYPE_CHECKING, List
 import socket
-from dlt.common.typing import TSecretStrValue, SocketLike
+from dlt.common.typing import Annotated, TypeAlias, TSecretStrValue, SocketLike
 from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     configspec,
