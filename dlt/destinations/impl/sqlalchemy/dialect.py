@@ -6,7 +6,7 @@ for dialects that are not built-in. See register_dialect_capabilities.
 
 from typing import Any, Dict, Optional, Type
 
-import sqlalchemy as sa
+import sqlalchemy as sa  # noqa
 
 from dlt.common.destination.capabilities import DataTypeMapper, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema

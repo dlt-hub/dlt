@@ -1,7 +1,7 @@
 from typing import Iterable, Optional, Sequence, List, Tuple
 from contextlib import suppress
 
-import sqlalchemy as sa
+from dlt.common.libs.sql_alchemy import sa
 
 from dlt.common.json import json
 from dlt.common import logger

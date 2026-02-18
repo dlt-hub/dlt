@@ -615,6 +615,7 @@ def section_data_quality_raw_table(
     ):
         try:
             # Import constants from data_quality module (using private names to avoid conflicts)
+            from dlthub import data_quality as dq
             from dlthub.data_quality.storage import (
                 DLT_CHECKS_TABLE_NAME as _DLT_CHECKS_RESULTS_TABLE_NAME,
                 DLT_DATA_QUALITY_SCHEMA_NAME as _DLT_DATA_QUALITY_SCHEMA_NAME,
@@ -623,17 +624,11 @@ def section_data_quality_raw_table(
             _error_message: str = None
             with mo.status.spinner(title="Loading raw data quality checks table..."):
                 try:
-                    # Build query to select all columns including _dlt_load_id
-                    _raw_dataset = dlt_pipeline.dataset(schema=_DLT_DATA_QUALITY_SCHEMA_NAME)
-                    _raw_sql_query = (
-                        _raw_dataset.table(_DLT_CHECKS_RESULTS_TABLE_NAME)
-                        .limit(1000)
-                        .to_sql(pretty=True, _raw_query=True)
-                    )
+                    _raw_sql_query = dq.read_check(dlt_pipeline.dataset())
 
                     # Execute query
                     _raw_query_result, _error_message, _traceback_string = utils.get_query_result(
-                        dlt_pipeline, _raw_sql_query
+                        dlt_pipeline, _raw_sql_query.to_sql()
                     )
                     dlt_set_last_query_result(_raw_query_result)
                 except Exception as exc:
