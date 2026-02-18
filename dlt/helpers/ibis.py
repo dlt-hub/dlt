@@ -23,10 +23,10 @@ from dlt.destinations.impl.synapse.configuration import SynapseClientConfigurati
 from dlt.destinations.impl.fabric.configuration import FabricClientConfiguration
 
 try:
-    import ibis
+    import ibis  # noqa: I251
     import sqlglot
     import sqlglot.expressions as sge
-    from ibis import BaseBackend, Expr, Table
+    from ibis import BaseBackend, Expr, Table  # noqa: I251
     import ibis.backends.sql.compilers as sc
     from ibis.backends.sql.compilers.base import SQLGlotCompiler
 except ImportError:

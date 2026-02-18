@@ -1,0 +1,9 @@
+# secrets and credentials (from .gitignore)
+_secrets/
+secrets.toml
+*.secrets.toml
+
+# allow tracked test fixture secrets (mock/dummy data only)
+!tests/.dlt/dev.secrets.toml
+!tests/common/cases/**/secrets.toml
+!tests/workspace/**/secrets.toml

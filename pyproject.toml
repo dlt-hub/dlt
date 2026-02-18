@@ -258,6 +258,7 @@ dev = [
     "pip>=24.0.0",
     "pydoclint>=0.6.5,<0.7",
     "types-paramiko>=3.5.0.20250708",
+    "griffe>=1.10.0",
     "graphviz>=0.21",
 ]
 
@@ -351,6 +352,7 @@ include = [
     "dlt/**/*.py",
     "tests/**/*.py",
     "docs/**/*.py",
+    "tools/**/*.py",
 ]
 exclude = [
     ".venv",
