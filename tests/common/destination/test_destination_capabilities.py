@@ -58,6 +58,19 @@ def test_resolve_merge_strategy() -> None:
     assert resolve_merge_strategy(schema.tables, table, filesystem().capabilities()) is None
     assert resolve_merge_strategy(schema.tables, table, duckdb().capabilities()) == "scd2"
 
+    # scd2 not supported on filesystem for iceberg table format
+    iceberg_scd2 = new_table("iceberg_scd2", table_format="iceberg", write_disposition="merge")
+    schema.update_table(iceberg_scd2)
+    schema.tables["iceberg_scd2"]["x-merge-strategy"] = "scd2"  # type: ignore[typeddict-unknown-key]
+    with pytest.raises(DestinationCapabilitiesException):
+        resolve_merge_strategy(schema.tables, iceberg_scd2, filesystem().capabilities())
+
+    # scd2 not supported on filesystem for native (no table format)
+    native_scd2 = new_table("native_scd2", write_disposition="merge")
+    schema.update_table(native_scd2)
+    schema.tables["native_scd2"]["x-merge-strategy"] = "scd2"  # type: ignore[typeddict-unknown-key]
+    assert resolve_merge_strategy(schema.tables, native_scd2, filesystem().capabilities()) is None
+
 
 def test_verify_capabilities_ident_collisions() -> None:
     schema = Schema("schema")

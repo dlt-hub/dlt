@@ -18,6 +18,10 @@ TExecInfoNames = Literal[
     "dagster",
     "prefect",
     "marimo",
+    "claude_code",
+    "claude_code_cli",
+    "cursor",
+    "codex",
 ]
 
 

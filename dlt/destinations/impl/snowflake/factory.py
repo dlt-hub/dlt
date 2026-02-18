@@ -173,6 +173,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         query_tag: Optional[str] = None,
         create_indexes: bool = False,
         use_decfloat: bool = False,
+        enable_atomic_swap: bool = False,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -192,6 +193,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             use_decfloat (bool, optional): Whether to use DECFLOAT type for unbound decimals. DECFLOAT stores
                 exact decimal values with up to 36 significant digits and a dynamic exponent.
                 Only works with text-based staging formats (jsonl, csv) - not parquet.
+            enable_atomic_swap (bool, optional): Whether to use atomic swap when replacing with replace strategy `staging-optimized`.
             destination_name (str, optional): Name of the destination. Defaults to None.
             environment (str, optional): Environment name. Defaults to None.
             **kwargs (Any, optional): Additional arguments forwarded to the destination config
@@ -204,6 +206,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             query_tag=query_tag,
             create_indexes=create_indexes,
             use_decfloat=use_decfloat,
+            enable_atomic_swap=enable_atomic_swap,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

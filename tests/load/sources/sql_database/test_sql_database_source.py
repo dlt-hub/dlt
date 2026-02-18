@@ -15,6 +15,7 @@ from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import DependencyVersionException, MissingDependencyException
 
+from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import assert_min_pkg_version, uniq_id
@@ -150,6 +151,220 @@ def test_pyarrow_applies_hints_before_extract(
     numeric_col_schema_in_parquet = parquet_schema.field("numeric_col").type
 
     assert pa.types.is_float64(numeric_col_schema_in_parquet)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize(
+    "defer_table_reflect",
+    [False, True],
+    ids=lambda x: "defer_table_reflect" + ("_true" if x else "=false"),
+)
+def test_apply_hints_column_order(
+    postgres_db: PostgresSourceDB,
+    defer_table_reflect: bool,
+    backend: TableBackend,
+) -> None:
+    """Reproduces #3604: apply_hints with complete column hints causes merge_columns
+    to reorder incomplete reflected columns, breaking positional data mapping.
+
+    With reflection_level="minimal", reflected columns lack data_type (incomplete).
+    When apply_hints provides data_type (complete), merge_columns pops the incomplete
+    column and re-adds it at the end of the dict, changing the column order.
+    The reordered columns no longer match the SQL cursor's positional data.
+    """
+    # for arrow-based backends, verify types directly on yielded tables
+    if backend in ("pyarrow", "pandas"):
+        resource = sql_table(
+            credentials=postgres_db.credentials,
+            schema=postgres_db.schema,
+            table="has_precision",
+            backend=backend,
+            reflection_level="minimal",
+            defer_table_reflect=defer_table_reflect,
+        )
+        resource.apply_hints(
+            columns={
+                "bool_col": {"data_type": "bool"},
+                "date_col": {"data_type": "date"},
+            },
+        )
+        items = list(resource.add_limit(1, count_rows=True))
+        for item in items:
+            # pandas DataFrames are converted to arrow for type checking
+            if hasattr(item, "columns") and hasattr(item, "index") and len(item.index) > 0:
+                at = pa.Table.from_pandas(item)
+            elif isinstance(item, pa.Table) and item.num_rows > 0:
+                at = item
+            else:
+                continue
+            # bool_col must actually contain boolean data, not dates or other types
+            assert pa.types.is_boolean(at.schema.field("bool_col").type)
+            # date_col must NOT be boolean (pandas with minimal reflection may yield string)
+            assert not pa.types.is_boolean(at.schema.field("date_col").type)
+            break
+        else:
+            raise AssertionError("No non-empty arrow/pandas items yielded")
+
+    # end-to-end: data is correctly mapped after loading
+    resource2 = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="has_precision",
+        backend=backend,
+        reflection_level="minimal",
+        defer_table_reflect=defer_table_reflect,
+    )
+    resource2.apply_hints(
+        columns={
+            "bool_col": {"data_type": "bool"},
+            "date_col": {"data_type": "date"},
+        },
+    )
+    pipeline = make_pipeline("duckdb")
+    load_info = pipeline.run(resource2.add_limit(1, count_rows=True))
+    assert_load_info(load_info)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT bool_col, date_col FROM has_precision LIMIT 1")
+        row = rows[0]
+        assert isinstance(row[0], (bool, int))  # bool_col should be boolean
+        assert hasattr(row[1], "year")  # date_col should be date-like
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize(
+    "defer_table_reflect",
+    [False, True],
+    ids=lambda x: "deferred" if x else "non_deferred",
+)
+def test_non_snake_case_columns(
+    postgres_db: PostgresSourceDB, defer_table_reflect: bool, backend: TableBackend
+) -> None:
+    """Verifies all backends work with non-snake-case column names.
+
+    Data items from the resource must use the original camelCase column
+    names. pipeline.run normalizes them to snake_case for the destination.
+    """
+    resource = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="camelCaseTable",
+        backend=backend,
+        reflection_level="full",
+        defer_table_reflect=defer_table_reflect,
+    )
+    resource.apply_hints(
+        columns={
+            "isActive": {"data_type": "bool"},
+            "createdAt": {"data_type": "timestamp"},
+        },
+    )
+
+    items = list(resource.add_limit(1, count_rows=True))
+
+    # extract column names from the first non-empty data item
+    keys = None
+    for item in items:
+        if isinstance(item, dict):
+            keys = list(item.keys())
+            break
+        elif isinstance(item, list) and len(item) > 0:
+            keys = list(item[0].keys())
+            break
+        elif isinstance(item, pa.Table) and item.num_rows > 0:
+            keys = item.column_names
+            break
+        elif hasattr(item, "columns") and hasattr(item, "index") and len(item.index) > 0:
+            keys = item.columns.tolist()
+            break
+    assert keys is not None, "No non-empty data items yielded"
+    assert "isActive" in keys
+    assert "createdAt" in keys
+    assert "firstName" in keys
+
+    # end-to-end: normalized names in destination, data still correct
+    resource2 = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="camelCaseTable",
+        backend=backend,
+        reflection_level="full",
+        defer_table_reflect=defer_table_reflect,
+    )
+    pipeline = make_pipeline("duckdb")
+    load_info = pipeline.run(resource2.add_limit(1, count_rows=True))
+    assert_load_info(load_info)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            "SELECT first_name, is_active, created_at FROM camel_case_table LIMIT 1"
+        )
+        row = rows[0]
+        assert isinstance(row[0], str)
+        assert isinstance(row[1], (bool, int))
+        assert hasattr(row[2], "year")
+
+
+@pytest.mark.parametrize(
+    "defer_table_reflect",
+    [False, True],
+    ids=lambda x: "deferred" if x else "non_deferred",
+)
+def test_pyarrow_normalized_hints_on_camel_case_columns(
+    postgres_db: PostgresSourceDB, defer_table_reflect: bool, caplog: Any
+) -> None:
+    """When users pass normalized (snake_case) names in apply_hints while
+    database columns are camelCase, table_rows warns and strips the
+    unmatched columns before passing them to the loader.
+
+    Hints:
+      - "is_active" with data_type (complete/bound) — normalized form of "isActive"
+      - "created_at" without data_type (incomplete/unbound) — normalized form of "createdAt"
+    """
+    import logging
+
+    resource = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="camelCaseTable",
+        backend="pyarrow",
+        reflection_level="minimal",
+        defer_table_reflect=defer_table_reflect,
+    )
+    resource.apply_hints(
+        columns={
+            "is_active": {"data_type": "bool"},  # normalized, won't match "isActive"
+            "created_at": {"name": "created_at"},  # normalized, no data_type, unbound
+        },
+    )
+
+    pipeline = make_pipeline("duckdb")
+    # temporarily enable propagation so caplog captures dlt logger output
+    dlt_logger = logging.getLogger("dlt")
+    dlt_logger.propagate = True
+    try:
+        with caplog.at_level(logging.WARNING, logger="dlt"):
+            load_info = pipeline.run(resource.add_limit(1, count_rows=True))
+    finally:
+        dlt_logger.propagate = False
+    assert_load_info(load_info)
+
+    # warning was emitted about unmatched columns
+    warning_messages = [r.message for r in caplog.records if "do not match" in r.message]
+    assert len(warning_messages) == 1, f"Expected 1 warning, got: {warning_messages}"
+    assert "is_active" in warning_messages[0]
+    assert "created_at" in warning_messages[0]
+    assert "camelCaseTable" in warning_messages[0]
+
+    # data is correct in destination: snake_case names, proper types
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            "SELECT first_name, is_active, created_at FROM camel_case_table LIMIT 1"
+        )
+        row = rows[0]
+        assert isinstance(row[0], str)
+        assert isinstance(row[1], (bool, int))
+        assert hasattr(row[2], "year")
 
 
 def test_sqlalchemy_no_quoted_name(postgres_db: PostgresSourceDB, mocker: MockerFixture) -> None:
@@ -1414,6 +1629,53 @@ def test_sql_table_included_columns(
     assert schema_cols == {"id", "created_at"}
 
     assert_row_counts(pipeline, postgres_db, ["chat_message"])
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_sql_table_excluded_columns_freeze_then_full(
+    postgres_db: PostgresSourceDB, backend: TableBackend
+) -> None:
+    """Load app_user with excluded nullable column and columns=freeze, then load without exclusion.
+
+    First load excludes empty_col (nullable) so the schema only knows about the remaining
+    columns. Second load without exclusion should trigger a freeze violation because the
+    data now contains a column unknown to the schema.
+    """
+    from dlt.pipeline.exceptions import PipelineStepFailed
+
+    pipeline = make_pipeline("duckdb")
+
+    # first run: exclude nullable column, freeze should pass because schema is new
+    table = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="app_user",
+        reflection_level="full",
+        backend=backend,
+        excluded_columns=["empty_col"],
+    )
+    table.apply_hints(schema_contract={"columns": "freeze"})
+    load_info = pipeline.run(table)
+    assert_load_info(load_info)
+    schema_cols = {
+        col
+        for col in pipeline.default_schema.get_table_columns("app_user", include_incomplete=True)
+        if not col.startswith("_dlt_")
+    }
+    assert "empty_col" not in schema_cols
+
+    # second run: no exclusion, data now has empty_col which is not in schema
+    table = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="app_user",
+        reflection_level="full",
+        backend=backend,
+    )
+    table.apply_hints(schema_contract={"columns": "freeze"})
+    with pytest.raises(PipelineStepFailed) as py_exc:
+        pipeline.run(table)
+    assert isinstance(py_exc.value.__context__, (DataValidationError, ResourceExtractionError))
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

@@ -415,3 +415,30 @@ def test_athena_no_query_result_bucket(
     assert "output location" in str(pip_ex.value.__cause__).lower() or "ResultConfiguration" in str(
         pip_ex.value.__cause__
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["athena"], supports_merge=False),
+    ids=lambda x: x.name,
+)
+def test_athena_merge_without_iceberg_falls_back_to_append(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Non-iceberg tables on Athena have no merge strategies — fall back to append."""
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
+
+    @dlt.resource(name="items", write_disposition="merge", primary_key="id")
+    def items():
+        yield [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+
+    info = pipeline.run(items, **destination_config.run_kwargs)
+    assert_load_info(info)
+    table_counts = load_table_counts(pipeline, "items")
+    assert table_counts["items"] == 2
+
+    # second load appends (no dedup since merge is not supported)
+    info = pipeline.run(items, **destination_config.run_kwargs)
+    assert_load_info(info)
+    table_counts = load_table_counts(pipeline, "items")
+    assert table_counts["items"] == 4

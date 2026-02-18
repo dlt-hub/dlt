@@ -1,11 +1,9 @@
 import os
 import ast
 import shutil
+import warnings
 from typing import Dict, Sequence, Tuple, Optional
-from pathlib import Path
 
-
-import dlt.destinations
 from dlt.common.libs import git
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import (
@@ -22,8 +20,8 @@ from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
 
+import dlt.destinations
 from dlt.sources import SourceReference
-
 import dlt.reflection.names as n
 from dlt.reflection.script_inspector import import_pipeline_script
 
@@ -37,7 +35,7 @@ from dlt._workspace.cli._pipeline_files import (
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
 )
-from dlt._workspace.cli.exceptions import CliCommandInnerException
+from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli._ai_command import SUPPORTED_IDES, TSupportedIde
 
 
@@ -175,6 +173,18 @@ def init_pipeline_at_destination(
             - The type of the source (e.g., "template", "core", "verified").
             - Name of the selected ide for dlthub sources (defaults to "cursor")
     """
+    # extract source name from dlthub source name: dlthub:<name>
+    # TODO: add new source type
+    is_dlthub_source, display_source_name, source_name = _get_source_display_name(source_name)
+    # source and destination names are used as Python identifiers in generated code
+    if not is_valid_schema_name(display_source_name):
+        fmt.error(
+            "Source name %s is not a valid Python identifier. Use snake_case names"
+            " containing only lowercase letters, numbers and underscores (max %d"
+            " characters)."
+            % (fmt.bold(display_source_name), InvalidSchemaName.MAXIMUM_SCHEMA_NAME_LENGTH)
+        )
+        raise CliCommandException()
     # try to import the destination and get config spec
     if destination_type:
         destination_reference = Destination.from_reference(destination_type)
@@ -186,9 +196,6 @@ def init_pipeline_at_destination(
 
     # discover type of source
     source_type: files_ops.TSourceType = "template"
-    # extract source name from dlthub source name: dlthub:<name>
-    # TODO: add new source type
-    is_dlthub_source, display_source_name, source_name = _get_source_display_name(source_name)
     if source_name in files_ops.get_sources_names(core_sources_storage, source_type="core"):
         source_type = "core"
     # do not look into verified sources when setting up dlthub source
@@ -273,8 +280,6 @@ def init_pipeline_at_destination(
             remote_modified = {file_name: None for file_name in source_configuration.files}
         else:
             # is single file template source
-            if not is_valid_schema_name(source_name):
-                raise InvalidSchemaName(source_name)
             source_configuration = files_ops.get_template_configuration(
                 templates_storage, source_name, display_source_name
             )
@@ -343,19 +348,25 @@ def init_pipeline_at_destination(
     )
 
     # inspect the script to populate source references
-    if source_configuration.source_type != "core":
-        import_pipeline_script(
-            source_configuration.storage.storage_path,
-            source_configuration.storage.to_relative_path(source_configuration.src_pipeline_script),
-            ignore_missing_imports=True,
-        )
-    else:
-        # core sources are imported directly from the pipeline script which is in the _workspace module
-        import_pipeline_script(
-            os.path.dirname(source_configuration.src_pipeline_script),
-            os.path.basename(source_configuration.src_pipeline_script),
-            ignore_missing_imports=True,
-        )
+    # suppress warnings emitted during import (e.g. psutil missing from LogCollector)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        if source_configuration.source_type != "core":
+            import_pipeline_script(
+                source_configuration.storage.storage_path,
+                source_configuration.storage.to_relative_path(
+                    source_configuration.src_pipeline_script
+                ),
+                ignore_missing_imports=True,
+            )
+        else:
+            # core sources are imported directly from the pipeline script
+            # which is in the _workspace module
+            import_pipeline_script(
+                os.path.dirname(source_configuration.src_pipeline_script),
+                os.path.basename(source_configuration.src_pipeline_script),
+                ignore_missing_imports=True,
+            )
 
     # detect all the required secrets and configs that should go into tomls files
     if source_configuration.source_type == "template":

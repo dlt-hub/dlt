@@ -400,7 +400,7 @@ def test_new_compound_prop_hints_replace_previous_compound_props(
     my_resource = _get_resource(
         with_apply_hints=False,
         data=item,
-        columns={"other_id": {compound_prop: True}},
+        columns={"other_id": {compound_prop: True}, "pcx": {"x-hint": "a"}},
     )
     p.run(my_resource)
     # "id" should no longer be key

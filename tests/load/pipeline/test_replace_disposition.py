@@ -446,3 +446,82 @@ def test_replace_sql_queries(
         else:
             assert clone_sql_generator_spy.call_count == 1
             assert insert_sql_generator_spy.call_count == 0
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["snowflake"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_snowflake_atomic_swap_replace(
+    destination_config: DestinationTestConfiguration,
+    mocker: MockerFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test Snowflake atomic swap with sequential loads, nested tables, and empty resource."""
+    from dlt.destinations.sql_jobs import SqlStagingFollowupJob, SqlStagingReplaceFollowupJob
+    from dlt.destinations.impl.snowflake.snowflake import SnowflakeStagingReplaceJob
+
+    monkeypatch.setenv("DESTINATION__REPLACE_STRATEGY", "staging-optimized")
+    monkeypatch.setenv("DESTINATION__SNOWFLAKE__ENABLE_ATOMIC_SWAP", "true")
+
+    clone_spy = mocker.spy(SqlStagingReplaceFollowupJob, "_generate_clone_sql")
+    insert_spy = mocker.spy(SqlStagingFollowupJob, "_generate_insert_sql")
+    swap_spy = mocker.spy(SnowflakeStagingReplaceJob, "generate_sql")
+
+    pipeline = destination_config.setup_pipeline("snowflake_atomic_swap_test", dev_mode=True)
+
+    @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+    def load_items(offset):
+        for i in range(offset, offset + 3):
+            yield {
+                "id": i,
+                "name": f"item {i}",
+                "sub_items": [
+                    {"id": i * 100 + 1, "name": f"sub {i * 100 + 1}"},
+                    {"id": i * 100 + 2, "name": f"sub {i * 100 + 2}"},
+                ],
+            }
+
+    # first load: nested data via swap
+    info = pipeline.run(load_items(0), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    assert swap_spy.call_count == 1
+    assert clone_spy.call_count == 0
+    assert insert_spy.call_count == 0
+    for sql_stmt in swap_spy.return_value:
+        assert "SWAP WITH" in sql_stmt
+
+    assert load_table_counts(pipeline, "items", "items__sub_items") == {
+        "items": 3,
+        "items__sub_items": 6,
+    }
+
+    # second load: different data, verifies full replacement after prior swap
+    swap_spy.reset_mock()
+    info = pipeline.run(load_items(100), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    assert swap_spy.call_count == 1
+    assert load_table_counts(pipeline, "items", "items__sub_items") == {
+        "items": 3,
+        "items__sub_items": 6,
+    }
+    table_dicts = load_tables_to_dicts(pipeline, "items")
+    assert {int(r["id"]) for r in table_dicts["items"]} == {100, 101, 102}
+
+    # third load: empty resource clears all tables
+    @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+    def load_items_empty():
+        if False:
+            yield
+
+    swap_spy.reset_mock()
+    info = pipeline.run(load_items_empty(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert_empty_tables(pipeline, "items", "items__sub_items")

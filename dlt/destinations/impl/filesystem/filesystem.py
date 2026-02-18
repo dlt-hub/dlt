@@ -63,6 +63,7 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.destination.exceptions import (
+    WriteDispositionNotSupported,
     DestinationUndefinedEntity,
     OpenTableCatalogNotSupported,
     OpenTableFormatNotSupported,
@@ -599,9 +600,16 @@ class FilesystemClient(
         if exceptions := verify_schema_merge_disposition(
             self.schema, loaded_tables, self.capabilities, warnings=True
         ):
+            # filesystem falls back to append when merge is not supported
+            filtered = []
             for exception in exceptions:
-                logger.error(str(exception))
-            raise exceptions[0]
+                if isinstance(exception, WriteDispositionNotSupported):
+                    logger.warning(str(exception))
+                else:
+                    filtered.append(exception)
+                    logger.error(str(exception))
+            if filtered:
+                raise filtered[0]
         if exceptions := verify_schema_replace_disposition(
             self.schema,
             loaded_tables,
@@ -652,6 +660,7 @@ class FilesystemClient(
         if table["write_disposition"] == "merge":
             if merge_strategy is None:
                 # no supported merge strategies, fall back to append
+                logger.warning(f"Falling back to `append` on `{table_name}`.")
                 table["write_disposition"] = "append"
             else:
                 table["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]

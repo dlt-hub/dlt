@@ -22,6 +22,7 @@ from tests.common.utils import load_json_case
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
 from tests.load.utils import (
+    FILE_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
 )
@@ -77,6 +78,59 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
         "some_data": 3,
         "other_data": 5,
     }
+
+
+def test_pipeline_merge_unsupported_scd2_falls_back_to_append() -> None:
+    """scd2 not supported on native filesystem, merge falls back to append"""
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = FILE_BUCKET
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_" + uniq_id(),
+        destination="filesystem",
+        dataset_name="test_" + uniq_id(),
+    )
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+    )
+    def some_data():
+        yield [{"id": 1}, {"id": 2}, {"id": 3}]
+
+    pipeline.run(some_data())
+    assert load_table_counts(pipeline, "some_data") == {"some_data": 3}
+
+    # second run appends because scd2 is unsupported
+    pipeline.run(some_data())
+    assert load_table_counts(pipeline, "some_data") == {"some_data": 6}
+
+
+def test_pipeline_merge_unsupported_scd2_iceberg_fails() -> None:
+    """scd2 not supported on iceberg filesystem — iceberg supports upsert only, so scd2 is rejected"""
+    from dlt.common.destination.exceptions import DestinationCapabilitiesException
+    from dlt.pipeline.exceptions import PipelineStepFailed
+
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = FILE_BUCKET
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_" + uniq_id(),
+        destination="filesystem",
+        dataset_name="test_" + uniq_id(),
+    )
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+        table_format="iceberg",
+    )
+    def some_data():
+        yield [{"id": 1}, {"id": 2}, {"id": 3}]
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(some_data())
+    assert isinstance(pip_ex.value.__cause__, DestinationCapabilitiesException)
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
