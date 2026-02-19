@@ -1232,6 +1232,22 @@ def get_all_parent_child_references_from_root(
     return children_refs
 
 
+def get_all_parent_references_to_root(
+    tables: TSchemaTables, table_name: str
+) -> list[TTableReference]:
+    if table_name not in tables:
+        raise ValueError(f"Table `{table_name}` not found in tables: `{list(tables.keys())}`")
+    # this is a root table already
+    if not is_nested_table(tables[table_name]):
+        return []
+
+    parents = []
+    while parent := tables[table_name].get("parent"):
+        parents.append(create_parent_child_reference(tables, table_name))
+        table_name = parent
+    return parents
+
+
 def create_load_table_reference(
     table: TTableSchema, *, naming: NamingConvention = None
 ) -> TTableReference:
