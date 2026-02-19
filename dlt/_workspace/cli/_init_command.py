@@ -42,7 +42,9 @@ from dlt._workspace.cli._ai_command import SUPPORTED_IDES, TSupportedIde
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 
 
-def list_sources_command(repo_location: str, branch: str = None) -> None:
+def list_sources_command(
+    repo_location: str, branch: str = None, search_term: Optional[str] = None
+) -> None:
     fmt.echo("---")
     fmt.echo("Available dlt core sources:")
     fmt.echo("---")
@@ -73,6 +75,8 @@ def list_sources_command(repo_location: str, branch: str = None) -> None:
             msg += fmt.warning_style(" [needs update: %s]" % (dlt_req_string))
 
         fmt.echo(msg)
+
+    _list_scaffold_sources(search_term)
 
 
 def list_destinations_command() -> None:
@@ -807,6 +811,50 @@ def _list_verified_sources(
     return sources
 
 
+def _list_scaffold_sources(search_term: Optional[str] = None) -> None:
+    from dlt._workspace.cli._scaffold_api_client import search_scaffolds
+    from dlt._workspace.cli.exceptions import ScaffoldApiError
+
+    try:
+        response = search_scaffolds(search_term=search_term or "")
+    except ScaffoldApiError as e:
+        fmt.warning(f"Community sources unavailable ({e})")
+        return
+
+    fmt.echo("---")
+    if search_term:
+        fmt.echo(
+            'Source scaffold templates matching "%s" with llm-ready docs from'
+            " dlthub.com/context:" % fmt.bold(search_term)
+        )
+    else:
+        fmt.echo(
+            "Source scaffold templates with llm-ready docs from dlthub.com/context:"
+        )
+    fmt.echo("---")
+
+    if not response.results:
+        fmt.echo(
+            "No sources found for '%s'. Try a different --search-term." % search_term
+        )
+        return
+
+    for result in response.results:
+        fmt.echo("%s: %s" % (fmt.bold(result.name), result.description))
+
+    count = len(response.results)
+    fmt.echo()
+    fmt.echo(
+        "Showing %d of %d %s."
+        % (count, response.total, "results" if search_term else "sources")
+    )
+    if search_term:
+        fmt.echo("Modify --search-term for different results.")
+    else:
+        fmt.echo("Use --search-term <keyword> to filter results.")
+    fmt.echo("Use: dlt init dlthub:<source_name> <destination> to initialize")
+
+
 def _list_core_destinations() -> list[str]:
     return dlt.destinations.__all__
 
@@ -829,8 +877,10 @@ def init_command_wrapper(
 
 
 @utils.track_command("list_sources", False)
-def list_sources_command_wrapper(repo_location: str, branch: str) -> None:
-    list_sources_command(repo_location, branch)
+def list_sources_command_wrapper(
+    repo_location: str, branch: str, search_term: Optional[str] = None
+) -> None:
+    list_sources_command(repo_location, branch, search_term)
 
 
 @utils.track_command("list_destinations", False)

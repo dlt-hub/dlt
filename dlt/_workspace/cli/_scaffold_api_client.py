@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, NamedTuple, Optional
 import io
 import tempfile
 import zipfile
@@ -13,6 +13,18 @@ from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
 
 # Timeout for scaffold API requests (20 seconds to handle larger files)
 SCAFFOLD_API_TIMEOUT = 20
+# Timeout for scaffold search requests (lightweight JSON response)
+SCAFFOLD_SEARCH_TIMEOUT = 10
+
+
+class ScaffoldSearchResult(NamedTuple):
+    name: str
+    description: str
+
+
+class ScaffoldSearchResponse(NamedTuple):
+    results: List[ScaffoldSearchResult]
+    total: int
 
 
 @with_config(spec=WorkspaceRuntimeConfiguration, sections=("runtime", "workspace"))
@@ -64,3 +76,41 @@ def get_scaffold_files_storage(
         raise ScaffoldApiError(f"Invalid ZIP response from scaffold-api: {str(e)}", source_name)
 
     return FileStorage(temp_dir, makedirs=False)
+
+
+@with_config(spec=WorkspaceRuntimeConfiguration, sections=("runtime", "workspace"))
+def search_scaffolds(
+    search_term: str = "", page_size: int = 20, scaffold_docs_api_url: str = None
+) -> ScaffoldSearchResponse:
+    """Search for available scaffold sources via the scaffold API.
+
+    Args:
+        search_term: Keyword to filter sources. Empty string returns alphabetical listing.
+        page_size: Number of results to return.
+        scaffold_docs_api_url: Base URL of the scaffold API (auto-injected from config).
+
+    Raises:
+        ScaffoldApiError: If there's an error connecting to the API or parsing the response.
+    """
+    url = f"{scaffold_docs_api_url}/api/v1/scaffolds/sources"
+    params = {"q": search_term, "page": 1, "page_size": page_size}
+    try:
+        response = requests.get(url, params=params, timeout=SCAFFOLD_SEARCH_TIMEOUT)
+    except requests.RequestException as e:
+        raise ScaffoldApiError(f"There was an error connecting to the scaffold-api: {str(e)}")
+
+    if response.status_code != 200:
+        raise ScaffoldApiError(
+            f"API returned status {response.status_code}: {response.text}"
+        )
+
+    try:
+        data = response.json()
+    except ValueError as e:
+        raise ScaffoldApiError(f"Invalid JSON response from scaffold-api: {str(e)}")
+
+    results = [
+        ScaffoldSearchResult(name=item["name"], description=item["description"])
+        for item in data.get("results", [])
+    ]
+    return ScaffoldSearchResponse(results=results, total=data.get("total", len(results)))

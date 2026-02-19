@@ -110,6 +110,11 @@ version if run again with an existing `source` name. You will be warned if files
                 " will be editable by you."
             ),
         )
+        parser.add_argument(
+            "--search-term",
+            default=None,
+            help="Filter community sources by keyword when used with --list-sources.",
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli._init_command import (
@@ -119,7 +124,7 @@ version if run again with an existing `source` name. You will be warned if files
         )
 
         if args.list_sources:
-            list_sources_command_wrapper(args.location, args.branch)
+            list_sources_command_wrapper(args.location, args.branch, args.search_term)
         elif args.list_destinations:
             list_destinations_command_wrapper()
         else:
