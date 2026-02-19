@@ -23,12 +23,13 @@ from tests.utils import ACTIVE_SQL_DESTINATIONS
 def dbt_venv() -> Iterator[Venv]:
     # context manager will delete venv at the end
     # yield Venv.restore_current()
-    # NOTE: we limit the max version of dbt to allow all dbt adapters to run. ie. sqlserver does not work on 1.8
+    # NOTE: we limit the max version of dbt to the latest supported by all adapters.
+    # dbt-sqlserver and dbt-fabric lag behind dbt-core releases (currently max 1.9.x)
     dbt_configs = set(
         c.destination_type
         for c in destinations_configs(default_sql_configs=True, supports_dbt=True)
     )
-    with create_venv(tempfile.mkdtemp(), list(dbt_configs), dbt_version="<1.9") as venv:
+    with create_venv(tempfile.mkdtemp(), list(dbt_configs), dbt_version="<1.10") as venv:
         yield venv
 
 

@@ -43,15 +43,15 @@ def client() -> Iterator[PostgresClient]:
 
 
 PACKAGE_PARAMS = [
-    ("postgres", "1.5.2"),
-    ("postgres", "1.6.13"),
     ("postgres", "1.8.6"),
     ("postgres", "1.9.1"),
+    ("postgres", "1.10.19"),
+    ("postgres", "1.11.6"),
     ("postgres", None),
-    ("snowflake", "1.5.2"),
-    ("snowflake", "1.6.13"),
     ("snowflake", "1.8.6"),
     ("snowflake", "1.9.1"),
+    ("snowflake", "1.10.19"),
+    ("snowflake", "1.11.6"),
     ("snowflake", None),
 ]
 PACKAGE_IDS = [
@@ -257,7 +257,7 @@ def test_run_jaffle_invalid_run_args(
             dbt_func(
                 client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO
             ).run_all(["--wrong_flag"])
-        # dbt < 1.5 raises systemexit, dbt >= 1.5 just returns success False
+        # dbt >= 1.7 returns success False via dbtRunner, but SystemExit is handled defensively
         assert isinstance(pr_exc.value.dbt_results, SystemExit) or pr_exc.value.dbt_results is None
 
 
