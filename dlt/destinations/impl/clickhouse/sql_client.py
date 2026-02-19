@@ -102,12 +102,10 @@ class ClickHouseSqlClient(
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
         if self.credentials.query is None:
             self.credentials.query = {}
-        self.credentials.query[
-            "select_sequential_consistency"
-        ] = self.config.select_sequential_consistency
-        self._conn = clickhouse_driver.connect(
-            dsn=self.credentials.to_native_representation()
+        self.credentials.query["select_sequential_consistency"] = (
+            self.config.select_sequential_consistency
         )
+        self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
         return self._conn
 
     @raise_open_connection_error
@@ -223,9 +221,7 @@ class ClickHouseSqlClient(
                     "allow_experimental_lightweight_delete": 1,
                     "enable_http_compression": 1,
                     "date_time_input_format": "best_effort",
-                    "select_sequential_consistency": (
-                        self.config.select_sequential_consistency
-                    ),
+                    "select_sequential_consistency": self.config.select_sequential_consistency,
                 },
                 compression=compression,
             )
