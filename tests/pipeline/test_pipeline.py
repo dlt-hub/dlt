@@ -1,4 +1,6 @@
 import asyncio
+import contextlib
+import io
 from multiprocessing.dummy import DummyProcess
 import pathlib
 import pickle
@@ -44,6 +46,7 @@ from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
 from dlt.common.typing import DictStrAny, TDataItems
 from dlt.common.utils import uniq_id
+from dlt.common.warnings import DltDeprecationWarning
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy, duckdb
@@ -72,7 +75,7 @@ from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 from dlt.pipeline.typing import TPipelineStep
 
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT, skipifwindows
+from tests.utils import get_test_storage_root, skipifwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_table_counts,
@@ -94,7 +97,6 @@ def test_default_pipeline() -> None:
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     # default dataset name is not created until a destination that requires it is set
     assert p.dataset_name is None
     assert p.destination is None
@@ -112,6 +114,13 @@ def test_default_pipeline() -> None:
     p.extract(["a", "b", "c"], table_name="data")
     # `_pipeline` is removed from default schema name
     assert p.default_schema_name in ["dlt_pytest", "dlt"]
+
+
+def test_default_pipelines_dir() -> None:
+    p = dlt.pipeline("test_pipeline" + uniq_id())
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
+    )
 
 
 def test_pipeline_runtime_configuration() -> None:
@@ -144,7 +153,6 @@ def test_default_pipeline_dataset_layout(environment) -> None:
         dataset_name_layout % "dlt_pipeline_dataset",
     ]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_dataset_names
     assert p.default_schema_name is None
@@ -187,7 +195,7 @@ def test_default_pipeline_dataset_late_destination() -> None:
     assert p.dataset_name is None
 
     # default dataset name will be created
-    p.sync_destination(destination=dlt.destinations.filesystem(TEST_STORAGE_ROOT))
+    p.sync_destination(destination=dlt.destinations.filesystem(get_test_storage_root()))
     assert p.dataset_name == "test_default_pipeline_dataset"
     p._wipe_working_folder()
 
@@ -233,7 +241,7 @@ def test_default_pipeline_dataset_layout_empty(environment) -> None:
 
 
 def test_pipeline_initial_cwd_follows_local_dir(environment) -> None:
-    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    local_dir = os.path.join(get_test_storage_root(), uniq_id())
     os.makedirs(local_dir)
     # mock tmp dir
     os.environ[DLT_LOCAL_DIR] = local_dir
@@ -244,8 +252,8 @@ def test_pipeline_initial_cwd_follows_local_dir(environment) -> None:
 def test_pipeline_configuration_top_level_section(environment) -> None:
     environment["PIPELINES__DATASET_NAME"] = "pipeline_dataset"
     environment["PIPELINES__DESTINATION_TYPE"] = "dummy"
-    environment["PIPELINES__IMPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
-    environment["PIPELINES__EXPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+    environment["PIPELINES__IMPORT_SCHEMA_PATH"] = os.path.join(get_test_storage_root(), "import")
+    environment["PIPELINES__EXPORT_SCHEMA_PATH"] = os.path.join(get_test_storage_root(), "import")
 
     pipeline = dlt.pipeline()
     assert pipeline.dataset_name == "pipeline_dataset"
@@ -263,8 +271,12 @@ def test_pipeline_configuration_top_level_section(environment) -> None:
 def test_pipeline_configuration_named_section(environment) -> None:
     environment["PIPELINES__NAMED__DATASET_NAME"] = "pipeline_dataset"
     environment["PIPELINES__NAMED__DESTINATION_TYPE"] = "dummy"
-    environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
-    environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+    environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"] = os.path.join(
+        get_test_storage_root(), "import"
+    )
+    environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"] = os.path.join(
+        get_test_storage_root(), "import"
+    )
 
     pipeline = dlt.pipeline(pipeline_name="named")
     assert pipeline.dataset_name == "pipeline_dataset"
@@ -1621,7 +1633,7 @@ def test_set_get_local_value() -> None:
 def test_update_last_run_context() -> None:
     p = dlt.pipeline(destination="dummy", dev_mode=True)
     p._update_last_run_context()
-    assert p.last_run_context["local_dir"] == os.path.join(os.getcwd(), "_storage")
+    assert p.last_run_context["local_dir"].endswith(get_test_storage_root())
     assert p.last_run_context["settings_dir"] == os.path.join(os.getcwd(), ".dlt")
 
 
@@ -1840,20 +1852,51 @@ def test_preserve_fields_order_incomplete_columns() -> None:
 def test_pipeline_log_progress() -> None:
     os.environ["TIMEOUT"] = "3.0"
 
-    # will attach dlt logger
+    # "dlt_logger" attaches dlt logger lazily on first dump
     p = dlt.pipeline(
-        destination="dummy", progress=dlt.progress.log(0.5, logger=None, log_level=logging.WARNING)
+        destination="dummy",
+        progress=dlt.progress.log(0.5, logger="dlt_logger", log_level=logging.WARNING),
     )
-    # collector was created before pipeline so logger is not attached
-    assert cast(LogCollector, p.collector).logger is None
+    assert cast(LogCollector, p.collector).logger == "dlt_logger"
     p.extract(many_delayed(2, 10))
-    # dlt logger attached
+    # dlt logger attached after first extract
+    assert isinstance(
+        cast(LogCollector, p.collector).logger, (logging.Logger, logging.LoggerAdapter)
+    )
+
+    # deprecated logger=None still works and maps to "dlt_logger"
+    with pytest.warns(DltDeprecationWarning, match="logger=None"):
+        collector = dlt.progress.log(0.5, logger=None, log_level=logging.WARNING)
+    assert collector.logger == "dlt_logger"
+    p = dlt.pipeline(destination="dummy", progress=collector)
+    p.extract(many_delayed(2, 10))
     assert cast(LogCollector, p.collector).logger is not None
 
     # pass explicit root logger
     p = dlt.attach(progress=dlt.progress.log(0.5, logger=logging.getLogger()))
     assert cast(LogCollector, p.collector).logger is not None
     p.extract(many_delayed(2, 10))
+
+
+def test_log_collector_respects_stdout_redirect() -> None:
+    collector = LogCollector(dump_system_stats=False)
+    assert collector.logger == "stdout"
+
+    # default logger resolves to current sys.stdout at call time
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        collector._log(logging.WARNING, "redirected message")
+        assert "redirected message" in buf.getvalue()
+
+    # explicit TextIO stream is used directly
+    with io.StringIO() as buf:
+        collector2 = LogCollector(logger=buf, dump_system_stats=False)
+        collector2._log(logging.WARNING, "stream message")
+        assert "stream message" in buf.getvalue()
+
+    # logger=None is deprecated and maps to "dlt_logger"
+    with pytest.warns(DltDeprecationWarning, match="logger=None"):
+        collector3 = LogCollector(logger=None, dump_system_stats=False)
+    assert collector3.logger == "dlt_logger"
 
 
 def test_progress_collector_callbacks() -> None:
@@ -3138,18 +3181,31 @@ def test_yielding_empty_list_creates_table() -> None:
             assert rows[0] == (1, None)
 
 
-local_paths = [os.path.abspath(TEST_STORAGE_ROOT), "."]
-if os.name == "nt":
-    local_paths += [
-        # UNC extended path
-        "\\\\?\\UNC\\localhost\\" + os.path.abspath(TEST_STORAGE_ROOT).replace(":", "$"),
-        # UNC path
-        "\\\\localhost\\" + os.path.abspath(TEST_STORAGE_ROOT).replace(":", "$"),
-    ]
+@pytest.mark.parametrize(
+    "local_path_kind",
+    (
+        "storage_root",
+        "dot",
+        "unc_extended",
+        "unc",
+    ),
+)
+def test_local_filesystem_destination(local_path_kind: str) -> None:
+    root = os.path.abspath(get_test_storage_root())
 
+    if local_path_kind == "storage_root":
+        local_path = root
+    elif local_path_kind == "dot":
+        local_path = "."
+    elif local_path_kind == "unc_extended":
+        pytest.skip("UNC paths only valid on Windows") if os.name != "nt" else None
+        local_path = "\\\\?\\UNC\\localhost\\" + root.replace(":", "$")
+    elif local_path_kind == "unc":
+        pytest.skip("UNC paths only valid on Windows") if os.name != "nt" else None
+        local_path = "\\\\localhost\\" + root.replace(":", "$")
+    else:
+        raise AssertionError(local_path_kind)
 
-@pytest.mark.parametrize("local_path", local_paths)
-def test_local_filesystem_destination(local_path: str) -> None:
     dataset_name = "mydata_" + uniq_id()
 
     @dlt.resource
@@ -3177,7 +3233,7 @@ def test_local_filesystem_destination(local_path: str) -> None:
 
     # check all the files, paths may get messed up in many different ways
     # and data may land anywhere especially on Windows
-    expected_dataset = pathlib.Path("_storage").joinpath(dataset_name).resolve()
+    expected_dataset = pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()
     assert expected_dataset.exists()
     assert expected_dataset.is_dir()
 
@@ -3193,11 +3249,15 @@ def test_local_filesystem_destination(local_path: str) -> None:
     assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 1
 
     fs_client = pipeline._fs_client()
-    # all path formats we use must lead to "_storage" relative to tests
-    expect_path_fragment = str(pathlib.Path(TEST_STORAGE_ROOT).joinpath(dataset_name).resolve())
-    expect_path_fragment = expect_path_fragment[expect_path_fragment.index(TEST_STORAGE_ROOT) :]
+    # all path formats we use must lead to test storage root relative to tests
+    expect_path_fragment = str(
+        pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()
+    )
+    expect_path_fragment = expect_path_fragment[
+        expect_path_fragment.index(get_test_storage_root()) :
+    ]
     # TODO: restore on windows
-    assert str(pathlib.Path(TEST_STORAGE_ROOT).joinpath(dataset_name).resolve()).endswith(
+    assert str(pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()).endswith(
         expect_path_fragment
     )
     # same for client
@@ -3949,7 +4009,7 @@ def test_nested_hints_file_format() -> None:
 
     p = dlt.pipeline(
         pipeline_name="test_nested_hints_file_format",
-        destination=dlt.destinations.filesystem(TEST_STORAGE_ROOT),
+        destination=dlt.destinations.filesystem(get_test_storage_root()),
         dataset_name="local",
     )
     p.extract(nested_data())

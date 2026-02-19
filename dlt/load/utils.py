@@ -102,7 +102,11 @@ def init_client(
     tables_with_jobs = set(job.table_name for job in new_jobs) - tables_no_data
 
     # get tables to truncate by extending tables with jobs with all their nested tables
-    initial_truncate_names = set(t["name"] for t in truncate_tables) if truncate_tables else set()
+    initial_truncate_names = (
+        set(t["name"] for t in truncate_tables if drop_staging_filter(t))
+        if truncate_tables
+        else set()
+    )
     truncate_table_names = set(
         _extend_tables_with_table_chain(
             schema,

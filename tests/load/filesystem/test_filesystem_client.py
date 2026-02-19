@@ -33,7 +33,7 @@ from dlt.destinations.impl.filesystem.filesystem import (
 
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
 from tests.load.filesystem.utils import perform_load, setup_loader
-from tests.utils import TEST_STORAGE_ROOT, clean_test_storage, init_test_logging
+from tests.utils import get_test_storage_root, clean_test_storage, init_test_logging
 from tests.load.utils import TEST_FILE_LAYOUTS
 
 # mark all tests as essential, do not remove
@@ -100,7 +100,7 @@ def test_filesystem_factory_buckets(with_gdrive_buckets_env: str) -> None:
 
 @pytest.mark.parametrize("location", ("lake", "file:lake"))
 def test_filesystem_follows_local_dir(location: str) -> None:
-    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    local_dir = os.path.join(get_test_storage_root(), uniq_id())
     os.makedirs(local_dir)
     # mock tmp dir
     os.environ[DLT_LOCAL_DIR] = local_dir

@@ -17,6 +17,7 @@ from dlt.destinations.impl.filesystem.filesystem import (
 )
 
 from tests.cases import arrow_table_all_data_types
+from tests.utils import get_test_storage_root
 
 
 if Version(pa.__version__) < Version("17.0.0"):
@@ -30,7 +31,7 @@ def filesystem_client() -> Iterator[Tuple[FilesystemClient, str]]:
     Remote directory is removed on teardown.
     """
     # setup
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = get_test_storage_root()
     client = cast(FilesystemClient, dlt.pipeline(destination="filesystem").destination_client())
     remote_dir = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] + "/tmp_dir"
 

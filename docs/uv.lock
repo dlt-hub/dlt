@@ -989,7 +989,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.20.0"
+version = "1.22.0"
 source = { editable = "../" }
 dependencies = [
     { name = "click" },
@@ -1084,8 +1084,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.20.0a0,<0.21" },
-    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.20.0a1,<0.21" },
+    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.20.0,<0.23" },
+    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.0,<0.23" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lancedb'", specifier = ">=1.4.3" },
@@ -1103,8 +1103,8 @@ requires-dist = [
     { name = "grpcio", marker = "extra == 'bigquery'", specifier = ">=1.50.0" },
     { name = "grpcio", marker = "extra == 'gcp'", specifier = ">=1.50.0" },
     { name = "humanize", specifier = ">=4.4.0" },
-    { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=10.5.0" },
-    { name = "ibis-framework", marker = "extra == 'lancedb'", specifier = ">=11.0.0" },
+    { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'lancedb'", specifier = ">=12.0.0" },
+    { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=12.0.0" },
     { name = "jsonpath-ng", specifier = ">=1.5.3" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.22.0" },
     { name = "marimo", marker = "extra == 'workspace'", specifier = ">=0.14.5" },
@@ -1163,7 +1163,7 @@ requires-dist = [
     { name = "sqlalchemy", marker = "extra == 'pyiceberg'", specifier = ">=1.4" },
     { name = "sqlalchemy", marker = "extra == 'sql-database'", specifier = ">=1.4" },
     { name = "sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=1.4" },
-    { name = "sqlglot", specifier = ">=25.4.0,!=28.1" },
+    { name = "sqlglot", specifier = ">=25.4.0" },
     { name = "tenacity", specifier = ">=8.0.2" },
     { name = "tomlkit", specifier = ">=0.11.3" },
     { name = "typing-extensions", specifier = ">=4.8.0" },
@@ -1171,6 +1171,101 @@ requires-dist = [
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=4.0.0,<5.0.0" },
     { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
 ]
+provides-extras = ["hub", "gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "fabric", "oracle", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "dbml"]
+
+[package.metadata.requires-dev]
+adbc = [
+    { name = "adbc-driver-manager", specifier = ">=1.8.0" },
+    { name = "dbc", specifier = ">=0.1.0" },
+]
+airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.12'", specifier = ">=2.8.0,<3" }]
+dashboard-tests = [
+    { name = "playwright", specifier = ">=1.52.0,<2" },
+    { name = "pytest-playwright", specifier = ">=0.7.0,<1" },
+]
+dbt = [
+    { name = "dbt-athena-community", specifier = ">=1.5.0" },
+    { name = "dbt-bigquery", specifier = ">=1.5.0" },
+    { name = "dbt-core", specifier = ">=1.5.0" },
+    { name = "dbt-duckdb", specifier = ">=1.5.0" },
+    { name = "dbt-redshift", specifier = ">=1.5.0" },
+    { name = "dbt-snowflake", specifier = ">=1.5.0" },
+    { name = "dbt-sqlserver", marker = "python_full_version < '3.13'", specifier = ">=1.5.0" },
+]
+dev = [
+    { name = "bandit", specifier = ">=1.7.0,<2" },
+    { name = "black", extras = ["jupyter"], specifier = ">=23.7.0,<24" },
+    { name = "boto3-stubs", extras = ["lakeformation", "s3", "s3tables"], specifier = ">=1.28.28,<2" },
+    { name = "flake8", specifier = ">=7.0.0,<8" },
+    { name = "flake8-bugbear", specifier = ">=22.0.0,<23" },
+    { name = "flake8-builtins", specifier = ">=1.5.3,<2" },
+    { name = "flake8-encodings", git = "https://github.com/dlt-hub/flake8-encodings.git?branch=disable_jedi_support" },
+    { name = "flake8-print", specifier = ">=5.0.0,<6" },
+    { name = "flake8-tidy-imports", specifier = ">=4.8.0" },
+    { name = "graphviz", specifier = ">=0.21" },
+    { name = "griffe", specifier = ">=1.10.0" },
+    { name = "isort", specifier = ">=5.12.0,<6" },
+    { name = "mypy", specifier = ">=1.11.0,<1.13.0" },
+    { name = "pip", specifier = ">=24.0.0" },
+    { name = "pydoclint", specifier = ">=0.6.5,<0.7" },
+    { name = "pyjwt", specifier = ">=2.8.0,<3" },
+    { name = "pytest", specifier = ">=7.4.4,<8" },
+    { name = "pytest-asyncio", specifier = ">=0.23.5,<0.24" },
+    { name = "pytest-cases", specifier = ">=3.8.6" },
+    { name = "pytest-console-scripts", specifier = ">=1.4.1,<2" },
+    { name = "pytest-forked", specifier = ">=1.3.0" },
+    { name = "pytest-mock", specifier = ">=3.14.0,<4" },
+    { name = "pytest-order", specifier = ">=1.0.0" },
+    { name = "pytest-xdist", specifier = ">=3.5,<4" },
+    { name = "requests-mock", specifier = ">=1.10.0,<2" },
+    { name = "ruff", specifier = ">=0.3.2,<0.4" },
+    { name = "sqlfluff", specifier = ">=2.3.2,<3" },
+    { name = "types-cachetools", specifier = ">=4.2.9" },
+    { name = "types-click", specifier = ">=7.1.8,<8" },
+    { name = "types-deprecated", specifier = ">=1.2.9.2,<2" },
+    { name = "types-paramiko", specifier = ">=3.5.0.20250708" },
+    { name = "types-protobuf", specifier = ">=3.19.8" },
+    { name = "types-psutil", specifier = ">=5.9.5.16,<6" },
+    { name = "types-psycopg2", specifier = ">=2.9.21.14,<3" },
+    { name = "types-python-dateutil", specifier = ">=2.8.15" },
+    { name = "types-pytz", specifier = ">=2024.1.0.20240203" },
+    { name = "types-pyyaml", specifier = ">=6.0.7" },
+    { name = "types-regex", specifier = ">=2024.5.15.20240519,<2025" },
+    { name = "types-requests", specifier = ">=2.25.6" },
+    { name = "types-simplejson", specifier = ">=3.17.0" },
+    { name = "types-sqlalchemy", specifier = ">=1.4.53.38,<2" },
+    { name = "types-tqdm", specifier = ">=4.66.0.2,<5" },
+]
+ibis = [
+    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13'", specifier = ">=12.0.0" },
+    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'", specifier = ">=12.0.0" },
+]
+ibis-bare = [{ name = "ibis-framework", marker = "python_full_version >= '3.10'", specifier = ">=12.0.0" }]
+pipeline = [
+    { name = "alive-progress", specifier = ">=3.1.1,<4" },
+    { name = "cffi", specifier = ">=1.16" },
+    { name = "cryptography", specifier = ">=41.0.7,<42" },
+    { name = "enlighten", specifier = ">=1.11.2,<2" },
+    { name = "greenlet", specifier = ">=3.1" },
+    { name = "pandas", specifier = ">=2.1.4" },
+    { name = "pyarrow", specifier = ">=16.0.0" },
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "regex", specifier = ">=2024.10" },
+    { name = "shapely", specifier = ">=2.0.6" },
+    { name = "sqlalchemy", specifier = "<2" },
+    { name = "tqdm", specifier = ">=4.65.0,<5" },
+]
+providers = [{ name = "google-api-python-client", specifier = ">=2.86.0,<3" }]
+sentry-sdk = [{ name = "sentry-sdk", specifier = ">=2.0.0,<3" }]
+sources = [
+    { name = "connectorx", marker = "python_full_version < '3.10'", specifier = "<0.4.2" },
+    { name = "connectorx", marker = "python_full_version >= '3.10'", specifier = ">=0.4.2" },
+    { name = "mimesis", specifier = ">=7.0.0,<8" },
+    { name = "openpyxl", specifier = ">=3,<4" },
+    { name = "pymysql", specifier = ">=1.1.0,<2" },
+    { name = "sqlalchemy", specifier = "<2" },
+]
+streamlit = [{ name = "streamlit", marker = "python_full_version >= '3.9' and python_full_version < '3.14'", specifier = ">=1.40.0,<2" }]
 
 [[package]]
 name = "dlt-docs-tools"
@@ -1275,15 +1370,19 @@ wheels = [
 
 [[package]]
 name = "dlthub"
-version = "0.20.1"
+version = "0.22.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "python-jose" },
     { name = "ruamel-yaml" },
+    { name = "sqlglot" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/77/1b/2c079f22243462e914026172094411ed7ef1fc96c8089e0ca66d1a14038a/dlthub-0.20.1.tar.gz", hash = "sha256:7b3a188abc28601fd4bdf8f17e7925ef729d4f91fb67a6b4eb5c5dc5a04ac3a2", size = 158432 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/21/94/b2a87853102c6aa08606b2708d8f678b1e39855e8227fe111e37c32631b6/dlthub-0.20.1-py3-none-any.whl", hash = "sha256:c4d4e0c4515cd68f316ccd02c9ecc007332c861ae6f92a488f7e961935e7f1a0", size = 209767 },
+sdist = { url = "https://files.pythonhosted.org/packages/d5/af/fe84689f8742a7a3dc3e538faf5bc001a70168a34c6375e17eb15d2ce3e1/dlthub-0.22.0.tar.gz", hash = "sha256:cede29e2d0340b48e6ec3d287b9573340707273509f4f697b23d7f4981d86b9d", size = 169355, upload-time = "2026-02-17T15:15:56.941Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a2/33/0cb13a6a0ac6d416efe69265131b625ad08754824dbbbac5accc1c5c12f6/dlthub-0.22.0-py3-none-any.whl", hash = "sha256:7b57ce78613607f49c169152f3d544aed90aed6783a0bb82d2dfe0f92b2a4713", size = 225911, upload-time = "2026-02-17T15:15:55.011Z" },
 ]
 
 [[package]]
@@ -2151,7 +2250,7 @@ wheels = [
 
 [[package]]
 name = "ibis-framework"
-version = "11.0.0"
+version = "12.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "atpublic" },
@@ -2165,6 +2264,9 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/93/c8/f03c7c6e8ab96e5efd67ea5ce6eaf575bde78b4bfb9115f283d5e6e19ea2/ibis_framework-11.0.0.tar.gz", hash = "sha256:0249185eaabb800e224f448cc06ce8ba168df00b269e132d62629f462eca8842", size = 1237767 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/86/c0/2851a8a55d0fea03b80fd45815069b686e032938fc68fa9d91ac776c148c/ibis_framework-11.0.0-py3-none-any.whl", hash = "sha256:92ff82a96f4eac7f86fa9b6a315e04b5a8f9ed3d186539d88f48e628363f2e72", size = 1935652 },
+sdist = { url = "https://files.pythonhosted.org/packages/f2/8e/2e7ad9bdeaf45350da7beeb67a0d4317d400dac882825eb7c3bd4d3c6ae1/ibis_framework-12.0.0.tar.gz", hash = "sha256:238624f2c14fdab8382ca2f4f667c3cdb81e29844cd5f8db8a325d0743767c61", size = 1351369, upload-time = "2026-02-07T14:31:13.171Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/b3/11d406849715b47c9d69bb22f50874f80caee96bd1cbe7b61abbebbf5a05/ibis_framework-12.0.0-py3-none-any.whl", hash = "sha256:0bbd790f268da9cb87926d5eaad2b827a573927113c4ed3be5095efa89b9e512", size = 2079219, upload-time = "2026-02-07T14:31:10.646Z" },
 ]
 
 [[package]]

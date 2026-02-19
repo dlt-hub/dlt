@@ -67,9 +67,11 @@ const sidebars = {
         keywords: ['release notes, release highlights'],
       },
       items: [
-        'release-notes/1.12.1',
+        'release-notes/1.21.2',
+        'release-notes/1.17',
+        'release-notes/1.16',
+        'release-notes/1.15',
         'release-notes/1.13-1.14',
-        'release-notes/1.15'
       ]
     },
     {
@@ -230,6 +232,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/destination',
         'dlt-ecosystem/destinations/motherduck',
         'dlt-ecosystem/destinations/ducklake',
+        'dlt-ecosystem/destinations/fabric',
         'dlt-ecosystem/destinations/community-destinations',
         'walkthroughs/create-new-destination'
       ]
@@ -337,6 +340,7 @@ const sidebars = {
             }
           ]
         },
+        'general-usage/data-quality-lifecycle',
       ]
     },
     {

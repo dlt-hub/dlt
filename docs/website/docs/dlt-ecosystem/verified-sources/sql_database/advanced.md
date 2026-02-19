@@ -358,3 +358,126 @@ chunk_size=1000
 [sources.my_db.chat_message.incremental]
 cursor_path="updated_at"
 ```
+
+## Custom table loaders
+
+For advanced use cases — custom pagination, retry logic, or entirely different database drivers — you can provide your own table loader class.
+
+### Class hierarchy
+
+The sql_database source uses a two-level class hierarchy for loading data:
+
+- **`BaseTableLoader`** — abstract base class that provides query building (including incremental filtering and ordering). Subclass this for entirely different backends that don't use a SQLAlchemy connection.
+- **`TableLoader(BaseTableLoader)`** — default loader using a SQLAlchemy connection. Override `_load_rows()` to change execution strategy (e.g. add pagination) while reusing `_convert_result()` for backend format conversion.
+- **`ConnectorXTableLoader(BaseTableLoader)`** — loader using ConnectorX for fast Arrow table retrieval.
+
+### Using `table_loader_class` parameter
+
+Pass a custom class directly to `sql_table()` or `sql_database()`:
+
+```py
+import dlt
+from dlt.sources.sql_database import sql_table, TableLoader
+
+class MyLoader(TableLoader):
+    def _load_rows(self, query, backend_kwargs):
+        # custom execution strategy
+        with self.engine.connect() as conn:
+            result = conn.execute(query)
+            try:
+                yield from self._convert_result(result, backend_kwargs)
+            finally:
+                result.close()
+
+table = sql_table(
+    table="my_table",
+    table_loader_class=MyLoader,
+)
+```
+
+### Registering custom backends
+
+You can register a custom backend name so it can be used as the `backend` parameter:
+
+```py
+from dlt.sources.sql_database import (
+    BaseTableLoader,
+    register_table_loader_backend,
+    sql_table,
+)
+
+class MyArrowLoader(BaseTableLoader):
+    def load_rows(self, backend_kwargs=None):
+        query = self.make_query()
+        # ... custom implementation yielding Arrow tables ...
+
+register_table_loader_backend("my_arrow", MyArrowLoader)
+
+# now use it as a backend name
+table = sql_table(table="my_table", backend="my_arrow")  # type: ignore[arg-type]
+```
+
+### Example: paginated loading
+
+Override `_load_rows()` to implement offset-based pagination while reusing `_convert_result()` for format conversion:
+
+```py
+from dlt.sources.sql_database import sql_table, TableLoader
+
+class PaginatedLoader(TableLoader):
+    def __init__(self, *args, page_size=1000, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.page_size = page_size
+
+    def _load_rows(self, query, backend_kwargs):
+        with self.engine.connect() as conn:
+            offset = 0
+            while True:
+                page_query = query.limit(self.page_size).offset(offset)
+                result = conn.execute(page_query)
+                rows = list(result)
+                if not rows:
+                    break
+                yield [dict(row._mapping) for row in rows]
+                offset += self.page_size
+
+table = sql_table(
+    table="large_table",
+    table_loader_class=PaginatedLoader,
+)
+```
+
+### Example: ADBC Arrow backend
+
+Subclass `BaseTableLoader` to bypass SQLAlchemy row iteration entirely and read data as Arrow tables via ADBC.
+The base class provides `compile_query()` and `get_connection_url()` helpers that convert the SQLAlchemy query/engine into plain strings suitable for non-SQLAlchemy backends. Override `get_connection_url()` when a backend requires a different connection string format:
+
+```py
+from dlt.sources.sql_database import sql_table, BaseTableLoader
+
+class AdbcArrowLoader(BaseTableLoader):
+    def load_rows(self, backend_kwargs=None):
+        from adbc_driver_manager import dbapi
+        from adbc_driver_postgresql import _driver_path
+        import pyarrow as pa
+
+        query = self.make_query()
+        query_str = self.compile_query(query)
+        conn_url = self.get_connection_url()
+
+        with dbapi.connect(driver=_driver_path(), db_kwargs={"uri": conn_url}) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query_str)
+                for batch in cur.fetch_record_batch():
+                    yield pa.Table.from_batches([batch], schema=batch.schema)
+
+table = sql_table(
+    table="my_table",
+    table_loader_class=AdbcArrowLoader,
+)
+```
+
+:::note
+The ADBC example requires `adbc-driver-manager` and `adbc-driver-postgresql` packages.
+The loader inherits incremental query building and `get_connection_url()` from `BaseTableLoader`, so incremental loading and connection string handling work automatically. Override `get_connection_url()` for databases that need special connection string formats (e.g. MSSQL ODBC → go-mssqldb conversion).
+:::

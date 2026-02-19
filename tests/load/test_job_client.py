@@ -35,7 +35,7 @@ from dlt.common.time import ensure_pendulum_datetime_utc
 
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from tests.cases import table_update_and_row, assert_all_data_types_row
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.common.utils import load_json_case
 from tests.load.utils import (
     TABLE_UPDATE,
@@ -64,7 +64,7 @@ TEST_NAMING_CONVENTIONS = (
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.mark.parametrize(
@@ -1143,7 +1143,7 @@ def test_many_schemas_single_dataset(
     ids=lambda x: x.name,
 )
 def test_schema_retrieval(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("schema_test", dev_mode=True)
+    p = destination_config.setup_pipeline("schema_test" + uniq_id(), dev_mode=True)
     from dlt.common.schema import utils
 
     # we create 2 versions of 2 schemas
@@ -1233,9 +1233,6 @@ def normalize_rows(rows: List[Dict[str, Any]], naming: NamingConvention) -> None
 def get_columns_and_row_all_types(destination_config: DestinationClientConfiguration):
     exclude_types = []
     if destination_config.destination_type in ["databricks", "clickhouse", "motherduck"]:
-        exclude_types.append("time")
-    # Fabric Warehouse has issues with TIME type - exclude for now
-    if destination_config.destination_type == "fabric":
         exclude_types.append("time")
     if destination_config.destination_name == "sqlalchemy_sqlite":
         exclude_types.extend(["decimal", "wei"])

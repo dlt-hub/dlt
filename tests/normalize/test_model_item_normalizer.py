@@ -3,7 +3,8 @@ import pytest
 import os
 from concurrent.futures import ThreadPoolExecutor
 import sqlglot
-from typing import Iterator, List, Tuple, NamedTuple, Union, Optional
+import sqlglot.expressions
+from typing import Iterator, List, Tuple, NamedTuple, Union, Optional, cast
 from packaging.version import Version
 
 from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
@@ -20,7 +21,7 @@ from dlt.common.libs.sqlglot import TSqlGlotDialect
 
 from dlt.normalize import Normalize
 from dlt.normalize.exceptions import NormalizeJobFailed
-from dlt.normalize.items_normalizers import SqlModel
+from dlt.common.libs.sqlglot import SqlModel
 from dlt.extract.extract import ExtractStorage
 
 from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER
@@ -59,7 +60,7 @@ def caps(request) -> Iterator[DestinationCapabilitiesContext]:
 
 
 @pytest.fixture
-def model_normalize(preserve_environ) -> Iterator[Normalize]:
+def model_normalize() -> Iterator[Normalize]:
     # adding dlt id is disabled by default, so we set it to true
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
     yield from init_normalize()
@@ -213,7 +214,7 @@ def test_simple_model_normalizing(
             " `my_table`) AS _dlt_subquery\n"
             == normalized_select_query
         )
-    elif dialect == "tsql":  # mssql and synapse
+    elif dialect in ("tsql", "fabric"):  # mssql, synapse, fabric
         assert (
             "SELECT _dlt_subquery.[A_a] AS [a_a], _dlt_subquery.[b] AS [b], NULL AS [d],"
             f" '{load_id}' AS [_dlt_load_id], NEWID() AS [_dlt_id] FROM (SELECT [b] AS [b], [A_a]"
@@ -304,10 +305,10 @@ LIMIT 5
     # Parse the original illegal query for comparison
     parsed_illegal_select_query = sqlglot.parse_one(illegal_select_query, read=dialect)
 
-    # For tsql, ensure all columns in the subquery are explicitly aliased
+    # For tsql/fabric, ensure all columns in the subquery are explicitly aliased
     # because even though we don't have aliases in the original query,
-    # sqlglot adds aliases in subqueries for tsql by default
-    if dialect == "tsql":
+    # sqlglot adds aliases in subqueries for these dialects by default
+    if dialect in ("tsql", "fabric"):
         aliased_columns = [
             col.as_(col.output_name) for col in parsed_illegal_select_query.expressions
         ]
@@ -324,6 +325,7 @@ LIMIT 5
     assert parsed_norm_select_query.expressions[2].alias == caps.casefold_identifier("_dlt_id")
 
 
+@pytest.mark.serial
 @pytest.mark.parametrize(
     "columns",
     [
@@ -340,7 +342,6 @@ def test_selected_column_names_reordering(
     caps: DestinationCapabilitiesContext,
     columns: List[str],
     add_dlt_columns: bool,
-    preserve_environ,
 ) -> None:
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(add_dlt_columns)
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(add_dlt_columns)
@@ -449,7 +450,7 @@ def test_select_column_missing_in_schema(
 )
 @pytest.mark.parametrize("caps", [get_caps("duckdb")], indirect=True, ids=["duckdb"])
 def test_dlt_column_addition_configs(
-    caps: DestinationCapabilitiesContext, add_dlt_load_id: bool, add_dlt_id: bool, preserve_environ
+    caps: DestinationCapabilitiesContext, add_dlt_load_id: bool, add_dlt_id: bool
 ) -> None:
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(add_dlt_load_id)
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(add_dlt_id)
@@ -636,7 +637,6 @@ EDGE_CASE_QUERIES = [
 def test_model_normalizer_edge_cases_on_duckdb(
     caps: DestinationCapabilitiesContext,
     case: EdgeCaseQuery,
-    preserve_environ,
 ):
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(case.add_dlt_columns)
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(case.add_dlt_columns)
@@ -660,3 +660,54 @@ def test_model_normalizer_edge_cases_on_duckdb(
             _, _, _ = extract_normalize_retrieve(
                 model_normalize, model, schema, "my_table", dialect
             )
+
+
+@pytest.mark.parametrize("caps", [get_caps("duckdb")], indirect=True, ids=["duckdb"])
+def test_variant_column_names_preserved(
+    caps: DestinationCapabilitiesContext,
+) -> None:
+    """
+    Test that variant column names (with __v_ pattern) are preserved during normalization.
+
+    Regression test for issue #3625: variant columns like value__v_double were being
+    incorrectly normalized to value_v_double (losing the double underscore path separator).
+    """
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = "False"
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = "False"
+    model_normalize = next(init_normalize())
+    dialect = caps.sqlglot_dialect
+
+    # Create a query that selects variant columns
+    model_query = "SELECT value__v_double, confidence__v_text, nested__col__v_bool FROM my_table"
+    model = SqlModel.from_query_string(query=model_query, dialect=dialect)
+
+    # Create schema with variant columns
+    variant_cols = ["value__v_double", "confidence__v_text", "nested__col__v_bool"]
+    schema = create_schema_with_complete_columns("my_table", "double", variant_cols)
+
+    # Mark columns as variants in the schema
+    for col in variant_cols:
+        schema.tables["my_table"]["columns"][col]["variant"] = True
+
+    _, normalized_query, _ = extract_normalize_retrieve(
+        model_normalize, model, schema, "my_table", dialect
+    )
+
+    # Parse the normalized query to check column names
+    parsed_query = cast(
+        sqlglot.expressions.Select, sqlglot.parse_one(normalized_query, read=dialect)
+    )
+
+    # Get the aliases from the outer SELECT
+    aliases = [select.alias for select in parsed_query.selects]
+
+    # verify that variant column names are preserved (double underscores intact)
+    assert (
+        "value__v_double" in aliases
+    ), f"Variant column 'value__v_double' was not preserved. Got aliases: {aliases}"
+    assert (
+        "confidence__v_text" in aliases
+    ), f"Variant column 'confidence__v_text' was not preserved. Got aliases: {aliases}"
+    assert (
+        "nested__col__v_bool" in aliases
+    ), f"Variant column 'nested__col__v_bool' was not preserved. Got aliases: {aliases}"
