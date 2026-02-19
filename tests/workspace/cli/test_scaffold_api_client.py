@@ -125,8 +125,8 @@ def test_get_scaffold_files_storage_server_error(requests_mock: rm.Mocker) -> No
 def test_search_scaffolds_with_keyword(requests_mock: rm.Mocker) -> None:
     mock_response = {
         "results": [
-            {"name": "shopify", "description": "Shopify e-commerce data"},
-            {"name": "shopify_graphql", "description": "Shopify GraphQL API"},
+            {"content_path": "shopify_admin_rest", "name": "Shopify", "description": "Shopify e-commerce data"},
+            {"content_path": "shopify_graphql", "name": "Shopify GraphQL", "description": "Shopify GraphQL API"},
         ],
         "total": 2,
     }
@@ -142,14 +142,14 @@ def test_search_scaffolds_with_keyword(requests_mock: rm.Mocker) -> None:
     assert isinstance(response, ScaffoldSearchResponse)
     assert len(response.results) == 2
     assert response.total == 2
-    assert response.results[0] == ScaffoldSearchResult("shopify", "Shopify e-commerce data")
-    assert response.results[1] == ScaffoldSearchResult("shopify_graphql", "Shopify GraphQL API")
+    assert response.results[0] == ScaffoldSearchResult("shopify_admin_rest", "Shopify", "Shopify e-commerce data")
+    assert response.results[1] == ScaffoldSearchResult("shopify_graphql", "Shopify GraphQL", "Shopify GraphQL API")
     assert "q=shopif" in requests_mock.last_request.url
 
 
 def test_search_scaffolds_empty_term(requests_mock: rm.Mocker) -> None:
     mock_response = {
-        "results": [{"name": "airtable", "description": "Airtable data"}],
+        "results": [{"content_path": "airtable", "name": "Airtable", "description": "Airtable data"}],
         "total": 9347,
     }
     requests_mock.get(

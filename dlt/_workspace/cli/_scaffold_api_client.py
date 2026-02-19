@@ -18,6 +18,7 @@ SCAFFOLD_SEARCH_TIMEOUT = 10
 
 
 class ScaffoldSearchResult(NamedTuple):
+    content_path: str
     name: str
     description: str
 
@@ -110,7 +111,11 @@ def search_scaffolds(
         raise ScaffoldApiError(f"Invalid JSON response from scaffold-api: {str(e)}")
 
     results = [
-        ScaffoldSearchResult(name=item["name"], description=item["description"])
+        ScaffoldSearchResult(
+            content_path=item["content_path"],
+            name=item["name"],
+            description=item["description"],
+        )
         for item in data.get("results", [])
     ]
     return ScaffoldSearchResponse(results=results, total=data.get("total", len(results)))

@@ -840,7 +840,7 @@ def _list_scaffold_sources(search_term: Optional[str] = None) -> None:
         return
 
     for result in response.results:
-        fmt.echo("%s: %s" % (fmt.bold(result.name), result.description))
+        fmt.echo("%s: %s" % (fmt.bold(result.content_path), result.description))
 
     count = len(response.results)
     fmt.echo()
