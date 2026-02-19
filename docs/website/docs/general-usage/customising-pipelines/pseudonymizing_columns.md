@@ -67,13 +67,13 @@ For more realistic use cases, especially when working with SQL database sources,
 - Uses a closure pattern to capture the column configuration
 
 ```py
-from enum import StrEnum
+from enum import Enum
 import pyarrow as pa
 import pandas as pd
 import dlt
 from dlt.sources.sql_database import sql_table
 
-class MaskingMethod(StrEnum):
+class MaskingMethod(str, Enum):
     MASK = "mask"
     NULLIFY = "nullify"
 
@@ -165,10 +165,10 @@ table = sql_table(
 )
 
 # Mask sensitive columns
-table.add_map(mask_columns(columns=["email", "phone", "ssn"]))
+table.add_map(mask_columns(columns=["email", "phone", "ssn"], method=MaskingMethod.MASK))
 
 # Or use nullify method
-# table.add_map(mask_columns(columns=["email"], method=MaskingMethod.NULLIFY))
+table.add_map(mask_columns(columns=["email"], method=MaskingMethod.NULLIFY))
 
 pipeline = dlt.pipeline(
     pipeline_name="masked_data",
