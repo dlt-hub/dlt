@@ -1,9 +1,8 @@
 from __future__ import annotations
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from functools import reduce
+from functools import reduce, partial
 
-from functools import partial
 from typing import (
     overload,
     Union,
@@ -186,9 +185,9 @@ class _JoinParams:
 class _JoinPlan:
     query: sge.Select
     joins: list[_JoinParams]
-    joined_table_aliases: Optional[dict[str, str]]
-    next_alias_index: Optional[int]
-    origin_table_name: Optional[str]
+    joined_table_aliases:dict[str, str]
+    next_alias_index: int
+    origin_table_name: str
     is_joinable_graph: bool
 
 
