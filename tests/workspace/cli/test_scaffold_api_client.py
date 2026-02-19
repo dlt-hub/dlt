@@ -43,7 +43,6 @@ def test_get_scaffold_files_storage_success(requests_mock: rm.Mocker) -> None:
     )
 
     assert isinstance(storage, FileStorage)
-    # Verify files exist using has_file (scaffold API returns only yaml, no md)
     assert storage.has_file("github-docs.yaml")
     # Verify file content using load
     assert storage.load("github-docs.yaml") == "some more docs"

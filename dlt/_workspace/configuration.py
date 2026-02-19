@@ -30,8 +30,7 @@ class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
     """Base URL for the dltHub Runtime authentication API"""
     api_base_url: Optional[str] = "https://dlthub.app/api/api"
     """Base URL for the dltHub Runtime API"""
-    # TODO: restore .com before merging
-    scaffold_docs_api_url: Optional[str] = "https://scaffold.apps.dlthub.dev"
+    scaffold_docs_api_url: Optional[str] = "https://scaffold.apps.dlthub.com"
     """Base URL for the source scaffold documentation API"""
     invite_code: Optional[str] = None
     """Invite code for dltHub Runtime"""
