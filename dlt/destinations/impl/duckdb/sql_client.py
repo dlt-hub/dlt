@@ -187,12 +187,12 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         cur = self._conn
         try:
             yield self.cursor_impl(cur.execute(query, db_args))  # type: ignore
-        except duckdb.Error as outer:
+        except duckdb.Error:
             try:
                 cur.rollback()
             except Exception:
                 pass
-            raise outer
+            raise
         finally:
             # we should somehow cleanup result set if present but no suitable method on connection
             pass

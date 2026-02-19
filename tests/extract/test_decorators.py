@@ -1,6 +1,7 @@
 from functools import wraps
 import inspect
 import os
+import sys
 from typing import Awaitable, Callable, List, Optional, Dict, Iterator, Any, cast
 
 import pytest
@@ -842,7 +843,7 @@ def test_source_reference_with_args() -> None:
         "shorthand.with_shorthand_registry", _impl_sig=with_shorthand_registry
     ).clone(section="changed")
     # reveal_type(ref_t)
-    assert ref_t.section == "changed"  # type: ignore[attr-defined]
+    assert ref_t.section == "changed"
     # here source has correctly typed signature from with_shorthand_registry
     source = ref_t(["A", "B"])
     assert source.section == "changed"
@@ -900,13 +901,13 @@ def test_source_reference_auto_import() -> None:
     SourceReference.SOURCES.clear()
     # make sure to import resource first
     ref = SourceReference.find("tests.extract.cases.section_source.named_module.resource_f_2")
-    assert ref.section == "name_overridden"  # type: ignore[attr-defined]
+    assert ref.section == "name_overridden"
     assert list(ref("A")) == ["A"]
     # TODO: fix double references (with renamed section and without, should be only 2 sections here)
     assert len(SourceReference.SOURCES) == 4
 
     ref = SourceReference.find("tests.extract.cases.section_source.named_module.source_f_1")
-    assert ref.section == "name_overridden"  # type: ignore[attr-defined]
+    assert ref.section == "name_overridden"
 
 
 def test_source_reference_from_type() -> None:
@@ -949,8 +950,8 @@ def test_source_factory_clone(cloner: str) -> None:
     assert list(source) == ["AXA"]
 
     # there are some overrides from decorator
-    assert with_shorthand_registry.name == "shorthand_registry"  # type: ignore
-    assert with_shorthand_registry.section == "shorthand"  # type: ignore
+    assert with_shorthand_registry.name == "shorthand_registry"
+    assert with_shorthand_registry.section == "shorthand"
 
     # creates clones
     source_f_1: DltSourceFactoryWrapper[Any, DltSource] = factory(  # type: ignore
@@ -1420,6 +1421,19 @@ def test_resource_returning_resource() -> None:
     assert list(r) == [1, 2, 3]
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="list[] syntax requires Python 3.10+")
+def test_resource_with_non_class_return_annotation() -> None:
+    @dlt.resource
+    def customers(i: int = 0) -> list[dict[str, Any]]:
+        return [{"id": idx, "name": f"customer_{idx}"} for idx in range(i)]
+
+    assert list(customers(3)) == [
+        {"id": 0, "name": "customer_0"},
+        {"id": 1, "name": "customer_1"},
+        {"id": 2, "name": "customer_2"},
+    ]
+
+
 def test_resource_rename_credentials_separation():
     os.environ["SOURCES__TEST_DECORATORS__REGULAR_SIGNATURE__SECRET_END"] = "5"
     assert list(regular_signature(1)) == [1, 2, 3, 4]
@@ -1711,3 +1725,69 @@ def test_parallelized_resource_decorator() -> None:
     with pytest.raises(StopIteration):
         # Inner generator is also closed
         next(gen_orig)
+
+
+def test_source_postprocessor() -> None:
+    @dlt.source
+    def multi_resource():
+        return dlt.resource([1, 2, 3], name="alpha"), dlt.resource([4, 5], name="beta")
+
+    # add a postprocessor that selects only one resource
+    multi_resource.add_postprocessor(lambda s: s.with_resources("alpha"))
+
+    source = multi_resource()
+    assert "alpha" in source.selected_resources
+    assert "beta" not in source.selected_resources
+    assert list(source) == [1, 2, 3]
+
+
+def test_source_multiple_postprocessors() -> None:
+    call_order: List[str] = []
+
+    @dlt.source
+    def ordered_source():
+        return dlt.resource([1, 2, 3], name="data")
+
+    def first(s: DltSource) -> DltSource:
+        call_order.append("first")
+        return s
+
+    def second(s: DltSource) -> DltSource:
+        call_order.append("second")
+        return s
+
+    ordered_source.add_postprocessor(first)
+    ordered_source.add_postprocessor(second)
+
+    ordered_source()
+    assert call_order == ["first", "second"]
+
+
+def test_source_postprocessor_preserved_on_clone() -> None:
+    @dlt.source
+    def cloneable():
+        return dlt.resource([1, 2, 3], name="alpha"), dlt.resource([4, 5], name="beta")
+
+    cloneable.add_postprocessor(lambda s: s.with_resources("alpha"))
+
+    cloned = cloneable.clone(section="new_section")
+    source = cloned()
+    assert list(source) == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_async_source_postprocessor() -> None:
+    @dlt.source
+    async def async_multi():
+        return dlt.resource([1, 2, 3], name="alpha"), dlt.resource([4, 5], name="beta")
+
+    async def select_alpha(s: Awaitable[DltSource]) -> DltSource:
+        source = await s
+        return source.with_resources("alpha")
+
+    async_multi.add_postprocessor(select_alpha)  # type: ignore[arg-type]
+
+    source = await async_multi()  # type: ignore[misc]
+    assert "alpha" in source.selected_resources
+    assert "beta" not in source.selected_resources
+    assert list(source) == [1, 2, 3]

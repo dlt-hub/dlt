@@ -15,6 +15,7 @@ from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import DependencyVersionException, MissingDependencyException
 
+from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import assert_min_pkg_version, uniq_id
@@ -24,7 +25,10 @@ from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
 from dlt.sources import DltResource
 
 import dlt.sources.sql_database
-from tests.load.sources.sql_database.utils import assert_incremental_chunks
+from tests.load.sources.sql_database.utils import (
+    assert_extracted_uuids_are_strings,
+    assert_incremental_chunks,
+)
 from tests.pipeline.utils import (
     assert_load_info,
     assert_schema_on_data,
@@ -149,13 +153,227 @@ def test_pyarrow_applies_hints_before_extract(
     assert pa.types.is_float64(numeric_col_schema_in_parquet)
 
 
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize(
+    "defer_table_reflect",
+    [False, True],
+    ids=lambda x: "defer_table_reflect" + ("_true" if x else "=false"),
+)
+def test_apply_hints_column_order(
+    postgres_db: PostgresSourceDB,
+    defer_table_reflect: bool,
+    backend: TableBackend,
+) -> None:
+    """Reproduces #3604: apply_hints with complete column hints causes merge_columns
+    to reorder incomplete reflected columns, breaking positional data mapping.
+
+    With reflection_level="minimal", reflected columns lack data_type (incomplete).
+    When apply_hints provides data_type (complete), merge_columns pops the incomplete
+    column and re-adds it at the end of the dict, changing the column order.
+    The reordered columns no longer match the SQL cursor's positional data.
+    """
+    # for arrow-based backends, verify types directly on yielded tables
+    if backend in ("pyarrow", "pandas"):
+        resource = sql_table(
+            credentials=postgres_db.credentials,
+            schema=postgres_db.schema,
+            table="has_precision",
+            backend=backend,
+            reflection_level="minimal",
+            defer_table_reflect=defer_table_reflect,
+        )
+        resource.apply_hints(
+            columns={
+                "bool_col": {"data_type": "bool"},
+                "date_col": {"data_type": "date"},
+            },
+        )
+        items = list(resource.add_limit(1, count_rows=True))
+        for item in items:
+            # pandas DataFrames are converted to arrow for type checking
+            if hasattr(item, "columns") and hasattr(item, "index") and len(item.index) > 0:
+                at = pa.Table.from_pandas(item)
+            elif isinstance(item, pa.Table) and item.num_rows > 0:
+                at = item
+            else:
+                continue
+            # bool_col must actually contain boolean data, not dates or other types
+            assert pa.types.is_boolean(at.schema.field("bool_col").type)
+            # date_col must NOT be boolean (pandas with minimal reflection may yield string)
+            assert not pa.types.is_boolean(at.schema.field("date_col").type)
+            break
+        else:
+            raise AssertionError("No non-empty arrow/pandas items yielded")
+
+    # end-to-end: data is correctly mapped after loading
+    resource2 = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="has_precision",
+        backend=backend,
+        reflection_level="minimal",
+        defer_table_reflect=defer_table_reflect,
+    )
+    resource2.apply_hints(
+        columns={
+            "bool_col": {"data_type": "bool"},
+            "date_col": {"data_type": "date"},
+        },
+    )
+    pipeline = make_pipeline("duckdb")
+    load_info = pipeline.run(resource2.add_limit(1, count_rows=True))
+    assert_load_info(load_info)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT bool_col, date_col FROM has_precision LIMIT 1")
+        row = rows[0]
+        assert isinstance(row[0], (bool, int))  # bool_col should be boolean
+        assert hasattr(row[1], "year")  # date_col should be date-like
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize(
+    "defer_table_reflect",
+    [False, True],
+    ids=lambda x: "deferred" if x else "non_deferred",
+)
+def test_non_snake_case_columns(
+    postgres_db: PostgresSourceDB, defer_table_reflect: bool, backend: TableBackend
+) -> None:
+    """Verifies all backends work with non-snake-case column names.
+
+    Data items from the resource must use the original camelCase column
+    names. pipeline.run normalizes them to snake_case for the destination.
+    """
+    resource = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="camelCaseTable",
+        backend=backend,
+        reflection_level="full",
+        defer_table_reflect=defer_table_reflect,
+    )
+    resource.apply_hints(
+        columns={
+            "isActive": {"data_type": "bool"},
+            "createdAt": {"data_type": "timestamp"},
+        },
+    )
+
+    items = list(resource.add_limit(1, count_rows=True))
+
+    # extract column names from the first non-empty data item
+    keys = None
+    for item in items:
+        if isinstance(item, dict):
+            keys = list(item.keys())
+            break
+        elif isinstance(item, list) and len(item) > 0:
+            keys = list(item[0].keys())
+            break
+        elif isinstance(item, pa.Table) and item.num_rows > 0:
+            keys = item.column_names
+            break
+        elif hasattr(item, "columns") and hasattr(item, "index") and len(item.index) > 0:
+            keys = item.columns.tolist()
+            break
+    assert keys is not None, "No non-empty data items yielded"
+    assert "isActive" in keys
+    assert "createdAt" in keys
+    assert "firstName" in keys
+
+    # end-to-end: normalized names in destination, data still correct
+    resource2 = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="camelCaseTable",
+        backend=backend,
+        reflection_level="full",
+        defer_table_reflect=defer_table_reflect,
+    )
+    pipeline = make_pipeline("duckdb")
+    load_info = pipeline.run(resource2.add_limit(1, count_rows=True))
+    assert_load_info(load_info)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            "SELECT first_name, is_active, created_at FROM camel_case_table LIMIT 1"
+        )
+        row = rows[0]
+        assert isinstance(row[0], str)
+        assert isinstance(row[1], (bool, int))
+        assert hasattr(row[2], "year")
+
+
+@pytest.mark.parametrize(
+    "defer_table_reflect",
+    [False, True],
+    ids=lambda x: "deferred" if x else "non_deferred",
+)
+def test_pyarrow_normalized_hints_on_camel_case_columns(
+    postgres_db: PostgresSourceDB, defer_table_reflect: bool, caplog: Any
+) -> None:
+    """When users pass normalized (snake_case) names in apply_hints while
+    database columns are camelCase, table_rows warns and strips the
+    unmatched columns before passing them to the loader.
+
+    Hints:
+      - "is_active" with data_type (complete/bound) — normalized form of "isActive"
+      - "created_at" without data_type (incomplete/unbound) — normalized form of "createdAt"
+    """
+    import logging
+
+    resource = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="camelCaseTable",
+        backend="pyarrow",
+        reflection_level="minimal",
+        defer_table_reflect=defer_table_reflect,
+    )
+    resource.apply_hints(
+        columns={
+            "is_active": {"data_type": "bool"},  # normalized, won't match "isActive"
+            "created_at": {"name": "created_at"},  # normalized, no data_type, unbound
+        },
+    )
+
+    pipeline = make_pipeline("duckdb")
+    # temporarily enable propagation so caplog captures dlt logger output
+    dlt_logger = logging.getLogger("dlt")
+    dlt_logger.propagate = True
+    try:
+        with caplog.at_level(logging.WARNING, logger="dlt"):
+            load_info = pipeline.run(resource.add_limit(1, count_rows=True))
+    finally:
+        dlt_logger.propagate = False
+    assert_load_info(load_info)
+
+    # warning was emitted about unmatched columns
+    warning_messages = [r.message for r in caplog.records if "do not match" in r.message]
+    assert len(warning_messages) == 1, f"Expected 1 warning, got: {warning_messages}"
+    assert "is_active" in warning_messages[0]
+    assert "created_at" in warning_messages[0]
+    assert "camelCaseTable" in warning_messages[0]
+
+    # data is correct in destination: snake_case names, proper types
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            "SELECT first_name, is_active, created_at FROM camel_case_table LIMIT 1"
+        )
+        row = rows[0]
+        assert isinstance(row[0], str)
+        assert isinstance(row[1], (bool, int))
+        assert hasattr(row[2], "year")
+
+
 def test_sqlalchemy_no_quoted_name(postgres_db: PostgresSourceDB, mocker: MockerFixture) -> None:
     """
     Ensures that table names internally passed as `quoted_name` to `sql_table` are not persisted
     in the schema object or serialized schema file.
     """
     from sqlalchemy.sql.elements import quoted_name
-    from tests.utils import TEST_STORAGE_ROOT
+    from tests.utils import get_test_storage_root
     from dlt.common.storages.file_storage import FileStorage
     import yaml
 
@@ -170,8 +388,8 @@ def test_sqlalchemy_no_quoted_name(postgres_db: PostgresSourceDB, mocker: Mocker
     assert "quoted_table" in fixed_yaml
 
     # Test within a dlt pipeline
-    import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
-    export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
+    import_schema_path = os.path.join(get_test_storage_root(), "schemas", "import")
+    export_schema_path = os.path.join(get_test_storage_root(), "schemas", "export")
 
     sql_table_spy = mocker.spy(dlt.sources.sql_database, "sql_table")
 
@@ -1414,6 +1632,53 @@ def test_sql_table_included_columns(
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_sql_table_excluded_columns_freeze_then_full(
+    postgres_db: PostgresSourceDB, backend: TableBackend
+) -> None:
+    """Load app_user with excluded nullable column and columns=freeze, then load without exclusion.
+
+    First load excludes empty_col (nullable) so the schema only knows about the remaining
+    columns. Second load without exclusion should trigger a freeze violation because the
+    data now contains a column unknown to the schema.
+    """
+    from dlt.pipeline.exceptions import PipelineStepFailed
+
+    pipeline = make_pipeline("duckdb")
+
+    # first run: exclude nullable column, freeze should pass because schema is new
+    table = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="app_user",
+        reflection_level="full",
+        backend=backend,
+        excluded_columns=["empty_col"],
+    )
+    table.apply_hints(schema_contract={"columns": "freeze"})
+    load_info = pipeline.run(table)
+    assert_load_info(load_info)
+    schema_cols = {
+        col
+        for col in pipeline.default_schema.get_table_columns("app_user", include_incomplete=True)
+        if not col.startswith("_dlt_")
+    }
+    assert "empty_col" not in schema_cols
+
+    # second run: no exclusion, data now has empty_col which is not in schema
+    table = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="app_user",
+        reflection_level="full",
+        backend=backend,
+    )
+    table.apply_hints(schema_contract={"columns": "freeze"})
+    with pytest.raises(PipelineStepFailed) as py_exc:
+        pipeline.run(table)
+    assert isinstance(py_exc.value.__context__, (DataValidationError, ResourceExtractionError))
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("standalone_resource", [True, False])
 def test_query_adapter_callback(
     postgres_db: PostgresSourceDB, backend: TableBackend, standalone_resource: bool
@@ -1470,6 +1735,170 @@ def test_query_adapter_callback(
 
     # unfiltered table loads all rows
     assert_row_counts(pipeline, postgres_db, ["chat_message"])
+
+
+def _get_uuid_type_params() -> List[Any]:
+    """Build parametrize values for UUID column types.
+
+    Always includes postgresql.UUID. Adds generic sa.Uuid on SA 2.0.
+    """
+    from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+
+    params = [pytest.param(PG_UUID(), id="pg_uuid")]
+    if hasattr(sa, "Uuid"):
+        params.append(pytest.param(sa.Uuid(), id="sa_uuid"))
+    return params
+
+
+@pytest.mark.parametrize("backend", ["pyarrow", "sqlalchemy", "pandas"])
+@pytest.mark.parametrize("uuid_type", _get_uuid_type_params())
+def test_pg_uuid_data_type(
+    postgres_db: PostgresSourceDB,
+    backend: TableBackend,
+    uuid_type: sa.types.TypeEngine,
+) -> None:
+    """UUID as primary key must not create duplicates during merge due to casing mismatch.
+
+    Reproduces the user case from #3299: initial load followed by incremental merge with
+    both inserts and updates must not create duplicate rows.
+    Tests both postgresql.UUID and generic sa.Uuid (SA 2.0).
+    """
+    import uuid as uuid_mod
+    from datetime import datetime, timedelta
+
+    temp_table_name = "test_uuid_" + uniq_id()
+    temp_table = sa.Table(
+        temp_table_name,
+        postgres_db.metadata,
+        # UUID is the primary key — reproduces the #3299 merge scenario
+        sa.Column("guid", uuid_type, primary_key=True),
+        sa.Column("name", sa.Text),
+        sa.Column("updated_at", sa.DateTime, server_default=sa.func.now()),
+    )
+    temp_table.create(bind=postgres_db.engine)
+    try:
+        # insert initial rows with explicit timestamps
+        base_ts = datetime(2024, 1, 1)
+        initial_guids = [str(uuid_mod.uuid4()) for _ in range(5)]
+        with postgres_db.engine.begin() as conn:
+            for i, guid in enumerate(initial_guids):
+                conn.execute(
+                    temp_table.insert().values(
+                        guid=guid,
+                        name=f"user_{i}",
+                        updated_at=base_ts + timedelta(seconds=i),
+                    )
+                )
+
+        # reuse sql_table resource for both loads
+        # use a datetime object for initial_value so pyarrow can coerce it to timestamp
+        table = sql_table(
+            credentials=postgres_db.credentials,
+            table=temp_table_name,
+            schema=postgres_db.schema,
+            backend=backend,
+            reflection_level="full",
+            write_disposition="merge",
+            primary_key="guid",
+            incremental=dlt.sources.incremental("updated_at", initial_value=datetime(1999, 1, 1)),
+        )
+
+        # 1. initial full load with merge on UUID primary key
+        pipeline = make_pipeline("duckdb")
+        info = pipeline.run(table, loader_file_format="parquet")
+        assert_load_info(info)
+
+        # schema must map UUID to text
+        guid_col = pipeline.default_schema.tables[temp_table_name]["columns"]["guid"]
+        assert guid_col["data_type"] == "text"
+
+        rows_after_initial = load_tables_to_dicts(pipeline, temp_table_name)[temp_table_name]
+        assert len(rows_after_initial) == 5
+        for row in rows_after_initial:
+            uuid_mod.UUID(row["guid"])
+
+        # 2. update 2 existing rows AND insert 5 new rows, then incremental merge
+        # updated rows get new updated_at so they enter the incremental window
+        update_ts = base_ts + timedelta(hours=1)
+        with postgres_db.engine.begin() as conn:
+            for i, guid in enumerate(initial_guids[:2]):
+                conn.execute(
+                    temp_table.update()
+                    .where(temp_table.c.guid == guid)
+                    .values(name=f"updated_user_{i}", updated_at=update_ts + timedelta(seconds=i))
+                )
+            for i in range(5):
+                conn.execute(
+                    temp_table.insert().values(
+                        guid=str(uuid_mod.uuid4()),
+                        name=f"new_user_{i}",
+                        updated_at=update_ts + timedelta(seconds=10 + i),
+                    )
+                )
+
+        info = pipeline.run(table, loader_file_format="parquet")
+        assert_load_info(info)
+
+        rows_after_merge = load_tables_to_dicts(pipeline, temp_table_name)[temp_table_name]
+        # 5 initial + 5 new = 10 (updated rows merged, not duplicated)
+        assert len(rows_after_merge) == 10
+
+        # verify updated rows were merged correctly
+        merged = {row["guid"]: row for row in rows_after_merge}
+        for guid in initial_guids[:2]:
+            matches = [g for g in merged if g.lower() == guid.lower()]
+            assert len(matches) == 1, f"Expected 1 row for guid {guid}, got {len(matches)}"
+            assert merged[matches[0]]["name"].startswith("updated_user_")
+    finally:
+        temp_table.drop(bind=postgres_db.engine)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize("uuid_type", _get_uuid_type_params())
+def test_pg_uuid_yields_str(
+    postgres_db: PostgresSourceDB,
+    backend: TableBackend,
+    uuid_type: sa.types.TypeEngine,
+) -> None:
+    """The resource must yield UUID values as Python str, never uuid.UUID objects.
+
+    Tests both postgresql.UUID and generic sa.Uuid (SA 2.0).
+    """
+    import uuid as uuid_mod
+
+    if backend == "connectorx":
+        pytest.importorskip("sqlalchemy", minversion="2.0")
+
+    temp_table_name = "test_uuid_str_" + uniq_id()
+    temp_table = sa.Table(
+        temp_table_name,
+        postgres_db.metadata,
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("guid", uuid_type),
+    )
+    temp_table.create(bind=postgres_db.engine)
+    try:
+        with postgres_db.engine.begin() as conn:
+            for i in range(5):
+                conn.execute(temp_table.insert().values(id=i, guid=str(uuid_mod.uuid4())))
+
+        table = sql_table(
+            credentials=postgres_db.credentials,
+            table=temp_table_name,
+            schema=postgres_db.schema,
+            backend=backend,
+            reflection_level="full",
+        )
+
+        all_uuids: List[str] = []
+        for item in table:
+            all_uuids.extend(assert_extracted_uuids_are_strings("guid", item))
+
+        assert len(all_uuids) == 5
+        for val in all_uuids:
+            uuid_mod.UUID(val)  # validates well-formed
+    finally:
+        temp_table.drop(bind=postgres_db.engine)
 
 
 def assert_row_counts(

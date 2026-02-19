@@ -7,7 +7,7 @@ from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt._workspace.cli import SupportsCliCommand
 from dlt.common.runtime.run_context import RunContext, DOT_DLT
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from dlt._workspace.cli.exceptions import CliCommandException
 
 
@@ -24,7 +24,7 @@ class RunContextTest(RunContext):
 
     @property
     def data_dir(self) -> str:
-        return os.path.abspath(TEST_STORAGE_ROOT)
+        return os.path.abspath(get_test_storage_root())
 
     @property
     def local_dir(self) -> str:

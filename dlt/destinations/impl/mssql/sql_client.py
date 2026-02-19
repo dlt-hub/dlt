@@ -166,7 +166,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
                     pass
             except pyodbc.Error:
                 pass
-        except pyodbc.Error as outer:
+        except pyodbc.Error:
             # clear all pending result sets
             try:
                 while curr.nextset():
@@ -178,7 +178,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
                 self._conn.rollback()
             except pyodbc.Error:
                 pass
-            raise outer
+            raise
         finally:
             # clear all pending result sets
             while curr.nextset():

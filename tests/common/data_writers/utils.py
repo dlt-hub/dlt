@@ -5,7 +5,7 @@ from dlt.common.data_writers.buffered import BufferedDataWriter
 from dlt.common.data_writers.writers import TWriter, ALL_WRITERS
 from dlt.common.destination import DestinationCapabilitiesContext
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 ALL_OBJECT_WRITERS = [
     writer for writer in ALL_WRITERS if writer.writer_spec().data_item_format == "object"
@@ -26,7 +26,7 @@ def get_writer(
     caps = caps or DestinationCapabilitiesContext.generic_capabilities()
     writer_spec = writer.writer_spec()
     caps.preferred_loader_file_format = writer_spec.file_format
-    file_template = os.path.join(TEST_STORAGE_ROOT, f"{writer_spec.file_format}.%s")
+    file_template = os.path.join(get_test_storage_root(), f"{writer_spec.file_format}.%s")
     return BufferedDataWriter(
         writer_spec,
         file_template,

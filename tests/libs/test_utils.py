@@ -1,23 +1,20 @@
-import sys
-from typing import Any
-
-import pytest
-import pyarrow
-
 from dlt.common.libs.utils import is_instance_lib
 
 
-# TODO to thoroughly test `is_instance_lib()`, we need to reset
-# the imports in `sys.modules` before running each check.
-@pytest.mark.parametrize(
-    ("obj", "class_ref", "expected_result"),
-    (
-        ("a_string", "str", False),  # built-in
-        (object(), "pyarrow.Array", False),
-        (pyarrow.array([0, 1]), "pyarrow.Array", True),
-    ),
-)
-def test_is_instance_lib(obj: Any, class_ref: str, expected_result: bool):
-    result = is_instance_lib(obj, class_ref=class_ref)
+def test_is_instance_lib_builtin() -> None:
+    """is_instance_lib returns False for built-in types."""
+    assert is_instance_lib("a_string", class_ref="str") is False
 
-    assert result == expected_result
+
+def test_is_instance_lib_not_matching() -> None:
+    """is_instance_lib returns False when object is not an instance of the class."""
+    assert is_instance_lib(object(), class_ref="pyarrow.Array") is False
+
+
+def test_is_instance_lib_pyarrow() -> None:
+    """is_instance_lib returns True for a matching pyarrow type."""
+    # lazy import — pyarrow is optional
+    from dlt.common.libs.pyarrow import pyarrow
+
+    arr = pyarrow.array([0, 1])
+    assert is_instance_lib(arr, class_ref="pyarrow.Array") is True

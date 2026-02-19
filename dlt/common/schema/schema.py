@@ -21,6 +21,7 @@ from dlt.common.typing import (
     StrAny,
     REPattern,
     TDataItem,
+    get_type_hints,
 )
 from dlt.common.normalizers import TNormalizersConfig, NamingConvention
 from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterator
@@ -51,6 +52,7 @@ from dlt.common.schema.typing import (
     TTypeDetections,
     TSchemaContractDict,
     TSchemaContract,
+    TColumnType,
 )
 from dlt.common.schema.exceptions import (
     InvalidSchemaName,
@@ -239,6 +241,8 @@ class Schema:
         # check if we should filter any columns,
         # partial table below contains new columns and existing columns with property changes
         filters: List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]] = []
+        # properties from TColumnType that are checked under data_type contract
+        data_type_props = get_type_hints(TColumnType)
         for column_name, column in list(partial_table["columns"].items()):
             # dlt cols may always be added
             if is_dlt_table_or_column(column_name, self._dlt_tables_prefix):
@@ -246,19 +250,14 @@ class Schema:
             is_variant = column.get("variant", False)
             # check if column already exists to distinguish between new column vs property change
             existing_col = existing_table["columns"].get(column_name) if existing_table else None
-            # when column is new or has property changes, and contract prohibits column evolution
-            if column_mode != "evolve" and not is_variant:
-                if existing_col and is_complete_column(existing_col):
-                    error_msg = (
-                        f"Can't evolve table column `{column_name}` in table `{table_name}` because"
-                        " `columns` are frozen. Existing column: {existing_col}. Incoming"
-                        " column: {column}."
-                    )
-                else:
-                    error_msg = (
-                        f"Can't add table column `{column_name}` to table `{table_name}` because"
-                        " `columns` are frozen."
-                    )
+            is_new_column = not existing_col or not is_complete_column(existing_col)
+
+            # column contract applies only to genuinely new columns
+            if column_mode != "evolve" and not is_variant and is_new_column:
+                error_msg = (
+                    f"Can't add table column `{column_name}` to table `{table_name}` because"
+                    " `columns` are frozen."
+                )
 
                 if raise_on_freeze and column_mode == "freeze":
                     raise DataValidationError(
@@ -277,8 +276,27 @@ class Schema:
                 # pop the column
                 partial_table["columns"].pop(column_name)
 
-            # variant (data type evolution) and contract prohibits that
-            if data_mode != "evolve" and is_variant:
+            # data_type contract applies to: variant columns and type property changes on
+            # existing complete columns. only TColumnType properties trigger the check.
+            has_type_change = False
+            if not is_new_column and not is_variant and existing_col:
+                for prop in data_type_props:
+                    if prop in column and column[prop] != existing_col.get(prop):  # type: ignore[literal-required]
+                        has_type_change = True
+                        break
+
+            if data_mode != "evolve" and (is_variant or has_type_change):
+                if is_variant:
+                    error_msg = (
+                        f"Can't add variant column `{column_name}` for table `{table_name}`"
+                        " because `data_types` are frozen."
+                    )
+                else:
+                    error_msg = (
+                        f"Can't evolve column type of `{column_name}` in table"
+                        f" `{table_name}` because `data_types` are frozen."
+                        f" Existing column: {existing_col}. Incoming column: {column}."
+                    )
                 if raise_on_freeze and data_mode == "freeze":
                     raise DataValidationError(
                         self.name,
@@ -289,8 +307,7 @@ class Schema:
                         existing_table,
                         schema_contract,
                         data_item,
-                        f"Can't add variant column `{column_name}` for table `{table_name}`"
-                        " because `data_types` are frozen.",
+                        error_msg,
                     )
                 # filter column with name below
                 filters.append(("columns", column_name, data_mode))
@@ -335,10 +352,23 @@ class Schema:
         partial_table: TPartialTableSchema,
         normalize_identifiers: bool = True,
         from_diff: bool = False,
+        merge_compound_props: bool = True,
     ) -> TPartialTableSchema:
-        """Adds or merges `partial_table` into the schema. Identifiers are normalized by default.
-        if `from_diff` is True, then `partial_table` is assumed to be a diff (contains only differences)
-        vs. table in schema. in that case diff will not be created but directly applied
+        """Adds or merges `partial_table` into the schema.
+
+        Args:
+            partial_table: Table schema to add or merge
+            normalize_identifiers: If True, normalizes identifiers using schema naming convention
+            from_diff: If True, `partial_table` is assumed to be a diff (contains only differences)
+                vs. table in schema. In that case diff will not be created but directly applied.
+            merge_compound_props: If False, compound properties (see `is_compound_prop()` in schema utils)
+                in partial_table replace rather than merge with those in existing table.
+
+        Returns:
+            The partial table that was applied (either the input or the generated diff)
+
+        Raises:
+            ParentTableNotFoundException: If parent table specified but not present in schema
         """
         parent_table_name = partial_table.get("parent")
         if normalize_identifiers:
@@ -362,10 +392,12 @@ class Schema:
             self._schema_tables[table_name] = partial_table
         else:
             if from_diff:
-                partial_table = utils.merge_diff(table, partial_table)
+                partial_table = utils.merge_diff(table, partial_table, merge_compound_props)
             else:
                 # merge tables performing additional checks
-                partial_table = utils.merge_table(self.name, table, partial_table)
+                partial_table = utils.merge_table(
+                    self.name, table, partial_table, merge_compound_props
+                )
 
         self.data_item_normalizer.extend_table(table_name)
         return partial_table

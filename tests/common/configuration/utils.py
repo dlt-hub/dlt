@@ -24,7 +24,12 @@ from dlt.common.configuration.specs.connection_string_credentials import Connect
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.typing import TSecretValue, StrAny
-from tests.utils import _reset_providers, inject_providers
+from tests.utils import (
+    _reset_providers,
+    inject_providers,
+    DLT_TEST_STORAGE_ROOT,
+    PYTEST_XDIST_WORKER,
+)
 
 
 @configspec
@@ -107,12 +112,9 @@ class InstrumentedConfiguration(BaseConfiguration):
 
 
 @pytest.fixture(scope="function")
-def environment() -> Any:
-    saved_environ = environ.copy()
+def environment(preserve_environ) -> Any:
     environ.clear()
-    yield environ
-    environ.clear()
-    environ.update(saved_environ)
+    return environ
 
 
 @pytest.fixture(autouse=True)

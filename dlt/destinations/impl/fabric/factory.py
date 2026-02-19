@@ -54,9 +54,9 @@ class FabricTypeMapper(SynapseTypeMapper):
             return "varchar(%s)" % column.get("precision", "max")
 
         if sc_t == "time":
-            # Fabric Warehouse does not support TIME with precision parameter
-            # Unlike SQL Server/Synapse, TIME must be used without precision
-            return "time"
+            # Fabric requires explicit precision for TIME (0-6)
+            precision = min(column.get("precision", 6), 6)
+            return "time(%i)" % precision
 
         # Get base type from parent
         db_type = super().to_destination_type(column, table)
