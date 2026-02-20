@@ -67,15 +67,14 @@ def build_page_header(
     """Build a page header with a title, a subtitle, button and conditional longer subtitle"""
     if not dlt_pipeline:
         return []
-    return [
-        mo.hstack(
-            [
-                build_title_and_subtitle(title, subtitle if not button.value else subtitle_long),
-                button,
-            ],
-            align="center",
-        )
-    ]
+    header = mo.hstack(
+        [
+            build_title_and_subtitle(title, subtitle if not button.value else subtitle_long),
+            button,
+        ],
+        align="center",
+    )
+    return [mo.Html(f'<div class="section-header">{header.text}</div>')]
 
 
 def section_marker(section_name: str, has_content: bool = False) -> mo.Html:
@@ -110,6 +109,8 @@ def build_section(
         contains the section marker and header.  Append content only when
         should_render_content is True, then call ``mo.vstack(result)``.
     """
-    result = [section_marker(section_name, has_content=dlt_pipeline is not None)]
+    result = [
+        section_marker(section_name, has_content=dlt_pipeline is not None),
+    ]
     result.extend(build_page_header(dlt_pipeline, title, subtitle, subtitle_long, switch))
     return result, bool(dlt_pipeline and switch.value)

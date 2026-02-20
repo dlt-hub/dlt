@@ -9,11 +9,6 @@
   --dlt-color-purple: #191937;
   --dlt-color-pink: #EE746D;
 
-  /* background colors */
-  --dlt-color-lime-background: #c6d30006;
-  --dlt-color-aqua-background: #59c1d503;
-  --dlt-color-purple-background: #19193706;
-
   /* badge colors */
   --grey-bg: #E0E0E0;
   --grey-text: #555555;
@@ -23,6 +18,11 @@
   --green-text: #468A47;
   --red-bg: #D47672;
   --red-text: #FBE8E8;
+}
+
+/* Reduce gap between cells */
+#App .marimo-cell {
+  margin-bottom: 0;
 }
 
 /* Make headings bold */
@@ -54,30 +54,15 @@
 }
 
 
-/* add colors to cells */
-
-/* Default: all sections that have content get purple border and background */
+/* Sections with content get spacing */
 #App .marimo-cell .output-area:has(.section-marker.has-content) {
-  border: 1px dashed var(--dlt-color-purple);
-  background-color: var(--dlt-color-purple-background);
+  margin-top: 0.25rem;
 }
 
-
-/* All cells with section markers and have content get margin-top */
-#App .marimo-cell .output-area:has(.section-marker.has-content) {
-  margin-top: 0.5rem;
-}
-
-
-/* Aqua sections - identified by section name in strings.py and the availability of content */
-#App .marimo-cell .output-area:has([data-section="workspace_home"].has-content),
-#App .marimo-cell .output-area:has([data-section="home_section"].has-content),
-#App .marimo-cell .output-area:has([data-section="schema_section"].has-content),
-#App .marimo-cell .output-area:has([data-section="state_section"].has-content),
-#App .marimo-cell .output-area:has([data-section="loads_section"].has-content),
-#App .marimo-cell .output-area:has([data-section="data_quality_section"].has-content) {
-  background-color: var(--dlt-color-aqua-background);
-  border: 1px dashed var(--dlt-color-aqua);
+/* Section header: shaded bar with bottom border */
+.section-header {
+  border-top: 1px dashed #333;
+  padding-top: 1.5rem;
 }
 
 marimo-callout-output .border {
