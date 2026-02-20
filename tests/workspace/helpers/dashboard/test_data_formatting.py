@@ -2,7 +2,7 @@ from datetime import datetime
 
 from dlt.common import pendulum
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils import style_cell
+from dlt._workspace.helpers.dashboard.utils.ui import _style_cell as style_cell
 from dlt._workspace.helpers.dashboard.utils.formatters import (
     filter_empty_values,
     align_dict_keys,

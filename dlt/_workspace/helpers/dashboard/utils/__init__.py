@@ -3,11 +3,9 @@ import functools
 from typing import (
     Any,
     Dict,
-    Iterable,
     List,
     Optional,
     Tuple,
-    Union,
     cast,
     NamedTuple,
     get_args,
@@ -25,22 +23,18 @@ import traceback
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
-from dlt.common.destination.client import WithStateSync
-from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import LoadInfo
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import LoadPackageInfo
 from dlt.common.storages.load_package import PackageStorage
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.common.storages.configuration import WithLocalFiles
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.typing import DictStrAny
 from dlt.common.utils import map_nested_keys_in_place
 
-from dlt._workspace.helpers.dashboard import ui_elements as ui
+from dlt._workspace.helpers.dashboard.utils import ui
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.const import (
     LOAD_PACKAGE_STATUS_COLORS,
@@ -51,12 +45,18 @@ from dlt._workspace.helpers.dashboard.const import (
     VISUAL_PIPELINE_STEPS,
 )
 from dlt._workspace.helpers.dashboard.utils.formatters import (
-    align_dict_keys,
     dict_to_table_items,
     format_exception_message,
     format_duration,
     humanize_datetime_values,
-    filter_empty_values,
+)
+from dlt._workspace.helpers.dashboard.utils.ui import dlt_table
+from dlt._workspace.helpers.dashboard.utils.schema import (  # noqa: E402
+    create_column_list,
+    create_table_list,
+    get_schema_by_version,
+    get_source_and_resource_state_for_table,
+    schemas_to_table_items,
 )
 from dlt._workspace.cli import utils as cli_utils
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
@@ -122,33 +122,6 @@ def get_destination_config(pipeline: dlt.Pipeline) -> DestinationClientConfigura
     return pipeline.dataset().destination_client.config
 
 
-def schemas_to_table_items(
-    schemas: Iterable[Schema], default_schema_name: str
-) -> List[Dict[str, Any]]:
-    """
-    Convert a list of schemas to a list of table items.
-    """
-    # Sort schemas so that the default schema is at the top
-    schemas = sorted(
-        schemas, key=lambda s: 0 if getattr(s, "name", None) == default_schema_name else 1
-    )
-    table_items = []
-    count = 0
-    for schema in schemas:
-        table_items.append(
-            {
-                "name": "schemas" if count == 0 else "",
-                "value": (
-                    schema.name
-                    + f" ({schema.version}, {schema.version_hash[:8]}) "
-                    + (" (default)" if schema.name == default_schema_name else "")
-                ),
-            }
-        )
-        count += 1
-    return table_items
-
-
 def pipeline_details(
     c: DashboardConfiguration, pipeline: dlt.Pipeline, pipelines_dir: str
 ) -> List[Dict[str, Any]]:
@@ -208,111 +181,6 @@ def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     table_items = dict_to_table_items({"state_version": remote_state["_state_version"]})
     table_items += schemas_to_table_items(remote_schemas, pipeline.default_schema_name)
     return table_items
-
-
-#
-# Schema helpers
-#
-
-
-def create_table_list(
-    c: DashboardConfiguration,
-    pipeline: dlt.Pipeline,
-    selected_schema_name: str = None,
-    show_internals: bool = False,
-    show_child_tables: bool = True,
-    show_row_counts: bool = False,
-) -> List[Dict[str, Any]]:
-    """Create a list of tables for the pipeline, optionally including internals, child tables, and row counts."""
-
-    # get tables and filter as needed
-    tables = list(
-        pipeline.schemas[selected_schema_name].data_tables(
-            seen_data_only=True, include_incomplete=False
-        )
-    )
-    if not show_child_tables:
-        tables = [t for t in tables if t.get("parent") is None]
-
-    if show_internals:
-        tables = tables + list(pipeline.schemas[selected_schema_name].dlt_tables())
-
-    row_counts = get_row_counts(pipeline, selected_schema_name) if show_row_counts else {}
-    table_list: List[Dict[str, Union[str, int, None]]] = [
-        {
-            **{prop: table.get(prop, None) for prop in ["name", *c.table_list_fields]},  # type: ignore[misc]
-            "row_count": row_counts.get(table["name"], None),
-        }
-        for table in tables
-    ]
-    table_list.sort(key=lambda x: str(x["name"]))
-
-    return align_dict_keys(table_list)
-
-
-def create_column_list(
-    c: DashboardConfiguration,
-    pipeline: dlt.Pipeline,
-    table_name: str,
-    selected_schema_name: str = None,
-    show_internals: bool = False,
-    show_type_hints: bool = True,
-    show_other_hints: bool = False,
-    show_custom_hints: bool = False,
-) -> List[Dict[str, Any]]:
-    """Create a list of columns for a table, with configurable hint visibility."""
-    column_list: List[Dict[str, Any]] = []
-    for column in (
-        pipeline.schemas[selected_schema_name]
-        .get_table_columns(table_name, include_incomplete=False)
-        .values()
-    ):
-        column_dict: Dict[str, Any] = {
-            "name": column["name"],
-        }
-
-        # show type hints if requested
-        if show_type_hints:
-            column_dict = {
-                **column_dict,
-                **{hint: column.get(hint, None) for hint in c.column_type_hints},
-            }
-
-        # show "other" hints if requested
-        if show_other_hints:
-            column_dict = {
-                **column_dict,
-                **{hint: column.get(hint, None) for hint in c.column_other_hints},
-            }
-
-        # show custom hints (x-) if requested
-        if show_custom_hints:
-            for key in column:
-                if key.startswith("x-"):
-                    column_dict[key] = column[key]  # type: ignore
-
-        column_list.append(column_dict)
-
-    if not show_internals:
-        column_list = [c for c in column_list if not c["name"].lower().startswith("_dlt")]
-    return align_dict_keys(column_list)
-
-
-def get_source_and_resource_state_for_table(
-    table: TTableSchema, pipeline: dlt.Pipeline, schema_name: str
-) -> Tuple[str, DictStrAny, DictStrAny]:
-    """Return (resource_name, source_state, resource_state) for the resource that created the given table."""
-    if "resource" not in table:
-        return None, {}, {}
-
-    pipeline.activate()
-    resource_name = table["resource"]
-    source_state = dlt.extract.state.source_state(schema_name)
-    resource_state = dlt.extract.state.resource_state(resource_name, source_state)
-    # note, we remove the resources key from the source state
-    source_state = {k: v for k, v in source_state.items() if k != "resources"}
-
-    return table["resource"], source_state, resource_state
 
 
 #
@@ -437,18 +305,6 @@ def get_loads(
         return [], format_exception_message(exc), traceback.format_exc()
 
 
-@functools.cache
-def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
-    """Retrieve a schema from the destination by its version hash."""
-    with pipeline.destination_client() as client:
-        if isinstance(client, WithStateSync):
-            stored_schema = client.get_stored_schema_by_hash(version_hash)
-            if not stored_schema:
-                return None
-            return Schema.from_stored_schema(json.loads(stored_schema.schema))
-    return None
-
-
 #
 # trace helpers
 #
@@ -525,15 +381,9 @@ def trace_step_details(c: DashboardConfiguration, trace: PipelineTrace, step_id:
                         title_level=4,
                     )
                 )
-                table_metrics = align_dict_keys(info_section.get("table_metrics", []))
+                table_metrics = info_section.get("table_metrics", [])
                 table_metrics = [humanize_datetime_values(c, t) for t in table_metrics]
-                _result.append(
-                    mo.ui.table(
-                        table_metrics,
-                        selection=None,
-                        freeze_columns_left=(["table_name"] if table_metrics else None),
-                    )
-                )
+                _result.append(dlt_table(table_metrics, freeze_column="table_name"))
 
             if "job_metrics" in info_section:
                 _result.append(
@@ -542,15 +392,9 @@ def trace_step_details(c: DashboardConfiguration, trace: PipelineTrace, step_id:
                         title_level=4,
                     )
                 )
-                job_metrics = align_dict_keys(info_section.get("job_metrics", []))
+                job_metrics = info_section.get("job_metrics", [])
                 job_metrics = [humanize_datetime_values(c, j) for j in job_metrics]
-                _result.append(
-                    mo.ui.table(
-                        job_metrics,
-                        selection=None,
-                        freeze_columns_left=(["table_name"] if job_metrics else None),
-                    )
-                )
+                _result.append(dlt_table(job_metrics, freeze_column="table_name"))
 
     return _result
 
@@ -558,24 +402,6 @@ def trace_step_details(c: DashboardConfiguration, trace: PipelineTrace, step_id:
 #
 # misc
 #
-
-
-def style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:
-    """
-    Style a cell in a table.
-
-    Args:
-        row_id (str): The id of the row.
-        name (str): The name of the column.
-        __ (Any): The value of the cell.
-
-    Returns:
-        Dict[str, str]: The css style of the cell.
-    """
-    style = {"background-color": "white" if (int(row_id) % 2 == 0) else "#f4f4f9"}
-    if name.lower() == "name":
-        style["font-weight"] = "bold"
-    return style
 
 
 def open_local_folder(folder: str) -> None:
@@ -695,6 +521,7 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 #
 # last pipeline execution helpers
 #
+
 
 class PipelineStepData(NamedTuple):
     step: TVisualPipelineStep
@@ -901,10 +728,9 @@ def load_package_status_labels(trace: PipelineTrace) -> mo.ui.table:
             }
         )
 
-    return mo.ui.table(
+    return dlt_table(
         result,
-        selection=None,
         pagination=True,
         show_download=False,
-        style_cell=style_cell,
+        freeze_column=None,
     )

@@ -1,10 +1,76 @@
-from typing import Any, List, Tuple
-from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
+"""Dashboard table wrapper that standardizes mo.ui.table usage."""
+
+from typing import Any, Dict, List, Optional, Union, Tuple
+
+import marimo as mo
+import pyarrow
+import traceback
+
 
 import dlt
 
-import marimo as mo
-import traceback
+from dlt._workspace.helpers.dashboard.utils.formatters import align_dict_keys
+
+
+def _style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:
+    """Apply alternating row colors and bold the name column."""
+    style: Dict[str, str] = {"background-color": "white" if (int(row_id) % 2 == 0) else "#f4f4f9"}
+    if name.lower() == "name":
+        style["font-weight"] = "bold"
+    return style
+
+
+def dlt_table(
+    data: Union[List[Dict[str, Any]], pyarrow.Table],
+    *,
+    selection: Optional[str] = None,
+    style: bool = True,
+    freeze_column: Optional[str] = "name",
+    initial_selection: Optional[List[int]] = None,
+    pagination: Optional[bool] = None,
+    show_download: Optional[bool] = None,
+    **kwargs: Any,
+) -> mo.ui.table:
+    """Create a styled mo.ui.table with common dashboard defaults.
+
+    Applies alternating-row styling, freezes the given column, aligns dict keys,
+    and sets initial_selection to None when data is empty.
+
+    Args:
+        data: Table data as a list of dicts or a pyarrow Table.
+        selection: Selection mode ("single", "multi") or None to disable.
+        style: Whether to apply alternating-row cell styling.
+        freeze_column: Column name to freeze on the left. Pass None to disable.
+        initial_selection: Row indices to pre-select. Forced to None when data is empty.
+        pagination: Passed through to mo.ui.table.
+        show_download: Passed through to mo.ui.table.
+    """
+    is_list = isinstance(data, list)
+    has_data = (len(data) > 0) if is_list else (data.num_rows > 0)  # type: ignore[union-attr]
+
+    # align dict keys for consistent column widths
+    if is_list and has_data:
+        data = align_dict_keys(data)
+
+    # build kwargs for mo.ui.table
+    table_kwargs: Dict[str, Any] = {"selection": selection, **kwargs}
+
+    if style:
+        table_kwargs["style_cell"] = _style_cell
+
+    if freeze_column is not None and has_data:
+        table_kwargs["freeze_columns_left"] = [freeze_column]
+
+    if initial_selection is not None and has_data:
+        table_kwargs["initial_selection"] = initial_selection
+
+    if pagination is not None:
+        table_kwargs["pagination"] = pagination
+
+    if show_download is not None:
+        table_kwargs["show_download"] = show_download
+
+    return mo.ui.table(data, **table_kwargs)
 
 
 def build_error_callout(message: str, code: str = None, traceback_string: str = None) -> Any:

@@ -21,7 +21,7 @@ with app.setup:
     import pyarrow
     import traceback
     from dlt.common import logger
-    from dlt._workspace.helpers.dashboard import strings, utils, ui_elements as ui
+    from dlt._workspace.helpers.dashboard import strings, utils
     from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
     from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
     from dlt._workspace.run_context import switch_profile
@@ -94,7 +94,7 @@ def render_workspace_home(
 ) -> List[Any]:
     """Render the workspace-level home view (no pipeline selected)."""
     return [
-        ui.section_marker(strings.app_section_name, has_content=True),
+        utils.ui.section_marker(strings.app_section_name, has_content=True),
         build_home_header_row(dlt_profile_select, dlt_pipeline_select),
         mo.md(strings.app_title).center(),
         mo.md(strings.app_intro).center(),
@@ -194,7 +194,9 @@ def render_pipeline_home(
         )
         _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
 
-    _stack = [ui.section_marker(strings.home_section_name, has_content=dlt_pipeline is not None)]
+    _stack = [
+        utils.ui.section_marker(strings.home_section_name, has_content=dlt_pipeline is not None)
+    ]
     _stack.extend(
         render_pipeline_header_row(
             dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, _buttons
@@ -253,7 +255,7 @@ def home(
                 dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, [dlt_refresh_button]
             )
             _stack.append(
-                ui.build_error_callout(
+                utils.ui.build_error_callout(
                     f"Could not attach to pipeline {dlt_pipeline_name}.",
                     traceback_string=traceback.format_exc(),
                 )
@@ -271,7 +273,7 @@ def home(
                 )
             except Exception:
                 _stack = [
-                    ui.build_error_callout(
+                    utils.ui.build_error_callout(
                         "Error while rendering the pipeline dashboard.",
                         "Some sections may work, but not all functionality may be available.",
                         traceback_string=traceback.format_exc(),
@@ -291,7 +293,7 @@ def home(
                 )
         except Exception:
             _stack = [
-                ui.build_error_callout(
+                utils.ui.build_error_callout(
                     "Error while rendering the home dashboard.",
                     traceback_string=traceback.format_exc(),
                 )
@@ -313,7 +315,7 @@ def section_info(
     Overview page of currently selected pipeline
     """
 
-    _result, _show = ui.build_section(
+    _result, _show = utils.ui.build_section(
         strings.overview_section_name,
         dlt_pipeline,
         strings.overview_title,
@@ -324,24 +326,18 @@ def section_info(
 
     if _show:
         _result += [
-            mo.ui.table(
-                utils.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir),
-                selection=None,
-                style_cell=utils.style_cell,
-            ),
+            utils.ui.dlt_table(utils.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir)),
         ]
         _result.append(
-            ui.build_title_and_subtitle(
+            utils.ui.build_title_and_subtitle(
                 strings.overview_remote_state_title, strings.overview_remote_state_subtitle
             )
         )
         _result.append(
             mo.accordion(
                 {
-                    strings.overview_remote_state_button: mo.ui.table(
+                    strings.overview_remote_state_button: utils.ui.dlt_table(
                         utils.remote_state_details(dlt_pipeline),
-                        selection=None,
-                        style_cell=utils.style_cell,
                     )
                 },
                 lazy=True,
@@ -370,7 +366,7 @@ def section_schema(
     Show schema of the currently selected pipeline
     """
 
-    _result, _show = ui.build_section(
+    _result, _show = utils.ui.build_section(
         strings.schema_section_name,
         dlt_pipeline,
         strings.schema_title,
@@ -397,7 +393,7 @@ def section_schema(
         _result.append(dlt_schema_table_list)
 
         # add table details
-        _result.append(ui.build_title_and_subtitle(strings.schema_table_details_title))
+        _result.append(utils.ui.build_title_and_subtitle(strings.schema_table_details_title))
         _result.append(
             mo.hstack(
                 [
@@ -413,7 +409,7 @@ def section_schema(
         for table in dlt_schema_table_list.value:  # type: ignore[union-attr,unused-ignore]
             _table_name = table["name"]  # type: ignore[index,unused-ignore]
             _result.append(mo.md(strings.schema_table_columns_title.format(_table_name)))
-            columns_list = utils.create_column_list(
+            columns_list = utils.schema.create_column_list(
                 dlt_config,
                 dlt_pipeline,
                 _table_name,
@@ -423,17 +419,10 @@ def section_schema(
                 show_other_hints=dlt_schema_show_other_hints.value,
                 show_custom_hints=dlt_schema_show_custom_hints.value,
             )
-            _result.append(
-                mo.ui.table(
-                    columns_list,
-                    selection=None,
-                    style_cell=utils.style_cell,
-                    freeze_columns_left=["name"] if len(columns_list) > 0 else None,
-                )
-            )
+            _result.append(utils.ui.dlt_table(columns_list))
 
         # add raw schema
-        _result.append(ui.build_title_and_subtitle(strings.schema_raw_yaml_title))
+        _result.append(utils.ui.build_title_and_subtitle(strings.schema_raw_yaml_title))
         _result.append(
             mo.accordion(
                 {
@@ -506,7 +495,7 @@ def section_data_quality(
     if not detect_dlt_hub():
         _result = None
     else:
-        _result, _show = ui.build_section(
+        _result, _show = utils.ui.build_section(
             strings.data_quality_section_name,
             dlt_pipeline,
             strings.data_quality_title,
@@ -570,7 +559,7 @@ def section_data_quality(
                 dlt_data_quality_show_raw_table_switch = None
             except Exception as exc:
                 _result.append(
-                    ui.build_error_callout(
+                    utils.ui.build_error_callout(
                         f"Error loading data quality checks: {exc}",
                         traceback_string=traceback.format_exc(),
                     )
@@ -626,7 +615,7 @@ def section_data_quality_raw_table(
             # Display error message if encountered
             if _error_message:
                 _result.append(
-                    ui.build_error_callout(
+                    utils.ui.build_error_callout(
                         f"Error loading raw table: {_error_message}",
                         traceback_string=_traceback_string,
                     )
@@ -635,7 +624,7 @@ def section_data_quality_raw_table(
             # Always display result table
             _last_result = dlt_get_last_query_result()
             if _last_result is not None:
-                _result.append(mo.ui.table(_last_result, selection=None))
+                _result.append(utils.ui.dlt_table(_last_result, freeze_column=None))
         except ImportError:
             _result.append(
                 mo.callout(
@@ -645,7 +634,7 @@ def section_data_quality_raw_table(
             )
         except Exception as exc:
             _result.append(
-                ui.build_error_callout(
+                utils.ui.build_error_callout(
                     f"Error loading raw table: {exc}",
                     traceback_string=traceback.format_exc(),
                 )
@@ -671,7 +660,7 @@ def section_browse_data_table_list(
     Show data of the currently selected pipeline
     """
 
-    _result, _show = ui.build_section(
+    _result, _show = utils.ui.build_section(
         strings.browse_data_section_name,
         dlt_pipeline,
         strings.browse_data_title,
@@ -702,7 +691,7 @@ def section_browse_data_table_list(
 
             # we only show resource state if the table has resource set, child tables do not have a resource set
             _resource_name, _source_state, _resource_state = (
-                utils.get_source_and_resource_state_for_table(
+                utils.schema.get_source_and_resource_state_for_table(
                     _schema_table, dlt_pipeline, dlt_selected_schema_name
                 )
             )
@@ -763,7 +752,7 @@ def section_browse_data_table_list(
 
         if _error_message:
             _result.append(
-                ui.build_error_callout(
+                utils.ui.build_error_callout(
                     strings.browse_data_error_text + _error_message,
                     traceback_string=_traceback_string,
                 )
@@ -795,7 +784,7 @@ def section_browse_data_table_list(
             )
     elif _show:
         # here we also use the no schemas text, as it is appropriate for the case where we have no table information.
-        _result.append(ui.build_error_callout(strings.schema_no_default_available_text))
+        _result.append(utils.ui.build_error_callout(strings.schema_no_default_available_text))
     mo.vstack(_result)
     return dlt_query_editor, dlt_run_query_button
 
@@ -828,7 +817,7 @@ def section_browse_data_query_result(
         and dlt_data_table_list is not None
         and dlt_query_editor is not None
     ):
-        _result.append(ui.build_title_and_subtitle(strings.browse_data_query_result_title))
+        _result.append(utils.ui.build_title_and_subtitle(strings.browse_data_query_result_title))
         _error_message: str = None
         with mo.status.spinner(title=strings.browse_data_loading_spinner_text):
             if dlt_query_editor.value and (dlt_run_query_button.value):
@@ -843,7 +832,7 @@ def section_browse_data_query_result(
             # display error message if encountered
             if _error_message:
                 _result.append(
-                    ui.build_error_callout(
+                    utils.ui.build_error_callout(
                         strings.browse_data_query_error + _error_message,
                         traceback_string=_traceback_string,
                     )
@@ -852,7 +841,7 @@ def section_browse_data_query_result(
         # always display result table
         _last_result = dlt_get_last_query_result()
         if _last_result is not None:
-            _result.append(mo.ui.table(_last_result, selection=None))
+            _result.append(utils.ui.dlt_table(_last_result, freeze_column=None))
 
         # update cache if there was noe error
         if _last_result is not None and not _error_message:
@@ -867,8 +856,10 @@ def section_browse_data_query_result(
     # provide query history table
     _query_history = dlt_get_query_cache()
     if _query_history:
-        dlt_query_history_table = mo.ui.table(
-            [{"query": q, "row_count": _query_history[q]} for q in _query_history]
+        dlt_query_history_table = utils.ui.dlt_table(
+            [{"query": q, "row_count": _query_history[q]} for q in _query_history],
+            selection="multi",
+            freeze_column=None,
         )
     mo.vstack(_result) if _result else None
     return dlt_query_history_table
@@ -891,7 +882,7 @@ def section_browse_data_query_history(
         and dlt_query_history_table is not None
     ):
         _result.append(
-            ui.build_title_and_subtitle(
+            utils.ui.build_title_and_subtitle(
                 strings.browse_data_query_history_title, strings.browse_data_query_history_subtitle
             )
         )
@@ -901,7 +892,7 @@ def section_browse_data_query_history(
             _query = _r["query"]  # type: ignore[unused-ignore,index]
             _q_result = utils.get_query_result(dlt_pipeline, _query)
             _result.append(mo.md(f"<small>```{_query}```</small>"))
-            _result.append(mo.ui.table(_q_result, selection=None))
+            _result.append(utils.ui.dlt_table(_q_result, freeze_column=None))
     mo.vstack(_result) if _result else None
     return
 
@@ -914,7 +905,7 @@ def section_state(
     """
     Show state of the currently selected pipeline
     """
-    _result, _show = ui.build_section(
+    _result, _show = utils.ui.build_section(
         strings.state_section_name,
         dlt_pipeline,
         strings.state_title,
@@ -944,7 +935,7 @@ def section_trace(
     Show last trace of the currently selected pipeline
     """
 
-    _result, _show = ui.build_section(
+    _result, _show = utils.ui.build_section(
         strings.trace_section_name,
         dlt_pipeline,
         strings.trace_title,
@@ -967,28 +958,24 @@ def section_trace(
                 )
             else:
                 _result.append(
-                    ui.build_title_and_subtitle(
+                    utils.ui.build_title_and_subtitle(
                         strings.trace_overview_title,
                         title_level=3,
                     )
                 )
+                _result.append(utils.ui.dlt_table(utils.trace_overview(dlt_config, dlt_trace)))
                 _result.append(
-                    mo.ui.table(utils.trace_overview(dlt_config, dlt_trace), selection=None)
-                )
-                _result.append(
-                    ui.build_title_and_subtitle(
+                    utils.ui.build_title_and_subtitle(
                         strings.trace_execution_context_title,
                         strings.trace_execution_context_subtitle,
                         title_level=3,
                     )
                 )
                 _result.append(
-                    mo.ui.table(
-                        utils.trace_execution_context(dlt_config, dlt_trace), selection=None
-                    )
+                    utils.ui.dlt_table(utils.trace_execution_context(dlt_config, dlt_trace))
                 )
                 _result.append(
-                    ui.build_title_and_subtitle(
+                    utils.ui.build_title_and_subtitle(
                         strings.trace_steps_overview_title,
                         strings.trace_steps_overview_subtitle,
                         title_level=3,
@@ -998,7 +985,7 @@ def section_trace(
                 for item in dlt_trace_steps_table.value:  # type: ignore[unused-ignore,union-attr]
                     step_id = item["step"]  # type: ignore[unused-ignore,index]
                     _result.append(
-                        ui.build_title_and_subtitle(
+                        utils.ui.build_title_and_subtitle(
                             strings.trace_step_details_title.format(step_id.capitalize()),
                             title_level=3,
                         )
@@ -1007,19 +994,17 @@ def section_trace(
 
                 # config values
                 _result.append(
-                    ui.build_title_and_subtitle(
+                    utils.ui.build_title_and_subtitle(
                         strings.trace_resolved_config_title,
                         strings.trace_resolved_config_subtitle,
                         title_level=3,
                     )
                 )
                 _result.append(
-                    mo.ui.table(
-                        utils.trace_resolved_config_values(dlt_config, dlt_trace), selection=None
-                    )
+                    utils.ui.dlt_table(utils.trace_resolved_config_values(dlt_config, dlt_trace))
                 )
                 _result.append(
-                    ui.build_title_and_subtitle(
+                    utils.ui.build_title_and_subtitle(
                         strings.trace_raw_trace_title,
                         title_level=3,
                     )
@@ -1035,7 +1020,7 @@ def section_trace(
                 )
         except Exception as exc:
             _result.append(
-                ui.build_error_callout(
+                utils.ui.build_error_callout(
                     f"Error while building trace section: {exc}",
                     traceback_string=traceback.format_exc(),
                 )
@@ -1056,7 +1041,7 @@ def section_loads(
     Show loads of the currently selected pipeline
     """
 
-    _result, _show = ui.build_section(
+    _result, _show = utils.ui.build_section(
         strings.loads_section_name,
         dlt_pipeline,
         strings.loads_title,
@@ -1073,10 +1058,10 @@ def section_loads(
                 dlt_pipeline,
                 limit=1000 if dlt_restrict_to_last_1000.value else None,
             )
-            dlt_loads_table = mo.ui.table(_loads_data, selection="single")
+            dlt_loads_table = utils.ui.dlt_table(_loads_data, selection="single")
             if _error_message:
                 _result.append(
-                    ui.build_error_callout(
+                    utils.ui.build_error_callout(
                         strings.loads_loading_failed_text + _error_message,
                         traceback_string=_traceback_string,
                     )
@@ -1110,7 +1095,7 @@ def section_loads_results(
 
         try:
             with mo.status.spinner(title=strings.loads_details_loading_spinner_text):
-                _schema = utils.get_schema_by_version(
+                _schema = utils.schema.get_schema_by_version(
                     dlt_pipeline, dlt_loads_table.value[0]["schema_version_hash"]  # type: ignore[unused-ignore,index]
                 )
 
@@ -1119,18 +1104,18 @@ def section_loads_results(
 
             # add row counts
             _result.append(
-                ui.build_title_and_subtitle(
+                utils.ui.build_title_and_subtitle(
                     strings.loads_details_row_counts_title,
                     strings.loads_details_row_counts_subtitle,
                     3,
                 ),
             )
-            _result.append(mo.ui.table(_row_counts, selection=None))
+            _result.append(utils.ui.dlt_table(_row_counts))
 
             # add schema info
             if _schema:
                 _result.append(
-                    ui.build_title_and_subtitle(
+                    utils.ui.build_title_and_subtitle(
                         strings.loads_details_schema_version_title,
                         strings.loads_details_schema_version_subtitle.format(
                             (
@@ -1154,7 +1139,7 @@ def section_loads_results(
                 )
 
         except Exception:
-            _result.append(ui.build_error_callout(strings.loads_details_error_text))
+            _result.append(utils.ui.build_error_callout(strings.loads_details_error_text))
     mo.vstack(_result) if len(_result) else None
     return
 
@@ -1167,7 +1152,7 @@ def section_ibis_backend(
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
-    _result, _show = ui.build_section(
+    _result, _show = utils.ui.build_section(
         strings.ibis_backend_section_name,
         dlt_pipeline,
         strings.ibis_backend_title,
@@ -1184,7 +1169,7 @@ def section_ibis_backend(
                 mo.callout(mo.vstack([mo.md(strings.ibis_backend_connected_text)]), kind="success")
             )
         except Exception as exc:
-            _result.append(ui.build_error_callout(strings.ibis_backend_error_text + str(exc)))
+            _result.append(utils.ui.build_error_callout(strings.ibis_backend_error_text + str(exc)))
     mo.vstack(_result)
     return
 
@@ -1444,18 +1429,17 @@ def ui_primary_controls(
     #
     dlt_schema_table_list: mo.ui.table = None
     if dlt_section_schema_switch.value and dlt_pipeline and dlt_selected_schema_name:
-        _table_list = utils.create_table_list(
+        _table_list = utils.schema.create_table_list(
             dlt_config,
             dlt_pipeline,
             dlt_selected_schema_name,
             show_internals=dlt_schema_show_dlt_tables.value,
             show_child_tables=dlt_schema_show_child_tables.value,
         )
-        dlt_schema_table_list = mo.ui.table(
-            _table_list,  # type: ignore[arg-type,unused-ignore]
-            style_cell=utils.style_cell,
-            initial_selection=[0] if len(_table_list) > 0 else None,
-            freeze_columns_left=["name"] if len(_table_list) > 0 else None,
+        dlt_schema_table_list = utils.ui.dlt_table(
+            _table_list,
+            selection="multi",
+            initial_selection=[0],
         )
 
     #
@@ -1463,7 +1447,7 @@ def ui_primary_controls(
     #
     dlt_data_table_list: mo.ui.table = None
     if dlt_section_browse_data_switch.value and dlt_pipeline and dlt_selected_schema_name:
-        table_list = utils.create_table_list(
+        table_list = utils.schema.create_table_list(
             dlt_config,
             dlt_pipeline,
             dlt_selected_schema_name,
@@ -1471,12 +1455,10 @@ def ui_primary_controls(
             show_child_tables=dlt_schema_show_child_tables.value,
             show_row_counts=dlt_schema_show_row_counts.value,
         )
-        dlt_data_table_list = mo.ui.table(
-            table_list,  # type: ignore[arg-type,unused-ignore]
-            style_cell=utils.style_cell,
+        dlt_data_table_list = utils.ui.dlt_table(
+            table_list,
             selection="single",
-            initial_selection=[0] if len(table_list) > 0 else None,
-            freeze_columns_left=["name"] if len(table_list) > 0 else None,
+            initial_selection=[0],
         )
 
     #
@@ -1485,8 +1467,10 @@ def ui_primary_controls(
     dlt_trace_steps_table: mo.ui.table = None
     try:
         if dlt_section_trace_switch.value and dlt_pipeline and dlt_pipeline.last_trace:
-            dlt_trace_steps_table = mo.ui.table(
-                utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace)
+            dlt_trace_steps_table = utils.ui.dlt_table(
+                utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace),
+                selection="multi",
+                freeze_column="step",
             )
     except Exception as exc:
         logger.error(f"Error while building trace steps table: {exc}")

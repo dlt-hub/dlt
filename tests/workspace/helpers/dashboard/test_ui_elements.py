@@ -2,7 +2,7 @@ import marimo as mo
 import dlt
 
 
-from dlt._workspace.helpers.dashboard.ui_elements import (
+from dlt._workspace.helpers.dashboard.utils.ui import (
     build_title_and_subtitle,
     build_page_header,
     build_error_callout,
