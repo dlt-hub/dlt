@@ -5,6 +5,20 @@ from pathspec.util import iter_tree_files
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
+# well-known directories and files that should never be deployed
+DEFAULT_EXCLUDES: List[str] = [
+    ".git/",
+    ".venv/",
+    "__pycache__/",
+    "node_modules/",
+    "*.pyc",
+    ".mypy_cache/",
+    ".pytest_cache/",
+    ".ruff_cache/",
+    ".tox/",
+    "*.egg-info/",
+]
+
 
 class BaseFileSelector(Iterable[Tuple[Path, Path]]):
     """
@@ -37,6 +51,7 @@ class WorkspaceFileSelector(BaseFileSelector):
     def _build_pathspec(self, additional_excludes: List[str]) -> PathSpec:
         """Build PathSpec from ignore file + defaults + additional excludes"""
         patterns: List[str] = [f"{self.settings_dir.relative_to(self.root_path)}/"]
+        patterns.extend(DEFAULT_EXCLUDES)
 
         # Load ignore file if exists
         ignore_path = self.root_path / self.ignore_file
