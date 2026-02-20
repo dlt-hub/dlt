@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import marimo
-import mowidgets
+from dlt.common.exceptions import MissingDependencyException
+
+try:
+    import marimo
+    import mowidgets
+except ModuleNotFoundError:
+    raise MissingDependencyException("dlt.helpers.marimo", [f"{version.DLT_PKG_NAME}[workspace]"],)
 
 from dlt.helpers.marimo._load_package_viewer import app as load_package_viewer
 from dlt.helpers.marimo._schema_viewer import app as schema_viewer
