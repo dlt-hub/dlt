@@ -124,13 +124,11 @@ def test_search_scaffolds_with_keyword(requests_mock: rm.Mocker) -> None:
     mock_response = {
         "results": [
             {
-                "content_path": "shopify_admin_rest",
-                "name": "Shopify",
+                "source_name": "shopify_admin_rest",
                 "description": "Shopify e-commerce data",
             },
             {
-                "content_path": "shopify_graphql",
-                "name": "Shopify GraphQL",
+                "source_name": "shopify_graphql",
                 "description": "Shopify GraphQL API",
             },
         ],
@@ -149,19 +147,15 @@ def test_search_scaffolds_with_keyword(requests_mock: rm.Mocker) -> None:
     assert len(response.results) == 2
     assert response.total == 2
     assert response.results[0] == ScaffoldSearchResult(
-        "shopify_admin_rest", "Shopify", "Shopify e-commerce data"
+        "shopify_admin_rest", "Shopify e-commerce data"
     )
-    assert response.results[1] == ScaffoldSearchResult(
-        "shopify_graphql", "Shopify GraphQL", "Shopify GraphQL API"
-    )
+    assert response.results[1] == ScaffoldSearchResult("shopify_graphql", "Shopify GraphQL API")
     assert "q=shopif" in requests_mock.last_request.url
 
 
 def test_search_scaffolds_empty_term(requests_mock: rm.Mocker) -> None:
     mock_response = {
-        "results": [
-            {"content_path": "airtable", "name": "Airtable", "description": "Airtable data"}
-        ],
+        "results": [{"source_name": "airtable", "description": "Airtable data"}],
         "total": 9347,
     }
     requests_mock.get(

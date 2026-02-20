@@ -18,8 +18,7 @@ SCAFFOLD_SEARCH_TIMEOUT = 10
 
 
 class ScaffoldSearchResult(NamedTuple):
-    content_path: str
-    name: str
+    source_name: str
     description: str
 
 
@@ -110,8 +109,7 @@ def search_scaffolds(
 
     results = [
         ScaffoldSearchResult(
-            content_path=item["content_path"],
-            name=item["name"],
+            source_name=item["source_name"],
             description=item["description"],
         )
         for item in data.get("results", [])

@@ -821,7 +821,7 @@ def _list_scaffold_sources(search_term: Optional[str] = None) -> None:
     try:
         response = search_scaffolds(search_term=search_term or "")
     except ScaffoldApiError as e:
-        fmt.warning(f"Community sources unavailable ({e})")
+        fmt.warning(f"Scaffold sources API is unavailable ({e})")
         return
 
     fmt.echo("---")
@@ -839,7 +839,7 @@ def _list_scaffold_sources(search_term: Optional[str] = None) -> None:
         return
 
     for result in response.results:
-        fmt.echo("%s: %s" % (fmt.bold(result.content_path), result.description))
+        fmt.echo("%s: %s" % (fmt.bold(result.source_name), result.description))
 
     count = len(response.results)
     fmt.echo()
