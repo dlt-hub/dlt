@@ -311,6 +311,10 @@ EXPECTED_MERMAID_STR = """
             {"name": "description_col", "data_type": "text", "description": "foo"},
             'text description_col "foo"\n',
         ),
+        (
+            {"name": "incomplete_col"},  # no data_type set yet
+            "unknown incomplete_col\n",
+        ),
     ],
 )
 def test_to_mermaid_column(hints: TColumnSchema, expected_mermaid_col: str) -> None:

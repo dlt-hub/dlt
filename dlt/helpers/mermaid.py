@@ -62,7 +62,7 @@ def _to_mermaid_table(
 
 # TODO add scale & precision to `data_type`
 def _to_mermaid_column(column: TColumnSchema, hide_descriptions: bool = False) -> str:
-    mermaid_col = column["data_type"] + " " + column["name"]
+    mermaid_col = column.get("data_type", "unknown") + " " + column["name"]
     keys = []
     if column.get("primary_key"):
         keys.append("PK")
