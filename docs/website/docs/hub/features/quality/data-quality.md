@@ -76,7 +76,7 @@ from dlt.hub import data_quality as dq
 
 @dlt.resource
 def customers():
-    yield from ...
+    yield from [...]
 
 # later; this mutates the resource object and sets metrics
 dq.with_metrics(
@@ -197,12 +197,12 @@ This snippet shows a single `is_in()` check being ran against the `orders` table
 import dlt
 from dlt.hub import data_quality as dq
 
-@dq.with_metrics(
+@dq.with_checks(  # type: ignore[attr-defined]
     dq.checks.is_in("payment_methods", ["card", "cash", "voucher"]),
 )
 @dlt.resource
 def orders():
-    yield from ...
+    yield from [...]
 ```
 
 #### Dynamic
@@ -234,10 +234,8 @@ from dlt.hub import data_quality as dq
 dq.checks.is_unique("col")
 dq.checks.is_not_null("col")
 dq.checks.is_primary_key("col")  # valid primary key
-dq.checks.is_foreign_key("col", "other_table", "other_col")  # valid foreign key
 dq.checks.is_in("foo", ["bar", "baz"])  # valid values
 dq.checks.case("col < 0")  # row-wise check
-dq.checks.where("col > 10")  # table-wise check
 ```
 
 ### Compute checks
@@ -378,6 +376,3 @@ sequenceDiagram
 - Support completely custom checks via `@dlt.hub.transformation` (e.g., SQL, SQLGlot, Ibis, Narwhals, Polars)
 - Trigger actions based on check result or outcome (e.g., send Slack notification)
 - Track metrics and checks changes via `dlt.Schema` versioning
-
-
-
