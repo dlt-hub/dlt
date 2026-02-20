@@ -45,36 +45,39 @@ DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dl
 def list_sources_command(
     repo_location: str, branch: str = None, search_term: Optional[str] = None
 ) -> None:
-    fmt.echo("---")
-    fmt.echo("Available dlt core sources:")
-    fmt.echo("---")
-    core_sources = _list_core_sources()
-    for source_name, source_configuration in core_sources.items():
-        msg = "%s: %s" % (fmt.bold(source_name), source_configuration.doc)
-        fmt.echo(msg)
+    if not search_term:
+        fmt.echo("---")
+        fmt.echo("Available dlt core sources:")
+        fmt.echo("---")
+        core_sources = _list_core_sources()
+        for source_name, source_configuration in core_sources.items():
+            msg = "%s: %s" % (fmt.bold(source_name), source_configuration.doc)
+            fmt.echo(msg)
 
-    fmt.echo("---")
-    fmt.echo("Available dlt single file templates:")
-    fmt.echo("---")
-    template_sources = _list_template_sources()
-    for source_name, source_configuration in template_sources.items():
-        msg = "%s: %s" % (fmt.bold(source_name), source_configuration.doc)
-        fmt.echo(msg)
+        fmt.echo("---")
+        fmt.echo("Available dlt single file templates:")
+        fmt.echo("---")
+        template_sources = _list_template_sources()
+        for source_name, source_configuration in template_sources.items():
+            msg = "%s: %s" % (fmt.bold(source_name), source_configuration.doc)
+            fmt.echo(msg)
 
-    fmt.echo("---")
-    fmt.echo("Available verified sources:")
-    fmt.echo("---")
-    for source_name, source_configuration in _list_verified_sources(repo_location, branch).items():
-        reqs = source_configuration.requirements
-        dlt_req_string = str(reqs.dlt_requirement_base)
-        msg = "%s: " % (fmt.bold(source_name))
-        if source_name in core_sources.keys():
-            msg += "(Deprecated since dlt 1.0.0 in favor of core source of the same name) "
-        msg += source_configuration.doc
-        if not reqs.is_installed_dlt_compatible():
-            msg += fmt.warning_style(" [needs update: %s]" % (dlt_req_string))
+        fmt.echo("---")
+        fmt.echo("Available verified sources:")
+        fmt.echo("---")
+        for source_name, source_configuration in _list_verified_sources(
+            repo_location, branch
+        ).items():
+            reqs = source_configuration.requirements
+            dlt_req_string = str(reqs.dlt_requirement_base)
+            msg = "%s: " % (fmt.bold(source_name))
+            if source_name in core_sources.keys():
+                msg += "(Deprecated since dlt 1.0.0 in favor of core source of the same name) "
+            msg += source_configuration.doc
+            if not reqs.is_installed_dlt_compatible():
+                msg += fmt.warning_style(" [needs update: %s]" % (dlt_req_string))
 
-        fmt.echo(msg)
+            fmt.echo(msg)
 
     _list_scaffold_sources(search_term)
 
@@ -824,19 +827,15 @@ def _list_scaffold_sources(search_term: Optional[str] = None) -> None:
     fmt.echo("---")
     if search_term:
         fmt.echo(
-            'Source scaffold templates matching "%s" with llm-ready docs from'
-            " dlthub.com/context:" % fmt.bold(search_term)
+            'Source scaffold templates matching "%s" with llm-ready docs from dlthub.com/context:'
+            % fmt.bold(search_term)
         )
     else:
-        fmt.echo(
-            "Source scaffold templates with llm-ready docs from dlthub.com/context:"
-        )
+        fmt.echo("Source scaffold templates with llm-ready docs from dlthub.com/context:")
     fmt.echo("---")
 
     if not response.results:
-        fmt.echo(
-            "No sources found for '%s'. Try a different --search-term." % search_term
-        )
+        fmt.echo("No sources found for '%s'. Try a different --search-term." % search_term)
         return
 
     for result in response.results:
@@ -845,8 +844,7 @@ def _list_scaffold_sources(search_term: Optional[str] = None) -> None:
     count = len(response.results)
     fmt.echo()
     fmt.echo(
-        "Showing %d of %d %s."
-        % (count, response.total, "results" if search_term else "sources")
+        "Showing %d of %d %s." % (count, response.total, "results" if search_term else "sources")
     )
     if search_term:
         fmt.echo("Modify --search-term for different results.")

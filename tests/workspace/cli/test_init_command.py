@@ -891,65 +891,51 @@ def assert_common_files(
 
 # integration tests for scaffold source listing (uses actual scaffold API at localhost:8000)
 
-SCAFFOLD_API_URL = "http://localhost:8000"
-
 
 def test_list_sources_includes_scaffold_sources(repo_dir: str) -> None:
     """Default listing includes scaffold sources section from the API."""
-    os.environ["RUNTIME__WORKSPACE__SCAFFOLD_DOCS_API_URL"] = SCAFFOLD_API_URL
-    try:
-        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            _init_command.list_sources_command(
-                repo_dir,
-                search_term=None,
-            )
-            _out = buf.getvalue()
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _init_command.list_sources_command(
+            repo_dir,
+            search_term=None,
+        )
+        _out = buf.getvalue()
 
-        # existing sections still present
-        for source in SOME_KNOWN_VERIFIED_SOURCES + TEMPLATES + CORE_SOURCES:
-            assert source in _out
+    # existing sections still present
+    for source in SOME_KNOWN_VERIFIED_SOURCES + TEMPLATES + CORE_SOURCES:
+        assert source in _out
 
         # scaffold section present
         assert "dlthub.com/context" in _out
         assert "dlt init dlthub:" in _out
-    finally:
-        os.environ.pop("RUNTIME__WORKSPACE__SCAFFOLD_DOCS_API_URL", None)
 
 
 def test_list_sources_with_search_term(repo_dir: str) -> None:
     """Filtered listing shows matching scaffold sources."""
-    os.environ["RUNTIME__WORKSPACE__SCAFFOLD_DOCS_API_URL"] = SCAFFOLD_API_URL
-    try:
-        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            _init_command.list_sources_command(
-                repo_dir,
-                search_term="github",
-            )
-            _out = buf.getvalue()
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _init_command.list_sources_command(
+            repo_dir,
+            search_term="github",
+        )
+        _out = buf.getvalue()
 
         assert "dlthub.com/context" in _out
         assert "github" in _out.lower()
         assert "dlt init dlthub:" in _out
-    finally:
-        os.environ.pop("RUNTIME__WORKSPACE__SCAFFOLD_DOCS_API_URL", None)
 
 
 def test_list_sources_scaffold_api_failure(repo_dir: str) -> None:
     """When scaffold API is unreachable, other sections still display."""
-    os.environ["RUNTIME__WORKSPACE__SCAFFOLD_DOCS_API_URL"] = "http://localhost:1"
-    try:
-        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            _init_command.list_sources_command(
-                repo_dir,
-                search_term=None,
-            )
-            _out = buf.getvalue()
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _init_command.list_sources_command(
+            repo_dir,
+            search_term=None,
+        )
+        _out = buf.getvalue()
 
-        # other sections still present
-        for source in SOME_KNOWN_VERIFIED_SOURCES + TEMPLATES + CORE_SOURCES:
-            assert source in _out
+    # other sections still present
+    for source in SOME_KNOWN_VERIFIED_SOURCES + TEMPLATES + CORE_SOURCES:
+        assert source in _out
 
-        # warning shown
-        assert "WARNING" in _out
-    finally:
-        os.environ.pop("RUNTIME__WORKSPACE__SCAFFOLD_DOCS_API_URL", None)
+    # warning shown
+    assert "WARNING" in _out

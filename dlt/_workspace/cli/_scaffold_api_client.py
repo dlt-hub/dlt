@@ -94,16 +94,14 @@ def search_scaffolds(
         ScaffoldApiError: If there's an error connecting to the API or parsing the response.
     """
     url = f"{scaffold_docs_api_url}/api/v1/scaffolds/sources"
-    params = {"q": search_term, "page": 1, "page_size": page_size}
+    params = {"q": search_term, "page": "1", "page_size": str(page_size)}
     try:
         response = requests.get(url, params=params, timeout=SCAFFOLD_SEARCH_TIMEOUT)
     except requests.RequestException as e:
         raise ScaffoldApiError(f"There was an error connecting to the scaffold-api: {str(e)}")
 
     if response.status_code != 200:
-        raise ScaffoldApiError(
-            f"API returned status {response.status_code}: {response.text}"
-        )
+        raise ScaffoldApiError(f"API returned status {response.status_code}: {response.text}")
 
     try:
         data = response.json()

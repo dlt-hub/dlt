@@ -64,11 +64,20 @@ version if run again with an existing `source` name. You will be warned if files
             default=False,
             action="store_true",
             help=(
-                "Shows all available verified sources and their short descriptions. For each"
-                " source, it checks if your local `dlt` version requires an update and prints the"
-                " relevant warning."
+                "Shows all available sources and their short descriptions. For all core and"
+                " verified source, it checks if your local `dlt` version requires an update and"
+                " prints the relevant warning."
             ),
         )
+        parser.add_argument(
+            "--search-term",
+            default=None,
+            help=(
+                "Filter sources scaffolds from dlthub.com/context by keyword when used with"
+                " --list-sources."
+            ),
+        )
+
         parser.add_argument(
             "--list-destinations",
             default=False,
@@ -109,11 +118,6 @@ version if run again with an existing `source` name. You will be warned if files
                 "Ejects the source code of the core source like sql_database or rest_api so they"
                 " will be editable by you."
             ),
-        )
-        parser.add_argument(
-            "--search-term",
-            default=None,
-            help="Filter community sources by keyword when used with --list-sources.",
         )
 
     def execute(self, args: argparse.Namespace) -> None:
