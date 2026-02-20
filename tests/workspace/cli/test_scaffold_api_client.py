@@ -1,13 +1,19 @@
 import io
-import zipfile
+import re
 import shutil
+import zipfile
+from typing import Dict
 
 import pytest
-import re
-from typing import Dict
+import requests
 import requests_mock as rm
 
-from dlt._workspace.cli._scaffold_api_client import get_scaffold_files_storage
+from dlt._workspace.cli._scaffold_api_client import (
+    get_scaffold_files_storage,
+    search_scaffolds,
+    ScaffoldSearchResponse,
+    ScaffoldSearchResult,
+)
 from dlt._workspace.cli.exceptions import ScaffoldSourceNotFound, ScaffoldApiError
 from dlt.common.storages.file_storage import FileStorage
 
@@ -108,3 +114,103 @@ def test_get_scaffold_files_storage_server_error(requests_mock: rm.Mocker) -> No
     assert "500" in str(exc_info.value)
     # Verify that Accept header was sent
     assert requests_mock.last_request.headers.get("Accept") == "application/zip"
+
+
+def test_search_scaffolds_with_keyword(requests_mock: rm.Mocker) -> None:
+    mock_response = {
+        "results": [
+            {
+                "source_name": "shopify_admin_rest",
+                "description": "Shopify e-commerce data",
+            },
+            {
+                "source_name": "shopify_graphql",
+                "description": "Shopify GraphQL API",
+            },
+        ],
+        "total": 2,
+    }
+    requests_mock.get(
+        re.compile(r".*/api/v1/scaffolds/sources"),
+        json=mock_response,
+    )
+
+    response = search_scaffolds(
+        search_term="shopif", scaffold_docs_api_url="https://api.example.com"
+    )
+
+    assert isinstance(response, ScaffoldSearchResponse)
+    assert len(response.results) == 2
+    assert response.total == 2
+    assert response.results[0] == ScaffoldSearchResult(
+        "shopify_admin_rest", "Shopify e-commerce data"
+    )
+    assert response.results[1] == ScaffoldSearchResult("shopify_graphql", "Shopify GraphQL API")
+    assert "q=shopif" in requests_mock.last_request.url
+
+
+def test_search_scaffolds_empty_term(requests_mock: rm.Mocker) -> None:
+    mock_response = {
+        "results": [{"source_name": "airtable", "description": "Airtable data"}],
+        "total": 9347,
+    }
+    requests_mock.get(
+        re.compile(r".*/api/v1/scaffolds/sources"),
+        json=mock_response,
+    )
+
+    response = search_scaffolds(scaffold_docs_api_url="https://api.example.com")
+
+    assert response.total == 9347
+    assert len(response.results) == 1
+    assert "q=" in requests_mock.last_request.url
+
+
+def test_search_scaffolds_connection_error(requests_mock: rm.Mocker) -> None:
+    requests_mock.get(
+        re.compile(r".*/api/v1/scaffolds/sources"),
+        exc=requests.ConnectionError("Connection refused"),
+    )
+
+    with pytest.raises(ScaffoldApiError) as exc_info:
+        search_scaffolds(scaffold_docs_api_url="https://api.example.com")
+
+    assert "error connecting" in str(exc_info.value).lower()
+
+
+def test_search_scaffolds_server_error(requests_mock: rm.Mocker) -> None:
+    requests_mock.get(
+        re.compile(r".*/api/v1/scaffolds/sources"),
+        status_code=500,
+        text="Internal Server Error",
+    )
+
+    with pytest.raises(ScaffoldApiError) as exc_info:
+        search_scaffolds(scaffold_docs_api_url="https://api.example.com")
+
+    assert "500" in str(exc_info.value)
+
+
+def test_search_scaffolds_invalid_json(requests_mock: rm.Mocker) -> None:
+    requests_mock.get(
+        re.compile(r".*/api/v1/scaffolds/sources"),
+        text="not valid json{{{",
+        status_code=200,
+    )
+
+    with pytest.raises(ScaffoldApiError) as exc_info:
+        search_scaffolds(scaffold_docs_api_url="https://api.example.com")
+
+    assert "Invalid JSON" in str(exc_info.value)
+
+
+def test_search_scaffolds_timeout(requests_mock: rm.Mocker) -> None:
+    requests_mock.get(
+        re.compile(r".*/api/v1/scaffolds/sources"),
+        exc=requests.ReadTimeout("Read timed out"),
+    )
+
+    with pytest.raises(ScaffoldApiError) as exc_info:
+        search_scaffolds(scaffold_docs_api_url="https://api.example.com")
+
+    assert "error connecting" in str(exc_info.value).lower()
