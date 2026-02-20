@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.19.2"
+__generated_with = "0.19.4"
 app = marimo.App(width="medium", app_title="pipeline_selector")
 
 with app.setup:
@@ -18,13 +18,17 @@ def _():
     except Exception:
         _pipelines = []
 
-    pipelines_locations = {p: _storage.storage_path + "/" + p for p in sorted(_pipelines)}
+    pipelines_locations = {}#{p: _storage.storage_path + "/" + p for p in sorted(_pipelines)}
     return (pipelines_locations,)
 
 
 @app.cell
 def _(pipelines_locations):
-    _first_pipeline_name = next(iter(pipelines_locations.keys()))
+    try:
+        _first_pipeline_name = next(iter(pipelines_locations.keys()))
+    except StopIteration:
+        _first_pipeline_name = None
+
     pipeline_selector = mo.ui.dropdown(
         pipelines_locations.keys(),
         value=_first_pipeline_name,
@@ -37,7 +41,7 @@ def _(pipelines_locations):
 @app.cell
 def _(pipeline_selector, pipelines_locations):
     pipeline_name = pipeline_selector.value
-    pipeline_path = pipelines_locations[pipeline_name]  # noqa: F841
+    pipeline_path = pipelines_locations.get(pipeline_name, None)  # noqa: F841
     return
 
 
