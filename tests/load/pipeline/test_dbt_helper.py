@@ -78,10 +78,10 @@ def test_run_jaffle_package(
     ids=lambda x: x.name,
 )
 def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
-    if destination_config.destination_type == "mssql":
+    if destination_config.destination_type in ("mssql", "fabric"):
         pytest.skip(
-            "mssql requires non standard SQL syntax and we do not have specialized dbt package"
-            " for it"
+            "mssql/fabric require non standard SQL syntax and we do not have specialized dbt"
+            " package for it"
         )
 
     from docs.examples.chess.chess import chess
@@ -141,10 +141,10 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
 def test_run_chess_dbt_to_other_dataset(
     destination_config: DestinationTestConfiguration, dbt_venv: Venv
 ) -> None:
-    if destination_config.destination_type == "mssql":
+    if destination_config.destination_type in ("mssql", "fabric"):
         pytest.skip(
-            "mssql requires non standard SQL syntax and we do not have specialized dbt package"
-            " for it"
+            "mssql/fabric require non standard SQL syntax and we do not have specialized dbt"
+            " package for it"
         )
     from docs.examples.chess.chess import chess
 
