@@ -11,7 +11,7 @@ with app.setup:
 
 
 @app.cell
-def _():
+def pipeline_browser():
     mo.stop(pipeline_path is None)
     pipeline_details = mo.ui.file_browser(
         pipeline_path,
@@ -25,7 +25,7 @@ def _():
 
 
 @app.cell
-def _(pipeline_details):
+def file_viewer(pipeline_details):
     if pipeline_details.value:
         obj = _load_file(pipeline_details.value[0].path)
     else:

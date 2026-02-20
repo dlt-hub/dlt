@@ -10,7 +10,7 @@ with app.setup:
 
 
 @app.cell
-def _():
+def pipeline_locations():
     _storage = FileStorage(get_dlt_pipelines_dir())
 
     try:
@@ -18,12 +18,12 @@ def _():
     except Exception:
         _pipelines = []
 
-    pipelines_locations = {}#{p: _storage.storage_path + "/" + p for p in sorted(_pipelines)}
+    pipelines_locations = {p: _storage.storage_path + "/" + p for p in sorted(_pipelines)}
     return (pipelines_locations,)
 
 
 @app.cell
-def _(pipelines_locations):
+def pipeline_selector(pipelines_locations):
     try:
         _first_pipeline_name = next(iter(pipelines_locations.keys()))
     except StopIteration:
@@ -39,7 +39,7 @@ def _(pipelines_locations):
 
 
 @app.cell
-def _(pipeline_selector, pipelines_locations):
+def outputs(pipeline_selector, pipelines_locations):
     pipeline_name = pipeline_selector.value
     pipeline_path = pipelines_locations.get(pipeline_name, None)  # noqa: F841
     return
