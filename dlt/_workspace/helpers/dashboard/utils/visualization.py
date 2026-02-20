@@ -29,7 +29,7 @@ class PipelineStepData(NamedTuple):
     failed: bool
 
 
-def build_migration_badge(count: int) -> str:
+def migration_badge(count: int) -> str:
     """Build migration badge HTML using CSS classes."""
     if count == 0:
         return ""
@@ -40,13 +40,13 @@ def build_migration_badge(count: int) -> str:
     )
 
 
-def build_status_badge(status: TPipelineRunStatus) -> str:
+def status_badge(status: TPipelineRunStatus) -> str:
     """Build status badge HTML using CSS classes."""
     badge_class = "status-badge-green" if status == "succeeded" else "status-badge-red"
     return f'<div class="status-badge {badge_class}"><strong>{status}</strong></div>'
 
 
-def build_pipeline_execution_html(
+def pipeline_execution_html(
     transaction_id: str,
     status: TPipelineRunStatus,
     steps_data: List[PipelineStepData],
@@ -110,8 +110,8 @@ def build_pipeline_execution_html(
 
             <!-- RIGHT COLUMN: Status badges -->
             <div class="pipeline-execution-badges">
-                {build_migration_badge(migrations_count)}
-                {build_status_badge(status)}
+                {migration_badge(migrations_count)}
+                {status_badge(status)}
             </div>
         </div>
     </div>
@@ -157,12 +157,12 @@ def get_migrations_count(last_load_info: LoadInfo) -> int:
     return migrations_count
 
 
-def build_pipeline_execution_visualization(trace: PipelineTrace) -> Optional[mo.Html]:
+def pipeline_execution_visualization(trace: PipelineTrace) -> Optional[mo.Html]:
     """Create a visual timeline of pipeline run showing extract, normalize and load steps."""
     steps_data, status = get_steps_data_and_status(trace.steps)
     migrations_count = get_migrations_count(trace.last_load_info) if trace.last_load_info else 0
 
-    return build_pipeline_execution_html(
+    return pipeline_execution_html(
         trace.transaction_id,
         status,
         steps_data,

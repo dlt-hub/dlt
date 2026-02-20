@@ -4,7 +4,7 @@ import re
 from typing import Set
 
 from dlt._workspace.helpers.dashboard.utils.visualization import (
-    build_pipeline_execution_visualization,
+    pipeline_execution_visualization,
     get_migrations_count,
     get_steps_data_and_status,
 )
@@ -27,7 +27,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     ],
     indirect=["pipeline"],
 )
-def test_build_pipeline_execution_visualization(
+def test_pipeline_execution_visualization(
     pipeline: dlt.Pipeline,
     expected_steps: Set[TVisualPipelineStep],
     expected_status: TPipelineRunStatus,
@@ -36,7 +36,7 @@ def test_build_pipeline_execution_visualization(
 
     trace = pipeline.last_trace
 
-    html = build_pipeline_execution_visualization(trace)
+    html = pipeline_execution_visualization(trace)
     html_str = str(html.text)
 
     # Check for CSS class structure

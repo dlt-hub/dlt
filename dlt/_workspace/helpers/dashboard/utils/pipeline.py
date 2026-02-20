@@ -151,9 +151,7 @@ def open_local_folder(folder: str) -> None:
         subprocess.run(["xdg-open", folder], check=True)
 
 
-def build_pipeline_link_list(
-    config: DashboardConfiguration, pipelines: List[Dict[str, Any]]
-) -> str:
+def pipeline_link_list(config: DashboardConfiguration, pipelines: List[Dict[str, Any]]) -> str:
     """Build a markdown list of links to pipelines."""
     if not pipelines:
         return "No pipelines found."
@@ -176,7 +174,7 @@ def build_pipeline_link_list(
     return link_list
 
 
-def build_exception_section(p: dlt.Pipeline) -> List[Any]:
+def exception_section(p: dlt.Pipeline) -> List[Any]:
     """Build an exception section for a pipeline"""
     if not p or not p.last_trace:
         return []
@@ -195,7 +193,7 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 
     _result = []
     _result.append(
-        ui.build_title_and_subtitle(
+        ui.title_and_subtitle(
             title,
             title_level=2,
         )

@@ -7,7 +7,7 @@ from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.pipeline import (
     get_pipeline,
     pipeline_details,
-    build_exception_section,
+    exception_section,
     get_local_data_path,
     remote_state_details,
 )
@@ -28,11 +28,11 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_build_exception_section(pipeline: dlt.Pipeline):
+def test_exception_section(pipeline: dlt.Pipeline):
     if pipeline.pipeline_name in PIPELINES_WITH_EXCEPTIONS:
-        assert "Show full stacktrace" in build_exception_section(pipeline)[0].text
+        assert "Show full stacktrace" in exception_section(pipeline)[0].text
     else:
-        assert not build_exception_section(pipeline)
+        assert not exception_section(pipeline)
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)

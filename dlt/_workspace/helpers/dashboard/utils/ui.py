@@ -73,7 +73,7 @@ def dlt_table(
     return mo.ui.table(data, **table_kwargs)
 
 
-def build_error_callout(message: str, code: str = None, traceback_string: str = None) -> Any:
+def error_callout(message: str, code: str = None, traceback_string: str = None) -> Any:
     """Build a callout with a message and a exposable stacktrace.
 
     Args:
@@ -113,7 +113,7 @@ def build_error_callout(message: str, code: str = None, traceback_string: str = 
     )
 
 
-def build_title_and_subtitle(title: str, subtitle: str = None, title_level: int = 2) -> Any:
+def title_and_subtitle(title: str, subtitle: str = None, title_level: int = 2) -> Any:
     """Build a title and a subtitle block"""
     _result = []
     if title:
@@ -123,7 +123,7 @@ def build_title_and_subtitle(title: str, subtitle: str = None, title_level: int 
     return mo.vstack(_result)
 
 
-def build_page_header(
+def page_header(
     dlt_pipeline: dlt.Pipeline,
     title: str,
     subtitle: str,
@@ -135,7 +135,7 @@ def build_page_header(
         return []
     header = mo.hstack(
         [
-            build_title_and_subtitle(title, subtitle if not button.value else subtitle_long),
+            title_and_subtitle(title, subtitle if not button.value else subtitle_long),
             button,
         ],
         align="center",
@@ -160,7 +160,7 @@ def section_marker(section_name: str, has_content: bool = False) -> mo.Html:
     )
 
 
-def build_section(
+def section(
     section_name: str,
     dlt_pipeline: dlt.Pipeline,
     title: str,
@@ -178,5 +178,5 @@ def build_section(
     result = [
         section_marker(section_name, has_content=dlt_pipeline is not None),
     ]
-    result.extend(build_page_header(dlt_pipeline, title, subtitle, subtitle_long, switch))
+    result.extend(page_header(dlt_pipeline, title, subtitle, subtitle_long, switch))
     return result, bool(dlt_pipeline and switch.value)
