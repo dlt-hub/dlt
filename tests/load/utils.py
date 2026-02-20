@@ -634,6 +634,8 @@ def destinations_configs(
                     extra_info=bucket,
                     supports_merge=False,
                     file_format="jsonl",  # keep jsonl as default, test utils are setup for this
+                    # increase timeout to 30s for hf to avoid flakes (default is 10s)
+                    env_vars={"HF_HUB_DOWNLOAD_TIMEOUT": "30"} if bucket == HF_BUCKET else None,
                 )
             ]
 
