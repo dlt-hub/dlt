@@ -9,12 +9,10 @@ from typing import (
     Tuple,
     Union,
     cast,
-    Literal,
     NamedTuple,
     get_args,
 )
 import datetime  # noqa: 251
-from typing_extensions import TypeAlias
 import os
 import platform
 import subprocess
@@ -34,7 +32,7 @@ from dlt.common.pipeline import LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import LoadPackageInfo
-from dlt.common.storages.load_package import PackageStorage, TLoadPackageStatus
+from dlt.common.storages.load_package import PackageStorage
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.common.storages.configuration import WithLocalFiles
@@ -44,6 +42,14 @@ from dlt.common.utils import map_nested_keys_in_place
 
 from dlt._workspace.helpers.dashboard import ui_elements as ui
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.helpers.dashboard.const import (
+    LOAD_PACKAGE_STATUS_COLORS,
+    PENDING_LOAD_STATUSES,
+    PIPELINE_RUN_STEP_COLORS,
+    TPipelineRunStatus,
+    TVisualPipelineStep,
+    VISUAL_PIPELINE_STEPS,
+)
 from dlt._workspace.helpers.dashboard.utils.formatters import (
     align_dict_keys,
     dict_to_table_items,
@@ -690,17 +696,6 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 # last pipeline execution helpers
 #
 
-TPipelineRunStatus: TypeAlias = Literal["succeeded", "failed"]
-TVisualPipelineStep: TypeAlias = Literal["extract", "normalize", "load"]
-VISUAL_PIPELINE_STEPS: List[TVisualPipelineStep] = ["extract", "normalize", "load"]
-
-PIPELINE_RUN_STEP_COLORS: Dict[TVisualPipelineStep, str] = {
-    "extract": "var(--dlt-color-lime)",
-    "normalize": "var(--dlt-color-aqua)",
-    "load": "var(--dlt-color-pink)",
-}
-
-
 class PipelineStepData(NamedTuple):
     step: TVisualPipelineStep
     duration_ms: float
@@ -857,20 +852,6 @@ def build_pipeline_execution_visualization(trace: PipelineTrace) -> Optional[mo.
 #
 # last pipeline executions load packages helpers
 #
-
-
-PENDING_LOAD_STATUSES: Dict[TLoadPackageStatus, str] = {
-    "extracted": "pending to normalize",
-    "normalized": "pending to load",
-}
-
-LOAD_PACKAGE_STATUS_COLORS: Dict[TLoadPackageStatus, str] = {
-    "new": "grey",
-    "extracted": "yellow",
-    "normalized": "yellow",
-    "loaded": "green",
-    "aborted": "red",
-}
 
 
 def _collect_load_packages_from_trace(

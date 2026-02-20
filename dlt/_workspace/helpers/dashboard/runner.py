@@ -23,8 +23,7 @@ except ModuleNotFoundError:
         "to install the dlt workspace extra.",
     )
 
-EJECTED_APP_FILE_NAME = "dlt_dashboard.py"
-STYLE_FILE_NAME = "dlt_dashboard_styles.css"
+from dlt._workspace.helpers.dashboard.const import EJECTED_APP_FILE_NAME, STYLE_FILE_NAME
 
 
 def run_dashboard(
