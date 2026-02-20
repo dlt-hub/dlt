@@ -313,7 +313,7 @@ EXPECTED_MERMAID_STR = """
         ),
         (
             {"name": "incomplete_col"},  # no data_type set yet
-            "unknown incomplete_col\n",
+            "no_data_seen incomplete_col\n",
         ),
     ],
 )
