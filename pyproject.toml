@@ -190,6 +190,9 @@ workspace = [
 dbml = [
     "pydbml"
 ]
+huggingface = [
+    "huggingface-hub>=1.4.1"
+]
 
 [project.urls]
 Homepage = "https://github.com/dlt-hub"

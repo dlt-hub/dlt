@@ -351,10 +351,15 @@ def test_filesystem_destination_extended_layout_placeholders(
 def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     def _collect_files(p) -> List[str]:
         client = p.destination_client()
+        if not client.fs_client.exists(client.dataset_path):
+            return []
         found = []
         for basedir, _dirs, files in client.fs_client.walk(client.dataset_path):
             for file in files:
                 found.append(os.path.join(basedir, file).replace(client.dataset_path, ""))
+        # exclude .gitattributes file that is automatically created in Hugging Face datasets
+        if client.config.protocol == "hf":
+            found.remove(".gitattributes")
         return found
 
     def _collect_table_counts(p, *items: str) -> Dict[str, int]:

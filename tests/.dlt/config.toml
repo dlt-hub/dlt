@@ -14,6 +14,7 @@ bucket_url_r2="s3://dlt-ci-test-bucket"
 # use "/" as root path
 bucket_url_gdrive="gdrive://15eC3e5MNew2XAIefWNlG8VlEa0ISnnaG"
 bucket_url_sftp="sftp://localhost/data"
+bucket_url_hf="hf://datasets/dlthub"
 memory="memory:///m"
 
 [destination.custom_name]

@@ -72,7 +72,10 @@ from dlt.destinations.job_impl import (
     FinalizedLoadJob,
     FinalizedLoadJobWithFollowupJobs,
 )
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+from dlt.destinations.impl.filesystem.configuration import (
+    FilesystemDestinationClientConfiguration,
+    HfFilesystemDestinationClientConfiguration,
+)
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.utils import (
@@ -113,31 +116,39 @@ class FilesystemLoadJob(RunnableLoadJob):
             self._job_client.fs_client.makedirs(os.path.dirname(remote_path), exist_ok=True)
         self._job_client.fs_client.put_file(self._file_path, remote_path)
 
-    def make_remote_path(self) -> str:
-        """Returns path on the remote filesystem to which copy the file, without scheme. For local filesystem a native path is used"""
-
+    @property
+    def load_package_timestamp(self) -> Optional[pendulum.DateTime]:
         # package state is optional
         try:
-            package_timestamp = current_load_package()["state"]["created_at"]
+            return ensure_pendulum_datetime_utc(current_load_package()["state"]["created_at"])
         except CurrentLoadPackageStateNotAvailable:
-            package_timestamp = None
+            return None
 
-        destination_file_name = path_utils.create_path(
-            self._job_client.config.layout,
-            self._file_name,
-            self._job_client.schema.name,
-            self._load_id,
+    def make_remote_file_path(self, file_name: str) -> str:
+        """Returns path on remote filesystem to move file to, without scheme and dataset."""
+        return path_utils.create_path(
+            layout=self._job_client.config.layout,
+            file_name=file_name,
+            schema_name=self._job_client.schema.name,
+            load_id=self._load_id,
             current_datetime=self._job_client.config.current_datetime,
-            load_package_timestamp=package_timestamp,
+            load_package_timestamp=self.load_package_timestamp,
             extra_placeholders=self._job_client.config.extra_placeholders,
         )
+
+    def make_remote_path(self) -> str:
+        """Returns path on remote filesystem to move file(s) to, without scheme, but with dataset.
+
+        For local filesystem a native path is used.
+        """
+        remote_file_path = self.make_remote_file_path(self._file_name)
         # pick local filesystem pathlib or posix for buckets
         pathlib = self._job_client.config.pathlib
         # path.join does not normalize separators and available
         # normalization functions are very invasive and may strip the trailing separator
         return pathlib.join(  # type: ignore[no-any-return]
             self._job_client.dataset_path,
-            path_utils.normalize_path_sep(pathlib, destination_file_name),
+            path_utils.normalize_path_sep(pathlib, remote_file_path),
         )
 
     def make_remote_url(self) -> str:
@@ -152,15 +163,16 @@ class FilesystemLoadJob(RunnableLoadJob):
         return m._replace(remote_url=self.make_remote_url())
 
 
-class TableFormatLoadFilesystemJob(FilesystemLoadJob):
+class ReferenceFollowupJob(FilesystemLoadJob):
     def __init__(self, file_path: str) -> None:
         super().__init__(file_path=file_path)
-
         self.file_paths = ReferenceFollowupJobRequest.resolve_references(self._file_path)
 
     def make_remote_path(self) -> str:
         return self._job_client.get_table_dir(self.load_table_name)
 
+
+class TableFormatLoadFilesystemJob(ReferenceFollowupJob):
     @property
     def arrow_dataset(self) -> Any:
         from dlt.common.libs.pyarrow import pyarrow
@@ -263,6 +275,35 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             )
 
 
+class HfFilesystemLoadJob(ReferenceFollowupJob):
+    def __init__(
+        self,
+        file_path: str,
+    ) -> None:
+        super().__init__(file_path)
+        self._job_client: HfFilesystemClient = None
+
+    def run(self) -> None:
+        """Adds all files to Hugging Face dataset repo in single commit."""
+        from huggingface_hub import CommitOperationAdd
+
+        self._job_client.hf_api.create_commit(
+            repo_id=self._job_client.repo_id,
+            operations=[
+                CommitOperationAdd(path_in_repo=self.make_path_in_repo(path), path_or_fileobj=path)
+                for path in self.file_paths
+            ],
+            commit_message=f"Add files to {self.load_table_name}",
+            repo_type="dataset",
+        )
+        self._job_client.fs_client.invalidate_cache()
+
+    def make_path_in_repo(self, file_path: str) -> str:
+        """Returns path relative to repo root, without namespace and repo name."""
+        file_name = self._job_client.pathlib.basename(file_path)
+        return self.make_remote_file_path(file_name)
+
+
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJobRequest]:
         jobs = super().create_followup_jobs(final_state)
@@ -351,9 +392,17 @@ class FilesystemClient(
         """Returns the path to the init file for the current dataset"""
         return str(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))
 
+    def create_dataset(self) -> None:
+        """Creates empty dataset directory."""
+        self.fs_client.makedirs(self.dataset_path)
+
+    def drop_dataset(self) -> None:
+        """Removes dataset directory with all its content."""
+        self.fs_client.rm(self.dataset_path, recursive=True)
+
     def drop_storage(self) -> None:
         if self.is_storage_initialized():
-            self.fs_client.rm(self.dataset_path, recursive=True)
+            self.drop_dataset()
 
     @property
     def dataset_path(self) -> str:
@@ -402,8 +451,7 @@ class FilesystemClient(
 
             return
 
-        # we mark the storage folder as initialized
-        self.fs_client.makedirs(self.dataset_path, exist_ok=True)
+        self.create_dataset()
 
         # we set the version to "2" to indicate that .gz extension is added by default
         # version "1" corresponds to an empty init file and indicates that .gz is not added to compressed files
@@ -656,37 +704,41 @@ class FilesystemClient(
     def is_storage_initialized(self) -> bool:
         return self.fs_client.exists(self.init_file_path)  # type: ignore[no-any-return]
 
+    @staticmethod
+    def get_reference_followup_job_class(
+        table: PreparedTableSchema,
+    ) -> Optional[Type[ReferenceFollowupJob]]:
+        # NOTE: we import deltalake/pyiceberg libs here to raise early if deps are not present
+        if table.get("table_format") == "delta":
+            import dlt.common.libs.deltalake
+
+            return DeltaLoadFilesystemJob
+        elif table.get("table_format") == "iceberg":
+            import dlt.common.libs.pyiceberg
+
+            return IcebergLoadFilesystemJob
+        return None
+
+    def get_load_job_class(self, table: PreparedTableSchema, file_path: str) -> Type[LoadJob]:
+        if table["name"] == self.schema.state_table_name and not self.config.as_staging_destination:
+            # skip the state table, we create a jsonl file in the complete_load step
+            # this does not apply to scenarios where we are using filesystem as staging
+            # where we want to load the state the regular way
+            return FinalizedLoadJob
+        elif reference_followup_job_class := self.get_reference_followup_job_class(table):
+            if ReferenceFollowupJobRequest.is_reference_job(file_path):
+                return reference_followup_job_class
+            else:
+                return FinalizedLoadJobWithFollowupJobs
+        elif self.config.as_staging_destination:
+            return FilesystemLoadJobWithFollowup
+        else:
+            return FilesystemLoadJob
+
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        # skip the state table, we create a jsonl file in the complete_load step
-        # this does not apply to scenarios where we are using filesystem as staging
-        # where we want to load the state the regular way
-        if table["name"] == self.schema.state_table_name and not self.config.as_staging_destination:
-            return FinalizedLoadJob(file_path)
-
-        table_format = table.get("table_format")
-        if table_format in ("delta", "iceberg"):
-            # a reference job for a delta table indicates a table chain followup job
-            if ReferenceFollowupJobRequest.is_reference_job(file_path):
-                if table_format == "delta":
-                    import dlt.common.libs.deltalake
-
-                    return DeltaLoadFilesystemJob(file_path)
-                elif table_format == "iceberg":
-                    import dlt.common.libs.pyiceberg
-
-                    return IcebergLoadFilesystemJob(file_path)
-
-            # otherwise just continue
-            return FinalizedLoadJobWithFollowupJobs(file_path)
-
-        cls = (
-            FilesystemLoadJobWithFollowup
-            if self.config.as_staging_destination
-            else FilesystemLoadJob
-        )
-        return cls(file_path)
+        return self.get_load_job_class(table, file_path)(file_path)
 
     def make_remote_url(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""
@@ -929,7 +981,7 @@ class FilesystemClient(
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
         )
-        if table_chain[0].get("table_format") in ("delta", "iceberg"):
+        if self.get_reference_followup_job_class(table_chain[0]):
             for table in table_chain:
                 table_job_paths = [
                     job.file_path
@@ -1037,3 +1089,35 @@ class FilesystemClient(
             return False
         detected_format = prepared_table.get("table_format")
         return table_format == detected_format
+
+
+# NOTE: HfFilesystemClient uses both fsspec and HfApi clients. We manually invalidate fsspec client
+# cache after each filesystem mutation executed through HfApi to ensure consistency.
+class HfFilesystemClient(FilesystemClient):
+    def __init__(
+        self,
+        schema: Schema,
+        config: HfFilesystemDestinationClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        from huggingface_hub import HfApi
+
+        super().__init__(schema, config, capabilities)
+        self.config: HfFilesystemDestinationClientConfiguration = config
+        self.hf_api = HfApi(**config.credentials)
+
+    @property
+    def repo_id(self) -> str:
+        return self.config.hf_namespace + "/" + self.dataset_name
+
+    def create_dataset(self) -> None:
+        self.hf_api.create_repo(repo_id=self.repo_id, repo_type="dataset")
+        self.fs_client.invalidate_cache()
+
+    def drop_dataset(self) -> None:
+        self.hf_api.delete_repo(repo_id=self.repo_id, repo_type="dataset")
+        self.fs_client.invalidate_cache()
+
+    @staticmethod
+    def get_reference_followup_job_class(table: PreparedTableSchema) -> Type[HfFilesystemLoadJob]:
+        return HfFilesystemLoadJob

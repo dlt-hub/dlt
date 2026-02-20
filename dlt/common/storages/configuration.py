@@ -59,6 +59,7 @@ FileSystemCredentials = Union[
     AnyAzureCredentials,
     GcpOAuthCredentials,
     SFTPCredentials,
+    HfCredentials,
 ]
 
 

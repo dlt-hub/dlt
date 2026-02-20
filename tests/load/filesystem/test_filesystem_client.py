@@ -146,6 +146,9 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
     """Test load is successful with an empty destination dataset
     Note: removed gdrive because it is slow
     """
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
@@ -195,6 +198,9 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
 
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_replace_write_disposition(layout: str, default_buckets_env: str) -> None:
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
@@ -275,6 +281,9 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_append_write_disposition(layout: str, default_buckets_env: str) -> None:
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:

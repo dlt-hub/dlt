@@ -140,13 +140,16 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
 
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()
+    if config.protocol == "hf":
+        pytest.skip("`hf` protocol requires repo creation, which this test does not do")
     # we do not add protocol to bucket_url (we need relative path)
     assert bucket_url.startswith(config.protocol) or config.is_local_filesystem
     filesystem, url = fsspec_from_config(config)
     # do a few file ops
     now = pendulum.now()
     filename = f"filesystem_common_{uniq_id()}"
-    file_dir = posixpath.join(url, f"filesystem_common_dir_{uniq_id()}")
+    dataset_name = f"filesystem_common_dir_{uniq_id()}"
+    file_dir = posixpath.join(url, dataset_name)
     file_url = posixpath.join(file_dir, filename)
     try:
         filesystem.mkdir(file_dir, create_parents=True)

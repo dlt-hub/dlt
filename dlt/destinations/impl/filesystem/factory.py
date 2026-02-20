@@ -1,12 +1,17 @@
 from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
 
+from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 from dlt.common.schema.typing import TLoaderMergeStrategy, TLoaderReplaceStrategy, TTableSchema
 from dlt.common.storages.configuration import FileSystemCredentials
-
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+from dlt.destinations.impl.filesystem.configuration import (
+    FilesystemDestinationClientConfiguration,
+    HfFilesystemDestinationClientConfiguration,
+)
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, HfFilesystemClient
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
+from tests.common.normalizers.custom_normalizers import NamingConvention
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -50,8 +55,18 @@ def filesystem_replace_strategies_selector(
         return ["truncate-and-insert"]
 
 
-class filesystem(Destination[FilesystemDestinationClientConfiguration, "FilesystemClient"]):
-    spec = FilesystemDestinationClientConfiguration
+class filesystem(Destination[FilesystemDestinationClientConfiguration, FilesystemClient]):
+    @property
+    def spec(self) -> Type[FilesystemDestinationClientConfiguration]:
+        return (
+            HfFilesystemDestinationClientConfiguration
+            if self.is_hf
+            else FilesystemDestinationClientConfiguration
+        )
+
+    @property
+    def client_class(self) -> Type[FilesystemClient]:
+        return HfFilesystemClient if self.is_hf else FilesystemClient
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext.generic_capabilities(
@@ -74,11 +89,15 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
 
         return caps
 
-    @property
-    def client_class(self) -> Type["FilesystemClient"]:
-        from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
-
-        return FilesystemClient
+    def _get_partial_config(
+        self, destination_name: Optional[str]
+    ) -> FilesystemDestinationClientConfiguration:
+        config = FilesystemDestinationClientConfiguration()
+        sections = (
+            *config.__recommended_sections__,
+            self.resolve_destination_name(destination_name),
+        )
+        return resolve_configuration(config, sections=sections, accept_partial=True)
 
     def __init__(
         self,
@@ -121,6 +140,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
         """
+        self.is_hf = self._get_partial_config(destination_name).protocol == "hf"
         super().__init__(
             bucket_url=bucket_url,
             credentials=credentials,

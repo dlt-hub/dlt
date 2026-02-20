@@ -87,6 +87,7 @@ R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
 SFTP_BUCKET = dlt.config.get("tests.bucket_url_sftp", str)
 HTTP_BUCKET = dlt.config.get("tests.bucket_url_http", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
+HF_BUCKET = dlt.config.get("tests.bucket_url_hf", str)
 
 ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "s3",
@@ -99,6 +100,7 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "https",
     "r2",
     "sftp",
+    "hf",
 ]
 
 # Filter out buckets not in all filesystem drivers
@@ -111,6 +113,7 @@ WITH_GDRIVE_BUCKETS = [
     AZ_BUCKET,
     GDRIVE_BUCKET,
     SFTP_BUCKET,
+    HF_BUCKET,
 ]
 WITH_GDRIVE_BUCKETS = [
     bucket
@@ -636,7 +639,7 @@ def destinations_configs(
 
     if table_format_filesystem_configs or table_format_local_configs:
         if table_format_filesystem_configs:
-            table_buckets = set(DEFAULT_BUCKETS) - {SFTP_BUCKET, MEMORY_BUCKET}
+            table_buckets = set(DEFAULT_BUCKETS) - {SFTP_BUCKET, MEMORY_BUCKET, HF_BUCKET}
         else:
             table_buckets = {FILE_BUCKET}
 
