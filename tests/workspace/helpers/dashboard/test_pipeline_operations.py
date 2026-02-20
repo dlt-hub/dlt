@@ -4,17 +4,16 @@ import dlt
 from typing import Set
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils import (
-    _get_steps_data_and_status,
+from dlt._workspace.helpers.dashboard.utils.pipeline import (
     get_pipeline,
     pipeline_details,
     build_exception_section,
     get_local_data_path,
-    get_source_and_resource_state_for_table,
     remote_state_details,
-    TPipelineRunStatus,
-    TVisualPipelineStep,
 )
+from dlt._workspace.helpers.dashboard.utils.schema import get_source_and_resource_state_for_table
+from dlt._workspace.helpers.dashboard.utils.visualization import get_steps_data_and_status
+from dlt._workspace.helpers.dashboard.const import TPipelineRunStatus, TVisualPipelineStep
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
     EXTRACT_EXCEPTION_PIPELINE,
@@ -119,7 +118,7 @@ def test_get_remote_state_details(pipeline: dlt.Pipeline):
     ],
     indirect=["pipeline"],
 )
-def test_get_steps_data_and_status(
+def testget_steps_data_and_status(
     pipeline: dlt.Pipeline,
     expected_steps: Set[TVisualPipelineStep],
     expected_status: TPipelineRunStatus,
@@ -127,7 +126,7 @@ def test_get_steps_data_and_status(
     """Test getting steps data and the pipeline execution status from trace"""
     trace = pipeline.last_trace
 
-    steps_data, status = _get_steps_data_and_status(trace.steps)
+    steps_data, status = get_steps_data_and_status(trace.steps)
     assert len(steps_data) == len(expected_steps)
     assert status == expected_status
 

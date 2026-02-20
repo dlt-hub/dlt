@@ -3,14 +3,14 @@ import dlt
 import marimo as mo
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils import (
+from dlt._workspace.helpers.dashboard.utils.trace import (
     trace_overview,
     trace_execution_context,
     trace_steps_overview,
     trace_resolved_config_values,
     trace_step_details,
-    sanitize_trace_for_display,
 )
+from dlt._workspace.helpers.dashboard.utils.pipeline import sanitize_trace_for_display
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
     EXTRACT_EXCEPTION_PIPELINE,

@@ -3,13 +3,12 @@ import dlt
 import re
 from typing import Set
 
-from dlt._workspace.helpers.dashboard.utils import (
+from dlt._workspace.helpers.dashboard.utils.visualization import (
     build_pipeline_execution_visualization,
-    TPipelineRunStatus,
-    TVisualPipelineStep,
-    _get_migrations_count,
-    _get_steps_data_and_status,
+    get_migrations_count,
+    get_steps_data_and_status,
 )
+from dlt._workspace.helpers.dashboard.const import TPipelineRunStatus, TVisualPipelineStep
 from tests.workspace.helpers.dashboard.example_pipelines import (
     SUCCESS_PIPELINE_DUCKDB,
     SUCCESS_PIPELINE_FILESYSTEM,
@@ -62,7 +61,7 @@ def test_build_pipeline_execution_visualization(
     )
 
     # Check for migration badge using CSS classes (not inline styles)
-    migrations_count = _get_migrations_count(trace.last_load_info) if trace.last_load_info else 0
+    migrations_count = get_migrations_count(trace.last_load_info) if trace.last_load_info else 0
     migration_badge = (
         f'<div class="status-badge status-badge-yellow"><strong>{migrations_count} dataset'
         " migration(s)</strong></div>"
@@ -72,7 +71,7 @@ def test_build_pipeline_execution_visualization(
     else:
         assert migration_badge not in html_str
 
-    steps_data, _ = _get_steps_data_and_status(trace.steps)
+    steps_data, _ = get_steps_data_and_status(trace.steps)
     for step_data in steps_data:
         duration_pattern = re.search(rf"{step_data.step.capitalize()}\s+([\d.]+)(ms|s)?", html_str)
         assert duration_pattern is not None

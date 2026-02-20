@@ -58,7 +58,7 @@ def dlt_table(
     if style:
         table_kwargs["style_cell"] = _style_cell
 
-    if freeze_column is not None and has_data:
+    if freeze_column is not None and has_data and freeze_column in data[0]:
         table_kwargs["freeze_columns_left"] = [freeze_column]
 
     if initial_selection is not None and has_data:

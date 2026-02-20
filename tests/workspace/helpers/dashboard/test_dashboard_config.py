@@ -3,7 +3,7 @@ import pytest
 import dlt
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils import (
+from dlt._workspace.helpers.dashboard.utils.pipeline import (
     get_dashboard_config_sections,
     resolve_dashboard_config,
 )

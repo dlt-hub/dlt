@@ -2,8 +2,8 @@ import marimo as mo
 import pytest
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils import (
-    pipeline_details,
+from dlt._workspace.helpers.dashboard.utils.pipeline import pipeline_details
+from dlt._workspace.helpers.dashboard.utils.queries import (
     get_query_result,
     get_row_counts,
     get_loads,

@@ -47,7 +47,7 @@ def create_table_list(
     show_row_counts: bool = False,
 ) -> List[Dict[str, Any]]:
     """Create a list of tables for the pipeline, optionally including internals, child tables, and row counts."""
-    from dlt._workspace.helpers.dashboard.utils import get_row_counts
+    from dlt._workspace.helpers.dashboard.utils.queries import get_row_counts
 
     tables = list(
         pipeline.schemas[selected_schema_name].data_tables(
@@ -70,7 +70,6 @@ def create_table_list(
     ]
     table_list.sort(key=lambda x: str(x["name"]))
     return table_list
-
 
 
 def create_column_list(

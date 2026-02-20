@@ -2,7 +2,7 @@ import pytest
 import dlt
 import pyarrow
 
-from dlt._workspace.helpers.dashboard.utils import (
+from dlt._workspace.helpers.dashboard.utils.queries import (
     get_query_result,
     get_query_result_cached,
     get_default_query_for_table,

@@ -3,11 +3,8 @@ import dlt
 import marimo as mo
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils import (
-    create_table_list,
-    get_row_counts_list,
-    create_column_list,
-)
+from dlt._workspace.helpers.dashboard.utils.schema import create_table_list, create_column_list
+from dlt._workspace.helpers.dashboard.utils.queries import get_row_counts_list
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
     PIPELINES_WITH_LOAD,

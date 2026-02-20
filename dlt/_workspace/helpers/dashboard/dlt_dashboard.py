@@ -21,7 +21,9 @@ with app.setup:
     import pyarrow
     import traceback
     from dlt.common import logger
-    from dlt._workspace.helpers.dashboard import strings, utils
+    from dlt._workspace.helpers.dashboard import strings
+    from dlt._workspace.helpers.dashboard import utils
+
     from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
     from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
     from dlt._workspace.run_context import switch_profile
@@ -103,7 +105,7 @@ def render_workspace_home(
                 [
                     mo.md(
                         strings.home_quick_start_title.format(
-                            utils.build_pipeline_link_list(dlt_config, dlt_all_pipelines)
+                            utils.pipeline.build_pipeline_link_list(dlt_config, dlt_all_pipelines)
                         )
                     ),
                     dlt_pipeline_select,
@@ -171,28 +173,30 @@ def render_pipeline_home(
     _buttons.append(
         mo.ui.button(
             label="<small>Open pipeline working dir</small>",
-            on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
+            on_click=lambda _: utils.pipeline.open_local_folder(dlt_pipeline.working_dir),
         )
     )
-    if local_dir := utils.get_local_data_path(dlt_pipeline):
+    if local_dir := utils.pipeline.get_local_data_path(dlt_pipeline):
         _buttons.append(
             mo.ui.button(
                 label="<small>Open local data location</small>",
-                on_click=lambda _: utils.open_local_folder(local_dir),
+                on_click=lambda _: utils.pipeline.open_local_folder(local_dir),
             )
         )
 
     # NOTE: last_trace does not raise on broken traces
     if trace := dlt_pipeline.last_trace:
         # trace viz and run exception require last trace
-        _pipeline_execution_summary = utils.build_pipeline_execution_visualization(trace)
+        _pipeline_execution_summary = utils.visualization.build_pipeline_execution_visualization(
+            trace
+        )
         _last_load_packages_info = mo.vstack(
             [
                 mo.md(f"<small>{strings.view_load_packages_text}</small>"),
-                utils.load_package_status_labels(trace),
+                utils.visualization.load_package_status_labels(trace),
             ]
         )
-        _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
+        _pipeline_execution_exception = utils.pipeline.build_exception_section(dlt_pipeline)
 
     _stack = [
         utils.ui.section_marker(strings.home_section_name, has_content=dlt_pipeline is not None)
@@ -247,8 +251,8 @@ def home(
 
     if dlt_pipeline_name:
         try:
-            dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
-            dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
+            dlt_pipeline = utils.pipeline.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
+            dlt_config = utils.pipeline.resolve_dashboard_config(dlt_pipeline)
         except Exception:
             # render navigation and display error
             _stack = render_pipeline_header_row(
@@ -281,7 +285,7 @@ def home(
                 ]
     else:
         try:
-            dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
+            dlt_config = utils.pipeline.resolve_dashboard_config(dlt_pipeline)
             is_workspace_dashboard = not dlt_pipeline and not dlt_pipeline_name
             if is_workspace_dashboard:
                 _stack = render_workspace_home(
@@ -326,7 +330,9 @@ def section_info(
 
     if _show:
         _result += [
-            utils.ui.dlt_table(utils.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir)),
+            utils.ui.dlt_table(
+                utils.pipeline.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir)
+            ),
         ]
         _result.append(
             utils.ui.build_title_and_subtitle(
@@ -337,7 +343,7 @@ def section_info(
             mo.accordion(
                 {
                     strings.overview_remote_state_button: utils.ui.dlt_table(
-                        utils.remote_state_details(dlt_pipeline),
+                        utils.pipeline.remote_state_details(dlt_pipeline),
                     )
                 },
                 lazy=True,
@@ -604,8 +610,8 @@ def section_data_quality_raw_table(
                     _raw_sql_query = dq.read_check(dlt_pipeline.dataset())
 
                     # Execute query
-                    _raw_query_result, _error_message, _traceback_string = utils.get_query_result(
-                        dlt_pipeline, _raw_sql_query.to_sql()
+                    _raw_query_result, _error_message, _traceback_string = (
+                        utils.queries.get_query_result(dlt_pipeline, _raw_sql_query.to_sql())
                     )
                     dlt_set_last_query_result(_raw_query_result)
                 except Exception as exc:
@@ -739,15 +745,19 @@ def section_browse_data_table_list(
                     )
                 )
 
-            _sql_query, _error_message, _traceback_string = utils.get_default_query_for_table(
+            _sql_query, _error_message, _traceback_string = (
+                utils.queries.get_default_query_for_table(
+                    dlt_pipeline,
+                    dlt_selected_schema_name,
+                    _table_name,
+                    dlt_restrict_to_last_1000.value,
+                )
+            )
+        _placeholder, _error_message, _traceback_string = (
+            utils.queries.get_example_query_for_dataset(
                 dlt_pipeline,
                 dlt_selected_schema_name,
-                _table_name,
-                dlt_restrict_to_last_1000.value,
             )
-        _placeholder, _error_message, _traceback_string = utils.get_example_query_for_dataset(
-            dlt_pipeline,
-            dlt_selected_schema_name,
         )
 
         if _error_message:
@@ -822,9 +832,9 @@ def section_browse_data_query_result(
         with mo.status.spinner(title=strings.browse_data_loading_spinner_text):
             if dlt_query_editor.value and (dlt_run_query_button.value):
                 if dlt_clear_query_cache.value:
-                    utils.clear_query_cache(dlt_pipeline)
+                    utils.queries.clear_query_cache(dlt_pipeline)
                 dlt_query = dlt_query_editor.value
-                _query_result, _error_message, _traceback_string = utils.get_query_result(
+                _query_result, _error_message, _traceback_string = utils.queries.get_query_result(
                     dlt_pipeline, dlt_query
                 )
                 dlt_set_last_query_result(_query_result)
@@ -890,7 +900,7 @@ def section_browse_data_query_history(
 
         for _r in dlt_query_history_table.value:  # type: ignore[unused-ignore,union-attr]
             _query = _r["query"]  # type: ignore[unused-ignore,index]
-            _q_result = utils.get_query_result(dlt_pipeline, _query)
+            _q_result = utils.queries.get_query_result(dlt_pipeline, _query)
             _result.append(mo.md(f"<small>```{_query}```</small>"))
             _result.append(utils.ui.dlt_table(_q_result, freeze_column=None))
     mo.vstack(_result) if _result else None
@@ -946,7 +956,7 @@ def section_trace(
 
     if _show:
         try:
-            if _exception_section := utils.build_exception_section(dlt_pipeline):
+            if _exception_section := utils.pipeline.build_exception_section(dlt_pipeline):
                 _result.extend(_exception_section)
             dlt_trace = dlt_pipeline.last_trace
             if not dlt_trace:
@@ -963,7 +973,9 @@ def section_trace(
                         title_level=3,
                     )
                 )
-                _result.append(utils.ui.dlt_table(utils.trace_overview(dlt_config, dlt_trace)))
+                _result.append(
+                    utils.ui.dlt_table(utils.trace.trace_overview(dlt_config, dlt_trace))
+                )
                 _result.append(
                     utils.ui.build_title_and_subtitle(
                         strings.trace_execution_context_title,
@@ -972,7 +984,7 @@ def section_trace(
                     )
                 )
                 _result.append(
-                    utils.ui.dlt_table(utils.trace_execution_context(dlt_config, dlt_trace))
+                    utils.ui.dlt_table(utils.trace.trace_execution_context(dlt_config, dlt_trace))
                 )
                 _result.append(
                     utils.ui.build_title_and_subtitle(
@@ -990,7 +1002,7 @@ def section_trace(
                             title_level=3,
                         )
                     )
-                    _result += utils.trace_step_details(dlt_config, dlt_trace, step_id)
+                    _result += utils.trace.trace_step_details(dlt_config, dlt_trace, step_id)
 
                 # config values
                 _result.append(
@@ -1001,7 +1013,9 @@ def section_trace(
                     )
                 )
                 _result.append(
-                    utils.ui.dlt_table(utils.trace_resolved_config_values(dlt_config, dlt_trace))
+                    utils.ui.dlt_table(
+                        utils.trace.trace_resolved_config_values(dlt_config, dlt_trace)
+                    )
                 )
                 _result.append(
                     utils.ui.build_title_and_subtitle(
@@ -1013,7 +1027,7 @@ def section_trace(
                     mo.accordion(
                         {
                             strings.trace_show_raw_trace_text: mo.json(
-                                utils.sanitize_trace_for_display(dlt_trace)
+                                utils.pipeline.sanitize_trace_for_display(dlt_trace)
                             )
                         }
                     )
@@ -1053,7 +1067,7 @@ def section_loads(
     if _show:
         _result.append(mo.hstack([dlt_restrict_to_last_1000], justify="start"))
         with mo.status.spinner(title=strings.loads_loading_spinner_text):
-            _loads_data, _error_message, _traceback_string = utils.get_loads(
+            _loads_data, _error_message, _traceback_string = utils.queries.get_loads(
                 dlt_config,
                 dlt_pipeline,
                 limit=1000 if dlt_restrict_to_last_1000.value else None,
@@ -1100,7 +1114,7 @@ def section_loads_results(
                 )
 
                 # prepare and sort row counts
-                _row_counts = utils.get_row_counts(dlt_pipeline, _schema, _load_id)
+                _row_counts = utils.queries.get_row_counts(dlt_pipeline, _schema, _load_id)
 
             # add row counts
             _result.append(
@@ -1187,7 +1201,7 @@ def utils_discover_pipelines(
     from dlt._workspace.cli.utils import list_local_pipelines
 
     # sync from runtime if enabled
-    _tmp_config = utils.resolve_dashboard_config(None)
+    _tmp_config = utils.pipeline.resolve_dashboard_config(None)
     if _tmp_config.sync_from_runtime:
         from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
 
@@ -1290,7 +1304,7 @@ def utils_caches_and_state(
     dlt_get_query_cache, dlt_set_query_cache = mo.state(cast(Dict[str, int], {}))
 
     if dlt_clear_query_cache.value:
-        utils.clear_query_cache(dlt_pipeline)
+        utils.queries.clear_query_cache(dlt_pipeline)
 
     return
 
@@ -1468,7 +1482,7 @@ def ui_primary_controls(
     try:
         if dlt_section_trace_switch.value and dlt_pipeline and dlt_pipeline.last_trace:
             dlt_trace_steps_table = utils.ui.dlt_table(
-                utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace),
+                utils.trace.trace_steps_overview(dlt_config, dlt_pipeline.last_trace),
                 selection="multi",
                 freeze_column="step",
             )

@@ -4,9 +4,9 @@ import marimo as mo
 from typing import cast, List, Dict, Any
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils import (
-    _get_migrations_count,
-    get_loads,
+from dlt._workspace.helpers.dashboard.utils.queries import get_loads
+from dlt._workspace.helpers.dashboard.utils.visualization import (
+    get_migrations_count,
     load_package_status_labels,
 )
 from tests.workspace.helpers.dashboard.example_pipelines import (
@@ -89,7 +89,7 @@ def test_collect_load_packages_from_trace(
         assert "pending" in str(list_of_load_package_info[0]["status"].text)
 
 
-def test_get_migrations_count(temp_pipelines_dir) -> None:
+def testget_migrations_count(temp_pipelines_dir) -> None:
     """Test getting migrations count from the pipeline's last load info"""
     import duckdb
 
@@ -97,7 +97,7 @@ def test_get_migrations_count(temp_pipelines_dir) -> None:
     try:
         pipeline = create_success_pipeline_duckdb(temp_pipelines_dir, db_conn=db_conn)
 
-        migrations_count = _get_migrations_count(pipeline.last_trace.last_load_info)
+        migrations_count = get_migrations_count(pipeline.last_trace.last_load_info)
         assert migrations_count == 1
 
         # Trigger multiple migrations
@@ -109,7 +109,7 @@ def test_get_migrations_count(temp_pipelines_dir) -> None:
         )
         pipeline.normalize()
         pipeline.load()
-        migrations_count = _get_migrations_count(pipeline.last_trace.last_load_info)
+        migrations_count = get_migrations_count(pipeline.last_trace.last_load_info)
         assert migrations_count == 3
     finally:
         db_conn.close()
