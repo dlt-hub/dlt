@@ -281,8 +281,8 @@ def test_run_jaffle_failed_run(
 
 JAFFLE_MESSAGES_INCREMENTAL: Dict[str, Any] = {
     "snowflake": {
-        # Different message per version
-        "customers": ("SUCCESS 1", "SUCCESS 100"),
+        # dbt < 1.10 returns "SUCCESS 1", dbt >= 1.10 returns actual row counts
+        "customers": ("SUCCESS 1", "SUCCESS 0", "SUCCESS 100"),
     },
     "postgres": {"customers": ("INSERT 0 100",)},
 }
