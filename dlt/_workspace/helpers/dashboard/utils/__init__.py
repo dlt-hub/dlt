@@ -1,13 +1,10 @@
 import shutil
 import functools
-from itertools import chain
-from pathlib import Path
 from typing import (
     Any,
     Dict,
     Iterable,
     List,
-    Mapping,
     Optional,
     Tuple,
     Union,
@@ -47,6 +44,14 @@ from dlt.common.utils import map_nested_keys_in_place
 
 from dlt._workspace.helpers.dashboard import ui_elements as ui
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.helpers.dashboard.utils.formatters import (
+    align_dict_keys,
+    dict_to_table_items,
+    format_exception_message,
+    format_duration,
+    humanize_datetime_values,
+    filter_empty_values,
+)
 from dlt._workspace.cli import utils as cli_utils
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 from dlt.pipeline.exceptions import PipelineConfigMissing
@@ -170,7 +175,7 @@ def pipeline_details(
         "state_version": pipeline.state["_state_version"] if pipeline.state else "No state found",
     }
 
-    table_items = _dict_to_table_items(details_dict)
+    table_items = dict_to_table_items(details_dict)
     table_items += schemas_to_table_items(pipeline.schemas.values(), pipeline.default_schema_name)
     return table_items
 
@@ -184,17 +189,17 @@ def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     try:
         remote_state = pipeline._restore_state_from_destination()
     except Exception as exc:
-        error_details = _exception_to_string(exc)
+        error_details = format_exception_message(exc)
 
     if not remote_state:
-        return _dict_to_table_items(
+        return dict_to_table_items(
             {"Info": "Could not restore state from destination", "Details": error_details}
         )
     remote_schemas = pipeline._get_schemas_from_destination(
         remote_state["schema_names"], always_download=True
     )
 
-    table_items = _dict_to_table_items({"state_version": remote_state["_state_version"]})
+    table_items = dict_to_table_items({"state_version": remote_state["_state_version"]})
     table_items += schemas_to_table_items(remote_schemas, pipeline.default_schema_name)
     return table_items
 
@@ -212,11 +217,7 @@ def create_table_list(
     show_child_tables: bool = True,
     show_row_counts: bool = False,
 ) -> List[Dict[str, Any]]:
-    """Create a list of tables for the pipeline.
-
-    Args:
-        pipeline_name (str): The name of the pipeline to create the table list for.
-    """
+    """Create a list of tables for the pipeline, optionally including internals, child tables, and row counts."""
 
     # get tables and filter as needed
     tables = list(
@@ -240,7 +241,7 @@ def create_table_list(
     ]
     table_list.sort(key=lambda x: str(x["name"]))
 
-    return _align_dict_keys(table_list)
+    return align_dict_keys(table_list)
 
 
 def create_column_list(
@@ -253,12 +254,7 @@ def create_column_list(
     show_other_hints: bool = False,
     show_custom_hints: bool = False,
 ) -> List[Dict[str, Any]]:
-    """Create a list of columns for a table.
-
-    Args:
-        pipeline_name (str): The name of the pipeline to create the column list for.
-        table_name (str): The name of the table to create the column list for.
-    """
+    """Create a list of columns for a table, with configurable hint visibility."""
     column_list: List[Dict[str, Any]] = []
     for column in (
         pipeline.schemas[selected_schema_name]
@@ -293,12 +289,13 @@ def create_column_list(
 
     if not show_internals:
         column_list = [c for c in column_list if not c["name"].lower().startswith("_dlt")]
-    return _align_dict_keys(column_list)
+    return align_dict_keys(column_list)
 
 
 def get_source_and_resource_state_for_table(
     table: TTableSchema, pipeline: dlt.Pipeline, schema_name: str
 ) -> Tuple[str, DictStrAny, DictStrAny]:
+    """Return (resource_name, source_state, resource_state) for the resource that created the given table."""
     if "resource" not in table:
         return None, {}, {}
 
@@ -330,6 +327,7 @@ def clear_query_cache(pipeline: dlt.Pipeline) -> None:
 def get_default_query_for_table(
     pipeline: dlt.Pipeline, schema_name: str, table_name: str, limit: bool
 ) -> Tuple[str, str, str]:
+    """Build a default SELECT query for a table. Returns (sql_query, error_message, traceback)."""
     try:
         _dataset = pipeline.dataset(schema=schema_name)
         _sql_query = (
@@ -339,10 +337,11 @@ def get_default_query_for_table(
         )
         return _sql_query, None, None
     except Exception as exc:
-        return "", _exception_to_string(exc), traceback.format_exc()
+        return "", format_exception_message(exc), traceback.format_exc()
 
 
 def get_example_query_for_dataset(pipeline: dlt.Pipeline, schema_name: str) -> Tuple[str, str, str]:
+    """Return an example query for the first data table in the schema. Returns (sql_query, error_message, traceback)."""
     schema = pipeline.schemas.get(schema_name)
     if schema and (tables := schema.data_tables()):
         return get_default_query_for_table(pipeline, schema_name, tables[0]["name"], True)
@@ -360,11 +359,12 @@ def get_query_result(pipeline: dlt.Pipeline, query: str) -> Tuple[pyarrow.Table,
         )
         return get_query_result_cached(pipeline, query), None, None
     except Exception as exc:
-        return pyarrow.table({}), _exception_to_string(exc), traceback.format_exc()
+        return pyarrow.table({}), format_exception_message(exc), traceback.format_exc()
 
 
 @functools.cache
 def get_query_result_cached(pipeline: dlt.Pipeline, query: str) -> pyarrow.Table:
+    """Execute a raw SQL query against the pipeline dataset and return the result as an Arrow table (cached)."""
     return pipeline.dataset()(query, _execute_raw_query=True).arrow()
 
 
@@ -425,17 +425,15 @@ def get_loads(
             loads = loads.limit(limit)
 
         loads_list = loads.arrow().to_pylist()
-        loads_list = [_humanize_datetime_values(c, load) for load in loads_list]
+        loads_list = [humanize_datetime_values(c, load) for load in loads_list]
         return loads_list, None, None
     except Exception as exc:
-        return [], _exception_to_string(exc), traceback.format_exc()
+        return [], format_exception_message(exc), traceback.format_exc()
 
 
 @functools.cache
 def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
-    """
-    Get the schema version of a pipeline.
-    """
+    """Retrieve a schema from the destination by its version hash."""
     with pipeline.destination_client() as client:
         if isinstance(client, WithStateSync):
             stored_schema = client.get_stored_schema_by_hash(version_hash)
@@ -454,8 +452,8 @@ def trace_overview(c: DashboardConfiguration, trace: PipelineTrace) -> List[Dict
     """
     Get the overview of a trace.
     """
-    return _dict_to_table_items(
-        _humanize_datetime_values(
+    return dict_to_table_items(
+        humanize_datetime_values(
             c,
             {
                 "transaction_id": trace.transaction_id,
@@ -473,7 +471,7 @@ def trace_execution_context(
     """
     Get the execution context of a trace.
     """
-    return _dict_to_table_items(dict(trace.execution_context) or {})
+    return dict_to_table_items(dict(trace.execution_context) or {})
 
 
 def trace_steps_overview(c: DashboardConfiguration, trace: PipelineTrace) -> List[Dict[str, Any]]:
@@ -487,7 +485,7 @@ def trace_steps_overview(c: DashboardConfiguration, trace: PipelineTrace) -> Lis
             continue
         # NOTE: use typing and not asdict here
         step = step_obj.asdict()
-        step = _humanize_datetime_values(c, step)
+        step = humanize_datetime_values(c, step)
         step_dict = {
             k: step[k] for k in ["step", "started_at", "finished_at", "duration"] if k in step
         }
@@ -521,8 +519,8 @@ def trace_step_details(c: DashboardConfiguration, trace: PipelineTrace, step_id:
                         title_level=4,
                     )
                 )
-                table_metrics = _align_dict_keys(info_section.get("table_metrics", []))
-                table_metrics = [_humanize_datetime_values(c, t) for t in table_metrics]
+                table_metrics = align_dict_keys(info_section.get("table_metrics", []))
+                table_metrics = [humanize_datetime_values(c, t) for t in table_metrics]
                 _result.append(
                     mo.ui.table(
                         table_metrics,
@@ -538,8 +536,8 @@ def trace_step_details(c: DashboardConfiguration, trace: PipelineTrace, step_id:
                         title_level=4,
                     )
                 )
-                job_metrics = _align_dict_keys(info_section.get("job_metrics", []))
-                job_metrics = [_humanize_datetime_values(c, j) for j in job_metrics]
+                job_metrics = align_dict_keys(info_section.get("job_metrics", []))
+                job_metrics = [humanize_datetime_values(c, j) for j in job_metrics]
                 _result.append(
                     mo.ui.table(
                         job_metrics,
@@ -689,93 +687,6 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 
 
 #
-# internal utils
-#
-
-
-def _exception_to_string(exception: Exception) -> str:
-    """Convert an exception to a string"""
-    if isinstance(exception, (PipelineConfigMissing, ConfigFieldMissingException)):
-        return "Could not connect to destination, configuration values are missing."
-    elif isinstance(exception, (SqlClientNotAvailable)):
-        return "The destination of this pipeline does not support querying data with sql."
-    elif isinstance(exception, (DestinationUndefinedEntity, DatabaseUndefinedRelation)):
-        return (
-            "Could connect to destination, but the required table or dataset does not exist in the"
-            " destination."
-        )
-    return str(exception)
-
-
-def _without_none_or_empty_string(d: Mapping[Any, Any]) -> Mapping[Any, Any]:
-    """Return a new dict with all `None` values removed"""
-    return {k: v for k, v in d.items() if v is not None and v != ""}
-
-
-def _align_dict_keys(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Makes sure all dicts have the same keys, sets "-" as default. Makes for nicer rendering in marimo table
-    """
-    items = cast(List[Dict[str, Any]], [_without_none_or_empty_string(i) for i in items])
-    all_keys = set(chain.from_iterable(i.keys() for i in items))
-    for i in items:
-        i.update({key: "-" for key in all_keys if key not in i})
-    return items
-
-
-def _humanize_datetime_values(c: DashboardConfiguration, d: Dict[str, Any]) -> Dict[str, Any]:
-    """Humanize datetime values in a dict, expects certain keys to be present as found in the trace, could be made more configurable"""
-
-    started_at = d.get("started_at", "")
-    finished_at = d.get("finished_at", "")
-    inserted_at = d.get("inserted_at", "")
-    created = d.get("created", "")
-    last_modified = d.get("last_modified", "")
-    load_id = d.get("load_id", "")
-
-    def _humanize_datetime(dt: Union[str, int]) -> str:
-        from datetime import datetime  # noqa: I251
-
-        if dt in ["", None, "-"]:
-            return "-"
-        elif isinstance(dt, datetime):
-            p = pendulum.instance(dt)
-        elif isinstance(dt, str) and dt.replace(".", "").isdigit():
-            p = pendulum.from_timestamp(float(dt))
-        elif isinstance(dt, str):
-            p = cast(pendulum.DateTime, pendulum.parse(dt))
-        elif isinstance(dt, int) or isinstance(dt, float):
-            p = pendulum.from_timestamp(dt)
-        else:
-            raise ValueError(f"Invalid datetime value: {dt}")
-        return p.format(c.datetime_format)
-
-    if started_at:
-        d["started_at"] = _humanize_datetime(started_at)
-    if finished_at:
-        d["finished_at"] = _humanize_datetime(finished_at)
-    if started_at not in ["", None, "-"] and finished_at not in ["", None, "-"]:
-        d["duration"] = (
-            f"{pendulum.instance(finished_at).diff(pendulum.instance(started_at)).in_words()}"
-        )
-    if created:
-        d["created"] = _humanize_datetime(created)
-    if last_modified:
-        d["last_modified"] = _humanize_datetime(last_modified)
-    if inserted_at:
-        d["inserted_at"] = _humanize_datetime(inserted_at)
-    if load_id:
-        d["load_package_created_at"] = _humanize_datetime(load_id)
-
-    return d
-
-
-def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Convert a dict to a list of dicts with name and value keys"""
-    return [{"name": k, "value": v} for k, v in d.items()]
-
-
-#
 # last pipeline execution helpers
 #
 
@@ -794,16 +705,6 @@ class PipelineStepData(NamedTuple):
     step: TVisualPipelineStep
     duration_ms: float
     failed: bool
-
-
-def _format_duration(ms: float) -> str:
-    """Format duration as human-readable string"""
-    if ms < 1000:
-        return f"{int(ms)}ms"
-    elif ms < 60000:
-        return f"{round(ms / 100) / 10}s"
-    else:
-        return f"{round(ms / 6000) / 10}"
 
 
 def _build_migration_badge(count: int) -> str:
@@ -844,7 +745,7 @@ def _build_pipeline_execution_html(
 
     general_info = f"""
     <div>Last execution ID: <strong>{transaction_id[:8]}</strong></div>
-    <div>Total time: <strong>{_format_duration(total_ms)}</strong></div>
+    <div>Total time: <strong>{format_duration(total_ms)}</strong></div>
     {relative_time}
     """
 
@@ -864,7 +765,7 @@ def _build_pipeline_execution_html(
         )
         labels.append(
             f'<span><span style="color:{color};">●</span> '
-            f"{step.step.capitalize()} {_format_duration(step.duration_ms)}</span>"
+            f"{step.step.capitalize()} {format_duration(step.duration_ms)}</span>"
         )
 
     # Build the whole html using CSS classes

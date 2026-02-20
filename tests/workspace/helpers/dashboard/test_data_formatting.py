@@ -2,12 +2,15 @@ from datetime import datetime
 
 from dlt.common import pendulum
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils import (
-    style_cell,
-    _without_none_or_empty_string,
-    _align_dict_keys,
-    _humanize_datetime_values,
-    _dict_to_table_items,
+from dlt._workspace.helpers.dashboard.utils import style_cell
+from dlt._workspace.helpers.dashboard.utils.formatters import (
+    filter_empty_values,
+    align_dict_keys,
+    humanize_datetime,
+    humanize_datetime_values,
+    format_duration,
+    format_exception_message,
+    dict_to_table_items,
 )
 
 
@@ -29,7 +32,65 @@ def test_style_cell():
     assert result["font-weight"] == "bold"
 
 
-def test_without_none_or_empty_string():
+def test_humanize_datetime():
+    """Test humanize_datetime with various input types"""
+    fmt = "YYYY-MM-DD HH:mm:ss Z"
+
+    # datetime object
+    dt = datetime(2023, 1, 1, 12, 0, 0)
+    assert humanize_datetime(dt, fmt) == "2023-01-01 12:00:00 +00:00"
+
+    # pendulum datetime
+    pdt = pendulum.datetime(2023, 6, 15, 10, 30, 0, tz="UTC")
+    assert humanize_datetime(pdt, fmt) == "2023-06-15 10:30:00 +00:00"
+
+    # unix timestamp as int
+    assert humanize_datetime(1672574400, fmt) == "2023-01-01 12:00:00 +00:00"
+
+    # unix timestamp as float
+    assert humanize_datetime(1672574400.0, fmt) == "2023-01-01 12:00:00 +00:00"
+
+    # numeric string timestamp
+    assert humanize_datetime("1672574400.123", fmt) == "2023-01-01 12:00:00 +00:00"
+
+    # ISO string
+    result = humanize_datetime("2023-01-01T12:00:00", fmt)
+    assert "2023-01-01" in result
+
+    # sentinel values return "-"
+    assert humanize_datetime("", fmt) == "-"
+    assert humanize_datetime(None, fmt) == "-"
+    assert humanize_datetime("-", fmt) == "-"
+
+
+def test_format_duration():
+    """Test format_duration with various ranges"""
+    # milliseconds
+    assert format_duration(0) == "0ms"
+    assert format_duration(500) == "500ms"
+    assert format_duration(999) == "999ms"
+
+    # seconds
+    assert format_duration(1000) == "1.0s"
+    assert format_duration(1500) == "1.5s"
+    assert format_duration(59999) == "60.0s"
+
+    # minutes
+    assert format_duration(60000) == "1.0m"
+    assert format_duration(120000) == "2.0m"
+    assert format_duration(90000) == "1.5m"
+
+
+def test_format_exception_message():
+    """Test format_exception_message produces user-friendly messages"""
+    # generic exception
+    assert format_exception_message(ValueError("bad value")) == "bad value"
+
+    # runtime exception preserves message
+    assert format_exception_message(RuntimeError("something broke")) == "something broke"
+
+
+def test_filter_empty_values():
     """Test removing None and empty string values"""
     input_dict = {
         "key1": "value1",
@@ -40,7 +101,7 @@ def test_without_none_or_empty_string():
         "key6": False,  # Should not be removed
     }
 
-    result = _without_none_or_empty_string(input_dict)
+    result = filter_empty_values(input_dict)
 
     expected = {
         "key1": "value1",
@@ -60,7 +121,7 @@ def test_align_dict_keys():
         {"key1": "value1", "key3": "value3"},
     ]
 
-    result = _align_dict_keys(items)
+    result = align_dict_keys(items)
 
     # All items should have all keys
     assert len(result) == 3
@@ -82,7 +143,7 @@ def test_align_dict_keys_with_none_values():
         {"key1": None, "key2": "value2"},
     ]
 
-    result = _align_dict_keys(items)
+    result = align_dict_keys(items)
 
     # None and empty values should be filtered out first
     assert len(result) == 2
@@ -109,7 +170,7 @@ def test_humanize_datetime_values():
         "numeric_field": 42,
     }
 
-    result = _humanize_datetime_values(config, input_dict)
+    result = humanize_datetime_values(config, input_dict)
 
     # Should have duration calculated
     assert "duration" in result
@@ -132,7 +193,7 @@ def test_dict_to_table_items():
         "status": "completed",
     }
 
-    result = _dict_to_table_items(input_dict)
+    result = dict_to_table_items(input_dict)
 
     expected = [
         {"name": "pipeline_name", "value": "success_pipeline"},
