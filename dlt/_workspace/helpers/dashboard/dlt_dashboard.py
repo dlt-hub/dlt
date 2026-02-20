@@ -313,20 +313,16 @@ def section_info(
     Overview page of currently selected pipeline
     """
 
-    _result = [
-        ui.section_marker(strings.overview_section_name, has_content=dlt_pipeline is not None)
-    ]
-    _result.extend(
-        ui.build_page_header(
-            dlt_pipeline,
-            strings.overview_title,
-            strings.overview_subtitle,
-            strings.overview_subtitle,
-            dlt_section_info_switch,
-        )
+    _result, _show = ui.build_section(
+        strings.overview_section_name,
+        dlt_pipeline,
+        strings.overview_title,
+        strings.overview_subtitle,
+        strings.overview_subtitle,
+        dlt_section_info_switch,
     )
 
-    if dlt_pipeline and dlt_section_info_switch.value:
+    if _show:
         _result += [
             mo.ui.table(
                 utils.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir),
@@ -374,25 +370,23 @@ def section_schema(
     Show schema of the currently selected pipeline
     """
 
-    _result = [ui.section_marker(strings.schema_section_name, has_content=dlt_pipeline is not None)]
-    _result.extend(
-        ui.build_page_header(
-            dlt_pipeline,
-            strings.schema_title,
-            strings.schema_subtitle,
-            strings.schema_subtitle_long,
-            dlt_section_schema_switch,
-        )
+    _result, _show = ui.build_section(
+        strings.schema_section_name,
+        dlt_pipeline,
+        strings.schema_title,
+        strings.schema_subtitle,
+        strings.schema_subtitle_long,
+        dlt_section_schema_switch,
     )
 
-    if dlt_pipeline and dlt_section_schema_switch.value and dlt_schema_table_list is None:
+    if _show and dlt_schema_table_list is None:
         _result.append(
             mo.callout(
                 mo.md(strings.schema_no_default_available_text),
                 kind="warn",
             )
         )
-    elif dlt_pipeline and dlt_section_schema_switch.value:
+    elif _show:
         # build table overview
         _result.append(
             mo.hstack(
@@ -450,7 +444,7 @@ def section_schema(
                 }
             )
         )
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return
 
 
@@ -512,21 +506,15 @@ def section_data_quality(
     if not detect_dlt_hub():
         _result = None
     else:
-        _result = [
-            ui.section_marker(
-                strings.data_quality_section_name, has_content=dlt_pipeline is not None
-            )
-        ]
-        _result.extend(
-            ui.build_page_header(
-                dlt_pipeline,
-                strings.data_quality_title,
-                strings.data_quality_subtitle,
-                strings.data_quality_subtitle,
-                dlt_section_data_quality_switch,
-            )
+        _result, _show = ui.build_section(
+            strings.data_quality_section_name,
+            dlt_pipeline,
+            strings.data_quality_title,
+            strings.data_quality_subtitle,
+            strings.data_quality_subtitle,
+            dlt_section_data_quality_switch,
         )
-        if dlt_pipeline and dlt_section_data_quality_switch.value:
+        if _show:
             try:
                 # Import the widget function from the dashboard module
                 from dlthub.data_quality._dashboard import data_quality_widget
@@ -683,21 +671,17 @@ def section_browse_data_table_list(
     Show data of the currently selected pipeline
     """
 
-    _result = [
-        ui.section_marker(strings.browse_data_section_name, has_content=dlt_pipeline is not None)
-    ]
-    _result.extend(
-        ui.build_page_header(
-            dlt_pipeline,
-            strings.browse_data_title,
-            strings.browse_data_subtitle,
-            strings.browse_data_subtitle_long,
-            dlt_section_browse_data_switch,
-        )
+    _result, _show = ui.build_section(
+        strings.browse_data_section_name,
+        dlt_pipeline,
+        strings.browse_data_title,
+        strings.browse_data_subtitle,
+        strings.browse_data_subtitle_long,
+        dlt_section_browse_data_switch,
     )
 
     dlt_query_editor: mo.ui.code_editor = None
-    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list is not None:
+    if _show and dlt_data_table_list is not None:
         _result.append(
             mo.hstack(
                 [
@@ -809,10 +793,10 @@ def section_browse_data_table_list(
             _result.append(
                 mo.hstack([dlt_run_query_button, dlt_clear_query_cache], justify="start")
             )
-    elif dlt_pipeline and dlt_section_browse_data_switch.value:
+    elif _show:
         # here we also use the no schemas text, as it is appropriate for the case where we have no table information.
         _result.append(ui.build_error_callout(strings.schema_no_default_available_text))
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return dlt_query_editor, dlt_run_query_button
 
 
@@ -930,24 +914,22 @@ def section_state(
     """
     Show state of the currently selected pipeline
     """
-    _result = [ui.section_marker(strings.state_section_name, has_content=dlt_pipeline is not None)]
-    _result.extend(
-        ui.build_page_header(
-            dlt_pipeline,
-            strings.state_title,
-            strings.state_subtitle,
-            strings.state_subtitle,
-            dlt_section_state_switch,
-        )
+    _result, _show = ui.build_section(
+        strings.state_section_name,
+        dlt_pipeline,
+        strings.state_title,
+        strings.state_subtitle,
+        strings.state_subtitle,
+        dlt_section_state_switch,
     )
 
-    if dlt_pipeline and dlt_section_state_switch.value:
+    if _show:
         _result.append(
             mo.json(
                 dlt_pipeline.state,  # type: ignore[arg-type]
             ),
         )
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return
 
 
@@ -962,18 +944,16 @@ def section_trace(
     Show last trace of the currently selected pipeline
     """
 
-    _result = [ui.section_marker(strings.trace_section_name, has_content=dlt_pipeline is not None)]
-    _result.extend(
-        ui.build_page_header(
-            dlt_pipeline,
-            strings.trace_title,
-            strings.trace_subtitle,
-            strings.trace_subtitle,
-            dlt_section_trace_switch,
-        )
+    _result, _show = ui.build_section(
+        strings.trace_section_name,
+        dlt_pipeline,
+        strings.trace_title,
+        strings.trace_subtitle,
+        strings.trace_subtitle,
+        dlt_section_trace_switch,
     )
 
-    if dlt_pipeline and dlt_section_trace_switch.value:
+    if _show:
         try:
             if _exception_section := utils.build_exception_section(dlt_pipeline):
                 _result.extend(_exception_section)
@@ -1060,7 +1040,7 @@ def section_trace(
                     traceback_string=traceback.format_exc(),
                 )
             )
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return
 
 
@@ -1076,18 +1056,16 @@ def section_loads(
     Show loads of the currently selected pipeline
     """
 
-    _result = [ui.section_marker(strings.loads_section_name, has_content=dlt_pipeline is not None)]
-    _result.extend(
-        ui.build_page_header(
-            dlt_pipeline,
-            strings.loads_title,
-            strings.loads_subtitle,
-            strings.loads_subtitle_long,
-            dlt_section_loads_switch,
-        )
+    _result, _show = ui.build_section(
+        strings.loads_section_name,
+        dlt_pipeline,
+        strings.loads_title,
+        strings.loads_subtitle,
+        strings.loads_subtitle_long,
+        dlt_section_loads_switch,
     )
 
-    if dlt_pipeline and dlt_section_loads_switch.value:
+    if _show:
         _result.append(mo.hstack([dlt_restrict_to_last_1000], justify="start"))
         with mo.status.spinner(title=strings.loads_loading_spinner_text):
             _loads_data, _error_message, _traceback_string = utils.get_loads(
@@ -1105,7 +1083,7 @@ def section_loads(
                 )
             _result.append(dlt_loads_table)
             _result.append(dlt_clear_query_cache)
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return (dlt_loads_table,)
 
 
@@ -1189,20 +1167,16 @@ def section_ibis_backend(
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
-    _result = [
-        ui.section_marker(strings.ibis_backend_section_name, has_content=dlt_pipeline is not None)
-    ]
-    _result.extend(
-        ui.build_page_header(
-            dlt_pipeline,
-            strings.ibis_backend_title,
-            strings.ibis_backend_subtitle,
-            strings.ibis_backend_subtitle,
-            dlt_section_ibis_browser_switch,
-        )
+    _result, _show = ui.build_section(
+        strings.ibis_backend_section_name,
+        dlt_pipeline,
+        strings.ibis_backend_title,
+        strings.ibis_backend_subtitle,
+        strings.ibis_backend_subtitle,
+        dlt_section_ibis_browser_switch,
     )
 
-    if dlt_pipeline and dlt_section_ibis_browser_switch.value:
+    if _show:
         try:
             with mo.status.spinner(title=strings.ibis_backend_connecting_spinner_text):
                 con = dlt_pipeline.dataset().ibis(read_only=True)
@@ -1211,7 +1185,7 @@ def section_ibis_backend(
             )
         except Exception as exc:
             _result.append(ui.build_error_callout(strings.ibis_backend_error_text + str(exc)))
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return
 
 

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List, Tuple
 from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 
 import dlt
@@ -93,3 +93,23 @@ def section_marker(section_name: str, has_content: bool = False) -> mo.Html:
     return mo.Html(
         f'<div class="section-marker {content_class}" data-section="{section_name}" hidden"></div>'
     )
+
+
+def build_section(
+    section_name: str,
+    dlt_pipeline: dlt.Pipeline,
+    title: str,
+    subtitle: str,
+    subtitle_long: str,
+    switch: Any,
+) -> Tuple[List[Any], bool]:
+    """Build standard section boilerplate: marker + page header.
+
+    Returns:
+        Tuple of (result list, should_render_content). The list already
+        contains the section marker and header.  Append content only when
+        should_render_content is True, then call ``mo.vstack(result)``.
+    """
+    result = [section_marker(section_name, has_content=dlt_pipeline is not None)]
+    result.extend(build_page_header(dlt_pipeline, title, subtitle, subtitle_long, switch))
+    return result, bool(dlt_pipeline and switch.value)
