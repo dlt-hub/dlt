@@ -898,9 +898,12 @@ def section_browse_data_query_history(
 
         for _r in dlt_query_history_table.value:  # type: ignore[unused-ignore,union-attr]
             _query = _r["query"]  # type: ignore[unused-ignore,index]
-            _q_result = utils.queries.get_query_result(dlt_pipeline, _query)
+            _q_result, _q_error, _q_traceback = utils.queries.get_query_result(dlt_pipeline, _query)
             _result.append(mo.md(f"<small>```{_query}```</small>"))
-            _result.append(utils.ui.dlt_table(_q_result, freeze_column=None))
+            if _q_error:
+                _result.append(utils.ui.error_callout(_q_error, traceback_string=_q_traceback))
+            else:
+                _result.append(utils.ui.dlt_table(_q_result, freeze_column=None))
     mo.vstack(_result) if _result else None
     return
 
@@ -1102,7 +1105,7 @@ def section_loads_results(
         and dlt_loads_table.value
     ):
         _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore[unused-ignore,index]
-        _schema = dlt_loads_table.value[0]["schema_name"]  # type: ignore[unused-ignore,index]
+        _schema_name = dlt_loads_table.value[0]["schema_name"]  # type: ignore[unused-ignore,index]
         _result.append(mo.md(strings.loads_details_title.format(_load_id)))
 
         try:
@@ -1112,7 +1115,7 @@ def section_loads_results(
                 )
 
                 # prepare and sort row counts
-                _row_counts = utils.queries.get_row_counts(dlt_pipeline, _schema, _load_id)
+                _row_counts = utils.queries.get_row_counts(dlt_pipeline, _schema_name, _load_id)
 
             # add row counts
             _result.append(

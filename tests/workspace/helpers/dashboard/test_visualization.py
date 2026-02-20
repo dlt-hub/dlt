@@ -46,9 +46,7 @@ def test_pipeline_execution_visualization(
     assert 'class="pipeline-execution-badges"' in html_str
 
     assert f"Last execution ID: <strong>{trace.transaction_id[:8]}</strong>" in html_str
-    total_time_match = re.search(
-        r"<div>Total time: <strong>([\d.]+)(ms|s)?</strong></div>", html_str
-    )
+    total_time_match = re.search(r"Total time: <strong>([\d.]+)(ms|s)?</strong>", html_str)
     assert total_time_match is not None
 
     # Check for status badge using CSS classes (not inline styles)
@@ -73,7 +71,9 @@ def test_pipeline_execution_visualization(
 
     steps_data, _ = get_steps_data_and_status(trace.steps)
     for step_data in steps_data:
-        duration_pattern = re.search(rf"{step_data.step.capitalize()}\s+([\d.]+)(ms|s)?", html_str)
+        duration_pattern = re.search(
+            rf"{step_data.step.capitalize()}\s+(?:<strong>)?([\d.]+)(ms|s)?", html_str
+        )
         assert duration_pattern is not None
 
     if "extract" in expected_steps:

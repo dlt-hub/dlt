@@ -4,7 +4,6 @@ from typing import Any, Dict, List
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.formatters import (
-    align_dict_keys,
     dict_to_table_items,
     humanize_datetime_values,
 )

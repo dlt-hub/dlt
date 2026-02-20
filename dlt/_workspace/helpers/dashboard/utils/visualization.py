@@ -29,21 +29,21 @@ class PipelineStepData(NamedTuple):
     failed: bool
 
 
+def badge_html(text: str, color: str, size: str = "small") -> str:
+    """Build a colored badge HTML element."""
+    return f'<div class="status-badge status-badge-{color}"><{size}>{text}</{size}></div>'
+
+
 def migration_badge(count: int) -> str:
     """Build migration badge HTML using CSS classes."""
     if count == 0:
         return ""
-    return (
-        '<div class="status-badge status-badge-yellow">'
-        f"<strong>{count} dataset migration(s)</strong>"
-        "</div>"
-    )
+    return badge_html(f"{count} dataset migration(s)", "yellow", "strong")
 
 
 def status_badge(status: TPipelineRunStatus) -> str:
     """Build status badge HTML using CSS classes."""
-    badge_class = "status-badge-green" if status == "succeeded" else "status-badge-red"
-    return f'<div class="status-badge {badge_class}"><strong>{status}</strong></div>'
+    return badge_html(status, "green" if status == "succeeded" else "red", "strong")
 
 
 def pipeline_execution_html(
@@ -55,17 +55,19 @@ def pipeline_execution_html(
 ) -> mo.Html:
     """Build an HTML visualization for a pipeline execution using CSS classes."""
     total_ms = sum(step.duration_ms for step in steps_data)
+    if total_ms == 0:
+        total_ms = 1.0  # avoid division by zero when all steps complete instantly
     last = len(steps_data) - 1
 
     # Build the general info of the execution
     relative_time = ""
     if finished_at:
         time_ago = pendulum.instance(finished_at).diff_for_humans()
-        relative_time = f"<div>Executed: <strong>{time_ago}</strong></div>"
+        relative_time = f"<div><small>Executed: <strong>{time_ago}</strong></small></div>"
 
     general_info = f"""
-    <div>Last execution ID: <strong>{transaction_id[:8]}</strong></div>
-    <div>Total time: <strong>{format_duration(total_ms)}</strong></div>
+    <div><small>Last execution ID: <strong>{transaction_id[:8]}</strong></small></div>
+    <div><small>Total time: <strong>{format_duration(total_ms)}</strong></small></div>
     {relative_time}
     """
 
@@ -85,7 +87,7 @@ def pipeline_execution_html(
         )
         labels.append(
             f'<span><span style="color:{color};">●</span> '
-            f"{step.step.capitalize()} {format_duration(step.duration_ms)}</span>"
+            f"{step.step.capitalize()} <strong>{format_duration(step.duration_ms)}</strong> </span>"
         )
 
     html = f"""
@@ -94,7 +96,7 @@ def pipeline_execution_html(
         <div class="pipeline-execution-layout">
 
             <!-- LEFT COLUMN: Run ID, Total time -->
-            <div class="pipeline-execution-info">
+            <div class="pipeline-execution-info paragraph">
                 {general_info}
             </div>
 
@@ -206,10 +208,7 @@ def load_package_status_labels(trace: PipelineTrace) -> mo.ui.table:
         else:
             badge_text = package.state
 
-        status_html = (
-            '<div class="status-badge'
-            f' status-badge-{badge_color_key}"><strong>{badge_text}</strong></div>'
-        )
+        status_html = badge_html(badge_text, badge_color_key, "small")
         result.append(
             {
                 "load_id": package.load_id,

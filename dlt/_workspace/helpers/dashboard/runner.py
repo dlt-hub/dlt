@@ -114,7 +114,7 @@ def run_dashboard_command(
         css_file_path = Path(files("dlt._workspace.helpers.dashboard") / STYLE_FILE_NAME)  # type: ignore
         with open(css_file_path, "r", encoding="utf-8") as f:
             css_content = f.read()
-        with open(os.path.join(os.getcwd(), ejected_css_path), "w", encoding="utf-8") as f:
+        with open(ejected_css_path, "w", encoding="utf-8") as f:
             f.write(css_content)
         ejected_app_exists = True
 
@@ -139,17 +139,15 @@ def run_dashboard_command(
     if headless:
         dashboard_cmd.append("--headless")
 
+    # collect marimo app CLI args (after the "--" separator)
+    app_args: List[str] = []
     if pipeline_name:
-        dashboard_cmd.append("--")
-        dashboard_cmd.append("--pipeline")
-        dashboard_cmd.append(pipeline_name)
+        app_args += ["--pipeline", pipeline_name]
     if pipelines_dir:
-        dashboard_cmd.append("--")
-        dashboard_cmd.append("--pipelines-dir")
-        dashboard_cmd.append(pipelines_dir)
+        app_args += ["--pipelines-dir", pipelines_dir]
     if with_test_identifiers:
-        dashboard_cmd.append("--")
-        dashboard_cmd.append("--with_test_identifiers")
-        dashboard_cmd.append("true")
+        app_args += ["--with_test_identifiers", "true"]
+    if app_args:
+        dashboard_cmd += ["--"] + app_args
 
     return dashboard_cmd
