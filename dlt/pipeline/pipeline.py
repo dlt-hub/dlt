@@ -295,7 +295,8 @@ class Pipeline(SupportsPipeline):
     # default_schema_name: str
     schema_names: List[str]
     dev_mode: bool
-    must_attach_to_local_pipeline: bool
+    attached_pipeline: bool
+    """Pipeline got attached to existing working dir"""
     pipelines_dir: str
     """A directory where the pipelines' working directories are created"""
     _destination: AnyDestination
@@ -354,11 +355,19 @@ class Pipeline(SupportsPipeline):
         self._init_working_dir(pipeline_name, pipelines_dir)
 
         with self.managed_state() as state:
-            self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
+            self._configure(
+                import_schema_path,
+                export_schema_path,
+                must_attach_to_local_pipeline,
+                managed_state=state,
+            )
             # changing the destination could be dangerous if pipeline has pending load packages
             self._set_destinations(destination=destination, staging=staging, initializing=True)
             # set the pipeline properties from state, destination and staging will not be set
             self._state_to_props(state)
+            # restore dev_mode flag from state when attaching
+            if must_attach_to_local_pipeline:
+                self.dev_mode = state["_local"].get("_dev_mode", False)
             # TODO: compare run_context with last_run_context restored from props. warn on changed uri
             # we overwrite the state with the values from init
             self._set_dataset_name(dataset_name)
@@ -719,15 +728,7 @@ class Pipeline(SupportsPipeline):
         self._set_dataset_name(dataset_name)
 
         # sync state with destination
-        if (
-            self.config.restore_from_destination
-            and not self.dev_mode
-            and not self._state_restored
-            and (self._destination or destination)
-        ):
-            self._sync_destination(destination, staging, dataset_name)
-            # sync only once
-            self._state_restored = True
+        self._maybe_sync_destination(destination, staging, dataset_name)
 
         if self.has_pending_data:
             if data is not None:
@@ -785,6 +786,22 @@ class Pipeline(SupportsPipeline):
         )
 
     @with_schemas_sync
+    def _maybe_sync_destination(
+        self,
+        destination: TDestinationReferenceArg = None,
+        staging: TDestinationReferenceArg = None,
+        dataset_name: str = None,
+    ) -> None:
+        """Syncs state and schemas from destination if not yet done and conditions are met."""
+        if (
+            self.config.restore_from_destination
+            and not self.dev_mode
+            and not self._state_restored
+            and (self._destination or destination)
+        ):
+            self._sync_destination(destination, staging, dataset_name)
+            self._state_restored = True
+
     def _sync_destination(
         self,
         destination: TDestinationReferenceArg = None,
@@ -1246,7 +1263,11 @@ class Pipeline(SupportsPipeline):
             self._wipe_working_folder()
 
     def _configure(
-        self, import_schema_path: str, export_schema_path: str, must_attach_to_local_pipeline: bool
+        self,
+        import_schema_path: str,
+        export_schema_path: str,
+        attach_pipeline: bool,
+        managed_state: Optional[TPipelineState] = None,
     ) -> None:
         # create schema storage and folders
         self._schema_storage_config = SchemaStorageConfiguration(
@@ -1260,20 +1281,39 @@ class Pipeline(SupportsPipeline):
 
         # are we running again?
         has_state = self._pipeline_storage.has_file(Pipeline.STATE_FILE)
-        if must_attach_to_local_pipeline and not has_state:
+        if attach_pipeline and not has_state:
             raise CannotRestorePipelineException(
                 self.pipeline_name,
                 self.pipelines_dir,
                 f"the pipeline was not found in {self.working_dir}.",
             )
 
-        self.must_attach_to_local_pipeline = must_attach_to_local_pipeline
-        # attach to pipeline if folder exists and contains state
+        self.attached_pipeline = attach_pipeline
+
+        # detect dev->non-dev transition from already-loaded state
+        if managed_state is not None and has_state and not attach_pipeline:
+            if managed_state["_local"].get("_dev_mode", False) and not self.dev_mode:
+                logger.warning(
+                    f"Pipeline {self.pipeline_name} was previously created with"
+                    " dev_mode=True and is now being re-created with dev_mode=False."
+                    " Local pipeline state and schemas will be reset. The pipeline"
+                    " will sync state from the destination on the next run or"
+                    " dataset access."
+                )
+                managed_state.clear()  # type: ignore[attr-defined]
+                managed_state.update(default_pipeline_state())
+                has_state = False
+
+        # attach to pipeline if state exists
         if has_state:
             self._attach_pipeline()
         else:
             # this will erase the existing working folder
             self._create_pipeline()
+
+        # persist current dev_mode for future transition detection
+        if managed_state is not None and not attach_pipeline:
+            managed_state["_local"]["_dev_mode"] = self.dev_mode
 
         # create schema storage
         self._schema_storage = LiveSchemaStorage(self._schema_storage_config, makedirs=True)
@@ -1861,6 +1901,9 @@ class Pipeline(SupportsPipeline):
                 "Please provide `destination` argument to `pipeline` method"
                 " directly or via .dlt config.toml file or environment variable.",
             )
+
+        # sync state and schemas from destination if not yet done
+        self._maybe_sync_destination()
 
         schema_name = None
         if isinstance(schema, Schema):
