@@ -1,6 +1,5 @@
 """SQL query execution, row counts, and load history retrieval."""
 
-import functools
 import traceback
 from typing import Any, Dict, List, Tuple
 
@@ -23,10 +22,9 @@ from dlt._workspace.helpers.dashboard.utils.formatters import (
 from dlt._workspace.helpers.dashboard.utils.schema import get_schema_by_version
 
 
-def clear_query_cache(pipeline: dlt.Pipeline) -> None:
-    """Clear the query cache and history."""
-    get_query_result_cached.cache_clear()
-    get_schema_by_version.cache_clear()
+def clear_query_cache() -> None:
+    """Clear the cached query results."""
+    _query_result_cache.clear()
 
 
 def get_default_query_for_table(
@@ -66,15 +64,37 @@ def get_query_result(pipeline: dlt.Pipeline, query: str) -> Tuple[pyarrow.Table,
             query,
             dialect=pipeline.destination.capabilities().sqlglot_dialect,
         )
-        return get_query_result_cached(pipeline, query), None, None
+        return (
+            _execute_query_cached(pipeline.pipeline_name, pipeline.dataset_name, query, pipeline),
+            None,
+            None,
+        )
     except Exception as exc:
         return pyarrow.table({}), format_exception_message(exc), traceback.format_exc()
 
 
-@functools.cache
-def get_query_result_cached(pipeline: dlt.Pipeline, query: str) -> pyarrow.Table:
-    """Execute a raw SQL query against the pipeline dataset and return the result as an Arrow table (cached)."""
-    return pipeline.dataset()(query, _execute_raw_query=True).arrow()
+def _execute_query_cached(
+    pipeline_name: str, dataset_name: str, query: str, pipeline: dlt.Pipeline
+) -> pyarrow.Table:
+    """Execute a query, returning cached result if the same pipeline/query was seen before.
+
+    The cache is keyed on (pipeline_name, dataset_name, query) strings so that
+    results survive pipeline re-attachment across refreshes.  The pipeline object
+    is passed through for execution but is *not* part of the cache key.
+    """
+    cache_key = (pipeline_name, dataset_name, query)
+    if cache_key in _query_result_cache:
+        return _query_result_cache[cache_key]
+    result = pipeline.dataset()(query, _execute_raw_query=True).arrow()
+    # evict oldest entry when cache is full
+    if len(_query_result_cache) >= _QUERY_CACHE_MAX_SIZE:
+        _query_result_cache.pop(next(iter(_query_result_cache)))
+    _query_result_cache[cache_key] = result
+    return result
+
+
+_QUERY_CACHE_MAX_SIZE = 64
+_query_result_cache: Dict[Tuple[str, str, str], pyarrow.Table] = {}
 
 
 def get_row_counts(
@@ -145,7 +165,7 @@ def build_load_details(
     result: List[Any] = []
 
     with mo.status.spinner(title=strings.loads_details_loading_spinner_text):
-        _schema = get_schema_by_version(pipeline, version_hash)
+        _schema = get_schema_by_version(pipeline.pipeline_name, version_hash)
         _row_counts = get_row_counts(pipeline, schema_name, load_id)
 
     result.append(

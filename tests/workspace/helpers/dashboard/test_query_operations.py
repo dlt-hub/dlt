@@ -3,8 +3,8 @@ import dlt
 import pyarrow
 
 from dlt._workspace.helpers.dashboard.utils.queries import (
+    clear_query_cache,
     get_query_result,
-    get_query_result_cached,
     get_default_query_for_table,
     get_example_query_for_dataset,
 )
@@ -17,8 +17,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
 @pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
 def test_get_query_result(pipeline: dlt.Pipeline):
     """Test getting query result from real pipeline"""
-    # Clear cache first
-    get_query_result_cached.cache_clear()
+    clear_query_cache()
 
     result, error_message, traceback_string = get_query_result(
         pipeline, "SELECT COUNT(*) as count FROM purchases"

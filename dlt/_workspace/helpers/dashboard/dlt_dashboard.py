@@ -13,7 +13,7 @@ app = marimo.App(
 )
 
 with app.setup:
-    from typing import Any, Dict, List, cast, Union
+    from typing import Any, Dict, List, cast
 
     import marimo as mo
 
@@ -29,73 +29,6 @@ with app.setup:
     from dlt._workspace.run_context import switch_profile
 
 
-@app.function
-def header_controls(dlt_profile_select: mo.ui.dropdown) -> Union[List[Any], None]:
-    """Build profile-related header controls if profiles are enabled."""
-    return utils.home.header_controls(dlt_profile_select)
-
-
-@app.function(hide_code=True)
-def detect_dlt_hub():
-    return utils.home.detect_dlt_hub()
-
-
-@app.function
-def home_header_row(
-    dlt_profile_select: mo.ui.dropdown,
-    dlt_pipeline_select: mo.ui.multiselect,
-) -> Any:
-    """Shared header row with logo, profile/workspace info and pipeline select."""
-    return utils.home.home_header_row(dlt_profile_select, dlt_pipeline_select)
-
-
-@app.function
-def render_workspace_home(
-    dlt_profile_select: mo.ui.dropdown,
-    dlt_all_pipelines: List[Dict[str, Any]],
-    dlt_pipeline_select: mo.ui.multiselect,
-    dlt_pipelines_dir: str,
-    dlt_config: DashboardConfiguration,
-) -> List[Any]:
-    """Render the workspace-level home view (no pipeline selected)."""
-    return utils.home.render_workspace_home(
-        dlt_profile_select, dlt_all_pipelines, dlt_pipeline_select, dlt_pipelines_dir, dlt_config
-    )
-
-
-@app.function
-def render_pipeline_header_row(
-    dlt_pipeline_name: str,
-    dlt_profile_select: mo.ui.dropdown,
-    dlt_pipeline_select: mo.ui.multiselect,
-    buttons: List[Any],
-) -> List[Any]:
-    """Render the pipeline header row with logo, title, and action buttons."""
-    return utils.home.render_pipeline_header_row(
-        dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, buttons
-    )
-
-
-@app.function
-def render_pipeline_home(
-    dlt_profile_select: mo.ui.dropdown,
-    dlt_pipeline: dlt.Pipeline,
-    dlt_pipeline_select: mo.ui.multiselect,
-    dlt_pipelines_dir: str,
-    dlt_refresh_button: mo.ui.run_button,
-    dlt_pipeline_name: str,
-) -> List[Any]:
-    """Render the pipeline-level home view (pipeline selected or requested)."""
-    return utils.home.render_pipeline_home(
-        dlt_profile_select,
-        dlt_pipeline,
-        dlt_pipeline_select,
-        dlt_pipelines_dir,
-        dlt_refresh_button,
-        dlt_pipeline_name,
-    )
-
-
 @app.cell(hide_code=True)
 def home(
     dlt_profile_select: mo.ui.dropdown,
@@ -106,9 +39,7 @@ def home(
     dlt_pipeline_name: str,
     dlt_file_watcher: Any,
 ):
-    """
-    Displays the welcome page with the pipeline select widget, will only display pipeline title if a pipeline is selected
-    """
+    """Displays the welcome page or pipeline dashboard depending on selection."""
 
     # NOTE: keep these two lines for refreshing
     dlt_refresh_button
@@ -117,14 +48,14 @@ def home(
     # returned by cell
     dlt_pipeline: dlt.Pipeline = None
     dlt_config: DashboardConfiguration = None
+    _stack: List[Any] = []
 
     if dlt_pipeline_name:
         try:
             dlt_pipeline = utils.pipeline.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
             dlt_config = utils.pipeline.resolve_dashboard_config(dlt_pipeline)
         except Exception:
-            # render navigation and display error
-            _stack = render_pipeline_header_row(
+            _stack = utils.home.render_pipeline_header_row(
                 dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, [dlt_refresh_button]
             )
             _stack.append(
@@ -133,10 +64,10 @@ def home(
                     traceback_string=traceback.format_exc(),
                 )
             )
-        else:
-            # pipeline exists, render full dashboard
+
+        if dlt_pipeline:
             try:
-                _stack = render_pipeline_home(
+                _stack = utils.home.render_pipeline_home(
                     dlt_profile_select,
                     dlt_pipeline,
                     dlt_pipeline_select,
@@ -154,16 +85,14 @@ def home(
                 ]
     else:
         try:
-            dlt_config = utils.pipeline.resolve_dashboard_config(dlt_pipeline)
-            is_workspace_dashboard = not dlt_pipeline and not dlt_pipeline_name
-            if is_workspace_dashboard:
-                _stack = render_workspace_home(
-                    dlt_profile_select,
-                    dlt_all_pipelines,
-                    dlt_pipeline_select,
-                    dlt_pipelines_dir,
-                    dlt_config,
-                )
+            dlt_config = utils.pipeline.resolve_dashboard_config(None)
+            _stack = utils.home.render_workspace_home(
+                dlt_profile_select,
+                dlt_all_pipelines,
+                dlt_pipeline_select,
+                dlt_pipelines_dir,
+                dlt_config,
+            )
         except Exception:
             _stack = [
                 utils.ui.error_callout(
@@ -323,7 +252,7 @@ def ui_data_quality_controls(
     dlt_data_quality_rate_filter: mo.ui.slider = None
     dlt_data_quality_checks_arrow = None
 
-    if detect_dlt_hub() and dlt_pipeline:
+    if utils.home.detect_dlt_hub() and dlt_pipeline:
         (
             dlt_data_quality_show_failed_filter,
             dlt_data_quality_table_filter,
@@ -349,8 +278,9 @@ def section_data_quality(
     dlt_data_quality_checks_arrow,
 ):
     """Show data quality of the currently selected pipeline (only if dlt.hub is installed)."""
-    if not detect_dlt_hub():
-        _result = None
+    dlt_data_quality_show_raw_table_switch = None
+    if not utils.home.detect_dlt_hub():
+        _result: List[Any] = []
     else:
         _result, _show = utils.ui.section(
             strings.data_quality_section_name,
@@ -373,7 +303,7 @@ def section_data_quality(
             _result.extend(_dq_widgets)
         else:
             dlt_data_quality_show_raw_table_switch = None
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return dlt_data_quality_show_raw_table_switch
 
 
@@ -397,7 +327,7 @@ def section_data_quality_raw_table(
         _result = utils.data_quality.build_dq_raw_table(
             dlt_pipeline, dlt_get_last_query_result, dlt_set_last_query_result
         )
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return
 
 
@@ -428,6 +358,7 @@ def section_browse_data_table_list(
     )
 
     dlt_query_editor: mo.ui.code_editor = None
+    dlt_run_query_button: mo.ui.run_button = None
     if _show and dlt_data_table_list is not None:
         _result.append(
             mo.hstack(
@@ -482,7 +413,7 @@ def section_browse_data_table_list(
                 debounce=True,
             )
 
-            dlt_run_query_button: mo.ui.run_button = mo.ui.run_button(
+            dlt_run_query_button = mo.ui.run_button(
                 label=utils.ui.small(strings.browse_data_run_query_button),
                 tooltip=strings.browse_data_run_query_tooltip,
             )
@@ -539,7 +470,7 @@ def section_browse_data_query_result(
         with mo.status.spinner(title=strings.browse_data_loading_spinner_text):
             if dlt_query_editor.value and (dlt_run_query_button.value):
                 if dlt_clear_query_cache.value:
-                    utils.queries.clear_query_cache(dlt_pipeline)
+                    utils.queries.clear_query_cache()
                 dlt_query = dlt_query_editor.value
                 _query_result, _error_message, _traceback_string = utils.queries.get_query_result(
                     dlt_pipeline, dlt_query
@@ -578,7 +509,7 @@ def section_browse_data_query_result(
             selection="multi",
             freeze_column=None,
         )
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return dlt_query_history_table
 
 
@@ -613,7 +544,7 @@ def section_browse_data_query_history(
                 _result.append(utils.ui.error_callout(_q_error, traceback_string=_q_traceback))
             else:
                 _result.append(utils.ui.dlt_table(_q_result, freeze_column=None))
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return
 
 
@@ -753,7 +684,7 @@ def section_loads_results(
             )
         except Exception:
             _result.append(utils.ui.error_callout(strings.loads_details_error_text))
-    mo.vstack(_result) if len(_result) else None
+    mo.vstack(_result)
     return
 
 
@@ -905,7 +836,7 @@ def utils_caches_and_state(
     dlt_get_query_cache, dlt_set_query_cache = mo.state(cast(Dict[str, int], {}))
 
     if dlt_clear_query_cache.value:
-        utils.queries.clear_query_cache(dlt_pipeline)
+        utils.queries.clear_query_cache()
 
     return
 
