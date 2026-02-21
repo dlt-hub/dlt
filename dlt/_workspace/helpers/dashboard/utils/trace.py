@@ -69,32 +69,22 @@ def trace_step_details(
     c: DashboardConfiguration, trace: PipelineTrace, step_id: str
 ) -> List[mo.Html]:
     """Get the details of a step including table and job metrics."""
+    _metrics_sections = [
+        ("table_metrics", strings.trace_table_metrics_title),
+        ("job_metrics", strings.trace_job_metrics_title),
+    ]
+
     _result = []
     for step_obj in trace.steps:
         if step_obj.step == step_id:
-            step = step_obj.asdict()
-            info_section = step.get(f"{step_id}_info", {})
-            if "table_metrics" in info_section:
-                _result.append(
-                    ui.title_and_subtitle(
-                        strings.trace_table_metrics_title.format(step_id),
-                        title_level=4,
+            info_section = step_obj.asdict().get(f"{step_id}_info", {})
+            for key, title_template in _metrics_sections:
+                if key in info_section:
+                    _result.append(
+                        ui.title_and_subtitle(title_template.format(step_id), title_level=4)
                     )
-                )
-                table_metrics = info_section.get("table_metrics", [])
-                table_metrics = [humanize_datetime_values(c, t) for t in table_metrics]
-                _result.append(ui.dlt_table(table_metrics, freeze_column="table_name"))
-
-            if "job_metrics" in info_section:
-                _result.append(
-                    ui.title_and_subtitle(
-                        strings.trace_job_metrics_title.format(step_id),
-                        title_level=4,
-                    )
-                )
-                job_metrics = info_section.get("job_metrics", [])
-                job_metrics = [humanize_datetime_values(c, j) for j in job_metrics]
-                _result.append(ui.dlt_table(job_metrics, freeze_column="table_name"))
+                    metrics = [humanize_datetime_values(c, m) for m in info_section[key]]
+                    _result.append(ui.dlt_table(metrics, freeze_column="table_name"))
 
     return _result
 

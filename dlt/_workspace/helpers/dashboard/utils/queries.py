@@ -22,6 +22,7 @@ from dlt._workspace.helpers.dashboard.utils.formatters import (
     humanize_datetime_values,
 )
 from dlt._workspace.helpers.dashboard.utils.schema import get_schema_by_version
+from dlt._workspace.helpers.dashboard.utils.ui import BoundedDict
 
 
 def clear_query_cache() -> None:
@@ -95,18 +96,12 @@ def _execute_query_cached(
     is passed through for execution but is *not* part of the cache key.
     """
     cache_key = (pipeline_name, dataset_name, query)
-    if cache_key in _query_result_cache:
-        return _query_result_cache[cache_key]
-    result = pipeline.dataset()(query, _execute_raw_query=True).arrow()
-    # evict oldest entry when cache is full
-    if len(_query_result_cache) >= _QUERY_CACHE_MAX_SIZE:
-        _query_result_cache.pop(next(iter(_query_result_cache)))
-    _query_result_cache[cache_key] = result
-    return result
+    if cache_key not in _query_result_cache:
+        _query_result_cache[cache_key] = pipeline.dataset()(query, _execute_raw_query=True).arrow()
+    return _query_result_cache[cache_key]
 
 
-_QUERY_CACHE_MAX_SIZE = 64
-_query_result_cache: Dict[Tuple[str, str, str], pyarrow.Table] = {}
+_query_result_cache: BoundedDict = BoundedDict(64)
 
 
 def get_row_counts(

@@ -16,7 +16,7 @@ from dlt.common.typing import DictStrAny
 
 from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils.ui import small
+from dlt._workspace.helpers.dashboard.utils.ui import BoundedDict, small
 
 
 def schemas_to_table_items(
@@ -143,17 +143,13 @@ def get_source_and_resource_state_for_table(
 def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
     """Retrieve a schema from the destination by its version hash (cached)."""
     cache_key = (pipeline.pipeline_name, version_hash)
-    if cache_key in _schema_version_cache:
-        return _schema_version_cache[cache_key]
-    result = _fetch_schema_by_version(pipeline, version_hash)
-    if len(_schema_version_cache) >= _SCHEMA_CACHE_MAX_SIZE:
-        _schema_version_cache.pop(next(iter(_schema_version_cache)))
-    _schema_version_cache[cache_key] = result
+    if cache_key not in _schema_version_cache:
+        _schema_version_cache[cache_key] = _fetch_schema_by_version(pipeline, version_hash)
+    result: Schema = _schema_version_cache[cache_key]
     return result
 
 
-_SCHEMA_CACHE_MAX_SIZE = 32
-_schema_version_cache: Dict[Tuple[str, str], Schema] = {}
+_schema_version_cache: BoundedDict = BoundedDict(32)
 
 
 def _fetch_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:

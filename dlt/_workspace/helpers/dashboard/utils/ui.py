@@ -1,6 +1,20 @@
-"""Dashboard table wrapper that standardizes mo.ui.table usage."""
+"""Dashboard UI helpers: tables, callouts, section boilerplate, and shared utilities."""
 
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+
+class BoundedDict(Dict[Any, Any]):
+    """Dict that evicts the oldest entry when *maxsize* is exceeded."""
+
+    def __init__(self, maxsize: int = 64) -> None:
+        super().__init__()
+        self._maxsize = maxsize
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        if key not in self and len(self) >= self._maxsize:
+            del self[next(iter(self))]
+        super().__setitem__(key, value)
+
 
 import marimo as mo
 import pyarrow
