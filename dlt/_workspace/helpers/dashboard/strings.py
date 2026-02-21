@@ -1,8 +1,6 @@
 #
-# App general
-#
-
 # Reusable string parts
+#
 
 _help_url = "https://dlthub.com/docs/general-usage/dataset-access/dashboard"
 _credentials_help_url = _help_url + "#credentials"
@@ -10,7 +8,7 @@ _sync_help_url = "https://dlthub.com/docs/reference/command-line-interface#dlt-p
 
 
 _credentials_info = (
-    "Have you run your pipeline, and are your credentials available to the dltHub pipeline"
+    "Have you run your pipeline, and are your credentials available to the dltHub workspace"
     f" dashboard? Learn more in the [Dashboard Credentials Docs]({_credentials_help_url})."
 )
 
@@ -26,8 +24,10 @@ app_intro = """
 <p align="center">...the hackable data platform for `dlt` developers.</p>
 """
 app_pipeline_select_label = "Pipeline:"
-app_no_pipeline_selected = "No pipeline selected"
 app_schema_select_label = "Schema:"
+app_title_pipeline = """
+## Pipeline `{}`
+"""
 
 app_pipeline_not_found = f"""
 ## Pipeline not found
@@ -63,15 +63,15 @@ We found `{{}}` pipelines in the local directory `{{}}`. When you select a pipel
 
 * See an overview of your pipeline
 * See the current pipeline schema and incremental state
-* Browse the data in the pipeline's dataset (requires credentials to be available to the dltHub workspace dashboard)
+* Browse the data in the pipeline's dataset (requires credentials to be available to the dashboard)
 * View the pipeline state locally and on the destination
 * Browse information about past loads and traces
 
-To inspect data in the destination dataset, ensure your destination credentials are available to the dltHub workspace dashboard. Either provide them as environment variables, or start the dltHub workspace dashboard from the directory that contains your `.dlt` folder, where the credentials are stored.
+To inspect data in the destination dataset, ensure your destination credentials are available to the dashboard. Either provide them as environment variables, or start the dashboard from the directory that contains your `.dlt` folder, where the credentials are stored.
 
-If the dltHub workspace dashboard cannot connect to the destination, you will receive a warning and will only be able to browse the locally stored information about the pipeline.
+If the dashboard cannot connect to the destination, you will receive a warning and will only be able to browse the locally stored information about the pipeline.
 
-## dltHub workspace dashboard CLI commands
+## CLI commands
 
 * `dlt pipeline <pipeline_name> show` - Start the workspace dashboard for the selected pipeline
 * `dlt pipeline <pipeline_name> show --edit` - Start a local copy of the workspace dashboard for the selected pipeline in edit mode
@@ -87,9 +87,6 @@ If the dltHub workspace dashboard cannot connect to the destination, you will re
 </small>
 
 """
-app_title_pipeline = """
-## Pipeline `{}`
-"""
 
 view_load_packages_text = "Status of load packages from last execution"
 
@@ -100,14 +97,14 @@ view_load_packages_text = "Status of load packages from last execution"
 overview_section_name = "overview_section"
 overview_title = "Pipeline Info"
 overview_subtitle = "Basic properties of the selected pipeline"
-overview_remote_state_title = "Remote state"
+overview_remote_state_title = "Remote State"
 overview_remote_state_subtitle = (
     "The remote state and schemas of the pipeline as discovered on the destination"
 )
 overview_remote_state_button = "Load and show remote state"
 
 #
-# Schema page
+# Schema section
 #
 schema_section_name = "schema_section"
 schema_title = "Dataset Browser: Schema"
@@ -124,7 +121,9 @@ schema_table_columns_title = "`{}` Columns"
 schema_raw_yaml_title = "Raw Schema as YAML"
 schema_show_raw_yaml_text = "Show raw schema as YAML"
 
-# Schema UI controls
+#
+# UI controls (shared across sections)
+#
 ui_show_dlt_tables = "Show internal tables"
 ui_show_child_tables = "Show child tables"
 ui_load_row_counts = "Load row counts"
@@ -136,7 +135,7 @@ ui_clear_cache = "Clear cache"
 ui_limit_to_1000_rows = "Limit to 1000 rows"
 
 #
-# Browse data page
+# Browse data section
 #
 browse_data_section_name = "browse_data_section"
 browse_data_title = "Dataset Browser: Data and Source/Resource State"
@@ -167,31 +166,26 @@ browse_data_query_history_subtitle = (
 
 browse_data_query_error = "Error executing SQL query. "
 
-browse_data_query_hint = """SELECT
-  *
-FROM dataset.table
-LIMIT 1000"""
-
 browse_data_run_query_button = "Run Query"
 browse_data_run_query_tooltip = "Run the query in the editor"
 browse_data_loading_spinner_text = "Loading data from destination..."
 
 #
-# State page
+# State section
 #
 state_section_name = "state_section"
 state_title = "Pipeline State"
 state_subtitle = "A raw view of the currently stored pipeline state."
 
 #
-# Data quality page
+# Data quality section
 #
 data_quality_section_name = "data_quality_section"
 data_quality_title = "Data Quality"
 data_quality_subtitle = "View the results of your data quality checks"
 
 #
-# Last trace page
+# Trace section
 #
 trace_section_name = "trace_section"
 trace_title = "Last Pipeline Run Trace"
@@ -200,9 +194,10 @@ trace_subtitle = (
     " pipeline, if available."
 )
 trace_show_raw_trace_text = "Show"
-trace_no_trace_text = """
-No local trace available for this pipeline. This probably means that your pipeline has never been run on this computer.
-"""
+trace_no_trace_text = (
+    "No local trace available for this pipeline. This probably means that your pipeline"
+    " has never been run on this computer."
+)
 
 trace_overview_title = "Trace Overview"
 trace_execution_context_title = "Execution Context"
@@ -225,7 +220,7 @@ trace_resolved_config_subtitle = (
 trace_raw_trace_title = "Raw Trace"
 
 #
-# Loads page
+# Loads section
 #
 loads_section_name = "loads_section"
 loads_title = "Pipeline Loads"
@@ -239,12 +234,8 @@ loads_subtitle_long = (
     " destination, such as the row count for that load and the schema for this load. Depending on"
     " the destination and your data, this might take some time."
 )
-loads_loading_failed_text = "Failed to load loads from destination. "
-no_loads_found_text = (
-    "No loads found. Either this pipeline was never run or there was a problem connecting to the"
-    " destination."
-)
-loads_loading_spinner_text = "Loading loads from destination..."
+loads_loading_failed_text = "Failed to fetch load history from destination. "
+loads_loading_spinner_text = "Fetching load history from destination..."
 
 # loads details
 loads_details_title = "Load Details for Load ID: {}"
@@ -263,7 +254,7 @@ loads_details_loading_spinner_text = "Loading row counts and schema..."
 loads_details_error_text = "Error loading load details. "
 
 #
-# Ibis backend page
+# Ibis backend section
 #
 ibis_backend_section_name = "ibis_backend_section"
 ibis_backend_title = "Ibis Backend"
