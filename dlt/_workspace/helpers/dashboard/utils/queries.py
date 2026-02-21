@@ -4,6 +4,8 @@ import functools
 import traceback
 from typing import Any, Dict, List, Tuple
 
+import marimo as mo
+
 import dlt
 import pyarrow
 import sqlglot
@@ -12,6 +14,7 @@ from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 from dlt.pipeline.exceptions import PipelineConfigMissing
 
+from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.formatters import (
     format_exception_message,
@@ -128,3 +131,55 @@ def get_loads(
         return loads_list, None, None
     except Exception as exc:
         return [], format_exception_message(exc), traceback.format_exc()
+
+
+def build_load_details(
+    pipeline: dlt.Pipeline,
+    schema_name: str,
+    version_hash: str,
+    load_id: str,
+) -> List[Any]:
+    """Build the load detail widgets: row counts and schema version accordion."""
+    from dlt._workspace.helpers.dashboard.utils import ui
+
+    result: List[Any] = []
+
+    with mo.status.spinner(title=strings.loads_details_loading_spinner_text):
+        _schema = get_schema_by_version(pipeline, version_hash)
+        _row_counts = get_row_counts(pipeline, schema_name, load_id)
+
+    result.append(
+        ui.title_and_subtitle(
+            strings.loads_details_row_counts_title,
+            strings.loads_details_row_counts_subtitle,
+            3,
+        ),
+    )
+    result.append(ui.dlt_table(_row_counts))
+
+    if _schema:
+        result.append(
+            ui.title_and_subtitle(
+                strings.loads_details_schema_version_title,
+                strings.loads_details_schema_version_subtitle.format(
+                    (
+                        "is not"
+                        if _schema.version_hash != pipeline.default_schema.version_hash
+                        else "is"
+                    ),
+                ),
+                3,
+            )
+        )
+        result.append(
+            mo.accordion(
+                {
+                    strings.schema_show_raw_yaml_text: mo.ui.code_editor(
+                        _schema.to_pretty_yaml(),
+                        language="yaml",
+                    )
+                }
+            )
+        )
+
+    return result

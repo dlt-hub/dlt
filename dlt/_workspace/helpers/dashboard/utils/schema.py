@@ -1,7 +1,9 @@
 """Schema introspection helpers: table lists, column lists, schema retrieval, and resource state."""
 
 import functools
-from typing import Any, Dict, Iterable, List, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+
+import marimo as mo
 
 import dlt
 
@@ -143,3 +145,41 @@ def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
                 return None
             return Schema.from_stored_schema(json.loads(stored_schema.schema))
     return None
+
+
+def build_resource_state_widget(
+    pipeline: dlt.Pipeline, schema_name: str, table_name: str
+) -> Optional[Any]:
+    """Build source/resource state accordion for the given table, or None if not applicable."""
+    schema_table = pipeline.schemas[schema_name].tables[table_name]
+    resource_name, source_state, resource_state = get_source_and_resource_state_for_table(
+        schema_table, pipeline, schema_name
+    )
+    if not resource_name:
+        return None
+
+    state_content = mo.hstack(
+        [
+            mo.vstack(
+                [
+                    mo.md(f"<small>Source state for {schema_name}</small>"),
+                    mo.json(source_state),
+                ]
+            ),
+            mo.vstack(
+                [
+                    mo.md(f"<small>Resource state for resource {resource_name}</small>"),
+                    mo.json(resource_state),
+                ]
+            ),
+        ],
+        justify="start",
+        widths="equal",
+    )
+
+    return mo.accordion(
+        {
+            f"<small>Show source and resource state resource {resource_name}"
+            f" which created table {table_name}</small>": state_content
+        }
+    )

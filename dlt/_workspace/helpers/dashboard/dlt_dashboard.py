@@ -32,20 +32,12 @@ with app.setup:
 @app.function
 def header_controls(dlt_profile_select: mo.ui.dropdown) -> Union[List[Any], None]:
     """Build profile-related header controls if profiles are enabled."""
-    if isinstance(dlt.current.run_context(), ProfilesRunContext):
-        return [
-            dlt_profile_select,
-            mo.md(f"<small> Workspace: {getattr(dlt.current.run_context(), 'name', None)}</small>"),
-        ]
-    return None
+    return utils.home.header_controls(dlt_profile_select)
 
 
 @app.function(hide_code=True)
 def detect_dlt_hub():
-    try:
-        return dlt.hub.__found__
-    except ImportError:
-        return False
+    return utils.home.detect_dlt_hub()
 
 
 @app.function
@@ -54,36 +46,7 @@ def home_header_row(
     dlt_pipeline_select: mo.ui.multiselect,
 ) -> Any:
     """Shared header row with logo, profile/workspace info and pipeline select."""
-    _header_controls = header_controls(dlt_profile_select)
-    return mo.hstack(
-        [
-            mo.hstack(
-                [
-                    mo.image(
-                        "https://dlthub.com/docs/img/dlthub-logo.png",
-                        width=100,
-                        alt="dltHub logo",
-                    ),
-                    _header_controls[0] if _header_controls else "",
-                ],
-                justify="start",
-                gap=2,
-            ),
-            mo.hstack(
-                [
-                    _header_controls[1] if _header_controls else "",
-                ],
-                justify="center",
-            ),
-            mo.hstack(
-                [
-                    dlt_pipeline_select,
-                ],
-                justify="end",
-            ),
-        ],
-        justify="space-between",
-    )
+    return utils.home.home_header_row(dlt_profile_select, dlt_pipeline_select)
 
 
 @app.function
@@ -95,26 +58,9 @@ def render_workspace_home(
     dlt_config: DashboardConfiguration,
 ) -> List[Any]:
     """Render the workspace-level home view (no pipeline selected)."""
-    return [
-        utils.ui.section_marker(strings.app_section_name, has_content=True),
-        home_header_row(dlt_profile_select, dlt_pipeline_select),
-        mo.md(strings.app_title).center(),
-        mo.md(strings.app_intro).center(),
-        mo.callout(
-            mo.vstack(
-                [
-                    mo.md(
-                        strings.home_quick_start_title.format(
-                            utils.pipeline.pipeline_link_list(dlt_config, dlt_all_pipelines)
-                        )
-                    ),
-                    dlt_pipeline_select,
-                ]
-            ),
-            kind="info",
-        ),
-        mo.md(strings.home_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
-    ]
+    return utils.home.render_workspace_home(
+        dlt_profile_select, dlt_all_pipelines, dlt_pipeline_select, dlt_pipelines_dir, dlt_config
+    )
 
 
 @app.function
@@ -124,34 +70,10 @@ def render_pipeline_header_row(
     dlt_pipeline_select: mo.ui.multiselect,
     buttons: List[Any],
 ) -> List[Any]:
-    header_row = home_header_row(dlt_profile_select, dlt_pipeline_select)
-    pipeline_title = mo.center(
-        mo.hstack(
-            [
-                mo.md(strings.app_title_pipeline.format(dlt_pipeline_name)),
-            ],
-            align="center",
-        ),
+    """Render the pipeline header row with logo, title, and action buttons."""
+    return utils.home.render_pipeline_header_row(
+        dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, buttons
     )
-
-    return [
-        mo.vstack(
-            [
-                mo.hstack(
-                    [
-                        mo.vstack(
-                            [
-                                header_row,
-                                pipeline_title,
-                            ]
-                        ),
-                    ],
-                    justify="space-between",
-                ),
-            ]
-        ),
-        mo.hstack(buttons, justify="start"),
-    ]
 
 
 @app.function
@@ -164,65 +86,14 @@ def render_pipeline_home(
     dlt_pipeline_name: str,
 ) -> List[Any]:
     """Render the pipeline-level home view (pipeline selected or requested)."""
-    _buttons: List[Any] = [dlt_refresh_button]
-    _pipeline_execution_exception: List[Any] = []
-    _pipeline_execution_summary: Any = None
-    _last_load_packages_info: Any = None
-    _errors: List[Any] = []
-
-    _buttons.append(
-        mo.ui.button(
-            label="<small>Open pipeline working dir</small>",
-            on_click=lambda _: utils.pipeline.open_local_folder(dlt_pipeline.working_dir),
-        )
+    return utils.home.render_pipeline_home(
+        dlt_profile_select,
+        dlt_pipeline,
+        dlt_pipeline_select,
+        dlt_pipelines_dir,
+        dlt_refresh_button,
+        dlt_pipeline_name,
     )
-    if local_dir := utils.pipeline.get_local_data_path(dlt_pipeline):
-        _buttons.append(
-            mo.ui.button(
-                label="<small>Open local data location</small>",
-                on_click=lambda _: utils.pipeline.open_local_folder(local_dir),
-            )
-        )
-
-    # NOTE: last_trace does not raise on broken traces
-    if trace := dlt_pipeline.last_trace:
-        # trace viz and run exception require last trace
-        _pipeline_execution_summary = utils.visualization.pipeline_execution_visualization(trace)
-        _last_load_packages_info = mo.vstack(
-            [
-                mo.md(f"<small>{strings.view_load_packages_text}</small>"),
-                utils.visualization.load_package_status_labels(trace),
-            ]
-        )
-        _pipeline_execution_exception = utils.pipeline.exception_section(dlt_pipeline)
-
-    _stack = [
-        utils.ui.section_marker(strings.home_section_name, has_content=dlt_pipeline is not None)
-    ]
-    _stack.extend(
-        render_pipeline_header_row(
-            dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, _buttons
-        )
-    )
-
-    if _pipeline_execution_summary:
-        _stack.append(_pipeline_execution_summary)
-    if _last_load_packages_info:
-        _stack.append(_last_load_packages_info)
-    if _pipeline_execution_exception:
-        _stack.extend(_pipeline_execution_exception)
-    if _errors:
-        _stack.extend(_errors)
-
-    if not dlt_pipeline and dlt_pipeline_name:
-        _stack.append(
-            mo.callout(
-                mo.md(strings.app_pipeline_not_found.format(dlt_pipeline_name, dlt_pipelines_dir)),
-                kind="warn",
-            )
-        )
-
-    return _stack
 
 
 @app.cell(hide_code=True)
@@ -446,32 +317,19 @@ def ui_data_quality_controls(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_data_quality_switch: mo.ui.switch,
 ):
-    """
-    Create data quality filter controls (separate cell for marimo reactivity)
-
-    Import the function from the dashboard module and call it.
-    """
+    """Create data quality filter controls (separate cell for marimo reactivity)."""
     dlt_data_quality_show_failed_filter: mo.ui.checkbox = None
     dlt_data_quality_table_filter: mo.ui.dropdown = None
     dlt_data_quality_rate_filter: mo.ui.slider = None
     dlt_data_quality_checks_arrow = None
 
-    # Create controls whenever dlthub is detected and pipeline exists
-    # The switch controls whether widget content is shown, not whether controls exist
     if detect_dlt_hub() and dlt_pipeline:
-        try:
-            # Import the function from the dashboard module
-            from dlthub.data_quality._dashboard import create_data_quality_controls
-
-            # Call the function - returns (checkbox, dropdown, slider, checks_arrow)
-            (
-                dlt_data_quality_show_failed_filter,
-                dlt_data_quality_table_filter,
-                dlt_data_quality_rate_filter,
-                dlt_data_quality_checks_arrow,
-            ) = create_data_quality_controls(dlt_pipeline)
-        except Exception:
-            pass
+        (
+            dlt_data_quality_show_failed_filter,
+            dlt_data_quality_table_filter,
+            dlt_data_quality_rate_filter,
+            dlt_data_quality_checks_arrow,
+        ) = utils.data_quality.create_dq_controls(dlt_pipeline)
 
     return (
         dlt_data_quality_show_failed_filter,
@@ -490,12 +348,7 @@ def section_data_quality(
     dlt_data_quality_rate_filter: mo.ui.slider,
     dlt_data_quality_checks_arrow,
 ):
-    """
-    Show data quality of the currently selected pipeline
-    only if dlt.hub is installed
-
-    Import the widget function from the dashboard module and call it.
-    """
+    """Show data quality of the currently selected pipeline (only if dlt.hub is installed)."""
     if not detect_dlt_hub():
         _result = None
     else:
@@ -508,67 +361,16 @@ def section_data_quality(
             dlt_section_data_quality_switch,
         )
         if _show:
-            try:
-                # Import the widget function from the dashboard module
-                from dlthub.data_quality._dashboard import data_quality_widget
-
-                # Extract values from controls (must be in separate cell from where controls are created)
-                show_failed_value = (
-                    dlt_data_quality_show_failed_filter.value
-                    if dlt_data_quality_show_failed_filter is not None
-                    else False
+            _dq_widgets, dlt_data_quality_show_raw_table_switch = (
+                utils.data_quality.build_dq_section(
+                    dlt_pipeline,
+                    dlt_data_quality_show_failed_filter,
+                    dlt_data_quality_table_filter,
+                    dlt_data_quality_rate_filter,
+                    dlt_data_quality_checks_arrow,
                 )
-                table_value = None
-                if (
-                    dlt_data_quality_table_filter is not None
-                    and dlt_data_quality_table_filter.value != "All"
-                ):
-                    table_value = dlt_data_quality_table_filter.value
-                rate_value = (
-                    dlt_data_quality_rate_filter.value
-                    if dlt_data_quality_rate_filter is not None
-                    else None
-                )
-
-                # Call the widget function
-                widget_output = data_quality_widget(
-                    dlt_pipeline=dlt_pipeline,
-                    failure_rate_slider=dlt_data_quality_rate_filter,
-                    failure_rate_filter_value=rate_value,
-                    show_only_failed_checkbox=dlt_data_quality_show_failed_filter,
-                    show_only_failed_value=show_failed_value,
-                    table_dropdown=dlt_data_quality_table_filter,
-                    table_name_filter_value=table_value,
-                    checks_arrow=dlt_data_quality_checks_arrow,
-                )
-                if widget_output is not None:
-                    _result.append(widget_output)
-
-                # Only show raw table switch if there is data to display
-                if (
-                    dlt_data_quality_checks_arrow is not None
-                    and dlt_data_quality_checks_arrow.num_rows > 0
-                ):
-                    dlt_data_quality_show_raw_table_switch: mo.ui.switch = mo.ui.switch(
-                        value=False,
-                        label="<small>Show Raw Table</small>",
-                    )
-                    _result.append(
-                        mo.hstack([dlt_data_quality_show_raw_table_switch], justify="start")
-                    )
-                else:
-                    dlt_data_quality_show_raw_table_switch = None
-            except ImportError:
-                _result.append(mo.md("**DLT Hub data quality module is not available.**"))
-                dlt_data_quality_show_raw_table_switch = None
-            except Exception as exc:
-                _result.append(
-                    utils.ui.error_callout(
-                        f"Error loading data quality checks: {exc}",
-                        traceback_string=traceback.format_exc(),
-                    )
-                )
-                dlt_data_quality_show_raw_table_switch = None
+            )
+            _result.extend(_dq_widgets)
         else:
             dlt_data_quality_show_raw_table_switch = None
     mo.vstack(_result) if _result else None
@@ -583,9 +385,7 @@ def section_data_quality_raw_table(
     dlt_get_last_query_result,
     dlt_set_last_query_result,
 ):
-    """
-    Display the raw data quality checks table with _dlt_load_id column
-    """
+    """Display the raw data quality checks table with _dlt_load_id column."""
     _result = []
 
     if (
@@ -594,55 +394,9 @@ def section_data_quality_raw_table(
         and dlt_data_quality_show_raw_table_switch is not None
         and dlt_data_quality_show_raw_table_switch.value
     ):
-        try:
-            # Import constants from data_quality module (using private names to avoid conflicts)
-            from dlthub import data_quality as dq
-            from dlthub.data_quality.storage import (
-                DLT_CHECKS_TABLE_NAME as _DLT_CHECKS_RESULTS_TABLE_NAME,
-                DLT_DATA_QUALITY_SCHEMA_NAME as _DLT_DATA_QUALITY_SCHEMA_NAME,
-            )
-
-            _error_message: str = None
-            with mo.status.spinner(title="Loading raw data quality checks table..."):
-                try:
-                    _raw_sql_query = dq.read_check(dlt_pipeline.dataset())
-
-                    # Execute query
-                    _raw_query_result, _error_message, _traceback_string = (
-                        utils.queries.get_query_result(dlt_pipeline, _raw_sql_query.to_sql())
-                    )
-                    dlt_set_last_query_result(_raw_query_result)
-                except Exception as exc:
-                    _error_message = str(exc)
-                    _traceback_string = traceback.format_exc()
-
-            # Display error message if encountered
-            if _error_message:
-                _result.append(
-                    utils.ui.error_callout(
-                        f"Error loading raw table: {_error_message}",
-                        traceback_string=_traceback_string,
-                    )
-                )
-
-            # Always display result table
-            _last_result = dlt_get_last_query_result()
-            if _last_result is not None:
-                _result.append(utils.ui.dlt_table(_last_result, freeze_column=None))
-        except ImportError:
-            _result.append(
-                mo.callout(
-                    mo.md("DLT Hub data quality module is not available."),
-                    kind="warn",
-                )
-            )
-        except Exception as exc:
-            _result.append(
-                utils.ui.error_callout(
-                    f"Error loading raw table: {exc}",
-                    traceback_string=traceback.format_exc(),
-                )
-            )
+        _result = utils.data_quality.build_dq_raw_table(
+            dlt_pipeline, dlt_get_last_query_result, dlt_set_last_query_result
+        )
     mo.vstack(_result) if _result else None
     return
 
@@ -691,57 +445,12 @@ def section_browse_data_table_list(
         _sql_query = ""
         if dlt_data_table_list.value:
             _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
-            _schema_table = dlt_pipeline.schemas[dlt_selected_schema_name].tables[_table_name]
 
-            # we only show resource state if the table has resource set, child tables do not have a resource set
-            _resource_name, _source_state, _resource_state = (
-                utils.schema.get_source_and_resource_state_for_table(
-                    _schema_table, dlt_pipeline, dlt_selected_schema_name
-                )
+            _state_widget = utils.schema.build_resource_state_widget(
+                dlt_pipeline, dlt_selected_schema_name, _table_name
             )
-            if _resource_name:
-                # state section
-                _state_section_content = []
-
-                # render
-                _state_section_content.append(
-                    mo.hstack(
-                        [
-                            mo.vstack(
-                                [
-                                    mo.md(
-                                        "<small>Source state for"
-                                        f" {dlt_selected_schema_name}</small>"
-                                    ),
-                                    mo.json(
-                                        _source_state,
-                                    ),
-                                ]
-                            ),
-                            mo.vstack(
-                                [
-                                    mo.md(
-                                        "<small>Resource state for resource"
-                                        f" {_resource_name}</small>"
-                                    ),
-                                    mo.json(_resource_state),
-                                ]
-                            ),
-                        ],
-                        justify="start",
-                        widths="equal",
-                    )
-                )
-
-                _result.append(
-                    mo.accordion(
-                        {
-                            f"<small>Show source and resource state resource {_resource_name} which created table {_table_name}</small>": mo.vstack(
-                                _state_section_content
-                            )
-                        }
-                    )
-                )
+            if _state_widget:
+                _result.append(_state_widget)
 
             _sql_query, _error_message, _traceback_string = (
                 utils.queries.get_default_query_for_table(
@@ -851,7 +560,7 @@ def section_browse_data_query_result(
         if _last_result is not None:
             _result.append(utils.ui.dlt_table(_last_result, freeze_column=None))
 
-        # update cache if there was noe error
+        # update cache if there was no error
         if _last_result is not None and not _error_message:
             # update query cache
             cache = dlt_get_query_cache()
@@ -957,82 +666,9 @@ def section_trace(
 
     if _show:
         try:
-            if _exception_section := utils.pipeline.exception_section(dlt_pipeline):
-                _result.extend(_exception_section)
-            dlt_trace = dlt_pipeline.last_trace
-            if not dlt_trace:
-                _result.append(
-                    mo.callout(
-                        mo.md(strings.trace_no_trace_text),
-                        kind="warn",
-                    )
-                )
-            else:
-                _result.append(
-                    utils.ui.title_and_subtitle(
-                        strings.trace_overview_title,
-                        title_level=3,
-                    )
-                )
-                _result.append(
-                    utils.ui.dlt_table(utils.trace.trace_overview(dlt_config, dlt_trace))
-                )
-                _result.append(
-                    utils.ui.title_and_subtitle(
-                        strings.trace_execution_context_title,
-                        strings.trace_execution_context_subtitle,
-                        title_level=3,
-                    )
-                )
-                _result.append(
-                    utils.ui.dlt_table(utils.trace.trace_execution_context(dlt_config, dlt_trace))
-                )
-                _result.append(
-                    utils.ui.title_and_subtitle(
-                        strings.trace_steps_overview_title,
-                        strings.trace_steps_overview_subtitle,
-                        title_level=3,
-                    )
-                )
-                _result.append(dlt_trace_steps_table)
-                for item in dlt_trace_steps_table.value:  # type: ignore[unused-ignore,union-attr]
-                    step_id = item["step"]  # type: ignore[unused-ignore,index]
-                    _result.append(
-                        utils.ui.title_and_subtitle(
-                            strings.trace_step_details_title.format(step_id.capitalize()),
-                            title_level=3,
-                        )
-                    )
-                    _result += utils.trace.trace_step_details(dlt_config, dlt_trace, step_id)
-
-                # config values
-                _result.append(
-                    utils.ui.title_and_subtitle(
-                        strings.trace_resolved_config_title,
-                        strings.trace_resolved_config_subtitle,
-                        title_level=3,
-                    )
-                )
-                _result.append(
-                    utils.ui.dlt_table(
-                        utils.trace.trace_resolved_config_values(dlt_config, dlt_trace)
-                    )
-                )
-                _result.append(
-                    utils.ui.title_and_subtitle(
-                        strings.trace_raw_trace_title,
-                        title_level=3,
-                    )
-                )
-                _result.append(
-                    mo.accordion(
-                        {
-                            strings.trace_show_raw_trace_text: mo.json(
-                                utils.pipeline.sanitize_trace_for_display(dlt_trace)
-                            )
-                        }
-                    )
-                )
+            _result.extend(
+                utils.trace.build_trace_section(dlt_config, dlt_pipeline, dlt_trace_steps_table)
+            )
         except Exception as exc:
             _result.append(
                 utils.ui.error_callout(
@@ -1106,53 +742,15 @@ def section_loads_results(
     ):
         _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore[unused-ignore,index]
         _schema_name = dlt_loads_table.value[0]["schema_name"]  # type: ignore[unused-ignore,index]
+        _version_hash = dlt_loads_table.value[0]["schema_version_hash"]  # type: ignore[unused-ignore,index]
         _result.append(mo.md(strings.loads_details_title.format(_load_id)))
 
         try:
-            with mo.status.spinner(title=strings.loads_details_loading_spinner_text):
-                _schema = utils.schema.get_schema_by_version(
-                    dlt_pipeline, dlt_loads_table.value[0]["schema_version_hash"]  # type: ignore[unused-ignore,index]
+            _result.extend(
+                utils.queries.build_load_details(
+                    dlt_pipeline, _schema_name, _version_hash, _load_id
                 )
-
-                # prepare and sort row counts
-                _row_counts = utils.queries.get_row_counts(dlt_pipeline, _schema_name, _load_id)
-
-            # add row counts
-            _result.append(
-                utils.ui.title_and_subtitle(
-                    strings.loads_details_row_counts_title,
-                    strings.loads_details_row_counts_subtitle,
-                    3,
-                ),
             )
-            _result.append(utils.ui.dlt_table(_row_counts))
-
-            # add schema info
-            if _schema:
-                _result.append(
-                    utils.ui.title_and_subtitle(
-                        strings.loads_details_schema_version_title,
-                        strings.loads_details_schema_version_subtitle.format(
-                            (
-                                "is not"
-                                if _schema.version_hash != dlt_pipeline.default_schema.version_hash
-                                else "is"
-                            ),
-                        ),
-                        3,
-                    )
-                )
-                _result.append(
-                    mo.accordion(
-                        {
-                            strings.schema_show_raw_yaml_text: mo.ui.code_editor(
-                                _schema.to_pretty_yaml(),
-                                language="yaml",
-                            )
-                        }
-                    )
-                )
-
         except Exception:
             _result.append(utils.ui.error_callout(strings.loads_details_error_text))
     mo.vstack(_result) if len(_result) else None

@@ -2,11 +2,17 @@
 
 from typing import Any, Dict, List
 
+import marimo as mo
+
+import dlt
+
+from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.formatters import (
     dict_to_table_items,
     humanize_datetime_values,
 )
+from dlt._workspace.helpers.dashboard.utils import pipeline as pipeline_utils
 from dlt._workspace.helpers.dashboard.utils import ui
 from dlt.pipeline.trace import PipelineTrace
 
@@ -87,3 +93,78 @@ def trace_step_details(c: DashboardConfiguration, trace: PipelineTrace, step_id:
                 _result.append(ui.dlt_table(job_metrics, freeze_column="table_name"))
 
     return _result
+
+
+def build_trace_section(
+    config: DashboardConfiguration,
+    pipeline: dlt.Pipeline,
+    trace_steps_table: mo.ui.table,
+) -> List[Any]:
+    """Build the trace section content: overview, execution context, steps, config, raw trace."""
+    result: List[Any] = []
+
+    if _exception_section := pipeline_utils.exception_section(pipeline):
+        result.extend(_exception_section)
+
+    dlt_trace = pipeline.last_trace
+    if not dlt_trace:
+        result.append(
+            mo.callout(
+                mo.md(strings.trace_no_trace_text),
+                kind="warn",
+            )
+        )
+        return result
+
+    result.append(ui.title_and_subtitle(strings.trace_overview_title, title_level=3))
+    result.append(ui.dlt_table(trace_overview(config, dlt_trace)))
+
+    result.append(
+        ui.title_and_subtitle(
+            strings.trace_execution_context_title,
+            strings.trace_execution_context_subtitle,
+            title_level=3,
+        )
+    )
+    result.append(ui.dlt_table(trace_execution_context(config, dlt_trace)))
+
+    result.append(
+        ui.title_and_subtitle(
+            strings.trace_steps_overview_title,
+            strings.trace_steps_overview_subtitle,
+            title_level=3,
+        )
+    )
+    result.append(trace_steps_table)
+
+    for item in trace_steps_table.value:  # type: ignore[unused-ignore,union-attr]
+        step_id = item["step"]  # type: ignore[unused-ignore,index]
+        result.append(
+            ui.title_and_subtitle(
+                strings.trace_step_details_title.format(step_id.capitalize()),
+                title_level=3,
+            )
+        )
+        result += trace_step_details(config, dlt_trace, step_id)
+
+    result.append(
+        ui.title_and_subtitle(
+            strings.trace_resolved_config_title,
+            strings.trace_resolved_config_subtitle,
+            title_level=3,
+        )
+    )
+    result.append(ui.dlt_table(trace_resolved_config_values(config, dlt_trace)))
+
+    result.append(ui.title_and_subtitle(strings.trace_raw_trace_title, title_level=3))
+    result.append(
+        mo.accordion(
+            {
+                strings.trace_show_raw_trace_text: mo.json(
+                    pipeline_utils.sanitize_trace_for_display(dlt_trace)
+                )
+            }
+        )
+    )
+
+    return result
