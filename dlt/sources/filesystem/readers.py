@@ -70,6 +70,9 @@ def _read_parquet(
 
     Args:
         chunksize (int, optional): The number of records to process at once, defaults to 1000.
+        use_pyarrow (bool, optional): When False (default) batches are converted to Python
+            lists of dictionaries for broad destination compatibility; when True, native `pyarrow`
+            `RecordBatch` objects are yielded for zero-copy pipelines.
 
     Returns:
         TDataItem: The file content
@@ -112,11 +115,17 @@ def _read_csv_duckdb(
 
     helper = fetch_arrow if use_pyarrow else fetch_json
 
+    add_filename = duckdb_kwargs.pop("filename", False)
+
     for item in items:
         with item.open() as f:
             file_data = duckdb.from_csv_auto(f, **duckdb_kwargs)  # type: ignore
 
-            yield from helper(file_data, chunk_size)
+            for batch in helper(file_data, chunk_size):
+                if add_filename:
+                    for record in batch:
+                        record["filename"] = item["file_name"]  # type: ignore
+                yield batch
 
 
 if TYPE_CHECKING:

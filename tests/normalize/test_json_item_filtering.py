@@ -28,7 +28,7 @@ def item_normalizer() -> JsonLItemsNormalizer:
     n = Normalize()
     schema = Schema("event")
     _add_excludes(schema)
-    return JsonLItemsNormalizer(None, None, schema, "load_id", n.config)
+    return JsonLItemsNormalizer(None, None, None, schema, "load_id", n.config)
 
 
 def test_row_field_filter(item_normalizer: JsonLItemsNormalizer) -> None:

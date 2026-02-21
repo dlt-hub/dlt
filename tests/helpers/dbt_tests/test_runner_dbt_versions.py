@@ -43,15 +43,15 @@ def client() -> Iterator[PostgresClient]:
 
 
 PACKAGE_PARAMS = [
-    ("postgres", "1.5.2"),
-    ("postgres", "1.6.13"),
     ("postgres", "1.8.6"),
     ("postgres", "1.9.1"),
+    ("postgres", "1.10.19"),
+    ("postgres", "1.11.6"),
     ("postgres", None),
-    ("snowflake", "1.5.2"),
-    ("snowflake", "1.6.13"),
     ("snowflake", "1.8.6"),
     ("snowflake", "1.9.1"),
+    ("snowflake", "1.10.19"),
+    ("snowflake", "1.11.6"),
     ("snowflake", None),
 ]
 PACKAGE_IDS = [
@@ -81,10 +81,10 @@ def test_infer_venv_deps() -> None:
     # provide version ranges
     requirements = _create_dbt_deps(["duckdb"], dbt_version=">3")
     # special duckdb dependency
-    assert requirements[:-1] == ["dbt-core>3", "dbt-duckdb", "duckdb==1.3.2"]
+    assert requirements[:-1] == ["dbt-core>3", "dbt-duckdb", "duckdb==1.4.3"]
     # we do not validate version ranges, pip will do it and fail when creating venv
     requirements = _create_dbt_deps(["motherduck"], dbt_version="y")
-    assert requirements[:-1] == ["dbt-corey", "dbt-duckdb", "duckdb==1.3.2"]
+    assert requirements[:-1] == ["dbt-corey", "dbt-duckdb", "duckdb==1.4.3"]
 
 
 def test_default_profile_name() -> None:
@@ -257,7 +257,7 @@ def test_run_jaffle_invalid_run_args(
             dbt_func(
                 client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO
             ).run_all(["--wrong_flag"])
-        # dbt < 1.5 raises systemexit, dbt >= 1.5 just returns success False
+        # dbt >= 1.7 returns success False via dbtRunner, but SystemExit is handled defensively
         assert isinstance(pr_exc.value.dbt_results, SystemExit) or pr_exc.value.dbt_results is None
 
 
@@ -281,8 +281,8 @@ def test_run_jaffle_failed_run(
 
 JAFFLE_MESSAGES_INCREMENTAL: Dict[str, Any] = {
     "snowflake": {
-        # Different message per version
-        "customers": ("SUCCESS 1", "SUCCESS 100"),
+        # dbt < 1.10 returns "SUCCESS 1", dbt >= 1.10 returns actual row counts
+        "customers": ("SUCCESS 1", "SUCCESS 0", "SUCCESS 100"),
     },
     "postgres": {"customers": ("INSERT 0 100",)},
 }

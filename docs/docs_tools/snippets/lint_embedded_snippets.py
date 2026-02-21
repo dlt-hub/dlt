@@ -24,6 +24,7 @@ from docs_tools.utils import collect_markdown_files
 SNIPPET_MARKER = "```"
 ALLOWED_LANGUAGES = [
     "py",
+    "python",
     "toml",
     "json",
     "yaml",

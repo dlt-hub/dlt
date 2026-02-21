@@ -301,7 +301,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         except UnknownDestinationModule as e:
             e.destination_type = destination_type
             e.named_dest_attempted = True
-            raise e
+            raise
 
 
 class DestinationReference:

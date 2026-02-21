@@ -337,7 +337,12 @@ class LoadJob(ABC):
         pass
 
     @abstractmethod
-    def exception(self) -> str:
+    def failed_message(self) -> str:
+        """The error message in failed or retry states"""
+        pass
+
+    @abstractmethod
+    def exception(self) -> BaseException:
         """The exception associated with failed or retry states"""
         pass
 
@@ -450,9 +455,11 @@ class RunnableLoadJob(LoadJob, ABC):
         """Returns current state. Should poll external resource if necessary."""
         return self._state
 
-    def exception(self) -> str:
-        """The exception associated with failed or retry states"""
+    def failed_message(self) -> str:
         return str(self._exception)
+
+    def exception(self) -> BaseException:
+        return self._exception
 
 
 class FollowupJobRequest:
@@ -703,7 +710,9 @@ class SupportsOpenTables(ABC):
     """
 
     @abstractmethod
-    def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
+    def get_open_table_catalog(
+        self, table_format: TTableFormat, catalog_name: Optional[str] = None
+    ) -> Any:
         """Gets the catalog that keeps tables' metadata. Currently only pyiceberg Catalog is supported"""
 
     @abstractmethod

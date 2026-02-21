@@ -1,6 +1,6 @@
 from typing import Sequence, Tuple, Optional, List, Union, cast
 import operator
-import sqlalchemy as sa
+from dlt.common.libs.sql_alchemy import sa
 
 from dlt.common.typing import TAnyDateTime
 from dlt.common.utils import uniq_id

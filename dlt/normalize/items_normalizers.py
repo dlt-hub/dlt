@@ -8,7 +8,14 @@ import sqlglot
 from dlt.common.data_types.type_helpers import coerce_value, py_type_to_sc_type
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination.capabilities import adjust_column_schema_to_capabilities
-from dlt.common.libs.sqlglot import TSqlGlotDialect
+from dlt.common.libs.sqlglot import (
+    SqlModel,
+    TSqlGlotDialect,
+    build_outer_select_statement,
+    reorder_or_adjust_outer_select,
+    uuid_expr_for_dialect,
+    validate_no_star_select,
+)
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
@@ -16,7 +23,7 @@ from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.normalizers.json.helpers import get_root_row_id_type
-from dlt.common.runtime import signals
+from dlt.common.schema import utils
 from dlt.common.schema.typing import (
     C_DLT_ID,
     C_DLT_LOAD_ID,
@@ -30,12 +37,14 @@ from dlt.common.schema.utils import (
     dlt_id_column,
     dlt_load_id_column,
     has_table_seen_data,
+    is_complete_column,
     normalize_table_identifiers,
     is_nested_table,
     has_seen_null_first_hint,
 )
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException
+from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.time import normalize_timezone
 from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import NormalizeStorage
@@ -45,9 +54,8 @@ from dlt.common.typing import VARIANT_FIELD_FORMAT, DictStrAny, REPattern, StrAn
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
-from dlt.extract.hints import SqlModel
-from dlt.normalize.exceptions import NormalizeException
 
+from dlt.normalize.exceptions import NormalizeException
 from dlt.normalize.configuration import NormalizeConfiguration
 
 try:
@@ -58,77 +66,36 @@ except MissingDependencyException:
     pa = None
 
 
-DLT_SUBQUERY_NAME = "_dlt_subquery"
-
-
 class ItemsNormalizer:
     def __init__(
         self,
         item_storage: DataItemStorage,
+        load_storage: LoadStorage,
         normalize_storage: NormalizeStorage,
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
     ) -> None:
         self.item_storage = item_storage
+        self.load_storage = load_storage
         self.normalize_storage = normalize_storage
         self.schema = schema
         self.load_id = load_id
         self.config = config
         self.naming = self.schema.naming
 
+    def _maybe_cancel(self) -> None:
+        self.load_storage.new_packages.raise_if_cancelled(self.load_id)
+
     @abstractmethod
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]: ...
 
 
 class ModelItemsNormalizer(ItemsNormalizer):
-    def _normalize_casefold(self, ident: str) -> str:
-        return self.config.destination_capabilities.casefold_identifier(
-            self.schema.naming.normalize_identifier(ident)
-        )
-
-    def _uuid_expr_for_dialect(self, dialect: TSqlGlotDialect) -> sqlglot.exp.Expression:
-        """
-        Generates a UUID expression based on the specified dialect.
-
-        Args:
-            dialect (str): The SQL dialect for which the UUID expression needs to be generated.
-
-        Returns:
-            sqlglot.exp.Expression: A SQL expression that generates a UUID for the specified dialect.
-        """
-
-        # NOTE: redshift and sqlite don't have an in-built uuid function
-        if dialect == "redshift":
-            row_num = sqlglot.exp.Window(
-                this=sqlglot.exp.Anonymous(this="row_number"),
-                partition_by=None,
-                order=None,
-            )
-            concat_expr = sqlglot.exp.func(
-                "CONCAT",
-                sqlglot.exp.Literal.string(self.load_id),
-                sqlglot.exp.Literal.string("-"),
-                row_num,
-            )
-            return sqlglot.exp.func("MD5", concat_expr)
-        elif dialect == "sqlite":
-            return sqlglot.exp.func(
-                "lower",
-                sqlglot.exp.func(
-                    "hex", sqlglot.exp.func("randomblob", sqlglot.exp.Literal.number(16))
-                ),
-            )
-        elif dialect == "clickhouse":
-            return sqlglot.exp.func("generateUUIDv4")
-        # NOTE: UUID in Athena creates a native UUID data type
-        # which needs to be typecasted
-        elif dialect == "athena":
-            return sqlglot.exp.Cast(
-                this=sqlglot.exp.func("UUID"), to=sqlglot.exp.DataType.build("VARCHAR")
-            )
-        else:
-            return sqlglot.exp.func("UUID")
+    def _normalize_casefold(self, identifier: str) -> str:
+        # use normalize_path() to preserve __ separators in already-normalized names
+        normalized = self.schema.naming.normalize_path(identifier)
+        return self.config.destination_capabilities.casefold_identifier(normalized)
 
     def _adjust_outer_select_with_dlt_columns(
         self,
@@ -198,7 +165,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                         f"Received row id type: '{row_id_type}'."
                     )
                 dlt_id_expr = sqlglot.exp.Alias(
-                    this=self._uuid_expr_for_dialect(sql_dialect),
+                    this=uuid_expr_for_dialect(sql_dialect, self.load_id),
                     alias=sqlglot.to_identifier(NORM_C_DLT_ID, quoted=True),
                 )
                 outer_parsed_select.selects.append(dlt_id_expr)
@@ -215,107 +182,8 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         return schema_update or None
 
-    def _reorder_or_adjust_outer_select(
-        self,
-        outer_parsed_select: sqlglot.exp.Select,
-        columns: TTableSchemaColumns,
-        root_table_name: str,
-    ) -> None:
-        """
-        Reorders or adjusts the SELECT statement to match the schema:
-        1. Adds missing columns as NULL.
-        2. Removes extra columns not in the schema.
-
-        Args:
-            outer_parsed_select (sqlglot.exp.Select): The parsed outer SELECT statement.
-            columns (TTableSchemaColumns): The schema columns to match.
-        """
-        # Map alias name -> expression
-        alias_map = {expr.alias.lower(): expr for expr in outer_parsed_select.selects}
-
-        # Build new selects list in correct schema column order
-        new_selects = []
-        for col in columns:
-            lower_col = col.lower()
-            expr = alias_map.get(lower_col)
-            if expr:
-                new_selects.append(expr)
-            # If there's no such column select, just put null if nullable
-            else:
-                if columns[col]["nullable"]:
-                    new_selects.append(
-                        sqlglot.exp.Alias(
-                            this=sqlglot.exp.Null(),
-                            alias=sqlglot.to_identifier(self._normalize_casefold(col), quoted=True),
-                        )
-                    )
-                else:
-                    exc = CannotCoerceNullException(self.schema.name, root_table_name, col)
-                    exc.args = (
-                        exc.args[0]
-                        + " — column is missing from the SELECT clause but is non-nullable and must"
-                        " be explicitly selected",
-                    )
-                    raise exc
-
-        outer_parsed_select.set("expressions", new_selects)
-
-    def _build_outer_select_statement(
-        self,
-        select_dialect: TSqlGlotDialect,
-        parsed_select: sqlglot.exp.Select,
-        columns: TTableSchemaColumns,
-    ) -> Tuple[sqlglot.exp.Select, bool]:
-        """
-        Wraps the parsed SELECT statement in a subquery and builds an outer SELECT statement.
-
-        Args:
-            select_dialect (str): The SQL dialect to use for parsing and formatting.
-            parsed_select (sqlglot.exp.Select): The parsed SELECT statement.
-            columns (TTableSchemaColumns): The schema columns to match.
-
-        Returns:
-            Tuple[sqlglot.exp.Select, bool]: The outer SELECT statement and a flag indicating if reordering is needed.
-        """
-        # Wrap parsed select in a subquery
-        subquery = parsed_select.subquery(alias=DLT_SUBQUERY_NAME)
-
-        # Build outer SELECT list
-        selected_columns = []
-        outer_selects: List[sqlglot.exp.Expression] = []
-        for select in parsed_select.selects:
-            if isinstance(select, sqlglot.exp.Alias):
-                name = select.alias
-
-                # NOTE: for bigquery, quoted identifiers are treated as sqlglot.exp.Dot
-            elif isinstance(select, sqlglot.exp.Column) or isinstance(select, sqlglot.exp.Dot):
-                name = select.output_name or select.name
-
-            else:
-                raise ValueError(
-                    "\n\nUnsupported SELECT expression in the model query:\n\n "
-                    f" {select.sql(select_dialect)}\n\nOnly simple column selections like `column`"
-                    " or `column AS alias` are currently supported.\n"
-                )
-
-            norm_casefolded = self._normalize_casefold(name)
-            selected_columns.append(norm_casefolded)
-
-            column_ref = sqlglot.exp.Dot(
-                this=sqlglot.to_identifier(DLT_SUBQUERY_NAME),
-                expression=sqlglot.to_identifier(name, quoted=True),
-            )
-
-            outer_selects.append(column_ref.as_(norm_casefolded, quoted=True))
-
-        needs_reordering = selected_columns != list(columns.keys())
-
-        # Create the outer select statement
-        outer_select = sqlglot.select(*outer_selects).from_(subquery)
-
-        return outer_select, needs_reordering
-
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
+        self._maybe_cancel()
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "r"
         ) as f:
@@ -332,21 +200,13 @@ class ModelItemsNormalizer(ItemsNormalizer):
         if not isinstance(parsed_select, sqlglot.exp.Select):
             raise ValueError("Only SELECT statements should be used as `SqlModel` queries.")
 
-        # Star selects are not allowed
-        if any(
-            isinstance(expr, sqlglot.exp.Star)
-            or (isinstance(expr, sqlglot.exp.Column) and isinstance(expr.this, sqlglot.exp.Star))
-            for expr in parsed_select.selects
-        ):
-            raise ValueError(
-                "\n\nA `SELECT *` was detected in the model query:\n\n"
-                f"{parsed_select.sql(sql_dialect)}\n\n"
-                "Model queries using a star (`*`) expression cannot be normalized. "
-                "Please rewrite the query to explicitly specify the columns to be selected.\n"
-            )
+        validate_no_star_select(parsed_select, sql_dialect)
 
-        outer_parsed_select, needs_reordering = self._build_outer_select_statement(
-            sql_dialect, parsed_select, self.schema.get_table_columns(root_table_name)
+        outer_parsed_select, needs_reordering = build_outer_select_statement(
+            sql_dialect,
+            parsed_select,
+            self.schema.get_table_columns(root_table_name),
+            self._normalize_casefold,
         )
 
         schema_updates = []
@@ -358,8 +218,12 @@ class ModelItemsNormalizer(ItemsNormalizer):
             schema_updates.append(dlt_col_update)
 
         if needs_reordering:
-            self._reorder_or_adjust_outer_select(
-                outer_parsed_select, self.schema.get_table_columns(root_table_name), root_table_name
+            reorder_or_adjust_outer_select(
+                outer_parsed_select,
+                self.schema.get_table_columns(root_table_name),
+                self._normalize_casefold,
+                self.schema.name,
+                root_table_name,
             )
 
         # TODO the dialect here should be the "destination dialect"; i.e., the transpilation output
@@ -379,12 +243,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     def __init__(
         self,
         item_storage: DataItemStorage,
+        load_storage: LoadStorage,
         normalize_storage: NormalizeStorage,
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
     ) -> None:
-        super().__init__(item_storage, normalize_storage, schema, load_id, config)
+        super().__init__(item_storage, load_storage, normalize_storage, schema, load_id, config)
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
         self._filtered_tables: Set[str] = set()
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
@@ -521,11 +386,8 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         )
             except StopIteration:
                 pass
-            # kill job if signalled
-            signals.raise_if_signalled()
 
         self._clean_seen_null_first_hint(schema_update)
-
         return schema_update
 
     def _clean_seen_null_first_hint(self, schema_update: TSchemaUpdate) -> None:
@@ -555,7 +417,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     )
                     parent_col_schema = parent_col_schemas.get(last_ident_path)
 
-                    if parent_col_schema and has_seen_null_first_hint(parent_col_schema):
+                    # remove only incomplete columns: both None, simple and complex values may be received by a column
+                    # in any order
+                    if (
+                        parent_col_schema
+                        and has_seen_null_first_hint(parent_col_schema)
+                        and not is_complete_column(parent_col_schema)
+                    ):
                         parent_col_schemas.pop(last_ident_path)
                         parent_updates = schema_update.get(parent_name, [])
                         for j, parent_update in enumerate(parent_updates):
@@ -579,7 +447,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         updated_table_partial: TPartialTableSchema = None
         table = self.schema._schema_tables.get(table_name)
         if not table:
-            # print("NEW TABLE", table_name)
             table = utils.new_table(table_name, parent_table)
         table_columns = table["columns"]
 
@@ -868,6 +735,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         extracted_items_file: str,
         root_table_name: str,
     ) -> List[TSchemaUpdate]:
+        self._maybe_cancel()
         schema_updates: List[TSchemaUpdate] = []
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
@@ -875,6 +743,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             # enumerate jsonl file line by line
             line: bytes = None
             for line_no, line in enumerate(f):
+                self._maybe_cancel()
                 items: List[TDataItem] = json.loadb(line)
                 partial_update = self._normalize_chunk(
                     root_table_name, items, may_have_pua(line), skip_write=False
@@ -945,12 +814,14 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         # if we use adapter to convert arrow to dicts, then normalization is not necessary
         is_native_arrow_writer = not issubclass(self.item_storage.writer_cls, ArrowToObjectAdapter)
         should_normalize: bool = None
+        self._maybe_cancel()
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:
             for batch in pyarrow.pq_stream_with_new_columns(
                 f, new_columns, row_groups_per_read=self.REWRITE_ROW_GROUPS
             ):
+                self._maybe_cancel()
                 items_count += batch.num_rows
                 # we may need to normalize
                 if is_native_arrow_writer and should_normalize is None:
@@ -987,6 +858,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         return [schema_update]
 
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
+        self._maybe_cancel()
         # read schema and counts from file metadata
         from dlt.common.libs.pyarrow import get_parquet_metadata
 
@@ -1035,6 +907,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
 
 class FileImportNormalizer(ItemsNormalizer):
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
+        self._maybe_cancel()
         logger.info(
             f"Table {root_table_name} {self.item_storage.writer_spec.file_format} file"
             f" {extracted_items_file} will be directly imported without normalization"

@@ -24,9 +24,9 @@ The default `delete-insert` strategy is used in two scenarios:
 1. You want to keep only one instance of a certain record, i.e., you receive updates of the `user` state from an API and want to keep just one record per `user_id`.
 2. You receive data in daily batches, and you want to make sure that you always keep just a single instance of a record for each batch, even in case you load an old batch or load the current batch several times a day (i.e., to receive "live" updates).
 
-The `delete-insert` strategy loads data to a `staging` dataset, deduplicates the staging data if a `primary_key` is provided, deletes the data from the destination using `merge_key` and `primary_key`, and then inserts the new records. All of this happens in a single atomic transaction for a root and all nested tables.
+The `delete-insert` strategy loads data to a `staging` dataset, deduplicates the staging data if a `primary_key` is provided, deletes the data from the destination using `merge_key` and `primary_key`, and then inserts the new records. All of this occurs within a single atomic transaction for the root and all nested tables.
 
-Example below loads all the GitHub events and updates them in the destination using "id" as the primary key, making sure that only a single copy of the event is present in the `github_repo_events` table:
+The example below loads all the GitHub events and updates them in the destination using "id" as the primary key, making sure that only a single copy of the event is present in the `github_repo_events` table:
 
 ```py
 @dlt.resource(primary_key="id", write_disposition="merge")
@@ -34,7 +34,7 @@ def github_repo_events():
     yield from _get_event_pages()
 ```
 
-You can use compound primary keys:
+Since primary key is a [compound property](../general-usage/schema.md#compound-hints), you can define a composite primary key by providing multiple column names:
 
 ```py
 @dlt.resource(primary_key=("id", "url"), write_disposition="merge")
@@ -42,8 +42,8 @@ def resource():
     ...
 ```
 
-Example below merges on a column `batch_day` that holds the day for which the given record is valid.
-Merge keys also can be compound:
+The example below merges on the `batch_day` column that holds the day for which the given record is valid.
+Merge keys also can be [compound](../general-usage/schema.md#compound-hints):
 
 ```py
 @dlt.resource(merge_key="batch_day", write_disposition="merge")
@@ -51,7 +51,7 @@ def get_daily_batch(day):
     yield _get_batch_from_bucket(day)
 ```
 
-As with any other write disposition, you can use it to load data ad hoc. Below we load issues with top reactions for the `duckdb` repo. The lists have, obviously, many overlapping issues, but we want to keep just one instance of each.
+As with any other write disposition, you can use it to load data ad hoc. Below, we load issues with the top reactions for the `duckdb` repo. The lists obviously contain many overlapping issues, but we want to keep only one instance of each.
 
 ```py
 p = dlt.pipeline(destination="bigquery", dataset_name="github")
@@ -65,7 +65,7 @@ for reaction in reactions:
 p.run(issues, write_disposition="merge", primary_key="id", table_name="issues")
 ```
 
-Example below dispatches GitHub events to several tables by event type, keeps one copy of each event by "id" and skips loading of past records using "last value" incremental. As you can see, all of this we can just declare in our resource.
+The example below dispatches GitHub events to several tables by event type, keeps one copy of each event by "id", and skips loading past records using a “last value” incremental. As you can see, all of this can be declared directly in the resource.
 
 ```py
 @dlt.resource(primary_key="id", write_disposition="merge", table_name=lambda i: i['type'])
@@ -81,7 +81,7 @@ The appended data will be inserted from a staging table in one transaction for m
 
 ### Control deduplication of staging data
 
-By default, `primary_key` deduplication is arbitrary. You can pass the `dedup_sort` column hint with a value of `desc` or `asc` to influence which record remains after deduplication. Using `desc`, the records sharing the same `primary_key` are sorted in descending order before deduplication, making sure the record with the highest value for the column with the `dedup_sort` hint remains. `asc` has the opposite behavior.
+By default, `primary_key` deduplication is arbitrary. You can pass the `dedup_sort` column hint with a value of `desc` or `asc` to control which record remains after deduplication. With `desc`, records sharing the same `primary_key` are sorted in descending order before deduplication, ensuring that the record with the highest value for the column with the `dedup_sort` hint remains. The `asc` option applies the opposite behavior.
 
 ```py
 @dlt.resource(
@@ -126,14 +126,14 @@ When this resource is executed, the following deduplication rules are applied:
 
 1. For records with different values in the `dedup_sort` column:
    - The record with the highest value is kept when using `desc`.
-   - For example, between records with id=1, the one with `"metadata_modified"="2024-01-02"` is kept.
+   - For example, among records with id=1, the one with `"metadata_modified"="2024-01-02"` is kept.
 
 2. For records with identical values in the `dedup_sort` column:
    - The first occurrence encountered is kept.
-   - For example, between records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept.
+   - For example, among records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept.
 
 ### Disable deduplication
-If staging data is already deduplicated (or was always clean) you can disable it. Deduplication is preformed by the database backend so you
+If staging data is already deduplicated (or was always clean) you can disable it. Deduplication is performed by the database backend so you
 may save some costs:
 
 ```py
@@ -147,7 +147,7 @@ The `hard_delete` column hint can be used to delete records from the destination
 1) `bool` type: only `True` leads to a delete—`None` and `False` values are disregarded.
 2) Other types: each `not None` value leads to a delete.
 
-Each record in the destination table with the same `primary_key` or `merge_key` as a record in the source dataset that's marked as a delete will be deleted.
+If the incoming data contains a record marked as deleted, then any existing record in the destination table with the same `primary_key` or `merge_key` will be removed.
 
 Deletes are propagated to any nested table that might exist. For each record that gets deleted in the root table, all corresponding records in the nested table(s) will also be deleted. Records in parent and nested tables are linked through the `root key` that is explained in the next section.
 
@@ -242,8 +242,6 @@ In that case `dlt` will update pipeline schema but will skip database migration.
 
 #### Forcing root key propagation
 
-Nevertheless, in some cases, you may want to permanently enable root key propagation.
-
 `Root key` propagation is automatically enabled for all tables that have the `merge` write disposition set from the beginning. We do not always enable it by default because it takes up additional storage space. Nevertheless, in some cases, you may want to permanently enable `root key` propagation.
 
 To enable `root key` propagation on an existing source or resource, you must drop and recreate its tables, since the `_dlt_root_id` column cannot be added to tables that already contain data.
@@ -299,15 +297,15 @@ existing `parent_key` will be used.
 :::
 
 ## `scd2` strategy
-`dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. By default, the resource is expected to provide a full extract of the source table each run, but [incremental extracts](#example-incremental-scd2) are also possible. A row hash is stored in `_dlt_id` and used as surrogate key to identify source records that have been inserted, updated, or deleted. A `NULL` value is used by default to indicate an active record, but it's possible to use a configurable high timestamp (e.g. 9999-12-31 00:00:00.000000) instead.
+`dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. By default, the resource is expected to provide a full extract of the source table each run, though [incremental extracts](#example-incremental-scd2) are also possible. A row hash is stored in `_dlt_id` and used as a surrogate key to identify source records that have been inserted, updated, or deleted. A `NULL` value is used by default to indicate an active record, but a configurable high timestamp (for example, 9999-12-31 00:00:00.000000) can be used instead.
 
 :::note
-The `unique` hint for `_dlt_id` in the root table is set to `false` when using `scd2`. This differs from [default behavior](./destination-tables.md#nested-tables). The reason is that the surrogate key stored in `_dlt_id` contains duplicates after an _insert-delete-reinsert_ pattern:
+The `unique` hint for `_dlt_id` in the root table is set to `false` when using `scd2`. This differs from [the default behavior](./destination-tables.md#nested-tables). The reason is that the surrogate key stored in `_dlt_id` contains duplicates after an _insert-delete-reinsert_ pattern:
 1. A record with surrogate key X is inserted in a load at `t1`.
 2. The record with surrogate key X is deleted in a later load at `t2`.
 3. The record with surrogate key X is reinserted in an even later load at `t3`.
 
-After this pattern, the `scd2` table in the destination has two records for surrogate key X: one for the validity window `[t1, t2]`, and one for `[t3, NULL]`. A duplicate value exists in `_dlt_id` because both records have the same surrogate key.
+After this pattern, the `scd2` table in the destination has two records for surrogate key X: one with the validity window `[t1, t2]`, and one with `[t3, NULL]`. As a result, `_dlt_id` contains duplicate values because both records share the same surrogate key.
 
 Note that:
 - The composite key `(_dlt_id, _dlt_valid_from)` is unique.
@@ -330,7 +328,7 @@ pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
 ...
 ```
 
-*`dim_customer` destination table after first run—inserted two records present in initial load and added validity columns:*
+*`dim_customer` destination table after the first run—two records from the initial load are present, with validity columns added:*
 
 | `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
 | -- | -- | -- | -- | -- |
@@ -349,7 +347,7 @@ def dim_customer():
 pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 ```
 
-*`dim_customer` destination table after second run—inserted new record for `customer_key` 1 and retired old record by updating `_dlt_valid_to`:*
+*`dim_customer` destination table after the second run—new record inserted for `customer_key` 1, and the old record retired by updating `_dlt_valid_to`:*
 
 | `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
 | -- | -- | -- | -- | -- |
@@ -368,7 +366,7 @@ def dim_customer():
 pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 ```
 
-*`dim_customer` destination table after third run—retired deleted record by updating `_dlt_valid_to`:*
+*`dim_customer` destination table after the third run—the deleted record is retired by updating `_dlt_valid_to`:*
 
 | `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
 | -- | -- | -- | -- | -- |
@@ -398,7 +396,7 @@ def dim_customer():
 pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
 ...
 ```
-*`dim_customer` destination table after first run:*
+*`dim_customer` destination table after the first run:*
 
 | `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
 | -- | -- | -- | -- | -- |
@@ -416,7 +414,7 @@ def dim_customer():
 pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 ```
 
-*`dim_customer` destination table after second run—customer key 2 was not retired:*
+*`dim_customer` destination table after the second run—customer key 2 was not retired:*
 
 | `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
 | -- | -- | -- | -- | -- |
@@ -436,7 +434,7 @@ you must explicitly unset the `merge_key`:
 def dim_customer():
     ...
 ```
-Simply omitting `merge_key` from the decorator will not disable the behavior. Aternatively, you can disable the `merge_key` hint for the affected column in the import schema.
+Simply omitting `merge_key` from the decorator will not disable the behavior. Alternatively, you can disable the `merge_key` hint for the affected column in the import schema.
 :::
 
 *Case 2: only retire records for given partitions*
@@ -445,7 +443,7 @@ Simply omitting `merge_key` from the decorator will not disable the behavior. At
 Technically this is not SCD2 because the key used to merge records is not a natural key.
 :::
 
-You can set a "partition" column as `merge_key` to retire absent rows for given partitions. In this case you only consider absent rows deleted if their partition value is present in the extract. Physical partitioning of the table is not required—the word "partition" is used conceptually here.
+You can set a "partition" column as `merge_key` to retire absent rows for given partitions. In this case, you only consider absent rows deleted if their partition value is present in the extract. Physical partitioning of the table is not required—the word "partition" is used conceptually here.
 
 ```py
 @dlt.resource(
@@ -463,7 +461,7 @@ pipeline.run(some_data())  # first run — 2024-01-02 03:03:35.854305
 ...
 ```
 
-*`some_data` destination table after first run:*
+*`some_data` destination table after the first run:*
 
 | `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
 | -- | -- | -- | -- |
@@ -483,7 +481,7 @@ pipeline.run(some_data())  # second run — 2024-01-03 03:01:11.943703
 ...
 ```
 
-*`some_data` destination table after second run—added 2024-01-02 records, did not touch 2024-01-01 records:*
+*`some_data` destination table after the second run—2024-01-02 records were added, and 2024-01-01 records were left unchanged:*
 
 | `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
 | -- | -- | -- | -- |
@@ -505,7 +503,7 @@ pipeline.run(some_data())  # third run — 2024-01-03 10:30:05.750356
 ...
 ```
 
-*`some_data` destination table after third run—retired b, added bb, did not touch 2024-01-02 partition:*
+*`some_data` destination table after the third run—b was retired, bb was added, and the 2024-01-02 partition was left unchanged:*
 
 | `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
 | -- | -- | -- | -- |
@@ -611,7 +609,11 @@ def dim_customer():
 ...
 ```
 
-### 🧪 Use scd2 with Arrow tables and Panda frames
+:::note
+If your source data contains nested fields (like lists or arrays) that may return in different order across API calls, the automatically generated row hash will differ even when the actual data hasn't changed. Using `row_version_column_name` to provide your own hash based on stable fields is a good solution for this.
+:::
+
+### 🧪 Use scd2 with Arrow tables and pandas DataFrames
 `dlt` will not add a **row hash** column to the tabular data automatically (we are working on it).
 You need to do that yourself by adding a transform function to the `scd2` resource that computes row hashes (using pandas.util, should be fairly fast).
 ```py

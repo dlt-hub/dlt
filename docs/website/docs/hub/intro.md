@@ -52,7 +52,7 @@ To get started quickly, follow the [installation instructions](getting-started/i
 3. **[Data quality](features/quality/data-quality.md)**: define correctness rules, run checks, and fail fast with actionable messages.
 4. **[Data apps & sharing](../general-usage/dataset-access/marimo)**: build lightweight, shareable data apps and notebooks for consumers.
 5. **[AI agentic support](features/mcp-server.md)**: use MCP servers to analyze pipelines and datasets.
-6. **Managed runtime**: deploy and run with a single command—no infra to provision or patch.
+6. **[Managed runtime](runtime/overview.md)**: deploy and run with a single command—no infra to provision or patch.
 7. **[Storage choice](ecosystem/iceberg.md)**: pick managed Iceberg-based lakehouse, DuckLake, or bring your own storage.
 
 ### How dltHub fits with dlt (OSS)
@@ -61,8 +61,8 @@ dltHub embraces the dlt library, not replaces it:
 * dlt (OSS): Python library focused on extract & load with strong typing and schema handling.
 * dltHub: Adds transformations, quality, agentic tooling, managed runtime, and storage choices, so you can move from local dev to production seamlessly.
 
-dltHub extends the dlt developer experience with new [local workspace layout](workspace/init.md), [configuration profiles](core-concepts/profiles-dlthub.md), [additional CLI commands](command-line-interface.md), workspace dashboard, [MCP server](features/mcp-server.md) and more. 
-Those developer experience improvements belong to **dltHub Free tier** and are distributed side by side with the `dlt` under [Apache 2.0 license](https://github.com/dlt-hub/dlt?tab=Apache-2.0-1-ov-file#readme). You can use **dltHub Free tier** right away - like you use regular `dlt`. 
+dltHub extends the dlt developer experience with new [local workspace layout](workspace/init.md), [configuration profiles](core-concepts/profiles-dlthub.md), [additional CLI commands](command-line-interface.md), workspace dashboard, [MCP server](features/mcp-server.md) and more.
+Those developer experience improvements belong to **dltHub Free tier** and are distributed side by side with the `dlt` under [Apache 2.0 license](https://github.com/dlt-hub/dlt?tab=Apache-2.0-1-ov-file#readme). You can use **dltHub Free tier** right away - like you use regular `dlt`.
 
 All features that require a license are part of dltHub paid tiers (i.e. Basic tier) and are clearly marked as such in this documentation. Those features are shipped via `dlthub` Python package (available on [PyPI](https://pypi.org/project/dlthub/)) which is not open source and can be used with a valid license.
 
@@ -81,7 +81,7 @@ dltHub consists of three main products. You can use them together or compose the
 
 ### Runtime
 
-**Runtime [Private preview]** - a managed cloud runtime operated by dltHub:
+**[Runtime](runtime/overview.md)** - a managed cloud runtime operated by dltHub:
 
 * Scalable execution for pipelines and transformations.
 * APIs, web interfaces, and auxiliary services.
@@ -105,7 +105,6 @@ Most features support a self-guided trial right after install, check the [instal
 
 | Tier                  | Best for                                                                                        | Runtime                        | Typical use case                                                              | Notes                                           | Availability    |
 | --------------------- |-------------------------------------------------------------------------------------------------| ------------------------------ |-------------------------------------------------------------------------------|-------------------------------------------------|-----------------|
-| **dltHub Free**       | Developers running **dlt ingestion pipelines** in production on **self-managed infrastructure** | Local Runtime (self-managed)   | Run and maintain ingestion pipelines in production on your own infrastructure | Ideal for self-hosted and ingestion-only setups | Public preview  |
 | **dltHub Basic**      | Solo developers or small teams owning a **single pipeline + dataset + reports** end-to-end      | Managed dltHub Runtime         | Set up a pipeline quickly, add tests and transformations, share a simple app  | Optimized for velocity with minimal setup       | Private preview |
 | **dltHub Scale**      | Data teams building **composable data platforms** with governance and collaboration             | Managed dltHub Runtime         | Multiple pipelines, shared assets, team workflows, observability              | Team features and extended governance           | Alpha           |
 | **dltHub Enterprise** | Organizations needing **enterprise control** or **self-managed runtime**                        | Managed or self-hosted Runtime | On-prem/VPC deployments, custom licensing, advanced security                  | Enterprise features and deployment flexibility  | In development  |

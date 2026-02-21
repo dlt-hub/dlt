@@ -67,10 +67,16 @@ MTIME_DISPATCH = {
     "gcs": lambda f: ensure_pendulum_datetime_utc(f["updated"]),
     "hf": lambda f: ensure_pendulum_datetime_utc(f["last_commit"]["date"]),
     "https": lambda f: cast(
-        pendulum.DateTime, pendulum.parse(f["Last-Modified"], exact=True, strict=False)
+        pendulum.DateTime,
+        pendulum.parse(
+            f.get("Last-Modified", pendulum.now().isoformat()), exact=True, strict=False
+        ),
     ),
     "http": lambda f: cast(
-        pendulum.DateTime, pendulum.parse(f["Last-Modified"], exact=True, strict=False)
+        pendulum.DateTime,
+        pendulum.parse(
+            f.get("Last-Modified", pendulum.now().isoformat()), exact=True, strict=False
+        ),
     ),
     "file": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
     "memory": lambda f: ensure_pendulum_datetime_utc(f["created"]),
@@ -208,7 +214,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
         if fs_cls.protocol == "abfs":
             url = urlparse(config.bucket_url)
             # if storage account is present in bucket_url and in credentials, az fsspec will fail
-            # account name is detected only for blob.core.windows.net host
+            # account name is detected for blob.core.windows.net and dfs.core.windows.net hosts
             if url.username and (
                 url.hostname.endswith("blob.core.windows.net")
                 or url.hostname.endswith("dfs.core.windows.net")

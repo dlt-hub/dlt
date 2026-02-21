@@ -101,6 +101,12 @@ class LoadPackageNotFound(LoadStorageException, FileNotFoundError):
         super().__init__(f"Package with `{load_id=:}` could not be found")
 
 
+class LoadPackageCancelled(LoadStorageException):
+    def __init__(self, load_id: str) -> None:
+        self.load_id = load_id
+        super().__init__(f"Package with `{load_id=:}` is cancelled")
+
+
 class LoadPackageAlreadyCompleted(LoadStorageException):
     def __init__(self, load_id: str) -> None:
         self.load_id = load_id

@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import patch
 from typing import List, Tuple
 
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
 from dlt.common.storages.configuration import FilesystemConfiguration
@@ -41,7 +42,7 @@ from tests.utils import (
     TEST_DICT_CONFIG_PROVIDER,
 )
 from tests.load.utils import prepare_load_package
-from tests.utils import skip_if_not_active, TEST_STORAGE_ROOT
+from tests.utils import skip_if_not_active, get_test_storage_root
 
 skip_if_not_active("dummy")
 
@@ -52,7 +53,7 @@ NORMALIZED_FILES = [
 
 SMALL_FILES = ["event_user.1234.0.jsonl", "event_loop_interrupted.1234.0.jsonl"]
 
-REMOTE_FILESYSTEM = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, "_remote_filesystem"))
+REMOTE_FILESYSTEM = os.path.abspath(os.path.join(get_test_storage_root(), "_remote_filesystem"))
 
 
 @pytest.fixture(autouse=True)
@@ -116,6 +117,7 @@ def test_unsupported_write_disposition() -> None:
     assert "LoadClientUnsupportedWriteDisposition" in e.value.failed_message
 
 
+@pytest.mark.serial
 def test_big_load_packages() -> None:
     """
     This test guards against changes in the load that exponentially makes the loads slower
@@ -240,6 +242,8 @@ def test_spool_job_failed_and_package_completed() -> None:
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     run_all(load)
 
+    # not loading
+    assert load.current_load_id is None
     package_info = load.load_storage.get_load_package_info(load_id)
     assert package_info.state == "loaded"
     # all jobs failed
@@ -259,7 +263,10 @@ def test_spool_job_failed_terminally_exception_init() -> None:
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
         with pytest.raises(LoadClientJobFailed) as py_ex:
             run_all(load)
+        assert isinstance(py_ex.value.client_exception, DestinationTerminalException)
         assert py_ex.value.load_id == load_id
+        # not loading - package aborted
+        assert load.current_load_id is None
         package_info = load.load_storage.get_load_package_info(load_id)
         assert package_info.state == "aborted"
         # both failed - we wait till the current loop is completed and then raise
@@ -281,6 +288,8 @@ def test_spool_job_failed_transiently_exception_init() -> None:
         with pytest.raises(LoadClientJobRetry) as py_ex:
             run_all(load)
         assert py_ex.value.load_id == load_id
+        # loading - can be retried
+        assert load.current_load_id is not None
         package_info = load.load_storage.get_load_package_info(load_id)
         assert package_info.state == "normalized"
         # both failed - we wait till the current loop is completed and then raise
@@ -316,6 +325,7 @@ def test_spool_job_failed_exception_complete() -> None:
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with pytest.raises(LoadClientJobFailed) as py_ex:
         run_all(load)
+    assert load.current_load_id is None
     assert py_ex.value.load_id == load_id
     package_info = load.load_storage.get_load_package_info(load_id)
     assert package_info.state == "aborted"
@@ -417,6 +427,10 @@ def test_try_retrieve_job() -> None:
     load.pool = ThreadPoolExecutor()
     jobs = load.start_new_jobs(load_id, schema, [])  # type: ignore
     assert len(jobs) == 2
+    # wait for jobs submitted to the thread pool to complete before resuming
+    for j in jobs:
+        while j.state() not in ("completed", "failed", "retry"):
+            sleep(0.01)
     # now jobs are known
     jobs = load.resume_started_jobs(load_id, schema)
     assert len(jobs) == 2

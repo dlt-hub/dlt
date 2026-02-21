@@ -50,7 +50,7 @@ def _signal_receiver(sig: int, frame: FrameType) -> None:
                 sig_desc = f"Signal {sig}"
             msg = (
                 f"{sig_desc} received. Trying to shut down gracefully. It may take time to drain"
-                f" job pools. Send {sig_desc} again to force stop."
+                f" job pools. Send {sig_desc} again to force stop.\n"
             )
             try:
                 os.write(sys.stderr.fileno(), msg.encode(encoding="utf-8"))
@@ -87,7 +87,13 @@ def set_received_signal(sig: int) -> None:
 def raise_if_signalled() -> None:
     """Raises `SignalReceivedException` if signal was received."""
     if was_signal_received():
-        raise SignalReceivedException(_received_signal)
+        raise exception_for_signal()
+
+
+def exception_for_signal() -> BaseException:
+    if not was_signal_received():
+        raise RuntimeError("no signal received")
+    return SignalReceivedException(_received_signal)
 
 
 def was_signal_received() -> bool:

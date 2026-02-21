@@ -188,12 +188,12 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         cur = self._conn
         try:
             yield self.cursor_impl(cur.execute(query, db_args))  # type: ignore
-        except duckdb.Error as outer:
+        except duckdb.Error:
             try:
                 cur.rollback()
             except Exception:
                 pass
-            raise outer
+            raise
         finally:
             # we should somehow cleanup result set if present but no suitable method on connection
             pass
@@ -311,7 +311,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             elif aws_creds.endpoint_url and "https://" in aws_creds.endpoint_url:
                 endpoint = aws_creds.endpoint_url.replace("https://", "")
 
-            s3_url_style = aws_creds.s3_url_style or "vhost"
+            s3_url_style = aws_creds.s3_url_style or "path"
             sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE S3,
@@ -436,7 +436,15 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             ),
         ):
             return DatabaseTransientException(ex)
-        elif isinstance(ex, (duckdb.DataError, duckdb.ProgrammingError, duckdb.IntegrityError)):
+        elif isinstance(
+            ex,
+            (
+                duckdb.DataError,
+                duckdb.ProgrammingError,
+                duckdb.IntegrityError,
+                duckdb.NotImplementedException,
+            ),
+        ):
             return DatabaseTerminalException(ex)
         elif cls.is_dbapi_exception(ex):
             return DatabaseTransientException(ex)

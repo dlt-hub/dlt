@@ -8,6 +8,7 @@ import dlt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
+from dlt.common.utils import digest128
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeCredentials,
@@ -16,7 +17,7 @@ from dlt.destinations.impl.ducklake.configuration import (
 )
 
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root, get_test_worker_id
 
 
 def test_native_duckdb_workflow(tmp_path):
@@ -81,7 +82,7 @@ def test_ducklake_urls() -> None:
 
 
 def test_ducklake_configuration_default() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
     # without pipeline context and destination name
     configuration = resolve_configuration(
         DuckLakeClientConfiguration()._bind_dataset_name(dataset_name="foo")
@@ -101,10 +102,12 @@ def test_ducklake_configuration_default() -> None:
     assert credentials.storage_url == str(local_dir / "ducklake.files")
     # file url
     assert credentials.storage.bucket_url.startswith("file://")
+    # fingerprint is local
+    assert configuration.fingerprint() == digest128("file://")
 
 
 def test_ducklake_configuration_duckdb_catalog() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
     # plug default duckdb catalog
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(
@@ -118,10 +121,11 @@ def test_ducklake_configuration_duckdb_catalog() -> None:
     assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.duckdb"))
+    assert configuration.fingerprint() == digest128("file://")
 
 
 def test_ducklake_configuration_ducklake_name() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
     # catalog name sets default locations
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(
@@ -134,10 +138,12 @@ def test_ducklake_configuration_ducklake_name() -> None:
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "my_ducklake.sqlite"))
     assert credentials.storage_url == str(local_dir / "my_ducklake.files")
+    # fingerprint is local
+    assert configuration.fingerprint() == digest128("file://")
 
 
 def test_ducklake_configuration_destination_name() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
     # destination name is set
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(
@@ -150,10 +156,12 @@ def test_ducklake_configuration_destination_name() -> None:
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
     assert credentials.storage_url == str(local_dir / "ducklake.files")
+    # fingerprint is local
+    assert configuration.fingerprint() == digest128("file://")
 
 
 def test_ducklake_configuration_pipeline_name() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
 
     # pipeline name is set
     configuration = resolve_configuration(
@@ -194,10 +202,12 @@ def test_ducklake_configuration_storage_credentials() -> None:
     )
     # NOTE: dataset folders will be created in /lake/
     assert credentials.storage_url == "s3://dlt-ci-test-bucket/lake"
+    # fingerprint is NOT local
+    assert configuration.fingerprint() == digest128("s3://dlt-ci-test-bucket")
 
 
 def test_ducklake_configuration_catalog_credentials() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
 
     # explicit catalog
     configuration = resolve_configuration(
@@ -297,7 +307,12 @@ def test_ducklake_conn_pool_always_open() -> None:
 @pytest.mark.no_load
 def test_ducklake_factory_instantiation() -> None:
     # force parallel loads on sqlite
-    ducklake = dlt.destinations.ducklake(loader_parallelism_strategy="parallel")
+    worker = get_test_worker_id()
+
+    ducklake = dlt.destinations.ducklake(
+        loader_parallelism_strategy="parallel",
+        credentials=DuckLakeCredentials(ducklake_name=f"ducklake_{worker}"),
+    )
     pipeline = dlt.pipeline("test_factory", destination=ducklake, dataset_name="foo")
 
     with pipeline.destination_client() as client:

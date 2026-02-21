@@ -39,15 +39,6 @@ def test_replace_disposition(
     #     "sqlite:///test_replace_disposition.db"
     # )
 
-    increase_state_loads = lambda info: len(
-        [
-            job
-            for job in info.load_packages[0].jobs["completed_jobs"]
-            if job.job_file_info.table_name == "_dlt_pipeline_state"
-            and job.job_file_info.file_format not in ["sql", "reference"]
-        ]
-    )
-
     # filesystem does not have child tables, prepend defaults
     # def norm_table_counts(counts: Dict[str, int], *child_tables: str) -> Dict[str, int]:
     #     return {**{t: 0 for t in child_tables}, **counts}
@@ -103,6 +94,22 @@ def test_replace_disposition(
     # first run with offset 0
     info = pipeline.run([load_items, append_items], **destination_config.run_kwargs)
     assert_load_info(info)
+
+    # get dlt table names
+    state_table_name = pipeline.default_schema.state_table_name
+    loads_table_name = pipeline.default_schema.loads_table_name
+    version_table_name = pipeline.default_schema.version_table_name
+
+    # function to count state load jobs
+    increase_state_loads = lambda info: len(
+        [
+            job
+            for job in info.load_packages[0].jobs["completed_jobs"]
+            if job.job_file_info.table_name == state_table_name
+            and job.job_file_info.file_format not in ["sql", "reference"]
+        ]
+    )
+
     # count state records that got extracted
     state_records = increase_state_loads(info)
     dlt_loads: int = 1
@@ -122,9 +129,9 @@ def test_replace_disposition(
         "items": 120,
         "items__sub_items": 240,
         "items__sub_items__sub_sub_items": 120,
-        "_dlt_pipeline_state": state_records,
-        "_dlt_loads": dlt_loads,
-        "_dlt_version": dlt_versions,
+        state_table_name: state_records,
+        loads_table_name: dlt_loads,
+        version_table_name: dlt_versions,
     }
 
     # check trace
@@ -186,7 +193,7 @@ def test_replace_disposition(
         "items_copy": 120,
         "items_copy__sub_items": 240,
         "items_copy__sub_items__sub_sub_items": 120,
-        "_dlt_pipeline_state": 1,
+        state_table_name: 1,
     }
 
     info = pipeline_2.run(append_items, **destination_config.run_kwargs)
@@ -202,9 +209,9 @@ def test_replace_disposition(
         "items_copy": 120,
         "items_copy__sub_items": 240,
         "items_copy__sub_items__sub_sub_items": 120,
-        "_dlt_pipeline_state": state_records + 1,
-        "_dlt_loads": dlt_loads,
-        "_dlt_version": dlt_versions + 1,
+        state_table_name: state_records + 1,
+        loads_table_name: dlt_loads,
+        version_table_name: dlt_versions + 1,
     }
     # check trace
     assert pipeline_2.last_trace.last_normalize_info.row_counts == {
@@ -313,7 +320,7 @@ def test_replace_table_clearing(
         "other_items__sub_items": 2,
         "static_items": 1,
         "static_items__sub_items": 2,
-        "_dlt_pipeline_state": 1,
+        pipeline.default_schema.state_table_name: 1,
     }
 
     # see if child table gets cleared
@@ -403,7 +410,9 @@ def test_replace_sql_queries(
 
         destination_spy = mocker.spy(MsSqlStagingReplaceJob, "generate_sql")
 
-    pipeline = destination_config.setup_pipeline("insert_from_staging_test", dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        f"insert_from_staging_test_{uniq_id()}", dev_mode=True
+    )
     load_info = pipeline.run(
         [{"id": 1}],
         table_name="my_table",
@@ -427,7 +436,9 @@ def test_replace_sql_queries(
             assert destination_spy.call_count == 1
         else:
             assert clone_sql_generator_spy.call_count == 0
-            assert insert_sql_generator_spy.call_count == 1
+            assert insert_sql_generator_spy.call_count == (
+                2 if destination_config.uses_table_format_for_state_table else 1
+            )
 
     elif replace_strategy == "staging-optimized":
         if dest_type in ["postgres", "mssql"]:
@@ -435,3 +446,82 @@ def test_replace_sql_queries(
         else:
             assert clone_sql_generator_spy.call_count == 1
             assert insert_sql_generator_spy.call_count == 0
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["snowflake"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_snowflake_atomic_swap_replace(
+    destination_config: DestinationTestConfiguration,
+    mocker: MockerFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test Snowflake atomic swap with sequential loads, nested tables, and empty resource."""
+    from dlt.destinations.sql_jobs import SqlStagingFollowupJob, SqlStagingReplaceFollowupJob
+    from dlt.destinations.impl.snowflake.snowflake import SnowflakeStagingReplaceJob
+
+    monkeypatch.setenv("DESTINATION__REPLACE_STRATEGY", "staging-optimized")
+    monkeypatch.setenv("DESTINATION__SNOWFLAKE__ENABLE_ATOMIC_SWAP", "true")
+
+    clone_spy = mocker.spy(SqlStagingReplaceFollowupJob, "_generate_clone_sql")
+    insert_spy = mocker.spy(SqlStagingFollowupJob, "_generate_insert_sql")
+    swap_spy = mocker.spy(SnowflakeStagingReplaceJob, "generate_sql")
+
+    pipeline = destination_config.setup_pipeline("snowflake_atomic_swap_test", dev_mode=True)
+
+    @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+    def load_items(offset):
+        for i in range(offset, offset + 3):
+            yield {
+                "id": i,
+                "name": f"item {i}",
+                "sub_items": [
+                    {"id": i * 100 + 1, "name": f"sub {i * 100 + 1}"},
+                    {"id": i * 100 + 2, "name": f"sub {i * 100 + 2}"},
+                ],
+            }
+
+    # first load: nested data via swap
+    info = pipeline.run(load_items(0), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    assert swap_spy.call_count == 1
+    assert clone_spy.call_count == 0
+    assert insert_spy.call_count == 0
+    for sql_stmt in swap_spy.return_value:
+        assert "SWAP WITH" in sql_stmt
+
+    assert load_table_counts(pipeline, "items", "items__sub_items") == {
+        "items": 3,
+        "items__sub_items": 6,
+    }
+
+    # second load: different data, verifies full replacement after prior swap
+    swap_spy.reset_mock()
+    info = pipeline.run(load_items(100), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    assert swap_spy.call_count == 1
+    assert load_table_counts(pipeline, "items", "items__sub_items") == {
+        "items": 3,
+        "items__sub_items": 6,
+    }
+    table_dicts = load_tables_to_dicts(pipeline, "items")
+    assert {int(r["id"]) for r in table_dicts["items"]} == {100, 101, 102}
+
+    # third load: empty resource clears all tables
+    @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+    def load_items_empty():
+        if False:
+            yield
+
+    swap_spy.reset_mock()
+    info = pipeline.run(load_items_empty(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert_empty_tables(pipeline, "items", "items__sub_items")

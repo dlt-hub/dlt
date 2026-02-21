@@ -67,9 +67,11 @@ const sidebars = {
         keywords: ['release notes, release highlights'],
       },
       items: [
-        'release-notes/1.12.1',
+        'release-notes/1.21.2',
+        'release-notes/1.17',
+        'release-notes/1.16',
+        'release-notes/1.15',
         'release-notes/1.13-1.14',
-        'release-notes/1.15'
       ]
     },
     {
@@ -230,6 +232,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/destination',
         'dlt-ecosystem/destinations/motherduck',
         'dlt-ecosystem/destinations/ducklake',
+        'dlt-ecosystem/destinations/fabric',
         'dlt-ecosystem/destinations/community-destinations',
         'walkthroughs/create-new-destination'
       ]
@@ -337,6 +340,7 @@ const sidebars = {
             }
           ]
         },
+        'general-usage/data-quality-lifecycle',
       ]
     },
     {
@@ -388,14 +392,15 @@ const sidebars = {
           type: "category",
           label: "Run in Snowflake",
           link: {
-            type: "generated-index",
-            title: "Run in Snwoflake",
-            description: "How to run dlt in Snowflake.",
-            slug: "walkthroughs/run-in-snowflake",
-            keywords: ["snowflake"]
+            type: 'generated-index',
+            title: 'Run in Snowflake',
+            description: 'How to run dlt in Snowflake.',
+            slug: 'run-in-snowflake',
+            keywords: ['Snowflake'],
           },
           items: [
-            "walkthroughs/run-in-snowflake/run-in-snowflake"
+            "walkthroughs/run-in-snowflake/run-in-snowflake",
+            "walkthroughs/run-in-snowflake/database-connector-app"
           ]
         }
       ]
@@ -500,6 +505,7 @@ const sidebars = {
         'hub/intro',
         'hub/getting-started/installation',
         { type: 'ref', id: 'dlt-ecosystem/llm-tooling/llm-native-workflow' },
+        'hub/getting-started/runtime-tutorial',
       ]
     },
     {
@@ -551,7 +557,7 @@ const sidebars = {
       type: 'category',
       label: 'Runtime',
       items: [
-        'hub/production/observability',
+        'hub/runtime/overview',
       ]
     },
     {

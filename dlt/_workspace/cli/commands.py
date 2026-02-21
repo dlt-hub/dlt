@@ -424,15 +424,20 @@ list of all tables and columns created at the destination during the loading of 
             pipeline_subparsers,
             "This MCP facilitates schema and data exploration for the dataset created with this"
             " pipeline",
-            "Launch MCP server attached to this pipeline in SSE transport mode",
+            "Launch MCP server attached to this pipeline",
             DEFAULT_PIPELINE_MCP_PORT,
         )
 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli._pipeline_command import pipeline_command_wrapper
 
-        if args.list_pipelines:
-            pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)
+        if (
+            args.list_pipelines
+            or args.operation == "list"
+            or (not args.pipeline_name and not args.operation)
+        ):
+            # Always use max verbosity (1) for dlt pipeline list - show full details
+            pipeline_command_wrapper("list", "-", args.pipelines_dir, 1)
         else:
             command_kwargs = dict(args._get_kwargs())
             if not command_kwargs.get("pipeline_name"):
@@ -785,6 +790,15 @@ workspace info.
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
 
+        parser.add_argument(
+            "--verbose",
+            "-v",
+            action="count",
+            default=0,
+            help="Provides more information for certain commands.",
+            dest="verbosity",
+        )
+
         subparsers = parser.add_subparsers(
             title="Available subcommands", dest="workspace_command", required=False
         )
@@ -815,8 +829,7 @@ workspace info.
             subparsers,
             "This MCP allows to attach to any pipeline that was previously ran in this workspace"
             " and then facilitates schema and data exploration in the pipeline's dataset.",
-            "Launch dlt MCP server in current Python environment and Workspace in SSE transport"
-            " mode by default.",
+            "Launch dlt MCP server in current Python environment and Workspace",
             DEFAULT_DLT_MCP_PORT,
         )
 
@@ -844,13 +857,13 @@ workspace info.
         workspace_context = active()
 
         if args.workspace_command == "info" or not args.workspace_command:
-            print_workspace_info(workspace_context)
+            print_workspace_info(workspace_context, args.verbosity)
         elif args.workspace_command == "clean":
             clean_workspace(workspace_context, args)
         elif args.workspace_command == "show":
             show_workspace(workspace_context, args.edit)
         elif args.workspace_command == "mcp":
-            start_mcp(workspace_context, port=args.port, stdio=args.stdio)
+            start_mcp(workspace_context, port=args.port, stdio=args.stdio, sse=args.sse)
         else:
             self.parser.print_usage()
 

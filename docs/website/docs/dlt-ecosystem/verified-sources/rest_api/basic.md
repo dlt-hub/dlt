@@ -452,7 +452,7 @@ These are the available paginators:
 | `json_link` | [JSONLinkPaginator](../../../general-usage/http/rest-client.md#jsonlinkpaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
 | `header_link` | [HeaderLinkPaginator](../../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`links_next_key` (str) - the name of the header containing the links. Default is "next".</li></ul> |
 | `header_cursor` | [HeaderCursorPaginator](../../../general-usage/http/rest-client.md#headercursorpaginator) | The cursor for the next page is in the response headers.<br/>*Parameters:*<ul><li>`cursor_key` (str) - the name of the header containing the cursor. Defaults to "next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor"</li></ul> |
-| `offset` | [OffsetPaginator](../../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter, with the total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
+| `offset` | [OffsetPaginator](../../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter, with the total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`offset_body_path` (str) - a dot-separated path specifying where to place the offset in the request JSON body. Defaults to `None`</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`limit_body_path` (str) - a dot-separated path specifying where to place the limit in the request JSON body. Defaults to `None`</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
 | `page_number` | [PageNumberPaginator](../../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter, with the total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
 | `cursor` | [JSONResponseCursorPaginator](../../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter, with the value of the cursor in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor" if neither `cursor_param` nor `cursor_body_path` is provided.</li><li>`cursor_body_path` (str, optional) - the JSONPath to place the cursor in the request body.</li></ul>Note: You must provide either `cursor_param` or `cursor_body_path`, but not both. If neither is provided, `cursor_param` will default to "cursor". |
 | `single_page` | SinglePagePaginator | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
@@ -920,6 +920,23 @@ You can include data from the parent resource in the child resource by using the
 ```
 
 This will include the `id`, `title`, and `created_at` fields from the `issues` resource in the `issue_comments` resource data. The names of the included fields will be prefixed with the parent resource name and an underscore (`_`) like so: `_issues_id`, `_issues_title`, `_issues_created_at`.
+
+#### Parallelize dependent resource fetching
+
+By default, dependent resources fetch child data for each parent item sequentially. You can set `parallelized` to `True` on a dependent resource to fetch child data concurrently using dlt's thread pool:
+
+```py
+{
+    "name": "issue_comments",
+    "parallelized": True,
+    "endpoint": {
+        "path": "issues/{resources.issues.number}/comments",
+    },
+    "include_from_parent": ["id"],
+}
+```
+
+See [Per-resource parallelization](./advanced.md#per-resource-parallelization-for-dependent-resources) for more details.
 
 ### Define a resource which is not a REST endpoint
 

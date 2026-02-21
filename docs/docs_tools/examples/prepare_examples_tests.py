@@ -13,8 +13,31 @@ EXAMPLES_DIR = "./examples"
 # settings
 SKIP_FOLDERS = ["archive", ".", "_", "local_cache"]
 # @pytest.mark.rfam
-SKIP_EXAMPLES: List[str] = ["backfill_in_chunks", "connector_x_arrow", "transformers"]
+SKIP_EXAMPLES: List[str] = [
+    "backfill_in_chunks",
+    "connector_x_arrow",
+    "transformers",
+    "qdrant_zendesk",
+    "incremental_loading",
+]
+# Examples will be skipped from forked subprocesses
 SKIP_FORK_EXAMPLES: List[str] = ["custom_destination_lancedb"]
+
+# Examples that require external secrets (cloud credentials, API keys, etc.)
+# These will be skipped when running on fork PRs where secrets are not available
+EXAMPLES_REQUIRING_SECRETS: List[str] = [
+    "chess",
+    "chess_production",
+    "custom_destination_bigquery",
+    "custom_destination_lancedb",
+    "custom_naming",
+    "google_sheets",
+    "incremental_loading",
+    "nested_data",
+    "pdf_to_weaviate",
+    "postgres_to_postgres",
+    "qdrant_zendesk",
+]
 
 
 # the entry point for the script
@@ -40,13 +63,23 @@ def main() -> None:
     # get args
     args = parser.parse_args()
 
+    # Check if CI is running on a fork pull request
+    is_fork = os.environ.get("IS_FORK") == "true"
+
     count = 0
+    skipped_for_fork = 0
     for example in next(os.walk(EXAMPLES_DIR))[1]:
         # skip some
         if any(map(lambda skip: example.startswith(skip), SKIP_FOLDERS)):
             continue
 
         if example in SKIP_EXAMPLES:
+            continue
+
+        # Skip examples requiring secrets when running on fork PRs
+        if is_fork and example in EXAMPLES_REQUIRING_SECRETS:
+            skipped_for_fork += 1
+            fmt.note(f"Skipping {example} (requires secrets, running on fork PR)")
             continue
 
         count += 1
@@ -89,4 +122,7 @@ def main() -> None:
     if args.clear:
         fmt.note("Cleared generated test files.")
     else:
-        fmt.note(f"Prepared {count} examples for testing.")
+        msg = f"Prepared {count} examples for testing."
+        if skipped_for_fork > 0:
+            msg += f" Skipped {skipped_for_fork} examples requiring secrets (fork PR)."
+        fmt.note(msg)

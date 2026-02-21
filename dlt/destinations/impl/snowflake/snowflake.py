@@ -1,6 +1,7 @@
-from typing import Optional, Sequence, List, Dict
+from typing import Optional, Sequence, List, Dict, Literal, Any
 
 from dlt.common import logger
+from dlt.common.data_writers.escape import escape_snowflake_literal
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     FollowupJobRequest,
@@ -13,6 +14,8 @@ from dlt.common.destination.client import (
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages.file_storage import FileStorage
+from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.schema import TColumnSchema, Schema, TColumnHint
 from dlt.common.schema.typing import TColumnType, TTableSchema
 
@@ -27,6 +30,7 @@ from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
+COLUMN_COMMENT_HINT: Literal["x-snowflake-column-comment"] = "x-snowflake-column-comment"
 
 
 class SnowflakeMergeJob(SqlMergeFollowupJob):
@@ -43,6 +47,25 @@ class SnowflakeMergeJob(SqlMergeFollowupJob):
             f" s WHERE {clause.format(d='d', s='s')})"
             for clause in key_clauses
         ]
+        return sql
+
+
+class SnowflakeStagingReplaceJob(SqlStagingReplaceFollowupJob):
+    @classmethod
+    def generate_sql(
+        cls,
+        table_chain: Sequence[PreparedTableSchema],
+        sql_client: SqlClientBase[Any],
+    ) -> List[str]:
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset():
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            sql.append(
+                f"ALTER TABLE {table_name} SWAP WITH {staging_table_name}",
+            )
+
         return sql
 
 
@@ -136,7 +159,7 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
-        self.type_mapper = self.capabilities.get_type_mapper()
+        self.type_mapper = self.capabilities.get_type_mapper(config.use_decfloat)
         self.active_hints = SUPPORTED_HINTS if self.config.create_indexes else {}
 
     def create_load_job(
@@ -161,6 +184,17 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
     ) -> List[FollowupJobRequest]:
         return [SnowflakeMergeJob.from_table_chain(table_chain, self.sql_client)]
 
+    def _create_replace_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
+        root_table = table_chain[0]
+        if (
+            root_table["x-replace-strategy"] == "staging-optimized"  # type: ignore[typeddict-item]
+            and self.config.enable_atomic_swap
+        ):
+            return [SnowflakeStagingReplaceJob.from_table_chain(table_chain, self.sql_client)]
+        return super()._create_replace_followup_jobs(table_chain)
+
     def _make_add_column_sql(
         self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
     ) -> List[str]:
@@ -168,6 +202,15 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         return [
             "ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)
         ]
+
+    def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
+        column_def_sql = super()._get_column_def_sql(column, table)
+
+        if column.get(COLUMN_COMMENT_HINT) or column.get("description"):
+            comment = column.get(COLUMN_COMMENT_HINT) or column.get("description")
+            escaped_comment = escape_snowflake_literal(comment)
+            column_def_sql = f"{column_def_sql} COMMENT {escaped_comment}"
+        return column_def_sql
 
     def _get_constraints_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool

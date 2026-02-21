@@ -1,4 +1,9 @@
+.DEFAULT_GOAL := help
 
+# Add " ## description" after any target name to include it in `make help` output.
+# Example:  my-target: ## Does something useful
+help: ## Shows this help message
+	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-28s %s\n", $$1, $$2}'
 
 dev: ## Prepares development environment for docs tooling
 	uv sync 
@@ -6,7 +11,7 @@ dev: ## Prepares development environment for docs tooling
 lint: ## Lints the docs tooling, non-embedded snippets, examples and notebooks NOTE: embedded snippets and notebooks are linted separately
 	uv run ruff check
 	uv run mypy --config-file ../mypy.ini docs_tools website examples --exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude website/versioned_docs/
-	uv run flake8 --max-line-length=200 docs_tools website examples --exclude website/.dlt-repo,website/node_modules --exclude docs_tools/snippets/lint_setup
+	uv run flake8 --max-line-length=200 docs_tools examples website/docs --exclude docs_tools/snippets/lint_setup
 	uv run black docs_tools website examples --check --diff --color
 
 lint-embedded-snippets: ## Lints all embedded snippets in the docs
@@ -27,10 +32,9 @@ test-examples: ## Tests the examples in the examples folder
 test-snippets: ## Tests the snippets in the snippets folder
 	cd website/docs && uv run pytest --ignore=node_modules
 
-format: ## Formats the docs tooling, notebooks, and examples
+format: ## Formats the docs tooling, website, examples, and notebooks
 	uv run black docs_tools website examples
-	uv run black education --ipynb 
-
+	uv run black education/*/*.ipynb --ipynb 
 
 generate-api-ref: ## Generates the API reference documentation from dlt codebase for website
 	cd docs_tools/api_docs && uv run pydoc-markdown
@@ -43,3 +47,14 @@ preprocess-docs:  ## Preprocesses the docs pages, copies docs to docs_processed 
 preprocess-docs-watch: ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links and watches for changes
 	uv run preprocess-docs --watch
 
+test-preprocess-molabs: ## Tests functions used to build Molabs
+	uv run pytest docs_tools/education/tests
+
+build-molabs: ## Format the notebooks files first and build Molabs
+	uv run black education/*/*.ipynb --ipynb
+	uv run python docs_tools/education/preprocess_to_molab.py
+	uv run black education/*/*.py
+	uv run marimo check education/*/*.py --fix --quiet
+
+validate-molabs: build-molabs ## Validate marimo notebooks are up-to-date
+	git diff --quiet --exit-code -- education/

@@ -311,6 +311,10 @@ EXPECTED_MERMAID_STR = """
             {"name": "description_col", "data_type": "text", "description": "foo"},
             'text description_col "foo"\n',
         ),
+        (
+            {"name": "incomplete_col"},  # no data_type set yet
+            "no_data_seen incomplete_col\n",
+        ),
     ],
 )
 def test_to_mermaid_column(hints: TColumnSchema, expected_mermaid_col: str) -> None:
@@ -352,7 +356,7 @@ def test_to_and_from_dbml_table(table: TTableSchema, expected_mermaid_table: str
                 label="ordered",
                 cardinality="zero_to_many",
             ),
-            "customers |o--|{ orders : ordered\n",
+            'customers |o--|{ orders : "ordered"\n',
         ),
         (  # default label
             TTableReferenceStandalone(
@@ -372,7 +376,17 @@ def test_to_and_from_dbml_table(table: TTableSchema, expected_mermaid_table: str
                 referenced_table="orders",
                 label="ordered",
             ),
-            "customers ||--|{ orders : ordered\n",
+            'customers ||--|{ orders : "ordered"\n',
+        ),
+        (  # default cardinality
+            TTableReferenceStandalone(
+                table="customers",
+                columns=["id"],
+                referenced_columns=["customer_id"],
+                referenced_table="orders",
+                label="multi word label",
+            ),
+            'customers ||--|{ orders : "multi word label"\n',
         ),
     ],
 )
@@ -444,12 +458,14 @@ erDiagram
     bigint _dlt_list_idx
     text _dlt_id UK
 }
-    customers }|--|| _dlt_loads : _dlt_load
-    purchases }|--|| _dlt_loads : _dlt_load
+    customers }|--|| _dlt_loads : "_dlt_load"
+    purchases }|--|| _dlt_loads : "_dlt_load"
     purchases ||--|{ customers : ""
-    _dlt_pipeline_state }|--|| _dlt_loads : _dlt_load
-    purchases__items }|--|| purchases : _dlt_parent
-    purchases__items }|--|| purchases : _dlt_root
+    _dlt_pipeline_state }|--|| _dlt_loads : "_dlt_load"
+    purchases__items }|--|| purchases : "_dlt_parent"
+    purchases__items }|--|| purchases : "_dlt_root"
+    _dlt_version ||--|{ _dlt_loads : "_dlt_schema_version"
+    _dlt_version }|--|{ _dlt_loads : "_dlt_schema_name"
 """
     schema_dict = example_schema.to_dict(remove_processing_hints=remove_process_hints)
     mermaid_str = schema_to_mermaid(
@@ -488,8 +504,8 @@ erDiagram
     text _dlt_id UK
 }
     purchases ||--|{ customers : ""
-    purchases__items }|--|| purchases : _dlt_parent
-    purchases__items }|--|| purchases : _dlt_root
+    purchases__items }|--|| purchases : "_dlt_parent"
+    purchases__items }|--|| purchases : "_dlt_root"
 """
 
     schema_dict = example_schema.to_dict()
@@ -516,12 +532,14 @@ erDiagram
 }
     purchases__items{
 }
-    customers }|--|| _dlt_loads : _dlt_load
-    purchases }|--|| _dlt_loads : _dlt_load
+    customers }|--|| _dlt_loads : "_dlt_load"
+    purchases }|--|| _dlt_loads : "_dlt_load"
     purchases ||--|{ customers : ""
-    _dlt_pipeline_state }|--|| _dlt_loads : _dlt_load
-    purchases__items }|--|| purchases : _dlt_parent
-    purchases__items }|--|| purchases : _dlt_root
+    _dlt_pipeline_state }|--|| _dlt_loads : "_dlt_load"
+    purchases__items }|--|| purchases : "_dlt_parent"
+    purchases__items }|--|| purchases : "_dlt_root"
+    _dlt_version ||--|{ _dlt_loads : "_dlt_schema_version"
+    _dlt_version }|--|{ _dlt_loads : "_dlt_schema_name"
 """
 
     schema_dict = example_schema.to_dict()

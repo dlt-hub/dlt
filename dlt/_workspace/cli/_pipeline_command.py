@@ -1,10 +1,12 @@
 import os
+from pathlib import Path
 import yaml
-from typing import Any, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple, cast
 from inspect import signature
 import dlt
 
 from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
@@ -29,6 +31,41 @@ DLT_PIPELINE_COMMAND_DOCS_URL = (
 )
 
 
+def list_pipelines(pipelines_dir: str = None, verbosity: int = 1) -> None:
+    """List all pipelines in the given directory, sorted by last run time.
+
+    Args:
+        pipelines_dir: Directory containing pipeline folders. If None, uses the default
+                      dlt pipelines directory.
+        verbosity: Controls output detail level:
+                   - 0: Only show count summary
+                   - 1+: Show full list with last run times
+    """
+    pipelines_dir, pipelines = utils.list_local_pipelines(pipelines_dir)
+
+    if len(pipelines) > 0:
+        if verbosity == 0:
+            fmt.echo(
+                "%s pipelines found in %s. Use %s to see the full list."
+                % (len(pipelines), fmt.bold(pipelines_dir), fmt.bold("-v"))
+            )
+            return
+        else:
+            fmt.echo("%s pipelines found in %s" % (len(pipelines), fmt.bold(pipelines_dir)))
+    else:
+        fmt.echo("No pipelines found in %s" % fmt.bold(pipelines_dir))
+        return
+
+    # pipelines are already sorted by timestamp (newest first) from get_local_pipelines
+    for pipeline_info in pipelines:
+        name = pipeline_info["name"]
+        timestamp = pipeline_info["timestamp"]
+        time_str = utils.date_from_timestamp_with_ago(timestamp)
+        fmt.echo(
+            "%s %s" % (fmt.style(name, fg="green"), fmt.style(f"(last run: {time_str})", fg="cyan"))
+        )
+
+
 def pipeline_command(
     operation: str,
     pipeline_name: str,
@@ -39,19 +76,7 @@ def pipeline_command(
     **command_kwargs: Any,
 ) -> None:
     if operation == "list":
-        pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
-        storage = FileStorage(pipelines_dir)
-        dirs = []
-        try:
-            dirs = storage.list_folder_dirs(".", to_root=False)
-        except FileNotFoundError:
-            pass
-        if len(dirs) > 0:
-            fmt.echo("%s pipelines found in %s" % (len(dirs), fmt.bold(pipelines_dir)))
-        else:
-            fmt.echo("No pipelines found in %s" % fmt.bold(pipelines_dir))
-        for _dir in dirs:
-            fmt.secho(_dir, fg="green")
+        list_pipelines(pipelines_dir)
         return
 
     # we may open the dashboard for a pipeline without checking if it exists
@@ -128,9 +153,13 @@ def pipeline_command(
     if operation == "mcp":
         from dlt._workspace.mcp import PipelineMCP
 
-        transport = "stdio" if command_kwargs["stdio"] else "sse"
-        if transport:
-            # write to stderr. stdin is the comm channel
+        if command_kwargs["stdio"]:
+            transport = "stdio"
+        elif command_kwargs.get("sse"):
+            transport = "sse"
+        else:
+            transport = "streamable-http"
+        if transport != "stdio":
             fmt.echo("Starting dlt MCP server", err=True)
         mcp = PipelineMCP(p, command_kwargs["port"])
         mcp.run(transport=transport)

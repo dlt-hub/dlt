@@ -372,10 +372,10 @@ filesystem_pipe = filesystem(
 
 #### Available readers
 
-- `read_csv()` - processes CSV files using [Pandas](https://pandas.pydata.org/)
-- `read_jsonl()` - processes JSONL files chunk by chunk
-- `read_parquet()` - processes Parquet files using [PyArrow](https://arrow.apache.org/docs/python/)
-- `read_csv_duckdb()` - this transformer processes CSV files using DuckDB, which usually shows better performance than pandas.
+- `read_csv()` - processes CSV files using [Pandas](https://pandas.pydata.org/). Control batch size with `chunksize` (defaults to 10000 rows). Accepts additional `**pandas_kwargs` passed to `pd.read_csv()`.
+- `read_jsonl()` - processes JSONL files chunk by chunk. Control batch size with `chunksize` (defaults to 1000 lines per batch).
+- `read_parquet()` - processes Parquet files using [PyArrow](https://arrow.apache.org/docs/python/). Control memory usage with `chunksize` (defaults to 1000 rows per batch). Set `use_pyarrow=True` to yield native `pyarrow.RecordBatch` objects instead of Python dictionaries for zero-copy operations.
+- `read_csv_duckdb()` - processes CSV files using DuckDB, which usually shows better performance than Pandas. Control batch size with `chunk_size` (defaults to 5000 rows). Set `use_pyarrow=True` to yield Arrow format instead of JSON. Accepts additional `**duckdb_kwargs` passed to DuckDB's `read_csv()`.
 
 :::tip
 We advise that you give each resource a [specific name](../../../general-usage/resource#duplicate-and-rename-resources) before loading with `pipeline.run`. This will ensure that data goes to a table with the name you want and that each pipeline uses a [separate state for incremental loading.](../../../general-usage/state#read-and-write-pipeline-state-in-a-resource)

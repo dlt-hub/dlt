@@ -31,3 +31,15 @@ class VerifiedSourceRepoError(DltException):
 class PipelineWasNotRun(CliCommandInnerException):
     def __init__(self, msg: str) -> None:
         super().__init__("deploy", msg, None)
+
+
+class ScaffoldSourceNotFound(DltException):
+    def __init__(self, msg: str, source_name: str) -> None:
+        self.source_name = source_name
+        super().__init__(msg)
+
+
+class ScaffoldApiError(DltException):
+    def __init__(self, msg: str, source_name: str = None) -> None:
+        self.source_name = source_name
+        super().__init__(msg)

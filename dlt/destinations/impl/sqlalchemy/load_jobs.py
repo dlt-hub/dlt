@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 from typing import IO, Any, Dict, Iterator, List, Sequence, TYPE_CHECKING, Optional
 import math
+from urllib.parse import quote_plus, urlencode
 
-import sqlalchemy as sa
+from dlt.common.libs.sql_alchemy import sa
 
+from dlt.common import logger
 from dlt.common.destination.client import (
     RunnableLoadJob,
     HasFollowupJobs,
@@ -10,13 +14,67 @@ from dlt.common.destination.client import (
 )
 from dlt.common.storages import FileStorage
 from dlt.common.json import json, PY_DATETIME_DECODERS
-from dlt.destinations.sql_jobs import SqlFollowupJob
 
+from dlt.destinations._adbc_jobs import AdbcParquetCopyJob
+from dlt.destinations.sql_jobs import SqlFollowupJob
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.merge_job import SqlalchemyMergeFollowupJob
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.sqlalchemy.sqlalchemy_job_client import SqlalchemyJobClient
+
+
+def build_mysql_adbc_dsn(
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    database: Optional[str] = None,
+    params: Optional[Dict[str, str]] = None,
+) -> str:
+    """Build a DSN connection string for the go-mysql ADBC driver.
+
+    The go-mysql driver (github.com/go-sql-driver/mysql) has specific DSN format:
+        [username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
+
+    Based on the driver's source code (dsn.go):
+    - Username and password are NOT URL-decoded by the driver
+    - Database name IS URL-decoded using url.PathUnescape
+    - Query parameter values ARE URL-decoded using url.QueryUnescape
+
+    Args:
+        username: MySQL username (not URL-encoded)
+        password: MySQL password (not URL-encoded)
+        host: MySQL host
+        port: MySQL port (default: 3306)
+        database: Database/schema name (will be URL-encoded)
+        params: Query parameters (values will be URL-encoded)
+
+    Returns:
+        DSN connection string for go-mysql driver
+    """
+    # Build auth part - username and password are NOT encoded per go-mysql driver behavior
+    auth = ""
+    if username or password:
+        auth = f"{username or ''}:{password or ''}@"
+
+    # Host and port
+    host = host or "localhost"
+    port = port or 3306
+
+    # Database name is URL-encoded using PathEscape equivalent (quote_plus with safe='')
+    # The go-mysql driver uses url.PathUnescape to decode it
+    db_encoded = quote_plus(database or "", safe="")
+
+    base = f"{auth}tcp({host}:{port})/{db_encoded}"
+
+    # Query parameters - values are URL-encoded
+    if params:
+        conn_str = f"{base}?{urlencode(params)}"
+    else:
+        conn_str = base
+
+    return conn_str
 
 
 class SqlalchemyJsonLInsertJob(RunnableLoadJob, HasFollowupJobs):
@@ -72,6 +130,84 @@ class SqlalchemyJsonLInsertJob(RunnableLoadJob, HasFollowupJobs):
         with _sql_client.begin_transaction():
             for chunk in self._iter_data_item_chunks():
                 _sql_client.execute_sql(table.insert(), chunk)
+
+
+class SqlalchemyParquetADBCJob(AdbcParquetCopyJob):
+    """ADBC Parquet copy job for SQLAlchemy (sqlite, mysql) with query param handling."""
+
+    def __init__(self, file_path: str, table: sa.Table) -> None:
+        super().__init__(file_path)
+        self._job_client: "SqlalchemyJobClient" = None
+        self.table = table
+
+    if TYPE_CHECKING:
+        from adbc_driver_manager.dbapi import Connection
+
+    def _connect(self) -> Connection:
+        from adbc_driver_manager import dbapi
+
+        engine = self._job_client.config.credentials.engine
+        dialect = engine.dialect.name.lower()
+        url = engine.url
+
+        query = dict(url.query or {})
+
+        if dialect == "sqlite":
+            # disable schema and catalog when ingest
+            self._connect_schema_name = ""
+            self._connect_catalog_name = ""
+
+            # attach directly to dataset sqlite file as "main"
+            if self._job_client.sql_client.dataset_name == "main":
+                db_path = url.database
+            else:
+                db_path = self._job_client.sql_client._sqlite_dataset_filename(
+                    self._job_client.sql_client.dataset_name
+                )
+            conn_str = f"file:{db_path}"
+
+            if query:
+                conn_str = f"{conn_str}?{urlencode(query)}"
+
+            conn = dbapi.connect(driver="sqlite", db_kwargs={"uri": conn_str})
+            # WAL mode already set, add busy timeout to handle multiple writers
+            with conn.cursor() as c:
+                c.execute("PRAGMA busy_timeout=1000;")
+            return conn
+
+        elif dialect == "mysql":
+            # disable schema and catalog when ingest
+            self._connect_schema_name = ""
+            self._connect_catalog_name = ""
+
+            # mysql: convert SSL params into go-mysql ADBC parameters
+            mapped = {}
+            for k, v in query.items():
+                lk = k.lower()
+                if lk == "ssl_ca":
+                    mapped["tls-ca"] = v
+                elif lk == "ssl_cert":
+                    mapped["tls-cert"] = v
+                elif lk == "ssl_key":
+                    mapped["tls-key"] = v
+                elif lk == "ssl_mode":
+                    mapped["tls"] = v
+                else:
+                    mapped[k] = v
+
+            conn_str = build_mysql_adbc_dsn(
+                username=url.username,
+                password=str(url.password),
+                host=url.host,
+                port=url.port,
+                database=self._job_client.sql_client.dataset_name,
+                params=mapped,  # type: ignore
+            )
+
+            return dbapi.connect(driver="mysql", db_kwargs={"uri": conn_str})
+
+        else:
+            raise NotImplementedError(f"ADBC not supported for sqlalchemy dialect {dialect}")
 
 
 class SqlalchemyParquetInsertJob(SqlalchemyJsonLInsertJob):

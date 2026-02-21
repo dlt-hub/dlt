@@ -3,6 +3,7 @@ import pytest
 
 from dlt.common import json, pendulum
 from dlt.common.schema import TSchemaTables
+from dlt.common.schema.schema import Schema
 from dlt.common.storages import PackageStorage, LoadStorage
 from dlt.common.storages.exceptions import LoadPackageNotFound, NoMigrationPathException
 
@@ -171,7 +172,7 @@ def test_import_extracted_package(load_storage: LoadStorage) -> None:
         FileStorage(os.path.join(load_storage.config.load_volume_path, "extracted")), "new"
     )
     load_id = create_load_id()
-    extracted.create_package(load_id)
+    extracted.create_package(load_id, schema=Schema("package"))
     extracted_state = extracted.get_load_package_state(load_id)
     load_storage.import_extracted_package(load_id, extracted)
     # make sure state was imported

@@ -33,6 +33,8 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Timeout for establishing connection. Defaults to 10 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
+    s3_extra_credentials: Optional[Dict[str, str]] = None
+    """Arguments to pass to the `extra_credentials` function specifically for S3 function."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
@@ -41,6 +43,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
         "database",
         "username",
         "password",
+        "s3_extra_credentials",
     ]
 
     def parse_native_representation(self, native_value: Any) -> None:
@@ -85,6 +88,8 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """Special table to mark dataset as existing"""
     staging_use_https: bool = True
     """Connect to the staging buckets via https"""
+    select_sequential_consistency: int = 1
+    """Ensures read-after-write consistency on ClickHouse Cloud and clusters"""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "dataset_table_separator",

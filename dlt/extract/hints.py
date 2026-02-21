@@ -40,7 +40,7 @@ from dlt.common.schema.utils import (
     migrate_complex_types,
     new_column,
     new_table,
-    merge_table,
+    remove_compound_props,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -102,52 +102,6 @@ class HintsMeta:
         self.create_table_variant = create_table_variant
 
 
-class SqlModel:
-    """
-    A SqlModel is a named tuple that contains a query and a dialect.
-    It is used to represent a SQL query and the dialect to use for parsing it.
-    """
-
-    __slots__ = ("_query", "_dialect")
-
-    def __init__(self, query: str, dialect: Optional[str] = None) -> None:
-        self._query = query
-        self._dialect = dialect
-
-    def to_sql(self) -> str:
-        return self._query
-
-    @property
-    def query_dialect(self) -> str:
-        return self._dialect
-
-    @classmethod
-    def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
-        """
-        Creates a SqlModel from a raw SQL query string using sqlglot.
-        Ensures that the parsed query is an instance of sqlglot.exp.Select.
-
-        Args:
-            query (str): The raw SQL query string.
-            dialect (Optional[str]): The SQL dialect to use for parsing.
-
-        Returns:
-            SqlModel: An instance of SqlModel with the normalized query and dialect.
-
-        Raises:
-            ValueError: If the parsed query is not an instance of sqlglot.exp.Select.
-        """
-
-        parsed_query = sqlglot.parse_one(query, read=dialect)
-
-        # Ensure the parsed query is a SELECT statement
-        if not isinstance(parsed_query, sqlglot.exp.Select):
-            raise ValueError("Only SELECT statements are allowed to create a `SqlModel`.")
-
-        normalized_query = parsed_query.sql(dialect=dialect)
-        return cls(query=normalized_query, dialect=dialect)
-
-
 NATURAL_CALLABLES = ["incremental", "validator", "original_columns"]
 
 
@@ -171,18 +125,18 @@ def make_nested_hints(**hints: Unpack[TResourceNestedHints]) -> TResourceNestedH
 
 
 def make_hints(
-    table_name: TTableHintTemplate[str] = None,
-    parent_table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
-    columns: TTableHintTemplate[TAnySchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnNames] = None,
-    merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_contract: TTableHintTemplate[TSchemaContract] = None,
-    table_format: TTableHintTemplate[TTableFormat] = None,
-    file_format: TTableHintTemplate[TFileFormat] = None,
+    table_name: Optional[TTableHintTemplate[str]] = None,
+    parent_table_name: Optional[TTableHintTemplate[str]] = None,
+    write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]] = None,
+    columns: Optional[TTableHintTemplate[TAnySchemaColumns]] = None,
+    primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
+    merge_key: Optional[TTableHintTemplate[TColumnNames]] = None,
+    schema_contract: Optional[TTableHintTemplate[TSchemaContract]] = None,
+    table_format: Optional[TTableHintTemplate[TTableFormat]] = None,
+    file_format: Optional[TTableHintTemplate[TFileFormat]] = None,
     additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
-    references: TTableHintTemplate[TTableReferenceParam] = None,
-    incremental: TIncrementalConfig = None,
+    references: Optional[TTableHintTemplate[TTableReferenceParam]] = None,
+    incremental: Optional[TIncrementalConfig] = None,
     nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
@@ -229,11 +183,11 @@ def make_hints(
 
 
 class DltResourceHints:
-    def __init__(self, table_schema_template: TResourceHints = None):
+    def __init__(self, table_schema_template: Optional[TResourceHints] = None):
         self.__qualname__ = self.__name__ = self.name
-        self._table_name_hint_fun: TFunHintTemplate[str] = None
+        self._table_name_hint_fun: Optional[TFunHintTemplate[str]] = None
         self._table_has_other_dynamic_hints: bool = False
-        self._hints: TResourceHints = None
+        self._hints: Optional[TResourceHints] = None
         """Hints for the resource"""
         self._hints_variants: Dict[str, TResourceHints] = {}
         """Hints for tables emitted from resources"""
@@ -268,9 +222,8 @@ class DltResourceHints:
 
     @property
     def write_disposition(self) -> TTableHintTemplate[TWriteDispositionConfig]:
-        if self._hints is None or self._hints.get("write_disposition") is None:
-            return DEFAULT_WRITE_DISPOSITION
-        return self._hints.get("write_disposition")
+        value = (self._hints or {}).get("write_disposition")
+        return value if value is not None else DEFAULT_WRITE_DISPOSITION
 
     @write_disposition.setter
     def write_disposition(self, value: TTableHintTemplate[TWriteDispositionConfig]) -> None:
@@ -290,15 +243,15 @@ class DltResourceHints:
         )
 
     @property
-    def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
+    def schema_contract(self) -> Optional[TTableHintTemplate[TSchemaContract]]:
         return None if self._hints is None else self._hints.get("schema_contract")
 
     @property
-    def table_format(self) -> TTableHintTemplate[TTableFormat]:
+    def table_format(self) -> Optional[TTableHintTemplate[TTableFormat]]:
         return None if self._hints is None else self._hints.get("table_format")
 
     @property
-    def parent_table_name(self) -> TTableHintTemplate[str]:
+    def parent_table_name(self) -> Optional[TTableHintTemplate[str]]:
         return None if self._hints is None else self._hints.get("parent_table_name")
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
@@ -441,20 +394,20 @@ class DltResourceHints:
 
     def apply_hints(
         self,
-        table_name: TTableHintTemplate[str] = None,
-        parent_table_name: TTableHintTemplate[str] = None,
-        write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
-        columns: TTableHintTemplate[TAnySchemaColumns] = None,
-        primary_key: TTableHintTemplate[TColumnNames] = None,
-        merge_key: TTableHintTemplate[TColumnNames] = None,
-        incremental: TIncrementalConfig = None,
-        schema_contract: TTableHintTemplate[TSchemaContract] = None,
+        table_name: Optional[TTableHintTemplate[str]] = None,
+        parent_table_name: Optional[TTableHintTemplate[str]] = None,
+        write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]] = None,
+        columns: Optional[TTableHintTemplate[TAnySchemaColumns]] = None,
+        primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
+        merge_key: Optional[TTableHintTemplate[TColumnNames]] = None,
+        incremental: Optional[TIncrementalConfig] = None,
+        schema_contract: Optional[TTableHintTemplate[TSchemaContract]] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
-        table_format: TTableHintTemplate[TTableFormat] = None,
-        file_format: TTableHintTemplate[TFileFormat] = None,
-        references: TTableHintTemplate[TTableReferenceParam] = None,
+        table_format: Optional[TTableHintTemplate[TTableFormat]] = None,
+        file_format: Optional[TTableHintTemplate[TFileFormat]] = None,
+        references: Optional[TTableHintTemplate[TTableReferenceParam]] = None,
         create_table_variant: bool = False,
-        nested_hints: TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]] = None,
+        nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     ) -> Self:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
@@ -535,20 +488,14 @@ class DltResourceHints:
                     columns = ensure_table_schema_columns(columns)
                     # this updates all columns with defaults
                     assert isinstance(t["columns"], dict)
-                    t["columns"] = merge_columns(t["columns"], columns, merge_columns=True)
+                    t["columns"] = merge_columns(t["columns"], columns)
                 else:
                     # set to empty columns
                     t["columns"] = ensure_table_schema_columns(columns)
             if primary_key is not None:
-                if primary_key:
-                    t["primary_key"] = primary_key
-                else:
-                    t.pop("primary_key", None)
+                t["primary_key"] = primary_key
             if merge_key is not None:
-                if merge_key:
-                    t["merge_key"] = merge_key
-                else:
-                    t.pop("merge_key", None)
+                t["merge_key"] = merge_key
             if schema_contract is not None:
                 if schema_contract:
                     t["schema_contract"] = schema_contract
@@ -679,6 +626,9 @@ class DltResourceHints:
 
     @staticmethod
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
+        remove_compound_props(partial["columns"], {hint})
+        if not keys:
+            return
         if isinstance(keys, str):
             keys = [keys]
         for key in keys:
@@ -692,7 +642,7 @@ class DltResourceHints:
 
     @staticmethod
     def _merge_keys(dict_: TResourceHints) -> None:
-        """Merges primary and merge keys into columns in place."""
+        """Applies primary_key and merge_key hints to columns. Table-level hints override column-level settings."""
 
         if "primary_key" in dict_:
             DltResourceHints._merge_key("primary_key", dict_.pop("primary_key"), dict_)  # type: ignore

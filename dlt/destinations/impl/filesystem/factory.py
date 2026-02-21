@@ -11,7 +11,6 @@ from dlt.destinations.impl.filesystem.configuration import (
 )
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, HfFilesystemClient
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
-from tests.common.normalizers.custom_normalizers import NamingConvention
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient

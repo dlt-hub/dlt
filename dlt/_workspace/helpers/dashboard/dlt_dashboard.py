@@ -38,6 +38,14 @@ def build_header_controls(dlt_profile_select: mo.ui.dropdown) -> Union[List[Any]
     return None
 
 
+@app.function(hide_code=True)
+def detect_dlt_hub():
+    try:
+        return dlt.hub.__found__
+    except ImportError:
+        return False
+
+
 @app.function
 def build_home_header_row(
     dlt_profile_select: mo.ui.dropdown,
@@ -86,6 +94,7 @@ def render_workspace_home(
 ) -> List[Any]:
     """Render the workspace-level home view (no pipeline selected)."""
     return [
+        ui.section_marker(strings.app_section_name, has_content=True),
         build_home_header_row(dlt_profile_select, dlt_pipeline_select),
         mo.md(strings.app_title).center(),
         mo.md(strings.app_intro).center(),
@@ -185,8 +194,11 @@ def render_pipeline_home(
         )
         _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
 
-    _stack = render_pipeline_header_row(
-        dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, _buttons
+    _stack = [ui.section_marker(strings.home_section_name, has_content=dlt_pipeline is not None)]
+    _stack.extend(
+        render_pipeline_header_row(
+            dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, _buttons
+        )
     )
 
     if _pipeline_execution_summary:
@@ -301,12 +313,17 @@ def section_info(
     Overview page of currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.overview_title,
-        strings.overview_subtitle,
-        strings.overview_subtitle,
-        dlt_section_info_switch,
+    _result = [
+        ui.section_marker(strings.overview_section_name, has_content=dlt_pipeline is not None)
+    ]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.overview_title,
+            strings.overview_subtitle,
+            strings.overview_subtitle,
+            dlt_section_info_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_info_switch.value:
@@ -357,12 +374,15 @@ def section_schema(
     Show schema of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.schema_title,
-        strings.schema_subtitle,
-        strings.schema_subtitle_long,
-        dlt_section_schema_switch,
+    _result = [ui.section_marker(strings.schema_section_name, has_content=dlt_pipeline is not None)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.schema_title,
+            strings.schema_subtitle,
+            strings.schema_subtitle_long,
+            dlt_section_schema_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_schema_switch.value and dlt_schema_table_list is None:
@@ -435,6 +455,218 @@ def section_schema(
 
 
 @app.cell(hide_code=True)
+def ui_data_quality_controls(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+):
+    """
+    Create data quality filter controls (separate cell for marimo reactivity)
+
+    Import the function from the dashboard module and call it.
+    """
+    dlt_data_quality_show_failed_filter: mo.ui.checkbox = None
+    dlt_data_quality_table_filter: mo.ui.dropdown = None
+    dlt_data_quality_rate_filter: mo.ui.slider = None
+    dlt_data_quality_checks_arrow = None
+
+    # Create controls whenever dlthub is detected and pipeline exists
+    # The switch controls whether widget content is shown, not whether controls exist
+    if detect_dlt_hub() and dlt_pipeline:
+        try:
+            # Import the function from the dashboard module
+            from dlthub.data_quality._dashboard import create_data_quality_controls
+
+            # Call the function - returns (checkbox, dropdown, slider, checks_arrow)
+            (
+                dlt_data_quality_show_failed_filter,
+                dlt_data_quality_table_filter,
+                dlt_data_quality_rate_filter,
+                dlt_data_quality_checks_arrow,
+            ) = create_data_quality_controls(dlt_pipeline)
+        except Exception:
+            pass
+
+    return (
+        dlt_data_quality_show_failed_filter,
+        dlt_data_quality_table_filter,
+        dlt_data_quality_rate_filter,
+        dlt_data_quality_checks_arrow,
+    )
+
+
+@app.cell(hide_code=True)
+def section_data_quality(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+    dlt_data_quality_show_failed_filter: mo.ui.checkbox,
+    dlt_data_quality_table_filter: mo.ui.dropdown,
+    dlt_data_quality_rate_filter: mo.ui.slider,
+    dlt_data_quality_checks_arrow,
+):
+    """
+    Show data quality of the currently selected pipeline
+    only if dlt.hub is installed
+
+    Import the widget function from the dashboard module and call it.
+    """
+    if not detect_dlt_hub():
+        _result = None
+    else:
+        _result = [
+            ui.section_marker(
+                strings.data_quality_section_name, has_content=dlt_pipeline is not None
+            )
+        ]
+        _result.extend(
+            ui.build_page_header(
+                dlt_pipeline,
+                strings.data_quality_title,
+                strings.data_quality_subtitle,
+                strings.data_quality_subtitle,
+                dlt_section_data_quality_switch,
+            )
+        )
+        if dlt_pipeline and dlt_section_data_quality_switch.value:
+            try:
+                # Import the widget function from the dashboard module
+                from dlthub.data_quality._dashboard import data_quality_widget
+
+                # Extract values from controls (must be in separate cell from where controls are created)
+                show_failed_value = (
+                    dlt_data_quality_show_failed_filter.value
+                    if dlt_data_quality_show_failed_filter is not None
+                    else False
+                )
+                table_value = None
+                if (
+                    dlt_data_quality_table_filter is not None
+                    and dlt_data_quality_table_filter.value != "All"
+                ):
+                    table_value = dlt_data_quality_table_filter.value
+                rate_value = (
+                    dlt_data_quality_rate_filter.value
+                    if dlt_data_quality_rate_filter is not None
+                    else None
+                )
+
+                # Call the widget function
+                widget_output = data_quality_widget(
+                    dlt_pipeline=dlt_pipeline,
+                    failure_rate_slider=dlt_data_quality_rate_filter,
+                    failure_rate_filter_value=rate_value,
+                    show_only_failed_checkbox=dlt_data_quality_show_failed_filter,
+                    show_only_failed_value=show_failed_value,
+                    table_dropdown=dlt_data_quality_table_filter,
+                    table_name_filter_value=table_value,
+                    checks_arrow=dlt_data_quality_checks_arrow,
+                )
+                if widget_output is not None:
+                    _result.append(widget_output)
+
+                # Only show raw table switch if there is data to display
+                if (
+                    dlt_data_quality_checks_arrow is not None
+                    and dlt_data_quality_checks_arrow.num_rows > 0
+                ):
+                    dlt_data_quality_show_raw_table_switch: mo.ui.switch = mo.ui.switch(
+                        value=False,
+                        label="<small>Show Raw Table</small>",
+                    )
+                    _result.append(
+                        mo.hstack([dlt_data_quality_show_raw_table_switch], justify="start")
+                    )
+                else:
+                    dlt_data_quality_show_raw_table_switch = None
+            except ImportError:
+                _result.append(mo.md("**DLT Hub data quality module is not available.**"))
+                dlt_data_quality_show_raw_table_switch = None
+            except Exception as exc:
+                _result.append(
+                    ui.build_error_callout(
+                        f"Error loading data quality checks: {exc}",
+                        traceback_string=traceback.format_exc(),
+                    )
+                )
+                dlt_data_quality_show_raw_table_switch = None
+        else:
+            dlt_data_quality_show_raw_table_switch = None
+    mo.vstack(_result) if _result else None
+    return dlt_data_quality_show_raw_table_switch
+
+
+@app.cell(hide_code=True)
+def section_data_quality_raw_table(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+    dlt_data_quality_show_raw_table_switch: mo.ui.switch,
+    dlt_get_last_query_result,
+    dlt_set_last_query_result,
+):
+    """
+    Display the raw data quality checks table with _dlt_load_id column
+    """
+    _result = []
+
+    if (
+        dlt_pipeline
+        and dlt_section_data_quality_switch.value
+        and dlt_data_quality_show_raw_table_switch is not None
+        and dlt_data_quality_show_raw_table_switch.value
+    ):
+        try:
+            # Import constants from data_quality module (using private names to avoid conflicts)
+            from dlthub import data_quality as dq
+            from dlthub.data_quality.storage import (
+                DLT_CHECKS_TABLE_NAME as _DLT_CHECKS_RESULTS_TABLE_NAME,
+                DLT_DATA_QUALITY_SCHEMA_NAME as _DLT_DATA_QUALITY_SCHEMA_NAME,
+            )
+
+            _error_message: str = None
+            with mo.status.spinner(title="Loading raw data quality checks table..."):
+                try:
+                    _raw_sql_query = dq.read_check(dlt_pipeline.dataset())
+
+                    # Execute query
+                    _raw_query_result, _error_message, _traceback_string = utils.get_query_result(
+                        dlt_pipeline, _raw_sql_query.to_sql()
+                    )
+                    dlt_set_last_query_result(_raw_query_result)
+                except Exception as exc:
+                    _error_message = str(exc)
+                    _traceback_string = traceback.format_exc()
+
+            # Display error message if encountered
+            if _error_message:
+                _result.append(
+                    ui.build_error_callout(
+                        f"Error loading raw table: {_error_message}",
+                        traceback_string=_traceback_string,
+                    )
+                )
+
+            # Always display result table
+            _last_result = dlt_get_last_query_result()
+            if _last_result is not None:
+                _result.append(mo.ui.table(_last_result, selection=None))
+        except ImportError:
+            _result.append(
+                mo.callout(
+                    mo.md("DLT Hub data quality module is not available."),
+                    kind="warn",
+                )
+            )
+        except Exception as exc:
+            _result.append(
+                ui.build_error_callout(
+                    f"Error loading raw table: {exc}",
+                    traceback_string=traceback.format_exc(),
+                )
+            )
+    mo.vstack(_result) if _result else None
+    return
+
+
+@app.cell(hide_code=True)
 def section_browse_data_table_list(
     dlt_clear_query_cache: mo.ui.run_button,
     dlt_data_table_list: mo.ui.table,
@@ -451,12 +683,17 @@ def section_browse_data_table_list(
     Show data of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.browse_data_title,
-        strings.browse_data_subtitle,
-        strings.browse_data_subtitle_long,
-        dlt_section_browse_data_switch,
+    _result = [
+        ui.section_marker(strings.browse_data_section_name, has_content=dlt_pipeline is not None)
+    ]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.browse_data_title,
+            strings.browse_data_subtitle,
+            strings.browse_data_subtitle_long,
+            dlt_section_browse_data_switch,
+        )
     )
 
     dlt_query_editor: mo.ui.code_editor = None
@@ -481,7 +718,7 @@ def section_browse_data_table_list(
 
             # we only show resource state if the table has resource set, child tables do not have a resource set
             _resource_name, _source_state, _resource_state = (
-                utils.get_source_and_resouce_state_for_table(
+                utils.get_source_and_resource_state_for_table(
                     _schema_table, dlt_pipeline, dlt_selected_schema_name
                 )
             )
@@ -693,12 +930,15 @@ def section_state(
     """
     Show state of the currently selected pipeline
     """
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.state_title,
-        strings.state_subtitle,
-        strings.state_subtitle,
-        dlt_section_state_switch,
+    _result = [ui.section_marker(strings.state_section_name, has_content=dlt_pipeline is not None)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.state_title,
+            strings.state_subtitle,
+            strings.state_subtitle,
+            dlt_section_state_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_state_switch.value:
@@ -722,12 +962,15 @@ def section_trace(
     Show last trace of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.trace_title,
-        strings.trace_subtitle,
-        strings.trace_subtitle,
-        dlt_section_trace_switch,
+    _result = [ui.section_marker(strings.trace_section_name, has_content=dlt_pipeline is not None)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.trace_title,
+            strings.trace_subtitle,
+            strings.trace_subtitle,
+            dlt_section_trace_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_trace_switch.value:
@@ -833,12 +1076,15 @@ def section_loads(
     Show loads of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.loads_title,
-        strings.loads_subtitle,
-        strings.loads_subtitle_long,
-        dlt_section_loads_switch,
+    _result = [ui.section_marker(strings.loads_section_name, has_content=dlt_pipeline is not None)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.loads_title,
+            strings.loads_subtitle,
+            strings.loads_subtitle_long,
+            dlt_section_loads_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_loads_switch.value:
@@ -943,12 +1189,17 @@ def section_ibis_backend(
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.ibis_backend_title,
-        strings.ibis_backend_subtitle,
-        strings.ibis_backend_subtitle,
-        dlt_section_ibis_browser_switch,
+    _result = [
+        ui.section_marker(strings.ibis_backend_section_name, has_content=dlt_pipeline is not None)
+    ]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.ibis_backend_title,
+            strings.ibis_backend_subtitle,
+            strings.ibis_backend_subtitle,
+            dlt_section_ibis_browser_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_ibis_browser_switch.value:
@@ -974,6 +1225,15 @@ def utils_discover_pipelines(
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
+    from dlt._workspace.cli.utils import list_local_pipelines
+
+    # sync from runtime if enabled
+    _tmp_config = utils.resolve_dashboard_config(None)
+    if _tmp_config.sync_from_runtime:
+        from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
+
+        with mo.status.spinner(title="Syncing pipeline list from runtime"):
+            sync_from_runtime()
 
     _run_context = dlt.current.run_context()
     if (
@@ -985,9 +1245,9 @@ def utils_discover_pipelines(
     # discover pipelines and build selector
     dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[Dict[str, Any]] = []
-    dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(
+    dlt_pipelines_dir, dlt_all_pipelines = list_local_pipelines(
         mo_cli_arg_pipelines_dir,
-        addtional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
+        additional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
     )
 
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
@@ -1015,7 +1275,7 @@ def utils_discover_profiles(mo_query_var_profile: str, mo_cli_arg_profile: str):
     selected_profile = None
 
     if isinstance(run_context, ProfilesRunContext):
-        options = run_context.available_profiles() or []
+        options = run_context.configured_profiles() or []
         current = run_context.profile if options and run_context.profile in options else None
 
         selected_profile = current
@@ -1111,13 +1371,16 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_section_ibis_browser_switch: mo.ui.switch = mo.ui.switch(
         value=False, label="ibis" if mo_cli_arg_with_test_identifiers else ""
     )
+    dlt_section_data_quality_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="data_quality" if mo_cli_arg_with_test_identifiers else ""
+    )
 
     # other switches
     dlt_schema_show_dlt_tables: mo.ui.switch = mo.ui.switch(
         label=f"<small>{strings.ui_show_dlt_tables}</small>"
     )
     dlt_schema_show_child_tables: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_show_child_tables}</small>", value=False
+        label=f"<small>{strings.ui_show_child_tables}</small>", value=True
     )
     dlt_schema_show_row_counts: mo.ui.run_button = mo.ui.run_button(
         label=f"<small>{strings.ui_load_row_counts}</small>"
@@ -1151,6 +1414,7 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         dlt_schema_show_row_counts,
         dlt_schema_show_type_hints,
         dlt_section_browse_data_switch,
+        dlt_section_data_quality_switch,
         dlt_section_ibis_browser_switch,
         dlt_section_loads_switch,
         dlt_section_info_switch,
@@ -1169,15 +1433,15 @@ def watch_changes(
     """
     Watch changes in the trace file and trigger reload in the home cell and all following cells on change
     """
+    from dlt.pipeline.trace import get_trace_file_path
+
     # provide pipeline object to the following cells
     dlt_pipeline_name: str = (
         str(dlt_pipeline_select.value[0]) if dlt_pipeline_select.value else None
     )
     dlt_file_watcher = None
     if dlt_pipeline_name:
-        dlt_file_watcher = mo.watch.file(
-            utils.get_trace_file_path(dlt_pipeline_name, dlt_pipelines_dir)
-        )
+        dlt_file_watcher = mo.watch.file(get_trace_file_path(dlt_pipelines_dir, dlt_pipeline_name))
     return dlt_pipeline_name, dlt_file_watcher
 
 

@@ -4,6 +4,11 @@ from typing import Any, ClassVar, Dict, Final, List, Optional
 from dlt.common.configuration import configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.specs import AwsCredentials
+from dlt.destinations.impl.athena.utils import is_s3_tables_catalog
+
+
+DEFAULT_AWS_DATA_CATALOG = "awsdatacatalog"
+DEFAULT_TABLE_LOCATION_LAYOUT = "{dataset_name}/{table_name}"
 
 
 @configspec
@@ -15,14 +20,14 @@ class LakeformationConfig:
 @configspec
 class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="athena", init=False, repr=False, compare=False)  # type: ignore[misc]
-    query_result_bucket: str = None
+    query_result_bucket: Optional[str] = None
     credentials: AwsCredentials = None
     athena_work_group: Optional[str] = None
-    aws_data_catalog: Optional[str] = "awsdatacatalog"
+    aws_data_catalog: str = DEFAULT_AWS_DATA_CATALOG
+    staging_aws_data_catalog: Optional[str] = None
     connection_params: Optional[Dict[str, Any]] = None
     force_iceberg: Optional[bool] = None
-    # possible placeholders: {dataset_name}, {table_name}, {location_tag}
-    table_location_layout: Optional[str] = "{dataset_name}/{table_name}"
+    table_location_layout: Optional[str] = DEFAULT_TABLE_LOCATION_LAYOUT
     table_properties: Optional[Dict[str, str]] = None
     lakeformation_config: Optional[LakeformationConfig] = None
     info_tables_query_threshold: int = 90
@@ -31,20 +36,24 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     db_location: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = [
+        "query_result_bucket",
         "athena_work_group",
         "aws_data_catalog",
         "info_tables_query_threshold",
     ]
 
-    def to_connector_params(self) -> Dict[str, Any]:
+    def to_connector_params(self, use_catalog_name: bool = True) -> Dict[str, Any]:
         native_credentials = self.credentials.to_native_representation()
         return {
             "s3_staging_dir": self.query_result_bucket,
             "work_group": self.athena_work_group,
-            "catalog_name": self.aws_data_catalog,
+            "catalog_name": self.aws_data_catalog if use_catalog_name else None,
             **(self.connection_params or {}),
             **native_credentials,
         }
+
+    def _is_s3_tables_catalog(self) -> bool:
+        return is_s3_tables_catalog(self.aws_data_catalog)
 
     def __str__(self) -> str:
         """Return displayable destination location"""

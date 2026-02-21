@@ -2,6 +2,7 @@ from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming.naming import NamingConvention
@@ -9,6 +10,7 @@ from dlt.common.data_writers.escape import escape_postgres_identifier, escape_ms
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
 from dlt.common.schema.typing import TColumnSchema, TColumnType
+from dlt.destinations._adbc_jobs import make_adbc_parquet_file_format_selector
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.mssql.configuration import MsSqlCredentials, MsSqlClientConfiguration
 
@@ -117,7 +119,12 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "insert_values"
-        caps.supported_loader_file_formats = ["insert_values", "model"]
+        caps.supported_loader_file_formats = ["insert_values", "parquet", "model"]
+        caps.loader_file_format_selector = make_adbc_parquet_file_format_selector(
+            "mssql",
+            "https://dlthub.com/docs/dlt-ecosystem/destinations/mssql#data-loading",
+            prefer_parquet=True,
+        )
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.type_mapper = MsSqlTypeMapper
@@ -151,6 +158,8 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
             "staging-optimized",
         ]
         caps.sqlglot_dialect = "tsql"
+        # ADBC driver for MSSQL does not support dictionary-encoded Arrow arrays
+        caps.parquet_format = ParquetFormatConfiguration(supports_dictionary_encoding=False)
 
         return caps
 

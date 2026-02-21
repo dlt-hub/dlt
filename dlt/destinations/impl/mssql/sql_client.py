@@ -107,14 +107,14 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         # MS Sql doesn't support DROP ... CASCADE, drop tables in the schema first
         # Drop all views
         rows = self.execute_sql(
-            "SELECT table_name FROM information_schema.views WHERE table_schema = %s",
+            "SELECT table_name FROM INFORMATION_SCHEMA.VIEWS WHERE table_schema = %s",
             self.capabilities.casefold_identifier(self.dataset_name),
         )
         view_names = [row[0] for row in rows]
         self._drop_views(*view_names)
         # Drop all tables
         rows = self.execute_sql(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s",
+            "SELECT table_name FROM INFORMATION_SCHEMA.TABLES WHERE table_schema = %s",
             self.capabilities.casefold_identifier(self.dataset_name),
         )
         table_names = [row[0] for row in rows]
@@ -166,7 +166,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
                     pass
             except pyodbc.Error:
                 pass
-        except pyodbc.Error as outer:
+        except pyodbc.Error:
             # clear all pending result sets
             try:
                 while curr.nextset():
@@ -178,7 +178,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
                 self._conn.rollback()
             except pyodbc.Error:
                 pass
-            raise outer
+            raise
         finally:
             # clear all pending result sets
             while curr.nextset():

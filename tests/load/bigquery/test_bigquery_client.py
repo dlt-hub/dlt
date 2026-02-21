@@ -26,7 +26,7 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,
     should_autodetect_schema,
 )
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
+from tests.utils import get_test_storage_root, delete_test_storage
 from tests.common.utils import json_case_path as common_json_case_path
 from tests.common.configuration.utils import environment
 from tests.load.utils import (
@@ -48,7 +48,7 @@ def client() -> Iterator[BigQueryClient]:
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.fixture(autouse=True)
@@ -378,7 +378,8 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     job = expect_load_file(
         client, file_storage, json.dumps(insert_json), user_table_name, status="failed"
     )
-    assert "No such field: _unk_" in job.exception()
+    assert "No such field: _unk_" in job.failed_message()
+    assert job.exception() is not None
 
     # insert null value
     insert_json = copy(load_json)
@@ -386,7 +387,8 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     job = expect_load_file(
         client, file_storage, json.dumps(insert_json), user_table_name, status="failed"
     )
-    assert "Only optional fields can be set to NULL. Field: timestamp;" in job.exception()
+    assert "Only optional fields can be set to NULL. Field: timestamp;" in job.failed_message()
+    assert job.exception() is not None
 
     # insert a wrong type
     insert_json = copy(load_json)
@@ -394,7 +396,8 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     job = expect_load_file(
         client, file_storage, json.dumps(insert_json), user_table_name, status="failed"
     )
-    assert "Could not parse 'AA' as a timestamp" in job.exception()
+    assert "Could not parse 'AA' as a timestamp" in job.failed_message()
+    assert job.exception() is not None
 
     # numeric overflow on bigint
     insert_json = copy(load_json)
@@ -403,7 +406,8 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     job = expect_load_file(
         client, file_storage, json.dumps(insert_json), user_table_name, status="failed"
     )
-    assert "Could not convert value" in job.exception()
+    assert "Could not convert value" in job.failed_message()
+    assert job.exception() is not None
 
     # numeric overflow on NUMERIC
     insert_json = copy(load_json)
@@ -421,8 +425,9 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     )
     assert (
         "Invalid NUMERIC value: 100000000000000000000000000000 Field: parse_data__intent__id;"
-        in job.exception()
+        in job.failed_message()
     )
+    assert job.exception() is not None
 
     # max bigquery decimal is (76, 76) (256 bit) = 5.7896044618658097711785492504343953926634992332820282019728792003956564819967E+38
     insert_json = copy(load_json)
@@ -436,8 +441,9 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
         "Invalid BIGNUMERIC value:"
         " 578960446186580977117854925043439539266.34992332820282019728792003956564819968 Field:"
         " parse_data__metadata__rasa_x_id;"
-        in job.exception()
+        in job.failed_message()
     )
+    assert job.exception() is not None
 
 
 def prepare_oauth_json() -> Tuple[str, str]:
@@ -456,3 +462,45 @@ def prepare_service_json() -> Tuple[str, str]:
         services_str = base64.b64decode(f.read().strip(), validate=True).decode()
     dest_path = storage.save("level-dragon-333019-707809ee408a.json", services_str)
     return services_str, dest_path
+
+
+def test_bigquery_configuration_accepts_oauth_credentials() -> None:
+    # Create OAuth credentials
+    oauth_creds = GcpOAuthCredentials()
+    oauth_creds.project_id = "test-project"
+    oauth_creds.token = "test-token"
+    oauth_creds.client_id = ""
+    oauth_creds.refresh_token = ""
+    oauth_creds.resolve()
+
+    # Test that configuration accepts OAuth credentials
+    config = BigQueryClientConfiguration(credentials=oauth_creds)._bind_dataset_name(
+        dataset_name="test_dataset"
+    )
+
+    assert config.credentials == oauth_creds
+    assert config.credentials.project_id == "test-project"
+
+
+def test_bigquery_configuration_accepts_base_gcp_credentials() -> None:
+    from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
+
+    # Create a wrapper that uses base GcpCredentials type
+    # This mimics what happens with Workload Identity Federation
+    native_credentials = GoogleOAuth2Credentials(token="test-token")
+    native_credentials.expiry = None  # Non-refreshable
+
+    # Wrap in GcpServiceAccountCredentials (which extends GcpCredentials)
+    wrapper_creds = GcpServiceAccountCredentials()
+    wrapper_creds.project_id = "test-project"
+    wrapper_creds._set_default_credentials(native_credentials)
+    wrapper_creds.__is_resolved__ = True
+
+    # Test that configuration accepts wrapped credentials
+    config = BigQueryClientConfiguration(credentials=wrapper_creds)._bind_dataset_name(
+        dataset_name="test_dataset"
+    )
+
+    assert config.credentials == wrapper_creds
+    assert config.credentials.project_id == "test-project"
+    assert config.credentials.has_default_credentials()

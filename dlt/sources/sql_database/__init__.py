@@ -1,6 +1,6 @@
 """Source that loads tables form any SQLAlchemy supported database, supports batching requests and incremental loads."""
 
-from typing import Callable, Dict, List, Optional, Union, Iterable, Any
+from typing import Callable, Dict, List, Optional, Type, Union, Iterable, Any
 
 import dlt
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -12,9 +12,15 @@ from dlt.extract import DltResource, Incremental, decorators
 
 from .helpers import (
     _execute_table_adapter,
+    default_engine_adapter_callback,
     table_rows,
     engine_from_credentials,
     remove_nullability_adapter,
+    BaseTableLoader,
+    TableLoader,
+    ConnectorXTableLoader,
+    register_table_loader_backend,
+    get_table_loader_class,
     TableBackend,
     SqlTableResourceConfiguration,
     _detect_precision_hints_deprecated,
@@ -46,6 +52,8 @@ def sql_database(
     query_adapter_callback: Optional[TQueryAdapter] = None,
     resolve_foreign_keys: bool = False,
     engine_adapter_callback: Optional[Callable[[Engine], Engine]] = None,
+    engine_kwargs: Optional[Dict[str, Any]] = None,
+    table_loader_class: Optional[Type[BaseTableLoader]] = None,
 ) -> Iterable[DltResource]:
     """
     A dlt source which loads data from an SQL database using SQLAlchemy.
@@ -63,7 +71,7 @@ def sql_database(
         chunk_size (int): Number of rows yielded in one batch. SQL Alchemy will create additional internal rows buffer twice the chunk size.
 
         backend (TableBackend): Type of backend to generate table data. One of: "sqlalchemy", "pyarrow", "pandas" and "connectorx".
-            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
+            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields pandas DataFrames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
 
@@ -97,6 +105,14 @@ def sql_database(
         engine_adapter_callback (Optional[Callable[[Engine], Engine]]): Callback to configure, modify an Engine instance that will be used to open a connection ie. to
             set transaction isolation level.
 
+        engine_kwargs (Optional[Dict[str, Any]]): Optional SQLAlchemy engine keyword arguments passed directly to `sqlalchemy.create_engine()`.
+            They always affect table reflection and also data loading if SQLAlchemy backend is used (default). If other backend is used, pass equivalent idiomatic params to backend_kwargs.
+
+        table_loader_class (Optional[Type[BaseTableLoader]]): Custom table loader class to use for loading data.
+            Subclass `TableLoader` to customize row loading within the SQLAlchemy ecosystem (e.g. pagination,
+            retry logic), or subclass `BaseTableLoader` for entirely different backends. When not provided,
+            the default loader is selected based on the `backend` parameter.
+
     Yields:
         DltResource: DLT resources for each table to be loaded.
     """
@@ -108,12 +124,17 @@ def sql_database(
     else:
         reflection_level = reflection_level or "minimal"
 
-    # set up alchemy engine
-    engine = engine_from_credentials(credentials)
+    engine_kwargs = engine_kwargs or {}
+    engine = engine_from_credentials(
+        credentials,
+        may_dispose_after_use=False,
+        **engine_kwargs,
+    )
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
+    default_engine_adapter_callback(engine, metadata)
 
     if defer_table_reflect:
         if not table_names:
@@ -135,6 +156,12 @@ def sql_database(
             if table_names is None or table.name in table_names
         ]
 
+    # dispose the reflection engine — MetaData no longer needs it and each
+    # sql_table() resource creates its own engine from credentials.
+    # skipped for externally-provided Engine instances (user manages lifecycle).
+    if not isinstance(credentials, Engine):
+        engine.dispose()
+
     for table_schema, table_name in table_infos:
         yield sql_table(
             credentials=credentials,
@@ -151,6 +178,8 @@ def sql_database(
             query_adapter_callback=query_adapter_callback,
             resolve_foreign_keys=resolve_foreign_keys,
             engine_adapter_callback=engine_adapter_callback,
+            engine_kwargs=engine_kwargs,
+            table_loader_class=table_loader_class,
         )
 
 
@@ -177,6 +206,8 @@ def sql_table(
     write_disposition: TWriteDispositionConfig = "append",
     primary_key: TColumnNames = None,
     merge_key: TColumnNames = None,
+    engine_kwargs: Optional[Dict[str, Any]] = None,
+    table_loader_class: Optional[Type[BaseTableLoader]] = None,
 ) -> DltResource:
     """
     A dlt resource which loads data from an SQL database table using SQLAlchemy.
@@ -196,7 +227,7 @@ def sql_table(
         chunk_size (int): Number of rows yielded in one batch. SQL Alchemy will create additional internal rows buffer twice the chunk size.
 
         backend (TableBackend): Type of backend to generate table data. One of: "sqlalchemy", "pyarrow", "pandas" and "connectorx".
-            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
+            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields pandas DataFrames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
 
@@ -237,6 +268,14 @@ def sql_table(
         merge_key (TColumnNames): A list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to
             keep a single record for a given day.
 
+        engine_kwargs (Optional[Dict[str, Any]]): Optional SQLAlchemy engine keyword arguments passed directly to `sqlalchemy.create_engine()`.
+            They always affect table reflection and also data loading if SQLAlchemy backend is used (default). If other backend is used, pass equivalent idiomatic params to backend_kwargs.
+
+        table_loader_class (Optional[Type[BaseTableLoader]]): Custom table loader class to use for loading data.
+            Subclass `TableLoader` to customize row loading within the SQLAlchemy ecosystem (e.g. pagination,
+            retry logic), or subclass `BaseTableLoader` for entirely different backends. When not provided,
+            the default loader is selected based on the `backend` parameter.
+
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
     """
@@ -250,11 +289,17 @@ def sql_table(
     else:
         reflection_level = reflection_level or "minimal"
 
-    engine = engine_from_credentials(credentials, may_dispose_after_use=True)
+    engine_kwargs = engine_kwargs or {}
+    engine = engine_from_credentials(
+        credentials,
+        may_dispose_after_use=True,
+        **engine_kwargs,
+    )
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
+    default_engine_adapter_callback(engine, metadata)
 
     # Table object is only created when reflecting, we don't want empty tables in metadata
     # as it breaks foreign key resolution
@@ -303,12 +348,17 @@ def sql_table(
         excluded_columns=excluded_columns,
         query_adapter_callback=query_adapter_callback,
         resolve_foreign_keys=resolve_foreign_keys,
+        table_loader_class=table_loader_class,
     )
 
 
 __all__ = [
     "sql_database",
     "sql_table",
+    "BaseTableLoader",
+    "TableLoader",
+    "register_table_loader_backend",
+    "get_table_loader_class",
     "ReflectionLevel",
     "TTypeAdapter",
     "engine_from_credentials",

@@ -181,6 +181,39 @@ synapse:
       trust_cert: "{{ (env_var('DLT__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE', 'yes') == 'yes')  | as_bool }}"
 
 
+fabric:
+  target: analytics
+  outputs:
+    analytics:
+      type: fabric
+      driver: "ODBC Driver 18 for SQL Server"
+      server: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      port: "{{ env_var('DLT__CREDENTIALS__PORT', 1433) | as_number }}"
+      database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      authentication: ServicePrincipal
+      tenant_id: "{{ env_var('DLT__CREDENTIALS__AZURE_TENANT_ID') }}"
+      client_id: "{{ env_var('DLT__CREDENTIALS__AZURE_CLIENT_ID') }}"
+      client_secret: "{{ env_var('DLT__CREDENTIALS__AZURE_CLIENT_SECRET') }}"
+      login_timeout: "{{ env_var('DLT__CREDENTIALS__CONNECT_TIMEOUT', '15') | as_number }}"
+      encrypt: true
+      trust_cert: false
+
+fabric_default:
+  target: analytics
+  outputs:
+    analytics:
+      type: fabric
+      driver: "ODBC Driver 18 for SQL Server"
+      server: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      port: "{{ env_var('DLT__CREDENTIALS__PORT', 1433) | as_number }}"
+      database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      authentication: auto
+      login_timeout: "{{ env_var('DLT__CREDENTIALS__CONNECT_TIMEOUT', '15') | as_number }}"
+      encrypt: true
+      trust_cert: false
+
 databricks:
   target: analytics
   outputs:

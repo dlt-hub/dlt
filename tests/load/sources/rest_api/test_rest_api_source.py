@@ -30,7 +30,7 @@ def _make_pipeline(destination_name: str):
 def test_rest_api_source(destination_config: DestinationTestConfiguration) -> None:
     config: RESTAPIConfig = {
         "client": {
-            "base_url": "https://pokeapi.co/api/v2/",
+            "base_url": "https://pokeapi.apps.dlthub.com/api/v2/",
         },
         "resource_defaults": {
             "endpoint": {
@@ -66,7 +66,7 @@ def test_rest_api_source(destination_config: DestinationTestConfiguration) -> No
 def test_dependent_resource(destination_config: DestinationTestConfiguration) -> None:
     config: RESTAPIConfig = {
         "client": {
-            "base_url": "https://pokeapi.co/api/v2/",
+            "base_url": "https://pokeapi.apps.dlthub.com/api/v2/",
         },
         "resource_defaults": {
             "endpoint": {

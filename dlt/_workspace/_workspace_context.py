@@ -83,12 +83,7 @@ class WorkspaceRunContext(ProfilesRunContext):
         return os.environ.get(known_env.DLT_DATA_DIR, self._data_dir)
 
     def initial_providers(self) -> List[ConfigProvider]:
-        providers = [
-            EnvironProvider(),
-            ProfileSecretsTomlProvider(self.settings_dir, self.profile, self.global_dir),
-            ProfileConfigTomlProvider(self.settings_dir, self.profile, self.global_dir),
-        ]
-        return providers
+        return self._initial_providers(self.profile)
 
     def initialize_runtime(self, runtime_config: RuntimeConfiguration = None) -> None:
         if runtime_config is not None:
@@ -98,9 +93,17 @@ class WorkspaceRunContext(ProfilesRunContext):
         # this also resolves workspace config if necessary
         initialize_runtime(self.name, self.config.runtime)
 
+        # if on runtime, add additional tracker
+        if self.runtime_config.run_id:
+            from dlt._workspace.helpers.runtime import runtime_artifacts
+            from dlt.pipeline import trace
+
+            if runtime_artifacts not in trace.TRACKING_MODULES:
+                trace.TRACKING_MODULES.append(runtime_artifacts)
+
     @property
     def runtime_config(self) -> WorkspaceRuntimeConfiguration:
-        return self._config.runtime
+        return self.config.runtime
 
     @property
     def config(self) -> WorkspaceConfiguration:
@@ -119,11 +122,8 @@ class WorkspaceRunContext(ProfilesRunContext):
             if self._config.settings.name:
                 self._name = self._config.settings.name
 
-            self._data_dir = _to_run_dir(self._config.settings.working_dir) or default_working_dir(
-                self.settings_dir,
-                self.name,
-                self.profile,
-                DEFAULT_WORKSPACE_WORKING_FOLDER,
+            self._data_dir = (
+                _to_run_dir(self._config.settings.working_dir) or self._make_default_working_dir()
             )
             self._local_dir = _to_run_dir(self._config.settings.local_dir) or default_working_dir(
                 self.run_dir,
@@ -162,6 +162,11 @@ class WorkspaceRunContext(ProfilesRunContext):
     def unplug(self) -> None:
         pass
 
+    def reset_config(self) -> None:
+        # Drop resolved configuration to force re-resolve with refreshed providers
+        self._config = None
+        # no need to initialize the _config anew as it's done in .config property
+
     # SupportsProfilesOnContext
 
     @property
@@ -178,6 +183,85 @@ class WorkspaceRunContext(ProfilesRunContext):
             if pinned_profile not in BUILT_IN_PROFILES:
                 profiles.append(pinned_profile)
         return profiles
+
+    def configured_profiles(self) -> List[str]:
+        """Returns profiles that have configuration or pipelines.
+
+        A profile is considered configured if:
+        - It is the current profile
+        - It is the pinned profile
+        - It has any toml configuration files (config.toml or secrets.toml with profile prefix)
+        - It has pipelines in its working directory
+
+        NOTE: calling this function is relatively expensive as it probes all available profiles
+        """
+        configured: set[str] = set()
+
+        # current profile is always configured
+        configured.add(self.profile)
+
+        # pinned profile is always configured
+        if pinned := read_profile_pin(self):
+            configured.add(pinned)
+
+        # probe all available profiles
+        for profile_name in self.available_profiles():
+            if profile_name in configured:
+                continue
+
+            # Check if profile has any toml config files
+            if self._profile_has_config(profile_name):
+                configured.add(profile_name)
+                continue
+
+            # Check if profile has any pipelines
+            if self._profile_has_pipelines(profile_name):
+                configured.add(profile_name)
+
+        return list(configured)
+
+    def _initial_providers(self, profile_name: str) -> List[ConfigProvider]:
+        providers = [
+            EnvironProvider(),
+            ProfileSecretsTomlProvider(self.settings_dir, profile_name, self.global_dir),
+            ProfileConfigTomlProvider(self.settings_dir, profile_name, self.global_dir),
+        ]
+        return providers
+
+    def _make_default_working_dir(self, profile_name: str = None) -> str:
+        return default_working_dir(
+            self.settings_dir,
+            self.name,
+            profile_name or self.profile,
+            DEFAULT_WORKSPACE_WORKING_FOLDER,
+        )
+
+    def _has_default_working_dir(self) -> bool:
+        """Checks if current working dir has default layout that includes profiles"""
+        return self._data_dir == self._make_default_working_dir()
+
+    def _profile_has_config(self, profile_name: str) -> bool:
+        """Check if a profile has any configuration files."""
+        # check if any profile-specific files were found
+        for provider in self._initial_providers(profile_name):
+            for location in provider.present_locations:
+                # check if it's a profile-specific file (starts with profile name)
+                if os.path.basename(location).startswith(f"{profile_name}."):
+                    return True
+        return False
+
+    def _profile_has_pipelines(self, profile_name: str) -> bool:
+        """Check if a profile has any pipelines in its data directory."""
+        # non default layouts can be probed
+        if not self._has_default_working_dir():
+            return False
+
+        working_dir = self._make_default_working_dir(profile_name)
+        pipelines_dir = os.path.join(working_dir, "pipelines")
+        try:
+            return os.path.isdir(pipelines_dir) and bool(os.listdir(pipelines_dir))
+        except OSError:
+            return False
 
     def switch_profile(self, new_profile: str) -> "WorkspaceRunContext":
         return switch_context(self.run_dir, new_profile, required="WorkspaceRunContext")

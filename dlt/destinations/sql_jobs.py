@@ -652,6 +652,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # get dedup sort information
         dedup_sort = get_dedup_sort_tuple(root_table)
+        if dedup_sort is not None:
+            dedup_sort = (escape_column_id(dedup_sort[0]), dedup_sort[1])
         skip_dedup: bool = root_table.get("x-stage-data-deduplicated", False)  # type: ignore[assignment]
 
         insert_temp_table_name: str = None
@@ -706,6 +708,39 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return sql
 
     @classmethod
+    def gen_upsert_merge_sql(
+        cls,
+        root_table_name: str,
+        staging_root_table_name: str,
+        primary_keys: Sequence[str],
+        root_table_column_names: Sequence[str],
+        hard_delete_col: Optional[str],
+        deleted_cond: Optional[str],
+    ) -> List[str]:
+        """Generate MERGE statement for upsert on root table.
+
+        Override for backends that don't support DELETE in MERGE (e.g., DuckLake).
+        """
+        sql: List[str] = []
+        on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
+        update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
+        col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
+        delete_str = (
+            "" if hard_delete_col is None else f"WHEN MATCHED AND s.{deleted_cond} THEN DELETE"
+        )
+
+        sql.append(f"""
+            MERGE INTO {root_table_name} d USING {staging_root_table_name} s
+            ON {on_str}
+            {delete_str}
+            WHEN MATCHED
+                THEN UPDATE SET {update_str}
+            WHEN NOT MATCHED
+                THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+        """)
+        return sql
+
+    @classmethod
     def gen_upsert_sql(
         cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
@@ -731,23 +766,17 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         )
 
         # generate merge statement for root table
-        on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
         root_table_column_names = list(map(escape_column_id, root_table["columns"]))
-        update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
-        col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
-        delete_str = (
-            "" if hard_delete_col is None else f"WHEN MATCHED AND s.{deleted_cond} THEN DELETE"
+        sql.extend(
+            cls.gen_upsert_merge_sql(
+                root_table_name,
+                staging_root_table_name,
+                primary_keys,
+                root_table_column_names,
+                hard_delete_col,
+                deleted_cond,
+            )
         )
-
-        sql.append(f"""
-            MERGE INTO {root_table_name} d USING {staging_root_table_name} s
-            ON {on_str}
-            {delete_str}
-            WHEN MATCHED
-                THEN UPDATE SET {update_str}
-            WHEN NOT MATCHED
-                THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
-        """)
 
         # generate statements for nested tables if they exist
         nested_tables = table_chain[1:]

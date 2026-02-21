@@ -182,6 +182,7 @@ class DataValidationError(SchemaException):
             and table_schema
             and hasattr(table_schema, "get")
         ):
+            # TODO: use get_columns_names_with_prop!
             identifier_columns = [
                 x.get("name")
                 for x in table_schema.get("columns", {}).values()

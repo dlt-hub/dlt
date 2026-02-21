@@ -51,7 +51,6 @@ const config = {
   url: 'https://dlthub.com',
   baseUrl: '/docs',
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'throw',
   onBrokenAnchors: 'throw',
   favicon: 'img/favicon.ico',
   staticDirectories: ['public', 'static'],
@@ -79,7 +78,12 @@ const config = {
     },
   },
 
-  markdown: { mermaid: true },
+  markdown: {
+    mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'throw',
+    },
+  },
   themes: ['@docusaurus/theme-mermaid'],
 
   presets: [
@@ -111,6 +115,27 @@ const config = {
     ],
   ],
 
+  plugins: [
+    [
+      require.resolve('./plugins/llms-txt'),
+      {
+        siteTitle: 'dlt - data load tool',
+        siteDescription: 'dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 8000+ source connectors.',
+        excludeFromMd: ['api_reference/'],
+        excludeFromIndex: ['devel/'],
+        groupDepth: 2,
+        separateIndexes: [
+          {
+            prefix: 'hub/',
+            title: 'dltHub',
+            description: 'dltHub is a managed platform for dlt pipelines with a web UI, pipeline runner, and collaboration features.',
+            sidebar: 'hubSidebar',
+          },
+        ],
+      },
+    ],
+  ],
+
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
@@ -126,6 +151,7 @@ const config = {
             type: 'docsVersionDropdown',
           },
           { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
+          { to: 'https://dlthub.com/docs/release-highlights', label: "What's new?", position: 'left' },
           {
             href: 'https://dlthub.com/community',
             label: 'Join community',

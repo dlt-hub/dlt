@@ -15,11 +15,11 @@ from dlt.common.exceptions import MissingDependencyException
 try:
     import marimo
     import pyarrow
-    import ibis
+    import ibis  # noqa: I251
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "Workspace Dashboard",
-        ['dlt["workspace"]'],
+        ["dlt[workspace]"],
         "to install the dlt workspace extra.",
     )
 

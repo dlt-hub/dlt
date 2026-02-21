@@ -91,6 +91,8 @@ def data_to_sources(
     """Creates a list of sources for data items present in `data` and applies specified hints to all resources.
 
     `data` may be a DltSource, DltResource, a list of those or any other data type accepted by pipeline.run
+
+    The returned list of sources is sorted by schema name.
     """
 
     def apply_hint_args(resource: DltResource) -> None:
@@ -193,6 +195,7 @@ def data_to_sources(
         for resource in source.resources.extracted:
             apply_hint_args(resource)
 
+    sources.sort(key=lambda s: s.schema.name)
     return sources
 
 
