@@ -130,8 +130,7 @@ def build_dq_raw_table(
                 )
             )
 
-        _last_result = get_result()
-        if _last_result is not None:
+        if (_last_result := get_result()) is not None:
             result.append(ui.dlt_table(_last_result, freeze_column=None))
     except ImportError:
         result.append(

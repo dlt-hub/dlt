@@ -100,8 +100,7 @@ def build_trace_section(
     if _exception_section := pipeline_utils.exception_section(pipeline):
         result.extend(_exception_section)
 
-    dlt_trace = pipeline.last_trace
-    if not dlt_trace:
+    if not (dlt_trace := pipeline.last_trace):
         result.append(
             mo.callout(
                 mo.md(strings.trace_no_trace_text),

@@ -357,10 +357,9 @@ def section_browse_data_table_list(
             _selected_table = cast(List[TTableListItem], dlt_data_table_list.value)[0]
             _table_name = _selected_table["name"]
 
-            _state_widget = utils.schema.build_resource_state_widget(
+            if _state_widget := utils.schema.build_resource_state_widget(
                 dlt_pipeline, dlt_selected_schema_name, _table_name
-            )
-            if _state_widget:
+            ):
                 _result.append(_state_widget)
 
             _sql_query, _error_message, _traceback_string = (
@@ -481,8 +480,7 @@ def section_browse_data_query_result(
                 )
 
     # provide query history table
-    _query_history = dlt_get_query_history()
-    if _query_history:
+    if _query_history := dlt_get_query_history():
         dlt_query_history_table = utils.ui.dlt_table(
             [{"query": q, "row_count": _query_history[q]} for q in _query_history],
             selection="multi",

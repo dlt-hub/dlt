@@ -81,10 +81,8 @@ def pipeline_details(
     except Exception:
         credentials = strings.overview_credentials_error
 
-    trace = pipeline.last_trace
-
     last_executed = strings.overview_no_trace
-    if trace and hasattr(trace, "started_at"):
+    if (trace := pipeline.last_trace) and hasattr(trace, "started_at"):
         last_executed = cli_utils.date_from_timestamp_with_ago(trace.started_at, c.datetime_format)
 
     details_dict = {
@@ -184,13 +182,7 @@ def exception_section(p: dlt.Pipeline) -> List[mo.Html]:
     if not p or not p.last_trace:
         return []
 
-    exception_step = None
-    for step in p.last_trace.steps:
-        if step.step_exception:
-            exception_step = step
-            break
-
-    if not exception_step:
+    if not (exception_step := next((s for s in p.last_trace.steps if s.step_exception), None)):
         return []
 
     last_exception = exception_step.exception_traces[-1]
