@@ -73,6 +73,11 @@ def dlt_table(
     return mo.ui.table(data, **table_kwargs)
 
 
+def small(text: str) -> str:
+    """Wrap text in <small> HTML tags for consistent dashboard styling."""
+    return f"<small>{text}</small>"
+
+
 def error_callout(message: str, code: str = None, traceback_string: str = None) -> Any:
     """Build a callout with a message and a exposable stacktrace.
 
@@ -119,7 +124,7 @@ def title_and_subtitle(title: str, subtitle: str = None, title_level: int = 2) -
     if title:
         _result.append(mo.md(f"{title_level * '#'} {title}"))
     if subtitle:
-        _result.append(mo.md(f"<small>{subtitle}</small>"))
+        _result.append(mo.md(small(subtitle)))
     return mo.vstack(_result)
 
 

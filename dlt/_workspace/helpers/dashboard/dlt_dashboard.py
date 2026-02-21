@@ -483,12 +483,12 @@ def section_browse_data_table_list(
             )
 
             dlt_run_query_button: mo.ui.run_button = mo.ui.run_button(
-                label=f"<small>{strings.browse_data_run_query_button}</small>",
+                label=utils.ui.small(strings.browse_data_run_query_button),
                 tooltip=strings.browse_data_run_query_tooltip,
             )
 
             _result += [
-                mo.md(strings.browse_data_explorer_title),
+                mo.md(utils.ui.small(strings.browse_data_explorer_title)),
                 mo.hstack(
                     [dlt_restrict_to_last_1000],
                     justify="start",
@@ -608,7 +608,7 @@ def section_browse_data_query_history(
         for _r in dlt_query_history_table.value:  # type: ignore[unused-ignore,union-attr]
             _query = _r["query"]  # type: ignore[unused-ignore,index]
             _q_result, _q_error, _q_traceback = utils.queries.get_query_result(dlt_pipeline, _query)
-            _result.append(mo.md(f"<small>```{_query}```</small>"))
+            _result.append(mo.md(utils.ui.small(f"```{_query}```")))
             if _q_error:
                 _result.append(utils.ui.error_callout(_q_error, traceback_string=_q_traceback))
             else:
@@ -915,7 +915,7 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     """
 
     dlt_refresh_button: mo.ui.run_button = mo.ui.run_button(
-        label="<small>Refresh</small>",
+        label=utils.ui.small("Refresh"),
     )
 
     # page switches
@@ -949,31 +949,31 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
 
     # other switches
     dlt_schema_show_dlt_tables: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_show_dlt_tables}</small>"
+        label=utils.ui.small(strings.ui_show_dlt_tables)
     )
     dlt_schema_show_child_tables: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_show_child_tables}</small>", value=True
+        label=utils.ui.small(strings.ui_show_child_tables), value=True
     )
     dlt_schema_show_row_counts: mo.ui.run_button = mo.ui.run_button(
-        label=f"<small>{strings.ui_load_row_counts}</small>"
+        label=utils.ui.small(strings.ui_load_row_counts)
     )
     dlt_schema_show_dlt_columns: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_show_dlt_columns}</small>"
+        label=utils.ui.small(strings.ui_show_dlt_columns)
     )
     dlt_schema_show_type_hints: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_show_type_hints}</small>", value=True
+        label=utils.ui.small(strings.ui_show_type_hints), value=True
     )
     dlt_schema_show_other_hints: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_show_other_hints}</small>", value=False
+        label=utils.ui.small(strings.ui_show_other_hints), value=False
     )
     dlt_schema_show_custom_hints: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_show_custom_hints}</small>", value=False
+        label=utils.ui.small(strings.ui_show_custom_hints), value=False
     )
     dlt_clear_query_cache: mo.ui.run_button = mo.ui.run_button(
-        label=f"<small>{strings.ui_clear_cache}</small>"
+        label=utils.ui.small(strings.ui_clear_cache)
     )
     dlt_restrict_to_last_1000: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_limit_to_1000_rows}</small>", value=True
+        label=utils.ui.small(strings.ui_limit_to_1000_rows), value=True
     )
     return (
         dlt_clear_query_cache,

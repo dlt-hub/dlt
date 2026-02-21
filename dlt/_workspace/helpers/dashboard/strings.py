@@ -150,9 +150,12 @@ browse_data_subtitle_long = (
 
 browse_data_error_text = "Dashboard is not able to read data from this destination. "
 
-browse_data_explorer_title = """
-<small>Select a table above or write an SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. All queries are cached. Please clear the cache if you need to refresh the results for a query.</small>
-"""
+browse_data_explorer_title = (
+    "Select a table above or write an SQL query in the text area below to explore the data in"
+    " the destination. The query will be executed on the destination and the results will be"
+    " displayed in a table. All queries are cached. Please clear the cache if you need to"
+    " refresh the results for a query."
+)
 
 browse_data_query_result_title = "Query Result"
 

@@ -22,7 +22,9 @@ def create_dq_controls(
     try:
         from dlthub.data_quality._dashboard import create_data_quality_controls
 
-        result: Tuple[Optional[mo.ui.checkbox], Optional[mo.ui.dropdown], Optional[mo.ui.slider], Any] = create_data_quality_controls(pipeline)
+        result: Tuple[
+            Optional[mo.ui.checkbox], Optional[mo.ui.dropdown], Optional[mo.ui.slider], Any
+        ] = create_data_quality_controls(pipeline)
         return result
     except Exception:
         return None, None, None, None
@@ -47,9 +49,7 @@ def build_dq_section(
         from dlthub.data_quality._dashboard import data_quality_widget
 
         # extract values from controls
-        show_failed_value = (
-            show_failed_filter.value if show_failed_filter is not None else False
-        )
+        show_failed_value = show_failed_filter.value if show_failed_filter is not None else False
         table_value = None
         if table_filter is not None and table_filter.value != "All":
             table_value = table_filter.value
@@ -72,7 +72,7 @@ def build_dq_section(
         if checks_arrow is not None and checks_arrow.num_rows > 0:
             raw_table_switch = mo.ui.switch(
                 value=False,
-                label="<small>Show Raw Table</small>",
+                label=ui.small("Show Raw Table"),
             )
             result.append(mo.hstack([raw_table_switch], justify="start"))
     except ImportError:
@@ -106,8 +106,8 @@ def build_dq_raw_table(
         with mo.status.spinner(title="Loading raw data quality checks table..."):
             try:
                 _raw_sql_query = dq.read_check(pipeline.dataset())
-                _raw_query_result, _error_message, _traceback_string = (
-                    queries.get_query_result(pipeline, _raw_sql_query.to_sql())
+                _raw_query_result, _error_message, _traceback_string = queries.get_query_result(
+                    pipeline, _raw_sql_query.to_sql()
                 )
                 set_result(_raw_query_result)
             except Exception as exc:

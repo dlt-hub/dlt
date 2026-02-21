@@ -14,6 +14,7 @@ from dlt.common.schema.typing import TTableSchema
 from dlt.common.typing import DictStrAny
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.helpers.dashboard.utils.ui import small
 
 
 def schemas_to_table_items(
@@ -162,13 +163,13 @@ def build_resource_state_widget(
         [
             mo.vstack(
                 [
-                    mo.md(f"<small>Source state for {schema_name}</small>"),
+                    mo.md(small(f"Source state for {schema_name}")),
                     mo.json(source_state),
                 ]
             ),
             mo.vstack(
                 [
-                    mo.md(f"<small>Resource state for resource {resource_name}</small>"),
+                    mo.md(small(f"Resource state for resource {resource_name}")),
                     mo.json(resource_state),
                 ]
             ),
@@ -179,7 +180,9 @@ def build_resource_state_widget(
 
     return mo.accordion(
         {
-            f"<small>Show source and resource state resource {resource_name}"
-            f" which created table {table_name}</small>": state_content
+            small(
+                f"Show source and resource state resource {resource_name}"
+                f" which created table {table_name}"
+            ): state_content
         }
     )
