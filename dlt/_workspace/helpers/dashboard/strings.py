@@ -56,6 +56,15 @@ This page will automatically refresh with your pipeline data once you have run a
 """
 
 
+app_pipeline_no_trace = f"""
+No pipeline trace was found locally for `{{}}`. This means the pipeline has not been run yet on \
+this machine, or its trace data has been removed.
+
+You can run the pipeline to generate a trace, or restore it from a destination using \
+[`dlt pipeline sync`]({_sync_help_url}).
+"""
+
+
 #
 # Home section
 #

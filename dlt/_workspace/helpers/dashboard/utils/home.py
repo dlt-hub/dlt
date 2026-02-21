@@ -155,7 +155,6 @@ def render_pipeline_home(
     _pipeline_execution_exception: List[mo.Html] = []
     _pipeline_execution_summary: Optional[mo.Html] = None
     _last_load_packages_info: Optional[mo.Html] = None
-    _errors: List[mo.Html] = []
 
     _buttons.append(
         mo.ui.button(
@@ -171,17 +170,6 @@ def render_pipeline_home(
             )
         )
 
-    # NOTE: last_trace does not raise on broken traces
-    if trace := dlt_pipeline.last_trace:
-        _pipeline_execution_summary = utils.visualization.pipeline_execution_visualization(trace)
-        _last_load_packages_info = mo.vstack(
-            [
-                mo.md(ui.small(strings.view_load_packages_text)),
-                utils.visualization.load_package_status_labels(trace),
-            ]
-        )
-        _pipeline_execution_exception = utils.pipeline.exception_section(dlt_pipeline)
-
     _stack: List[mo.Html] = [
         utils.ui.section_marker(strings.home_section_name, has_content=dlt_pipeline is not None)
     ]
@@ -191,14 +179,28 @@ def render_pipeline_home(
         )
     )
 
-    if _pipeline_execution_summary:
-        _stack.append(_pipeline_execution_summary)
-    if _last_load_packages_info:
-        _stack.append(_last_load_packages_info)
-    if _pipeline_execution_exception:
-        _stack.extend(_pipeline_execution_exception)
-    if _errors:
-        _stack.extend(_errors)
+    # NOTE: last_trace does not raise on broken traces
+    if trace := dlt_pipeline.last_trace:
+        if _pipeline_execution_summary := utils.visualization.pipeline_execution_visualization(
+            trace
+        ):
+            _stack.append(_pipeline_execution_summary)
+        if _last_load_packages_info := mo.vstack(
+            [
+                mo.md(ui.small(strings.view_load_packages_text)),
+                utils.visualization.load_package_status_labels(trace),
+            ]
+        ):
+            _stack.append(_last_load_packages_info)
+        if _pipeline_execution_exception := utils.pipeline.exception_section(dlt_pipeline):
+            _stack.extend(_pipeline_execution_exception)
+    else:
+        _stack.append(
+            mo.callout(
+                mo.md(strings.app_pipeline_no_trace.format(dlt_pipeline_name)),
+                kind="info",
+            )
+        )
 
     if not dlt_pipeline and dlt_pipeline_name:
         _stack.append(
