@@ -1260,3 +1260,48 @@ def test_propagation_mapping_cache_not_stale_after_remove_table(norm: Relational
     assert nested_after[0][1]["_dlt_root_id"] == "user_123"
     # But table-specific propagation should be gone (would fail if cache was stale)
     assert "propagated_custom" not in nested_after[0][1]
+
+
+def test_py_type_to_sc_type(norm: RelationalNormalizer) -> None:
+    assert norm.py_type_to_sc_type(str) == "text"
+    assert norm.py_type_to_sc_type(int) == "bigint"
+    assert norm.py_type_to_sc_type(float) == "double"
+    assert norm.py_type_to_sc_type(bool) == "bool"
+    assert norm.py_type_to_sc_type(dict) == "json"
+    assert norm.py_type_to_sc_type(list) == "json"
+    assert norm.py_type_to_sc_type(bytes) == "binary"
+
+
+def test_py_type_to_sc_type_map(norm: RelationalNormalizer) -> None:
+    m = norm.py_type_to_sc_type_map
+    assert m[str] == "text"
+    assert m[int] == "bigint"
+    assert m[float] == "double"
+    assert m[bool] == "bool"
+    assert m[dict] == "json"
+    assert m[list] == "json"
+
+
+def test_can_coerce_type(norm: RelationalNormalizer) -> None:
+    # same type always coercible
+    assert norm.can_coerce_type("text", "text") is True
+    assert norm.can_coerce_type("bigint", "bigint") is True
+    # known cross-type pairs
+    assert norm.can_coerce_type("text", "bigint") is True
+    assert norm.can_coerce_type("bigint", "text") is True
+    assert norm.can_coerce_type("timestamp", "text") is True
+    # unknown pair
+    assert norm.can_coerce_type("binary", "bool") is False
+
+
+def test_coerce_type(norm: RelationalNormalizer) -> None:
+    # same type passthrough
+    assert norm.coerce_type("text", "text", "hello") == "hello"
+    assert norm.coerce_type("bigint", "bigint", 42) == 42
+    # cross-type coercion
+    assert norm.coerce_type("text", "bigint", 123) == "123"
+    assert norm.coerce_type("bigint", "text", "456") == 456
+    assert norm.coerce_type("double", "bigint", 7) == 7.0
+    # failure raises ValueError
+    with pytest.raises(ValueError):
+        norm.coerce_type("bigint", "text", "not_a_number")

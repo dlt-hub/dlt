@@ -2,12 +2,6 @@ from copy import copy
 from typing import List, Dict, Sequence, Set, Any, Optional, Tuple
 from functools import lru_cache
 
-from dlt.common.data_types.type_helpers import (
-    _COERCE_DISPATCH,
-    PY_TYPE_TO_SC_TYPE,
-    coerce_value,
-    py_type_to_sc_type,
-)
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination.capabilities import adjust_column_schema_to_capabilities
 from dlt.common import logger
@@ -52,6 +46,12 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         self._column_schemas: Dict[str, TTableSchemaColumns] = {}
         self._null_only_columns: Dict[str, Set[str]] = {}
         self._shorten_fragments = lru_cache(maxsize=None)(self.schema.naming.shorten_fragments)
+        # cache coercion interface from data item normalizer
+        _din = self.schema.data_item_normalizer
+        self._type_map = _din.py_type_to_sc_type_map
+        self._can_coerce_type = _din.can_coerce_type
+        self._coerce_type = _din.coerce_type
+        self._py_type_to_sc_type = _din.py_type_to_sc_type
 
     @property
     def null_only_columns(self) -> Dict[str, Set[str]]:
@@ -202,7 +202,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         table_columns = table["columns"]
 
         new_row: DictStrAny = {}
-        type_map = PY_TYPE_TO_SC_TYPE
+        type_map = self._type_map
+        can_coerce_type = self._can_coerce_type
+        coerce_type = self._coerce_type
         for col_name, v in row.items():
             # skip None values, we should infer the types later
             if v is None:
@@ -218,11 +220,10 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             # happy path: complete column, type matches, no coercion needed
                             new_row[col_name] = v
                             continue
-                        # thanks to dispatch table we know is coercial is available without running it
-                        if py_type and (col_type, py_type) in _COERCE_DISPATCH:
+                        if py_type and can_coerce_type(col_type, py_type):
                             # type mismatch but coercion is known - try fast path
                             try:
-                                new_v = coerce_value(col_type, py_type, v)
+                                new_v = coerce_type(col_type, py_type, v)
                                 if col_type == "timestamp":
                                     timezone = existing_column.get("timezone", True)
                                     new_v = normalize_timezone(new_v, timezone)
@@ -314,10 +315,10 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             else self._infer_column_type(v, col_name, skip_preferred=is_variant)
         )
         # get data type of value
-        py_type = py_type_to_sc_type(type(v))
+        py_type = self._py_type_to_sc_type(type(v))
         # and coerce type if inference changed the python type
         try:
-            coerced_v = coerce_value(col_type, py_type, v)
+            coerced_v = self._coerce_type(col_type, py_type, v)
         except (ValueError, SyntaxError):
             if is_variant:
                 # this is final call: we cannot generate any more auto-variants
@@ -386,7 +387,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         mapped_type = utils.autodetect_sc_type(self.schema._type_detections, tv, v)
         # if not try standard type mapping
         if mapped_type is None:
-            mapped_type = py_type_to_sc_type(tv)
+            mapped_type = self._py_type_to_sc_type(tv)
         # get preferred type based on column name
         preferred_type: TDataType = None
         if not skip_preferred:

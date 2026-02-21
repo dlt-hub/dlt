@@ -12,6 +12,13 @@ from typing import (
     Any,
 )
 
+from dlt.common.data_types.type_helpers import (
+    PY_TYPE_TO_SC_TYPE,
+    _COERCE_DISPATCH,
+    coerce_value,
+    py_type_to_sc_type,
+)
+from dlt.common.data_types.typing import TDataType
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.normalizers.utils import generate_dlt_id
@@ -129,6 +136,19 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             if self.propagation_config
             else None
         )
+
+    @property
+    def py_type_to_sc_type_map(self) -> Dict[Type[Any], TDataType]:
+        return PY_TYPE_TO_SC_TYPE
+
+    def py_type_to_sc_type(self, t: Type[Any]) -> TDataType:
+        return py_type_to_sc_type(t)
+
+    def can_coerce_type(self, to_type: TDataType, from_type: TDataType) -> bool:
+        return to_type == from_type or (to_type, from_type) in _COERCE_DISPATCH
+
+    def coerce_type(self, to_type: TDataType, from_type: TDataType, value: Any) -> Any:
+        return coerce_value(to_type, from_type, value)
 
     def _flatten(
         self, table: str, dict_row: DictStrAny, _r_lvl: int
