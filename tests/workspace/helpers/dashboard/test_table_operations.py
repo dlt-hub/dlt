@@ -3,7 +3,12 @@ import dlt
 import marimo as mo
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils.schema import create_table_list, create_column_list
+from dlt._workspace.helpers.dashboard.utils.schema import (
+    create_table_list,
+    create_column_list,
+    schemas_to_table_items,
+    build_resource_state_widget,
+)
 from dlt._workspace.helpers.dashboard.utils.queries import get_row_counts_list
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
@@ -127,3 +132,43 @@ def test_get_row_counts_list(pipeline: dlt.Pipeline):
         }
     else:
         reverted_result = {}
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_schemas_to_table_items(pipeline: dlt.Pipeline):
+    """Test converting schemas to table items for display"""
+    schemas = list(pipeline.schemas.values())
+    result = schemas_to_table_items(schemas, pipeline.default_schema_name)
+
+    assert len(result) >= 1
+    assert result[0]["name"] == "schemas"
+    assert "(default)" in result[0]["value"]
+    assert pipeline.default_schema_name in result[0]["value"]
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_build_resource_state_widget(pipeline: dlt.Pipeline):
+    """Test building resource state widget for a table with a resource"""
+    widget = build_resource_state_widget(
+        pipeline, pipeline.default_schema_name, "customers"
+    )
+    # customers table has a resource, so widget should not be None
+    assert widget is not None
+    assert widget.text is not None
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_build_resource_state_widget_no_resource(pipeline: dlt.Pipeline):
+    """Test that tables without a resource key return None"""
+    # create a table without a resource to test the None path
+    schema = pipeline.schemas[pipeline.default_schema_name]
+    table_without_resource = None
+    for table_name, table in schema.tables.items():
+        if "resource" not in table:
+            table_without_resource = table_name
+            break
+    if table_without_resource:
+        widget = build_resource_state_widget(
+            pipeline, pipeline.default_schema_name, table_without_resource
+        )
+        assert widget is None

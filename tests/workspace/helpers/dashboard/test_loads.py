@@ -4,7 +4,7 @@ import marimo as mo
 from typing import cast, List, Dict, Any
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils.queries import get_loads
+from dlt._workspace.helpers.dashboard.utils.queries import get_loads, build_load_details
 from dlt._workspace.helpers.dashboard.utils.visualization import (
     get_migrations_count,
     load_package_status_labels,
@@ -138,3 +138,23 @@ def test_pipeline_loads_are_isolated_in_shared_dataset() -> None:
 
     # fruits_loads must not contain human schemas
     assert all(row["schema_name"] not in human_schemas for row in fruits_loads)
+
+
+@pytest.mark.parametrize("pipeline", [SUCCESS_PIPELINE_DUCKDB], indirect=True)
+def test_build_load_details(pipeline: dlt.Pipeline):
+    """Test building load detail widgets from a real load"""
+    config = DashboardConfiguration()
+    loads, error_message, _ = get_loads(config, pipeline, limit=1)
+    assert not error_message
+    assert len(loads) >= 1
+
+    load = loads[0]
+    result = build_load_details(
+        pipeline,
+        load["schema_name"],
+        load["schema_version_hash"],
+        load["load_id"],
+    )
+    assert isinstance(result, list)
+    assert len(result) >= 1
+    assert mo.vstack(result).text is not None

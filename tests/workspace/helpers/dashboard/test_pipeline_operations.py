@@ -7,6 +7,7 @@ from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.pipeline import (
     get_pipeline,
     pipeline_details,
+    pipeline_link_list,
     exception_section,
     get_local_data_path,
     remote_state_details,
@@ -137,3 +138,36 @@ def testget_steps_data_and_status(
         assert any(step.step_exception is not None for step in trace.steps)
 
     assert set([step.step for step in steps_data]) == expected_steps
+
+
+def test_pipeline_link_list():
+    """Test building a pipeline link list"""
+    config = DashboardConfiguration()
+
+    # empty list
+    result = pipeline_link_list(config, [])
+    assert "No pipelines found" in result
+
+    # with pipelines
+    pipelines = [
+        {"name": "pipeline_a", "timestamp": 1700000000.0},
+        {"name": "pipeline_b", "timestamp": 1700001000.0},
+    ]
+    result = pipeline_link_list(config, pipelines)
+    assert "pipeline_a" in result
+    assert "pipeline_b" in result
+    assert "?pipeline=pipeline_a" in result
+    assert "?pipeline=pipeline_b" in result
+
+
+def test_pipeline_link_list_max_10():
+    """Test that pipeline link list is limited to 10 entries"""
+    config = DashboardConfiguration()
+    pipelines = [
+        {"name": f"pipeline_{i}", "timestamp": 1700000000.0 + i}
+        for i in range(15)
+    ]
+    result = pipeline_link_list(config, pipelines)
+    # should only include first 10
+    assert "pipeline_9" in result
+    assert "pipeline_10" not in result

@@ -1,6 +1,5 @@
 """Schema introspection helpers: table lists, column lists, schema retrieval, and resource state."""
 
-import functools
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import marimo as mo
@@ -137,10 +136,24 @@ def get_source_and_resource_state_for_table(
     return table["resource"], source_state, resource_state
 
 
-@functools.lru_cache(maxsize=32)
-def get_schema_by_version(pipeline_name: str, version_hash: str) -> Schema:
+def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
+    """Retrieve a schema from the destination by its version hash (cached)."""
+    cache_key = (pipeline.pipeline_name, version_hash)
+    if cache_key in _schema_version_cache:
+        return _schema_version_cache[cache_key]
+    result = _fetch_schema_by_version(pipeline, version_hash)
+    if len(_schema_version_cache) >= _SCHEMA_CACHE_MAX_SIZE:
+        _schema_version_cache.pop(next(iter(_schema_version_cache)))
+    _schema_version_cache[cache_key] = result
+    return result
+
+
+_SCHEMA_CACHE_MAX_SIZE = 32
+_schema_version_cache: Dict[Tuple[str, str], Schema] = {}
+
+
+def _fetch_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
     """Retrieve a schema from the destination by its version hash."""
-    pipeline = dlt.attach(pipeline_name)
     with pipeline.destination_client() as client:
         if isinstance(client, WithStateSync):
             stored_schema = client.get_stored_schema_by_hash(version_hash)

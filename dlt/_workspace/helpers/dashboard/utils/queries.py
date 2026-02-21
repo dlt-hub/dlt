@@ -165,8 +165,8 @@ def build_load_details(
     result: List[Any] = []
 
     with mo.status.spinner(title=strings.loads_details_loading_spinner_text):
-        _schema = get_schema_by_version(pipeline.pipeline_name, version_hash)
-        _row_counts = get_row_counts(pipeline, schema_name, load_id)
+        _schema = get_schema_by_version(pipeline, version_hash)
+        _row_counts = get_row_counts_list(pipeline, schema_name, load_id)
 
     result.append(
         ui.title_and_subtitle(

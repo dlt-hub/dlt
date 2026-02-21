@@ -9,8 +9,10 @@ from dlt._workspace.helpers.dashboard.utils.trace import (
     trace_steps_overview,
     trace_resolved_config_values,
     trace_step_details,
+    build_trace_section,
 )
 from dlt._workspace.helpers.dashboard.utils.pipeline import sanitize_trace_for_display
+from dlt._workspace.helpers.dashboard.utils.ui import dlt_table
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
     EXTRACT_EXCEPTION_PIPELINE,
@@ -18,6 +20,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     NEVER_RAN_PIPELINE,
     NO_DESTINATION_PIPELINE,
     SYNC_EXCEPTION_PIPELINE,
+    PIPELINES_WITH_LOAD,
 )
 
 
@@ -104,3 +107,32 @@ def test_sanitize_trace_for_display(pipeline: dlt.Pipeline):
     assert isinstance(sanitized, dict)
     # check it can be rendered with marimo
     assert mo.json(sanitized).text is not None
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_build_trace_section(pipeline: dlt.Pipeline):
+    """Test building the full trace section with real pipeline data"""
+    config = DashboardConfiguration()
+    trace = pipeline.last_trace
+    assert trace is not None
+
+    # build the steps table that build_trace_section expects
+    steps_data = trace_steps_overview(config, trace)
+    trace_steps_table = dlt_table(steps_data, selection="multi", freeze_column="step")
+
+    result = build_trace_section(config, pipeline, trace_steps_table)
+    assert isinstance(result, list)
+    assert len(result) > 0
+    # should render without error
+    assert mo.vstack(result).text is not None
+
+
+def test_build_trace_section_no_trace(never_ran_pipline: dlt.Pipeline):
+    """Test build_trace_section when pipeline has no trace"""
+    config = DashboardConfiguration()
+    result = build_trace_section(config, never_ran_pipline, None)
+    assert isinstance(result, list)
+    assert len(result) >= 1
+    # should contain the no-trace warning
+    rendered = mo.vstack(result).text
+    assert "No local trace" in rendered
