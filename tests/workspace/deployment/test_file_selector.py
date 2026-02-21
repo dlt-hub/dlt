@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from dlt._workspace.deployment.file_selector import ConfigurationFileSelector, WorkspaceFileSelector
@@ -29,6 +30,20 @@ def test_file_selector_respects_gitignore(with_additional_exclude: bool) -> None
         )
         files = set([rel.as_posix() for _, rel in selector])
         assert files == expected_files
+
+
+def test_file_selector_ignore_file_not_found() -> None:
+    """ignore_file_found is False when the configured ignore file does not exist."""
+    with isolated_workspace("default") as ctx:
+        selector = WorkspaceFileSelector(ctx, ignore_file=".nonexistent_ignore")
+    assert selector.ignore_file_found is False
+
+
+def test_file_selector_ignore_file_found() -> None:
+    """ignore_file_found is True when the configured ignore file exists."""
+    with isolated_workspace("default") as ctx:
+        selector = WorkspaceFileSelector(ctx, ignore_file=".ignorefile")
+    assert selector.ignore_file_found is True
 
 
 def test_configuration_file_selector() -> None:

@@ -31,6 +31,7 @@ class WorkspaceFileSelector(BaseFileSelector):
         self.root_path: Path = Path(context.run_dir).resolve()
         self.settings_dir: Path = Path(context.settings_dir).resolve()
         self.ignore_file: str = ignore_file
+        self.ignore_file_found: bool = False
         self.ignore_spec: PathSpec = self._build_pathspec(additional_excludes or [])
 
     def _build_pathspec(self, additional_excludes: List[str]) -> PathSpec:
@@ -42,6 +43,7 @@ class WorkspaceFileSelector(BaseFileSelector):
         if ignore_path.exists():
             with ignore_path.open("r", encoding="utf-8") as f:
                 patterns.extend(f.read().splitlines())
+            self.ignore_file_found = True
 
         # Add caller-provided excludes
         patterns.extend(additional_excludes)
