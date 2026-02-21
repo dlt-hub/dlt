@@ -61,6 +61,17 @@ class ThreadLocalWorkerContext(ContainerInjectableContext):
 
 
 @configspec
+class FailingAddContext(ContainerInjectableContext):
+    """Context whose after_add raises to test exception safety."""
+
+    can_create_default: ClassVar[bool] = False
+    global_affinity: ClassVar[bool] = True
+
+    def after_add(self) -> None:
+        raise RuntimeError("after_add failed")
+
+
+@configspec
 class EmbeddedWithNoDefaultInjectableContext(BaseConfiguration):
     injected: NoDefaultInjectableContext = None
 
@@ -489,3 +500,112 @@ def test_get_worker_contexts_two_pools_different_contexts(container: Container) 
     assert isinstance(ctx_b, ThreadLocalWorkerContext)
     assert ctx_a.value == "pool_a"
     assert ctx_b.value == "pool_b"
+
+
+@pytest.mark.parametrize("lock_context_on_yield", [True, False])
+def test_injectable_context_nested_reentrance(
+    container: Container, lock_context_on_yield: bool
+) -> None:
+    """Nested injectable_context works via RLock reentrance."""
+    outer = InjectableTestContext(current_value="OUTER")
+    inner = InjectableTestContext(current_value="INNER")
+
+    with container.injectable_context(outer, lock_context_on_yield=lock_context_on_yield):
+        assert container[InjectableTestContext].current_value == "OUTER"
+        with container.injectable_context(inner, lock_context_on_yield=lock_context_on_yield):
+            assert container[InjectableTestContext].current_value == "INNER"
+        assert container[InjectableTestContext].current_value == "OUTER"
+    assert InjectableTestContext not in container
+
+
+@pytest.mark.parametrize("lock_context_on_yield", [True, False])
+def test_injectable_context_lock_controls_concurrent_write(
+    container: Container, lock_context_on_yield: bool
+) -> None:
+    """lock_context_on_yield=True blocks concurrent writes; False allows them."""
+    barrier = threading.Barrier(2, timeout=5)
+    write_completed = threading.Event()
+
+    def writer_thread() -> None:
+        barrier.wait()
+        container[GlobalTestContext] = GlobalTestContext(current_value="THREAD")
+        write_completed.set()
+
+    t = threading.Thread(target=writer_thread, daemon=True)
+    try:
+        with container.injectable_context(
+            GlobalTestContext(current_value="MAIN"),
+            lock_context_on_yield=lock_context_on_yield,
+        ):
+            t.start()
+            # barrier will unblock when both threads wait
+            barrier.wait()
+            # wait for writer to complete, but it may wait on yield lock
+            completed = write_completed.wait(timeout=1)
+            if lock_context_on_yield:
+                assert not completed, "writer must be blocked by held lock"
+            else:
+                assert completed, "writer must succeed when lock is released"
+    except ContainerInjectableContextMangled:
+        assert not lock_context_on_yield, "mangled only expected when lock not held"
+    finally:
+        write_completed.wait(timeout=5)
+        t.join(timeout=5)
+
+
+def test_injectable_context_lock_no_deadlock_on_new_thread(container: Container) -> None:
+    """Per-context lock does not block new threads from creating their own contexts."""
+    thread_done = threading.Event()
+
+    def thread_func() -> None:
+        container[InjectableTestContext] = InjectableTestContext(current_value="THREAD")
+        thread_done.set()
+
+    with container.injectable_context(
+        GlobalTestContext(current_value="LOCKED"), lock_context_on_yield=True
+    ):
+        t = threading.Thread(target=thread_func, daemon=True)
+        t.start()
+        assert thread_done.wait(timeout=5), "thread must not deadlock"
+        t.join(timeout=5)
+
+
+def test_concurrent_default_creation(container: Container) -> None:
+    """Multiple threads racing __getitem__ create exactly one default instance."""
+    num_threads = 4
+    barrier = threading.Barrier(num_threads, timeout=5)
+    results = [None] * num_threads
+
+    def reader(idx: int) -> None:
+        barrier.wait()
+        results[idx] = container[GlobalTestContext]
+
+    threads = [threading.Thread(target=reader, args=(i,), daemon=True) for i in range(num_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+
+    assert all(r is not None for r in results)
+    # double-checked locking must produce exactly one instance
+    assert all(r is results[0] for r in results)
+
+
+def test_injectable_context_setitem_exception_releases_lock(container: Container) -> None:
+    """If after_add raises during setitem, the per-context lock is released."""
+    with pytest.raises(RuntimeError, match="after_add failed"):
+        with container.injectable_context(FailingAddContext()):
+            pass  # never reached
+
+    # verify lock is released: write from another thread using the same global lock
+    acquired = threading.Event()
+
+    def try_write() -> None:
+        container[GlobalTestContext] = GlobalTestContext(current_value="AFTER_FAIL")
+        acquired.set()
+
+    t = threading.Thread(target=try_write, daemon=True)
+    t.start()
+    assert acquired.wait(timeout=5), "lock must be released after setitem exception"
+    t.join(timeout=5)
+    assert container[GlobalTestContext].current_value == "AFTER_FAIL"
