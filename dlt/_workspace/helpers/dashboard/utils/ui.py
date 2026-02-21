@@ -178,7 +178,8 @@ def section_marker(section_name: str, has_content: bool = False) -> mo.Html:
     """
     content_class = "has-content" if has_content else ""
     return mo.Html(
-        f'<div class="section-marker {content_class}" data-section="{section_name}" hidden></div>'
+        f'<div class="section-marker {content_class}" data-section="{section_name}"'
+        ' hidden="hidden"></div>'
     )
 
 

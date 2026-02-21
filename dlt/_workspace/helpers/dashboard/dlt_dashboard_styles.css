@@ -120,10 +120,10 @@ marimo-callout-output .border {
 
 /* Status badge styles */
 .status-badge {
-  padding: 6px 16px;
+  padding: 6px 8px;
   border-radius: 6px;
   display: inline-block;
-  font-size: 1.2rem;
+  font-size: 1rem;
   background-color: transparent;
   border: 1px solid currentColor;
 }

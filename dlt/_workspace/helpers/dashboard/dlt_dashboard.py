@@ -103,8 +103,7 @@ def home(
                     strings.home_error_rendering_home,
                 )
             ]
-
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return (dlt_pipeline, dlt_config)
 
 
@@ -143,7 +142,7 @@ def section_info(
                 lazy=True,
             )
         )
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return
 
 
@@ -226,7 +225,7 @@ def section_schema(
                 }
             )
         )
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return
 
 
@@ -287,7 +286,7 @@ def section_data_quality(
             _result.extend(_dq_widgets)
         else:
             dlt_data_quality_show_raw_table_switch = None
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return dlt_data_quality_show_raw_table_switch
 
 
@@ -311,7 +310,7 @@ def section_data_quality_raw_table(
         _result = utils.data_quality.build_dq_raw_table(
             dlt_pipeline, dlt_get_last_query_result, dlt_set_last_query_result
         )
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return
 
 
@@ -412,7 +411,7 @@ def section_browse_data_table_list(
     elif _show:
         # here we also use the no schemas text, as it is appropriate for the case where we have no table information.
         _result.append(utils.ui.error_callout(strings.schema_no_default_available_text))
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return dlt_query_editor, dlt_run_query_button
 
 
@@ -486,7 +485,7 @@ def section_browse_data_query_result(
             selection="multi",
             freeze_column=None,
         )
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return dlt_query_history_table
 
 
@@ -521,7 +520,7 @@ def section_browse_data_query_history(
                 _result.append(utils.ui.error_callout(_q_error, traceback_string=_q_traceback))
             else:
                 _result.append(utils.ui.dlt_table(_q_result, freeze_column=None))
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return
 
 
@@ -541,7 +540,7 @@ def section_state(
                 dlt_pipeline.state,  # type: ignore[arg-type]
             ),
         )
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return
 
 
@@ -569,7 +568,7 @@ def section_trace(
                     strings.trace_error_building_section.format(exc),
                 )
             )
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return
 
 
@@ -605,7 +604,7 @@ def section_loads(
                 )
             _result.append(dlt_loads_table)
             _result.append(dlt_clear_result_cache)
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return (dlt_loads_table,)
 
 
@@ -631,7 +630,7 @@ def section_loads_results(
             _result.extend(utils.queries.build_load_details(dlt_pipeline, _selected_load))
         except Exception:
             _result.append(utils.ui.error_callout(strings.loads_details_error_text))
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return
 
 
@@ -656,7 +655,7 @@ def section_ibis_backend(
             )
         except Exception as exc:
             _result.append(utils.ui.error_callout(strings.ibis_backend_error_text + str(exc)))
-    mo.vstack(_result)
+    mo.vstack(_result) if _result else None
     return
 
 

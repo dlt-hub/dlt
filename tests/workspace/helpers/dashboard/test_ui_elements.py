@@ -1,6 +1,6 @@
 import marimo as mo
 import dlt
-
+from xml.etree.ElementTree import fromstring
 
 from dlt._workspace.helpers.dashboard.strings import TSectionStrings
 from dlt._workspace.helpers.dashboard.utils.ui import (
@@ -55,6 +55,7 @@ def test_small():
     assert small("hello") == "<small>hello</small>"
     assert small("") == "<small></small>"
     assert small("a <b>bold</b> word") == "<small>a <b>bold</b> word</small>"
+    fromstring(f"<root>{small('test')}</root>")
 
 
 def test_section_marker():
@@ -62,9 +63,11 @@ def test_section_marker():
     assert 'data-section="test_section"' in marker.text
     assert "has-content" not in marker.text
     assert "hidden" in marker.text
+    fromstring(f"<root>{marker.text}</root>")
 
     marker_with_content = section_marker("test_section", has_content=True)
     assert "has-content" in marker_with_content.text
+    fromstring(f"<root>{marker_with_content.text}</root>")
 
 
 def test_section(success_pipeline_duckdb: dlt.Pipeline):

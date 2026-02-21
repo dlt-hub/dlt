@@ -209,7 +209,7 @@ def load_package_status_labels(trace: PipelineTrace) -> mo.ui.table:
         else:
             badge_text = package.state
 
-        status_html = badge_html(badge_text, badge_color_key, "small")
+        status_html = badge_html(badge_text, badge_color_key, "strong")
         result.append(
             {
                 "load_id": package.load_id,

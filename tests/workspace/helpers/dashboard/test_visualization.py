@@ -2,15 +2,18 @@ import pytest
 import dlt
 import re
 from typing import Set
+from xml.etree.ElementTree import fromstring
 
 from dlt._workspace.helpers.dashboard.utils.visualization import (
     pipeline_execution_visualization,
+    pipeline_execution_html,
     get_migrations_count,
     get_steps_data_and_status,
     badge_html,
     migration_badge,
     status_badge,
     collect_load_packages_from_trace,
+    PipelineStepData,
 )
 from dlt._workspace.helpers.dashboard.const import TPipelineRunStatus, TVisualPipelineStep
 from tests.workspace.helpers.dashboard.example_pipelines import (
@@ -20,6 +23,11 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     LOAD_EXCEPTION_PIPELINE,
     PIPELINES_WITH_LOAD,
 )
+
+
+def assert_valid_html(html: str) -> None:
+    """Assert that HTML has properly matched and closed tags using the XML parser."""
+    fromstring(f"<root>{html}</root>")
 
 
 @pytest.mark.parametrize(
@@ -43,6 +51,7 @@ def test_pipeline_execution_visualization(
 
     html = pipeline_execution_visualization(trace)
     html_str = str(html.text)
+    assert_valid_html(html_str)
 
     # Check for CSS class structure
     assert 'class="pipeline-execution-container"' in html_str
@@ -94,11 +103,13 @@ def test_badge_html():
     assert "test" in result
     assert "status-badge-green" in result
     assert "<small>" in result
+    assert_valid_html(result)
 
     result = badge_html("error", "red", "strong")
     assert "error" in result
     assert "status-badge-red" in result
     assert "<strong>" in result
+    assert_valid_html(result)
 
 
 def test_migration_badge():
@@ -107,19 +118,42 @@ def test_migration_badge():
     result = migration_badge(1)
     assert "1 dataset migration(s)" in result
     assert "status-badge-yellow" in result
+    assert_valid_html(result)
 
     result = migration_badge(3)
     assert "3 dataset migration(s)" in result
+    assert_valid_html(result)
 
 
 def test_status_badge():
     result = status_badge("succeeded")
     assert "succeeded" in result
     assert "status-badge-green" in result
+    assert_valid_html(result)
 
     result = status_badge("failed")
     assert "failed" in result
     assert "status-badge-red" in result
+    assert_valid_html(result)
+
+
+def test_pipeline_execution_html_valid_xml():
+    """Verify generated HTML is well-formed (all tags properly opened and closed)."""
+    steps = [
+        PipelineStepData(step="extract", duration_ms=100, failed=False),
+        PipelineStepData(step="normalize", duration_ms=200, failed=False),
+        PipelineStepData(step="load", duration_ms=300, failed=False),
+    ]
+    html = pipeline_execution_html("abc12345", "succeeded", steps, migrations_count=2)
+    assert_valid_html(html.text)
+
+    # single step, failed, no migrations
+    html = pipeline_execution_html("def67890", "failed", [PipelineStepData("extract", 50, True)])
+    assert_valid_html(html.text)
+
+    # zero duration steps
+    html = pipeline_execution_html("00000000", "succeeded", [PipelineStepData("load", 0, False)])
+    assert_valid_html(html.text)
 
 
 @pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
