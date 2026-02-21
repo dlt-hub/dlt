@@ -68,7 +68,10 @@ def _to_mermaid_table(
 
 # TODO add scale & precision to `data_type`
 def _to_mermaid_column(column: TColumnSchema, hide_descriptions: bool = False) -> str:
-    mermaid_col = column["data_type"] + " " + column["name"]
+    # NOTE: incomplete columns (no data_type) currently arise from "seen-null-first" propagation
+    # (columns whose first observed values were all null). if that propagation is removed so that
+    # incomplete columns no longer reach the schema, this fallback should be revisited.
+    mermaid_col = column.get("data_type", "no_data_seen") + " " + column["name"]
     keys = []
     if column.get("primary_key"):
         keys.append("PK")

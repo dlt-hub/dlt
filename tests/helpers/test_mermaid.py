@@ -55,6 +55,10 @@ from dlt.helpers.mermaid import (
             {"name": "description_col", "data_type": "text", "description": "foo"},
             'text description_col "foo"\n',
         ),
+        (
+            {"name": "incomplete_col"},  # no data_type set yet
+            "no_data_seen incomplete_col\n",
+        ),
     ],
 )
 def test_to_mermaid_column(hints: TColumnSchema, expected_mermaid_col: str) -> None:

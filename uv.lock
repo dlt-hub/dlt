@@ -2242,6 +2242,7 @@ dbt = [
     { name = "dbt-bigquery" },
     { name = "dbt-core" },
     { name = "dbt-duckdb" },
+    { name = "dbt-fabric", marker = "python_full_version < '3.13'" },
     { name = "dbt-redshift" },
     { name = "dbt-snowflake" },
     { name = "dbt-sqlserver", marker = "python_full_version < '3.13'" },
@@ -2452,13 +2453,14 @@ dashboard-tests = [
     { name = "pytest-playwright", specifier = ">=0.7.0,<1" },
 ]
 dbt = [
-    { name = "dbt-athena-community", specifier = ">=1.5.0" },
-    { name = "dbt-bigquery", specifier = ">=1.5.0" },
-    { name = "dbt-core", specifier = ">=1.5.0" },
-    { name = "dbt-duckdb", specifier = ">=1.5.0" },
-    { name = "dbt-redshift", specifier = ">=1.5.0" },
-    { name = "dbt-snowflake", specifier = ">=1.5.0" },
-    { name = "dbt-sqlserver", marker = "python_full_version < '3.13'", specifier = ">=1.5.0" },
+    { name = "dbt-athena-community", specifier = ">=1.7.0" },
+    { name = "dbt-bigquery", specifier = ">=1.7.0" },
+    { name = "dbt-core", specifier = ">=1.7.0" },
+    { name = "dbt-duckdb", specifier = ">=1.7.0" },
+    { name = "dbt-fabric", marker = "python_full_version < '3.13'", specifier = ">=1.7.0" },
+    { name = "dbt-redshift", specifier = ">=1.7.0" },
+    { name = "dbt-snowflake", specifier = ">=1.7.0" },
+    { name = "dbt-sqlserver", marker = "python_full_version < '3.13'", specifier = ">=1.7.0" },
 ]
 dev = [
     { name = "bandit", specifier = ">=1.7.0,<2" },
