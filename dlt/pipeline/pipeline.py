@@ -1902,9 +1902,6 @@ class Pipeline(SupportsPipeline):
                 " directly or via .dlt config.toml file or environment variable.",
             )
 
-        # sync state and schemas from destination if not yet done
-        self._maybe_sync_destination()
-
         schema_name = None
         if isinstance(schema, Schema):
             schema_name = schema.name
@@ -1933,6 +1930,8 @@ class Pipeline(SupportsPipeline):
                 self.dataset_name,
                 schema=schema,
             )
+            # allow dataset to lazily resolve schema from pipeline state
+            dataset._pipeline_name = self.pipeline_name
             success = True
             return dataset
         except Exception:

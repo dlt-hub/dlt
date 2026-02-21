@@ -455,7 +455,9 @@ def test_dev_mode_reset_dataset_readable_without_run() -> None:
     assert p2.first_run is True
     assert p2.default_schema_name is None
     # data from original production run should be readable
-    rows = p2.dataset().items.fetchall()
+    ds = p2.dataset()
+    assert not ds.schema.is_new
+    rows = ds.items.fetchall()
     ids = {r[0] for r in rows}
     assert 1 in ids
     assert 99 not in ids
@@ -525,6 +527,64 @@ def test_dataset_unknown_schema() -> None:
 
     dataset = p.dataset(schema="unknown")
     assert dataset.schema.name == "unknown"
+    assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
+
+
+def test_dataset_no_state_but_has_schema() -> None:
+    """When restore_from_destination is disabled, state is not stored but schemas are.
+    dataset() should still resolve schema from destination."""
+    pipeline_name = "pipe_no_state_" + uniq_id()
+    dataset_name = "no_state_ds"
+    p = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset_name,
+    )
+    p.config.restore_from_destination = False
+    p.run([{"id": 1}], table_name="items")
+
+    # re-create pipeline — no sync_destination, local state wiped by dev_mode
+    p2 = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset_name,
+        dev_mode=True,
+    )
+    p2.config.restore_from_destination = False
+    # point back at original dataset to test schema resolution without state
+    p2.dataset_name = dataset_name
+    dataset = p2.dataset()
+    # schema should be resolved from _dlt_version table (schemas are always stored)
+    assert not dataset.schema.is_new
+    assert "items" in dataset.schema.tables
+
+
+def test_dataset_empty_dataset_on_destination() -> None:
+    """When dataset exists on destination but has no dlt tables, schema falls back to empty."""
+    p = dlt.pipeline(
+        pipeline_name="pipe_empty_" + uniq_id(),
+        destination="duckdb",
+        dataset_name="empty_ds",
+    )
+    # create the duckdb schema (dataset) with a non-dlt table
+    with p.sql_client() as client:
+        client.execute_sql(f'CREATE SCHEMA IF NOT EXISTS "{p.dataset_name}"')
+        client.execute_sql(f'CREATE TABLE "{p.dataset_name}".dummy (x INT)')
+    dataset = p.dataset()
+    assert dataset.schema.is_new
+    assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
+
+
+def test_dataset_non_existing_dataset_on_destination() -> None:
+    """When dataset does not exist at all on destination, schema falls back to empty."""
+    p = dlt.pipeline(
+        pipeline_name="pipe_noexist_" + uniq_id(),
+        destination="duckdb",
+        dataset_name="this_dataset_does_not_exist",
+    )
+    dataset = p.dataset()
+    assert dataset.schema.is_new
+    assert dataset.schema.name == p.dataset_name
     assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
 
 
