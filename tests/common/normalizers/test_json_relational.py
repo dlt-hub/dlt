@@ -242,7 +242,6 @@ def test_yields_parent_relation(norm: RelationalNormalizer) -> None:
         ("table__d__b__a_2", ("table",), ("d", "b", "a_2")),
     ]
     parents = list(r[0] for r in rows)
-    print(parents)
     assert parents == expected_parents
 
     # make sure that table__e is just linking

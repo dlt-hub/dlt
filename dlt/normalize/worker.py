@@ -39,6 +39,7 @@ from dlt.normalize.items_normalizers import (
 class TWorkerRV(NamedTuple):
     schema_updates: List[TSchemaUpdate]
     file_metrics: List[DataWriterMetrics]
+    null_only_columns: Dict[str, Set[str]]
 
 
 def group_worker_files(files: Sequence[str], no_groups: int) -> List[Sequence[str]]:
@@ -265,5 +266,11 @@ def w_normalize_files(
             for normalizer in item_normalizers.values():
                 normalizer.close()
 
+        # gather null-only columns from all normalizers
+        all_null_only: Dict[str, Set[str]] = {}
+        for normalizer in item_normalizers.values():
+            for table_name, cols in normalizer.null_only_columns.items():
+                all_null_only.setdefault(table_name, set()).update(cols)
+
         logger.info(f"Processed all items in {len(extracted_items_files)} files")
-        return TWorkerRV(schema_updates, writer_metrics)
+        return TWorkerRV(schema_updates, writer_metrics, all_null_only)

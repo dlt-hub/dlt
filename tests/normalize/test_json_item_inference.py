@@ -554,21 +554,24 @@ def test_supports_variant_autovariant_conflict(item_normalizer: JsonLItemsNormal
 
 
 def test_coerce_new_null_value(item_normalizer: JsonLItemsNormalizer) -> None:
+    # case 1: no table at all — null column tracked, no schema update
     row = {"timestamp": None}
     new_row, new_table = item_normalizer._coerce_row("event_user", None, row)
-    # No new rows, but new column in schema
     assert "timestamp" not in new_row
-    assert "data_type" not in new_table["columns"]["timestamp"]
-    assert new_table["columns"]["timestamp"]["nullable"] is True
-    assert new_table["columns"]["timestamp"]["x-normalizer"]["seen-null-first"] is True
+    assert new_table is None
+    assert item_normalizer._null_only_columns["event_user"] == {"timestamp"}
+
+    # case 2: table exists with a bound column — null column tracked alongside real column
+    _, new_table = item_normalizer._coerce_row("event_user", None, {"value": "0xFF", "x": None})
+    assert "value" in new_table["columns"]
+    assert "x" not in new_table["columns"]
+    assert item_normalizer._null_only_columns["event_user"] == {"timestamp", "x"}
 
 
 def test_coerce_new_null_value_over_not_null(item_normalizer: JsonLItemsNormalizer) -> None:
     row = {"_dlt_id": None}
-    with pytest.raises(CannotCoerceNullException) as exc_info:
+    with pytest.raises(CannotCoerceNullException):
         item_normalizer._coerce_row("event_user", None, row)
-    # Make sure it was raised by _infer_column
-    assert exc_info.traceback[-1].name == "_infer_column"
 
 
 def test_coerce_null_value_over_existing(item_normalizer: JsonLItemsNormalizer) -> None:
@@ -582,24 +585,16 @@ def test_coerce_null_value_over_existing(item_normalizer: JsonLItemsNormalizer) 
     assert "timestamp" not in new_row
 
 
-def test_coerce_null_value_over_existing_incomplete(item_normalizer: JsonLItemsNormalizer) -> None:
-    row = {"timestamp": 82178.1298812, "null_col": None}
-    _, new_table = item_normalizer._coerce_row("event_user_2", None, row)
-    item_normalizer.schema.update_table(new_table)
-    # same row again
-    _, new_table = item_normalizer._coerce_row("event_user_2", None, row)
-    # do not generate table update on existing column
-    assert new_table is None
-
-
 def test_coerce_null_value_over_existing_predefined(item_normalizer: JsonLItemsNormalizer) -> None:
     # create "null_col" upfront
     new_table = utils.new_table("event_user_2", columns=[{"name": "null_col"}])
     item_normalizer.schema.update_table(new_table)
-    # we should get new table with "seen-null-first"
+    # null on predefined incomplete col: tracked in null_only_columns, no schema update for it
     row = {"timestamp": 82178.1298812, "null_col": None}
     _, new_table = item_normalizer._coerce_row("event_user_2", None, row)
-    assert new_table["columns"]["null_col"]["x-normalizer"]["seen-null-first"] is True
+    assert "timestamp" in new_table["columns"]
+    assert "null_col" not in new_table["columns"]
+    assert "null_col" in item_normalizer._null_only_columns["event_user_2"]
     item_normalizer.schema.update_table(new_table)
     # same row again
     _, new_table = item_normalizer._coerce_row("event_user_2", None, row)
@@ -680,8 +675,7 @@ def test_coerce_null_value_in_nested_table(
     assert nested_tbl in schema_update
     assert nested_nested_tbl in schema_update
 
-    # verify that columns that have been created as nested tables, don't create
-    # schema updates with seen-null-first hint in parent table
+    # null values for columns already created as nested tables don't create schema updates
     schema_update = _normalize_items_chunk(
         "nested",
         [
@@ -711,79 +705,43 @@ def test_coerce_null_value_in_nested_table(
     assert not schema_update
 
 
-@pytest.mark.parametrize(
-    "use_very_long_col_name", [True, False], ids=["very_long_col_name", "short_col_name"]
-)
-@pytest.mark.parametrize(
-    "with_simple_value", [True, False], ids=["with_simple_value_after", "no_simple_value_after"]
-)
 def test_coerce_null_value_as_compound_columns(
-    item_normalizer: JsonLItemsNormalizer, use_very_long_col_name: bool, with_simple_value: bool
+    item_normalizer: JsonLItemsNormalizer,
 ) -> None:
-    """Ensure that a column previously created as compound column(s) in the same table
-    does not attempt new column updates in a subsequent run when it has no values.
-
-    Note: This test also shows an edge case that is not properly handled when very long
-    column names are shortened. The item normalizer doesn't maintain a mapping between
-    original column names and their normalized/shortened versions. When a null value is
-    encountered for a long column name that was previously expanded into compound columns,
-    the normalizer can't find the existing compound columns (which were created with
-    shortened prefixes) and incorrectly creates a new column with "seen-null-first": True."""
-
-    col_name = "a" * (item_normalizer.naming.max_length + 1) if use_very_long_col_name else "a"
-    norm_col_name = item_normalizer.naming.normalize_path(col_name)
-    shortened_compound_col_b = item_normalizer.naming.shorten_fragments(norm_col_name, "b")
-    shortened_compound_col_c = item_normalizer.naming.shorten_fragments(norm_col_name, "c")
-
+    """After a dict value creates compound columns, null for the same key
+    produces no schema update, and a simple value creates a new column."""
     schema_update = item_normalizer._normalize_chunk(
         root_table_name="nested",
-        items=[{"id": "1", col_name: {"b": 1, "c": 2}}],
+        items=[{"id": "1", "a": {"b": 1, "c": 2}}],
         may_have_pua=False,
         skip_write=True,
     )
-
     assert "nested" in schema_update
     assert list(schema_update["nested"][0]["columns"].keys()) == [
         "id",
-        shortened_compound_col_b,
-        shortened_compound_col_c,
+        "a__b",
+        "a__c",
         "_dlt_load_id",
         "_dlt_id",
     ]
 
-    # if a simple value is received schema update will happen
-    items = [{"id": "1", col_name: None}]
-    if with_simple_value:
-        items.append({"id": "1", col_name: "col"})
-
+    # null for the same key: no schema update
     schema_update = item_normalizer._normalize_chunk(
         root_table_name="nested",
-        items=items,
+        items=[{"id": "1", "a": None}],
         may_have_pua=False,
         skip_write=True,
     )
+    assert not schema_update
 
-    # if with_simple_value:
-    #     schema_update = item_normalizer._normalize_chunk(
-    #         root_table_name="nested",
-    #         items=[{"id": "1", col_name: "col"}],
-    #         may_have_pua=False,
-    #         skip_write=True,
-    #     )
-
-    if not use_very_long_col_name and not with_simple_value:
-        assert not schema_update
-    else:
-        # edge case with very long column name or when simple value generated schema update
-        assert norm_col_name in schema_update["nested"][0]["columns"]
-        # no seen-null-first for simple update
-        if not with_simple_value:
-            assert (
-                schema_update["nested"][0]["columns"][norm_col_name]["x-normalizer"][
-                    "seen-null-first"
-                ]
-                is True
-            )
+    # simple value for the same key: creates a new column
+    schema_update = item_normalizer._normalize_chunk(
+        root_table_name="nested",
+        items=[{"id": "1", "a": "col"}],
+        may_have_pua=False,
+        skip_write=True,
+    )
+    assert "a" in schema_update["nested"][0]["columns"]
 
 
 def test_infer_with_autodetection(item_normalizer: JsonLItemsNormalizer) -> None:

@@ -45,8 +45,6 @@ from dlt.common.schema.utils import (
     has_table_seen_data,
     is_complete_column,
     normalize_table_identifiers,
-    is_nested_table,
-    has_seen_null_first_hint,
 )
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException
@@ -92,6 +90,10 @@ class ItemsNormalizer:
 
     def _maybe_cancel(self) -> None:
         self.load_storage.new_packages.raise_if_cancelled(self.load_id)
+
+    @property
+    def null_only_columns(self) -> Dict[str, Set[str]]:
+        return {}
 
     @abstractmethod
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]: ...
@@ -265,10 +267,12 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
         # quick access to column schema for writers below
         self._column_schemas: Dict[str, TTableSchemaColumns] = {}
-        self._full_ident_path_tracker: Dict[str, Tuple[str, ...]] = {}
+        self._null_only_columns: Dict[str, Set[str]] = {}
         self._shorten_fragments = lru_cache(maxsize=None)(self.schema.naming.shorten_fragments)
-        self._check_table_exists = lru_cache(maxsize=None)(self._check_if_table_exists_impl)
-        self._check_flattened_to_cols = lru_cache(maxsize=None)(self._check_if_flattened_impl)
+
+    @property
+    def null_only_columns(self) -> Dict[str, Set[str]]:
+        return self._null_only_columns
 
     def _filter_columns(
         self, filtered_columns: Dict[str, TSchemaEvolutionMode], row: DictStrAny
@@ -298,11 +302,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 while row_info := items_gen.send(should_descend):
                     should_descend = True
                     (table_name, parent_path, ident_path), row = row_info
-
-                    # track full ident paths of tables
-                    if table_name not in self._full_ident_path_tracker:
-                        self._full_ident_path_tracker[table_name] = parent_path + ident_path
-
                     parent_table = self._shorten_fragments(*parent_path)
 
                     # rows belonging to filtered out tables are skipped
@@ -397,48 +396,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             except StopIteration:
                 pass
 
-        self._clean_seen_null_first_hint(schema_update)
         return schema_update
-
-    def _clean_seen_null_first_hint(self, schema_update: TSchemaUpdate) -> None:
-        """
-        Performs schema and schema update cleanup related to `seen-null-first` hints by
-        removing entire columns with `seen-null-first` hints from parent tables
-        when those columns have been converted to nested tables.
-
-        NOTE: The `seen-null-first` hint is used during schema inference to track columns
-        that were first encountered with null values. In cases where subsequent
-        non-null values create a nested table, the entire
-        column with the `seen-null-first` hint in parent table becomes obsolete.
-
-        Args:
-            schema_update (TSchemaUpdate): Dictionary mapping table names to their table updates.
-        """
-        schema_update_copy = schema_update.copy()
-        for table_name, table_updates in schema_update_copy.items():
-            last_ident_path = self._full_ident_path_tracker.get(table_name)[-1]
-
-            for table_update in table_updates:
-                # Remove the entire column with hint from parent table if it was created as a nested table
-                if is_nested_table(table_update):
-                    parent_name = table_update.get("parent")
-                    parent_col_schemas = self.schema.get_table_columns(
-                        parent_name, include_incomplete=True
-                    )
-                    parent_col_schema = parent_col_schemas.get(last_ident_path)
-
-                    # remove only incomplete columns: both None, simple and complex values may be received by a column
-                    # in any order
-                    if (
-                        parent_col_schema
-                        and has_seen_null_first_hint(parent_col_schema)
-                        and not is_complete_column(parent_col_schema)
-                    ):
-                        parent_col_schemas.pop(last_ident_path)
-                        parent_updates = schema_update.get(parent_name, [])
-                        for j, parent_update in enumerate(parent_updates):
-                            if last_ident_path in parent_update["columns"]:
-                                schema_update[parent_name][j]["columns"].pop(last_ident_path)
 
     def _coerce_row(
         self, table_name: str, parent_table: str, row: StrAny
@@ -511,16 +469,11 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         data_type: TDataType = None,
         is_variant: bool = False,
         table_name: str = None,
-    ) -> TColumnSchema:
-        # return unbounded table
+    ) -> Optional[TColumnSchema]:
         if v is None and data_type is None:
             if self.schema._infer_hint("not_null", k):
                 raise CannotCoerceNullException(self.schema.name, table_name, k)
-            column_schema = TColumnSchema(
-                name=k,
-                nullable=True,
-            )
-            column_schema["x-normalizer"] = {"seen-null-first": True}
+            return None
         else:
             column_schema = TColumnSchema(
                 name=k,
@@ -542,78 +495,18 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             column_schema["variant"] = is_variant
         return column_schema
 
-    def _check_if_table_exists_impl(self, ident_path: Tuple[str, ...], col_name: str) -> bool:
-        """Check if the combination of ident_path and col_name represents an existing table.
-
-        This method performs the expensive operations of:
-        1. Calling shorten_fragments to compute the possible table name
-        2. Looking up the table in schema._schema_tables
-
-        Results are cached via _check_table_exists to avoid repeated computation
-        for the same ident_path + col_name combinations during normalization.
-
-        Args:
-            ident_path (Tuple[str, ...]): Tuple of normalized path fragments leading to the column
-            col_name (str): Name of the column to check
-
-        Returns:
-            bool: True if a table exists for this path combination, False otherwise
-        """
-        possible_table_name = self._shorten_fragments(*ident_path, col_name)
-        return possible_table_name in self.schema._schema_tables
-
-    def _check_if_flattened_impl(self, table_name: str, col_name: str) -> bool:
-        """Check if col_name was flattened into compound columns in the table.
-
-        This method performs the expensive operations of:
-        1. Iterating through all columns to check for compound column prefixes
-
-        Results are cached via _check_flattened_to_cols to avoid repeated computation
-        for the same table_name + col_name combinations during normalization.
-
-        Note: This check doesn't properly handle the edge case where very long column names
-        are shortened during normalization. When compound columns are created from a shortened
-        name, they use the shortened prefix, but this method checks against the current col_name
-        which may differ. The normalizer doesn't maintain a mapping between original and
-        shortened column names, so it can't match them correctly.
-
-        Args:
-            table_name (str): Name of the table to check
-            col_name (str): Name of the column to check if it was flattened
-
-        Returns:
-            bool: True if compound columns exist with col_name as prefix, False otherwise
-        """
-        table_columns = self.schema.get_table_columns(table_name, include_incomplete=True)
-        prefix = col_name + self.naming.PATH_SEPARATOR
-        return any(col.startswith(prefix) for col in table_columns)
-
     def _coerce_null_value(
         self, table_columns: TTableSchemaColumns, table_name: str, col_name: str
     ) -> Optional[TColumnSchema]:
-        """Raises when column is explicitly not nullable or creates unbounded column"""
+        """Raises on not-nullable columns, tracks null-only column names"""
         existing_column = table_columns.get(col_name)
-        # If it exists as a direct child table or compound column(s) in the schema, don't infer
-        if not existing_column:
-            # Use cached checks to avoid expensive repeated lookups
-            full_ident_path = self._full_ident_path_tracker.get(table_name)
-            if full_ident_path and self._check_table_exists(full_ident_path, col_name):
-                return None
-            if table_columns and self._check_flattened_to_cols(table_name, col_name):
-                return None
         if existing_column and utils.is_complete_column(existing_column):
             if not utils.is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.schema.name, table_name, col_name)
         else:
-            # generate unbounded column only if it does not exist or it does not
-            # contain seen null
-            if not existing_column or not existing_column.get("x-normalizer", {}).get(
-                "seen-null-first"
-            ):
-                inferred_unbounded_col = self._infer_column(
-                    k=col_name, v=None, data_type=None, table_name=table_name
-                )
-                return inferred_unbounded_col
+            if not existing_column and self.schema._infer_hint("not_null", col_name):
+                raise CannotCoerceNullException(self.schema.name, table_name, col_name)
+            self._null_only_columns.setdefault(table_name, set()).add(col_name)
         return None
 
     def _coerce_non_null_value(
@@ -808,6 +701,46 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 class ArrowItemsNormalizer(ItemsNormalizer):
     REWRITE_ROW_GROUPS = 1
 
+    def __init__(
+        self,
+        item_storage: DataItemStorage,
+        load_storage: LoadStorage,
+        normalize_storage: NormalizeStorage,
+        schema: Schema,
+        load_id: str,
+        config: NormalizeConfiguration,
+    ) -> None:
+        super().__init__(item_storage, load_storage, normalize_storage, schema, load_id, config)
+        self._null_only_columns: Dict[str, Set[str]] = {}
+
+    @property
+    def null_only_columns(self) -> Dict[str, Set[str]]:
+        return self._null_only_columns
+
+    def _collect_null_columns_from_arrow_metadata(
+        self, arrow_schema: Any, root_table_name: str
+    ) -> None:
+        """Read dlt.null_columns from arrow schema metadata, normalize names, add to tracker,
+        and remove incomplete columns from dlt schema."""
+        metadata = arrow_schema.metadata or {}
+        null_cols_json = metadata.get(b"dlt.null_columns")
+        if not null_cols_json:
+            return
+        null_col_names = json.loadb(null_cols_json)
+        if not null_col_names:
+            return
+        normalized_names = set()
+        for name in null_col_names:
+            normalized_names.add(self.schema.naming.normalize_path(name))
+        self._null_only_columns.setdefault(root_table_name, set()).update(normalized_names)
+        # remove incomplete columns from dlt schema (created during extraction)
+        table = self.schema._schema_tables.get(root_table_name)
+        if table:
+            for col_name in normalized_names:
+                col = table["columns"].get(col_name)
+                if col and not is_complete_column(col):
+                    table["columns"].pop(col_name)
+
     def _write_with_dlt_columns(
         self,
         extracted_items_file: str,
@@ -872,6 +805,8 @@ class ArrowItemsNormalizer(ItemsNormalizer):
                     batch = pyarrow.normalize_py_arrow_item(
                         batch, columns_schema, schema.naming, self.config.destination_capabilities
                     )
+                    # normalize may remove null columns and set dlt.null_columns metadata
+                    self._collect_null_columns_from_arrow_metadata(batch.schema, root_table_name)
                 self.item_storage.write_data_item(
                     load_id,
                     schema.name,
@@ -900,6 +835,9 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         ) as f:
             num_rows, arrow_schema = get_parquet_metadata(f)
             file_metrics = DataWriterMetrics(extracted_items_file, num_rows, f.tell(), 0, 0)
+
+        # collect null column metadata from arrow schema
+        self._collect_null_columns_from_arrow_metadata(arrow_schema, root_table_name)
 
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
         # TODO: add dlt id only if not present in table

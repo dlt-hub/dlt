@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List, Set
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema
@@ -13,6 +13,7 @@ from dlt.common.schema.utils import (
     find_incomplete_columns,
     get_first_column_name_with_prop,
     has_table_seen_data,
+    is_complete_column,
     is_nested_table,
 )
 from dlt.common.schema.exceptions import UnboundColumnException, UnboundColumnWithoutTypeException
@@ -62,43 +63,60 @@ def verify_partial_table(schema: Schema, partial_table: TPartialTableSchema) -> 
                 )
 
 
+def reconcile_null_only_columns(
+    schema: Schema, null_only_columns: Dict[str, Set[str]]
+) -> Dict[str, List[TColumnSchemaBase]]:
+    """Reconcile null-only column names against the schema. Returns a mapping of table name
+    to column bases for columns that still have no type after normalization.
+    """
+    result: Dict[str, List[TColumnSchemaBase]] = {}
+    for table_name, null_cols in null_only_columns.items():
+        table = schema.tables.get(table_name)
+        if not table:
+            continue
+        still_null: List[TColumnSchemaBase] = []
+        for col_name in sorted(null_cols):
+            col = table["columns"].get(col_name)
+            if col is None or not is_complete_column(col):
+                still_null.append(TColumnSchemaBase(name=col_name))
+        if still_null:
+            result[table_name] = still_null
+    return result
+
+
 def verify_normalized_table(
-    schema: Schema, table: TTableSchema, capabilities: DestinationCapabilitiesContext
+    schema: Schema,
+    table: TTableSchema,
+    capabilities: DestinationCapabilitiesContext,
+    null_only_columns: List[TColumnSchemaBase] = None,
 ) -> None:
-    """Verify `table` schema is valid for next stage after normalization. Only tables that have seen data are verified.
-    Verification happens before seen-data flag is set so new tables can be detected.
+    """Verify `table` schema is valid for next stage after normalization. Only tables that have
+    seen data are verified. Verification happens before seen-data flag is set so new tables
+    can be detected.
 
     1. Log warning if any incomplete nullable columns are in any data tables
-    2. Raise `UnboundColumnException` on incomplete non-nullable columns (e.g. missing merge/primary key)
-    3. Log warning if table format is not supported by destination capabilities
+    2. Log warning for null-only columns that never received data
+    3. Raise `UnboundColumnException` on incomplete non-nullable columns (e.g. missing merge/primary key)
+    4. Log warning if table format is not supported by destination capabilities
     """
-    incomplete_nullable_not_seen_data: List[TColumnSchemaBase] = []
-    incomplete_nullable_seen_data: List[TColumnSchemaBase] = []
+    null_only_names = {c["name"] for c in (null_only_columns or [])}
+    incomplete_nullable_user: List[TColumnSchemaBase] = []
 
     for column, nullable in find_incomplete_columns(table):
         if nullable:
-            seen_null_first = column.get("x-normalizer", {}).get("seen-null-first")
-            # warn if column exists in source, but has no data
-            if seen_null_first is True:
-                incomplete_nullable_not_seen_data.append(column)
-            # warn if column doesn't exist in source
-            else:
-                incomplete_nullable_seen_data.append(column)
+            if column["name"] not in null_only_names:
+                incomplete_nullable_user.append(column)
         else:
             raise UnboundColumnException(schema.name, table["name"], [column])
 
-    if incomplete_nullable_not_seen_data:
+    if null_only_columns:
         logger.warning(
-            str(
-                UnboundColumnWithoutTypeException(
-                    schema.name, table["name"], incomplete_nullable_not_seen_data
-                )
-            )
+            str(UnboundColumnWithoutTypeException(schema.name, table["name"], null_only_columns))
         )
 
-    if incomplete_nullable_seen_data:
+    if incomplete_nullable_user:
         logger.warning(
-            str(UnboundColumnException(schema.name, table["name"], incomplete_nullable_seen_data))
+            str(UnboundColumnException(schema.name, table["name"], incomplete_nullable_user))
         )
 
     # TODO: 3. raise if we detect name conflict for SCD2 columns
