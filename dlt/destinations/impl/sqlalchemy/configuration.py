@@ -44,7 +44,7 @@ class ManagedEngine:
     @property
     def engine(self) -> "Engine":
         """Lazily creates the engine for owned instances, returns external engine otherwise."""
-        import sqlalchemy as sa
+        from dlt.common.libs.sql_alchemy import sa
 
         if self._engine is None:
             engine_kwargs = self._credentials._resolve_engine_kwargs()
@@ -162,11 +162,9 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         self._external_engine = value
         self.managed_engine = ManagedEngine(self, engine=value)
 
-    def get_dialect(self) -> Optional[Type["Dialect"]]:
+    def get_dialect_class(self) -> Optional[Type["Dialect"]]:
         if not self.drivername:
             return None
-        # Type-ignore because of ported URL class has no get_dialect method,
-        # but here sqlalchemy should be available
         if engine := self.engine:
             return type(engine.dialect)
         return self.to_url().get_dialect()  # type: ignore[attr-defined,no-any-return]
@@ -229,8 +227,8 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
     engine_args: Dict[str, Any] = dataclasses.field(default_factory=dict)
     """DEPRECATED: use engine_kwargs instead"""
 
-    def get_dialect(self) -> Type["Dialect"]:
-        return self.credentials.get_dialect()
+    def get_dialect_class(self) -> Type["Dialect"]:
+        return self.credentials.get_dialect_class()
 
     def get_backend_name(self) -> str:
         return self.credentials.get_backend_name()

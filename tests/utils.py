@@ -371,10 +371,12 @@ class MockableRunContext(RunContext):
 def auto_unload_modules() -> Iterator[None]:
     """Unload all modules inspected in this tests"""
     prev_modules = dict(sys.modules)
-    yield
-    mod_diff = set(sys.modules.keys()) - set(prev_modules.keys())
-    for mod in mod_diff:
-        del sys.modules[mod]
+    try:
+        yield
+    finally:
+        mod_diff = set(sys.modules.keys()) - set(prev_modules.keys())
+        for mod in mod_diff:
+            del sys.modules[mod]
 
 
 @pytest.fixture(autouse=True)
@@ -383,14 +385,16 @@ def deactivate_pipeline(preserve_environ) -> Iterator[None]:
     container = Container()
     if container[PipelineContext].is_active():
         container[PipelineContext].deactivate()
-    yield
-    if container[PipelineContext].is_active():
-        # take existing pipeline
-        # NOTE: no more needed. test storage is wiped fully when test starts
-        # p = dlt.pipeline()
-        # p._wipe_working_folder()
-        # deactivate context
-        container[PipelineContext].deactivate()
+    try:
+        yield
+    finally:
+        if container[PipelineContext].is_active():
+            # take existing pipeline
+            # NOTE: no more needed. test storage is wiped fully when test starts
+            # p = dlt.pipeline()
+            # p._wipe_working_folder()
+            # deactivate context
+            container[PipelineContext].deactivate()
 
 
 @pytest.fixture(autouse=True)

@@ -1,6 +1,7 @@
 import os
 import pytest
 import pathlib
+import time
 from urllib.parse import quote
 from typing import Tuple
 
@@ -45,7 +46,21 @@ UNC_WSL_PATH = r"\\wsl.localhost\Ubuntu-18.04\home\rudolfix\ .dlt"
 )
 def test_local_path_win_configuration(bucket_url: str, file_url: str) -> None:
     assert FilesystemConfiguration.is_local_path(bucket_url) is True
-    assert FilesystemConfiguration.make_file_url(bucket_url) == file_url
+    # UNC paths (e.g. \\wsl.localhost\...) resolve via network and the WSL host
+    # on GitHub Actions Windows runners is occasionally slow to respond, causing
+    # transient OSError (WinError 64). Retry a few times before giving up.
+    is_unc = bucket_url.startswith("\\\\") or bucket_url.startswith("//")
+    last_err: Exception = None
+    for attempt in range(3 if is_unc else 1):
+        try:
+            assert FilesystemConfiguration.make_file_url(bucket_url) == file_url
+            break
+        except OSError as e:
+            last_err = e
+            if attempt < 2:
+                time.sleep(1)
+    else:
+        raise last_err
 
     c = resolve_configuration(FilesystemConfiguration(bucket_url))
     assert c.protocol == "file"

@@ -56,43 +56,32 @@ jobs:
           activate-environment: true
           enable-cache: true
 
-      - name: Install min dependencies
-        run: uv sync
-
-      - name: run import tests
-        run: uv run pytest tests/hub/test_plugin_import.py
+      - name: Install hub minimal dependencies
+        run: make install-hub-minimal
 
       # NOTE: needed for mssql source tests in plus
       - name: Install ODBC driver for SQL Server
         run: |
+          sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
         if: matrix.os == 'ubuntu-latest'
-
-      # still does not work in mac
-      # - name: Install ODBC driver for SQL Server (macOS)
-      #   if: matrix.os == 'macos-latest'
-      #   env:
-      #     HOMEBREW_NONINTERACTIVE: 1
-      #     HOMEBREW_NO_AUTO_UPDATE: 1
-      #     HOMEBREW_NO_ANALYTICS: 1
-      #     HOMEBREW_NO_INSTALL_CLEANUP: 1
-      #   run: |
-      #     brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
-      #     printf "YES\n" | brew install msodbcsql18
-      #     # quick diagnostics (do not fail the build if unavailable)
-      #     odbcinst -j || true
-      #     odbcinst -q -d || true
-
-      - name: Install all dependencies
-        run: make dev-hub
 
       - name: Install dlthub
         if: matrix.dlthub_dep != ''
         run: uv run pip install --upgrade --force-reinstall --pre --no-cache-dir ${{ matrix.dlthub_dep }}
 
-      - name: Run tests
-        run: uv run pytest tests/hub
-        # if: matrix.os != 'macos-latest'
+      - name: Run hub minimal tests
+        run: make test-hub-minimal
+
+      - name: Install hub all dependencies
+        run: make dev-hub
+
+      - name: Install dlthub (after full install)
+        if: matrix.dlthub_dep != ''
+        run: uv run pip install --upgrade --force-reinstall --pre --no-cache-dir ${{ matrix.dlthub_dep }}
+
+      - name: Run all hub tests
+        run: make test-hub
 
       - name: Test runtime client
         run: |

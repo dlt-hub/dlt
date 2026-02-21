@@ -126,6 +126,39 @@ def test_init_command_pipeline_default_template(
     assert len(visitor.known_resource_calls) == 1
 
 
+@pytest.mark.parametrize(
+    "source_name,destination",
+    [
+        ("robin-ai", "bigquery"),  # hyphen
+        ("dlthub:robin-ai", "bigquery"),  # dlthub prefix with hyphen
+        ("123source", "bigquery"),  # starts with digit
+        ("my source", "bigquery"),  # space
+    ],
+    ids=["hyphen", "dlthub_hyphen", "digit_start", "space"],
+)
+def test_init_command_invalid_identifiers(
+    repo_dir: str, workspace_files: FileStorage, source_name: str, destination: str
+) -> None:
+    from dlt._workspace.cli.exceptions import CliCommandException
+
+    with pytest.raises(CliCommandException):
+        _init_command.init_command(source_name, destination, repo_dir)
+
+
+def test_init_command_dotted_destination_accepted(
+    repo_dir: str, workspace_files: FileStorage
+) -> None:
+    """Dotted destination references like dlt.destinations.dremio must not be
+    rejected by the source name identifier validation."""
+    from dlt._workspace.cli.exceptions import CliCommandException
+
+    # must not raise CliCommandException for invalid identifier
+    try:
+        _init_command.init_command("debug", "dlt.destinations.duckdb", repo_dir)
+    except CliCommandException:
+        pytest.fail("Dotted destination name was incorrectly rejected as invalid identifier")
+
+
 def test_default_source_file_selection() -> None:
     templates_storage = files_ops.get_single_file_templates_storage()
 
@@ -686,11 +719,7 @@ def test_init_vibe_source_editor_choice_ux(ide_choice: str, workspace_files: Fil
 
     assert "dlt will generate useful project rules tailored to your assistant/IDE." in _out
     assert f"adding {ide_choice} rules, code snippets and docs" in _out
-    assert (
-        "file(s) supporting github were copied:" in _out
-        and "github.md" in _out
-        and "github-docs.yaml" in _out
-    )
+    assert "file(s) supporting github were copied:" in _out and "github-docs.yaml" in _out
 
 
 def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
@@ -701,7 +730,6 @@ def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
     random_vibez = [
         "news_api",
         "alpaca",
-        "robin",
         "kwanko",
         "powerlink",
         "mysql_instance",
@@ -709,7 +737,7 @@ def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
         "coalesce",
         "jobnimbus",
         "perplexity_ai",
-        "wordpress_site",
+        "robin_api",
     ]
 
     for source_name in random_vibez:

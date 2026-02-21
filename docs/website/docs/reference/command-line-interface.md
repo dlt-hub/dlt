@@ -153,7 +153,7 @@ Inherits arguments from [`dlt`](#dlt).
 * [`schema`](#dlt-pipeline-schema) - Displays default schema
 * [`drop`](#dlt-pipeline-drop) - Selectively drop tables and reset state
 * [`load-package`](#dlt-pipeline-load-package) - Displays information on load package, use -v or -vv for more info
-* [`mcp`](#dlt-pipeline-mcp) - Launch mcp server attached to this pipeline in sse transport mode
+* [`mcp`](#dlt-pipeline-mcp) - Launch mcp server attached to this pipeline
 
 </details>
 
@@ -494,11 +494,11 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 ### `dlt pipeline mcp`
 
-Launch MCP server attached to this pipeline in SSE transport mode.
+Launch MCP server attached to this pipeline.
 
 **Usage**
 ```sh
-dlt pipeline [pipeline_name] mcp [-h] [--stdio] [--port PORT]
+dlt pipeline [pipeline_name] mcp [-h] [--stdio] [--sse] [--port PORT]
 ```
 
 **Description**
@@ -514,7 +514,8 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 **Options**
 * `-h, --help` - Show this help message and exit
 * `--stdio` - Use stdio transport mode
-* `--port PORT` - Sse port to use (default: 43656)
+* `--sse` - Use legacy sse transport instead of streamable-http
+* `--port PORT` - Port for the mcp server (default: 43656)
 
 </details>
 

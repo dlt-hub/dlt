@@ -5,7 +5,7 @@ import sqlglot
 
 import pyarrow as pa
 from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.server import AnyUrl
+from pydantic.networks import AnyUrl
 from mcp.server.fastmcp.resources import FunctionResource
 
 from dlt import Pipeline
@@ -59,6 +59,7 @@ class BaseMCPTools(ABC):
         description: str,
         mime_type: str,
     ) -> None:
+        # NOTE: no public API for adding resource templates yet in mcp SDK
         mcp_server._resource_manager.add_template(fn, uri_template, name, description, mime_type)
 
     def recent_result_resource(self) -> str:
@@ -130,24 +131,6 @@ class BaseMCPTools(ABC):
         else:
             return format_csv(table, info)
 
-    # def _return_df(self, table: pa.Table, info: str = "") -> str:
-    #     # just copy metadata
-    #     df = table.to_pandas().copy(deep=False)
-
-    #     # Remove non ascii characters from the columns. Those hang claude desktop - server
-    #     # at least on Windows
-    #     for col in df.select_dtypes(include=["object"]).columns:
-    #         df[col] = df[col].apply(
-    #             lambda x: unicodedata.normalize("NFKD", str(x))
-    #             .encode("ascii", "ignore")
-    #             .decode("ascii")
-    #             .replace("\n", " ")
-    #             .replace("\r", " ")
-    #         )
-    #     if info:
-    #         info += "csv delimited with | containing header starts in next line:\n"
-    #     return str(info + df.to_csv(index=False, sep="|"))
-
     def _cache_arrow(
         self,
         table: pa.Table,
@@ -155,7 +138,6 @@ class BaseMCPTools(ABC):
         save_bookmark: Optional[str] = None,
         input_bookmark: Optional[str] = None,
     ) -> str:
-        # info = ""
         if not is_valid_schema_name(save_bookmark):
             raise ValueError(
                 f"Invalid bookmark name: {save_bookmark}. Only strings that are valid Python "

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections.abc import Collection
 
+from functools import partial
 from typing import overload, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING
 from textwrap import indent
 from contextlib import contextmanager
@@ -30,13 +31,13 @@ from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.destinations.queries import _normalize_query, build_select_expr
+from dlt.destinations.queries import bind_query, build_select_expr
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.dataset import SupportsDataAccess
 
 
 if TYPE_CHECKING:
-    from ibis import ir
+    from dlt.common.libs.ibis import ir
     from dlt.common.libs.pandas import pandas as pd
     from dlt.common.libs.pyarrow import pyarrow as pa
     from dlt.helpers.ibis import Expr as IbisExpr
@@ -245,10 +246,14 @@ class Relation(WithSqlClient):
             query = self.sqlglot_expression
         else:
             _, _qualified_query = _get_relation_output_columns_schema(self)
-            query = _normalize_query(
+            query = bind_query(
                 qualified_query=_qualified_query,
                 sqlglot_schema=self._dataset.sqlglot_schema,
-                sql_client=self.sql_client,
+                expand_table_name=partial(
+                    self.sql_client.make_qualified_table_name_path,
+                    quote=False,
+                    casefold=False,
+                ),
                 casefold_identifier=self.sql_client.capabilities.casefold_identifier,
             )
 

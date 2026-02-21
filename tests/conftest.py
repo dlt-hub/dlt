@@ -72,7 +72,6 @@ def pytest_xdist_setupnodes(config, specs):
         "ducklake",
         "httpfs",
         "iceberg",
-        "lance",
         "motherduck",
         "parquet",
         "postgres_scanner",
@@ -80,10 +79,19 @@ def pytest_xdist_setupnodes(config, specs):
         "sqlite_scanner",
     ]
 
+    community_extensions = [
+        "lance",
+    ]
+
     with duckdb.connect() as conn:
         for ext in extensions:
             try:
                 conn.execute(f"INSTALL {ext}")
+            except Exception:
+                pass  # extension might not be available
+        for ext in community_extensions:
+            try:
+                conn.execute(f"INSTALL {ext} FROM community")
             except Exception:
                 pass  # extension might not be available
 
