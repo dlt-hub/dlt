@@ -4,6 +4,7 @@ from pathspec import PathSpec
 from pathspec.util import iter_tree_files
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.cli import echo as fmt
 
 
 class BaseFileSelector(Iterable[Tuple[Path, Path]]):
@@ -42,6 +43,12 @@ class WorkspaceFileSelector(BaseFileSelector):
         if ignore_path.exists():
             with ignore_path.open("r", encoding="utf-8") as f:
                 patterns.extend(f.read().splitlines())
+        else:
+            fmt.secho(
+                f"⚠️ No {self.ignore_file} found. Only built-in excludes are active.\n"
+                f"   Consider adding a {self.ignore_file} to control what gets deployed.",
+                fg="yellow",
+            )
 
         # Add caller-provided excludes
         patterns.extend(additional_excludes)

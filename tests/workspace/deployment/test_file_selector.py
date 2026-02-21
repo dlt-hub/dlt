@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from dlt._workspace.deployment.file_selector import ConfigurationFileSelector, WorkspaceFileSelector
@@ -29,6 +30,15 @@ def test_file_selector_respects_gitignore(with_additional_exclude: bool) -> None
         )
         files = set([rel.as_posix() for _, rel in selector])
         assert files == expected_files
+
+
+def test_file_selector_warns_on_missing_ignore_file(capsys: pytest.CaptureFixture[str]) -> None:
+    """Warning is emitted when the configured ignore file does not exist."""
+    with isolated_workspace("default") as ctx:
+        WorkspaceFileSelector(ctx, ignore_file=".nonexistent_ignore")
+    captured = capsys.readouterr()
+    assert "No .nonexistent_ignore found" in captured.out
+    assert "Consider adding a .nonexistent_ignore" in captured.out
 
 
 def test_configuration_file_selector() -> None:
