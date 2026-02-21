@@ -17,14 +17,10 @@ def __utcnow() -> pendulum.DateTime:
     return pendulum.now()
 
 
-def to_pendulum_tz(
-    tz: Optional[tzinfo], is_utc: bool = False
-) -> Optional[Union[Timezone, FixedTimezone]]:
+def to_pendulum_tz(tz: Optional[tzinfo]) -> Optional[Union[Timezone, FixedTimezone]]:
     """Convert a tzinfo to a pendulum Timezone/FixedTimezone"""
     if tz is None:
         return None
-    if is_utc:
-        return UTC
     # already a pendulum timezone
     if isinstance(tz, (Timezone, FixedTimezone)):
         return tz
@@ -74,6 +70,37 @@ def create_dt(
         dt.second,
         dt.microsecond,
         tzinfo=dt.tzinfo,
+        fold=dt.fold,
+    )
+
+
+def ensure_pendulum_dt(dt: datetime) -> pendulum.DateTime:
+    """Convert a stdlib datetime to pendulum DateTime preserving timezone."""
+    tz = dt.tzinfo
+    if tz is None:
+        return pendulum.DateTime(
+            dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond
+        )
+    if tz is UTC:
+        return pendulum.DateTime(
+            dt.year,
+            dt.month,
+            dt.day,
+            dt.hour,
+            dt.minute,
+            dt.second,
+            dt.microsecond,
+            tzinfo=UTC,
+        )
+    return create_dt(
+        dt.year,
+        dt.month,
+        dt.day,
+        dt.hour,
+        dt.minute,
+        dt.second,
+        dt.microsecond,
+        tz=tz,
         fold=dt.fold,
     )
 

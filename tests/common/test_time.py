@@ -2,7 +2,7 @@ import pytest
 import os
 import time
 from datetime import datetime, date, timezone, timedelta, time as dt_time  # noqa: I251
-from pendulum.tz import UTC, fixed_timezone
+from pendulum.tz import UTC, FixedTimezone, Timezone, fixed_timezone
 from contextlib import contextmanager
 
 from dlt.common import pendulum
@@ -260,12 +260,12 @@ def test_ensure_pendulum_datetime_non_utc(
 
         def _test_tz(dt_: pendulum.DateTime) -> None:
             # timezone awareness preserved
-            if dt.tzinfo or expected_non_utc.tzinfo:
-                assert dt.tzinfo.utcoffset(dt) == expected_non_utc.tzinfo.utcoffset(
+            if dt_.tzinfo or expected_non_utc.tzinfo:
+                assert dt_.tzinfo.utcoffset(dt_) == expected_non_utc.tzinfo.utcoffset(
                     expected_non_utc
                 )
             else:
-                assert dt.tz is expected_non_utc.tz is None
+                assert dt_.tz is expected_non_utc.tz is None
 
         _test_tz(dt)
         # always pendulum
@@ -763,3 +763,113 @@ def test_ensure_pendulum_time_invalid(value) -> None:
     else:
         with pytest.raises(TypeError):
             ensure_pendulum_time(value)
+
+
+@pytest.mark.parametrize(
+    "value, expected_offset_hours",
+    [
+        (datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone(timedelta(hours=5))), 5),
+        (datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone(timedelta(hours=-8))), -8),
+        (datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone.utc), 0),
+        (datetime(2021, 6, 15, 12, 0, 0, tzinfo=timezone(timedelta(hours=5, minutes=30))), 5.5),
+    ],
+    ids=["plus5", "minus8", "utc", "plus5:30"],
+)
+def test_ensure_pendulum_datetime_non_utc_produces_pendulum_tzinfo(
+    value, expected_offset_hours
+) -> None:
+    """stdlib timezone inputs must produce pendulum-native tzinfo with correct offset."""
+    result = ensure_pendulum_datetime_non_utc(value)
+    assert isinstance(result, pendulum.DateTime)
+    assert result.tzinfo is not None
+    # must be pendulum-native, not stdlib
+    assert isinstance(
+        result.tzinfo, (FixedTimezone, Timezone)
+    ), f"Expected pendulum tz, got {type(result.tzinfo).__name__}: {result.tzinfo}"
+    assert result.tzinfo.utcoffset(result) == timedelta(hours=expected_offset_hours)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone(timedelta(hours=5))),
+        datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone(timedelta(hours=-8))),
+        datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+    ],
+    ids=["plus5", "minus8", "utc"],
+)
+def test_ensure_pendulum_datetime_non_utc_add_preserves_tz(value) -> None:
+    """pendulum .add() and stdlib timedelta must keep the original tz offset."""
+    result = ensure_pendulum_datetime_non_utc(value)
+    original_offset = result.tzinfo.utcoffset(result)
+
+    # pendulum .add()
+    added = result.add(days=1, hours=2)
+    assert added.tzinfo is not None, "add() produced naive datetime"
+    assert added.tzinfo.utcoffset(added) == original_offset
+
+    # python timedelta
+    td_added = result + timedelta(days=1, hours=2)
+    assert td_added.tzinfo is not None, "timedelta addition produced naive datetime"
+    assert td_added.tzinfo.utcoffset(td_added) == original_offset
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone(timedelta(hours=5))),
+        datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone(timedelta(hours=-8))),
+        datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+    ],
+    ids=["plus5", "minus8", "utc"],
+)
+def test_ensure_pendulum_datetime_non_utc_add_then_format(value) -> None:
+    """after .add(), datetime_obj_to_str with %:z must not raise on tz formatting."""
+    result = ensure_pendulum_datetime_non_utc(value)
+    added = result.add(hours=1)
+    # must not raise ValueError about missing timezone
+    formatted = datetime_obj_to_str(added, "%Y-%m-%dT%H:%M:%S%:z")
+    assert "+" in formatted or "-" in formatted
+
+
+@pytest.mark.parametrize(
+    "value, expected_hour",
+    [
+        (datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone(timedelta(hours=5))), 7),
+        (datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone(timedelta(hours=-8))), 20),
+        (datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone.utc), 12),
+    ],
+    ids=["plus5", "minus8", "utc"],
+)
+def test_ensure_pendulum_datetime_utc_add_preserves_utc(value, expected_hour) -> None:
+    """UTC conversion must shift the hour correctly and survive .add() arithmetic."""
+    result = ensure_pendulum_datetime_utc(value)
+    assert result.hour == expected_hour
+    assert result.tz == UTC
+    assert result.add(days=1).tz == UTC
+
+
+@pytest.mark.parametrize(
+    "value, expected_date",
+    [
+        # +8h: 2021-01-01T00:00+08:00 = 2020-12-31T16:00 UTC
+        (
+            datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone(timedelta(hours=8))),
+            pendulum.date(2020, 12, 31),
+        ),
+        # -8h: 2021-01-01T00:00-08:00 = 2021-01-01T08:00 UTC
+        (
+            datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone(timedelta(hours=-8))),
+            pendulum.date(2021, 1, 1),
+        ),
+        (
+            datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            pendulum.date(2021, 1, 1),
+        ),
+    ],
+    ids=["plus8-crosses-date", "minus8-same-date", "utc"],
+)
+def test_ensure_pendulum_date_stdlib_timezone(value, expected_date) -> None:
+    """stdlib timezone offsets crossing midnight must shift the date accordingly."""
+    result = ensure_pendulum_date(value)
+    assert result == expected_date
