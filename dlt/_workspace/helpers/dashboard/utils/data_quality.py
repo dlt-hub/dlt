@@ -1,11 +1,12 @@
 """Data quality dashboard helpers: controls, section widget, and raw table display."""
 
 import traceback
-from typing import Any, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import marimo as mo
 
 import dlt
+import pyarrow
 
 from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard.utils import queries, ui
@@ -13,7 +14,12 @@ from dlt._workspace.helpers.dashboard.utils import queries, ui
 
 def create_dq_controls(
     pipeline: dlt.Pipeline,
-) -> Tuple[Optional[mo.ui.checkbox], Optional[mo.ui.dropdown], Optional[mo.ui.slider], Any]:
+) -> Tuple[
+    Optional[mo.ui.checkbox],
+    Optional[mo.ui.dropdown],
+    Optional[mo.ui.slider],
+    Optional[pyarrow.Table],
+]:
     """Create data quality filter controls by importing from dlthub.
 
     Returns (show_failed_filter, table_filter, rate_filter, checks_arrow).
@@ -23,7 +29,10 @@ def create_dq_controls(
         from dlthub.data_quality._dashboard import create_data_quality_controls
 
         result: Tuple[
-            Optional[mo.ui.checkbox], Optional[mo.ui.dropdown], Optional[mo.ui.slider], Any
+            Optional[mo.ui.checkbox],
+            Optional[mo.ui.dropdown],
+            Optional[mo.ui.slider],
+            Optional[pyarrow.Table],
         ] = create_data_quality_controls(pipeline)
         return result
     except Exception:
@@ -35,14 +44,14 @@ def build_dq_section(
     show_failed_filter: Optional[mo.ui.checkbox],
     table_filter: Optional[mo.ui.dropdown],
     rate_filter: Optional[mo.ui.slider],
-    checks_arrow: Any,
-) -> Tuple[List[Any], Optional[mo.ui.switch]]:
+    checks_arrow: Optional[pyarrow.Table],
+) -> Tuple[List[mo.Html], Optional[mo.ui.switch]]:
     """Build the data quality widget section.
 
     Returns (result_widgets, raw_table_switch). raw_table_switch is None when
     there is no data or on error.
     """
-    result: List[Any] = []
+    result: List[mo.Html] = []
     raw_table_switch: Optional[mo.ui.switch] = None
 
     try:
@@ -90,14 +99,14 @@ def build_dq_section(
 
 def build_dq_raw_table(
     pipeline: dlt.Pipeline,
-    get_result: Any,
-    set_result: Any,
-) -> List[Any]:
+    get_result: Callable[[], pyarrow.Table],
+    set_result: Callable[[pyarrow.Table], None],
+) -> List[mo.Html]:
     """Build the raw data quality checks table.
 
     Returns list of widgets to display.
     """
-    result: List[Any] = []
+    result: List[mo.Html] = []
 
     try:
         from dlthub import data_quality as dq

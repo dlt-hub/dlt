@@ -15,6 +15,8 @@ app = marimo.App(
 with app.setup:
     from typing import Any, Dict, List, cast
 
+    from dlt._workspace.helpers.dashboard.types import TPipelineListItem
+
     import marimo as mo
 
     import dlt
@@ -32,12 +34,12 @@ with app.setup:
 @app.cell(hide_code=True)
 def home(
     dlt_profile_select: mo.ui.dropdown,
-    dlt_all_pipelines: List[Dict[str, Any]],
+    dlt_all_pipelines: List[TPipelineListItem],
     dlt_pipeline_select: mo.ui.multiselect,
     dlt_pipelines_dir: str,
     dlt_refresh_button: mo.ui.run_button,
     dlt_pipeline_name: str,
-    dlt_file_watcher: Any,
+    dlt_file_watcher: Any,  # marimo internal watcher type
 ):
     """Displays the welcome page or pipeline dashboard depending on selection."""
 
@@ -48,7 +50,7 @@ def home(
     # returned by cell
     dlt_pipeline: dlt.Pipeline = None
     dlt_config: DashboardConfiguration = None
-    _stack: List[Any] = []
+    _stack: List[mo.Html] = []
 
     if dlt_pipeline_name:
         try:
@@ -109,7 +111,7 @@ def home(
 def section_info(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_info_switch: mo.ui.switch,
-    dlt_all_pipelines: List[Dict[str, Any]],
+    dlt_all_pipelines: List[TPipelineListItem],
     dlt_config: DashboardConfiguration,
     dlt_pipelines_dir: str,
 ):
@@ -280,7 +282,7 @@ def section_data_quality(
     """Show data quality of the currently selected pipeline (only if dlt.hub is installed)."""
     dlt_data_quality_show_raw_table_switch = None
     if not utils.home.detect_dlt_hub():
-        _result: List[Any] = []
+        _result: List[mo.Html] = []
     else:
         _result, _show = utils.ui.section(
             strings.data_quality_section_name,
@@ -522,7 +524,7 @@ def section_browse_data_query_history(
     Show the query history
     """
 
-    _result: List[Any] = []
+    _result: List[mo.Html] = []
     if (
         dlt_pipeline
         and dlt_section_browse_data_switch.value
@@ -746,7 +748,7 @@ def utils_discover_pipelines(
 
     # discover pipelines and build selector
     dlt_pipelines_dir: str = ""
-    dlt_all_pipelines: List[Dict[str, Any]] = []
+    dlt_all_pipelines: List[TPipelineListItem] = []
     dlt_pipelines_dir, dlt_all_pipelines = list_local_pipelines(
         mo_cli_arg_pipelines_dir,
         additional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],

@@ -1,6 +1,6 @@
 """Dashboard table wrapper that standardizes mo.ui.table usage."""
 
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import marimo as mo
 import pyarrow
@@ -79,7 +79,7 @@ def small(text: str) -> str:
     return f"<small>{text}</small>"
 
 
-def error_callout(message: str, code: str = None, traceback_string: str = None) -> Any:
+def error_callout(message: str, code: str = None, traceback_string: str = None) -> mo.Html:
     """Build a callout with a message and a exposable stacktrace.
 
     Args:
@@ -119,7 +119,7 @@ def error_callout(message: str, code: str = None, traceback_string: str = None) 
     )
 
 
-def title_and_subtitle(title: str, subtitle: str = None, title_level: int = 2) -> Any:
+def title_and_subtitle(title: str, subtitle: str = None, title_level: int = 2) -> mo.Html:
     """Build a title and a subtitle block"""
     _result = []
     if title:
@@ -134,8 +134,8 @@ def page_header(
     title: str,
     subtitle: str,
     subtitle_long: str,
-    button: Any = None,
-) -> Any:
+    button: mo.ui.switch = None,
+) -> List[mo.Html]:
     """Build a page header with a title, a subtitle, button and conditional longer subtitle"""
     if not dlt_pipeline:
         return []
@@ -172,8 +172,8 @@ def section(
     title: str,
     subtitle: str,
     subtitle_long: str,
-    switch: Any,
-) -> Tuple[List[Any], bool]:
+    switch: mo.ui.switch,
+) -> Tuple[List[mo.Html], bool]:
     """Build standard section boilerplate: marker + page header.
 
     Returns:

@@ -2,6 +2,8 @@
 
 from typing import Any, Dict, List
 
+from dlt._workspace.helpers.dashboard.types import TNameValueItem
+
 import marimo as mo
 
 import dlt
@@ -17,7 +19,7 @@ from dlt._workspace.helpers.dashboard.utils import ui
 from dlt.pipeline.trace import PipelineTrace
 
 
-def trace_overview(c: DashboardConfiguration, trace: PipelineTrace) -> List[Dict[str, Any]]:
+def trace_overview(c: DashboardConfiguration, trace: PipelineTrace) -> List[TNameValueItem]:
     """Get the overview of a trace as name/value table items."""
     return dict_to_table_items(
         humanize_datetime_values(
@@ -34,12 +36,12 @@ def trace_overview(c: DashboardConfiguration, trace: PipelineTrace) -> List[Dict
 
 def trace_execution_context(
     c: DashboardConfiguration, trace: PipelineTrace
-) -> List[Dict[str, Any]]:
+) -> List[TNameValueItem]:
     """Get the execution context of a trace as name/value table items."""
     return dict_to_table_items(dict(trace.execution_context) or {})
 
 
-def trace_steps_overview(c: DashboardConfiguration, trace: PipelineTrace) -> List[Dict[str, Any]]:
+def trace_steps_overview(c: DashboardConfiguration, trace: PipelineTrace) -> List[Dict[str, str]]:
     """Get the steps overview of a trace."""
     result = []
     for step_obj in trace.steps:
@@ -63,7 +65,9 @@ def trace_resolved_config_values(
     return [v.asdict() for v in trace.resolved_config_values]  # type: ignore[misc]
 
 
-def trace_step_details(c: DashboardConfiguration, trace: PipelineTrace, step_id: str) -> List[Any]:
+def trace_step_details(
+    c: DashboardConfiguration, trace: PipelineTrace, step_id: str
+) -> List[mo.Html]:
     """Get the details of a step including table and job metrics."""
     _result = []
     for step_obj in trace.steps:
@@ -99,9 +103,9 @@ def build_trace_section(
     config: DashboardConfiguration,
     pipeline: dlt.Pipeline,
     trace_steps_table: mo.ui.table,
-) -> List[Any]:
+) -> List[mo.Html]:
     """Build the trace section content: overview, execution context, steps, config, raw trace."""
-    result: List[Any] = []
+    result: List[mo.Html] = []
 
     if _exception_section := pipeline_utils.exception_section(pipeline):
         result.extend(_exception_section)

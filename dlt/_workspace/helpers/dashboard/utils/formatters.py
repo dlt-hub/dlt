@@ -4,6 +4,8 @@ from datetime import datetime  # noqa: I251
 from itertools import chain
 from typing import Any, Dict, List, Mapping, Union, cast
 
+from dlt._workspace.helpers.dashboard.types import TNameValueItem
+
 from dlt.common.pendulum import pendulum
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -76,7 +78,7 @@ def format_exception_message(exception: Exception) -> str:
     return str(exception)
 
 
-def filter_empty_values(d: Mapping[Any, Any]) -> Mapping[Any, Any]:
+def filter_empty_values(d: Mapping[str, Any]) -> Dict[str, Any]:
     """Return a new dict with all None and empty string values removed."""
     return {k: v for k, v in d.items() if v is not None and v != ""}
 
@@ -90,6 +92,6 @@ def align_dict_keys(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return items
 
 
-def dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
+def dict_to_table_items(d: Dict[str, Any]) -> List[TNameValueItem]:
     """Convert a dict to a list of {name, value} dicts for display in a marimo table."""
     return [{"name": k, "value": v} for k, v in d.items()]

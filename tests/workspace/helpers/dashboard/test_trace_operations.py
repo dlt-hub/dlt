@@ -35,27 +35,27 @@ def test_trace(pipeline: dlt.Pipeline):
         return
 
     # overview
-    result = trace_overview(config, trace)
+    overview_result = trace_overview(config, trace)
     # check it can be rendered as table with marimo
-    assert mo.ui.table(result).text is not None
+    assert dlt_table(overview_result).text is not None
 
-    assert {item["name"] for item in result} == {
+    assert {item["name"] for item in overview_result} == {
         "pipeline_name",
         "started_at",
         "finished_at",
         "transaction_id",
         "duration",
     }
-    values_dict = {item["name"]: item["value"] for item in result}
+    values_dict = {item["name"]: item["value"] for item in overview_result}
     assert values_dict["pipeline_name"] == pipeline.pipeline_name
 
     # execution context
-    result = trace_execution_context(config, trace)
+    context_result = trace_execution_context(config, trace)
     # check it can be rendered as table with marimo
-    assert mo.ui.table(result).text is not None
+    assert dlt_table(context_result).text is not None
 
-    assert len(result) == 7
-    assert {item["name"] for item in result} == {
+    assert len(context_result) == 7
+    assert {item["name"] for item in context_result} == {
         "cpu",
         "os",
         "library",
@@ -67,35 +67,35 @@ def test_trace(pipeline: dlt.Pipeline):
     # TODO: inspect values
 
     # steps overview
-    result = trace_steps_overview(config, trace)
+    steps_result = trace_steps_overview(config, trace)
     # check it can be rendered as table with marimo
-    assert mo.ui.table(result).text is not None
+    assert dlt_table(steps_result).text is not None
 
     if pipeline.pipeline_name == EXTRACT_EXCEPTION_PIPELINE:
-        assert len(result) == 1
-        assert result[0]["step"] == "extract"
+        assert len(steps_result) == 1
+        assert steps_result[0]["step"] == "extract"
     elif pipeline.pipeline_name == NORMALIZE_EXCEPTION_PIPELINE:
-        assert len(result) == 2
-        assert result[0]["step"] == "extract"
-        assert result[1]["step"] == "normalize"
+        assert len(steps_result) == 2
+        assert steps_result[0]["step"] == "extract"
+        assert steps_result[1]["step"] == "normalize"
     elif pipeline.pipeline_name == SYNC_EXCEPTION_PIPELINE:
-        assert len(result) == 0
+        assert len(steps_result) == 0
     else:
-        assert len(result) == 3
-        assert result[0]["step"] == "extract"
-        assert result[1]["step"] == "normalize"
-        assert result[2]["step"] == "load"
+        assert len(steps_result) == 3
+        assert steps_result[0]["step"] == "extract"
+        assert steps_result[1]["step"] == "normalize"
+        assert steps_result[2]["step"] == "load"
 
     # TODO: inspect values of trace steps overview
 
-    for item in result:
-        result = trace_step_details(config, trace, item["step"])
+    for item in steps_result:
+        trace_step_details(config, trace, item["step"])
         # TODO: inspect trace step details
 
     # resolved config values (TODO: add at least one config value)
-    result = trace_resolved_config_values(config, trace)
+    config_result = trace_resolved_config_values(config, trace)
     # check it can be rendered as table with marimo
-    assert mo.ui.table(result).text is not None
+    assert dlt_table(config_result).text is not None
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)

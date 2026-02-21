@@ -4,6 +4,7 @@ import dlt
 from typing import Set
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.helpers.dashboard.types import TPipelineListItem
 from dlt._workspace.helpers.dashboard.utils.pipeline import (
     get_pipeline,
     pipeline_details,
@@ -12,6 +13,7 @@ from dlt._workspace.helpers.dashboard.utils.pipeline import (
     get_local_data_path,
     remote_state_details,
 )
+from dlt._workspace.helpers.dashboard.utils.ui import dlt_table
 from dlt._workspace.helpers.dashboard.utils.schema import get_source_and_resource_state_for_table
 from dlt._workspace.helpers.dashboard.utils.visualization import get_steps_data_and_status
 from dlt._workspace.helpers.dashboard.const import TPipelineRunStatus, TVisualPipelineStep
@@ -105,7 +107,7 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
 def test_get_remote_state_details(pipeline: dlt.Pipeline):
     remote_state = remote_state_details(pipeline)
     # check it can be rendered as table with marimo
-    assert mo.ui.table(remote_state).text is not None
+    assert dlt_table(remote_state).text is not None
 
 
 @pytest.mark.parametrize(
@@ -149,7 +151,7 @@ def test_pipeline_link_list():
     assert "No pipelines found" in result
 
     # with pipelines
-    pipelines = [
+    pipelines: list[TPipelineListItem] = [
         {"name": "pipeline_a", "timestamp": 1700000000.0},
         {"name": "pipeline_b", "timestamp": 1700001000.0},
     ]
@@ -163,9 +165,8 @@ def test_pipeline_link_list():
 def test_pipeline_link_list_max_10():
     """Test that pipeline link list is limited to 10 entries"""
     config = DashboardConfiguration()
-    pipelines = [
-        {"name": f"pipeline_{i}", "timestamp": 1700000000.0 + i}
-        for i in range(15)
+    pipelines: list[TPipelineListItem] = [
+        {"name": f"pipeline_{i}", "timestamp": 1700000000.0 + i} for i in range(15)
     ]
     result = pipeline_link_list(config, pipelines)
     # should only include first 10

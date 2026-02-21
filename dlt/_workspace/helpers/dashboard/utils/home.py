@@ -1,6 +1,6 @@
 """Home page rendering helpers: workspace and pipeline home views."""
 
-from typing import Any, Dict, List, Union
+from typing import List, Optional
 
 import marimo as mo
 
@@ -10,10 +10,11 @@ from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunCont
 from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard import utils
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.helpers.dashboard.types import TPipelineListItem
 from dlt._workspace.helpers.dashboard.utils import ui
 
 
-def header_controls(dlt_profile_select: mo.ui.dropdown) -> Union[List[Any], None]:
+def header_controls(dlt_profile_select: mo.ui.dropdown) -> Optional[List[mo.Html]]:
     """Build profile-related header controls if profiles are enabled."""
     if isinstance(dlt.current.run_context(), ProfilesRunContext):
         return [
@@ -40,7 +41,7 @@ def detect_dlt_hub() -> bool:
 def home_header_row(
     dlt_profile_select: mo.ui.dropdown,
     dlt_pipeline_select: mo.ui.multiselect,
-) -> Any:
+) -> mo.Html:
     """Shared header row with logo, profile/workspace info and pipeline select."""
     _header_controls = header_controls(dlt_profile_select)
     return mo.hstack(
@@ -76,11 +77,11 @@ def home_header_row(
 
 def render_workspace_home(
     dlt_profile_select: mo.ui.dropdown,
-    dlt_all_pipelines: List[Dict[str, Any]],
+    dlt_all_pipelines: List[TPipelineListItem],
     dlt_pipeline_select: mo.ui.multiselect,
     dlt_pipelines_dir: str,
     dlt_config: DashboardConfiguration,
-) -> List[Any]:
+) -> List[mo.Html]:
     """Render the workspace-level home view (no pipeline selected)."""
     return [
         utils.ui.section_marker(strings.app_section_name, has_content=True),
@@ -108,8 +109,8 @@ def render_pipeline_header_row(
     dlt_pipeline_name: str,
     dlt_profile_select: mo.ui.dropdown,
     dlt_pipeline_select: mo.ui.multiselect,
-    buttons: List[Any],
-) -> List[Any]:
+    buttons: List[mo.Html],
+) -> List[mo.Html]:
     """Render the pipeline header row with logo, title, and action buttons."""
     header_row = home_header_row(dlt_profile_select, dlt_pipeline_select)
     pipeline_title = mo.center(
@@ -148,13 +149,13 @@ def render_pipeline_home(
     dlt_pipelines_dir: str,
     dlt_refresh_button: mo.ui.run_button,
     dlt_pipeline_name: str,
-) -> List[Any]:
+) -> List[mo.Html]:
     """Render the pipeline-level home view (pipeline selected or requested)."""
-    _buttons: List[Any] = [dlt_refresh_button]
-    _pipeline_execution_exception: List[Any] = []
-    _pipeline_execution_summary: Any = None
-    _last_load_packages_info: Any = None
-    _errors: List[Any] = []
+    _buttons: List[mo.Html] = [dlt_refresh_button]
+    _pipeline_execution_exception: List[mo.Html] = []
+    _pipeline_execution_summary: Optional[mo.Html] = None
+    _last_load_packages_info: Optional[mo.Html] = None
+    _errors: List[mo.Html] = []
 
     _buttons.append(
         mo.ui.button(
@@ -181,7 +182,7 @@ def render_pipeline_home(
         )
         _pipeline_execution_exception = utils.pipeline.exception_section(dlt_pipeline)
 
-    _stack = [
+    _stack: List[mo.Html] = [
         utils.ui.section_marker(strings.home_section_name, has_content=dlt_pipeline is not None)
     ]
     _stack.extend(

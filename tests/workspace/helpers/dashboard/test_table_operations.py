@@ -10,6 +10,7 @@ from dlt._workspace.helpers.dashboard.utils.schema import (
     build_resource_state_widget,
 )
 from dlt._workspace.helpers.dashboard.utils.queries import get_row_counts_list
+from dlt._workspace.helpers.dashboard.utils.ui import dlt_table
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
     PIPELINES_WITH_LOAD,
@@ -32,7 +33,7 @@ def test_create_table_list(pipeline, show_internals, show_child_tables):
         show_child_tables=show_child_tables,
     )
     # check it can be rendered as table with marimo
-    assert mo.ui.table(result).text is not None
+    assert dlt_table(result).text is not None
 
     base_table_names = {"inventory", "purchases", "customers", "inventory_categories"}
     dlt_table_names = {"_dlt_loads", "_dlt_version", "_dlt_pipeline_state"}
@@ -113,7 +114,7 @@ def test_get_row_counts_list(pipeline: dlt.Pipeline):
     result = get_row_counts_list(pipeline)
 
     # check it can be rendered as table with marimo
-    assert mo.ui.table(result).text is not None
+    assert dlt_table(result).text is not None
 
     reverted_result = {i["name"]: i["row_count"] for i in result}
 
@@ -149,9 +150,7 @@ def test_schemas_to_table_items(pipeline: dlt.Pipeline):
 @pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
 def test_build_resource_state_widget(pipeline: dlt.Pipeline):
     """Test building resource state widget for a table with a resource"""
-    widget = build_resource_state_widget(
-        pipeline, pipeline.default_schema_name, "customers"
-    )
+    widget = build_resource_state_widget(pipeline, pipeline.default_schema_name, "customers")
     # customers table has a resource, so widget should not be None
     assert widget is not None
     assert widget.text is not None

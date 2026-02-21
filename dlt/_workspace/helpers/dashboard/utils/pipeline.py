@@ -6,6 +6,8 @@ import shutil
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
+from dlt._workspace.helpers.dashboard.types import TNameValueItem, TPipelineListItem
+
 import dlt
 import marimo as mo
 
@@ -72,7 +74,7 @@ def get_destination_config(pipeline: dlt.Pipeline) -> DestinationClientConfigura
 
 def pipeline_details(
     c: DashboardConfiguration, pipeline: dlt.Pipeline, pipelines_dir: str
-) -> List[Dict[str, Any]]:
+) -> List[TNameValueItem]:
     """Get the details of a pipeline as name/value table items."""
     try:
         credentials = str(get_destination_config(pipeline).credentials)
@@ -106,7 +108,7 @@ def pipeline_details(
     return table_items
 
 
-def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
+def remote_state_details(pipeline: dlt.Pipeline) -> List[TNameValueItem]:
     """Get the remote state details of a pipeline."""
     error_details = ""
     remote_state = None
@@ -154,7 +156,7 @@ def open_local_folder(folder: str) -> None:
         subprocess.run(["xdg-open", folder], check=True)
 
 
-def pipeline_link_list(config: DashboardConfiguration, pipelines: List[Dict[str, Any]]) -> str:
+def pipeline_link_list(config: DashboardConfiguration, pipelines: List[TPipelineListItem]) -> str:
     """Build a markdown list of links to pipelines."""
     if not pipelines:
         return strings.overview_no_pipelines
@@ -177,7 +179,7 @@ def pipeline_link_list(config: DashboardConfiguration, pipelines: List[Dict[str,
     return link_list
 
 
-def exception_section(p: dlt.Pipeline) -> List[Any]:
+def exception_section(p: dlt.Pipeline) -> List[mo.Html]:
     """Build an exception section for a pipeline"""
     if not p or not p.last_trace:
         return []

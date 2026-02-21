@@ -1,6 +1,6 @@
 """Pipeline execution timeline visualization and load package status badges."""
 
-from typing import Any, Dict, List, Optional, Tuple, NamedTuple, cast, get_args
+from typing import Dict, List, Optional, Tuple, NamedTuple, Union, cast, get_args
 
 from dlt.common.pendulum import datetime
 
@@ -195,7 +195,7 @@ def load_package_status_labels(trace: PipelineTrace) -> mo.ui.table:
     package is partially loaded, pending, or in a final state.
     """
     packages = collect_load_packages_from_trace(trace)
-    result: List[Dict[str, Any]] = []
+    result: List[Dict[str, Union[str, mo.Html]]] = []
 
     for package in packages:
         is_partial = PackageStorage.is_package_partially_loaded(package)

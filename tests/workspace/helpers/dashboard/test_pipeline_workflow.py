@@ -8,6 +8,7 @@ from dlt._workspace.helpers.dashboard.utils.queries import (
     get_row_counts,
     get_loads,
 )
+from dlt._workspace.helpers.dashboard.utils.ui import dlt_table
 
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
@@ -24,7 +25,7 @@ def test_integration_pipeline_workflow(pipeline, temp_pipelines_dir):
     details = pipeline_details(config, pipeline, temp_pipelines_dir)
 
     # check it can be rendered as table with marimo
-    assert mo.ui.table(details).text is not None
+    assert dlt_table(details).text is not None
 
     details_dict = {item["name"]: item["value"] for item in details}
     assert details_dict["pipeline_name"] == pipeline.pipeline_name

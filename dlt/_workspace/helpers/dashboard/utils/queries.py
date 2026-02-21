@@ -1,7 +1,7 @@
 """SQL query execution, row counts, and load history retrieval."""
 
 import traceback
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import marimo as mo
 
@@ -109,7 +109,7 @@ _query_result_cache: Dict[Tuple[str, str, str], pyarrow.Table] = {}
 
 def get_row_counts(
     pipeline: dlt.Pipeline, selected_schema_name: str = None, load_id: str = None
-) -> Dict[str, Any]:
+) -> Dict[str, int]:
     """Get the row counts for a pipeline as a dict of {table_name: count}."""
     row_counts = {}
     try:
@@ -135,17 +135,19 @@ def get_row_counts(
 
 def get_row_counts_list(
     pipeline: dlt.Pipeline, selected_schema_name: str = None, load_id: str = None
-) -> List[Dict[str, Any]]:
+) -> List[Dict[str, Union[str, int]]]:
     """Get the row counts for a pipeline as a list of {name, row_count} dicts."""
     row_counts_dict = get_row_counts(pipeline, selected_schema_name, load_id)
-    row_counts = [{"name": k, "row_count": v} for k, v in row_counts_dict.items()]
+    row_counts: List[Dict[str, Union[str, int]]] = [
+        {"name": k, "row_count": v} for k, v in row_counts_dict.items()
+    ]
     row_counts.sort(key=lambda x: str(x["name"]))
     return row_counts
 
 
 def get_loads(
     c: DashboardConfiguration, pipeline: dlt.Pipeline, limit: int = 100
-) -> Tuple[Any, str, str]:
+) -> Tuple[List[Dict[str, Any]], Optional[str], Optional[str]]:
     """Get the loads of a pipeline. Returns (loads_list, error_message, traceback)."""
     try:
         loads = (
@@ -168,11 +170,11 @@ def build_load_details(
     schema_name: str,
     version_hash: str,
     load_id: str,
-) -> List[Any]:
+) -> List[mo.Html]:
     """Build the load detail widgets: row counts and schema version accordion."""
     from dlt._workspace.helpers.dashboard.utils import ui
 
-    result: List[Any] = []
+    result: List[mo.Html] = []
 
     with mo.status.spinner(title=strings.loads_details_loading_spinner_text):
         _schema = get_schema_by_version(pipeline, version_hash)

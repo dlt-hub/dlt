@@ -2,6 +2,8 @@
 
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
+from dlt._workspace.helpers.dashboard.types import TNameValueItem
+
 import marimo as mo
 
 import dlt
@@ -19,12 +21,12 @@ from dlt._workspace.helpers.dashboard.utils.ui import small
 
 def schemas_to_table_items(
     schemas: Iterable[Schema], default_schema_name: str
-) -> List[Dict[str, Any]]:
+) -> List[TNameValueItem]:
     """Convert a list of schemas to name/value display items, with default schema first."""
     schemas = sorted(
         schemas, key=lambda s: 0 if getattr(s, "name", None) == default_schema_name else 1
     )
-    table_items = []
+    table_items: List[TNameValueItem] = []
     count = 0
     for schema in schemas:
         table_items.append(
@@ -48,7 +50,7 @@ def create_table_list(
     show_internals: bool = False,
     show_child_tables: bool = True,
     show_row_counts: bool = False,
-) -> List[Dict[str, Any]]:
+) -> List[Dict[str, Union[str, int, None]]]:
     """Create a list of tables for the pipeline, optionally including internals, child tables, and row counts."""
     from dlt._workspace.helpers.dashboard.utils.queries import get_row_counts
 
@@ -165,7 +167,7 @@ def _fetch_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schem
 
 def build_resource_state_widget(
     pipeline: dlt.Pipeline, schema_name: str, table_name: str
-) -> Optional[Any]:
+) -> Optional[mo.Html]:
     """Build source/resource state accordion for the given table, or None if not applicable."""
     schema_table = pipeline.schemas[schema_name].tables[table_name]
     resource_name, source_state, resource_state = get_source_and_resource_state_for_table(
