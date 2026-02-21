@@ -333,7 +333,7 @@ def section_data_quality_raw_table(
 
 @app.cell(hide_code=True)
 def section_browse_data_table_list(
-    dlt_clear_query_cache: mo.ui.run_button,
+    dlt_clear_result_cache: mo.ui.run_button,
     dlt_data_table_list: mo.ui.table,
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
@@ -428,7 +428,7 @@ def section_browse_data_table_list(
             ]
 
             _result.append(
-                mo.hstack([dlt_run_query_button, dlt_clear_query_cache], justify="start")
+                mo.hstack([dlt_run_query_button, dlt_clear_result_cache], justify="start")
             )
     elif _show:
         # here we also use the no schemas text, as it is appropriate for the case where we have no table information.
@@ -444,11 +444,11 @@ def section_browse_data_query_result(
     dlt_query_editor: mo.ui.code_editor,
     dlt_run_query_button: mo.ui.run_button,
     dlt_section_browse_data_switch: mo.ui.switch,
-    dlt_clear_query_cache: mo.ui.run_button,
+    dlt_clear_result_cache: mo.ui.run_button,
     dlt_get_last_query_result,
     dlt_set_last_query_result,
-    dlt_set_query_cache,
-    dlt_get_query_cache,
+    dlt_set_query_history,
+    dlt_get_query_history,
 ):
     """
     Execute the query in the editor
@@ -469,7 +469,7 @@ def section_browse_data_query_result(
         _error_message: str = None
         with mo.status.spinner(title=strings.browse_data_loading_spinner_text):
             if dlt_query_editor.value and (dlt_run_query_button.value):
-                if dlt_clear_query_cache.value:
+                if dlt_clear_result_cache.value:
                     utils.queries.clear_query_cache()
                 dlt_query = dlt_query_editor.value
                 _query_result, _error_message, _traceback_string = utils.queries.get_query_result(
@@ -491,18 +491,17 @@ def section_browse_data_query_result(
         if _last_result is not None:
             _result.append(utils.ui.dlt_table(_last_result, freeze_column=None))
 
-        # update cache if there was no error
+        # update query history if there was no error
         if _last_result is not None and not _error_message:
-            # update query cache
-            cache = dlt_get_query_cache()
             if dlt_query:
-                # insert into dict with re-ordering most recent first:
-                cache.pop(dlt_query, None)
-                cache = {dlt_query: _last_result.shape[0], **cache}
-            dlt_set_query_cache(cache)
+                dlt_set_query_history(
+                    utils.queries.update_query_history(
+                        dlt_get_query_history(), dlt_query, _last_result.shape[0]
+                    )
+                )
 
     # provide query history table
-    _query_history = dlt_get_query_cache()
+    _query_history = dlt_get_query_history()
     if _query_history:
         dlt_query_history_table = utils.ui.dlt_table(
             [{"query": q, "row_count": _query_history[q]} for q in _query_history],
@@ -614,7 +613,7 @@ def section_trace(
 @app.cell(hide_code=True)
 def section_loads(
     dlt_config: DashboardConfiguration,
-    dlt_clear_query_cache: mo.ui.run_button,
+    dlt_clear_result_cache: mo.ui.run_button,
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
     dlt_section_loads_switch: mo.ui.switch,
@@ -649,7 +648,7 @@ def section_loads(
                     )
                 )
             _result.append(dlt_loads_table)
-            _result.append(dlt_clear_query_cache)
+            _result.append(dlt_clear_result_cache)
     mo.vstack(_result)
     return (dlt_loads_table,)
 
@@ -822,20 +821,17 @@ def utils_discover_schemas(dlt_pipeline: dlt.Pipeline):
 
 
 @app.cell(hide_code=True)
-def utils_caches_and_state(
-    dlt_clear_query_cache: mo.ui.run_button,
+def state_and_cache_reset(
+    dlt_clear_result_cache: mo.ui.run_button,
     dlt_pipeline: dlt.Pipeline,
 ):
-    """
-    Purge caches of the currently selected pipeline
-    """
+    """State variables for query results and history, plus cache clearing."""
 
-    # some state variables
     dlt_get_last_query_result, dlt_set_last_query_result = mo.state(pyarrow.table({}))
-    # a cache of query results in the form of {query: row_count}
-    dlt_get_query_cache, dlt_set_query_cache = mo.state(cast(Dict[str, int], {}))
+    # query history: maps query text to row count for the history sidebar
+    dlt_get_query_history, dlt_set_query_history = mo.state(cast(Dict[str, int], {}))
 
-    if dlt_clear_query_cache.value:
+    if dlt_clear_result_cache.value:
         utils.queries.clear_query_cache()
 
     return
@@ -902,14 +898,14 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_schema_show_custom_hints: mo.ui.switch = mo.ui.switch(
         label=utils.ui.small(strings.ui_show_custom_hints), value=False
     )
-    dlt_clear_query_cache: mo.ui.run_button = mo.ui.run_button(
+    dlt_clear_result_cache: mo.ui.run_button = mo.ui.run_button(
         label=utils.ui.small(strings.ui_clear_cache)
     )
     dlt_restrict_to_last_1000: mo.ui.switch = mo.ui.switch(
         label=utils.ui.small(strings.ui_limit_to_1000_rows), value=True
     )
     return (
-        dlt_clear_query_cache,
+        dlt_clear_result_cache,
         dlt_restrict_to_last_1000,
         dlt_schema_show_child_tables,
         dlt_schema_show_custom_hints,

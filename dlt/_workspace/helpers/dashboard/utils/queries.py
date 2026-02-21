@@ -27,6 +27,16 @@ def clear_query_cache() -> None:
     _query_result_cache.clear()
 
 
+def update_query_history(
+    current_history: Dict[str, int],
+    query: str,
+    row_count: int,
+) -> Dict[str, int]:
+    """Update query history dict, placing most recent query first."""
+    current_history.pop(query, None)
+    return {query: row_count, **current_history}
+
+
 def get_default_query_for_table(
     pipeline: dlt.Pipeline, schema_name: str, table_name: str, limit: bool
 ) -> Tuple[str, str, str]:
