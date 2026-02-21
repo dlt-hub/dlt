@@ -210,6 +210,9 @@ While Fabric Warehouse is based on SQL Server, there are key differences:
 3. **Collation**: Optimized for UTF-8 collations with automatic `LongAsMax` configuration
 4. **SQL Dialect**: Uses `fabric` SQLglot dialect for proper SQL generation
 
+### dbt support
+Integration with [dbt](../transformations/dbt/dbt.md) is supported via [dbt-fabric](https://github.com/Microsoft/dbt-fabric). Both Service Principal and default Azure credentials are supported and shared with dbt runners.
+
 ## Troubleshooting
 
 ### ODBC Driver Not Found

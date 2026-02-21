@@ -303,13 +303,14 @@ dashboard-tests = [
 providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
 dbt = [
-    "dbt-core>=1.5.0",
-    "dbt-redshift>=1.5.0",
-    "dbt-bigquery>=1.5.0",
-    "dbt-duckdb>=1.5.0",
-    "dbt-snowflake>=1.5.0",
-    "dbt-athena-community>=1.5.0",
-    "dbt-sqlserver>=1.5.0 ; python_version < '3.13'",
+    "dbt-core>=1.7.0",
+    "dbt-redshift>=1.7.0",
+    "dbt-bigquery>=1.7.0",
+    "dbt-duckdb>=1.7.0",
+    "dbt-snowflake>=1.7.0",
+    "dbt-athena-community>=1.7.0",
+    "dbt-sqlserver>=1.7.0 ; python_version < '3.13'",
+    "dbt-fabric>=1.7.0 ; python_version < '3.13'",
 ]
 adbc = [
     "dbc>=0.1.0",
