@@ -150,12 +150,7 @@ def test_build_load_details(pipeline: dlt.Pipeline):
     assert len(loads) >= 1
 
     load = loads[0]
-    result = build_load_details(
-        pipeline,
-        load["schema_name"],
-        load["schema_version_hash"],
-        load["load_id"],
-    )
+    result = build_load_details(pipeline, load)
     assert isinstance(result, list)
     assert len(result) >= 1
     assert mo.vstack(result).text is not None

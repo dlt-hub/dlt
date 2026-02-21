@@ -2,6 +2,16 @@
 # Reusable string parts
 #
 
+from typing import NamedTuple
+
+
+class TSectionStrings(NamedTuple):
+    section_name: str
+    title: str
+    subtitle: str
+    subtitle_long: str
+
+
 _help_url = "https://dlthub.com/docs/general-usage/dataset-access/dashboard"
 _credentials_help_url = _help_url + "#credentials"
 _sync_help_url = "https://dlthub.com/docs/reference/command-line-interface#dlt-pipeline-sync"
@@ -108,9 +118,12 @@ home_error_rendering_home = "Error while rendering the home dashboard."
 #
 # Overview section
 #
-overview_section_name = "overview_section"
-overview_title = "Pipeline Info"
-overview_subtitle = "Basic properties of the selected pipeline"
+overview = TSectionStrings(
+    "overview_section",
+    "Pipeline Info",
+    "Basic properties of the selected pipeline",
+    "Basic properties of the selected pipeline",
+)
 overview_remote_state_title = "Remote State"
 overview_remote_state_subtitle = (
     "The remote state and schemas of the pipeline as discovered on the destination."
@@ -127,13 +140,13 @@ overview_last_executed_label = " - last executed: "
 #
 # Schema section
 #
-schema_section_name = "schema_section"
-schema_title = "Dataset Browser: Schema"
-schema_subtitle = "Browse the default schema of the selected pipeline"
-schema_subtitle_long = (
+schema = TSectionStrings(
+    "schema_section",
+    "Dataset Browser: Schema",
+    "Browse the default schema of the selected pipeline",
     "Browse the selected schema of the current pipeline. The following list shows all tables "
     "found in the dlt schema of the current pipeline. In some cases, the dlt schema may differ "
-    "from the actual schema materialized in the destination."
+    "from the actual schema materialized in the destination.",
 )
 
 schema_no_default_available_text = f"No schemas found for this pipeline. {_credentials_info}"
@@ -161,14 +174,15 @@ ui_limit_to_1000_rows = "Limit to 1000 rows"
 #
 # Browse data section
 #
-browse_data_section_name = "browse_data_section"
-browse_data_title = "Dataset Browser: Data and Source/Resource State"
-browse_data_subtitle = "Browse data from the current pipeline."
-browse_data_subtitle_long = (
+browse_data = TSectionStrings(
+    "browse_data_section",
+    "Dataset Browser: Data and Source/Resource State",
+    "Browse data from the current pipeline.",
     "Browse data from the current pipeline. Select a table from the list to start, or write an SQL"
     " query in the text area below. Clicking the row counts button will load the row counts for all"
     " tables from the destination. To reload the row counts, click the button again."
-    " The resource state of the currently selected table will also be displayed if it is available."
+    " The resource state of the currently selected table will also be displayed if it is"
+    " available.",
 )
 
 browse_data_error_text = "Dashboard is not able to read data from this destination. "
@@ -197,16 +211,22 @@ browse_data_loading_spinner_text = "Loading data from destination..."
 #
 # State section
 #
-state_section_name = "state_section"
-state_title = "Pipeline State"
-state_subtitle = "A raw view of the currently stored pipeline state."
+state = TSectionStrings(
+    "state_section",
+    "Pipeline State",
+    "A raw view of the currently stored pipeline state.",
+    "A raw view of the currently stored pipeline state.",
+)
 
 #
 # Data quality section
 #
-data_quality_section_name = "data_quality_section"
-data_quality_title = "Data Quality"
-data_quality_subtitle = "View the results of your data quality checks."
+data_quality = TSectionStrings(
+    "data_quality_section",
+    "Data Quality",
+    "View the results of your data quality checks.",
+    "View the results of your data quality checks.",
+)
 data_quality_show_raw_table = "Show Raw Table"
 data_quality_not_available = "**dltHub data quality module is not available.**"
 data_quality_loading_raw_table_spinner = "Loading raw data quality checks table..."
@@ -217,12 +237,15 @@ data_quality_raw_table_not_available = "dltHub data quality module is not availa
 #
 # Trace section
 #
-trace_section_name = "trace_section"
-trace_title = "Last Pipeline Run Trace"
-trace_subtitle = (
+trace = TSectionStrings(
+    "trace_section",
+    "Last Pipeline Run Trace",
     "An overview of the last load trace from the most recent successful run of the selected"
-    " pipeline, if available."
+    " pipeline, if available.",
+    "An overview of the last load trace from the most recent successful run of the selected"
+    " pipeline, if available.",
 )
+
 trace_show_raw_trace_text = "Show"
 trace_no_trace_text = (
     "No local trace available for this pipeline. This probably means that your pipeline"
@@ -255,18 +278,17 @@ trace_error_building_section = "Error while building trace section: {}"
 #
 # Loads section
 #
-loads_section_name = "loads_section"
-loads_title = "Pipeline Loads"
-loads_subtitle = (
+loads = TSectionStrings(
+    "loads_section",
+    "Pipeline Loads",
     "View a list of all loads that have been executed on the destination dataset of the "
-    "selected pipeline."
-)
-loads_subtitle_long = (
+    "selected pipeline.",
     "View a list of all loads that have been executed on the destination dataset of the selected"
     " pipeline. Select one to see all available details. Additional data will be loaded from the"
     " destination, such as the row count for that load and the schema for this load. Depending on"
-    " the destination and your data, this might take some time."
+    " the destination and your data, this might take some time.",
 )
+
 loads_loading_failed_text = "Failed to fetch load history from destination. "
 loads_loading_spinner_text = "Fetching load history from destination..."
 
@@ -289,11 +311,15 @@ loads_details_error_text = "Error loading load details. "
 #
 # Ibis backend section
 #
-ibis_backend_section_name = "ibis_backend_section"
-ibis_backend_title = "Ibis Backend"
-ibis_backend_subtitle = (
+_ibis_backend_subtitle = (
     "Connect to the Ibis backend for the selected pipeline. This will make "
     "the destination available in the Marimo datasources panel."
+)
+ibis_backend = TSectionStrings(
+    "ibis_backend_section",
+    "Ibis Backend",
+    _ibis_backend_subtitle,
+    _ibis_backend_subtitle,
 )
 ibis_backend_connected_text = (
     "The Ibis backend connected successfully. If you are in Marimo edit mode, you can now see "

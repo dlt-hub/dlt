@@ -104,7 +104,7 @@ def test_exception_pipeline(
     expect(page.get_by_text("_local")).to_be_visible()
 
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # loads page
@@ -227,7 +227,7 @@ def test_simple_incremental_pipeline(
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text("execution_context").nth(0)
@@ -270,7 +270,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text("execution_context").nth(0)
@@ -309,7 +309,7 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any, pipelines_dir: 
     expect(page.get_by_text("_local")).to_be_visible()
 
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     expect(page.get_by_text(app_strings.trace_no_trace_text.strip()).nth(0)).to_be_visible()
 
     # loads page
@@ -349,7 +349,7 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipel
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text("execution_context").nth(0)

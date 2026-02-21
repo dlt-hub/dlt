@@ -2,6 +2,7 @@ import marimo as mo
 import dlt
 
 
+from dlt._workspace.helpers.dashboard.strings import TSectionStrings
 from dlt._workspace.helpers.dashboard.utils.ui import (
     title_and_subtitle,
     page_header,
@@ -25,19 +26,16 @@ def test_page_header(success_pipeline_duckdb: dlt.Pipeline):
     title = "Test Title"
     subtitle = "Test Subtitle"
     subtitle_long = "Test Alternative Subtitle Long"
+    ss = TSectionStrings("test_section", title, subtitle, subtitle_long)
 
     # not opened
-    html = page_header(success_pipeline_duckdb, title, subtitle, subtitle_long, mo.ui.button())[
-        0
-    ].text
+    html = page_header(success_pipeline_duckdb, ss, mo.ui.switch(value=False))[0].text
     assert title in html
     assert subtitle in html
     assert subtitle_long not in html
 
     # opened
-    html = page_header(
-        success_pipeline_duckdb, title, subtitle, subtitle_long, mo.ui.button(value=True)
-    )[0].text
+    html = page_header(success_pipeline_duckdb, ss, mo.ui.switch(value=True))[0].text
     assert title in html
     assert subtitle not in html
     assert subtitle_long in html
@@ -70,37 +68,18 @@ def test_section_marker():
 
 
 def test_section(success_pipeline_duckdb: dlt.Pipeline):
-    result, show = section(
-        "test_section",
-        success_pipeline_duckdb,
-        "Title",
-        "Subtitle",
-        "Long subtitle",
-        mo.ui.switch(value=True),
-    )
+    ss = TSectionStrings("test_section", "Title", "Subtitle", "Long subtitle")
+
+    result, show = section(ss, success_pipeline_duckdb, mo.ui.switch(value=True))
     assert show is True
     assert len(result) >= 1
 
     # switch off: should not show content
-    result, show = section(
-        "test_section",
-        success_pipeline_duckdb,
-        "Title",
-        "Subtitle",
-        "Long subtitle",
-        mo.ui.switch(value=False),
-    )
+    result, show = section(ss, success_pipeline_duckdb, mo.ui.switch(value=False))
     assert show is False
 
     # no pipeline: should not show content
-    result, show = section(
-        "test_section",
-        None,
-        "Title",
-        "Subtitle",
-        "Long subtitle",
-        mo.ui.switch(value=True),
-    )
+    result, show = section(ss, None, mo.ui.switch(value=True))
     assert show is False
 
 

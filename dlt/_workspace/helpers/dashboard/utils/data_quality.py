@@ -90,7 +90,6 @@ def build_dq_section(
         result.append(
             ui.error_callout(
                 strings.data_quality_error_loading.format(exc),
-                traceback_string=traceback.format_exc(),
             )
         )
 
@@ -145,7 +144,6 @@ def build_dq_raw_table(
         result.append(
             ui.error_callout(
                 strings.data_quality_raw_table_error.format(exc),
-                traceback_string=traceback.format_exc(),
             )
         )
 

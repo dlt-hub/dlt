@@ -10,6 +10,7 @@ import traceback
 import dlt
 
 from dlt._workspace.helpers.dashboard import strings
+from dlt._workspace.helpers.dashboard.strings import TSectionStrings
 from dlt._workspace.helpers.dashboard.utils.formatters import align_dict_keys
 
 
@@ -131,9 +132,7 @@ def title_and_subtitle(title: str, subtitle: str = None, title_level: int = 2) -
 
 def page_header(
     dlt_pipeline: dlt.Pipeline,
-    title: str,
-    subtitle: str,
-    subtitle_long: str,
+    section_strings: TSectionStrings,
     button: mo.ui.switch = None,
 ) -> List[mo.Html]:
     """Build a page header with a title, a subtitle, button and conditional longer subtitle"""
@@ -141,7 +140,10 @@ def page_header(
         return []
     header = mo.hstack(
         [
-            title_and_subtitle(title, subtitle if not button.value else subtitle_long),
+            title_and_subtitle(
+                section_strings.title,
+                section_strings.subtitle if not button.value else section_strings.subtitle_long,
+            ),
             button,
         ],
         align="center",
@@ -167,11 +169,8 @@ def section_marker(section_name: str, has_content: bool = False) -> mo.Html:
 
 
 def section(
-    section_name: str,
+    section_strings: TSectionStrings,
     dlt_pipeline: dlt.Pipeline,
-    title: str,
-    subtitle: str,
-    subtitle_long: str,
     switch: mo.ui.switch,
 ) -> Tuple[List[mo.Html], bool]:
     """Build standard section boilerplate: marker + page header.
@@ -182,7 +181,7 @@ def section(
         should_render_content is True, then call ``mo.vstack(result)``.
     """
     result = [
-        section_marker(section_name, has_content=dlt_pipeline is not None),
+        section_marker(section_strings.section_name, has_content=dlt_pipeline is not None),
     ]
-    result.extend(page_header(dlt_pipeline, title, subtitle, subtitle_long, switch))
+    result.extend(page_header(dlt_pipeline, section_strings, switch))
     return result, bool(dlt_pipeline and switch.value)

@@ -169,18 +169,16 @@ def get_loads(
 
 def build_load_details(
     pipeline: dlt.Pipeline,
-    schema_name: str,
-    version_hash: str,
-    load_id: str,
+    load: TLoadItem,
 ) -> List[mo.Html]:
     """Build the load detail widgets: row counts and schema version accordion."""
     from dlt._workspace.helpers.dashboard.utils import ui
 
-    result: List[mo.Html] = []
+    result: List[mo.Html] = [mo.md(strings.loads_details_title.format(load["load_id"]))]
 
     with mo.status.spinner(title=strings.loads_details_loading_spinner_text):
-        _schema = get_schema_by_version(pipeline, version_hash)
-        _row_counts = get_row_counts_list(pipeline, schema_name, load_id)
+        _schema = get_schema_by_version(pipeline, load["schema_version_hash"])
+        _row_counts = get_row_counts_list(pipeline, load["schema_name"], load["load_id"])
 
     result.append(
         ui.title_and_subtitle(

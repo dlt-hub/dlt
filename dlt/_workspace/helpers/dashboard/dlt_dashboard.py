@@ -26,7 +26,6 @@ with app.setup:
 
     import dlt
     import pyarrow
-    import traceback
     from dlt.common import logger
     from dlt._workspace.helpers.dashboard import strings
     from dlt._workspace.helpers.dashboard import utils
@@ -55,26 +54,25 @@ def home(
     # returned by cell
     dlt_pipeline: dlt.Pipeline = None
     dlt_config: DashboardConfiguration = None
-    _stack: List[mo.Html] = []
+    _result: List[mo.Html] = []
 
     if dlt_pipeline_name:
         try:
             dlt_pipeline = utils.pipeline.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
             dlt_config = utils.pipeline.resolve_dashboard_config(dlt_pipeline)
         except Exception:
-            _stack = utils.home.render_pipeline_header_row(
+            _result = utils.home.render_pipeline_header_row(
                 dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, [dlt_refresh_button]
             )
-            _stack.append(
+            _result.append(
                 utils.ui.error_callout(
                     strings.home_error_attach_pipeline.format(dlt_pipeline_name),
-                    traceback_string=traceback.format_exc(),
                 )
             )
 
         if dlt_pipeline:
             try:
-                _stack = utils.home.render_pipeline_home(
+                _result = utils.home.render_pipeline_home(
                     dlt_profile_select,
                     dlt_pipeline,
                     dlt_pipeline_select,
@@ -83,17 +81,16 @@ def home(
                     dlt_pipeline_name,
                 )
             except Exception:
-                _stack = [
+                _result = [
                     utils.ui.error_callout(
                         strings.home_error_rendering_pipeline,
                         strings.home_error_rendering_pipeline_detail,
-                        traceback_string=traceback.format_exc(),
                     )
                 ]
     else:
         try:
             dlt_config = utils.pipeline.resolve_dashboard_config(None)
-            _stack = utils.home.render_workspace_home(
+            _result = utils.home.render_workspace_home(
                 dlt_profile_select,
                 dlt_all_pipelines,
                 dlt_pipeline_select,
@@ -101,14 +98,13 @@ def home(
                 dlt_config,
             )
         except Exception:
-            _stack = [
+            _result = [
                 utils.ui.error_callout(
                     strings.home_error_rendering_home,
-                    traceback_string=traceback.format_exc(),
                 )
             ]
 
-    mo.vstack(_stack)
+    mo.vstack(_result)
     return (dlt_pipeline, dlt_config)
 
 
@@ -124,14 +120,7 @@ def section_info(
     Overview page of currently selected pipeline
     """
 
-    _result, _show = utils.ui.section(
-        strings.overview_section_name,
-        dlt_pipeline,
-        strings.overview_title,
-        strings.overview_subtitle,
-        strings.overview_subtitle,
-        dlt_section_info_switch,
-    )
+    _result, _show = utils.ui.section(strings.overview, dlt_pipeline, dlt_section_info_switch)
 
     if _show:
         _result += [
@@ -177,14 +166,7 @@ def section_schema(
     Show schema of the currently selected pipeline
     """
 
-    _result, _show = utils.ui.section(
-        strings.schema_section_name,
-        dlt_pipeline,
-        strings.schema_title,
-        strings.schema_subtitle,
-        strings.schema_subtitle_long,
-        dlt_section_schema_switch,
-    )
+    _result, _show = utils.ui.section(strings.schema, dlt_pipeline, dlt_section_schema_switch)
 
     if _show and dlt_schema_table_list is None:
         _result.append(
@@ -217,10 +199,10 @@ def section_schema(
             ),
         )
 
-        for table in cast(List[TTableListItem], dlt_schema_table_list.value):
-            _table_name = table["name"]
+        for _table in cast(List[TTableListItem], dlt_schema_table_list.value):
+            _table_name = _table["name"]
             _result.append(mo.md(strings.schema_table_columns_title.format(_table_name)))
-            columns_list = utils.schema.create_column_list(
+            _columns_list = utils.schema.create_column_list(
                 dlt_config,
                 dlt_pipeline,
                 _table_name,
@@ -230,7 +212,7 @@ def section_schema(
                 show_other_hints=dlt_schema_show_other_hints.value,
                 show_custom_hints=dlt_schema_show_custom_hints.value,
             )
-            _result.append(utils.ui.dlt_table(columns_list))
+            _result.append(utils.ui.dlt_table(_columns_list))
 
         # add raw schema
         _result.append(utils.ui.title_and_subtitle(strings.schema_raw_yaml_title))
@@ -290,12 +272,7 @@ def section_data_quality(
         _result: List[mo.Html] = []
     else:
         _result, _show = utils.ui.section(
-            strings.data_quality_section_name,
-            dlt_pipeline,
-            strings.data_quality_title,
-            strings.data_quality_subtitle,
-            strings.data_quality_subtitle,
-            dlt_section_data_quality_switch,
+            strings.data_quality, dlt_pipeline, dlt_section_data_quality_switch
         )
         if _show:
             _dq_widgets, dlt_data_quality_show_raw_table_switch = (
@@ -356,12 +333,7 @@ def section_browse_data_table_list(
     """
 
     _result, _show = utils.ui.section(
-        strings.browse_data_section_name,
-        dlt_pipeline,
-        strings.browse_data_title,
-        strings.browse_data_subtitle,
-        strings.browse_data_subtitle_long,
-        dlt_section_browse_data_switch,
+        strings.browse_data, dlt_pipeline, dlt_section_browse_data_switch
     )
 
     dlt_query_editor: mo.ui.code_editor = None
@@ -563,14 +535,7 @@ def section_state(
     """
     Show state of the currently selected pipeline
     """
-    _result, _show = utils.ui.section(
-        strings.state_section_name,
-        dlt_pipeline,
-        strings.state_title,
-        strings.state_subtitle,
-        strings.state_subtitle,
-        dlt_section_state_switch,
-    )
+    _result, _show = utils.ui.section(strings.state, dlt_pipeline, dlt_section_state_switch)
 
     if _show:
         _result.append(
@@ -593,14 +558,7 @@ def section_trace(
     Show last trace of the currently selected pipeline
     """
 
-    _result, _show = utils.ui.section(
-        strings.trace_section_name,
-        dlt_pipeline,
-        strings.trace_title,
-        strings.trace_subtitle,
-        strings.trace_subtitle,
-        dlt_section_trace_switch,
-    )
+    _result, _show = utils.ui.section(strings.trace, dlt_pipeline, dlt_section_trace_switch)
 
     if _show:
         try:
@@ -611,7 +569,6 @@ def section_trace(
             _result.append(
                 utils.ui.error_callout(
                     strings.trace_error_building_section.format(exc),
-                    traceback_string=traceback.format_exc(),
                 )
             )
     mo.vstack(_result)
@@ -630,14 +587,7 @@ def section_loads(
     Show loads of the currently selected pipeline
     """
 
-    _result, _show = utils.ui.section(
-        strings.loads_section_name,
-        dlt_pipeline,
-        strings.loads_title,
-        strings.loads_subtitle,
-        strings.loads_subtitle_long,
-        dlt_section_loads_switch,
-    )
+    _result, _show = utils.ui.section(strings.loads, dlt_pipeline, dlt_section_loads_switch)
 
     if _show:
         _result.append(mo.hstack([dlt_restrict_to_last_1000], justify="start"))
@@ -679,17 +629,8 @@ def section_loads_results(
         and dlt_loads_table.value
     ):
         _selected_load = cast(List[TLoadItem], dlt_loads_table.value)[0]
-        _load_id = _selected_load["load_id"]
-        _schema_name = _selected_load["schema_name"]
-        _version_hash = _selected_load["schema_version_hash"]
-        _result.append(mo.md(strings.loads_details_title.format(_load_id)))
-
         try:
-            _result.extend(
-                utils.queries.build_load_details(
-                    dlt_pipeline, _schema_name, _version_hash, _load_id
-                )
-            )
+            _result.extend(utils.queries.build_load_details(dlt_pipeline, _selected_load))
         except Exception:
             _result.append(utils.ui.error_callout(strings.loads_details_error_text))
     mo.vstack(_result)
@@ -705,12 +646,7 @@ def section_ibis_backend(
     Connects to ibis backend and makes it available in the datasources panel
     """
     _result, _show = utils.ui.section(
-        strings.ibis_backend_section_name,
-        dlt_pipeline,
-        strings.ibis_backend_title,
-        strings.ibis_backend_subtitle,
-        strings.ibis_backend_subtitle,
-        dlt_section_ibis_browser_switch,
+        strings.ibis_backend, dlt_pipeline, dlt_section_ibis_browser_switch
     )
 
     if _show:
