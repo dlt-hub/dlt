@@ -73,7 +73,7 @@ def trace_step_details(c: DashboardConfiguration, trace: PipelineTrace, step_id:
             if "table_metrics" in info_section:
                 _result.append(
                     ui.title_and_subtitle(
-                        f"{step_id} table metrics",
+                        strings.trace_table_metrics_title.format(step_id),
                         title_level=4,
                     )
                 )
@@ -84,7 +84,7 @@ def trace_step_details(c: DashboardConfiguration, trace: PipelineTrace, step_id:
             if "job_metrics" in info_section:
                 _result.append(
                     ui.title_and_subtitle(
-                        f"{step_id} job metrics",
+                        strings.trace_job_metrics_title.format(step_id),
                         title_level=4,
                     )
                 )

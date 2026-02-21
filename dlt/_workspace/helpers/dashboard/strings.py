@@ -25,6 +25,8 @@ app_intro = """
 """
 app_pipeline_select_label = "Pipeline:"
 app_schema_select_label = "Schema:"
+app_profile_select_label = "Profile:"
+app_refresh_button = "Refresh"
 app_title_pipeline = """
 ## Pipeline `{}`
 """
@@ -37,7 +39,7 @@ You requested to view a pipeline named `{{}}` but it does not exist in the pipel
 1. Select a different pipeline in the dropdown above.
 2. Run a pipeline with this name on this machine, then click the refresh button.
 3. Ensure you have set the correct pipelines directory (using the `pipelines_dir` CLI argument).
-4. Restore a pipeline with this name from a destination using [`dlt pipeline sync`]({_sync_help_url})
+4. Restore a pipeline with this name from a destination using [`dlt pipeline sync`]({_sync_help_url}).
 
 This page will automatically refresh with your pipeline data once you have run a pipeline with this name on this machine.
 
@@ -88,7 +90,19 @@ If the dashboard cannot connect to the destination, you will receive a warning a
 
 """
 
+home_workspace_label = " Workspace: {}"
+home_open_working_dir_button = "Open pipeline working directory"
+home_open_local_data_button = "Open local data location"
+home_syncing_spinner_text = "Syncing pipeline list from runtime..."
+
 view_load_packages_text = "Status of load packages from last execution"
+
+home_error_attach_pipeline = "Could not attach to pipeline {}."
+home_error_rendering_pipeline = "Error while rendering the pipeline dashboard."
+home_error_rendering_pipeline_detail = (
+    "Some sections may work, but not all functionality may be available."
+)
+home_error_rendering_home = "Error while rendering the home dashboard."
 
 
 #
@@ -99,9 +113,16 @@ overview_title = "Pipeline Info"
 overview_subtitle = "Basic properties of the selected pipeline"
 overview_remote_state_title = "Remote State"
 overview_remote_state_subtitle = (
-    "The remote state and schemas of the pipeline as discovered on the destination"
+    "The remote state and schemas of the pipeline as discovered on the destination."
 )
 overview_remote_state_button = "Load and show remote state"
+overview_no_destination = "No destination set"
+overview_no_trace = "No trace found"
+overview_no_state = "No state found"
+overview_credentials_error = "Could not resolve credentials."
+overview_remote_state_error = "Could not restore state from destination."
+overview_no_pipelines = "No pipelines found."
+overview_last_executed_label = " - last executed: "
 
 #
 # Schema section
@@ -120,6 +141,9 @@ schema_table_details_title = "Table Details for Selected Tables"
 schema_table_columns_title = "`{}` Columns"
 schema_raw_yaml_title = "Raw Schema as YAML"
 schema_show_raw_yaml_text = "Show raw schema as YAML"
+schema_source_state_label = "Source state for {}"
+schema_resource_state_label = "Resource state for resource {}"
+schema_show_resource_state = "Show source and resource state for resource {} which created table {}"
 
 #
 # UI controls (shared across sections)
@@ -182,7 +206,13 @@ state_subtitle = "A raw view of the currently stored pipeline state."
 #
 data_quality_section_name = "data_quality_section"
 data_quality_title = "Data Quality"
-data_quality_subtitle = "View the results of your data quality checks"
+data_quality_subtitle = "View the results of your data quality checks."
+data_quality_show_raw_table = "Show Raw Table"
+data_quality_not_available = "**dltHub data quality module is not available.**"
+data_quality_loading_raw_table_spinner = "Loading raw data quality checks table..."
+data_quality_error_loading = "Error loading data quality checks: {}"
+data_quality_raw_table_error = "Error loading raw table: {}"
+data_quality_raw_table_not_available = "dltHub data quality module is not available."
 
 #
 # Trace section
@@ -218,6 +248,9 @@ trace_resolved_config_subtitle = (
     "for security reasons."
 )
 trace_raw_trace_title = "Raw Trace"
+trace_table_metrics_title = "{} Table Metrics"
+trace_job_metrics_title = "{} Job Metrics"
+trace_error_building_section = "Error while building trace section: {}"
 
 #
 # Loads section
@@ -268,3 +301,16 @@ ibis_backend_connected_text = (
 )
 ibis_backend_error_text = "Error connecting to Ibis backend. "
 ibis_backend_connecting_spinner_text = "Connecting to Ibis backend..."
+
+#
+# Error messages (shared across sections)
+#
+error_config_missing = "Could not connect to destination. Configuration values are missing."
+error_sql_not_supported = (
+    "The destination of this pipeline does not support querying data with SQL."
+)
+error_undefined_entity = (
+    "Connected to destination, but the required table or dataset does not exist in the destination."
+)
+error_show_stacktrace = "Show stacktrace for more information or debugging"
+error_show_full_stacktrace = "Show full stacktrace"

@@ -17,6 +17,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.utils import map_nested_keys_in_place
 
 from dlt._workspace.cli import utils as cli_utils
+from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.formatters import (
     dict_to_table_items,
@@ -76,11 +77,11 @@ def pipeline_details(
     try:
         credentials = str(get_destination_config(pipeline).credentials)
     except Exception:
-        credentials = "Could not resolve credentials."
+        credentials = strings.overview_credentials_error
 
     trace = pipeline.last_trace
 
-    last_executed = "No trace found"
+    last_executed = strings.overview_no_trace
     if trace and hasattr(trace, "started_at"):
         last_executed = cli_utils.date_from_timestamp_with_ago(trace.started_at, c.datetime_format)
 
@@ -89,13 +90,15 @@ def pipeline_details(
         "destination": (
             pipeline.destination.destination_description
             if pipeline.destination
-            else "No destination set"
+            else strings.overview_no_destination
         ),
         "last executed": last_executed,
         "credentials": credentials,
         "dataset_name": pipeline.dataset_name,
         "working_dir": pipeline.working_dir,
-        "state_version": pipeline.state["_state_version"] if pipeline.state else "No state found",
+        "state_version": (
+            pipeline.state["_state_version"] if pipeline.state else strings.overview_no_state
+        ),
     }
 
     table_items = dict_to_table_items(details_dict)
@@ -114,7 +117,7 @@ def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
 
     if not remote_state:
         return dict_to_table_items(
-            {"Info": "Could not restore state from destination", "Details": error_details}
+            {"Info": strings.overview_remote_state_error, "Details": error_details}
         )
     remote_schemas = pipeline._get_schemas_from_destination(
         remote_state["schema_names"], always_download=True
@@ -154,7 +157,7 @@ def open_local_folder(folder: str) -> None:
 def pipeline_link_list(config: DashboardConfiguration, pipelines: List[Dict[str, Any]]) -> str:
     """Build a markdown list of links to pipelines."""
     if not pipelines:
-        return "No pipelines found."
+        return strings.overview_no_pipelines
 
     count = 0
     link_list: str = ""
@@ -162,7 +165,7 @@ def pipeline_link_list(config: DashboardConfiguration, pipelines: List[Dict[str,
         link = f"* [{_p['name']}](?pipeline={_p['name']})"
         link = (
             link
-            + " - last executed: "
+            + strings.overview_last_executed_label
             + cli_utils.date_from_timestamp_with_ago(_p["timestamp"], config.datetime_format)
         )
 
@@ -209,7 +212,7 @@ def exception_section(p: dlt.Pipeline) -> List[Any]:
     _result.append(
         mo.accordion(
             {
-                "Show full stacktrace": mo.ui.code_editor(
+                strings.error_show_full_stacktrace: mo.ui.code_editor(
                     "".join(_exception_traces),
                     language="python",
                     disabled=True,

@@ -129,7 +129,7 @@ def home(
             )
             _stack.append(
                 utils.ui.error_callout(
-                    f"Could not attach to pipeline {dlt_pipeline_name}.",
+                    strings.home_error_attach_pipeline.format(dlt_pipeline_name),
                     traceback_string=traceback.format_exc(),
                 )
             )
@@ -147,8 +147,8 @@ def home(
             except Exception:
                 _stack = [
                     utils.ui.error_callout(
-                        "Error while rendering the pipeline dashboard.",
-                        "Some sections may work, but not all functionality may be available.",
+                        strings.home_error_rendering_pipeline,
+                        strings.home_error_rendering_pipeline_detail,
                         traceback_string=traceback.format_exc(),
                     )
                 ]
@@ -167,7 +167,7 @@ def home(
         except Exception:
             _stack = [
                 utils.ui.error_callout(
-                    "Error while rendering the home dashboard.",
+                    strings.home_error_rendering_home,
                     traceback_string=traceback.format_exc(),
                 )
             ]
@@ -672,7 +672,7 @@ def section_trace(
         except Exception as exc:
             _result.append(
                 utils.ui.error_callout(
-                    f"Error while building trace section: {exc}",
+                    strings.trace_error_building_section.format(exc),
                     traceback_string=traceback.format_exc(),
                 )
             )
@@ -804,7 +804,7 @@ def utils_discover_pipelines(
     if _tmp_config.sync_from_runtime:
         from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
 
-        with mo.status.spinner(title="Syncing pipeline list from runtime"):
+        with mo.status.spinner(title=strings.home_syncing_spinner_text):
             sync_from_runtime()
 
     _run_context = dlt.current.run_context()
@@ -843,7 +843,9 @@ def utils_discover_profiles(mo_query_var_profile: str, mo_cli_arg_profile: str):
     run_context = dlt.current.run_context()
 
     # Default (non-profile-aware) output
-    dlt_profile_select = mo.ui.dropdown(options=[], value=None, label="Profile: ")
+    dlt_profile_select = mo.ui.dropdown(
+        options=[], value=None, label=strings.app_profile_select_label
+    )
     selected_profile = None
 
     if isinstance(run_context, ProfilesRunContext):
@@ -862,7 +864,7 @@ def utils_discover_profiles(mo_query_var_profile: str, mo_cli_arg_profile: str):
         dlt_profile_select = mo.ui.dropdown(
             options=options,
             value=selected_profile,
-            label="Profile: ",
+            label=strings.app_profile_select_label,
             on_change=_on_profile_change,
             searchable=True,
         )
@@ -915,7 +917,7 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     """
 
     dlt_refresh_button: mo.ui.run_button = mo.ui.run_button(
-        label=utils.ui.small("Refresh"),
+        label=utils.ui.small(strings.app_refresh_button),
     )
 
     # page switches

@@ -13,6 +13,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.typing import DictStrAny
 
+from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.ui import small
 
@@ -163,13 +164,13 @@ def build_resource_state_widget(
         [
             mo.vstack(
                 [
-                    mo.md(small(f"Source state for {schema_name}")),
+                    mo.md(small(strings.schema_source_state_label.format(schema_name))),
                     mo.json(source_state),
                 ]
             ),
             mo.vstack(
                 [
-                    mo.md(small(f"Resource state for resource {resource_name}")),
+                    mo.md(small(strings.schema_resource_state_label.format(resource_name))),
                     mo.json(resource_state),
                 ]
             ),
@@ -179,10 +180,5 @@ def build_resource_state_widget(
     )
 
     return mo.accordion(
-        {
-            small(
-                f"Show source and resource state resource {resource_name}"
-                f" which created table {table_name}"
-            ): state_content
-        }
+        {small(strings.schema_show_resource_state.format(resource_name, table_name)): state_content}
     )

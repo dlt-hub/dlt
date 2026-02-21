@@ -9,6 +9,7 @@ import traceback
 
 import dlt
 
+from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard.utils.formatters import align_dict_keys
 
 
@@ -105,7 +106,7 @@ def error_callout(message: str, code: str = None, traceback_string: str = None) 
         stack_items.append(
             mo.accordion(
                 {
-                    "Show stacktrace for more information or debugging": mo.ui.code_editor(
+                    strings.error_show_stacktrace: mo.ui.code_editor(
                         traceback_string, language="python", disabled=True, show_copy_button=True
                     )
                 }

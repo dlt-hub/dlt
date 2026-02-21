@@ -18,7 +18,13 @@ def header_controls(dlt_profile_select: mo.ui.dropdown) -> Union[List[Any], None
     if isinstance(dlt.current.run_context(), ProfilesRunContext):
         return [
             dlt_profile_select,
-            mo.md(ui.small(f" Workspace: {getattr(dlt.current.run_context(), 'name', None)}")),
+            mo.md(
+                ui.small(
+                    strings.home_workspace_label.format(
+                        getattr(dlt.current.run_context(), "name", None)
+                    )
+                )
+            ),
         ]
     return None
 
@@ -152,14 +158,14 @@ def render_pipeline_home(
 
     _buttons.append(
         mo.ui.button(
-            label=ui.small("Open pipeline working dir"),
+            label=ui.small(strings.home_open_working_dir_button),
             on_click=lambda _: utils.pipeline.open_local_folder(dlt_pipeline.working_dir),
         )
     )
     if local_dir := utils.pipeline.get_local_data_path(dlt_pipeline):
         _buttons.append(
             mo.ui.button(
-                label=ui.small("Open local data location"),
+                label=ui.small(strings.home_open_local_data_button),
                 on_click=lambda _: utils.pipeline.open_local_folder(local_dir),
             )
         )

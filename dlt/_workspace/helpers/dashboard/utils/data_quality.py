@@ -8,7 +8,7 @@ import marimo as mo
 import dlt
 
 from dlt._workspace.helpers.dashboard import strings
-from dlt._workspace.helpers.dashboard.utils import ui, queries
+from dlt._workspace.helpers.dashboard.utils import queries, ui
 
 
 def create_dq_controls(
@@ -72,15 +72,15 @@ def build_dq_section(
         if checks_arrow is not None and checks_arrow.num_rows > 0:
             raw_table_switch = mo.ui.switch(
                 value=False,
-                label=ui.small("Show Raw Table"),
+                label=ui.small(strings.data_quality_show_raw_table),
             )
             result.append(mo.hstack([raw_table_switch], justify="start"))
     except ImportError:
-        result.append(mo.md("**DLT Hub data quality module is not available.**"))
+        result.append(mo.md(strings.data_quality_not_available))
     except Exception as exc:
         result.append(
             ui.error_callout(
-                f"Error loading data quality checks: {exc}",
+                strings.data_quality_error_loading.format(exc),
                 traceback_string=traceback.format_exc(),
             )
         )
@@ -103,7 +103,7 @@ def build_dq_raw_table(
         from dlthub import data_quality as dq
 
         _error_message: str = None
-        with mo.status.spinner(title="Loading raw data quality checks table..."):
+        with mo.status.spinner(title=strings.data_quality_loading_raw_table_spinner):
             try:
                 _raw_sql_query = dq.read_check(pipeline.dataset())
                 _raw_query_result, _error_message, _traceback_string = queries.get_query_result(
@@ -117,7 +117,7 @@ def build_dq_raw_table(
         if _error_message:
             result.append(
                 ui.error_callout(
-                    f"Error loading raw table: {_error_message}",
+                    strings.data_quality_raw_table_error.format(_error_message),
                     traceback_string=_traceback_string,
                 )
             )
@@ -128,14 +128,14 @@ def build_dq_raw_table(
     except ImportError:
         result.append(
             mo.callout(
-                mo.md("DLT Hub data quality module is not available."),
+                mo.md(strings.data_quality_raw_table_not_available),
                 kind="warn",
             )
         )
     except Exception as exc:
         result.append(
             ui.error_callout(
-                f"Error loading raw table: {exc}",
+                strings.data_quality_raw_table_error.format(exc),
                 traceback_string=traceback.format_exc(),
             )
         )

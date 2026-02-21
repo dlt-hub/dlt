@@ -11,6 +11,7 @@ from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 from dlt.pipeline.exceptions import PipelineConfigMissing
 
+from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 
 
@@ -67,14 +68,11 @@ def format_duration(ms: float) -> str:
 def format_exception_message(exception: Exception) -> str:
     """Convert a pipeline/destination exception to a user-friendly error message."""
     if isinstance(exception, (PipelineConfigMissing, ConfigFieldMissingException)):
-        return "Could not connect to destination, configuration values are missing."
+        return strings.error_config_missing
     elif isinstance(exception, (SqlClientNotAvailable)):
-        return "The destination of this pipeline does not support querying data with sql."
+        return strings.error_sql_not_supported
     elif isinstance(exception, (DestinationUndefinedEntity, DatabaseUndefinedRelation)):
-        return (
-            "Could connect to destination, but the required table or dataset does not exist in the"
-            " destination."
-        )
+        return strings.error_undefined_entity
     return str(exception)
 
 
