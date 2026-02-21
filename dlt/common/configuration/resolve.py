@@ -535,8 +535,11 @@ def _build_section_lookup_paths(
     config_section: str,
     supports_sections: bool,
     pipeline_name: str = None,
-) -> List[Tuple[str, ...]]:
+) -> List[Tuple[Optional[str], ...]]:
     """Build ordered list of section paths from most to least specific.
+
+    Each returned tuple has pipeline_name (or None) as the first element,
+    followed by the section path. Callers unpack as ``pn, *sections``.
 
     Standard pop sequence removes sections from the right one at a time.
     For "sources" with section != name, also inserts (sources, name, ...embedded)
@@ -544,7 +547,7 @@ def _build_section_lookup_paths(
     When pipeline_name is given, pipeline-prefixed paths come first, then non-prefixed.
     """
     if not supports_sections:
-        return [()]
+        return [(None,)]
 
     ns = list(explicit_sections) + list(embedded_sections)
     base_paths: List[Tuple[str, ...]] = []
@@ -568,9 +571,11 @@ def _build_section_lookup_paths(
         if compact not in base_paths:
             base_paths.insert(1, compact)
 
+    tagged: List[Tuple[Optional[str], ...]] = []
     if pipeline_name:
-        return [(pipeline_name,) + p for p in base_paths] + base_paths
-    return base_paths
+        tagged.extend((pipeline_name,) + p for p in base_paths)
+    tagged.extend((None,) + p for p in base_paths)
+    return tagged
 
 
 def resolve_single_provider_value(
@@ -593,8 +598,10 @@ def resolve_single_provider_value(
     )
 
     value = None
-    for full_ns in lookup_paths:
-        value, ns_key = provider.get_value(key, hint, None, *full_ns)
+    for tagged_path in lookup_paths:
+        pn = tagged_path[0]
+        sections = tagged_path[1:]
+        value, ns_key = provider.get_value(key, hint, pn, *sections)
         # if secret is obtained from non secret provider, we must fail
         cant_hold_it: bool = not provider.supports_secrets and is_secret_hint(hint)
         if value is not None and cant_hold_it:
@@ -602,7 +609,7 @@ def resolve_single_provider_value(
 
         # create trace, ignore providers that cant_hold_it
         if not cant_hold_it:
-            traces.append(LookupTrace(provider.name, list(full_ns), ns_key, value))
+            traces.append(LookupTrace(provider.name, list(sections), ns_key, value))
 
         if value is not None:
             break
