@@ -103,10 +103,8 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
 
     # Check schema detection
     schema_columns = schema.tables["some_data"]["columns"]
-    # null column is present, with x-normalizer seen-null-first, without data type
-    assert set(schema_columns) - set(df_tbl.columns) == {"null"}
-    assert schema_columns["null"]["x-normalizer"]["seen-null-first"] is True
-    assert "data_type" not in schema_columns["null"]
+    # null column should not appear in schema at all
+    assert "null" not in schema_columns
     assert schema_columns["date"]["data_type"] == "date"
     assert schema_columns["int"]["data_type"] == "bigint"
     assert schema_columns["float"]["data_type"] == "double"
@@ -324,6 +322,8 @@ def test_normalize_with_dlt_columns(item_type: TPythonTableFormat):
     schema = pipeline.default_schema
     assert schema.tables["some_data"]["columns"]["_dlt_id"]["data_type"] == "text"
     assert schema.tables["some_data"]["columns"]["_dlt_load_id"]["data_type"] == "text"
+    # null column removed during rewrite path via dlt.null_columns metadata
+    assert "null" not in schema.tables["some_data"]["columns"]
 
     pipeline.load()
 

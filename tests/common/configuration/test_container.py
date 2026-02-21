@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import pytest
 import threading
-from typing import Any, ClassVar, Dict, Literal, Optional, Iterator, Type
+from typing import Any, ClassVar, Dict, Literal, Optional, Iterator, Type, List, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.providers.context import ContextProvider
@@ -574,7 +574,7 @@ def test_concurrent_default_creation(container: Container) -> None:
     """Multiple threads racing __getitem__ create exactly one default instance."""
     num_threads = 4
     barrier = threading.Barrier(num_threads, timeout=5)
-    results = [None] * num_threads
+    results: List[GlobalTestContext] = [None] * num_threads
 
     def reader(idx: int) -> None:
         barrier.wait()
