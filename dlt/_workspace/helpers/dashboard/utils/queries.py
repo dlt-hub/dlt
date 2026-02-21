@@ -3,6 +3,8 @@
 import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from dlt._workspace.helpers.dashboard.types import TLoadItem
+
 import marimo as mo
 
 import dlt
@@ -147,7 +149,7 @@ def get_row_counts_list(
 
 def get_loads(
     c: DashboardConfiguration, pipeline: dlt.Pipeline, limit: int = 100
-) -> Tuple[List[Dict[str, Any]], Optional[str], Optional[str]]:
+) -> Tuple[List[TLoadItem], Optional[str], Optional[str]]:
     """Get the loads of a pipeline. Returns (loads_list, error_message, traceback)."""
     try:
         loads = (

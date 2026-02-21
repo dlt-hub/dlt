@@ -1,6 +1,6 @@
 """Trace introspection and rendering helpers."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from dlt._workspace.helpers.dashboard.types import TNameValueItem
 
@@ -141,8 +141,8 @@ def build_trace_section(
     )
     result.append(trace_steps_table)
 
-    for item in trace_steps_table.value:  # type: ignore[unused-ignore,union-attr]
-        step_id = item["step"]  # type: ignore[unused-ignore,index]
+    for item in cast(List[Dict[str, str]], trace_steps_table.value):
+        step_id = item["step"]
         result.append(
             ui.title_and_subtitle(
                 strings.trace_step_details_title.format(step_id.capitalize()),

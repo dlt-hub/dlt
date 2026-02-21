@@ -15,7 +15,12 @@ app = marimo.App(
 with app.setup:
     from typing import Any, Dict, List, cast
 
-    from dlt._workspace.helpers.dashboard.types import TPipelineListItem
+    from dlt._workspace.helpers.dashboard.types import (
+        TLoadItem,
+        TPipelineListItem,
+        TQueryHistoryItem,
+        TTableListItem,
+    )
 
     import marimo as mo
 
@@ -212,8 +217,8 @@ def section_schema(
             ),
         )
 
-        for table in dlt_schema_table_list.value:  # type: ignore[union-attr,unused-ignore]
-            _table_name = table["name"]  # type: ignore[index,unused-ignore]
+        for table in cast(List[TTableListItem], dlt_schema_table_list.value):
+            _table_name = table["name"]
             _result.append(mo.md(strings.schema_table_columns_title.format(_table_name)))
             columns_list = utils.schema.create_column_list(
                 dlt_config,
@@ -377,7 +382,8 @@ def section_browse_data_table_list(
 
         _sql_query = ""
         if dlt_data_table_list.value:
-            _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
+            _selected_table = cast(List[TTableListItem], dlt_data_table_list.value)[0]
+            _table_name = _selected_table["name"]
 
             _state_widget = utils.schema.build_resource_state_widget(
                 dlt_pipeline, dlt_selected_schema_name, _table_name
@@ -537,8 +543,8 @@ def section_browse_data_query_history(
         )
         _result.append(dlt_query_history_table)
 
-        for _r in dlt_query_history_table.value:  # type: ignore[unused-ignore,union-attr]
-            _query = _r["query"]  # type: ignore[unused-ignore,index]
+        for _r in cast(List[TQueryHistoryItem], dlt_query_history_table.value):
+            _query = _r["query"]
             _q_result, _q_error, _q_traceback = utils.queries.get_query_result(dlt_pipeline, _query)
             _result.append(mo.md(utils.ui.small(f"```{_query}```")))
             if _q_error:
@@ -672,9 +678,10 @@ def section_loads_results(
         and dlt_loads_table is not None
         and dlt_loads_table.value
     ):
-        _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore[unused-ignore,index]
-        _schema_name = dlt_loads_table.value[0]["schema_name"]  # type: ignore[unused-ignore,index]
-        _version_hash = dlt_loads_table.value[0]["schema_version_hash"]  # type: ignore[unused-ignore,index]
+        _selected_load = cast(List[TLoadItem], dlt_loads_table.value)[0]
+        _load_id = _selected_load["load_id"]
+        _schema_name = _selected_load["schema_name"]
+        _version_hash = _selected_load["schema_version_hash"]
         _result.append(mo.md(strings.loads_details_title.format(_load_id)))
 
         try:

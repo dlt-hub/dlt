@@ -5,6 +5,7 @@ from typing import cast, List, Dict, Any
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.queries import get_loads, build_load_details
+from dlt._workspace.helpers.dashboard.utils.ui import dlt_table
 from dlt._workspace.helpers.dashboard.utils.visualization import (
     get_migrations_count,
     load_package_status_labels,
@@ -32,7 +33,7 @@ def test_get_loads(pipeline: dlt.Pipeline):
     result, error_message, traceback_string = get_loads(config, pipeline, limit=100)
 
     # check it can be rendered as table with marimo
-    assert mo.ui.table(result).text is not None
+    assert dlt_table(result).text is not None
 
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert isinstance(result, list)
@@ -124,8 +125,8 @@ def test_pipeline_loads_are_isolated_in_shared_dataset() -> None:
     fruits_loads, _, _ = get_loads(config, duckdb_p, limit=100)
     humans_loads, _, _ = get_loads(config, filesystem_p, limit=100)
 
-    assert mo.ui.table(fruits_loads).text is not None
-    assert mo.ui.table(humans_loads).text is not None
+    assert dlt_table(fruits_loads).text is not None
+    assert dlt_table(humans_loads).text is not None
 
     assert len(fruits_loads) >= 1
     assert len(humans_loads) >= 1

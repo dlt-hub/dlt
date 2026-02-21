@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from dlt._workspace.helpers.dashboard.types import TNameValueItem
+from dlt._workspace.helpers.dashboard.types import TNameValueItem, TTableListItem
 
 import marimo as mo
 
@@ -50,7 +50,7 @@ def create_table_list(
     show_internals: bool = False,
     show_child_tables: bool = True,
     show_row_counts: bool = False,
-) -> List[Dict[str, Union[str, int, None]]]:
+) -> List[TTableListItem]:
     """Create a list of tables for the pipeline, optionally including internals, child tables, and row counts."""
     from dlt._workspace.helpers.dashboard.utils.queries import get_row_counts
 
@@ -66,14 +66,16 @@ def create_table_list(
         tables = tables + list(pipeline.schemas[selected_schema_name].dlt_tables())
 
     row_counts = get_row_counts(pipeline, selected_schema_name) if show_row_counts else {}
-    table_list: List[Dict[str, Union[str, int, None]]] = [
-        {
-            **{prop: table.get(prop, None) for prop in ["name", *c.table_list_fields]},  # type: ignore[misc]
-            "row_count": row_counts.get(table["name"], None),
-        }
-        for table in tables
-    ]
-    table_list.sort(key=lambda x: str(x["name"]))
+    table_list: List[TTableListItem] = []
+    for table in tables:
+        item = TTableListItem(
+            name=table.get("name", ""),
+            row_count=row_counts.get(table["name"], None),
+        )
+        for prop in c.table_list_fields:
+            item[prop] = table.get(prop, None)  # type: ignore[literal-required]
+        table_list.append(item)
+    table_list.sort(key=lambda x: x["name"])
     return table_list
 
 
