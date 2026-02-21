@@ -8,7 +8,6 @@ from dlt._workspace.mcp.tools.mcp_tools import PipelineMCPTools
 
 from dlt._workspace.mcp import tools
 from dlt._workspace.mcp import prompts
-from dlt.pipeline.pipeline import Pipeline
 
 
 class DltMCP(FastMCP, ABC):
@@ -69,5 +68,5 @@ class PipelineMCP(DltMCP):
         )
 
     def _register_features(self) -> None:
-        pipeline_tools = PipelineMCPTools(self.pipeline)
+        pipeline_tools = PipelineMCPTools(self.pipeline_name)
         pipeline_tools.register_with(self)
