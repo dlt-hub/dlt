@@ -1,13 +1,14 @@
 from copy import deepcopy
 import pathlib
 import textwrap
+from typing import cast
 
 import pytest
 from pydbml import PyDBML  # type: ignore[import-untyped]
 from pydbml.classes import Reference, Table, Column  # type: ignore[import-untyped]
 
 import dlt
-from dlt.common.schema.typing import TColumnSchema, TTableReference, TTableSchema
+from dlt.common.schema.typing import TColumnSchema, TStoredSchema, TTableReference, TTableSchema
 from dlt.common.schema.utils import remove_column_defaults
 from dlt.helpers.dbml import (
     export_to_dbml,
@@ -256,25 +257,28 @@ def test_to_and_from_dbml_reference() -> None:
 def test_schema_to_dbml_skips_incomplete_tables_and_columns() -> None:
     """Tables with only incomplete columns are excluded, and incomplete columns within
     complete tables are skipped."""
-    stored_schema: dict = {
-        "tables": {
-            "complete_table": {
-                "name": "complete_table",
-                "columns": {
-                    "id": {"name": "id", "data_type": "bigint", "primary_key": True},
-                    "name": {"name": "name", "data_type": "text"},
-                    "pending": {"name": "pending"},
+    stored_schema = cast(
+        TStoredSchema,
+        {
+            "tables": {
+                "complete_table": {
+                    "name": "complete_table",
+                    "columns": {
+                        "id": {"name": "id", "data_type": "bigint", "primary_key": True},
+                        "name": {"name": "name", "data_type": "text"},
+                        "pending": {"name": "pending"},
+                    },
                 },
-            },
-            "incomplete_table": {
-                "name": "incomplete_table",
-                "columns": {
-                    "no_type_a": {"name": "no_type_a"},
-                    "no_type_b": {"name": "no_type_b"},
+                "incomplete_table": {
+                    "name": "incomplete_table",
+                    "columns": {
+                        "no_type_a": {"name": "no_type_a"},
+                        "no_type_b": {"name": "no_type_b"},
+                    },
                 },
             },
         },
-    }
+    )
 
     dbml = schema_to_dbml(stored_schema)
 

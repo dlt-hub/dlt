@@ -1,12 +1,17 @@
 import pathlib
 import tempfile
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import pytest
 import graphviz  # type: ignore[import-untyped]
 
 import dlt
-from dlt.common.schema.typing import PIPELINE_STATE_TABLE_NAME, VERSION_TABLE_NAME, LOADS_TABLE_NAME
+from dlt.common.schema.typing import (
+    PIPELINE_STATE_TABLE_NAME,
+    TStoredSchema,
+    VERSION_TABLE_NAME,
+    LOADS_TABLE_NAME,
+)
 from dlt.helpers.graphviz import _render_with_graphviz, schema_to_graphviz, TABLE_HEADER_PORT
 
 
@@ -23,31 +28,34 @@ def is_valid_dot(dot: str) -> bool:
 def test_schema_to_graphviz_skips_incomplete_tables_and_columns() -> None:
     """Tables with only incomplete columns are excluded, and incomplete columns within
     complete tables are skipped."""
-    stored_schema: dict = {
-        "name": "test_schema",
-        "tables": {
-            "complete_table": {
-                "name": "complete_table",
-                "columns": {
-                    "id": {
-                        "name": "id",
-                        "data_type": "bigint",
-                        "primary_key": True,
-                        "nullable": False,
+    stored_schema = cast(
+        TStoredSchema,
+        {
+            "name": "test_schema",
+            "tables": {
+                "complete_table": {
+                    "name": "complete_table",
+                    "columns": {
+                        "id": {
+                            "name": "id",
+                            "data_type": "bigint",
+                            "primary_key": True,
+                            "nullable": False,
+                        },
+                        "name": {"name": "name", "data_type": "text"},
+                        "pending": {"name": "pending"},
                     },
-                    "name": {"name": "name", "data_type": "text"},
-                    "pending": {"name": "pending"},
                 },
-            },
-            "incomplete_table": {
-                "name": "incomplete_table",
-                "columns": {
-                    "no_type_a": {"name": "no_type_a"},
-                    "no_type_b": {"name": "no_type_b"},
+                "incomplete_table": {
+                    "name": "incomplete_table",
+                    "columns": {
+                        "no_type_a": {"name": "no_type_a"},
+                        "no_type_b": {"name": "no_type_b"},
+                    },
                 },
             },
         },
-    }
+    )
 
     dot = schema_to_graphviz(
         stored_schema,

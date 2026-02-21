@@ -142,7 +142,12 @@ def test_standard_pop_sequence(
             ("destination", "bigquery", "my_dest"),
             (),
             None,
-            [("destination", "bigquery", "my_dest"), ("destination", "bigquery"), ("destination",), ()],
+            [
+                ("destination", "bigquery", "my_dest"),
+                ("destination", "bigquery"),
+                ("destination",),
+                (),
+            ],
         ),
         # only 2 sections under sources: no compact
         (
@@ -207,7 +212,10 @@ def test_pipeline_name_prefix(
     pipeline_name: str,
     expected: List[Tuple[str, ...]],
 ) -> None:
-    assert _build_section_lookup_paths(("sources", "mod", "src"), (), None, True, pipeline_name) == expected
+    assert (
+        _build_section_lookup_paths(("sources", "mod", "src"), (), None, True, pipeline_name)
+        == expected
+    )
 
 
 def test_non_section_provider_paths() -> None:
@@ -226,9 +234,7 @@ def test_non_section_provider_paths() -> None:
     ],
     ids=["full-path", "compact-path", "compact-credentials"],
 )
-def test_sources_compact_resolution(
-    return_on: Tuple[str, ...], config_section: str
-) -> None:
+def test_sources_compact_resolution(return_on: Tuple[str, ...], config_section: str) -> None:
     provider = SecretMockProvider()
     provider.value = "found"
     provider.return_value_on = return_on
@@ -258,7 +264,7 @@ def test_pipeline_name_baked_into_paths() -> None:
     assert value == "pipeline_val"
 
     # provider always receives pipeline_name=None
-    received: list = []
+    received: List[str] = []
 
     class Tracker(SecretMockProvider):
         def get_value(self, key, hint, pipeline_name, *sections):
@@ -266,15 +272,18 @@ def test_pipeline_name_baked_into_paths() -> None:
             return None, key
 
     resolve_single_provider_value(
-        Tracker(), key="k", hint=TSecretValue,
-        pipeline_name="my_pipe", explicit_sections=("sources", "mod", "src"),
+        Tracker(),
+        key="k",
+        hint=TSecretValue,
+        pipeline_name="my_pipe",
+        explicit_sections=("sources", "mod", "src"),
     )
     assert all(pn is None for pn in received)
 
 
 def test_non_section_provider_bare_key_only() -> None:
     """Non-section providers try bare key regardless of pipeline_name."""
-    call_log: list = []
+    call_log: List[Tuple[str, ...]] = []
 
     class Tracker(MockProvider):
         @property
@@ -286,7 +295,10 @@ def test_non_section_provider_bare_key_only() -> None:
             return None, key
 
     resolve_single_provider_value(
-        Tracker(), key="k", hint=str,
-        pipeline_name="pipe", explicit_sections=("sources", "mod", "src"),
+        Tracker(),
+        key="k",
+        hint=str,
+        pipeline_name="pipe",
+        explicit_sections=("sources", "mod", "src"),
     )
     assert call_log == [()]

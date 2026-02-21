@@ -1881,5 +1881,3 @@ def test_get_run_context_warning_script() -> None:
         assert 1 == result.count("WARNING")
 
     ctx.deactivate()
-
-
