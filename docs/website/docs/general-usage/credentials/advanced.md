@@ -115,6 +115,26 @@ pipeline_name
 
 When using TOML files, this structure is represented as nested sections with dotted keys. For environment variables and other config providers, the layout is flattened using double underscores (e.g., `PIPELINE_NAME__SOURCES__MODULE_NAME__FUNCTION_NAME__OPTION`).
 
+### Compact sources layout
+
+When a source's **section** (typically the module name) differs from its **name** (the function name), `dlt` also accepts a shorter configuration path that uses the source name directly under `sources`:
+
+```text
+sources.<name>.<key>
+```
+
+This is in addition to the full path `sources.<section>.<name>.<key>`. The full path always takes precedence. This is particularly useful when you [rename a source](../source.md#rename-the-source) with `.clone()`:
+
+```toml
+# compact layout — just the source name
+[sources.my_db.credentials]
+password="..."
+
+# full layout — section + name (takes precedence if both exist)
+[sources.my_db_module.my_db.credentials]
+password="..."
+```
+
 ## Access configs and secrets in code
 
 While `dlt` handles credentials automatically, you can also access them directly in your code. The `dlt.secrets` and `dlt.config` objects provide dictionary-like access to configuration values and secrets, enabling custom preprocessing if required. You can also store custom settings in the same configuration files.

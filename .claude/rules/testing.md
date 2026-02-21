@@ -18,6 +18,9 @@ paths:
 - We have autouse fixtures enabled by `conftest.py`. Always check those before adding common fixtures ie. to preserve env variables or get clean storage for the tests
 - We have A LOT of fixtures in files like @tests/utils.py and @tests/load/utils.py, look there before adding new ones.
 
+## Large files for test cases
+- Do not keep large test cases in Python modules. Use `cases` folder and to keep and share files (ie. schemas, ingest data) across modules. 
+
 ## Destination tests (tests/load)
 - Tests in @tests/load are ALWAYS run on CI in context of particular destination. Tests that run pipelines MUST use `destinations_configs`, other test modules must filter for a right destination (ie. `skip_if_not_active("clickhouse")`)
 - NOTE: tests outside @tests/load do not use such filtering. Use `duckdb`, `dummy` or `sqlite` or `filesystem` destinations for such tests.

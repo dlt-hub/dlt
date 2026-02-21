@@ -1,20 +1,17 @@
 import asyncio
 
-import dlt
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
 from dlt._workspace.mcp import PipelineMCP, WorkspaceMCP
-from dlt._workspace.mcp.tools import PipelineMCPTools
 
 from tests.workspace.utils import pokemon_pipeline_context as pokemon_pipeline_context
 
 
 def test_pipeline_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
     pipeline_name = "rest_api_pokemon"
-    pipeline = dlt.attach(pipeline_name)
 
     # TODO: also test PipelineMCPConfiguration when implemented
-    mcp = PipelineMCP(pipeline)
+    mcp = PipelineMCP(pipeline_name)
     tools = asyncio.run(mcp.list_tools())
 
     tool_names_expected = [
