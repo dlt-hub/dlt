@@ -3,11 +3,14 @@ import dlt
 import marimo as mo
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils import (
+from dlt._workspace.helpers.dashboard.utils.schema import (
     create_table_list,
-    get_row_counts_list,
     create_column_list,
+    schemas_to_table_items,
+    build_resource_state_widget,
 )
+from dlt._workspace.helpers.dashboard.utils.queries import get_row_counts_list
+from dlt._workspace.helpers.dashboard.utils.ui import dlt_table
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
     PIPELINES_WITH_LOAD,
@@ -30,7 +33,7 @@ def test_create_table_list(pipeline, show_internals, show_child_tables):
         show_child_tables=show_child_tables,
     )
     # check it can be rendered as table with marimo
-    assert mo.ui.table(result).text is not None
+    assert dlt_table(result).text is not None
 
     base_table_names = {"inventory", "purchases", "customers", "inventory_categories"}
     dlt_table_names = {"_dlt_loads", "_dlt_version", "_dlt_pipeline_state"}
@@ -111,7 +114,7 @@ def test_get_row_counts_list(pipeline: dlt.Pipeline):
     result = get_row_counts_list(pipeline)
 
     # check it can be rendered as table with marimo
-    assert mo.ui.table(result).text is not None
+    assert dlt_table(result).text is not None
 
     reverted_result = {i["name"]: i["row_count"] for i in result}
 
@@ -130,3 +133,41 @@ def test_get_row_counts_list(pipeline: dlt.Pipeline):
         }
     else:
         reverted_result = {}
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_schemas_to_table_items(pipeline: dlt.Pipeline):
+    """Test converting schemas to table items for display"""
+    schemas = list(pipeline.schemas.values())
+    result = schemas_to_table_items(schemas, pipeline.default_schema_name)
+
+    assert len(result) >= 1
+    assert result[0]["name"] == "schemas"
+    assert "(default)" in result[0]["value"]
+    assert pipeline.default_schema_name in result[0]["value"]
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_build_resource_state_widget(pipeline: dlt.Pipeline):
+    """Test building resource state widget for a table with a resource"""
+    widget = build_resource_state_widget(pipeline, pipeline.default_schema_name, "customers")
+    # customers table has a resource, so widget should not be None
+    assert widget is not None
+    assert widget.text is not None
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_build_resource_state_widget_no_resource(pipeline: dlt.Pipeline):
+    """Test that tables without a resource key return None"""
+    # create a table without a resource to test the None path
+    schema = pipeline.schemas[pipeline.default_schema_name]
+    table_without_resource = None
+    for table_name, table in schema.tables.items():
+        if "resource" not in table:
+            table_without_resource = table_name
+            break
+    if table_without_resource:
+        widget = build_resource_state_widget(
+            pipeline, pipeline.default_schema_name, table_without_resource
+        )
+        assert widget is None
