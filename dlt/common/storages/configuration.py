@@ -183,6 +183,7 @@ class FilesystemConfiguration(BaseConfiguration):
     * az, abfs, adl, abfss, azure (AzureCredentials, AzureServicePrincipalCredentials)
     * file, memory
     * gdrive (GcpServiceAccountCredentials, GcpOAuthCredentials)
+    * hf (HfCredentials)
     * sftp (SFTPCredentials)
     """
 
@@ -220,10 +221,7 @@ class FilesystemConfiguration(BaseConfiguration):
     @property
     def protocol(self) -> str:
         """`bucket_url` protocol"""
-        if self.is_local_path(self.bucket_url):
-            return "file"
-        else:
-            return urlparse(self.bucket_url).scheme
+        return self.parse_protocol(self.bucket_url)
 
     @property
     def is_local_filesystem(self) -> bool:
@@ -342,6 +340,18 @@ class FilesystemConfiguration(BaseConfiguration):
         netloc is never set. UNC paths are represented as file://host/path
         """
         return make_fsspec_url("file", local_path, None)
+
+    @staticmethod
+    def parse_protocol(bucket_url: str) -> str:
+        """Parses protocol from bucket_url.
+
+        Returns "file" for local paths without scheme.
+        """
+
+        if FilesystemConfiguration.is_local_path(bucket_url):
+            return "file"
+        else:
+            return urlparse(bucket_url).scheme
 
 
 @dataclass

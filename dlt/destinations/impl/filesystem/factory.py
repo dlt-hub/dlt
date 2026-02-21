@@ -4,7 +4,7 @@ from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 from dlt.common.schema.typing import TLoaderMergeStrategy, TLoaderReplaceStrategy, TTableSchema
-from dlt.common.storages.configuration import FileSystemCredentials
+from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
 from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
     HfFilesystemDestinationClientConfiguration,
@@ -89,7 +89,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
 
         return caps
 
-    def _get_partial_config(
+    def _resolve_partial_config(
         self, destination_name: Optional[str]
     ) -> FilesystemDestinationClientConfiguration:
         config = FilesystemDestinationClientConfiguration()
@@ -140,7 +140,12 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
         """
-        self.is_hf = self._get_partial_config(destination_name).protocol == "hf"
+        protocol = (
+            FilesystemConfiguration.parse_protocol(bucket_url)
+            if bucket_url
+            else self._resolve_partial_config(destination_name).protocol
+        )
+        self.is_hf = protocol == "hf"
         super().__init__(
             bucket_url=bucket_url,
             credentials=credentials,
