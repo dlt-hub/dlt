@@ -126,7 +126,7 @@ def inject_section(
     if merge_existing:
         section_context.merge(existing_context)
 
-    return container.injectable_context(section_context, lock_context=lock_context)
+    return container.injectable_context(section_context, lock_context_on_yield=lock_context)
 
 
 def _maybe_parse_native_value(

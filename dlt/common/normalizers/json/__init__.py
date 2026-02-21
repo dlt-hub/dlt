@@ -1,9 +1,10 @@
 import abc
-from typing import Any, Generic, Type, Generator, Tuple, Protocol, TYPE_CHECKING, TypeVar
+from typing import Any, Dict, Generic, Type, Generator, Protocol, Tuple, TYPE_CHECKING, TypeVar
 
 from dlt.common.typing import DictStrAny, TDataItem, StrAny
 
 if TYPE_CHECKING:
+    from dlt.common.data_types.typing import TDataType
     from dlt.common.schema import Schema
 else:
     Schema = Any
@@ -41,6 +42,26 @@ class DataItemNormalizer(abc.ABC, Generic[TNormalizerConfig]):
     @abc.abstractmethod
     def remove_table(self, table_name: str) -> None:
         pass
+
+    @property
+    def py_type_to_sc_type_map(self) -> Dict[Type[Any], "TDataType"]:
+        """Lookup from Python type to schema type. Override in subclasses."""
+        return {}
+
+    @abc.abstractmethod
+    def py_type_to_sc_type(self, t: Type[Any]) -> "TDataType":
+        """Resolve Python type to schema type including subclass/Enum handling."""
+        ...
+
+    @abc.abstractmethod
+    def can_coerce_type(self, to_type: "TDataType", from_type: "TDataType") -> bool:
+        """Return True if `from_type` can be coerced to `to_type`."""
+        ...
+
+    @abc.abstractmethod
+    def coerce_type(self, to_type: "TDataType", from_type: "TDataType", value: Any) -> Any:
+        """Coerce `value` from `from_type` to `to_type`. Raises ValueError on failure."""
+        ...
 
     @classmethod
     @abc.abstractmethod

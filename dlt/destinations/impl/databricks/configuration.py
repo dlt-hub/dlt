@@ -43,7 +43,13 @@ class DatabricksCredentials(CredentialsConfiguration):
                 from databricks.sdk import WorkspaceClient
 
                 w = WorkspaceClient()
-                self.access_token = w.dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)  # type: ignore[union-attr]
+                self.access_token = (
+                    w.dbutils.notebook.entry_point.getDbutils()
+                    .notebook()
+                    .getContext()
+                    .apiToken()
+                    .getOrElse(None)
+                )
             except Exception:
                 self.access_token = None
 
@@ -51,7 +57,7 @@ class DatabricksCredentials(CredentialsConfiguration):
                 from databricks.sdk import WorkspaceClient
 
                 w = WorkspaceClient()
-                self.access_token = w.config.authenticate  # type: ignore[assignment]
+                self.access_token = w.config.authenticate
                 logger.info(f"Will attempt to use default auth of type {w.config.auth_type}")
             except Exception:
                 pass
@@ -74,7 +80,7 @@ class DatabricksCredentials(CredentialsConfiguration):
                     warehouse = w.warehouses.get(w.config.warehouse_id)
                 else:
                     # for some reason list of warehouses has different type than a single one 🤯
-                    warehouse = list(w.warehouses.list())[0]  # type: ignore[assignment]
+                    warehouse = list(w.warehouses.list())[0]
                 logger.info(
                     f"Will attempt to use warehouse {warehouse.id} to get sql connection params"
                 )

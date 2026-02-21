@@ -236,7 +236,7 @@ def test_coerce_type_to_timestamp() -> None:
         coerce_value("timestamp", "text", "03:41:31.466")
 
     # time object fails
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         coerce_value("timestamp", "time", pendulum.Time(10, 36, 0, 0))
 
 
@@ -275,7 +275,7 @@ def test_coerce_type_to_date() -> None:
         coerce_value("timestamp", "text", "03:41:31.466")
 
     # time object fails
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         coerce_value("timestamp", "time", pendulum.Time(10, 36, 0, 0))
 
 
@@ -289,11 +289,11 @@ def test_coerce_type_to_time() -> None:
         3, 41, 31, 466000
     )
     # from datetime object fails
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         coerce_value("time", "timestamp", pendulum.datetime(1995, 5, 6, 00, 1, 1, tz=UTC))
 
     # from unix timestamp fails
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         assert coerce_value("time", "double", 1677546399.494264) == pendulum.parse(
             "01:06:39.494264", exact=True
         )
