@@ -38,7 +38,7 @@ class ParquetFormatConfiguration(BaseConfiguration):
 
     def max_timestamp_precision(self) -> int:
         if (self.flavor or "").lower() == "spark":
-            base = get_precision_from_datetime_unit("ns")  # INT96 → treat as ns-capable
+            base = get_precision_from_datetime_unit("ns")  # INT96 -> treat as ns-capable
         else:
             v = float(self.version or "0.0")
             base = (
