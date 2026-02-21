@@ -1,7 +1,8 @@
 """Pipeline execution timeline visualization and load package status badges."""
 
-import datetime
 from typing import Any, Dict, List, Optional, Tuple, NamedTuple, cast, get_args
+
+from dlt.common.pendulum import datetime
 
 import marimo as mo
 
@@ -51,7 +52,7 @@ def pipeline_execution_html(
     status: TPipelineRunStatus,
     steps_data: List[PipelineStepData],
     migrations_count: int = 0,
-    finished_at: Optional[datetime.datetime] = None,
+    finished_at: Optional[datetime] = None,
 ) -> mo.Html:
     """Build an HTML visualization for a pipeline execution using CSS classes."""
     total_ms = sum(step.duration_ms for step in steps_data)
