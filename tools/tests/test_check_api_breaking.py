@@ -22,7 +22,7 @@ PUBLIC_LINES = [
 ]
 
 NON_PUBLIC_LINES = [
-    "dlt/normalize/items_normalizers.py:15: Function '_normalize' was removed",
+    "dlt/normalize/items_normalizers/jsonl.py:15: Function '_normalize' was removed",
     "dlt/common/storages/file_storage.py:80: Parameter 'encoding' was removed",
     "dlt/destinations/impl/duckdb/duck.py:22: Method '_execute' was removed",
 ]
