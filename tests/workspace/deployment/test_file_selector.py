@@ -32,13 +32,18 @@ def test_file_selector_respects_gitignore(with_additional_exclude: bool) -> None
         assert files == expected_files
 
 
-def test_file_selector_warns_on_missing_ignore_file(capsys: pytest.CaptureFixture[str]) -> None:
-    """Warning is emitted when the configured ignore file does not exist."""
+def test_file_selector_ignore_file_not_found() -> None:
+    """ignore_file_found is False when the configured ignore file does not exist."""
     with isolated_workspace("default") as ctx:
-        WorkspaceFileSelector(ctx, ignore_file=".nonexistent_ignore")
-    captured = capsys.readouterr()
-    assert "No .nonexistent_ignore found" in captured.out
-    assert "Consider adding a .nonexistent_ignore" in captured.out
+        selector = WorkspaceFileSelector(ctx, ignore_file=".nonexistent_ignore")
+    assert selector.ignore_file_found is False
+
+
+def test_file_selector_ignore_file_found() -> None:
+    """ignore_file_found is True when the configured ignore file exists."""
+    with isolated_workspace("default") as ctx:
+        selector = WorkspaceFileSelector(ctx, ignore_file=".ignorefile")
+    assert selector.ignore_file_found is True
 
 
 def test_configuration_file_selector() -> None:
