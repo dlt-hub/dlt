@@ -1,6 +1,5 @@
 import re
 
-import dlt
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
 from dlt._workspace.mcp.tools import PipelineMCPTools
@@ -19,8 +18,7 @@ def assert_valid_dlt_id(dlt_id: str) -> None:
 
 
 def test_mcp_pipeline_tools(pokemon_pipeline_context: RunContextBase) -> None:
-    pipeline = dlt.attach("rest_api_pokemon")
-    pipeline_tools = PipelineMCPTools(pipeline)
+    pipeline_tools = PipelineMCPTools("rest_api_pokemon")
 
     assert pipeline_tools.available_tables() == {
         "schemas": {"pokemon": ["pokemon", "berry", "location"]}

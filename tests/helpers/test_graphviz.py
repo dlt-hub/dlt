@@ -1,260 +1,18 @@
 import pathlib
 import tempfile
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import pytest
 import graphviz  # type: ignore[import-untyped]
 
 import dlt
-from dlt.common.schema.typing import PIPELINE_STATE_TABLE_NAME, VERSION_TABLE_NAME, LOADS_TABLE_NAME
+from dlt.common.schema.typing import (
+    PIPELINE_STATE_TABLE_NAME,
+    TStoredSchema,
+    VERSION_TABLE_NAME,
+    LOADS_TABLE_NAME,
+)
 from dlt.helpers.graphviz import _render_with_graphviz, schema_to_graphviz, TABLE_HEADER_PORT
-
-
-@pytest.fixture
-def example_schema() -> dlt.Schema:
-    return dlt.Schema.from_dict(
-        {
-            "version": 2,
-            "version_hash": "iW0MtTw8NXm1r/amMiYpOF63Of44Mx5VfYOh5DM6/7s=",
-            "engine_version": 11,
-            "name": "fruit_with_ref",
-            "tables": {
-                "_dlt_version": {
-                    "name": "_dlt_version",
-                    "columns": {
-                        "version": {"name": "version", "data_type": "bigint", "nullable": False},
-                        "engine_version": {
-                            "name": "engine_version",
-                            "data_type": "bigint",
-                            "nullable": False,
-                        },
-                        "inserted_at": {
-                            "name": "inserted_at",
-                            "data_type": "timestamp",
-                            "nullable": False,
-                        },
-                        "schema_name": {
-                            "name": "schema_name",
-                            "data_type": "text",
-                            "nullable": False,
-                        },
-                        "version_hash": {
-                            "name": "version_hash",
-                            "data_type": "text",
-                            "nullable": False,
-                        },
-                        "schema": {"name": "schema", "data_type": "text", "nullable": False},
-                    },
-                    "write_disposition": "skip",
-                    "resource": "_dlt_version",
-                    "description": "Created by DLT. Tracks schema updates",
-                },
-                "_dlt_loads": {
-                    "name": "_dlt_loads",
-                    "columns": {
-                        "load_id": {"name": "load_id", "data_type": "text", "nullable": False},
-                        "schema_name": {
-                            "name": "schema_name",
-                            "data_type": "text",
-                            "nullable": True,
-                        },
-                        "status": {"name": "status", "data_type": "bigint", "nullable": False},
-                        "inserted_at": {
-                            "name": "inserted_at",
-                            "data_type": "timestamp",
-                            "nullable": False,
-                        },
-                        "schema_version_hash": {
-                            "name": "schema_version_hash",
-                            "data_type": "text",
-                            "nullable": True,
-                        },
-                    },
-                    "write_disposition": "skip",
-                    "resource": "_dlt_loads",
-                    "description": "Created by DLT. Tracks completed loads",
-                },
-                "customers": {
-                    "columns": {
-                        "id": {
-                            "name": "id",
-                            "nullable": False,
-                            "primary_key": True,
-                            "data_type": "bigint",
-                        },
-                        "name": {
-                            "x-annotation-pii": True,
-                            "name": "name",
-                            "data_type": "text",
-                            "nullable": True,
-                        },
-                        "city": {"name": "city", "data_type": "text", "nullable": True},
-                        "_dlt_load_id": {
-                            "name": "_dlt_load_id",
-                            "data_type": "text",
-                            "nullable": False,
-                        },
-                        "_dlt_id": {
-                            "name": "_dlt_id",
-                            "data_type": "text",
-                            "nullable": False,
-                            "unique": True,
-                            "row_key": True,
-                        },
-                    },
-                    "write_disposition": "append",
-                    "name": "customers",
-                    "resource": "customers",
-                    "x-normalizer": {"seen-data": True},
-                },
-                "purchases": {
-                    "columns": {
-                        "id": {
-                            "name": "id",
-                            "nullable": False,
-                            "primary_key": True,
-                            "data_type": "bigint",
-                        },
-                        "customer_id": {
-                            "name": "customer_id",
-                            "data_type": "bigint",
-                            "nullable": True,
-                        },
-                        "inventory_id": {
-                            "name": "inventory_id",
-                            "data_type": "bigint",
-                            "nullable": True,
-                        },
-                        "quantity": {"name": "quantity", "data_type": "bigint", "nullable": True},
-                        "date": {"name": "date", "data_type": "text", "nullable": True},
-                        "_dlt_load_id": {
-                            "name": "_dlt_load_id",
-                            "data_type": "text",
-                            "nullable": False,
-                        },
-                        "_dlt_id": {
-                            "name": "_dlt_id",
-                            "data_type": "text",
-                            "nullable": False,
-                            "unique": True,
-                            "row_key": True,
-                        },
-                    },
-                    "write_disposition": "append",
-                    "references": [
-                        {
-                            "columns": ["customer_id"],
-                            "referenced_table": "customers",
-                            "referenced_columns": ["id"],
-                        }
-                    ],
-                    "name": "purchases",
-                    "resource": "purchases",
-                    "x-normalizer": {"seen-data": True},
-                },
-                "_dlt_pipeline_state": {
-                    "columns": {
-                        "version": {"name": "version", "data_type": "bigint", "nullable": False},
-                        "engine_version": {
-                            "name": "engine_version",
-                            "data_type": "bigint",
-                            "nullable": False,
-                        },
-                        "pipeline_name": {
-                            "name": "pipeline_name",
-                            "data_type": "text",
-                            "nullable": False,
-                        },
-                        "state": {"name": "state", "data_type": "text", "nullable": False},
-                        "created_at": {
-                            "name": "created_at",
-                            "data_type": "timestamp",
-                            "nullable": False,
-                        },
-                        "version_hash": {
-                            "name": "version_hash",
-                            "data_type": "text",
-                            "nullable": True,
-                        },
-                        "_dlt_load_id": {
-                            "name": "_dlt_load_id",
-                            "data_type": "text",
-                            "nullable": False,
-                        },
-                        "_dlt_id": {
-                            "name": "_dlt_id",
-                            "data_type": "text",
-                            "nullable": False,
-                            "unique": True,
-                            "row_key": True,
-                        },
-                    },
-                    "write_disposition": "append",
-                    "file_format": "preferred",
-                    "name": "_dlt_pipeline_state",
-                    "resource": "_dlt_pipeline_state",
-                    "x-normalizer": {"seen-data": True},
-                },
-                "purchases__items": {
-                    "name": "purchases__items",
-                    "columns": {
-                        "name": {"name": "name", "data_type": "text", "nullable": True},
-                        "price": {"name": "price", "data_type": "bigint", "nullable": True},
-                        "_dlt_root_id": {
-                            "name": "_dlt_root_id",
-                            "data_type": "text",
-                            "nullable": False,
-                            "root_key": True,
-                        },
-                        "_dlt_parent_id": {
-                            "name": "_dlt_parent_id",
-                            "data_type": "text",
-                            "nullable": False,
-                            "parent_key": True,
-                        },
-                        "_dlt_list_idx": {
-                            "name": "_dlt_list_idx",
-                            "data_type": "bigint",
-                            "nullable": False,
-                        },
-                        "_dlt_id": {
-                            "name": "_dlt_id",
-                            "data_type": "text",
-                            "nullable": False,
-                            "unique": True,
-                            "row_key": True,
-                        },
-                    },
-                    "parent": "purchases",
-                    "x-normalizer": {"seen-data": True},
-                },
-            },
-            "settings": {
-                "detections": ["iso_timestamp"],
-                "default_hints": {
-                    "not_null": [
-                        "_dlt_id",
-                        "_dlt_root_id",
-                        "_dlt_parent_id",
-                        "_dlt_list_idx",
-                        "_dlt_load_id",
-                    ],
-                    "parent_key": ["_dlt_parent_id"],
-                    "root_key": ["_dlt_root_id"],
-                    "unique": ["_dlt_id"],
-                    "row_key": ["_dlt_id"],
-                },
-            },
-            "normalizers": {
-                "names": "snake_case",
-                "json": {"module": "dlt.common.normalizers.json.relational"},
-            },
-            "previous_hashes": [
-                "+stnjP5XdPbykNQJVpK/zpfo0iVbyRFfSIIRzuPzcI4=",
-                "nTU+qnLwEmiMSWTwu+QH321j4zl8NrOVL4Hx/GxQAHE=",
-            ],
-        }
-    )
 
 
 def is_valid_dot(dot: str) -> bool:
@@ -265,6 +23,55 @@ def is_valid_dot(dot: str) -> bool:
         return False
 
     return True
+
+
+def test_schema_to_graphviz_skips_incomplete_tables_and_columns() -> None:
+    """Tables with only incomplete columns are excluded, and incomplete columns within
+    complete tables are skipped."""
+    stored_schema = cast(
+        TStoredSchema,
+        {
+            "name": "test_schema",
+            "tables": {
+                "complete_table": {
+                    "name": "complete_table",
+                    "columns": {
+                        "id": {
+                            "name": "id",
+                            "data_type": "bigint",
+                            "primary_key": True,
+                            "nullable": False,
+                        },
+                        "name": {"name": "name", "data_type": "text"},
+                        "pending": {"name": "pending"},
+                    },
+                },
+                "incomplete_table": {
+                    "name": "incomplete_table",
+                    "columns": {
+                        "no_type_a": {"name": "no_type_a"},
+                        "no_type_b": {"name": "no_type_b"},
+                    },
+                },
+            },
+        },
+    )
+
+    dot = schema_to_graphviz(
+        stored_schema,
+        include_dlt_tables=False,
+        include_internal_dlt_ref=False,
+        include_parent_child_ref=False,
+        include_root_child_ref=False,
+    )
+
+    assert "complete_table" in dot
+    assert "incomplete_table" not in dot
+    # complete columns rendered, incomplete skipped
+    assert "id" in dot
+    assert "bigint" in dot
+    assert "pending" not in dot
+    assert is_valid_dot(dot)
 
 
 def test_generate_valid_graphviz(example_schema: dlt.Schema, tmp_path: pathlib.Path) -> None:
@@ -330,8 +137,8 @@ def test_include_parent_child_ref(
     expected_refs = [
         # table edge
         f"purchases__items:{TABLE_HEADER_PORT} -> purchases:{TABLE_HEADER_PORT}",
-        # column edge; `f4` points to `purchases__items._dlt_parent_id`, the 4th column (1-indexed)
-        "purchases__items:f4:_ -> purchases:f7:_",
+        # column edge; `f5` points to `purchases__items._dlt_parent_id`, the 5th column (1-indexed)
+        "purchases__items:f5:_ -> purchases:f7:_",
     ]
 
     stored_schema = example_schema.to_dict()
@@ -354,8 +161,8 @@ def test_include_root_child_ref(example_schema: dlt.Schema, include_root_child_r
     expected_refs = [
         # table edge
         f"purchases__items:{TABLE_HEADER_PORT} -> purchases:{TABLE_HEADER_PORT}",
-        # column edge; `f3` points to `purchases__items._dlt_root_id`, the 3rd column (1-indexed)
-        "purchases__items:f3:_ -> purchases:f7:_",
+        # column edge; `f4` points to `purchases__items._dlt_root_id`, the 4th column (1-indexed)
+        "purchases__items:f4:_ -> purchases:f7:_",
     ]
 
     stored_schema = example_schema.to_dict()
