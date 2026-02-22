@@ -123,14 +123,14 @@ When a source's **section** (typically the module name) differs from its **name*
 sources.<name>.<key>
 ```
 
-This is in addition to the full path `sources.<section>.<name>.<key>`. The full path always takes precedence. This is particularly useful when you [rename a source](../source.md#rename-the-source) with `.clone()`:
+This is in addition to the full path `sources.<section>.<name>.<key>`. Both the full path and the section path (`sources.<section>.<key>`) take precedence over the compact path. This is particularly useful when you [rename a source](../source.md#rename-the-source) with `.clone()`:
 
 ```toml
 # compact layout — just the source name
 [sources.my_db.credentials]
 password="..."
 
-# full layout — section + name (takes precedence if both exist)
+# full layout — section + name (takes precedence)
 [sources.my_db_module.my_db.credentials]
 password="..."
 ```

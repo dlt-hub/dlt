@@ -19,28 +19,28 @@ from tests.common.configuration.utils import MockProvider, SecretMockProvider
             (),
             None,
             [
-                (None, "destination", "bigquery", "my_dest"),
-                (None, "destination", "bigquery"),
-                (None, "destination"),
-                (None,),
+                ("destination", "bigquery", "my_dest"),
+                ("destination", "bigquery"),
+                ("destination",),
+                (),
             ],
         ),
         (
             ("sources", "chess"),
             (),
             None,
-            [(None, "sources", "chess"), (None, "sources"), (None,)],
+            [("sources", "chess"), ("sources",), ()],
         ),
-        ((), (), None, [(None,)]),
+        ((), (), None, [()]),
         # config_section (eg. credentials) appended to each path
         (
             ("sources", "chess"),
             (),
             "credentials",
             [
-                (None, "sources", "chess", "credentials"),
-                (None, "sources", "credentials"),
-                (None, "credentials"),
+                ("sources", "chess", "credentials"),
+                ("sources", "credentials"),
+                ("credentials",),
             ],
         ),
         # embedded sections (nested config fields) extend the path
@@ -49,11 +49,11 @@ from tests.common.configuration.utils import MockProvider, SecretMockProvider
             ("api_config", "retry"),
             None,
             [
-                (None, "sources", "chess", "api_config", "retry"),
-                (None, "sources", "chess", "api_config"),
-                (None, "sources", "chess"),
-                (None, "sources"),
-                (None,),
+                ("sources", "chess", "api_config", "retry"),
+                ("sources", "chess", "api_config"),
+                ("sources", "chess"),
+                ("sources",),
+                (),
             ],
         ),
         # embedded + config_section
@@ -62,10 +62,10 @@ from tests.common.configuration.utils import MockProvider, SecretMockProvider
             ("api_config",),
             "credentials",
             [
-                (None, "sources", "chess", "api_config", "credentials"),
-                (None, "sources", "chess", "credentials"),
-                (None, "sources", "credentials"),
-                (None, "credentials"),
+                ("sources", "chess", "api_config", "credentials"),
+                ("sources", "chess", "credentials"),
+                ("sources", "credentials"),
+                ("credentials",),
             ],
         ),
     ],
@@ -82,7 +82,7 @@ def test_standard_pop_sequence(
     explicit: Tuple[str, ...],
     embedded: Tuple[str, ...],
     config_section: str,
-    expected: List[Tuple[Optional[str], ...]],
+    expected: List[Tuple[str, ...]],
 ) -> None:
     assert _build_section_lookup_paths(explicit, embedded, config_section, True) == expected
 
@@ -90,17 +90,17 @@ def test_standard_pop_sequence(
 @pytest.mark.parametrize(
     "explicit,embedded,config_section,expected",
     [
-        # sources.section.name inserts compact sources.name path
+        # sources.section.name — compact sources.name inserted AFTER sources.section
         (
             ("sources", "chess_com", "chess"),
             (),
             None,
             [
-                (None, "sources", "chess_com", "chess"),
-                (None, "sources", "chess"),
-                (None, "sources", "chess_com"),
-                (None, "sources"),
-                (None,),
+                ("sources", "chess_com", "chess"),
+                ("sources", "chess_com"),
+                ("sources", "chess"),
+                ("sources",),
+                (),
             ],
         ),
         # compact with config_section (embedded credentials)
@@ -109,11 +109,11 @@ def test_standard_pop_sequence(
             (),
             "credentials",
             [
-                (None, "sources", "chess_com", "chess", "credentials"),
-                (None, "sources", "chess", "credentials"),
-                (None, "sources", "chess_com", "credentials"),
-                (None, "sources", "credentials"),
-                (None, "credentials"),
+                ("sources", "chess_com", "chess", "credentials"),
+                ("sources", "chess_com", "credentials"),
+                ("sources", "chess", "credentials"),
+                ("sources", "credentials"),
+                ("credentials",),
             ],
         ),
         # compact with embedded sections
@@ -122,12 +122,12 @@ def test_standard_pop_sequence(
             ("inner",),
             None,
             [
-                (None, "sources", "chess_com", "chess", "inner"),
-                (None, "sources", "chess", "inner"),
-                (None, "sources", "chess_com", "chess"),
-                (None, "sources", "chess_com"),
-                (None, "sources"),
-                (None,),
+                ("sources", "chess_com", "chess", "inner"),
+                ("sources", "chess_com", "chess"),
+                ("sources", "chess", "inner"),
+                ("sources", "chess_com"),
+                ("sources",),
+                (),
             ],
         ),
         # section == name: no duplicate compact
@@ -136,10 +136,10 @@ def test_standard_pop_sequence(
             (),
             None,
             [
-                (None, "sources", "chess", "chess"),
-                (None, "sources", "chess"),
-                (None, "sources"),
-                (None,),
+                ("sources", "chess", "chess"),
+                ("sources", "chess"),
+                ("sources",),
+                (),
             ],
         ),
         # non-sources top section: no compact
@@ -148,10 +148,10 @@ def test_standard_pop_sequence(
             (),
             None,
             [
-                (None, "destination", "bigquery", "my_dest"),
-                (None, "destination", "bigquery"),
-                (None, "destination"),
-                (None,),
+                ("destination", "bigquery", "my_dest"),
+                ("destination", "bigquery"),
+                ("destination",),
+                (),
             ],
         ),
         # only 2 sections under sources: no compact
@@ -159,7 +159,7 @@ def test_standard_pop_sequence(
             ("sources", "chess"),
             (),
             None,
-            [(None, "sources", "chess"), (None, "sources"), (None,)],
+            [("sources", "chess"), ("sources",), ()],
         ),
     ],
     ids=[
@@ -175,59 +175,15 @@ def test_compact_sources_layout(
     explicit: Tuple[str, ...],
     embedded: Tuple[str, ...],
     config_section: str,
-    expected: List[Tuple[Optional[str], ...]],
+    expected: List[Tuple[str, ...]],
 ) -> None:
     assert _build_section_lookup_paths(explicit, embedded, config_section, True) == expected
 
 
-@pytest.mark.parametrize(
-    "pipeline_name,expected",
-    [
-        # pipeline-prefixed paths come first, then non-prefixed
-        (
-            "my_pipe",
-            [
-                ("my_pipe", "sources", "mod", "src"),
-                ("my_pipe", "sources", "src"),
-                ("my_pipe", "sources", "mod"),
-                ("my_pipe", "sources"),
-                ("my_pipe",),
-                (None, "sources", "mod", "src"),
-                (None, "sources", "src"),
-                (None, "sources", "mod"),
-                (None, "sources"),
-                (None,),
-            ],
-        ),
-        # no pipeline: all paths tagged with None
-        (
-            None,
-            [
-                (None, "sources", "mod", "src"),
-                (None, "sources", "src"),
-                (None, "sources", "mod"),
-                (None, "sources"),
-                (None,),
-            ],
-        ),
-    ],
-    ids=["with-pipeline", "no-pipeline"],
-)
-def test_pipeline_name_prefix(
-    pipeline_name: str,
-    expected: List[Tuple[Optional[str], ...]],
-) -> None:
-    assert (
-        _build_section_lookup_paths(("sources", "mod", "src"), (), None, True, pipeline_name)
-        == expected
-    )
-
-
 def test_non_section_provider_paths() -> None:
-    """Non-section providers always get a single (None,) path."""
-    assert _build_section_lookup_paths(("a", "b"), (), None, False) == [(None,)]
-    assert _build_section_lookup_paths(("a", "b"), (), None, False, "pipe") == [(None,)]
-    assert _build_section_lookup_paths((), (), "cfg", False) == [(None,)]
+    """Non-section providers always get a single empty-tuple path."""
+    assert _build_section_lookup_paths(("a", "b"), (), None, False) == [()]
+    assert _build_section_lookup_paths((), (), "cfg", False) == [()]
 
 
 @pytest.mark.parametrize(
@@ -254,8 +210,7 @@ def test_sources_compact_resolution(return_on: Tuple[str, ...], config_section: 
 
 
 def test_pipeline_name_passed_to_provider() -> None:
-    """Pipeline name is passed to provider as first arg, not baked into sections."""
-    # pipeline-scoped value is found via provider's own pipeline_name handling
+    """Pipeline name is passed directly to provider.get_value, not baked into sections."""
     provider = SecretMockProvider()
     provider.value = "pipeline_val"
     provider.return_value_on = ("my_pipe", "sources", "chess_com", "chess")
@@ -268,7 +223,7 @@ def test_pipeline_name_passed_to_provider() -> None:
     )
     assert value == "pipeline_val"
 
-    # provider receives actual pipeline_name for prefixed paths, None for non-prefixed
+    # all calls get the same pipeline_name
     received: List[Optional[str]] = []
 
     class Tracker(SecretMockProvider):
@@ -283,13 +238,12 @@ def test_pipeline_name_passed_to_provider() -> None:
         pipeline_name="my_pipe",
         explicit_sections=("sources", "mod", "src"),
     )
-    # first batch has pipeline_name, second batch has None
-    assert "my_pipe" in received
-    assert None in received
+    # all calls receive the same pipeline_name
+    assert all(pn == "my_pipe" for pn in received)
 
 
-def test_non_section_provider_bare_key_only() -> None:
-    """Non-section providers try bare key with pipeline_name=None."""
+def test_non_section_provider_skipped_with_pipeline_name() -> None:
+    """Non-section providers are skipped when pipeline_name is set."""
     call_log: List[Tuple[Optional[str], Tuple[str, ...]]] = []
 
     class Tracker(MockProvider):
@@ -301,11 +255,22 @@ def test_non_section_provider_bare_key_only() -> None:
             call_log.append((pipeline_name, sections))
             return None, key
 
-    resolve_single_provider_value(
+    # with pipeline_name: provider is skipped entirely
+    value, traces = resolve_single_provider_value(
         Tracker(),
         key="k",
         hint=str,
         pipeline_name="pipe",
+        explicit_sections=("sources", "mod", "src"),
+    )
+    assert value is None
+    assert call_log == []
+
+    # without pipeline_name: provider is queried with bare key
+    resolve_single_provider_value(
+        Tracker(),
+        key="k",
+        hint=str,
         explicit_sections=("sources", "mod", "src"),
     )
     assert call_log == [(None, ())]

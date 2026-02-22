@@ -166,12 +166,12 @@ def notion_databases(api_key: str = dlt.secrets.value):
 When a source's **section differs from its name** (e.g., after using `.clone(name="my_db", section="my_db_module")`), `dlt` also checks a **compact path** using just the source name:
 
 1. `sources.my_db_module.my_db.api_key` (full path)
-2. `sources.my_db.api_key` (compact path)
-3. `sources.my_db_module.api_key`
+2. `sources.my_db_module.api_key`
+3. `sources.my_db.api_key` (compact path)
 4. `sources.api_key`
 5. `api_key`
 
-The full path always takes precedence over the compact path. This lets you use simple, readable keys like `sources.my_db.credentials` instead of the longer `sources.my_db_module.my_db.credentials`.
+Both the full path and the section path take precedence over the compact path. This lets you use simple, readable keys like `sources.my_db.credentials` instead of the longer `sources.my_db_module.my_db.credentials`.
 
 Similarly with destination credentials. In that case `credentials` sections is considered a required grouping
 and won't be eliminated:

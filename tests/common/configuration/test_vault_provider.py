@@ -187,7 +187,7 @@ def test_pipeline_name_flows_through_resolve() -> None:
     provider = _make_provider()
     provider.set_secret("my_pipe.dlt_secrets_toml", PIPELINE_TOML)
 
-    # resolve_single_provider_value passes pipeline_name from tagged paths
+    # resolve_single_provider_value passes pipeline_name directly to provider
     value, _ = resolve_single_provider_value(
         provider,
         key="api_key",

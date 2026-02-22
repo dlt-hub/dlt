@@ -544,9 +544,15 @@ def test_source_explicit_section() -> None:
         # source state key is still source name
         assert state["sources"]["custom_section"]["val"] == "CUSTOM"
 
-    # compact sources layout: sources.name.key works when section != name
-    del os.environ["SOURCES__CUSTOM_SECTION__SECRET"]
+    # section path (sources.section.key) takes precedence over compact (sources.name.key)
     os.environ["SOURCES__WITH_SECTION__SECRET"] = "COMPACT"
+    state = {}
+    with Container().injectable_context(StateInjectableContext(state=state)):
+        assert list(with_section()) == [1]
+        assert state["sources"]["custom_section"]["val"] == "CUSTOM"
+
+    # compact sources layout: sources.name.key works when section-level is absent
+    del os.environ["SOURCES__CUSTOM_SECTION__SECRET"]
     state = {}
     with Container().injectable_context(StateInjectableContext(state=state)):
         assert list(with_section()) == [1]

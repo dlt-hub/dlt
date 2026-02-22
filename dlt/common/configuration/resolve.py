@@ -508,23 +508,37 @@ def _resolve_single_value(
     # get additional sections to look in from container
     sections_context = container[ConfigSectionContext]
 
-    for provider in providers:
-        if provider.is_empty:
-            continue
+    def look_sections(pipeline_name: str = None) -> Any:
+        # start looking from the top provider with most specific set of sections first
+        value: Any = None
+        for provider in providers:
+            if provider.is_empty:
+                # do not query empty provider so they are not added to the trace
+                continue
 
-        value, provider_traces = resolve_single_provider_value(
-            provider,
-            key,
-            hint,
-            sections_context.pipeline_name,
-            config_section,
-            # if explicit sections are provided, ignore the injected context
-            explicit_sections or sections_context.sections,
-            embedded_sections,
-        )
-        traces.extend(provider_traces)
-        if value is not None:
-            break
+            value, provider_traces = resolve_single_provider_value(
+                provider,
+                key,
+                hint,
+                pipeline_name,
+                config_section,
+                # if explicit sections are provided, ignore the injected context
+                explicit_sections or sections_context.sections,
+                embedded_sections,
+            )
+            traces.extend(provider_traces)
+            if value is not None:
+                # value found, ignore other providers
+                break
+
+        return value
+
+    # first try with pipeline name as section, if present
+    if sections_context.pipeline_name:
+        value = look_sections(sections_context.pipeline_name)
+    # then without it
+    if value is None:
+        value = look_sections()
 
     return value, traces
 
@@ -534,20 +548,15 @@ def _build_section_lookup_paths(
     embedded_sections: Tuple[str, ...],
     config_section: str,
     supports_sections: bool,
-    pipeline_name: str = None,
-) -> List[Tuple[Optional[str], ...]]:
+) -> List[Tuple[str, ...]]:
     """Build ordered list of section paths from most to least specific.
-
-    Each returned tuple has pipeline_name (or None) as the first element,
-    followed by the section path. Callers unpack as ``pn, *sections``.
 
     Standard pop sequence removes sections from the right one at a time.
     For "sources" with section != name, also inserts (sources, name, ...embedded)
-    after popping the source name — so users can write sources.name.key.
-    When pipeline_name is given, pipeline-prefixed paths come first, then non-prefixed.
+    after sources.section — so users can write sources.name.key.
     """
     if not supports_sections:
-        return [(None,)]
+        return [()]
 
     ns = list(explicit_sections) + list(embedded_sections)
     base_paths: List[Tuple[str, ...]] = []
@@ -559,7 +568,7 @@ def _build_section_lookup_paths(
             break
         ns.pop()
 
-    # compact sources layout: insert sources.name path after sources.section.name
+    # compact sources layout: insert sources.name path after sources.section
     if (
         len(explicit_sections) >= 3
         and explicit_sections[0] == known_sections.SOURCES
@@ -569,13 +578,9 @@ def _build_section_lookup_paths(
         if config_section:
             compact = compact + (config_section,)
         if compact not in base_paths:
-            base_paths.insert(1, compact)
+            base_paths.insert(2, compact)
 
-    tagged: List[Tuple[Optional[str], ...]] = []
-    if pipeline_name:
-        tagged.extend((pipeline_name,) + p for p in base_paths)
-    tagged.extend((None,) + p for p in base_paths)
-    return tagged
+    return base_paths
 
 
 def resolve_single_provider_value(
@@ -589,19 +594,21 @@ def resolve_single_provider_value(
 ) -> Tuple[Optional[Any], List[LookupTrace]]:
     traces: List[LookupTrace] = []
 
+    if not provider.supports_sections:
+        # if provider does not support sections and pipeline name is set then ignore it
+        if pipeline_name:
+            return None, traces
+
     lookup_paths = _build_section_lookup_paths(
         explicit_sections,
         embedded_sections,
         config_section,
         provider.supports_sections,
-        pipeline_name,
     )
 
     value = None
-    for tagged_path in lookup_paths:
-        pn = tagged_path[0]
-        sections = tagged_path[1:]
-        value, ns_key = provider.get_value(key, hint, pn, *sections)
+    for path in lookup_paths:
+        value, ns_key = provider.get_value(key, hint, pipeline_name, *path)
         # if secret is obtained from non secret provider, we must fail
         cant_hold_it: bool = not provider.supports_secrets and is_secret_hint(hint)
         if value is not None and cant_hold_it:
@@ -609,7 +616,7 @@ def resolve_single_provider_value(
 
         # create trace, ignore providers that cant_hold_it
         if not cant_hold_it:
-            traces.append(LookupTrace(provider.name, list(sections), ns_key, value))
+            traces.append(LookupTrace(provider.name, list(path), ns_key, value))
 
         if value is not None:
             break
