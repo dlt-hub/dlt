@@ -7,7 +7,7 @@ from dlt.common.metrics import DataWriterMetrics
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.normalizers.utils import generate_dlt_ids
 from dlt.common.schema.typing import C_DLT_ID
-from dlt.common.schema.utils import dlt_id_column, is_complete_column, normalize_table_identifiers
+from dlt.common.schema.utils import dlt_id_column, normalize_table_identifiers
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.storages import NormalizeStorage
@@ -48,8 +48,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
     def _collect_null_columns_from_arrow_metadata(
         self, arrow_schema: Any, root_table_name: str
     ) -> None:
-        """Read dlt.null_columns from arrow schema metadata, normalize names, add to tracker,
-        and remove incomplete columns from dlt schema."""
+        """Read dlt.null_columns from arrow schema metadata, normalize names, add to tracker."""
         metadata = arrow_schema.metadata or {}
         null_cols_json = metadata.get(b"dlt.null_columns")
         if not null_cols_json:
@@ -61,13 +60,6 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         for name in null_col_names:
             normalized_names.add(self.schema.naming.normalize_path(name))
         self._null_only_columns.setdefault(root_table_name, set()).update(normalized_names)
-        # remove incomplete columns from dlt schema (created during extraction)
-        table = self.schema._schema_tables.get(root_table_name)
-        if table:
-            for col_name in normalized_names:
-                col = table["columns"].get(col_name)
-                if col and not is_complete_column(col):
-                    table["columns"].pop(col_name)
 
     def _write_with_dlt_columns(
         self,

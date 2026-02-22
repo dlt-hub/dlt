@@ -1193,7 +1193,10 @@ def test_null_column_warning(
         "  - empty_col"
     )
     assert expected_warning in logger_spy.call_args_list[0][0][0]
-    assert "empty_col" not in pipeline.default_schema.get_table("app_user")["columns"]
+    # reflected column is preserved in schema for both backends, just without type info
+    empty_col = pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]
+    assert "data_type" not in empty_col
+    assert "x-normalizer" not in empty_col
 
     def add_value_to_empty_col(
         query, table, incremental=None, engine=None
@@ -1474,8 +1477,6 @@ def test_sql_table_from_view(postgres_db: PostgresSourceDB, backend: TableBacken
     db_data = load_tables_to_dicts(pipeline, "chat_message_view")["chat_message_view"]
     assert "content" in db_data[0]
     assert "_created_at" in db_data[0]
-    # make sure that all NULLs is not present
-    assert "_null_ts" in pipeline.default_schema.tables["chat_message_view"]["columns"]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

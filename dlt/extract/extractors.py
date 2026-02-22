@@ -500,6 +500,12 @@ class ArrowExtractor(Extractor):
                         pyarrow.py_arrow_to_table_schema_columns(item.schema),
                         self._caps,
                     )
+                    # drop incomplete columns inferred from pa.null() arrow fields
+                    arrow_table["columns"] = {
+                        k: v
+                        for k, v in arrow_table["columns"].items()
+                        if utils.is_complete_column(v)
+                    }
                 except pyarrow.UnsupportedArrowTypeException as e:
                     e.table_name = str(arrow_table.get("name"))
                     raise

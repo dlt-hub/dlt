@@ -348,6 +348,34 @@ def test_normalize_with_dlt_columns(item_type: TPythonTableFormat):
     assert schema.tables["some_data"]["columns"]["static_int"]["data_type"] == "bigint"
 
 
+def test_user_defined_incomplete_column_preserved_with_null_data():
+    """User-defined incomplete columns must not be removed when arrow data has all NULLs."""
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
+
+    # arrow table with a null-type column
+    item = pa.table(
+        {
+            "id": pa.array([1, 2, 3]),
+            "value": pa.array([None, None, None]),  # all nulls → pa.null() type
+        }
+    )
+
+    @dlt.resource(columns={"value": {"name": "value", "nullable": True, "description": "user col"}})
+    def user_data():
+        yield item
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+    pipeline.extract(user_data(), loader_file_format="parquet")
+    pipeline.normalize()
+
+    schema = pipeline.default_schema
+    # user-defined column must survive even though data was all NULLs
+    assert "value" in schema.tables["user_data"]["columns"]
+    col = schema.tables["user_data"]["columns"]["value"]
+    assert col["description"] == "user col"
+
+
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
 def test_normalize_reorder_columns_separate_packages(item_type: TPythonTableFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
