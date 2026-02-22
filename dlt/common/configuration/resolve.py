@@ -30,6 +30,7 @@ from dlt.common.configuration.specs.base_configuration import (
     is_valid_hint,
     is_hint_not_resolvable,
 )
+from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
@@ -542,6 +543,46 @@ def _resolve_single_value(
     return value, traces
 
 
+def _build_section_lookup_paths(
+    explicit_sections: Tuple[str, ...],
+    embedded_sections: Tuple[str, ...],
+    config_section: str,
+    supports_sections: bool,
+) -> List[Tuple[str, ...]]:
+    """Build ordered list of section paths from most to least specific.
+
+    Standard pop sequence removes sections from the right one at a time.
+    For "sources" with section != name, also inserts (sources, name, ...embedded)
+    after sources.section — so users can write sources.name.key.
+    """
+    if not supports_sections:
+        return [()]
+
+    ns = list(explicit_sections) + list(embedded_sections)
+    base_paths: List[Tuple[str, ...]] = []
+
+    while True:
+        path = tuple(ns) + ((config_section,) if config_section else ())
+        base_paths.append(path)
+        if not ns:
+            break
+        ns.pop()
+
+    # compact sources layout: insert sources.name path after sources.section
+    if (
+        len(explicit_sections) >= 3
+        and explicit_sections[0] == known_sections.SOURCES
+        and explicit_sections[1] != explicit_sections[2]
+    ):
+        compact = (explicit_sections[0], explicit_sections[2]) + tuple(embedded_sections)
+        if config_section:
+            compact = compact + (config_section,)
+        if compact not in base_paths:
+            base_paths.insert(2, compact)
+
+    return base_paths
+
+
 def resolve_single_provider_value(
     provider: ConfigProvider,
     key: str,
@@ -553,28 +594,21 @@ def resolve_single_provider_value(
 ) -> Tuple[Optional[Any], List[LookupTrace]]:
     traces: List[LookupTrace] = []
 
-    if provider.supports_sections:
-        ns = list(explicit_sections)
-        # always extend with embedded sections
-        ns.extend(embedded_sections)
-    else:
+    if not provider.supports_sections:
         # if provider does not support sections and pipeline name is set then ignore it
         if pipeline_name:
             return None, traces
-        else:
-            # pass empty sections
-            ns = []
+
+    lookup_paths = _build_section_lookup_paths(
+        explicit_sections,
+        embedded_sections,
+        config_section,
+        provider.supports_sections,
+    )
 
     value = None
-    while True:
-        if config_section and provider.supports_sections:
-            full_ns = ns.copy()
-            # config section, is always present and innermost
-            if config_section:
-                full_ns.append(config_section)
-        else:
-            full_ns = ns
-        value, ns_key = provider.get_value(key, hint, pipeline_name, *full_ns)
+    for path in lookup_paths:
+        value, ns_key = provider.get_value(key, hint, pipeline_name, *path)
         # if secret is obtained from non secret provider, we must fail
         cant_hold_it: bool = not provider.supports_secrets and is_secret_hint(hint)
         if value is not None and cant_hold_it:
@@ -582,16 +616,10 @@ def resolve_single_provider_value(
 
         # create trace, ignore providers that cant_hold_it
         if not cant_hold_it:
-            traces.append(LookupTrace(provider.name, full_ns, ns_key, value))
+            traces.append(LookupTrace(provider.name, list(path), ns_key, value))
 
         if value is not None:
-            # value found, ignore further sections
             break
-        if len(ns) == 0:
-            # sections exhausted
-            break
-        # pop optional sections for less precise lookup
-        ns.pop()
 
     if value in TYPE_EXAMPLES.values():
         _emit_placeholder_warning(value, key, ns_key, provider)
