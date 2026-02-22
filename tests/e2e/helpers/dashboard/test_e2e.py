@@ -121,8 +121,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
 
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    # allow marimo reactivity to process
-    page.wait_for_timeout(500)
+
     expect(page.get_by_text("name: fruitshop_customers").nth(1)).to_be_attached()
 
     def _select_schema_and_verify(
@@ -196,8 +195,6 @@ def test_simple_incremental_pipeline(
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    # allow marimo reactivity to process
-    page.wait_for_timeout(500)
     expect(page.get_by_text("name: one_two_three").nth(1)).to_be_attached()
 
     # check first table and columns
@@ -262,8 +259,6 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    # allow marimo reactivity to process
-    page.wait_for_timeout(500)
     expect(page.get_by_text("name: fruitshop").nth(1)).to_be_attached()
 
     # browse data
@@ -339,8 +334,6 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipel
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    # allow marimo reactivity to process
-    page.wait_for_timeout(500)
     expect(page.get_by_text("name: fruitshop").nth(1)).to_be_attached()
 
     # browse data
