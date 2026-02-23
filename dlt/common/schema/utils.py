@@ -1235,6 +1235,11 @@ def get_all_parent_child_references_from_root(
 def get_all_parent_references_to_root(
     tables: TSchemaTables, table_name: str
 ) -> list[TTableReference]:
+    """Start from table {table_name} and iterate over ancestry to root table.
+
+    Returns an ordered list of parent-child references from current {table_name}
+    to root, excluding the current {table_name}
+    """
     if table_name not in tables:
         raise ValueError(f"Table `{table_name}` not found in tables: `{list(tables.keys())}`")
     # this is a root table already
