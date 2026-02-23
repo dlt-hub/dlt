@@ -5,18 +5,23 @@ from pathspec.util import iter_tree_files
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
-# well-known directories and files that should never be deployed
-DEFAULT_EXCLUDES: List[str] = [
-    ".git/",
-    ".venv/",
+# fallback ignore patterns used when no ignore file is found in the workspace
+DEFAULT_IGNORES: List[str] = [
     "__pycache__/",
-    "node_modules/",
-    "*.pyc",
-    ".mypy_cache/",
-    ".pytest_cache/",
-    ".ruff_cache/",
-    ".tox/",
+    "*.py[cod]",
+    ".venv/",
+    "venv/",
+    "dist/",
+    "build/",
     "*.egg-info/",
+    ".mypy_cache/",
+    ".ruff_cache/",
+    ".pytest_cache/",
+    ".coverage",
+    "htmlcov/",
+    "*.so",
+    ".DS_Store",
+    ".env",
 ]
 
 
@@ -51,14 +56,15 @@ class WorkspaceFileSelector(BaseFileSelector):
     def _build_pathspec(self, additional_excludes: List[str]) -> PathSpec:
         """Build PathSpec from ignore file + defaults + additional excludes"""
         patterns: List[str] = [f"{self.settings_dir.relative_to(self.root_path)}/"]
-        patterns.extend(DEFAULT_EXCLUDES)
 
-        # Load ignore file if exists
+        # load ignore file if exists, otherwise fall back to default ignores
         ignore_path = self.root_path / self.ignore_file
         if ignore_path.exists():
             with ignore_path.open("r", encoding="utf-8") as f:
                 patterns.extend(f.read().splitlines())
             self.ignore_file_found = True
+        else:
+            patterns.extend(DEFAULT_IGNORES)
 
         # Add caller-provided excludes
         patterns.extend(additional_excludes)

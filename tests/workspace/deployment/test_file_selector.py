@@ -5,6 +5,7 @@ import pytest
 
 from dlt._workspace.deployment.file_selector import (
     ConfigurationFileSelector,
+    DEFAULT_IGNORES,
     WorkspaceFileSelector,
 )
 
@@ -50,36 +51,80 @@ def test_file_selector_ignore_file_found() -> None:
     assert selector.ignore_file_found is True
 
 
-def test_default_excludes_without_gitignore() -> None:
-    """Default excludes filter well-known non-deployable dirs even without .gitignore."""
+def test_default_ignores_applied_without_ignore_file() -> None:
+    """DEFAULT_IGNORES patterns are applied when no ignore file exists."""
     with isolated_workspace("default") as ctx:
         root = Path(ctx.run_dir)
-        # create directories that should be excluded by default
-        for dirname in [".git", ".venv", "__pycache__", "node_modules", ".mypy_cache"]:
+        # create directories matching DEFAULT_IGNORES
+        for dirname in [
+            ".venv",
+            "venv",
+            "dist",
+            "build",
+            "my_pkg.egg-info",
+            ".mypy_cache",
+            ".ruff_cache",
+            ".pytest_cache",
+            "htmlcov",
+        ]:
             d = root / dirname
             d.mkdir(exist_ok=True)
             (d / "somefile").write_text("x")
-        # also create a .pyc file at root level
-        (root / "compiled.pyc").write_text("x")
+
+        # create files matching DEFAULT_IGNORES
+        (root / "module.pyc").write_text("x")
+        (root / "module.pyo").write_text("x")
+        (root / "module.pyd").write_text("x")
+        (root / ".coverage").write_text("x")
+        (root / "extension.so").write_text("x")
+        (root / ".DS_Store").write_text("x")
+        (root / ".env").write_text("x")
 
         # use default ignore_file (.gitignore) which does not exist in this workspace
         selector = WorkspaceFileSelector(ctx)
         files = {rel.as_posix() for _, rel in selector}
 
-        # none of the default-excluded paths should appear
+        # none of the default-ignored paths should appear
         for name in [
-            ".git/somefile",
             ".venv/somefile",
-            "__pycache__/somefile",
-            "node_modules/somefile",
+            "venv/somefile",
+            "dist/somefile",
+            "build/somefile",
+            "my_pkg.egg-info/somefile",
             ".mypy_cache/somefile",
-            "compiled.pyc",
+            ".ruff_cache/somefile",
+            ".pytest_cache/somefile",
+            "htmlcov/somefile",
+            "module.pyc",
+            "module.pyo",
+            "module.pyd",
+            ".coverage",
+            "extension.so",
+            ".DS_Store",
+            ".env",
         ]:
-            assert name not in files, f"{name} should be excluded by default"
+            assert name not in files, f"{name} should be excluded by DEFAULT_IGNORES"
 
         # regular workspace files should still be present
         assert "ducklake_pipeline.py" in files
         assert "empty_file.py" in files
+
+
+def test_default_ignores_not_applied_with_ignore_file() -> None:
+    """DEFAULT_IGNORES patterns are NOT applied when an ignore file exists."""
+    with isolated_workspace("default") as ctx:
+        root = Path(ctx.run_dir)
+        # create a directory that would be excluded by DEFAULT_IGNORES
+        venv_dir = root / ".venv"
+        venv_dir.mkdir(exist_ok=True)
+        (venv_dir / "somefile").write_text("x")
+
+        # .ignorefile exists and only excludes /empty_file.py
+        selector = WorkspaceFileSelector(ctx, ignore_file=".ignorefile")
+        files = {rel.as_posix() for _, rel in selector}
+
+        # .venv/ is NOT in .ignorefile, so it should appear (DEFAULT_IGNORES not used)
+        assert ".venv/somefile" in files
 
 
 def test_configuration_file_selector() -> None:
