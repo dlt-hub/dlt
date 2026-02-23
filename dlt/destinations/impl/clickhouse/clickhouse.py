@@ -245,10 +245,19 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         staging_root_table_name: str,
         key_clauses: Sequence[str],
         for_delete: bool,
+        row_filter: Optional[str] = None,
     ) -> List[str]:
         join_conditions = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
+        # row_filter scopes destination rows; use subquery to avoid column ambiguity
+        if row_filter:
+            dest_ref = (
+                f"(SELECT * FROM {root_table_name} WHERE {row_filter}) AS d"
+            )
+        else:
+            dest_ref = f"{root_table_name} AS d"
         return [
-            f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
+            f"FROM {dest_ref} JOIN {staging_root_table_name} AS s ON"
+            f" {join_conditions}"
         ]
 
     @classmethod

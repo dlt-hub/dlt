@@ -52,6 +52,8 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         append_fallback = (len(primary_key_names) + len(merge_key_names)) == 0
 
+        row_filter = cls._get_row_filter(root_table)
+
         sqla_statements = []
 
         if not append_fallback:
@@ -61,13 +63,15 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
             # Generate the delete statements
             if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
-                delete_statement = root_table_obj.delete().where(
-                    sa.exists(
-                        sa.select(sa.literal(1))
-                        .where(key_clause)
-                        .select_from(staging_root_table_obj)
-                    )
+                exists_clause = sa.exists(
+                    sa.select(sa.literal(1))
+                    .where(key_clause)
+                    .select_from(staging_root_table_obj)
                 )
+                delete_where = exists_clause
+                if row_filter:
+                    delete_where = sa.and_(exists_clause, sa.text(row_filter))
+                delete_statement = root_table_obj.delete().where(delete_where)
                 sqla_statements.append(delete_statement)
             else:
                 row_key_col_name = cls.get_row_key_col(
@@ -90,15 +94,17 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 # Add the CREATE TABLE statement
                 sqla_statements.append(sa.sql.ddl.CreateTable(delete_temp_table))
                 # Insert data into the "temporary" table
+                exists_clause = sa.exists(
+                    sa.select(sa.literal(1))
+                    .where(key_clause)
+                    .select_from(staging_root_table_obj)
+                )
+                select_where = exists_clause
+                if row_filter:
+                    select_where = sa.and_(exists_clause, sa.text(row_filter))
                 insert_statement = delete_temp_table.insert().from_select(
                     [row_key_col],
-                    sa.select(row_key_col).where(
-                        sa.exists(
-                            sa.select(sa.literal(1))
-                            .where(key_clause)
-                            .select_from(staging_root_table_obj)
-                        )
-                    ),
+                    sa.select(row_key_col).where(select_where),
                 )
                 sqla_statements.append(insert_statement)
 
@@ -367,6 +373,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         from_, to = get_validity_column_names(root_table)
         hash_ = get_first_column_name_with_prop(root_table, "x-row-version")
+        row_filter = cls._get_row_filter(root_table)
 
         caps = sql_client.capabilities
 
@@ -403,6 +410,8 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             root_is_active_clause = root_table_obj.c[to] == sa.text(active_record_literal)
 
         update_statement = update_statement.where(root_is_active_clause)
+        if row_filter:
+            update_statement = update_statement.where(sa.text(row_filter))
 
         merge_keys = get_columns_names_with_prop(root_table, "merge_key")
         if merge_keys:
@@ -417,6 +426,10 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         sqla_statements.append(update_statement)
 
+        active_select = sa.select(root_table_obj.c[hash_]).where(root_is_active_clause)
+        if row_filter:
+            active_select = active_select.where(sa.text(row_filter))
+
         insert_statement = root_table_obj.insert().from_select(
             [col.name for col in root_table_obj.columns],
             sa.select(
@@ -426,9 +439,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 ).label(to),
                 *[c for c in staging_root_table_obj.columns if c.name not in [from_, to]],
             ).where(
-                staging_root_table_obj.c[hash_].notin_(
-                    sa.select(root_table_obj.c[hash_]).where(root_is_active_clause)
-                )
+                staging_root_table_obj.c[hash_].notin_(active_select)
             ),
         )
         sqla_statements.append(insert_statement)
