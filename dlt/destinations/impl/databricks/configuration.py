@@ -64,32 +64,8 @@ class DatabricksCredentials(CredentialsConfiguration):
                 )
 
         if not self.server_hostname or not self.http_path:
-            # First, try to get connection details from notebook context (user's compute / cluster)
             try:
-                from databricks.sdk import WorkspaceClient
-                from urllib.parse import urlparse
-
-                w = WorkspaceClient()
-                notebook_context = w.dbutils.notebook.entry_point.getDbutils().notebook().getContext()
-
-                # Get server_hostname from workspace URL if not set
-                if not self.server_hostname:
-                    workspace_url = w.config.host
-                    self.server_hostname = urlparse(workspace_url).hostname
-                    logger.info(f"Using server_hostname from workspace: {self.server_hostname}")
-
-                # Construct http_path from workspace ID and cluster ID if not set
-                if not self.http_path:
-                    cluster_id = notebook_context.clusterId().get()
-                    workspace_id = notebook_context.workspaceId().get()
-                    if cluster_id and workspace_id:
-                        self.http_path = f"/sql/protocolv1/o/{workspace_id}/{cluster_id}"
-                        logger.info(f"Using http_path from cluster context: {self.http_path}")
-            except Exception:
-                pass
-
-            # Fallback: try to fetch warehouse details if cluster context didn't work
-            try:
+                # attempt to fetch warehouse details
                 from databricks.sdk import WorkspaceClient
 
                 w = WorkspaceClient()
