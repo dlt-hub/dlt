@@ -107,6 +107,8 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
                 write_page_index=True,
                 use_content_defined_chunking=True,
             )
+            caps.supported_table_formats = []
+            caps.supported_merge_strategies = []
 
         return super().adjust_capabilities(caps, config, naming)
 

@@ -38,7 +38,7 @@ from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop, is_nested_table
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
@@ -63,6 +63,7 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.destination.exceptions import (
+    TableFormatNotSupported,
     WriteDispositionNotSupported,
     DestinationUndefinedEntity,
     OpenTableCatalogNotSupported,
@@ -668,7 +669,27 @@ class FilesystemClient(
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
+        if exceptions := self.verify_schema_table_format(loaded_tables):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
         return loaded_tables
+
+    def verify_schema_table_format(
+        self, load_tables: Sequence[PreparedTableSchema]
+    ) -> List[Exception]:
+        exception_log: List[Exception] = []
+        for table in load_tables:
+            # from now on validate only top level tables
+            if is_nested_table(table):
+                continue
+            table_format = table.get("table_format")
+            if table_format and table_format not in self.capabilities.supported_table_formats:
+                message = f"supported table formats are {self.capabilities.supported_table_formats}"
+                if self.config.protocol == "hf":
+                    message = "the `hf` protocol does not support table formats"
+                exception_log.append(TableFormatNotSupported(table_format, table["name"], message))
+        return exception_log
 
     def update_stored_schema(
         self,
