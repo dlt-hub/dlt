@@ -215,17 +215,21 @@ def execute_sql_query(
 
 def get_row_counts(
     pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
-) -> Dict[str, int]:
-    """Get row counts for all data tables in a pipeline. Returns a dictionary
-    mapping table names to their row counts."""
+    output_format: Annotated[
+        TResultFormat,
+        Field(description="Output format: 'markdown' table or 'jsonl' (JSON-lines)"),
+    ] = "markdown",
+) -> str:
+    """Get row counts for all data tables in a pipeline. Default output is a
+    Markdown table; use output_format='jsonl' for structured JSON-lines output."""
     try:
         dataset = _get_dataset(pipeline_name)
         relation = dataset.row_counts()
-        rows = relation.fetchall()
         columns = relation.columns
-        name_idx = columns.index("table_name")
-        count_idx = columns.index("row_count")
-        return {row[name_idx]: row[count_idx] for row in rows}
+        rows = relation.fetchall()
+        if output_format == "jsonl":
+            return formatters.jsonl(columns, rows)
+        return formatters.md_table(columns, rows)
     except Exception as e:
         raise ToolError(
             "Tool `get_row_counts` failed. Verify `pipeline_name`. "

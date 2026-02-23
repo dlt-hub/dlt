@@ -138,12 +138,21 @@ def test_execute_sql_query_rejects_dml(pokemon_pipeline_context: RunContextBase)
 
 
 def test_get_row_counts(pokemon_pipeline_context: RunContextBase) -> None:
-    counts = get_row_counts("rest_api_pokemon")
-    assert isinstance(counts, dict)
-    assert "pokemon" in counts
-    assert counts["pokemon"] > 0
-    assert "berry" in counts
-    assert "location" in counts
+    result = get_row_counts("rest_api_pokemon")
+    assert "table_name" in result
+    assert "row_count" in result
+    assert "pokemon" in result
+    assert "berry" in result
+    assert "location" in result
+
+
+def test_get_row_counts_jsonl(pokemon_pipeline_context: RunContextBase) -> None:
+    result = get_row_counts("rest_api_pokemon", output_format="jsonl")
+    lines = result.strip().splitlines()
+    assert len(lines) >= 3
+    first = json.loads(lines[0])
+    assert "table_name" in first
+    assert "row_count" in first
 
 
 def test_display_schema(pokemon_pipeline_context: RunContextBase) -> None:
