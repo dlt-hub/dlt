@@ -28,7 +28,7 @@ from dlt._workspace.cli.ai.utils import (
 )
 
 
-DEFAULT_AI_WORKBENCH_REPO = "git@github.com:dlt-hub/dlthub-ai-workbench.git"
+DEFAULT_AI_WORKBENCH_REPO = "https://github.com/dlt-hub/dlthub-ai-workbench.git"
 # DEFAULT_AI_WORKBENCH_REPO = "/home/rudolfix/src/dlt-ai-dev-kit"
 DEFAULT_AI_WORKBENCH_BRANCH = None
 AI_WORKBENCH_BASE_DIR = "workbench"
