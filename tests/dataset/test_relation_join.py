@@ -1,7 +1,8 @@
+from dlt.common.runners.pool_runner import T
 import tempfile
 import pathlib
 from dataclasses import dataclass
-from typing import Any, Sequence, Union
+from typing import Any, Sequence, Union, Callable
 
 import pytest
 import sqlglot.expressions as sge
@@ -12,6 +13,7 @@ from dlt.dataset.relation import (
     _build_join_condition_from_pairs,
     _resolve_reference_chain,
     _to_join_ref,
+    TJoinDirection,
 )
 from tests.dataset.conftest import TLoadsFixture
 
@@ -109,12 +111,12 @@ def _expected_magic_join_plan(
             TTableReference(
                 referenced_table="users", columns=["user_id"], referenced_columns=["id"]
             ),
-            "RIGHT",
+            "right",
             "missing 'table' or 'referenced_table'",
         ),
         (
             TTableReference(table="users__orders", columns=["user_id"], referenced_columns=["id"]),
-            "RIGHT",
+            "right",
             "missing 'table' or 'referenced_table'",
         ),
         (
@@ -124,7 +126,7 @@ def _expected_magic_join_plan(
                 columns=[],
                 referenced_columns=["id"],
             ),
-            "RIGHT",
+            "right",
             "'columns' or 'referenced_columns' are empty",
         ),
         (
@@ -134,7 +136,7 @@ def _expected_magic_join_plan(
                 columns=["user_id"],
                 referenced_columns=[],
             ),
-            "LEFT",
+            "left",
             "'columns' or 'referenced_columns' are empty",
         ),
         (
@@ -144,7 +146,7 @@ def _expected_magic_join_plan(
                 columns=["user_id", "tenant_id"],
                 referenced_columns=["id"],
             ),
-            "RIGHT",
+            "right",
             "'columns' or 'referenced_columns' are empty",
         ),
     ],
@@ -156,9 +158,11 @@ def _expected_magic_join_plan(
         "columns-length-mismatch",
     ],
 )
-def test_to_join_ref_rejects_malformed(ref: TTableReference, direction: str, match: str) -> None:
+def test_to_join_ref_rejects_malformed(
+    ref: TTableReference, direction: TJoinDirection, match: str
+) -> None:
     with pytest.raises(ValueError, match=match):
-        _to_join_ref(ref, direction)  # type: ignore[arg-type]
+        _to_join_ref(ref, direction)
 
 
 def test_build_join_condition_rejects_empty_pairs() -> None:
@@ -203,34 +207,34 @@ def test_join_rejects_cross_dataset(dataset_with_loads: TLoadsFixture) -> None:
 @pytest.mark.parametrize(
     "dataset_with_loads,left,right,expected_directions",
     [
-        pytest.param("with_root_key", "users__orders", "users", ["RIGHT"], id="child-to-parent"),
-        pytest.param("with_root_key", "users", "users__orders", ["LEFT"], id="parent-to-child"),
+        pytest.param("with_root_key", "users__orders", "users", ["right"], id="child-to-parent"),
+        pytest.param("with_root_key", "users", "users__orders", ["left"], id="parent-to-child"),
         pytest.param(
             "with_root_key",
             "users__orders__items",
             "users",
-            ["RIGHT"],
+            ["right"],
             id="items-to-root-root-key",
         ),
         pytest.param(
             "without_root_key",
             "users__orders__items",
             "users",
-            ["RIGHT", "RIGHT"],
+            ["right", "right"],
             id="items-to-root-parent-key",
         ),
         pytest.param(
             "with_root_key",
             "users",
             "users__orders__items",
-            ["LEFT"],
+            ["left"],
             id="root-to-items-root-key",
         ),
         pytest.param(
             "without_root_key",
             "users",
             "users__orders__items",
-            ["LEFT", "LEFT"],
+            ["left", "left"],
             id="root-to-items-parent-key",
         ),
     ],
@@ -240,7 +244,7 @@ def test_resolve_reference_chain_matrix(
     dataset_with_loads: TLoadsFixture,
     left: str,
     right: str,
-    expected_directions: Sequence[str],
+    expected_directions: Sequence[TJoinDirection],
 ) -> None:
     dataset, _, _ = dataset_with_loads
     refs = _resolve_reference_chain(dataset.schema, left, right)
@@ -270,7 +274,7 @@ def test_resolve_reference_chain_rejects_unrelated_tables(
 )
 def test_origin_table_name_preserved_across_transformations(
     dataset_with_loads: TLoadsFixture,
-    transform: Any,
+    transform: Callable[[dlt.Relation], dlt.Relation],
 ) -> None:
     dataset, _, _ = dataset_with_loads
     base = dataset.table("users__orders")
@@ -354,7 +358,7 @@ def test_origin_table_name_preserved_across_transformations(
 )
 def test_magic_join_rejection_matrix(
     dataset_with_loads: TLoadsFixture,
-    build_rel: Any,
+    build_rel: Callable[[dlt.Dataset], dlt.Relation],
     other: Any,
     match: str,
 ) -> None:
@@ -416,7 +420,7 @@ def test_magic_join_rejection_matrix(
 )
 def test_magic_join_plan_matrix(
     dataset_with_loads: TLoadsFixture,
-    build_rel: Any,
+    build_rel: Callable[[dlt.Dataset], dlt.Relation],
     other: Any,
 ) -> None:
     dataset, _, _ = dataset_with_loads

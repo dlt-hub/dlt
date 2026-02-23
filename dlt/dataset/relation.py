@@ -63,6 +63,7 @@ _FILTER_OP_MAP = {
 
 
 TJoinType = Literal["left", "right", "inner", "full"]
+TJoinDirection = Literal["left", "right"]
 
 
 class Relation(WithSqlClient):
@@ -676,24 +677,24 @@ class _JoinRef:
     referenced_table: str
     columns: tuple[str, ...]
     referenced_columns: tuple[str, ...]
-    direction: Literal["LEFT", "RIGHT"]
+    direction: TJoinDirection
 
     @property
     def target_table(self) -> str:
         """The table being added to the query by this join step."""
-        return self.table if self.direction == "LEFT" else self.referenced_table
+        return self.table if self.direction == "left" else self.referenced_table
 
     @property
     def on_pairs(self) -> list[tuple[str, str]]:
         """(existing_side_col, new_side_col) pairs for the ON clause."""
-        if self.direction == "LEFT":
+        if self.direction == "left":
             return list(zip(self.referenced_columns, self.columns))
         return list(zip(self.columns, self.referenced_columns))
 
     @property
     def join_type(self) -> TJoinType:
         """The SQL join type: 'left' or 'right'."""
-        return "left" if self.direction == "LEFT" else "right"
+        return "left" if self.direction == "left" else "right"
 
 
 @dataclass
@@ -885,7 +886,7 @@ def _add_load_id_via_parent_key(relation: dlt.Relation) -> dlt.Relation:
     return rel
 
 
-def _to_join_ref(ref: TTableReference, direction: Literal["LEFT", "RIGHT"]) -> _JoinRef:
+def _to_join_ref(ref: TTableReference, direction: TJoinDirection) -> _JoinRef:
     if "table" not in ref or ref["table"] is None or "referenced_table" not in ref:
         raise ValueError(
             f"Malformed table reference for join: {ref} - missing 'table' or 'referenced_table'"
@@ -927,7 +928,7 @@ def _resolve_parent_reference_chain(schema: dlt.Schema, left: str, right: str) -
             break
         if left_ref["referenced_table"] == right:
             # right is a parent of left: natural direction (for references), use RIGHT JOIN
-            return [_to_join_ref(ref, "RIGHT") for ref in upward_chain_from_left[: idx + 1]]
+            return [_to_join_ref(ref, "right") for ref in upward_chain_from_left[: idx + 1]]
 
     for idx, right_ref in enumerate(upward_chain_from_right):
         if "referenced_table" not in right_ref or "table" not in right_ref:
@@ -935,7 +936,7 @@ def _resolve_parent_reference_chain(schema: dlt.Schema, left: str, right: str) -
         if right_ref["referenced_table"] == left:
             # left is a parent of right: reverse chain, use LEFT JOIN
             return [
-                _to_join_ref(ref, "LEFT") for ref in reversed(upward_chain_from_right[: idx + 1])
+                _to_join_ref(ref, "left") for ref in reversed(upward_chain_from_right[: idx + 1])
             ]
 
     raise ValueError(f"Unable to resolve reference chain between {left} and {right}")
@@ -955,10 +956,10 @@ def _resolve_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[
     for ref in schema.references:
         if ref.get("table") == left and ref.get("referenced_table") == right:
             # Natural direction: left (child) -> right (parent), use RIGHT JOIN
-            return [_to_join_ref(TTableReference(**ref), "RIGHT")]
+            return [_to_join_ref(TTableReference(**ref), "right")]
         if ref.get("table") == right and ref.get("referenced_table") == left:
             # Opposite direction: left (parent) <- right (child), use LEFT JOIN
-            return [_to_join_ref(TTableReference(**ref), "LEFT")]
+            return [_to_join_ref(TTableReference(**ref), "left")]
 
     # Fall back to parent-child reference chain
     return _resolve_parent_reference_chain(schema, left, right)
