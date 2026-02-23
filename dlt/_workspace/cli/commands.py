@@ -13,7 +13,6 @@ from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.cli.utils import add_mcp_arg_parser
-from dlt._workspace.cli._ai_command import SUPPORTED_IDES
 from dlt._workspace.cli._pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
 from dlt._workspace.cli._init_command import DLT_INIT_DOCS_URL
 from dlt._workspace.cli._telemetry_command import DLT_TELEMETRY_DOCS_URL
@@ -752,31 +751,261 @@ class AiCommand(SupportsCliCommand):
             title="Available subcommands", dest="operation", required=False
         )
 
-        setup_cmd = ai_subparsers.add_parser(
-            "setup",
-            help="Generate IDE-specific configuration and rules files",
-            description="""Get AI rules files and configuration into your local project for the selected IDE.
-Files are fetched from https://github.com/dlt-hub/verified-sources by default.
-""",
+        # init command
+        from dlt._workspace.cli.ai import (
+            DEFAULT_AI_WORKBENCH_BRANCH,
+            DEFAULT_AI_WORKBENCH_REPO,
         )
-        setup_cmd.add_argument("ide", choices=SUPPORTED_IDES, help="IDE to configure.")
-        setup_cmd.add_argument(
-            "--location",
-            default=DEFAULT_VERIFIED_SOURCES_REPO,
-            help="Advanced. Specify Git URL or local path to rules files and config.",
+
+        init_cmd = ai_subparsers.add_parser(
+            "init",
+            help="Install initial AI rules and skills for your AI coding agent",
         )
-        setup_cmd.add_argument(
-            "--branch",
+        init_cmd.add_argument(
+            "--agent",
+            choices=["claude", "cursor", "codex"],
             default=None,
-            help="Advanced. Specify Git branch to fetch rules files and config.",
+            help="AI coding agent to install for. Auto-detected if omitted.",
         )
-        # TODO support MCP-proxy configuration
-        # ai_mcp_cmd = ai_subparsers.add_parser("mcp", help="Launch the dlt MCP server")
+        init_cmd.add_argument(
+            "--location",
+            default=DEFAULT_AI_WORKBENCH_REPO,
+            help="Advanced. Git URL or local path to AI workbench repository.",
+        )
+        init_cmd.add_argument(
+            "--branch",
+            default=DEFAULT_AI_WORKBENCH_BRANCH,
+            help="Advanced. Git branch to fetch from.",
+        )
+
+        # secrets command group
+        secrets_cmd = ai_subparsers.add_parser(
+            "secrets",
+            help="Manage secrets files used by dlt",
+            description="List, view (redacted), or update secret files used by dlt providers.",
+        )
+        secrets_subparsers = secrets_cmd.add_subparsers(
+            title="Secrets subcommands", dest="secrets_operation", required=False
+        )
+        secrets_subparsers.add_parser(
+            "list",
+            help="List secret file locations from providers",
+        )
+        view_cmd = secrets_subparsers.add_parser(
+            "view-redacted",
+            help="Print secrets TOML with all values replaced by '***'",
+        )
+        view_cmd.add_argument(
+            "--path",
+            default=None,
+            help="Path to secrets TOML file (default: .dlt/secrets.toml)",
+        )
+        update_cmd = secrets_subparsers.add_parser(
+            "update-fragment",
+            help="Merge a TOML fragment into the secrets file",
+        )
+        update_cmd.add_argument(
+            "fragment",
+            nargs="?",
+            default=None,
+            help="TOML fragment string to merge; reads from stdin if omitted",
+        )
+        update_cmd.add_argument(
+            "--path",
+            default=None,
+            help="Path to secrets TOML file (default: .dlt/secrets.toml)",
+        )
+
+        # toolkit command group
+        toolkit_cmd = ai_subparsers.add_parser(
+            "toolkit",
+            help="Manage AI toolkit plugins (list, info, install)",
+        )
+        toolkit_cmd.add_argument(
+            "name", nargs="?", help="Toolkit name (required for info and install)"
+        )
+        toolkit_sub = toolkit_cmd.add_subparsers(dest="toolkit_operation", required=False)
+
+        # shared parent with --location and --branch
+        toolkit_common = argparse.ArgumentParser(add_help=False)
+        toolkit_common.add_argument(
+            "--location",
+            default=DEFAULT_AI_WORKBENCH_REPO,
+            help="Advanced. Git URL or local path to toolkit repository.",
+        )
+        toolkit_common.add_argument(
+            "--branch",
+            default=DEFAULT_AI_WORKBENCH_BRANCH,
+            help="Advanced. Git branch to fetch toolkit from.",
+        )
+
+        toolkit_sub.add_parser(
+            "list",
+            help="List available toolkits",
+            parents=[toolkit_common],
+        )
+        toolkit_sub.add_parser(
+            "info",
+            help="Show toolkit contents and components",
+            parents=[toolkit_common],
+        )
+        install_cmd = toolkit_sub.add_parser(
+            "install",
+            help="Install toolkit components into project",
+            parents=[toolkit_common],
+        )
+        install_cmd.add_argument(
+            "--agent",
+            choices=["claude", "cursor", "codex"],
+            default=None,
+            help="AI coding agent to install for. Auto-detected if omitted.",
+        )
+        install_cmd.add_argument(
+            "--overwrite",
+            default=False,
+            action="store_true",
+            help="Overwrite existing files instead of skipping them.",
+        )
+
+        # mcp command group — run flags live on the parent so bare `dlt ai mcp --stdio` works
+        mcp_cmd = ai_subparsers.add_parser(
+            "mcp",
+            help="Run or install the dlt MCP server",
+        )
+        mcp_cmd.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
+        mcp_cmd.add_argument(
+            "--sse",
+            action="store_true",
+            help="Use legacy SSE transport instead of streamable-http",
+        )
+        mcp_cmd.add_argument(
+            "--port",
+            type=int,
+            default=8000,
+            help="Port for the MCP server (default: 8000)",
+        )
+        mcp_cmd.add_argument(
+            "--features",
+            nargs="*",
+            default=None,
+            help="Additional MCP feature sets to enable (default: pipeline, workspace)",
+        )
+        mcp_sub = mcp_cmd.add_subparsers(dest="mcp_operation", required=False)
+
+        mcp_sub.add_parser("run", help="Start the MCP server (default)")
+
+        mcp_install_cmd = mcp_sub.add_parser(
+            "install",
+            help="Install MCP server config into the current project",
+        )
+        mcp_install_cmd.add_argument(
+            "--agent",
+            choices=["claude", "cursor", "codex"],
+            default=None,
+            help="AI coding agent to install for. Auto-detected if omitted.",
+        )
+        mcp_install_cmd.add_argument(
+            "--features",
+            nargs="*",
+            default=None,
+            help="MCP feature sets to include in the server config",
+        )
+        mcp_install_cmd.add_argument(
+            "--name",
+            default="dlt-workspace",
+            help="Server name in the MCP config (default: dlt-workspace)",
+        )
+        mcp_install_cmd.add_argument(
+            "--overwrite",
+            default=False,
+            action="store_true",
+            help="Overwrite existing server config instead of skipping.",
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
-        from dlt._workspace.cli._ai_command import ai_setup_command_wrapper
+        import sys
 
-        ai_setup_command_wrapper(ide=args.ide, branch=args.branch, repo=args.location)
+        from dlt._workspace.cli.ai import (
+            DEFAULT_AI_WORKBENCH_BRANCH,
+            DEFAULT_AI_WORKBENCH_REPO,
+            ai_init_command,
+            ai_mcp_run_command,
+            ai_mcp_install_command,
+            ai_secrets_list_command,
+            ai_secrets_view_redacted_command,
+            ai_secrets_update_fragment_command,
+            ai_toolkit_install_command,
+            ai_toolkit_list_command,
+            ai_toolkit_info_command,
+        )
+
+        if args.operation == "init":
+            ai_init_command(
+                agent=args.agent,
+                location=args.location,
+                branch=args.branch,
+            )
+        elif args.operation == "secrets":
+            op = getattr(args, "secrets_operation", None)
+            if op == "view-redacted":
+                ai_secrets_view_redacted_command(path=args.path)
+            elif op == "update-fragment":
+                fragment = args.fragment or sys.stdin.read()
+                ai_secrets_update_fragment_command(fragment=fragment, path=args.path)
+            else:
+                ai_secrets_list_command()
+        elif args.operation == "toolkit":
+            tk_op = getattr(args, "toolkit_operation", None)
+            if tk_op == "list":
+                ai_toolkit_list_command(
+                    location=args.location,
+                    branch=args.branch,
+                )
+            elif tk_op == "info":
+                if not args.name:
+                    fmt.error("Toolkit name is required for 'info'.")
+                    raise CliCommandException()
+                ai_toolkit_info_command(
+                    name=args.name,
+                    location=args.location,
+                    branch=args.branch,
+                )
+            elif tk_op == "install":
+                if not args.name:
+                    fmt.error("Toolkit name is required for 'install'.")
+                    raise CliCommandException()
+                ai_toolkit_install_command(
+                    name=args.name,
+                    agent=args.agent,
+                    location=args.location,
+                    branch=args.branch,
+                    overwrite=args.overwrite,
+                )
+            else:
+                # default: list toolkits
+                ai_toolkit_list_command(
+                    location=getattr(args, "location", DEFAULT_AI_WORKBENCH_REPO),
+                    branch=getattr(args, "branch", DEFAULT_AI_WORKBENCH_BRANCH),
+                )
+        elif args.operation == "mcp":
+            mcp_op = getattr(args, "mcp_operation", None)
+            if mcp_op == "install":
+                ai_mcp_install_command(
+                    agent=args.agent,
+                    features=args.features,
+                    name=args.name,
+                    overwrite=args.overwrite,
+                )
+            else:
+                # default: run
+                ai_mcp_run_command(
+                    port=getattr(args, "port", 8000),
+                    stdio=getattr(args, "stdio", False),
+                    sse=getattr(args, "sse", False),
+                    features=getattr(args, "features", None),
+                )
+        else:
+            self.parser.print_usage()
 
 
 class WorkspaceCommand(SupportsCliCommand):
