@@ -2,7 +2,6 @@ from __future__ import annotations
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from functools import reduce, partial
-
 from typing import (
     overload,
     Union,
@@ -12,6 +11,7 @@ from typing import (
     Type,
     TYPE_CHECKING,
     Literal,
+    TypeVar,
 )
 from textwrap import indent
 from contextlib import contextmanager
@@ -388,138 +388,8 @@ class Relation(WithSqlClient):
         Returns:
             A new relation with the join(s) applied.
         """
-        join_plan = self._discover_join_params(other)
-        return self._apply_join(join_plan)
-
-    def _resolve_magic_join_target(self, other: str | Self) -> str:
-        """Resolve magic-join target table name from input."""
-        if isinstance(other, Relation):
-            # TODO: remove once we allow cross-dataset joins
-            if other._dataset is not self._dataset:
-                raise ValueError(
-                    "Cannot join relations from different datasets: "
-                    f"'{other._dataset.dataset_name}' vs '{self._dataset.dataset_name}'"
-                )
-            if not other._is_joinable_graph:
-                raise ValueError(f"Relation `{other}` is not a join-graph relation.")
-            other_table = other._origin_table_name
-            if not other_table:
-                raise ValueError(f"Relation `{other}` has no base table to resolve references.")
-        else:
-            other_table = other
-        if not other_table or not isinstance(other_table, str):
-            raise ValueError("`other` must be a table name or a base table relation.")
-        if other_table not in self._dataset.schema.tables:
-            raise ValueError(f"Table `{other_table}` not found in dataset schema")
-
-        return other_table
-
-    def _discover_join_params(self, other: str | Self) -> _JoinPlan:
-        """Discover join plan from schema reference chain.
-
-        Validates preconditions, resolves the reference chain, filters out
-        already-joined tables, and builds join parameters for the remaining refs.
-        """
-        if not self._origin_table_name:
-            raise ValueError("This relation has no base table to resolve references.")
-        if not self._is_joinable_graph:
-            raise ValueError("This relation has been transformed and is not a join-graph relation.")
-
-        other_table = self._resolve_magic_join_target(other)
-        # refs is the entire reference chain from origin to target(`other`) table
-        refs = _resolve_reference_chain(self._dataset.schema, self._origin_table_name, other_table)
-
-        alias_map = (
-            self._joined_table_aliases.copy()
-            if self._joined_table_aliases
-            else {self._origin_table_name: "t0"}
-        )
-        next_index = (
-            self._next_join_alias_index
-            if self._next_join_alias_index is not None
-            else len(alias_map)
-        )
-        attach_alias = alias_map[self._origin_table_name]
-
-        # some tables might already be joined (skip them)
-        pending = [ref for ref in refs if ref.target_table not in alias_map]
-
-        # find "last" alias to attach new join to
-        for ref in refs:
-            if ref.target_table in alias_map:
-                attach_alias = alias_map[ref.target_table]
-
-        query = self._get_or_create_join_base_query()
-        existing_join_count = len(query.args.get("joins", []))
-        start_index = max(existing_join_count + 1, next_index)
-
-        joins: list[_JoinParams] = []
-        for ref in pending:
-            alias = f"t{start_index}"
-            joins.append(
-                _JoinParams(
-                    target=sge.Table(
-                        this=sge.to_identifier(ref.target_table, quoted=True),
-                        alias=sge.TableAlias(this=sge.to_identifier(alias, quoted=False)),
-                    ),
-                    on=ref.on_pairs,
-                    how=ref.join_type,
-                    left_alias=attach_alias,
-                    right_alias=alias,
-                )
-            )
-            alias_map[ref.target_table] = alias
-            attach_alias = alias
-            start_index += 1
-
-        return _JoinPlan(
-            query=query,
-            joins=joins,
-            joined_table_aliases=alias_map,
-            next_alias_index=start_index if pending else next_index,
-            origin_table_name=self._origin_table_name,
-            is_joinable_graph=True,
-        )
-
-    def _get_or_create_join_base_query(self) -> sge.Select:
-        """Return the base SELECT for joining: copy existing join query or create fresh."""
-        if isinstance(self._sqlglot_expression, sge.Select) and self._sqlglot_expression.args.get(
-            "joins"
-        ):
-            return self._sqlglot_expression.copy()
-        assert self._origin_table_name is not None
-        return sge.Select(expressions=[sge.Star()]).from_(
-            sge.Table(
-                this=sge.to_identifier(self._origin_table_name, quoted=True),
-                alias=sge.TableAlias(this=sge.to_identifier("t0", quoted=False)),
-            )
-        )
-
-    def _apply_join(self, plan: _JoinPlan) -> Self:
-        """Apply join plan to produce the next relation."""
-        query = plan.query
-        for join_param in plan.joins:
-            join_expr = sge.Join(
-                this=join_param.target,
-                kind=join_param.how.upper(),
-            ).on(
-                _build_join_condition_from_pairs(
-                    join_param.on,
-                    left_alias=join_param.left_alias,
-                    right_alias=join_param.right_alias,
-                )
-            )
-            query = query.join(join_expr)
-        rel = self.__copy__()
-        # setup to allow further joins
-        rel._sqlglot_expression = query
-        rel._joined_table_aliases = (
-            plan.joined_table_aliases.copy() if plan.joined_table_aliases else None
-        )
-        rel._next_join_alias_index = plan.next_alias_index
-        rel._origin_table_name = plan.origin_table_name
-        rel._is_joinable_graph = plan.is_joinable_graph
-        return rel
+        join_plan = _discover_join_params(self, other)
+        return _apply_join(self, join_plan)
 
     # NOTE we currently force to have one column selected; we could be more flexible
     # and rewrite the query to compute the AGG of all selected columns
@@ -787,6 +657,15 @@ class Relation(WithSqlClient):
         # by default relations are not joinable after transforms
         rel._is_joinable_graph = False
         return rel
+
+
+_TRelation = TypeVar("_TRelation", bound=Relation)
+"""_TRelation is used for internal typing only.
+
+It allows methods on `dlt.Relation` to return `Self`, but extract
+the logic to utility functions that return `_TRelation`.
+Returning the concrete type `Relation` would fail type checking.
+"""
 
 
 @dataclass(frozen=True)
@@ -1112,3 +991,136 @@ def _build_join_condition_from_pairs(
     if len(conditions) == 1:
         return conditions[0]
     return reduce(lambda x, y: sge.And(this=x, expression=y), conditions)
+
+
+def _resolve_magic_join_target(left: Relation, right: Union[str, Relation]) -> str:
+    """Resolve magic-join target table name from input."""
+    if isinstance(right, Relation):
+        # TODO: remove once we allow cross-dataset joins
+        if right._dataset is not left._dataset:
+            raise ValueError(
+                "Cannot join relations from different datasets: "
+                f"'{right._dataset.dataset_name}' vs '{left._dataset.dataset_name}'"
+            )
+        if not right._is_joinable_graph:
+            raise ValueError(f"Relation `{right}` is not a join-graph relation.")
+        other_table = right._origin_table_name
+        if not other_table:
+            raise ValueError(f"Relation `{right}` has no base table to resolve references.")
+    else:
+        other_table = right
+    if not other_table or not isinstance(other_table, str):
+        raise ValueError("`other` must be a table name or a base table relation.")
+    if other_table not in left._dataset.schema.tables:
+        raise ValueError(f"Table `{other_table}` not found in dataset schema")
+
+    return other_table
+
+
+def _discover_join_params(left: Relation, right: Union[str, Relation]) -> _JoinPlan:
+    """Discover join plan from schema reference chain.
+
+    Validates preconditions, resolves the reference chain, filters out
+    already-joined tables, and builds join parameters for the remaining refs.
+    """
+    if not left._origin_table_name:
+        raise ValueError("This relation has no base table to resolve references.")
+    if not left._is_joinable_graph:
+        raise ValueError("This relation has been transformed and is not a join-graph relation.")
+
+    other_table = _resolve_magic_join_target(left, right)
+    # refs is the entire reference chain from origin to target(`other`) table
+    refs = _resolve_reference_chain(left._dataset.schema, left._origin_table_name, other_table)
+
+    alias_map = (
+        left._joined_table_aliases.copy()
+        if left._joined_table_aliases
+        else {left._origin_table_name: "t0"}
+    )
+    next_index = (
+        left._next_join_alias_index if left._next_join_alias_index is not None else len(alias_map)
+    )
+    attach_alias = alias_map[left._origin_table_name]
+
+    # some tables might already be joined (skip them)
+    pending = [ref for ref in refs if ref.target_table not in alias_map]
+
+    # find "last" alias to attach new join to
+    for ref in refs:
+        if ref.target_table in alias_map:
+            attach_alias = alias_map[ref.target_table]
+
+    query = _get_or_create_join_base_query(left)
+    existing_join_count = len(query.args.get("joins", []))
+    start_index = max(existing_join_count + 1, next_index)
+
+    joins: list[_JoinParams] = []
+    for ref in pending:
+        alias = f"t{start_index}"
+        joins.append(
+            _JoinParams(
+                target=sge.Table(
+                    this=sge.to_identifier(ref.target_table, quoted=True),
+                    alias=sge.TableAlias(this=sge.to_identifier(alias, quoted=False)),
+                ),
+                on=ref.on_pairs,
+                how=ref.join_type,
+                left_alias=attach_alias,
+                right_alias=alias,
+            )
+        )
+        alias_map[ref.target_table] = alias
+        attach_alias = alias
+        start_index += 1
+
+    return _JoinPlan(
+        query=query,
+        joins=joins,
+        joined_table_aliases=alias_map,
+        next_alias_index=start_index if pending else next_index,
+        origin_table_name=left._origin_table_name,
+        is_joinable_graph=True,
+    )
+
+
+def _get_or_create_join_base_query(relation: Relation) -> sge.Select:
+    """Return the base SELECT for joining: copy existing join query or create fresh."""
+    if isinstance(
+        relation._sqlglot_expression, sge.Select
+    ) and relation._sqlglot_expression.args.get("joins"):
+        return relation._sqlglot_expression.copy()
+    assert relation._origin_table_name is not None
+    return sge.Select(expressions=[sge.Star()]).from_(
+        sge.Table(
+            this=sge.to_identifier(relation._origin_table_name, quoted=True),
+            alias=sge.TableAlias(this=sge.to_identifier("t0", quoted=False)),
+        )
+    )
+
+
+def _apply_join(relation: _TRelation, plan: _JoinPlan) -> _TRelation:
+    """Apply join plan to produce the next relation."""
+    query = plan.query
+    for join_param in plan.joins:
+        join_expr = sge.Join(
+            this=join_param.target,
+            kind=join_param.how.upper(),
+        ).on(
+            _build_join_condition_from_pairs(
+                join_param.on,
+                left_alias=join_param.left_alias,
+                right_alias=join_param.right_alias,
+            )
+        )
+        query = query.join(join_expr)
+
+    rel = relation.__copy__()
+    # setup to allow further joins
+    rel._sqlglot_expression = query
+    rel._joined_table_aliases = (
+        plan.joined_table_aliases.copy() if plan.joined_table_aliases else None
+    )
+    rel._next_join_alias_index = plan.next_alias_index
+    rel._origin_table_name = plan.origin_table_name
+    rel._is_joinable_graph = plan.is_joinable_graph
+    return rel
