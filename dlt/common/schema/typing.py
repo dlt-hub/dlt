@@ -266,6 +266,7 @@ class TWriteDispositionDict(TypedDict):
 
 class TMergeDispositionDict(TWriteDispositionDict):
     strategy: Optional[TLoaderMergeStrategy]
+    row_filter: Optional[str]
 
 
 class TDeleteInsertStrategyDict(TMergeDispositionDict):

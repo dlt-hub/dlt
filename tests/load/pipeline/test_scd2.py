@@ -1093,3 +1093,64 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
         {"value": 2},
         {"value": 3},
     ]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_row_filter_scd2(destination_config: DestinationTestConfiguration) -> None:
+    """Test row_filter with scd2 strategy: only records in the filtered partition
+    are retired, other partitions remain untouched."""
+    p = destination_config.setup_pipeline("scd2_row_filter", dev_mode=True)
+
+    @dlt.resource(
+        table_name="dim_test",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "scd2",
+        },
+    )
+    def r(data):
+        yield data
+
+    # load 1: initial load with two categories
+    dim_snap = [
+        {"nk": 1, "c1": "foo", "cat": "A"},
+        {"nk": 2, "c1": "bar", "cat": "A"},
+        {"nk": 3, "c1": "baz", "cat": "B"},
+    ]
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
+    assert_load_info(info)
+    ts_1 = get_load_package_created_at(p, info)
+    assert load_table_counts(p, "dim_test")["dim_test"] == 3
+
+    # load 2: update category A only, with row_filter
+    r.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "scd2",
+            "row_filter": "cat = 'A'",
+        },
+    )
+    dim_snap_2 = [
+        {"nk": 1, "c1": "foo_updated", "cat": "A"},
+    ]
+    info = p.run(r(dim_snap_2), **destination_config.run_kwargs)
+    assert_load_info(info)
+    ts_2 = get_load_package_created_at(p, info)
+
+    table = get_table(p, "dim_test", "nk", ts_columns=[FROM, TO])
+    # nk=1: old version retired (to=ts_2), new version active (to=None)
+    # nk=2: retired because absent from staging AND within row_filter (cat='A')
+    # nk=3: untouched because outside row_filter (cat='B'), still active
+    expected = [
+        {FROM: ts_1, TO: ts_2, "nk": 1, "c1": "foo", "cat": "A"},
+        {FROM: ts_2, TO: None, "nk": 1, "c1": "foo_updated", "cat": "A"},
+        {FROM: ts_1, TO: ts_2, "nk": 2, "c1": "bar", "cat": "A"},
+        {FROM: ts_1, TO: None, "nk": 3, "c1": "baz", "cat": "B"},
+    ]
+    assert sorted(table, key=lambda d: (d["nk"], d[FROM])) == sorted(
+        expected, key=lambda d: (d["nk"], d[FROM])
+    )
