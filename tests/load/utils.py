@@ -791,17 +791,18 @@ def destinations_configs(
                     file_format="jsonl",  # keep jsonl as default, test utils are setup for this
                 )
             ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination_type="filesystem",
-                bucket_url=HF_BUCKET,
-                extra_info=HF_BUCKET,
-                supports_merge=False,
-                file_format="parquet",
-                # increase timeout to avoid flakes (default is 10s)
-                env_vars={"HF_HUB_DOWNLOAD_TIMEOUT": "30"},
-            )
-        ]
+        if "hf" in ALL_FILESYSTEM_DRIVERS:
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="filesystem",
+                    bucket_url=HF_BUCKET,
+                    extra_info=HF_BUCKET,
+                    supports_merge=False,
+                    file_format="parquet",
+                    # increase timeout to avoid flakes (default is 10s)
+                    env_vars={"HF_HUB_DOWNLOAD_TIMEOUT": "30"},
+                )
+            ]
 
     # table format configs also implement read-only sqlclient configs
     if table_format_filesystem_configs or table_format_local_configs or read_only_sqlclient_configs:
