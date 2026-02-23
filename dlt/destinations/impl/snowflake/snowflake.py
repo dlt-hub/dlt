@@ -41,10 +41,13 @@ class SnowflakeMergeJob(SqlMergeFollowupJob):
         staging_root_table_name: str,
         key_clauses: Sequence[str],
         for_delete: bool,
+        row_filter: Optional[str] = None,
     ) -> List[str]:
+        row_filter_clause = f" AND ({row_filter})" if row_filter else ""
         sql: List[str] = [
             f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS"
             f" s WHERE {clause.format(d='d', s='s')})"
+            + row_filter_clause
             for clause in key_clauses
         ]
         return sql
