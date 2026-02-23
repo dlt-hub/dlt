@@ -454,7 +454,7 @@ def test_magic_join_plan_matrix(
     assert len(new_joins) == len(expected_joins)
 
     for actual, expected in zip(new_joins, expected_joins):
-        assert actual.args.get("kind") == expected.kind
+        assert actual.args.get("kind", "").lower() == expected.kind
         assert isinstance(actual.this, sge.Table)
         assert _identifier_name(actual.this.this) == expected.target_table
         actual_pairs = _flatten_on_pairs(actual.args["on"])
