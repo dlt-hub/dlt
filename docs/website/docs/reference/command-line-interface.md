@@ -499,6 +499,7 @@ Launch MCP server attached to this pipeline.
 **Usage**
 ```sh
 dlt pipeline [pipeline_name] mcp [-h] [--stdio] [--sse] [--port PORT]
+    [--features [FEATURES ...]]
 ```
 
 **Description**
@@ -516,6 +517,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 * `--stdio` - Use stdio transport mode
 * `--sse` - Use legacy sse transport instead of streamable-http
 * `--port PORT` - Port for the mcp server (default: 43656)
+* `--features [FEATURES ...]` - Additional mcp feature sets to enable (default: pipeline, workspace)
 
 </details>
 
@@ -737,7 +739,7 @@ Use AI-powered development tools and utilities.
 
 **Usage**
 ```sh
-dlt ai [-h] {setup} ...
+dlt ai [-h] {init,secrets,toolkit,mcp} ...
 ```
 
 **Description**
@@ -754,24 +756,154 @@ Inherits arguments from [`dlt`](#dlt).
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
-* [`setup`](#dlt-ai-setup) - Generate ide-specific configuration and rules files
+* [`init`](#dlt-ai-init) - Install initial ai rules and skills for your ai coding agent
+* [`secrets`](#dlt-ai-secrets) - Manage secrets files used by dlt
+* [`toolkit`](#dlt-ai-toolkit) - Manage ai toolkit plugins (list, info, install)
+* [`mcp`](#dlt-ai-mcp) - Run or install the dlt mcp server
 
 </details>
 
-### `dlt ai setup`
+### `dlt ai init`
 
-Generate IDE-specific configuration and rules files.
+Install initial AI rules and skills for your AI coding agent.
 
 **Usage**
 ```sh
-dlt ai setup [-h] [--location LOCATION] [--branch BRANCH]
-    {amp,codex,claude,cody,cline,cursor,continue,windsurf,copilot}
+dlt ai init [-h] [--agent {claude,cursor,codex}] [--location LOCATION] [--branch
+    BRANCH]
 ```
 
 **Description**
 
-Get AI rules files and configuration into your local project for the selected IDE.
-Files are fetched from https://github.com/dlt-hub/verified-sources by default.
+Install initial AI rules and skills for your AI coding agent.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai`](#dlt-ai).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
+* `--location LOCATION` - Advanced. git url or local path to ai workbench repository.
+* `--branch BRANCH` - Advanced. git branch to fetch from.
+
+</details>
+
+### `dlt ai secrets`
+
+Manage secrets files used by dlt.
+
+**Usage**
+```sh
+dlt ai secrets [-h] {list,view-redacted,update-fragment} ...
+```
+
+**Description**
+
+List, view (redacted), or update secret files used by dlt providers.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai`](#dlt-ai).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt ai secrets list`
+
+List secret file locations from providers.
+
+**Usage**
+```sh
+dlt ai secrets list [-h]
+```
+
+**Description**
+
+List secret file locations from providers.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt ai secrets view-redacted`
+
+Print secrets TOML with all values replaced by '***'.
+
+**Usage**
+```sh
+dlt ai secrets view-redacted [-h] [--path PATH]
+```
+
+**Description**
+
+Print secrets TOML with all values replaced by '***'.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--path PATH` - Path to secrets toml file (default: .dlt/secrets.toml)
+
+</details>
+
+### `dlt ai secrets update-fragment`
+
+Merge a TOML fragment into the secrets file.
+
+**Usage**
+```sh
+dlt ai secrets update-fragment [-h] [--path PATH] [fragment]
+```
+
+**Description**
+
+Merge a TOML fragment into the secrets file.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
+
+**Positional arguments**
+* `fragment` - Toml fragment string to merge; reads from stdin if omitted
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--path PATH` - Path to secrets toml file (default: .dlt/secrets.toml)
+
+</details>
+
+### `dlt ai toolkit`
+
+Manage AI toolkit plugins (list, info, install).
+
+**Usage**
+```sh
+dlt ai toolkit [-h] [name] {list,info,install} ...
+```
+
+**Description**
+
+Manage AI toolkit plugins (list, info, install).
 
 <details>
 
@@ -780,11 +912,180 @@ Files are fetched from https://github.com/dlt-hub/verified-sources by default.
 Inherits arguments from [`dlt ai`](#dlt-ai).
 
 **Positional arguments**
+* `name` - Toolkit name (required for info and install)
+* `list` - List available toolkits
+* `info` - Show toolkit contents and components
+* `install` - Install toolkit components into project
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--location LOCATION` - Advanced. specify git url or local path to rules files and config.
-* `--branch BRANCH` - Advanced. specify git branch to fetch rules files and config.
+
+</details>
+
+### `dlt ai toolkit list`
+
+List available toolkits.
+
+**Usage**
+```sh
+dlt ai toolkit [name] list [-h] [--location LOCATION] [--branch BRANCH]
+```
+
+**Description**
+
+List available toolkits.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai toolkit`](#dlt-ai-toolkit).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
+* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
+
+</details>
+
+### `dlt ai toolkit info`
+
+Show toolkit contents and components.
+
+**Usage**
+```sh
+dlt ai toolkit [name] info [-h] [--location LOCATION] [--branch BRANCH]
+```
+
+**Description**
+
+Show toolkit contents and components.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai toolkit`](#dlt-ai-toolkit).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
+* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
+
+</details>
+
+### `dlt ai toolkit install`
+
+Install toolkit components into project.
+
+**Usage**
+```sh
+dlt ai toolkit [name] install [-h] [--location LOCATION] [--branch BRANCH]
+    [--agent {claude,cursor,codex}] [--overwrite]
+```
+
+**Description**
+
+Install toolkit components into project.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai toolkit`](#dlt-ai-toolkit).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
+* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
+* `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
+* `--overwrite` - Overwrite existing files instead of skipping them.
+
+</details>
+
+### `dlt ai mcp`
+
+Run or install the dlt MCP server.
+
+**Usage**
+```sh
+dlt ai mcp [-h] [--stdio] [--sse] [--port PORT] [--features [FEATURES ...]]
+    {run,install} ...
+```
+
+**Description**
+
+Run or install the dlt MCP server.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai`](#dlt-ai).
+
+**Positional arguments**
+* `run` - Start the mcp server (default)
+* `install` - Install mcp server config into the current project
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--stdio` - Use stdio transport mode
+* `--sse` - Use legacy sse transport instead of streamable-http
+* `--port PORT` - Port for the mcp server (default: 8000)
+* `--features [FEATURES ...]` - Additional mcp feature sets to enable (default: pipeline, workspace)
+
+</details>
+
+### `dlt ai mcp run`
+
+Start the MCP server (default).
+
+**Usage**
+```sh
+dlt ai mcp run [-h]
+```
+
+**Description**
+
+Start the MCP server (default).
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai mcp`](#dlt-ai-mcp).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt ai mcp install`
+
+Install MCP server config into the current project.
+
+**Usage**
+```sh
+dlt ai mcp install [-h] [--agent {claude,cursor,codex}] [--features [FEATURES
+    ...]] [--name NAME] [--overwrite]
+```
+
+**Description**
+
+Install MCP server config into the current project.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai mcp`](#dlt-ai-mcp).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
+* `--features [FEATURES ...]` - Mcp feature sets to include in the server config
+* `--name NAME` - Server name in the mcp config (default: dlt-workspace)
+* `--overwrite` - Overwrite existing server config instead of skipping.
 
 </details>
 
