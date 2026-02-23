@@ -104,7 +104,7 @@ If the dashboard cannot connect to the destination, you will receive a warning a
 * [Marimo docs](https://docs.marimo.io/) - Learn more about Marimo, the framework that powers the dltHub workspace dashboard
 
 <small>
-2025 [dltHub](https://dlthub.com)
+2026 [dltHub](https://dlthub.com)
 </small>
 
 """

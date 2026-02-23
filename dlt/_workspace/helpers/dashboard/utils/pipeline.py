@@ -186,12 +186,14 @@ def exception_section(p: dlt.Pipeline) -> List[mo.Html]:
         return []
 
     last_exception = exception_step.exception_traces[-1]
-    title = f"{last_exception['exception_type']}: {last_exception['message']}"
+    title = f"Exception encountered during last run in step **{exception_step.step}**"
+    subtitle = f"{last_exception['exception_type']}: **{last_exception['message']}**"
 
     _result = []
     _result.append(
         ui.title_and_subtitle(
             title,
+            subtitle,
             title_level=2,
         )
     )
