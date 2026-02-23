@@ -2041,7 +2041,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.22.0"
+version = "1.22.1"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
