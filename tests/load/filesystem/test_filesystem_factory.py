@@ -50,6 +50,7 @@ def test_filesystem_factory_is_hf():
     assert hf_filesystem.client_class == HfFilesystemClient
     assert hf_filesystem.capabilities().preferred_loader_file_format == "parquet"
     assert hf_filesystem.capabilities().parquet_format.write_page_index is True
+    assert hf_filesystem.capabilities().parquet_format.use_content_defined_chunking is True
     non_hf_filesystem = filesystem(FILE_BUCKET)
     assert not non_hf_filesystem.is_hf
     assert non_hf_filesystem.spec == FilesystemDestinationClientConfiguration

@@ -109,6 +109,10 @@ gs = [
 az = [
     "adlfs>=2024.7.0"
 ]
+hf = [
+    "huggingface-hub>=1.4.1",
+    "pyarrow>=21.0.0",  # minimum version that supports CDC (https://huggingface.co/blog/parquet-cdc)
+]
 sftp = [
     "paramiko>=3.3.0"
 ]
@@ -204,9 +208,6 @@ workspace = [
 ]
 dbml = [
     "pydbml"
-]
-huggingface = [
-    "huggingface-hub>=1.4.1"
 ]
 
 [project.urls]

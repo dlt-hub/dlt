@@ -101,9 +101,12 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
             # HF dataset viewer requires parquet files (when using another format, HF will
             # automatically create a copy of the dataset in parquet)
             caps.preferred_loader_file_format = "parquet"
-            # page index enables better filtering and random access
-            # ref: https://github.com/dlt-hub/dlt/pull/3410#issue-3682192608
-            caps.parquet_format = ParquetFormatConfiguration(write_page_index=True)
+            # https://github.com/dlt-hub/dlt/pull/3410#issue-3682192608 explains why below parquet
+            # settings are good for HF datasets
+            caps.parquet_format = ParquetFormatConfiguration(
+                write_page_index=True,
+                use_content_defined_chunking=True,
+            )
 
         return super().adjust_capabilities(caps, config, naming)
 
