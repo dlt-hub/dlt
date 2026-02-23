@@ -1,3 +1,5 @@
+import tempfile
+import pathlib
 from dataclasses import dataclass
 from typing import Any, Sequence, Union
 
@@ -21,10 +23,6 @@ class JoinExpectation:
     target_table: str
 
 
-def _resolve_other(dataset: dlt.Dataset, other: Any) -> Any:
-    return other(dataset) if callable(other) else other
-
-
 def _identifier_name(identifier: Union[sge.Expression, str, None]) -> str:
     if identifier is None:
         raise AssertionError("Expected identifier")
@@ -35,12 +33,6 @@ def _identifier_name(identifier: Union[sge.Expression, str, None]) -> str:
     if hasattr(identifier, "name"):
         return identifier.name
     return str(identifier)
-
-
-def _column_ref(column: sge.Column) -> tuple[str, str]:
-    table = _identifier_name(column.args.get("table"))
-    name = _identifier_name(column.args.get("this"))
-    return table, name
 
 
 def _flatten_on_pairs(expr: sge.Expression) -> list[tuple[str, str, str, str]]:
@@ -57,8 +49,10 @@ def _flatten_on_pairs(expr: sge.Expression) -> list[tuple[str, str, str, str]]:
         right = node.expression
         if not isinstance(left, sge.Column) or not isinstance(right, sge.Column):
             raise AssertionError(f"Expected column join, got: {node}")
-        left_table, left_col = _column_ref(left)
-        right_table, right_col = _column_ref(right)
+        left_table = _identifier_name(left.args.get("table"))
+        left_col = _identifier_name(left.args.get("this"))
+        right_table = _identifier_name(right.args.get("table"))
+        right_col = _identifier_name(right.args.get("this"))
         pairs.append((left_table, left_col, right_table, right_col))
 
     _visit(expr)
@@ -106,10 +100,6 @@ def _expected_magic_join_plan(
         start_index += 1
 
     return expectations, alias_map, start_index
-
-
-def _get_joins(rel: dlt.Relation) -> list[sge.Join]:
-    return rel.sqlglot_expression.args.get("joins") or []
 
 
 @pytest.mark.parametrize(
@@ -185,10 +175,6 @@ def test_resolve_reference_chain_rejects_self_join(dataset_with_loads: TLoadsFix
 @pytest.mark.parametrize("dataset_with_loads", ["with_root_key"], indirect=True)
 def test_join_rejects_cross_dataset(dataset_with_loads: TLoadsFixture) -> None:
     """Test that joining relations from different datasets raises an error."""
-    import dlt
-    import tempfile
-    import pathlib
-
     dataset, _, _ = dataset_with_loads
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -374,7 +360,7 @@ def test_magic_join_rejection_matrix(
 ) -> None:
     dataset, _, _ = dataset_with_loads
     rel = build_rel(dataset)
-    target = _resolve_other(dataset, other)
+    target = other(dataset) if callable(other) else other
 
     with pytest.raises(ValueError, match=match):
         rel.join(target)
@@ -435,8 +421,8 @@ def test_magic_join_plan_matrix(
 ) -> None:
     dataset, _, _ = dataset_with_loads
     rel = build_rel(dataset)
-    target = _resolve_other(dataset, other)
-    existing_joins = _get_joins(rel)
+    target = other(dataset) if callable(other) else other
+    existing_joins = rel.sqlglot_expression.args.get("joins") or []
 
     assert rel.origin_table_name is not None
     other_table = _magic_other_table(target)
@@ -459,7 +445,7 @@ def test_magic_join_plan_matrix(
     assert joined.origin_table_name == rel.origin_table_name
     assert joined._is_joinable_graph is True
 
-    actual_joins = _get_joins(joined)
+    actual_joins = joined.sqlglot_expression.args.get("joins") or []
     new_joins = actual_joins[len(existing_joins) :]
     assert len(new_joins) == len(expected_joins)
 
