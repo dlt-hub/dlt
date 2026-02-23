@@ -1220,7 +1220,7 @@ class HfFilesystemClient(FilesystemClient):
 
         super().__init__(schema, config, capabilities)
         self.config: HfFilesystemDestinationClientConfiguration = config
-        self.hf_api = HfApi(**config.credentials)
+        self.hf_api = HfApi(**config.credentials.to_hf_api_credentials())
 
     @property
     def repo_id(self) -> str:

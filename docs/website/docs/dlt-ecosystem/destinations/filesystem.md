@@ -448,7 +448,7 @@ Configure a bucket url with `hf` scheme and a Hugging Face [User Access Token](h
 bucket_url = "hf://datasets/[namespace]"    # Replace "namespace" with your organization or user name
 
 [destination.filesystem.credentials]
-token = "token"                             # Replace "token" with your Hugging Face User Access Token
+hf_token = "token"                             # Replace "token" with your Hugging Face User Access Token
 ```
 
 :::note
@@ -457,12 +457,12 @@ Instead of providing the token in your `dlt` configuration, you can:
 - use a [locally saved token](https://huggingface.co/docs/huggingface_hub/en/quick-start#login-command)
 :::
 
-By default, https://huggingface.co is used as API endpoint. Specify `endpoint` if you want to use a different endpoint (e.g. a Private Hub endpoint):
+By default, https://huggingface.co is used as API endpoint. Specify `hf_endpoint` if you want to use a different endpoint (e.g. a Private Hub endpoint):
 
 ```toml
 
 [destination.filesystem.credentials]
-endpoint = "https://[endpoint]"             # Replace "endpoint" with your Hugging Face endpoint
+hf_endpoint = "https://[endpoint]"             # Replace "endpoint" with your Hugging Face endpoint
 ```
 
 #### Specific behavior

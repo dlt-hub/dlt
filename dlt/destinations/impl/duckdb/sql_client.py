@@ -357,7 +357,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             sql.append(f"""
             CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                 TYPE HUGGINGFACE,
-                TOKEN '{credentials.token}'
+                TOKEN '{credentials.hf_token}'
             )""")
 
         elif persist_secrets:
