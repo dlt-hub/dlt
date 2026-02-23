@@ -263,6 +263,8 @@ class Relation(WithSqlClient):
 
         # Track the original base table for chained join validation
         self._origin_table_name: Optional[str] = table_name
+        # NOTE for future complex graph and lineage resolution, this information should be tracked
+        # in a centralized object instead of on directly on the `dlt.Relation`
         # necessary to allow for chained joins while keeping correct cardinality
         self._joined_table_aliases: Optional[dict[str, str]] = (
             {table_name: "t0"} if table_name else None
