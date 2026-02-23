@@ -827,11 +827,11 @@ def _list_scaffold_sources(search_term: Optional[str] = None) -> None:
     fmt.echo("---")
     if search_term:
         fmt.echo(
-            'Source scaffold templates matching "%s" with llm-ready docs from dlthub.com/context:'
+            'Source scaffolds matching "%s" with llm-ready docs from dlthub.com/context:'
             % fmt.bold(search_term)
         )
     else:
-        fmt.echo("Source scaffold templates with llm-ready docs from dlthub.com/context:")
+        fmt.echo("Source scaffolds with llm-ready docs from dlthub.com/context:")
     fmt.echo("---")
 
     if not response.results:
