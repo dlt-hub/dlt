@@ -295,80 +295,79 @@ def test_origin_table_name_preserved_across_transformations(
 
 
 @pytest.mark.parametrize(
-    "case_id,build_rel,other,match",
+    "build_rel,other,match",
     [
-        (
-            "self-join",
+        pytest.param(
             lambda ds: ds.table("users"),
             "users",
             "Cannot join a table to itself",
+            id="self-join",
         ),
-        (
-            "unrelated-tables",
+        pytest.param(
             lambda ds: ds.table("users__orders"),
             "products",
             "Unable to resolve reference chain",
+            id="unrelated-tables",
         ),
-        (
-            "self-not-joinable-select",
+        pytest.param(
             lambda ds: ds.table("users__orders").select("order_id"),
             "users",
             "not a join-graph relation",
+            id="self-not-joinable-select",
         ),
-        (
-            "self-not-joinable-where",
+        pytest.param(
             lambda ds: ds.table("users__orders").where("order_id", "gt", 0),
             "users",
             "not a join-graph relation",
+            id="self-not-joinable-where",
         ),
-        (
-            "self-not-joinable-order-by",
+        pytest.param(
             lambda ds: ds.table("users__orders").order_by("order_id"),
             "users",
             "not a join-graph relation",
+            id="self-not-joinable-order-by",
         ),
-        (
-            "self-not-joinable-limit",
+        pytest.param(
             lambda ds: ds.table("users__orders").limit(1),
             "users",
             "not a join-graph relation",
+            id="self-not-joinable-limit",
         ),
-        (
-            "self-not-joinable-agg",
+        pytest.param(
             lambda ds: ds.table("users__orders").select("order_id").max(),
             "users",
             "not a join-graph relation",
+            id="self-not-joinable-agg",
         ),
-        (
-            "other-not-joinable",
+        pytest.param(
             lambda ds: ds.table("users__orders"),
             lambda ds: ds.table("users").select("id"),
             "not a join-graph relation",
+            id="other-not-joinable",
         ),
-        (
-            "invalid-other-type",
+        pytest.param(
             lambda ds: ds.table("users"),
             123,
             "`other` must be a table name or a base table relation",
+            id="invalid-other-type",
         ),
-        (
-            "unknown-table",
+        pytest.param(
             lambda ds: ds.table("users"),
             "table_does_not_exist",
             "not found in dataset schema",
+            id="unknown-table",
         ),
-        (
-            "query-relation-not-joinable",
+        pytest.param(
             lambda ds: ds.query("SELECT * FROM users"),
             "users__orders",
             "no base table",
+            id="query-relation-not-joinable",
         ),
     ],
     ids=lambda v: v if isinstance(v, str) else None,
 )
 def test_magic_join_rejection_matrix(
     dataset_with_loads: TLoadsFixture,
-    case_id: str,
     build_rel: Any,
     other: Any,
     match: str,
@@ -382,53 +381,46 @@ def test_magic_join_rejection_matrix(
 
 
 @pytest.mark.parametrize(
-    "dataset_with_loads,case_id,build_rel,other",
+    "dataset_with_loads,build_rel,other",
     [
         pytest.param(
             "with_root_key",
-            "child-to-parent",
             lambda ds: ds.table("users__orders"),
             "users",
             id="child-to-parent",
         ),
         pytest.param(
             "with_root_key",
-            "parent-to-child",
             lambda ds: ds.table("users"),
             "users__orders",
             id="parent-to-child",
         ),
         pytest.param(
             "with_root_key",
-            "multi-hop-to-root",
             lambda ds: ds.table("users__orders__items"),
             "users",
             id="multi-hop-to-root",
         ),
         pytest.param(
             "without_root_key",
-            "multi-hop-to-root-parent-key",
             lambda ds: ds.table("users__orders__items"),
             "users",
             id="multi-hop-to-root-parent-key",
         ),
         pytest.param(
             "with_root_key",
-            "chain-with-existing-join",
             lambda ds: ds.table("users__orders").join("users"),
             "users__orders__items",
             id="chain-with-existing-join",
         ),
         pytest.param(
             "without_root_key",
-            "reuse-joined-alias",
             lambda ds: ds.table("users__orders__items").join("users__orders"),
             "users",
             id="reuse-joined-alias",
         ),
         pytest.param(
             "with_root_key",
-            "joinable-graph-other",
             lambda ds: ds.table("users__orders__items"),
             lambda ds: ds.table("users__orders").join("users"),
             id="joinable-graph-other",
@@ -438,7 +430,6 @@ def test_magic_join_rejection_matrix(
 )
 def test_magic_join_plan_matrix(
     dataset_with_loads: TLoadsFixture,
-    case_id: str,
     build_rel: Any,
     other: Any,
 ) -> None:
