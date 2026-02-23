@@ -617,16 +617,18 @@ def test_client_methods(
         assert file_count == 5
 
     # check opening of file
-    values = []
-    for line in fs_client.read_text(t1_files[0], encoding="utf-8").split("\n"):
-        if line:
-            values.append(json.loads(line)["value"])
-    assert values == [1, 2, 3, 4, 5]
+    file_path = t1_files[0]
+    if not file_path.endswith(".parquet"):  # utf-8 codec can't decode parquet
+        values = []
+        for line in fs_client.read_text(file_path, encoding="utf-8").split("\n"):
+            if line:
+                values.append(json.loads(line)["value"])
+        assert values == [1, 2, 3, 4, 5]
 
-    # check binary read
-    assert fs_client.read_bytes(t1_files[0]) == str.encode(
-        fs_client.read_text(t1_files[0], encoding="utf-8")
-    )
+        # check binary read
+        assert fs_client.read_bytes(file_path) == str.encode(
+            fs_client.read_text(file_path, encoding="utf-8")
+        )
 
     # check truncate
     fs_client.truncate_tables(["table_1"])

@@ -43,12 +43,16 @@ def test_filesystem_factory_is_hf():
     with custom_environ({"DESTINATION__MY_DESTINATION__BUCKET_URL": FILE_BUCKET}):
         assert not filesystem(destination_name="my_destination").is_hf
 
-    # spec and client_class should be determined correctly
+    # assert adjustments are made when protocol is `hf`
     hf_filesystem = filesystem(HF_BUCKET)
     assert hf_filesystem.is_hf
     assert hf_filesystem.spec == HfFilesystemDestinationClientConfiguration
     assert hf_filesystem.client_class == HfFilesystemClient
+    assert hf_filesystem.capabilities().preferred_loader_file_format == "parquet"
+    assert hf_filesystem.capabilities().parquet_format.write_page_index is True
     non_hf_filesystem = filesystem(FILE_BUCKET)
     assert not non_hf_filesystem.is_hf
     assert non_hf_filesystem.spec == FilesystemDestinationClientConfiguration
     assert non_hf_filesystem.client_class == FilesystemClient
+    assert non_hf_filesystem.capabilities().preferred_loader_file_format == "jsonl"
+    assert non_hf_filesystem.capabilities().parquet_format is None

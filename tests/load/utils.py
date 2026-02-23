@@ -781,7 +781,7 @@ def destinations_configs(
 
     # all filesystem configs also implement read-only sql client
     if all_buckets_filesystem_configs or read_only_sqlclient_configs:
-        for bucket in DEFAULT_BUCKETS:
+        for bucket in set(DEFAULT_BUCKETS) - {HF_BUCKET}:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
@@ -789,10 +789,19 @@ def destinations_configs(
                     extra_info=bucket,
                     supports_merge=False,
                     file_format="jsonl",  # keep jsonl as default, test utils are setup for this
-                    # increase timeout to 30s for hf to avoid flakes (default is 10s)
-                    env_vars={"HF_HUB_DOWNLOAD_TIMEOUT": "30"} if bucket == HF_BUCKET else None,
                 )
             ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination_type="filesystem",
+                bucket_url=HF_BUCKET,
+                extra_info=HF_BUCKET,
+                supports_merge=False,
+                file_format="parquet",
+                # increase timeout to avoid flakes (default is 10s)
+                env_vars={"HF_HUB_DOWNLOAD_TIMEOUT": "30"},
+            )
+        ]
 
     # table format configs also implement read-only sqlclient configs
     if table_format_filesystem_configs or table_format_local_configs or read_only_sqlclient_configs:

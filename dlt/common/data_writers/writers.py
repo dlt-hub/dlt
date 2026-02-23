@@ -351,6 +351,7 @@ class ParquetDataWriter(DataWriter):
             coerce_timestamps=self.parquet_format.coerce_timestamps,
             allow_truncated_timestamps=self.parquet_format.allow_truncated_timestamps,
             use_compliant_nested_type=self.parquet_format.use_compliant_nested_type,
+            write_page_index=self.parquet_format.write_page_index,
         )
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:

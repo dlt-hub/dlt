@@ -3,6 +3,7 @@ from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tu
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.schema.typing import TLoaderMergeStrategy, TLoaderReplaceStrategy, TTableSchema
 from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
 from dlt.destinations.impl.filesystem.configuration import (
@@ -11,6 +12,7 @@ from dlt.destinations.impl.filesystem.configuration import (
 )
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, HfFilesystemClient
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
+from docs.examples.custom_naming.sql_ci_no_collision import NamingConvention
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -87,6 +89,23 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
         caps.supports_nested_types = True
 
         return caps
+
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: FilesystemDestinationClientConfiguration,
+        naming: Optional[NamingConvention],  # type: ignore[override]
+    ) -> DestinationCapabilitiesContext:
+        if config.protocol == "hf":
+            # HF dataset viewer requires parquet files (when using another format, HF will
+            # automatically create a copy of the dataset in parquet)
+            caps.preferred_loader_file_format = "parquet"
+            # page index enables better filtering and random access
+            # ref: https://github.com/dlt-hub/dlt/pull/3410#issue-3682192608
+            caps.parquet_format = ParquetFormatConfiguration(write_page_index=True)
+
+        return super().adjust_capabilities(caps, config, naming)
 
     def _resolve_partial_config(
         self, destination_name: Optional[str]
