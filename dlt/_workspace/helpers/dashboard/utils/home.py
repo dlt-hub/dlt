@@ -10,7 +10,7 @@ from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunCont
 from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard import utils
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.types import TPipelineListItem
+from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
 from dlt._workspace.helpers.dashboard.utils import ui
 
 

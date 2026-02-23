@@ -15,7 +15,7 @@ app = marimo.App(
 with app.setup:
     from typing import Any, Dict, List, cast
 
-    from dlt._workspace.helpers.dashboard.types import (
+    from dlt._workspace.helpers.dashboard.typing import (
         TLoadItem,
         TPipelineListItem,
         TQueryHistoryItem,

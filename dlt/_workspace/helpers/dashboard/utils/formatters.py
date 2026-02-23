@@ -4,7 +4,7 @@ from datetime import datetime  # noqa: I251
 from itertools import chain
 from typing import Any, Dict, List, Mapping, Union, cast
 
-from dlt._workspace.helpers.dashboard.types import TNameValueItem
+from dlt._workspace.helpers.dashboard.typing import TNameValueItem
 
 from dlt.common.pendulum import pendulum
 

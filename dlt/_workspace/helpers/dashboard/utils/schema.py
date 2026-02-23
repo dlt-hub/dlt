@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from dlt._workspace.helpers.dashboard.types import TNameValueItem, TTableListItem
+from dlt._workspace.helpers.dashboard.typing import TNameValueItem, TTableListItem
 
 import marimo as mo
 

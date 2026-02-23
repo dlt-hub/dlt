@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, cast
 
-from dlt._workspace.helpers.dashboard.types import TNameValueItem
+from dlt._workspace.helpers.dashboard.typing import TNameValueItem
 
 import marimo as mo
 

@@ -3,7 +3,7 @@ import os
 import shutil
 from typing import Any, Callable, Dict, List, Tuple
 
-from dlt._workspace.helpers.dashboard.types import TPipelineListItem
+from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir

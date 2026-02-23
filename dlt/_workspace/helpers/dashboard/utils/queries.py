@@ -3,7 +3,7 @@
 import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from dlt._workspace.helpers.dashboard.types import TLoadItem
+from dlt._workspace.helpers.dashboard.typing import TLoadItem
 
 import marimo as mo
 

@@ -4,7 +4,7 @@ import dlt
 from typing import Set
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.types import TPipelineListItem
+from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
 from dlt._workspace.helpers.dashboard.utils.pipeline import (
     get_pipeline,
     pipeline_details,

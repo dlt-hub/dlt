@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
-from dlt._workspace.helpers.dashboard.types import TNameValueItem, TPipelineListItem
+from dlt._workspace.helpers.dashboard.typing import TNameValueItem, TPipelineListItem
 
 import dlt
 import marimo as mo
