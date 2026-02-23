@@ -62,162 +62,7 @@ _FILTER_OP_MAP = {
 }
 
 
-@dataclass(frozen=True)
-class _JoinRef:
-    """A resolved table reference annotated with join direction."""
-
-    table: str
-    referenced_table: str
-    columns: tuple[str, ...]
-    referenced_columns: tuple[str, ...]
-    direction: Literal["LEFT", "RIGHT"]
-
-    @property
-    def target_table(self) -> str:
-        """The table being added to the query by this join step."""
-        return self.table if self.direction == "LEFT" else self.referenced_table
-
-    @property
-    def on_pairs(self) -> list[tuple[str, str]]:
-        """(existing_side_col, new_side_col) pairs for the ON clause."""
-        if self.direction == "LEFT":
-            return list(zip(self.referenced_columns, self.columns))
-        return list(zip(self.columns, self.referenced_columns))
-
-    @property
-    def join_type(self) -> TJoinType:
-        """The SQL join type: 'left' or 'right'."""
-        return "left" if self.direction == "LEFT" else "right"
-
-
-def _to_join_ref(ref: TTableReference, direction: Literal["LEFT", "RIGHT"]) -> _JoinRef:
-    if "table" not in ref or ref["table"] is None or "referenced_table" not in ref:
-        raise ValueError(
-            f"Malformed table reference for join: {ref} - missing 'table' or 'referenced_table'"
-        )
-    columns = ref.get("columns", [])
-    referenced_columns = ref.get("referenced_columns", [])
-    if not columns or not referenced_columns or len(columns) != len(referenced_columns):
-        raise ValueError(
-            f"Malformed table reference for join: {ref} - 'columns' or 'referenced_columns' are"
-            " empty"
-        )
-    return _JoinRef(
-        table=ref["table"],
-        referenced_table=ref["referenced_table"],
-        columns=tuple(columns),
-        referenced_columns=tuple(referenced_columns),
-        direction=direction,
-    )
-
-
-def _resolve_parent_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
-    """Resolve the reference chain between two tables.
-
-    References always point child -> parent (child has foreign key to parent).
-    By using LEFT/RIGHT joins appropriately, we avoid reversing references:
-    - Child -> Parent: Use RIGHT JOIN (all rows from parent/right side)
-    - Parent -> Child: Use LEFT JOIN (all rows from parent/left side)
-
-    Returns:
-        List of (reference, join_type) tuples where join_type is:
-        - "RIGHT" when left is child and right is parent (natural ref direction)
-        - "LEFT" when left is parent and right is child (opposite ref direction)
-    """
-    upward_chain_from_left = schema_utils.get_all_parent_references_to_root(schema.tables, left)
-    upward_chain_from_right = schema_utils.get_all_parent_references_to_root(schema.tables, right)
-
-    for idx, left_ref in enumerate(upward_chain_from_left):
-        if "referenced_table" not in left_ref or "table" not in left_ref:
-            break
-        if left_ref["referenced_table"] == right:
-            # right is a parent of left: natural direction (for references), use RIGHT JOIN
-            return [_to_join_ref(ref, "RIGHT") for ref in upward_chain_from_left[: idx + 1]]
-
-    for idx, right_ref in enumerate(upward_chain_from_right):
-        if "referenced_table" not in right_ref or "table" not in right_ref:
-            break
-        if right_ref["referenced_table"] == left:
-            # left is a parent of right: reverse chain, use LEFT JOIN
-            return [
-                _to_join_ref(ref, "LEFT") for ref in reversed(upward_chain_from_right[: idx + 1])
-            ]
-
-    raise ValueError(f"Unable to resolve reference chain between {left} and {right}")
-
-
-def _resolve_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
-    """Resolve references between two tables and determine join type per reference.
-
-    Returns:
-        List of _JoinRef where directions is:
-        - "RIGHT" when joining from child to parent (natural ref direction)
-        - "LEFT" when joining from parent to child
-    """
-    if left == right:
-        raise ValueError(f"Cannot join a table to itself: {left}")
-    # Check direct references first
-    for ref in schema.references:
-        if ref.get("table") == left and ref.get("referenced_table") == right:
-            # Natural direction: left (child) -> right (parent), use RIGHT JOIN
-            return [_to_join_ref(TTableReference(**ref), "RIGHT")]
-        if ref.get("table") == right and ref.get("referenced_table") == left:
-            # Opposite direction: left (parent) <- right (child), use LEFT JOIN
-            return [_to_join_ref(TTableReference(**ref), "LEFT")]
-
-    # Fall back to parent-child reference chain
-    return _resolve_parent_reference_chain(schema, left, right)
-
-
 TJoinType = Literal["left", "right", "inner", "full"]
-
-
-@dataclass
-class _JoinParams:
-    target: sge.Expression
-    on: list[tuple[str, str]]
-    how: TJoinType
-    left_alias: str
-    right_alias: str
-
-
-@dataclass
-class _JoinPlan:
-    query: sge.Select
-    joins: list[_JoinParams]
-    joined_table_aliases:dict[str, str]
-    next_alias_index: int
-    origin_table_name: str
-    is_joinable_graph: bool
-
-
-def _build_join_condition_from_pairs(
-    column_pairs: Sequence[tuple[str, str]],
-    *,
-    left_alias: str,
-    right_alias: str,
-) -> sge.Expression:
-    """Build join ON condition from explicit column pairs."""
-    if not column_pairs:
-        raise ValueError("Cannot build join condition from empty column pairs")
-
-    conditions: list[sge.Expression] = []
-
-    for left_col, right_col in column_pairs:
-        condition = sge.EQ(
-            this=sge.Column(
-                this=sge.to_identifier(left_col, quoted=True),
-                table=sge.to_identifier(left_alias, quoted=False),
-            ),
-            expression=sge.Column(
-                this=sge.to_identifier(right_col, quoted=True),
-                table=sge.to_identifier(right_alias, quoted=False),
-            ),
-        )
-        conditions.append(condition)
-    if len(conditions) == 1:
-        return conditions[0]
-    return reduce(lambda x, y: sge.And(this=x, expression=y), conditions)
 
 
 class Relation(WithSqlClient):
@@ -944,6 +789,53 @@ class Relation(WithSqlClient):
         return rel
 
 
+@dataclass(frozen=True)
+class _JoinRef:
+    """A resolved table reference annotated with join direction."""
+
+    table: str
+    referenced_table: str
+    columns: tuple[str, ...]
+    referenced_columns: tuple[str, ...]
+    direction: Literal["LEFT", "RIGHT"]
+
+    @property
+    def target_table(self) -> str:
+        """The table being added to the query by this join step."""
+        return self.table if self.direction == "LEFT" else self.referenced_table
+
+    @property
+    def on_pairs(self) -> list[tuple[str, str]]:
+        """(existing_side_col, new_side_col) pairs for the ON clause."""
+        if self.direction == "LEFT":
+            return list(zip(self.referenced_columns, self.columns))
+        return list(zip(self.columns, self.referenced_columns))
+
+    @property
+    def join_type(self) -> TJoinType:
+        """The SQL join type: 'left' or 'right'."""
+        return "left" if self.direction == "LEFT" else "right"
+
+
+@dataclass
+class _JoinParams:
+    target: sge.Expression
+    on: list[tuple[str, str]]
+    how: TJoinType
+    left_alias: str
+    right_alias: str
+
+
+@dataclass
+class _JoinPlan:
+    query: sge.Select
+    joins: list[_JoinParams]
+    joined_table_aliases: dict[str, str]
+    next_alias_index: int
+    origin_table_name: str
+    is_joinable_graph: bool
+
+
 def _get_relation_output_columns_schema(
     relation: dlt.Relation,
     *,
@@ -1112,3 +1004,111 @@ def _add_load_id_via_parent_key(relation: dlt.Relation) -> dlt.Relation:
     rel = relation.__copy__()
     rel._sqlglot_expression = query
     return rel
+
+
+def _to_join_ref(ref: TTableReference, direction: Literal["LEFT", "RIGHT"]) -> _JoinRef:
+    if "table" not in ref or ref["table"] is None or "referenced_table" not in ref:
+        raise ValueError(
+            f"Malformed table reference for join: {ref} - missing 'table' or 'referenced_table'"
+        )
+    columns = ref.get("columns", [])
+    referenced_columns = ref.get("referenced_columns", [])
+    if not columns or not referenced_columns or len(columns) != len(referenced_columns):
+        raise ValueError(
+            f"Malformed table reference for join: {ref} - 'columns' or 'referenced_columns' are"
+            " empty"
+        )
+    return _JoinRef(
+        table=ref["table"],
+        referenced_table=ref["referenced_table"],
+        columns=tuple(columns),
+        referenced_columns=tuple(referenced_columns),
+        direction=direction,
+    )
+
+
+def _resolve_parent_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
+    """Resolve the reference chain between two tables.
+
+    References always point child -> parent (child has foreign key to parent).
+    By using LEFT/RIGHT joins appropriately, we avoid reversing references:
+    - Child -> Parent: Use RIGHT JOIN (all rows from parent/right side)
+    - Parent -> Child: Use LEFT JOIN (all rows from parent/left side)
+
+    Returns:
+        List of (reference, join_type) tuples where join_type is:
+        - "RIGHT" when left is child and right is parent (natural ref direction)
+        - "LEFT" when left is parent and right is child (opposite ref direction)
+    """
+    upward_chain_from_left = schema_utils.get_all_parent_references_to_root(schema.tables, left)
+    upward_chain_from_right = schema_utils.get_all_parent_references_to_root(schema.tables, right)
+
+    for idx, left_ref in enumerate(upward_chain_from_left):
+        if "referenced_table" not in left_ref or "table" not in left_ref:
+            break
+        if left_ref["referenced_table"] == right:
+            # right is a parent of left: natural direction (for references), use RIGHT JOIN
+            return [_to_join_ref(ref, "RIGHT") for ref in upward_chain_from_left[: idx + 1]]
+
+    for idx, right_ref in enumerate(upward_chain_from_right):
+        if "referenced_table" not in right_ref or "table" not in right_ref:
+            break
+        if right_ref["referenced_table"] == left:
+            # left is a parent of right: reverse chain, use LEFT JOIN
+            return [
+                _to_join_ref(ref, "LEFT") for ref in reversed(upward_chain_from_right[: idx + 1])
+            ]
+
+    raise ValueError(f"Unable to resolve reference chain between {left} and {right}")
+
+
+def _resolve_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
+    """Resolve references between two tables and determine join type per reference.
+
+    Returns:
+        List of _JoinRef where directions is:
+        - "RIGHT" when joining from child to parent (natural ref direction)
+        - "LEFT" when joining from parent to child
+    """
+    if left == right:
+        raise ValueError(f"Cannot join a table to itself: {left}")
+    # Check direct references first
+    for ref in schema.references:
+        if ref.get("table") == left and ref.get("referenced_table") == right:
+            # Natural direction: left (child) -> right (parent), use RIGHT JOIN
+            return [_to_join_ref(TTableReference(**ref), "RIGHT")]
+        if ref.get("table") == right and ref.get("referenced_table") == left:
+            # Opposite direction: left (parent) <- right (child), use LEFT JOIN
+            return [_to_join_ref(TTableReference(**ref), "LEFT")]
+
+    # Fall back to parent-child reference chain
+    return _resolve_parent_reference_chain(schema, left, right)
+
+
+def _build_join_condition_from_pairs(
+    column_pairs: Sequence[tuple[str, str]],
+    *,
+    left_alias: str,
+    right_alias: str,
+) -> sge.Expression:
+    """Build join ON condition from explicit column pairs."""
+    if not column_pairs:
+        raise ValueError("Cannot build join condition from empty column pairs")
+
+    conditions: list[sge.Expression] = []
+
+    for left_col, right_col in column_pairs:
+        condition = sge.EQ(
+            this=sge.Column(
+                this=sge.to_identifier(left_col, quoted=True),
+                table=sge.to_identifier(left_alias, quoted=False),
+            ),
+            expression=sge.Column(
+                this=sge.to_identifier(right_col, quoted=True),
+                table=sge.to_identifier(right_alias, quoted=False),
+            ),
+        )
+        conditions.append(condition)
+    if len(conditions) == 1:
+        return conditions[0]
+    return reduce(lambda x, y: sge.And(this=x, expression=y), conditions)
