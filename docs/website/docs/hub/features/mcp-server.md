@@ -22,10 +22,9 @@ Users can start as many MCP servers as necessary. The default configurations and
 
 ## Launch MCP server
 
-Since all MCP clients work with `sse` transport now, it is the default when running the server. The MCP will attach to the workspace context
+The default transport is `streamable-http` (MCP spec 2025-03-26). The MCP will attach to the workspace context
 and pipelines in it. It must be able to start in the same Python environment and see the same workspace as `dlt` when running pipelines.
-There were also issues with `stdio` pollution from `print` statements—one misbehaving dependency could break the transport channel.
-TL;DR: We still support `stdio` transport, but it is not recommended.
+We still support `stdio` and legacy `sse` transports via `--stdio` and `--sse` flags, but `streamable-http` is recommended.
 
 To launch the server in **workspace context**:
 ```sh
@@ -36,7 +35,7 @@ INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:43654 (Press CTRL+C to quit)
 ```
-The workspace MCP server has **43654** as the default port and is configured without any path (i.e., `/sse`), so users can just copy the link above into the appropriate client.
+The workspace MCP server has **43654** as the default port and serves on `/mcp`. Use `--sse` flag to use legacy SSE transport instead.
 
 To launch the server in **pipeline context**:
 ```sh
@@ -59,10 +58,10 @@ The pipeline MCP server has **43656** as the default port. The pipeline is alrea
 {
   "mcpServers": {
     "dlt-workspace": {
-      "url": "http://127.0.0.1:43654/"
+      "url": "http://127.0.0.1:43654/mcp"
     },
     "dlt-pipeline-mcp": {
-      "url": "http://127.0.0.1:43656/"
+      "url": "http://127.0.0.1:43656/mcp"
     }
   }
 }
@@ -76,8 +75,7 @@ version: 0.0.1
 schema: v1
 mcpServers:
   - name: dlt-workspace
-    type: sse
-    url: "http://localhost:43654"
+    url: "http://localhost:43654/mcp"
 ```
 
 ### Continue Hub
@@ -87,14 +85,14 @@ With Continue, you can use [Continue Hub](https://docs.continue.dev/hub/introduc
 See the [dltHub page](https://hub.continue.dev/dlthub) and select the `dlt` or `dltHub` Assistant. This bundles the MCP with additional Continue-specific features. 
 
 ## Configure MCP server
-The server can still be started with `stdio` transport and a different port using the command line.
+The server can be started with `stdio` or legacy `sse` transport and a different port using the command line.
 
 🚧 The feature below is in development and not yet available:
 The plan is to allow full configuration of MCP via the dlt configuration system.
 
 ```toml
 [workspace.mcp]
-path="/sse"
+path="/mcp"
 port=888
 ```
 

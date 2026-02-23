@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: install-uv has-uv dev lint test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database
+.PHONY: install-uv has-uv dev lint test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-hub-minimal test-hub-minimal test-hub install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database
 
 PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
 .SILENT:has-uv
@@ -37,11 +37,15 @@ dev-airflow: has-uv ## Prepares development environment with airflow support
 dev-hub: has-uv ## Prepares development environment with hub support
 	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
-lint: lint-core lint-security lint-docstrings lint-lock ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile)
+lint: lint-core lint-security lint-docstrings lint-lock lint-deps ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile, deps)
 
-lint-lock: ## Checks uv lockfile and hub extras are in sync
+lint-lock: ## Checks uv lockfile is in sync
 	uv lock --check
+
+lint-deps: ## Checks dependencies, hub extras, and API breaking changes (informational)
 	uv run python tools/check_hub_extras.py
+	-uv run python -m tools.check_dependency_changes
+	-uv run python -m tools.check_api_breaking check
 
 lint-core: ## Runs core linting (mypy, ruff, flake8)
 	uv run mypy --config-file mypy.ini dlt tests tools
@@ -159,12 +163,20 @@ test-common-p: ## Tests common components in parallel
 # Local load tests
 # ----------------------------------------------------------------------
 
+install-load-local: dev
+	uv run pip install sqlalchemy==2.0.18
+
 TEST_LOAD_PATHS = tests/load
 
 test-load-local: ## Tests load with local destinations (duckdb + filesystem)
 	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory", "file"]' \
-	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_LOAD_PATHS))
+	$(call RUN_XDIST_SAFE_SPLIT, \
+		$(TEST_LOAD_PATHS) \
+		--ignore tests/load/sources \
+		--ignore tests/load/filesystem_sftp \
+	)
+
 
 test-load-local-p: ## Tests load with local destinations in parallel
 	$(MAKE) test-load-local PYTEST_XDIST_N=auto
@@ -220,6 +232,9 @@ TEST_COMMON_CORE_PATHS = \
 test-common-core:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_CORE_PATHS))
 
+test-tools:
+	uv run pytest tools/tests -v
+
 install-common-source:
 	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra sql_database
 
@@ -261,6 +276,19 @@ TEST_WORKSPACE_PATHS = tests/workspace
 
 test-workspace:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_WORKSPACE_PATHS))
+
+# ----------------------------------------------------------------------
+# CI: hub minimal (no ibis)
+# ----------------------------------------------------------------------
+
+install-hub-minimal:
+	uv sync $(UV_SYNC_ARGS) --extra hub --group ibis-bare
+
+test-hub-minimal:
+	$(PYTEST_BASE) tests/hub --ignore=tests/hub/test_data_quality.py --ignore=tests/hub/test_destinations.py
+
+test-hub:
+	$(PYTEST_BASE) tests/hub
 
 # ----------------------------------------------------------------------
 # CI: full pipeline + sources + destinations

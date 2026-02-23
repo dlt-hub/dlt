@@ -1,7 +1,9 @@
 import ast
 import os
 import shutil
-from typing import Any, Callable, Dict, List, Tuple, cast
+from typing import Any, Callable, Dict, List, Tuple
+
+from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
@@ -43,7 +45,7 @@ def get_pipeline_trace_mtime(pipelines_dir: str, pipeline_name: str) -> float:
 
 def list_local_pipelines(
     pipelines_dir: str = None, sort_by_trace: bool = True, additional_pipelines: List[str] = None
-) -> Tuple[str, List[Dict[str, Any]]]:
+) -> Tuple[str, List[TPipelineListItem]]:
     """Get the local pipelines directory and the list of pipeline names in it.
 
     Args:
@@ -66,14 +68,14 @@ def list_local_pipelines(
                 pipelines.append(pipeline)
 
     # check last trace timestamp and create dict
-    pipelines_with_timestamps = []
+    pipelines_with_timestamps: List[TPipelineListItem] = []
     for pipeline in pipelines:
         pipelines_with_timestamps.append(
             {"name": pipeline, "timestamp": get_pipeline_trace_mtime(pipelines_dir, pipeline)}
         )
 
     if sort_by_trace:
-        pipelines_with_timestamps.sort(key=lambda x: cast(float, x["timestamp"]), reverse=True)
+        pipelines_with_timestamps.sort(key=lambda x: x["timestamp"], reverse=True)
 
     return pipelines_dir, pipelines_with_timestamps
 
@@ -102,9 +104,7 @@ def display_run_context_info() -> None:
             )
 
 
-def add_mcp_arg_parser(
-    subparsers: Any, description: str, help_str: str, default_sse_port: int
-) -> None:
+def add_mcp_arg_parser(subparsers: Any, description: str, help_str: str, default_port: int) -> None:
     command_parser = subparsers.add_parser(
         "mcp",
         description=description,
@@ -112,10 +112,15 @@ def add_mcp_arg_parser(
     )
     command_parser.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
     command_parser.add_argument(
+        "--sse",
+        action="store_true",
+        help="Use legacy SSE transport instead of streamable-http",
+    )
+    command_parser.add_argument(
         "--port",
         type=int,
-        default=default_sse_port,
-        help=f"SSE port to use (default: {default_sse_port})",
+        default=default_port,
+        help=f"Port for the MCP server (default: {default_port})",
     )
 
 

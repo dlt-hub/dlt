@@ -153,11 +153,15 @@ def pipeline_command(
     if operation == "mcp":
         from dlt._workspace.mcp import PipelineMCP
 
-        transport = "stdio" if command_kwargs["stdio"] else "sse"
-        if transport:
-            # write to stderr. stdin is the comm channel
+        if command_kwargs["stdio"]:
+            transport = "stdio"
+        elif command_kwargs.get("sse"):
+            transport = "sse"
+        else:
+            transport = "streamable-http"
+        if transport != "stdio":
             fmt.echo("Starting dlt MCP server", err=True)
-        mcp = PipelineMCP(p, command_kwargs["port"])
+        mcp = PipelineMCP(p.pipeline_name, command_kwargs["port"])
         mcp.run(transport=transport)
 
         return

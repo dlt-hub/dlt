@@ -21,6 +21,7 @@ from dlt.common.schema.utils import (
     group_tables_by_resource,
     create_root_child_reference,
     create_parent_child_reference,
+    is_complete_column,
     is_nested_table,
     remove_column_defaults,
 )
@@ -136,7 +137,11 @@ def _to_dbml_table(table_hints: TTableSchema) -> Table:
     }
     return Table(
         name=table_hints["name"],
-        columns=[_to_dbml_column(col) for col in table_hints["columns"].values()],
+        columns=[
+            _to_dbml_column(col)
+            for col in table_hints["columns"].values()
+            if is_complete_column(col)
+        ],
         note=table_hints.get("description"),
         properties=None if properties == {} else _stringify_dict(properties),
     )
@@ -268,8 +273,8 @@ def _add_tables(
         tables = data_tables
 
     for table in tables:
-        # skip tables that have no columns; DBML table requires at least one column.
-        if not table.get("columns"):
+        # skip tables with no complete columns
+        if not any(is_complete_column(c) for c in table.get("columns", {}).values()):
             continue
 
         dbml_table = _to_dbml_table(table)

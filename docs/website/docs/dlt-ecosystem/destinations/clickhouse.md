@@ -105,6 +105,7 @@ dataset_table_separator = "___"                         # The default separator 
 table_engine_type = "merge_tree"                        # The default table engine to use.
 dataset_sentinel_table_name = "dlt_sentinel_table"      # The default name for sentinel tables.
 staging_use_https = true                                # Wether to connecto to the staging bucket via https (defaults to True)
+select_sequential_consistency = 1                       # Ensures read-after-write consistency on ClickHouse Cloud (defaults to 1)
 ```
 
 ## Write disposition
@@ -117,6 +118,19 @@ Data is loaded into ClickHouse using the most efficient method depending on the 
 
 - For local files, the `clickhouse-connect` library is used to directly load files into ClickHouse tables using the `INSERT` command.
 - For files in remote storage like S3, Google Cloud Storage, or Azure Blob Storage, ClickHouse table functions like `s3`, `gcs`, and `azureBlobStorage` are used to read the files and insert the data into tables.
+
+### Read-after-write consistency
+
+By default, dlt sets `select_sequential_consistency=1` on all ClickHouse connections. This ensures
+that `SELECT` queries always see the results of preceding writes, even on ClickHouse Cloud
+(SharedMergeTree) or self-hosted clusters where queries may be routed to different nodes. If you are
+running read-only workloads and want to avoid the small metadata check overhead, set it to `0` in
+your configuration:
+
+```toml
+[destination.clickhouse]
+select_sequential_consistency = 0
+```
 
 ## Datasets
 

@@ -1,6 +1,6 @@
 from typing import List, TYPE_CHECKING, Optional
 
-import sqlalchemy as sa
+import sqlalchemy as sa  # noqa
 from sqlalchemy.schema import CreateColumn
 
 from dlt.common import logger

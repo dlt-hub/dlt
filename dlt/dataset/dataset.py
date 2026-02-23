@@ -24,8 +24,8 @@ from dlt.destinations.queries import build_row_counts_expr
 from dlt.common.destination.exceptions import SqlClientNotAvailable
 
 if TYPE_CHECKING:
-    from ibis import ir
-    from ibis import BaseBackend as IbisBackend
+    from dlt.common.libs.ibis import ir
+    from dlt.common.libs.ibis import BaseBackend as IbisBackend
 
 
 class Dataset:

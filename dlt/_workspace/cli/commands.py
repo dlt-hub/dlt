@@ -424,7 +424,7 @@ list of all tables and columns created at the destination during the loading of 
             pipeline_subparsers,
             "This MCP facilitates schema and data exploration for the dataset created with this"
             " pipeline",
-            "Launch MCP server attached to this pipeline in SSE transport mode",
+            "Launch MCP server attached to this pipeline",
             DEFAULT_PIPELINE_MCP_PORT,
         )
 
@@ -829,8 +829,7 @@ workspace info.
             subparsers,
             "This MCP allows to attach to any pipeline that was previously ran in this workspace"
             " and then facilitates schema and data exploration in the pipeline's dataset.",
-            "Launch dlt MCP server in current Python environment and Workspace in SSE transport"
-            " mode by default.",
+            "Launch dlt MCP server in current Python environment and Workspace",
             DEFAULT_DLT_MCP_PORT,
         )
 
@@ -864,7 +863,7 @@ workspace info.
         elif args.workspace_command == "show":
             show_workspace(workspace_context, args.edit)
         elif args.workspace_command == "mcp":
-            start_mcp(workspace_context, port=args.port, stdio=args.stdio)
+            start_mcp(workspace_context, port=args.port, stdio=args.stdio, sse=args.sse)
         else:
             self.parser.print_usage()
 

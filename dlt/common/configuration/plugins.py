@@ -1,4 +1,5 @@
 import os
+import warnings
 from typing import Any, ClassVar, Dict, List, Optional, Protocol
 import pluggy
 import argparse
@@ -69,7 +70,14 @@ def load_setuptools_entrypoints(m: pluggy.PluginManager) -> List[str]:
                 or m.is_blocked(ep.name)
             ):
                 continue
-            plugin = ep.load()
+            try:
+                plugin = ep.load()
+            except Exception as e:
+                warnings.warn(
+                    f"Plugin {ep.name} from {package_name} failed to load: {e}",
+                    stacklevel=1,
+                )
+                continue
             m.register(plugin, name=ep.name)
             m._plugin_distinfo.append((plugin, pluggy._manager.DistFacade(dist)))
             top_module = ep.module.split(".")[0]
