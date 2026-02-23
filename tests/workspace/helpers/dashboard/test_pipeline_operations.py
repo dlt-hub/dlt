@@ -4,17 +4,19 @@ import dlt
 from typing import Set
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.utils import (
-    _get_steps_data_and_status,
+from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
+from dlt._workspace.helpers.dashboard.utils.pipeline import (
     get_pipeline,
     pipeline_details,
-    build_exception_section,
+    pipeline_link_list,
+    exception_section,
     get_local_data_path,
-    get_source_and_resource_state_for_table,
     remote_state_details,
-    TPipelineRunStatus,
-    TVisualPipelineStep,
 )
+from dlt._workspace.helpers.dashboard.utils.ui import dlt_table
+from dlt._workspace.helpers.dashboard.utils.schema import get_source_and_resource_state_for_table
+from dlt._workspace.helpers.dashboard.utils.visualization import get_steps_data_and_status
+from dlt._workspace.helpers.dashboard.const import TPipelineRunStatus, TVisualPipelineStep
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
     EXTRACT_EXCEPTION_PIPELINE,
@@ -29,11 +31,11 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_build_exception_section(pipeline: dlt.Pipeline):
+def test_exception_section(pipeline: dlt.Pipeline):
     if pipeline.pipeline_name in PIPELINES_WITH_EXCEPTIONS:
-        assert "Show full stacktrace" in build_exception_section(pipeline)[0].text
+        assert "Show full stacktrace" in exception_section(pipeline)[0].text
     else:
-        assert not build_exception_section(pipeline)
+        assert not exception_section(pipeline)
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
@@ -105,7 +107,7 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
 def test_get_remote_state_details(pipeline: dlt.Pipeline):
     remote_state = remote_state_details(pipeline)
     # check it can be rendered as table with marimo
-    assert mo.ui.table(remote_state).text is not None
+    assert dlt_table(remote_state).text is not None
 
 
 @pytest.mark.parametrize(
@@ -119,7 +121,7 @@ def test_get_remote_state_details(pipeline: dlt.Pipeline):
     ],
     indirect=["pipeline"],
 )
-def test_get_steps_data_and_status(
+def testget_steps_data_and_status(
     pipeline: dlt.Pipeline,
     expected_steps: Set[TVisualPipelineStep],
     expected_status: TPipelineRunStatus,
@@ -127,7 +129,7 @@ def test_get_steps_data_and_status(
     """Test getting steps data and the pipeline execution status from trace"""
     trace = pipeline.last_trace
 
-    steps_data, status = _get_steps_data_and_status(trace.steps)
+    steps_data, status = get_steps_data_and_status(trace.steps)
     assert len(steps_data) == len(expected_steps)
     assert status == expected_status
 
@@ -138,3 +140,35 @@ def test_get_steps_data_and_status(
         assert any(step.step_exception is not None for step in trace.steps)
 
     assert set([step.step for step in steps_data]) == expected_steps
+
+
+def test_pipeline_link_list():
+    """Test building a pipeline link list"""
+    config = DashboardConfiguration()
+
+    # empty list
+    result = pipeline_link_list(config, [])
+    assert "No pipelines found" in result
+
+    # with pipelines
+    pipelines: list[TPipelineListItem] = [
+        {"name": "pipeline_a", "timestamp": 1700000000.0},
+        {"name": "pipeline_b", "timestamp": 1700001000.0},
+    ]
+    result = pipeline_link_list(config, pipelines)
+    assert "pipeline_a" in result
+    assert "pipeline_b" in result
+    assert "?pipeline=pipeline_a" in result
+    assert "?pipeline=pipeline_b" in result
+
+
+def test_pipeline_link_list_max_10():
+    """Test that pipeline link list is limited to 10 entries"""
+    config = DashboardConfiguration()
+    pipelines: list[TPipelineListItem] = [
+        {"name": f"pipeline_{i}", "timestamp": 1700000000.0 + i} for i in range(15)
+    ]
+    result = pipeline_link_list(config, pipelines)
+    # should only include first 10
+    assert "pipeline_9" in result
+    assert "pipeline_10" not in result
