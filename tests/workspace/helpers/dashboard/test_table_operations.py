@@ -132,7 +132,7 @@ def test_get_row_counts_list(pipeline: dlt.Pipeline):
             "_dlt_pipeline_state": 3,
         }
     else:
-        reverted_result = {}
+        assert reverted_result == {}
 
 
 @pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)

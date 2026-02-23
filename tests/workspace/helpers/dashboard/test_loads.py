@@ -90,7 +90,7 @@ def test_collect_load_packages_from_trace(
         assert "pending" in str(list_of_load_package_info[0]["status"].text)
 
 
-def testget_migrations_count(temp_pipelines_dir) -> None:
+def test_get_migrations_count(temp_pipelines_dir) -> None:
     """Test getting migrations count from the pipeline's last load info"""
     import duckdb
 

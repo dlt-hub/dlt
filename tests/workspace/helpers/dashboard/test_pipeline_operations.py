@@ -66,10 +66,12 @@ def test_get_source_and_resource_state_for_table(pipeline: dlt.Pipeline):
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
 def test_get_pipeline(pipeline: dlt.Pipeline):
     """Test getting a real pipeline by name"""
+    expected_name = pipeline.pipeline_name
+    expected_dataset = pipeline.dataset_name
     pipeline = get_pipeline(pipeline.pipeline_name, pipeline.pipelines_dir)
 
-    assert pipeline.pipeline_name == pipeline.pipeline_name
-    assert pipeline.dataset_name == pipeline.dataset_name
+    assert pipeline.pipeline_name == expected_name
+    assert pipeline.dataset_name == expected_dataset
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
@@ -121,7 +123,7 @@ def test_get_remote_state_details(pipeline: dlt.Pipeline):
     ],
     indirect=["pipeline"],
 )
-def testget_steps_data_and_status(
+def test_get_steps_data_and_status(
     pipeline: dlt.Pipeline,
     expected_steps: Set[TVisualPipelineStep],
     expected_status: TPipelineRunStatus,
