@@ -1,16 +1,29 @@
 import argparse
 
-from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import (
-    PluggableRunContext,
     RunContextBase,
 )
 
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli.utils import check_delete_local_data, delete_local_data
+from dlt._workspace.utils import ProviderLocationInfo, get_provider_locations
 from dlt._workspace.cli._pipeline_command import list_pipelines
 from dlt._workspace.profile import read_profile_pin
+
+
+def _format_location_tag(loc: ProviderLocationInfo) -> str:
+    """Build a human-readable tag for a location (e.g. '(global, profile: dev)')."""
+    parts = []
+    if loc.scope == "global":
+        parts.append("global")
+    if loc.profile_name:
+        parts.append("profile: %s" % loc.profile_name)
+    if not loc.present:
+        parts.append("not found")
+    if parts:
+        return " (%s)" % ", ".join(parts)
+    return ""
 
 
 @utils.track_command("workspace", track_before=False, operation="info")
@@ -32,25 +45,24 @@ def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -
         )
 
     # provider info
-    providers_context = Container()[PluggableRunContext].providers
     fmt.echo()
     fmt.echo("dlt found configuration in following locations:")
     total_not_found_count = 0
-    for provider in providers_context.providers:
+    for info in get_provider_locations():
+        provider = info.provider
         fmt.echo("* %s" % fmt.bold(provider.name))
-        for location in provider.present_locations:
-            fmt.echo("    %s" % location)
+        for loc in info.locations:
+            if loc.present:
+                tag = _format_location_tag(loc)
+                fmt.echo("    %s%s" % (loc.path, tag))
+            else:
+                if verbosity > 0:
+                    tag = _format_location_tag(loc)
+                    fmt.echo("    %s" % fmt.style("%s%s" % (loc.path, tag), fg="yellow"))
+                else:
+                    total_not_found_count += 1
         if provider.is_empty:
             fmt.echo("    provider is empty")
-        # check for locations that were not found
-        not_found_locations = set(provider.locations).difference(provider.present_locations)
-        if not_found_locations:
-            if verbosity > 0:
-                # display details of not found locations
-                for location in not_found_locations:
-                    fmt.echo("    %s (not found)" % fmt.style(location, fg="yellow"))
-            else:
-                total_not_found_count += len(not_found_locations)
     # at verbosity 0, show summary of not found locations
     if verbosity == 0 and total_not_found_count > 0:
         fmt.echo(

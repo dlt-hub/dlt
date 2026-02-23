@@ -1,9 +1,7 @@
 import ast
 import os
 import shutil
-from typing import Any, Callable, Dict, List, Tuple
-
-from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
@@ -19,12 +17,16 @@ from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.runtime import run_context
 from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.versioned_state import json_decode_state
 
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli import echo as fmt
+from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
 
+from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import get_trace_file_path
 from dlt.reflection.script_visitor import PipelineScriptVisitor
+
 
 REQUIREMENTS_TXT = "requirements.txt"
 PYPROJECT_TOML = "pyproject.toml"
@@ -43,16 +45,31 @@ def get_pipeline_trace_mtime(pipelines_dir: str, pipeline_name: str) -> float:
     return 0
 
 
+def _get_pipeline_initial_cwd(pipelines_dir: str, pipeline_name: str) -> Optional[str]:
+    """Read initial_cwd from a pipeline's local state without attaching."""
+    state_path = os.path.join(pipelines_dir, pipeline_name, Pipeline.STATE_FILE)
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            state = json_decode_state(f.read())
+        local: Dict[str, Any] = state.get("_local", {})
+        return local.get("initial_cwd")  # type: ignore[no-any-return]
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 def list_local_pipelines(
-    pipelines_dir: str = None, sort_by_trace: bool = True, additional_pipelines: List[str] = None
+    pipelines_dir: str = None,
+    sort_by_trace: bool = True,
+    additional_pipelines: List[str] = None,
+    run_dir: Optional[str] = None,
 ) -> Tuple[str, List[TPipelineListItem]]:
     """Get the local pipelines directory and the list of pipeline names in it.
 
     Args:
-        pipelines_dir (str, optional): The local pipelines directory. Defaults to get_dlt_pipelines_dir().
-        sort_by_trace (bool, optional): Whether to sort the pipelines by the latest timestamp of trace. Defaults to True.
-    Returns:
-        Tuple[str, List[str]]: The local pipelines directory and the list of pipeline names in it.
+        pipelines_dir: The local pipelines directory. Defaults to get_dlt_pipelines_dir().
+        sort_by_trace: Whether to sort the pipelines by the latest timestamp of trace.
+        additional_pipelines: Extra pipeline names to include in the list.
+        run_dir: When set, only return pipelines whose initial_cwd matches this path.
     """
     pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
     storage = FileStorage(pipelines_dir)
@@ -66,6 +83,12 @@ def list_local_pipelines(
         for pipeline in additional_pipelines:
             if pipeline and pipeline not in pipelines:
                 pipelines.append(pipeline)
+
+    if run_dir:
+        abs_project_dir = os.path.abspath(run_dir)
+        pipelines = [
+            p for p in pipelines if _get_pipeline_initial_cwd(pipelines_dir, p) == abs_project_dir
+        ]
 
     # check last trace timestamp and create dict
     pipelines_with_timestamps: List[TPipelineListItem] = []
@@ -121,6 +144,12 @@ def add_mcp_arg_parser(subparsers: Any, description: str, help_str: str, default
         type=int,
         default=default_port,
         help=f"Port for the MCP server (default: {default_port})",
+    )
+    command_parser.add_argument(
+        "--features",
+        nargs="*",
+        default=None,
+        help="Additional MCP feature sets to enable (default: pipeline, workspace)",
     )
 
 
