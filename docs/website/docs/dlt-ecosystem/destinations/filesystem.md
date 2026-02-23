@@ -437,6 +437,51 @@ sftp_password = "pass"                   # Replace "pass" with your SFTP passwor
 
 This configuration allows flexible SFTP authentication, whether you're using passwords, keys, or agents, and ensures secure communication between your local environment and the SFTP server.
 
+### Hugging Face
+The `fileystem` destination supports loading into Hugging Face datasets. Run `pip install "dlt[hf]"` to install the required dependencies.
+
+#### Confguration
+Configure a bucket url with `hf` scheme and a Hugging Face [User Access Token](https://huggingface.co/docs/hub/security-tokens) to connect to Hugging Face:
+
+```toml
+[destination.filesystem]
+bucket_url = "hf://datasets/[namespace]"    # Replace "namespace" with your organization or user name
+
+[destination.filesystem.credentials]
+token = "token"                             # Replace "token" with your Hugging Face User Access Token
+```
+
+:::note
+Instead of providing the token in your `dlt` configuration, you can:
+- set the `HF_TOKEN` [environment variable](#hugging-face-environment-variables)
+- use a [locally saved token](https://huggingface.co/docs/huggingface_hub/en/quick-start#login-command)
+:::
+
+By default, https://huggingface.co is used as API endpoint. Specify `endpoint` if you want to use a different endpoint (e.g. a Private Hub endpoint):
+
+```toml
+
+[destination.filesystem.credentials]
+endpoint = "https://[endpoint]"             # Replace "endpoint" with your Hugging Face endpoint
+```
+
+#### Specific behavior
+The `filesystem` destination behaves different for `hf` compared to other protocols. Specifically, it
+- creates a Hugging Face dataset repository for each `dlt` dataset instead of a directory
+- commits all data files for a table at once (helps avoiding Hugging Face [rate limits](https://huggingface.co/docs/hub/rate-limits#rate-limit-tiers))
+- defaults to `parquet` file format with [page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md) and [CDC](https://huggingface.co/blog/parquet-cdc) support (helps the Hugging Face [dataset viewer](https://huggingface.co/docs/dataset-viewer/index))
+- does **not** support the `iceberg` and `delta` table formats
+
+:::note
+To be able to implement this specific behavior, `dlt` uses the non-`fsspec` based `HfApi` client in addition to the `fsspec`-based `HfFileSystem` client.
+:::
+
+#### Hugging Face environment variables
+You can set Hugging Face [environment variables](https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables) to configure the `huggingface_hub` library that `dlt` uses under the hood to connect to Hugging Face. For example, to increase the download timeout:
+```sh
+HF_HUB_DOWNLOAD_TIMEOUT="30" python run_my_dlt_pipe.py
+```
+
 ## Write disposition
 The filesystem destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to the dataset folder
