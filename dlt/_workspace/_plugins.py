@@ -1,11 +1,16 @@
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, NamedTuple, Optional, Sequence, Set
 
 from dlt.common.configuration import plugins as _plugins
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
 
-__all__ = ["plug_workspace_context_impl"]
+
+class McpFeatures(NamedTuple):
+    name: str
+    tools: Sequence[Any] = ()
+    prompts: Sequence[Any] = ()
+    providers: Sequence[Any] = ()
 
 
 def is_workspace_dir(run_dir: str) -> bool:
@@ -37,3 +42,46 @@ def plug_workspace_context_impl(
         raise WorkspaceRunContextNotAvailable(run_dir)
 
     return None
+
+
+@_plugins.hookimpl(specname="plug_mcp")
+def plug_mcp_pipeline(features: Set[str]) -> Optional[McpFeatures]:
+    """Contribute pipeline-scoped tools: table inspection, SQL queries.
+
+    Activated by the "pipeline" feature. Used by both WorkspaceMCP (features=
+    {"workspace", "pipeline"}) and PipelineMCP (features={"pipeline"}).
+    """
+    if "pipeline" not in features:
+        return None
+
+    from dlt._workspace.mcp.tools import data_tools
+    from dlt._workspace.mcp import prompts
+
+    tools_list = [t for t in data_tools.__tools__ if t is not data_tools.list_pipelines]
+
+    return McpFeatures(
+        name="pipeline",
+        tools=tools_list,
+        prompts=list(prompts.pipeline.__prompts__),
+    )
+
+
+@_plugins.hookimpl(specname="plug_mcp")
+def plug_mcp_workspace(features: Set[str]) -> Optional[McpFeatures]:
+    """Contribute workspace-level tools: pipeline discovery.
+
+    Activated by the "workspace" feature. Used by WorkspaceMCP only (features=
+    {"workspace", "pipeline"}) so users can list available pipelines.
+    """
+    if "workspace" not in features:
+        return None
+
+    from dlt._workspace.mcp.tools import data_tools
+
+    return McpFeatures(
+        name="workspace",
+        tools=[data_tools.list_pipelines],
+    )
+
+
+__all__ = ["plug_workspace_context_impl", "plug_mcp_pipeline", "plug_mcp_workspace"]

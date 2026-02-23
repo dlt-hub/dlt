@@ -43,7 +43,6 @@ from dlt._workspace.cli._init_command import (
     _list_template_sources,
     _list_verified_sources,
 )
-from dlt._workspace.cli._ai_command import SUPPORTED_IDES
 from dlt._workspace.cli.requirements import SourceRequirements
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
@@ -706,20 +705,18 @@ def test_incompatible_dlt_version_warning(repo_dir: str, workspace_files: FileSt
     )
 
 
-@pytest.mark.parametrize(
-    "ide_choice",
-    SUPPORTED_IDES,
-)
-def test_init_vibe_source_editor_choice_ux(ide_choice: str, workspace_files: FileStorage) -> None:
-    # Second yes/no prompt also receives the ide_choice, but it doesn't matter
-    with echo.always_choose(False, ide_choice):
-        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            _init_command.init_command("dlthub:github", "duckdb", DEFAULT_VERIFIED_SOURCES_REPO)
-            _out = buf.getvalue()
+def test_init_ai_context_source_ux(workspace_files: FileStorage) -> None:
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _init_command.init_command("dlthub:github", "duckdb", DEFAULT_VERIFIED_SOURCES_REPO)
+        _out = buf.getvalue()
 
-    assert "dlt will generate useful project rules tailored to your assistant/IDE." in _out
-    assert f"adding {ide_choice} rules, code snippets and docs" in _out
-    assert "file(s) supporting github were copied:" in _out and "github-docs.yaml" in _out
+    assert "Initializing pipeline" in _out
+    assert "for github source" in _out
+    assert (
+        "file(s) supporting github were copied:" in _out
+        and "github.md" in _out
+        and "github-docs.yaml" in _out
+    )
 
 
 def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
@@ -759,12 +756,11 @@ def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
 
 def test_init_nonexisting_vibe_source_writes_generic_template(workspace_files: FileStorage) -> None:
     nonexisting_source_name = "bogus_agi"
-    with echo.always_choose(False, "cursor"):
-        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            _init_command.init_command(
-                f"dlthub:{nonexisting_source_name}", "bigquery", DEFAULT_VERIFIED_SOURCES_REPO
-            )
-            _out = buf.getvalue()
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _init_command.init_command(
+            f"dlthub:{nonexisting_source_name}", "bigquery", DEFAULT_VERIFIED_SOURCES_REPO
+        )
+        _out = buf.getvalue()
 
     _, secrets = assert_common_files(
         workspace_files, f"{nonexisting_source_name}_pipeline.py", "bigquery"
@@ -845,8 +841,6 @@ def assert_source_files(
     else:
         # Ensure the yaml file is there for vibe sources
         assert workspace_files.has_file(f"{source_name}-docs.yaml")
-        # Ensure rules are there (cursor by default)
-        assert workspace_files.has_folder(".cursor")
 
     return visitor, secrets
 

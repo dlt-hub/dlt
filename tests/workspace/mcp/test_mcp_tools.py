@@ -1,91 +1,176 @@
+import json
 import re
+
+import pytest
+from fastmcp.exceptions import ToolError
 
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
-from dlt._workspace.mcp.tools import PipelineMCPTools
+from dlt._workspace.mcp.tools.data_tools import (
+    list_pipelines,
+    list_tables,
+    get_table_schema,
+    get_table_create_sql,
+    preview_table,
+    execute_sql_query,
+    get_row_counts,
+    display_schema,
+    get_local_pipeline_state,
+)
 
 from tests.workspace.utils import pokemon_pipeline_context as pokemon_pipeline_context
 
 
-def assert_valid_load_id(load_id: str) -> None:
-    assert re.match(
-        r"^\d+\.\d+$", load_id
-    ), f"Invalid load format: {load_id}, expected timestamp like '1738348620.592284'"
+def test_list_pipelines(pokemon_pipeline_context: RunContextBase) -> None:
+    pipelines = list_pipelines()
+    assert "rest_api_pokemon" in pipelines
 
 
-def assert_valid_dlt_id(dlt_id: str) -> None:
-    assert re.match(r"^[\w/+]{12,}$", dlt_id), f"Invalid dlt_id format: {dlt_id}"
+def test_list_pipelines_project_dir_filter(pokemon_pipeline_context: RunContextBase) -> None:
+    # the workspace context has profiles so list_pipelines returns all
+    # test filtering via list_local_pipelines directly
+    from dlt._workspace.cli.utils import list_local_pipelines
+
+    local_dir = pokemon_pipeline_context.local_dir
+    _, pipelines = list_local_pipelines(sort_by_trace=False, run_dir=local_dir)
+    assert any(p["name"] == "rest_api_pokemon" for p in pipelines)
+
+    # a different project_dir should filter it out
+    _, pipelines = list_local_pipelines(sort_by_trace=False, run_dir="/nonexistent/path")
+    assert not any(p["name"] == "rest_api_pokemon" for p in pipelines)
 
 
-def test_mcp_pipeline_tools(pokemon_pipeline_context: RunContextBase) -> None:
-    pipeline_tools = PipelineMCPTools("rest_api_pokemon")
+def test_list_tables(pokemon_pipeline_context: RunContextBase) -> None:
+    result = list_tables("rest_api_pokemon")
+    assert result == {"schemas": {"pokemon": ["pokemon", "berry", "location"]}}
 
-    assert pipeline_tools.available_tables() == {
-        "schemas": {"pokemon": ["pokemon", "berry", "location"]}
-    }
 
-    assert pipeline_tools.table_schema("pokemon") == {
-        "columns": {
-            "name": {
-                "data_type": "text",
-                "nullable": True,
-                "normalized_name": '"name"',
-                "arrow_data_type": "string",
-            },
-            "url": {
-                "data_type": "text",
-                "nullable": True,
-                "normalized_name": '"url"',
-                "arrow_data_type": "string",
-            },
-            "_dlt_load_id": {
-                "data_type": "text",
-                "nullable": False,
-                "normalized_name": '"_dlt_load_id"',
-                "arrow_data_type": "string",
-            },
-            "_dlt_id": {
-                "data_type": "text",
-                "nullable": False,
-                "unique": True,
-                "row_key": True,
-                "normalized_name": '"_dlt_id"',
-                "arrow_data_type": "string",
-            },
-        },
-        "write_disposition": "append",
-        "resource": "pokemon",
-        "x-normalizer": {"seen-data": True},
-        "sql_dialect": "duckdb",
-        "normalized_name": '"pokemon"',
-    }
+def test_get_table_schema(pokemon_pipeline_context: RunContextBase) -> None:
+    schema = get_table_schema("rest_api_pokemon", "pokemon")
 
-    head = pipeline_tools.table_head("pokemon").splitlines()
-    assert len(head) == 11
-    assert head[0].split("|") == ['"name"', '"url"', '"_dlt_load_id"', '"_dlt_id"']
+    # sql_identifier present, not normalized_name
+    assert schema["sql_identifier"] == '"pokemon"'
+    assert "normalized_name" not in schema
 
-    # Check first row with regex patterns for dynamic values
-    first_row = head[1].split("|")
-    assert first_row[0] == '"bulbasaur"'
-    assert first_row[1] == '"https://pokeapi.apps.dlthub.com/api/v2/pokemon/1/"'
-    assert_valid_load_id(first_row[2].strip('"'))
-    assert_valid_dlt_id(first_row[3].strip('"'))
+    assert "columns" in schema
+    col_name = schema["columns"]["name"]
+    assert col_name["data_type"] == "text"
+    assert col_name["sql_identifier"] == '"name"'
+    assert "normalized_name" not in col_name
+    assert "arrow_data_type" not in col_name
 
-    # Check last row with the same patterns
-    last_row = head[10].split("|")
-    assert last_row[0] == '"caterpie"'
-    assert last_row[1] == '"https://pokeapi.apps.dlthub.com/api/v2/pokemon/10/"'
-    assert_valid_load_id(last_row[2].strip('"'))
-    assert_valid_dlt_id(last_row[3].strip('"'))
+    assert schema["sql_dialect"] == "duckdb"
 
-    output = pipeline_tools.query_sql("SELECT * FROM pokemon limit 5")
-    expected_pattern = (
-        r"Result with 5 row\(s\).*"  # Match header and everything after
-        r'"bulbasaur"\|.*\n'  # Just check first pokemon name
-        r'"ivysaur"\|.*\n'  # Basic structure check with pokemon names
-        r'"venusaur"\|.*\n'
-        r'"charmander"\|.*\n'
-        r'"charmeleon"\|.*'
+
+def test_get_table_create_sql(pokemon_pipeline_context: RunContextBase) -> None:
+    ddl = get_table_create_sql("rest_api_pokemon", "pokemon")
+    assert "CREATE TABLE" in ddl
+    # table name present
+    assert '"pokemon"' in ddl
+    # column names present
+    assert '"name"' in ddl
+    assert '"url"' in ddl
+    assert '"_dlt_load_id"' in ddl
+    assert '"_dlt_id"' in ddl
+    # has data types
+    assert "TEXT" in ddl.upper() or "VARCHAR" in ddl.upper()
+
+
+def test_preview_table_md(pokemon_pipeline_context: RunContextBase) -> None:
+    result = preview_table("rest_api_pokemon", "pokemon")
+    lines = result.strip().splitlines()
+
+    # header + separator + 10 data rows + blank + row count = at least 13 lines
+    assert len(lines) >= 12, f"Expected at least 12 lines, got {len(lines)}"
+
+    # header has column names
+    header = lines[0]
+    assert "name" in header
+    assert "url" in header
+
+    # separator line
+    assert re.match(r"^\|[\s\-|]+\|$", lines[1])
+
+    # first data row
+    assert "bulbasaur" in lines[2]
+
+    # row count
+    assert "(10 row(s))" in lines[-1]
+
+
+def test_preview_table_jsonl(pokemon_pipeline_context: RunContextBase) -> None:
+    result = preview_table("rest_api_pokemon", "pokemon", output_format="jsonl")
+    lines = result.strip().splitlines()
+    assert len(lines) == 10
+
+    # each line is valid JSON with expected keys
+    for line in lines:
+        obj = json.loads(line)
+        assert "name" in obj
+        assert "url" in obj
+        assert "_dlt_load_id" in obj
+        assert "_dlt_id" in obj
+
+    # first row is bulbasaur
+    first = json.loads(lines[0])
+    assert first["name"] == "bulbasaur"
+
+
+def test_execute_sql_query(pokemon_pipeline_context: RunContextBase) -> None:
+    result = execute_sql_query("rest_api_pokemon", "SELECT * FROM pokemon LIMIT 5")
+    assert "(5 row(s))" in result
+    assert "bulbasaur" in result
+
+
+def test_execute_sql_query_jsonl(pokemon_pipeline_context: RunContextBase) -> None:
+    result = execute_sql_query(
+        "rest_api_pokemon", "SELECT name FROM pokemon LIMIT 3", output_format="jsonl"
     )
+    lines = result.strip().splitlines()
+    assert len(lines) == 3
+    first = json.loads(lines[0])
+    assert "name" in first
 
-    assert re.match(expected_pattern, output, re.DOTALL) is not None
+
+def test_execute_sql_query_rejects_dml(pokemon_pipeline_context: RunContextBase) -> None:
+    with pytest.raises(ToolError, match="modification"):
+        execute_sql_query("rest_api_pokemon", "DELETE FROM pokemon")
+
+
+def test_get_row_counts(pokemon_pipeline_context: RunContextBase) -> None:
+    counts = get_row_counts("rest_api_pokemon")
+    assert isinstance(counts, dict)
+    assert "pokemon" in counts
+    assert counts["pokemon"] > 0
+    assert "berry" in counts
+    assert "location" in counts
+
+
+def test_display_schema(pokemon_pipeline_context: RunContextBase) -> None:
+    result = display_schema("rest_api_pokemon")
+    assert "erDiagram" in result
+    assert "pokemon" in result
+
+
+def test_display_schema_hide_columns(pokemon_pipeline_context: RunContextBase) -> None:
+    result = display_schema("rest_api_pokemon", hide_columns=True)
+    assert "erDiagram" in result
+    assert "pokemon" in result
+
+
+def test_display_schema_dbml(pokemon_pipeline_context: RunContextBase) -> None:
+    result = display_schema("rest_api_pokemon", output_format="dbml")
+    assert "Table" in result
+    assert "pokemon" in result
+
+
+def test_display_schema_yaml(pokemon_pipeline_context: RunContextBase) -> None:
+    result = display_schema("rest_api_pokemon", output_format="yaml")
+    assert "pokemon:" in result
+    assert "columns:" in result
+
+
+def test_get_local_pipeline_state(pokemon_pipeline_context: RunContextBase) -> None:
+    state = get_local_pipeline_state("rest_api_pokemon")
+    assert isinstance(state, dict)
+    assert "_state_version" in state
