@@ -10,7 +10,7 @@ try:
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt.helpers.marimo",
-        [f"{version.DLT_PKG_NAME}[workspace]"],
+        ["dlt[workspace]"],
     )
 
 from dlt.helpers.marimo._load_package_viewer import app as load_package_viewer
@@ -26,13 +26,15 @@ def render(app: marimo.App, *args: Any, **kwargs: Any) -> mowidgets.MoWidget:
         raise ValueError("app must be an instance of marimo.App")
 
     if app is load_package_viewer:
-        return load_package_widget(*args, **kwargs)
+        return load_package_widget(app, *args, **kwargs)
     elif app is schema_viewer:
         return schema_viewer_widget(app, *args, **kwargs)
     elif app is pipeline_selector:
         return pipeline_selector_widget(app, *args, **kwargs)
     else:
-        raise ValueError("app must be either load_package_viewer or schema_viewer")
+        raise ValueError(
+            "Unknown app. Must be one of: load_package_viewer, schema_viewer, pipeline_selector"
+        )
 
 
 def pipeline_selector_widget(app: marimo.App, *args: Any, **kwargs: Any) -> mowidgets.MoWidget:

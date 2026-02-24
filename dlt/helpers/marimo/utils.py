@@ -69,7 +69,7 @@ def _load_insert_values_gzip(file_path: pathlib.Path) -> pyarrow.Table:
 
     con = duckdb.connect(":memory:")
     con.execute(query)
-    arrow_table = con.execute(f"FROM {table_name}").arrow()
+    arrow_table = con.execute(f"FROM {table_name}").fetch_arrow_table()
     con.close()  # release the memory
     return arrow_table
 

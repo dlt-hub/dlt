@@ -7,7 +7,7 @@ from dlt.helpers.marimo import _load_package_viewer, load_package_viewer
 def test_cell_pipeline_browser():
     kwargs = {"pipeline_path": get_dlt_pipelines_dir()}
 
-    _, defs = _load_package_viewer.pipeline_browser.run(**kwargs)
+    _, defs = _load_package_viewer.pipeline_browser.run(**kwargs)  # type: ignore[misc]
 
     assert "pipeline_details" in defs
     assert isinstance(defs["pipeline_details"], marimo.ui.file_browser)
@@ -19,7 +19,7 @@ def test_cell_pipeline_browser():
 def test_cell_file_viewer():
     kwargs = {"pipeline_details": marimo.ui.file_browser(get_dlt_pipelines_dir())}
 
-    _, defs = _load_package_viewer.file_viewer.run(**kwargs)
+    _, defs = _load_package_viewer.file_viewer.run(**kwargs)  # type: ignore[misc]
 
     assert "obj" in defs
     assert defs["obj"] is None

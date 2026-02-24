@@ -5,20 +5,13 @@ app = marimo.App(width="medium", app_title="pipeline_selector")
 
 with app.setup:
     import marimo as mo
-    from dlt.common.storages import FileStorage
-    from dlt.common.pipeline import get_dlt_pipelines_dir
+    from dlt._workspace.cli.utils import list_local_pipelines
 
 
 @app.cell
 def pipeline_locations():
-    _storage = FileStorage(get_dlt_pipelines_dir())
-
-    try:
-        _pipelines = _storage.list_folder_dirs(".", to_root=False)
-    except Exception:
-        _pipelines = []
-
-    pipelines_locations = {p: _storage.storage_path + "/" + p for p in sorted(_pipelines)}
+    _pipelines_dir, _pipelines = list_local_pipelines()
+    pipelines_locations = {p["name"]: _pipelines_dir + "/" + p["name"] for p in _pipelines}
     return (pipelines_locations,)
 
 
