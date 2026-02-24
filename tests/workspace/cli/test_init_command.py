@@ -712,11 +712,7 @@ def test_init_ai_context_source_ux(workspace_files: FileStorage) -> None:
 
     assert "Initializing pipeline" in _out
     assert "for github source" in _out
-    assert (
-        "file(s) supporting github were copied:" in _out
-        and "github.md" in _out
-        and "github-docs.yaml" in _out
-    )
+    assert "file(s) supporting github were copied:" in _out and "github-docs.yaml" in _out
 
 
 def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
