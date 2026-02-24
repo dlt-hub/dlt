@@ -2346,6 +2346,7 @@ workspace = [
     { name = "marimo" },
     { name = "pathspec" },
     { name = "pyarrow" },
+    { name = "pydbml" },
 ]
 
 [package.dev-dependencies]
@@ -2534,6 +2535,7 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'workspace'", specifier = ">=16.0.0" },
     { name = "pyathena", marker = "extra == 'athena'", specifier = ">=2.9.6" },
     { name = "pydbml", marker = "extra == 'dbml'" },
+    { name = "pydbml", marker = "extra == 'workspace'", specifier = ">=1.2.0" },
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
     { name = "pyiceberg-core", marker = "extra == 'pyiceberg'", specifier = ">=0.6.0" },
     { name = "pyodbc", marker = "extra == 'fabric'", specifier = ">=4.0.39" },

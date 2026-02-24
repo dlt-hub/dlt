@@ -201,6 +201,7 @@ workspace = [
     "marimo>=0.14.5",
     "fastmcp>=3.0.0 ; python_version >= '3.10'",
     "pathspec>=0.11.2",
+    "pydbml>=1.2.0",
 ]
 dbml = [
     "pydbml"
