@@ -42,13 +42,12 @@ known_sections = [
     "state",
     "trace",
     "loads",
-    "ibis",
 ]
 
 
 def _open_section(
     page: Page,
-    section: Literal["overview", "schema", "data", "state", "trace", "loads", "ibis"],
+    section: Literal["overview", "schema", "data", "state", "trace", "loads"],
     close_other_sections: bool = True,
 ) -> None:
     if close_other_sections:
