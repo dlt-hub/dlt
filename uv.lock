@@ -2478,8 +2478,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.20.0,<0.23" },
-    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.0,<0.23" },
+    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.2,<0.24" },
+    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.1,<0.24" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lancedb'", specifier = ">=1.4.3" },
@@ -2664,7 +2664,7 @@ streamlit = [{ name = "streamlit", marker = "python_full_version >= '3.9' and py
 
 [[package]]
 name = "dlt-runtime"
-version = "0.21.1"
+version = "0.21.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
@@ -2674,9 +2674,9 @@ dependencies = [
     { name = "python-jose", marker = "python_full_version >= '3.10'" },
     { name = "tabulate", marker = "python_full_version >= '3.10'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4a/1e/a35c27c184a72f14af404838cd98906a6838a20054b8c191c47e0e00cd2f/dlt_runtime-0.21.1.tar.gz", hash = "sha256:5fe3d470542dd109ccd44c3b4d0ec1eaefedb8f5b300a3e0f1a07e44d4003a50", size = 64188, upload-time = "2026-02-13T13:11:34.233Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/7c/17d6566941a2a03edf7f5f7940f5d1a9ee0b664b5c797c1a42afb140d7ae/dlt_runtime-0.21.2.tar.gz", hash = "sha256:fa09a6d5eebd63e62b752530b2b7878090e5c9d837f5850d8335f80a89b42e73", size = 64128, upload-time = "2026-02-23T16:34:16.896Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/19/04/1673c5c68be6c27c1ce01614f9dc2b742d8305be6c5743e5c18ee34dd0a1/dlt_runtime-0.21.1-py3-none-any.whl", hash = "sha256:3650129becffbe8e00dabe7cc0a7ee7347b61a8d49e9a32d7be1c0bb1f3ceddd", size = 167654, upload-time = "2026-02-13T13:11:32.627Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/2e/20a9c017efef3743eb1db4a3bcdf050e246ccd966acd20e07c2f72a0999b/dlt_runtime-0.21.2-py3-none-any.whl", hash = "sha256:52062ef216e60e62f048e418673cb32c7f4d8b629b4d99afc804e0ec1ca1cafc", size = 167545, upload-time = "2026-02-23T16:34:15.164Z" },
 ]
 
 [[package]]
