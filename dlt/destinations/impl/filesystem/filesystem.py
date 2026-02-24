@@ -5,6 +5,7 @@ import base64
 from contextlib import contextmanager
 from types import TracebackType
 from typing import (
+    ClassVar,
     List,
     Type,
     Iterable,
@@ -380,6 +381,8 @@ class FilesystemClient(
     bucket_path: str
     # name of the dataset
     dataset_name: str
+    batch_table_chain: ClassVar[bool] = False
+    """If True, uses single reference followup job for entire table chain. If False, uses separate reference followup job for each table in chain."""
 
     def __init__(
         self,
@@ -1087,22 +1090,43 @@ class FilesystemClient(
             table_chain, completed_table_chain_jobs
         )
         if self.get_reference_followup_job_class(table_chain[0]):
+            jobs.extend(
+                self.get_reference_followup_job_requests(
+                    table_chain,
+                    completed_table_chain_jobs,
+                )
+            )
+        return jobs
+
+    def get_reference_followup_job_requests(
+        self,
+        table_chain: Sequence[PreparedTableSchema],
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]],
+    ) -> List["ReferenceFollowupJobRequest"]:
+        def get_job_file_paths(*table_names: str) -> List[str]:
+            return [
+                job.file_path
+                for job in completed_table_chain_jobs
+                if job.job_file_info.table_name in table_names
+            ]
+
+        if self.batch_table_chain:
+            job_file_paths = get_job_file_paths(*[t["name"] for t in table_chain])
+            file_name = FileStorage.get_file_name_from_file_path(job_file_paths[0])
+            return [ReferenceFollowupJobRequest(file_name, job_file_paths)]
+        else:
+            jobs = []
             for table in table_chain:
-                table_job_paths = [
-                    job.file_path
-                    for job in completed_table_chain_jobs
-                    if job.job_file_info.table_name == table["name"]
-                ]
-                if table_job_paths:
-                    file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-                    jobs.append(ReferenceFollowupJobRequest(file_name, table_job_paths))
+                job_file_paths = get_job_file_paths(table["name"])
+                if job_file_paths:
+                    file_name = FileStorage.get_file_name_from_file_path(job_file_paths[0])
+                    jobs.append(ReferenceFollowupJobRequest(file_name, job_file_paths))
                 else:
                     # file_name = ParsedLoadJobFileName(table["name"], "empty", 0, "reference").file_name()
                     # TODO: if we implement removal od orphaned rows, we may need to propagate such job without files
                     # to the delta load job
                     pass
-
-        return jobs
+            return jobs
 
     # SupportsOpenTables implementation
 
@@ -1210,6 +1234,8 @@ class FilesystemClient(
 # NOTE: HfFilesystemClient uses both fsspec and HfApi clients. We manually invalidate fsspec client
 # cache after each filesystem mutation executed through HfApi to ensure consistency.
 class HfFilesystemClient(FilesystemClient):
+    batch_table_chain: ClassVar[bool] = True
+
     def __init__(
         self,
         schema: Schema,

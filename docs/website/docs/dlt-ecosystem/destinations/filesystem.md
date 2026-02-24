@@ -468,7 +468,7 @@ hf_endpoint = "https://[endpoint]"             # Replace "endpoint" with your Hu
 #### Specific behavior
 The `filesystem` destination behaves different for `hf` compared to other protocols. Specifically, it
 - creates a Hugging Face dataset repository for each `dlt` dataset instead of a directory
-- commits all data files for a table at once (helps avoiding Hugging Face [rate limits](https://huggingface.co/docs/hub/rate-limits#rate-limit-tiers))
+- commits all data files for a table and its child tables (if any) at once (helps avoiding Hugging Face [rate limits](https://huggingface.co/docs/hub/rate-limits#rate-limit-tiers) and commit conflicts)
 - defaults to `parquet` file format with [page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md) and [CDC](https://huggingface.co/blog/parquet-cdc) support (helps the Hugging Face [dataset viewer](https://huggingface.co/docs/dataset-viewer/index))
 - does **not** support the `iceberg` and `delta` table formats
 
