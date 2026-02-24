@@ -51,9 +51,34 @@ def test_filesystem_factory_is_hf():
     assert hf_filesystem.capabilities().preferred_loader_file_format == "parquet"
     assert hf_filesystem.capabilities().parquet_format.write_page_index is True
     assert hf_filesystem.capabilities().parquet_format.use_content_defined_chunking is True
+    assert hf_filesystem.capabilities().supported_table_formats == []
+    assert hf_filesystem.capabilities().supported_merge_strategies == []
     non_hf_filesystem = filesystem(FILE_BUCKET)
     assert not non_hf_filesystem.is_hf
     assert non_hf_filesystem.spec == FilesystemDestinationClientConfiguration
     assert non_hf_filesystem.client_class == FilesystemClient
     assert non_hf_filesystem.capabilities().preferred_loader_file_format == "jsonl"
     assert non_hf_filesystem.capabilities().parquet_format is None
+
+
+def test_resolve_bucket_url_ignores_foreign_credentials():
+    """_resolve_bucket_url must not fail when unrelated CREDENTIALS env var is set.
+
+    This happens when other destinations (e.g. athena) set CREDENTIALS to a postgres
+    connection string — the filesystem factory must still resolve bucket_url without
+    trying to parse those credentials.
+    """
+    # bare CREDENTIALS env var with incompatible value must not break protocol detection
+    with custom_environ(
+        {
+            "DESTINATION__FILESYSTEM__BUCKET_URL": HF_BUCKET,
+            "CREDENTIALS": "postgres://loader:password@localhost:5432/dlt_data",
+        }
+    ):
+        fs = filesystem()
+        assert fs.is_hf
+
+    # without bucket_url, _resolve_bucket_url returns None and is_hf is False
+    with custom_environ({"CREDENTIALS": "postgres://loader:password@localhost:5432/dlt_data"}):
+        fs = filesystem()
+        assert not fs.is_hf

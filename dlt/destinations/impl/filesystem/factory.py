@@ -1,6 +1,8 @@
 from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
 
+from dlt.common.configuration import configspec
 from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 from dlt.common.destination.configuration import ParquetFormatConfiguration
@@ -12,7 +14,7 @@ from dlt.destinations.impl.filesystem.configuration import (
 )
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, HfFilesystemClient
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
-from docs.examples.custom_naming.sql_ci_no_collision import NamingConvention
+from dlt.common.normalizers.naming import NamingConvention
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -95,7 +97,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
         cls,
         caps: DestinationCapabilitiesContext,
         config: FilesystemDestinationClientConfiguration,
-        naming: Optional[NamingConvention],  # type: ignore[override]
+        naming: Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
         if config.protocol == "hf":
             # HF dataset viewer requires parquet files (when using another format, HF will
@@ -112,15 +114,23 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
 
         return super().adjust_capabilities(caps, config, naming)
 
-    def _resolve_partial_config(
-        self, destination_name: Optional[str]
-    ) -> FilesystemDestinationClientConfiguration:
+    def _resolve_bucket_url(self, destination_name: Optional[str]) -> Optional[str]:
+        """Resolve bucket_url from config/env to determine the protocol before full init.
+
+        Uses a minimal configspec with only bucket_url to avoid resolving additional credentials.
+        """
+
+        @configspec
+        class _BucketUrlConfig(BaseConfiguration):
+            bucket_url: Optional[str] = None
+
         config = FilesystemDestinationClientConfiguration()
         sections = (
             *config.__recommended_sections__,
             self.resolve_destination_name(destination_name),
         )
-        return resolve_configuration(config, sections=sections, accept_partial=True)
+        resolved = resolve_configuration(_BucketUrlConfig(), sections=sections, accept_partial=True)
+        return resolved.bucket_url
 
     def __init__(
         self,
@@ -163,11 +173,11 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
         """
-        protocol = (
-            FilesystemConfiguration.parse_protocol(bucket_url)
-            if bucket_url
-            else self._resolve_partial_config(destination_name).protocol
-        )
+        if bucket_url:
+            resolved_url = bucket_url
+        else:
+            resolved_url = self._resolve_bucket_url(destination_name)
+        protocol = FilesystemConfiguration.parse_protocol(resolved_url) if resolved_url else None
         self.is_hf = protocol == "hf"
         super().__init__(
             bucket_url=bucket_url,
