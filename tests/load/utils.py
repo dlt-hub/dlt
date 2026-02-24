@@ -543,7 +543,7 @@ def destinations_configs(
         destination_configs += [
             # DestinationTestConfiguration(destination_type="mssql", supports_dbt=False),
             DestinationTestConfiguration(destination_type="synapse", supports_dbt=False),
-            DestinationTestConfiguration(destination_type="fabric", supports_dbt=False),
+            DestinationTestConfiguration(destination_type="fabric", supports_dbt=True),
         ]
 
         # sanity check that when selecting default destinations, one of each sql destination is actually

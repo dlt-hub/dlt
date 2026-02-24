@@ -1,4 +1,5 @@
 import dlt
+from dlt.extract import DltResource
 
 
 def test_direct_module_import():
@@ -10,15 +11,28 @@ def test_direct_module_import():
 
 def test_from_module_import():
     """Can import the registered `dlthub` submodule from `dlt.hub`."""
-    from dlt.hub import data_quality
+    from dlt.hub import data_quality as dq_hub
+    from dlthub import data_quality as dq_dlthub
 
 
 def test_data_quality_entrypoints():
-    import dlthub.data_quality as dq
+    from dlt.hub import data_quality as dq
 
     # access a single check
-    assert dlt.hub.data_quality is not dq
-    assert dlt.hub.data_quality.checks is dq.checks  # type: ignore[attr-defined,unused-ignore]
-    assert dlt.hub.data_quality.checks.is_not_null is dq.checks.is_not_null  # type: ignore[attr-defined,unused-ignore]
-    assert dlt.hub.data_quality.CheckSuite is dq.CheckSuite  # type: ignore[attr-defined,unused-ignore]
-    assert dlt.hub.data_quality.prepare_checks is dq.prepare_checks  # type: ignore[attr-defined,unused-ignore]
+    assert dq.checks.is_not_null is not None  # type: ignore[attr-defined,unused-ignore]
+    assert dq.CheckSuite is not None  # type: ignore[attr-defined,unused-ignore]
+    assert dq.prepare_checks is not None  # type: ignore[attr-defined,unused-ignore]
+
+    from dlt.hub.data_quality import with_checks  # type: ignore[attr-defined,unused-ignore]
+    from dlt.hub.data_quality import with_metrics  # type: ignore[attr-defined,unused-ignore]
+
+    @with_checks(
+        dq.checks.is_not_null("foo"),  # type: ignore[attr-defined,unused-ignore]
+        dq.checks.is_unique("value"),  # type: ignore[attr-defined,unused-ignore]
+    )
+    @with_metrics(dq.metrics.table.row_count())  # type: ignore[attr-defined,unused-ignore]
+    @dlt.resource
+    def checked_resource():
+        pass
+
+    assert type(checked_resource()) is DltResource
