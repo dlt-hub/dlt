@@ -3,6 +3,9 @@ from typing import List, Tuple, Dict
 import dlt
 import pytest
 import os
+import io
+import contextlib
+from unittest.mock import patch
 
 from copy import deepcopy
 from dlt.common.configuration.specs.base_configuration import configspec
@@ -21,11 +24,18 @@ from dlt.destinations.impl.destination.configuration import CustomDestinationCli
 from dlt.destinations.impl.destination.factory import UnknownCustomDestinationCallable, destination
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt._workspace.cli import _pipeline_command
+from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.helpers.dashboard.utils.pipeline import (
+    get_local_data_path,
+    pipeline_details,
+)
 
 from tests.cases import table_update_and_row
 from tests.load.utils import (
     assert_all_data_types_row,
 )
+
 
 SUPPORTED_LOADER_FORMATS = ["parquet", "typed-jsonl"]
 
@@ -305,6 +315,63 @@ def test_instantiation() -> None:
     p = dlt.pipeline("sink_test", destination=simple_decorator_sink, dev_mode=True)
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
+
+
+def test_destination_type_uses_orig_base_for_non_installed_modules() -> None:
+    """destination_type falls back to __orig_base__ for @dlt.destination classes from
+    non-installed modules, but keeps the original module path for installed ones."""
+    @dlt.destination
+    def my_sink(items, table):
+        pass
+
+    dest = my_sink()
+    cls = dest.__class__
+
+    # synthesized class has __orig_base__ pointing to the base factory
+    assert hasattr(cls, "__orig_base__")
+
+    # test module is not installed — falls back to base factory path
+    assert dest.destination_type == "dlt.destinations.destination"
+
+    # when module is installed, keeps the synthesized class's own module path
+    with patch(
+        "dlt.common.destination.reference.is_installed_module", return_value=True
+    ):
+        expected = DestinationReference.normalize_type(
+            cls.__module__ + "." + cls.__qualname__
+        )
+        assert dest.destination_type == expected
+        assert dest.destination_type != "dlt.destinations.destination"
+
+    # built-in destinations (no __orig_base__) are unaffected
+    builtin = Destination.from_reference("duckdb")
+    assert builtin.destination_type == "dlt.destinations.duckdb"
+
+
+def test_custom_destination_portable_type_in_cli_and_dashboard() -> None:
+    @dlt.destination
+    def my_sink(items, table):
+        pass
+
+    p = dlt.pipeline("custom_dest_cli_test", destination=my_sink, dev_mode=True)
+    p.run([1, 2, 3], table_name="items")
+    assert p.destination.destination_type == "dlt.destinations.destination"
+
+    # ensure `dlt pipeline custom_dest_cli_test info`
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command("info", "custom_dest_cli_test", p.pipelines_dir, 0)
+        info_output = buf.getvalue()
+    assert "custom_dest_cli_test" in info_output
+
+    # ensure the underlying utils of `dlt pipeline custom_dest_cli_test show` work
+    attached = dlt.attach("custom_dest_cli_test", pipelines_dir=p.pipelines_dir)
+
+    details = pipeline_details(DashboardConfiguration(), attached, p.pipelines_dir)
+    details_dict = {item["name"]: item["value"] for item in details}
+    assert details_dict["pipeline_name"] == "custom_dest_cli_test"
+    assert "dlt.destinations.destination" in details_dict["destination"]
+
+    assert get_local_data_path(attached) is None
 
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)
