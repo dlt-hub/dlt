@@ -132,6 +132,9 @@ def get_local_data_path(pipeline: dlt.Pipeline) -> str:
     """Get the local data path of a pipeline"""
     if not pipeline.destination:
         return None
+    # custom destinations don't provide local data paths
+    if pipeline.destination.destination_type == "dlt.destinations.destination":
+        return None
     try:
         config = pipeline._get_destination_clients(dlt.Schema("temp"))[0].config
         if isinstance(config, WithLocalFiles):

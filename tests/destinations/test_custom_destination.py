@@ -19,6 +19,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
 from dlt.destinations.impl.destination.factory import UnknownCustomDestinationCallable, destination
+from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import table_update_and_row
@@ -231,10 +232,7 @@ def test_instantiation() -> None:
     assert DestinationReference.DESTINATIONS[
         "tests.destinations.test_custom_destination.global_sink_func"
     ]
-    assert (
-        dest_ref.destination_type
-        == "tests.destinations.test_custom_destination.GlobalSinkFuncDestination"
-    )
+    assert dest_ref.destination_type == "dlt.destinations.destination"
     p = dlt.pipeline(
         "sink_test",
         destination=dest_ref,
@@ -249,10 +247,7 @@ def test_instantiation() -> None:
         destination_name="alt_name",
     )
     assert dest_ref.destination_name == "alt_name"
-    assert (
-        dest_ref.destination_type
-        == "tests.destinations.test_custom_destination.GlobalSinkFuncDestination"
-    )
+    assert dest_ref.destination_type == "dlt.destinations.destination"
     # and still run it
     p = dlt.pipeline(
         "sink_test",
@@ -267,10 +262,7 @@ def test_instantiation() -> None:
         "tests.destinations.test_custom_destination.global_sink_func"
     )
     assert dest_ref.destination_name == "global_sink_func"
-    assert (
-        dest_ref.destination_type
-        == "tests.destinations.test_custom_destination.GlobalSinkFuncDestination"
-    )
+    assert dest_ref.destination_type == "dlt.destinations.destination"
     # and still run it
     p = dlt.pipeline(
         "sink_test",
@@ -286,8 +278,10 @@ def test_instantiation() -> None:
         destination=Destination.from_reference("destination", destination_callable=None),
         dev_mode=True,
     )
-    with pytest.raises(ConfigurationValueError):
+    with pytest.raises(PipelineStepFailed) as excinfo:
         p.run([1, 2, 3], table_name="items")
+    assert isinstance(excinfo.value.exception, LoadClientJobFailed)
+    assert isinstance(excinfo.value.exception.client_exception, ConfigurationValueError)
 
     # pass invalid string reference will fail on instantiation
     with pytest.raises(UnknownCustomDestinationCallable):
