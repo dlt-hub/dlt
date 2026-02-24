@@ -10,6 +10,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     create_load_exception_pipeline,
     create_no_destination_pipeline,
     create_sync_exception_pipeline,
+    create_custom_destination_pipeline,
 )
 
 
@@ -103,3 +104,9 @@ def temp_pipelines_dir():
 def sync_exception_pipeline():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_sync_exception_pipeline(temp_dir)
+
+
+@pytest.fixture
+def custom_destination_pipeline():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield create_custom_destination_pipeline(temp_dir)

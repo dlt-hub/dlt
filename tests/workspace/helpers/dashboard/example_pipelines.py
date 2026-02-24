@@ -30,6 +30,7 @@ NEVER_RAN_PIPELINE = "never_ran_pipline"
 LOAD_EXCEPTION_PIPELINE = "load_exception_pipeline"
 NO_DESTINATION_PIPELINE = "no_destination_pipeline"
 SYNC_EXCEPTION_PIPELINE = "sync_exception_pipeline"
+CUSTOM_DESTINATION_PIPELINE = "custom_destination_pipeline"
 
 ALL_PIPELINES = [
     SUCCESS_PIPELINE_DUCKDB,
@@ -40,6 +41,7 @@ ALL_PIPELINES = [
     NO_DESTINATION_PIPELINE,
     SUCCESS_PIPELINE_FILESYSTEM,
     SYNC_EXCEPTION_PIPELINE,
+    CUSTOM_DESTINATION_PIPELINE,
 ]
 
 PIPELINES_WITH_EXCEPTIONS = [
@@ -277,6 +279,24 @@ def create_sync_exception_pipeline(pipelines_dir: str = None):
             pipeline.run(dummy_data())
 
     assert "failed at `step=sync`" in str(excinfo)
+
+    return pipeline
+
+
+def create_custom_destination_pipeline(pipelines_dir: str = None):
+    """Create a test pipeline with a @dlt.destination custom sink"""
+
+    @dlt.destination
+    def test_sink(items, table):
+        pass
+
+    pipeline = dlt.pipeline(
+        pipeline_name=CUSTOM_DESTINATION_PIPELINE,
+        pipelines_dir=pipelines_dir,
+        destination=test_sink,
+    )
+
+    pipeline.run([1, 2, 3], table_name="items", schema=dlt.Schema("fruitshop"))
 
     return pipeline
 
