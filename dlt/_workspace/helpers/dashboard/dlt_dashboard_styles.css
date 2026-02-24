@@ -65,6 +65,16 @@
   padding-top: 1.5rem;
 }
 
+.section-switch {
+  margin-left: auto;
+}
+
+@media (max-width: 900px) {
+  .section-subtitle {
+    display: none;
+  }
+}
+
 marimo-callout-output .border {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
