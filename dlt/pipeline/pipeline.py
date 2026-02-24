@@ -745,22 +745,60 @@ class Pipeline(SupportsPipeline):
 
         # extract from the source
         if data is not None:
-            self.extract(
+            return self._run_once(
                 data,
                 table_name=table_name,
                 write_disposition=write_disposition,
                 columns=columns,
                 primary_key=primary_key,
                 schema=schema,
+                loader_file_format=loader_file_format,
                 table_format=table_format,
                 schema_contract=schema_contract,
                 refresh=refresh or self.refresh,
-                loader_file_format=loader_file_format,
+                destination=destination,
+                dataset_name=dataset_name,
+                credentials=credentials,
             )
-            self.normalize()
-            return self.load(destination, dataset_name, credentials=credentials)
         else:
             return None
+
+    def _run_once(
+        self,
+        data: Any,
+        *,
+        table_name: str = None,
+        write_disposition: TWriteDispositionConfig = None,
+        columns: TAnySchemaColumns = None,
+        primary_key: TColumnNames = None,
+        schema: Schema = None,
+        loader_file_format: TLoaderFileFormat = None,
+        table_format: TTableFormat = None,
+        schema_contract: TSchemaContract = None,
+        refresh: TRefreshMode = None,
+        destination: TDestinationReferenceArg = None,
+        dataset_name: str = None,
+        credentials: Any = None,
+    ) -> LoadInfo:
+        """Extracts, normalizes and loads data in a single pass.
+
+        Called from `run` within an active trace transaction. Override to wrap or
+        extend the extract-normalize-load cycle while staying in one trace.
+        """
+        self.extract(
+            data,
+            table_name=table_name,
+            write_disposition=write_disposition,
+            columns=columns,
+            primary_key=primary_key,
+            schema=schema,
+            table_format=table_format,
+            schema_contract=schema_contract,
+            refresh=refresh,
+            loader_file_format=loader_file_format,
+        )
+        self.normalize()
+        return self.load(destination, dataset_name, credentials=credentials)
 
     @with_config_section(sections=(), merge_func=ConfigSectionContext.prefer_existing)
     def sync_destination(
