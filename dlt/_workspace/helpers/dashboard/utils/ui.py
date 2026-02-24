@@ -161,15 +161,19 @@ def page_header(
             section_strings.title, section_strings.subtitle_long, title_level=2
         )
         header = mo.hstack([title_block, button], align="center")
+        css_class = "section-header"
     else:
-        # title left, subtitle + switch right-aligned
-        right = mo.hstack([mo.md(small(section_strings.subtitle)), button], align="center", gap=1)
-        header = mo.hstack(
-            [mo.md(f"## {section_strings.title}"), right],
-            align="center",
-            justify="space-between",
+        # title left, subtitle center, switch right
+        subtitle_html = mo.Html(
+            f'<span class="section-subtitle">{small(section_strings.subtitle)}</span>'
         )
-    return [mo.Html(f'<div class="section-header">{header.text}</div>')]
+        switch_html = mo.Html(f'<span class="section-switch">{button.text}</span>')
+        header = mo.hstack(
+            [mo.md(f"## {section_strings.title}"), subtitle_html, switch_html],
+            align="center",
+        )
+        css_class = "section-header"
+    return [mo.Html(f'<div class="{css_class}">{header.text}</div>')]
 
 
 def section_marker(section_name: str, has_content: bool = False) -> mo.Html:
