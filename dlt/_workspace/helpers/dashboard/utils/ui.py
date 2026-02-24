@@ -134,7 +134,7 @@ def error_callout(message: str, code: str = None, traceback_string: str = None) 
     )
 
 
-def title_and_subtitle(title: str, subtitle: str = None, title_level: int = 2) -> mo.Html:
+def title_and_subtitle(title: str, subtitle: str = None, title_level: int = 3) -> mo.Html:
     """Build a title and a subtitle block"""
     _result = []
     if title:
@@ -149,19 +149,26 @@ def page_header(
     section_strings: TSectionStrings,
     button: mo.ui.switch = None,
 ) -> List[mo.Html]:
-    """Build a page header with a title, a subtitle, button and conditional longer subtitle"""
+    """Build a page header with a title, a subtitle, button and conditional longer subtitle.
+
+    When collapsed, the short subtitle is shown inline after the title to save
+    vertical space.  When expanded, the longer subtitle appears on its own line.
+    """
     if not dlt_pipeline:
         return []
-    header = mo.hstack(
-        [
-            title_and_subtitle(
-                section_strings.title,
-                section_strings.subtitle if not button.value else section_strings.subtitle_long,
-            ),
-            button,
-        ],
-        align="center",
-    )
+    if button.value:
+        title_block = title_and_subtitle(
+            section_strings.title, section_strings.subtitle_long, title_level=2
+        )
+        header = mo.hstack([title_block, button], align="center")
+    else:
+        # title left, subtitle + switch right-aligned
+        right = mo.hstack([mo.md(small(section_strings.subtitle)), button], align="center", gap=1)
+        header = mo.hstack(
+            [mo.md(f"## {section_strings.title}"), right],
+            align="center",
+            justify="space-between",
+        )
     return [mo.Html(f'<div class="section-header">{header.text}</div>')]
 
 
