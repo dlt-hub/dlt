@@ -1,4 +1,5 @@
 import builtins
+import importlib.metadata
 import importlib.util
 from importlib import import_module
 from types import ModuleType, SimpleNamespace
@@ -6,6 +7,23 @@ from typing import Any, Callable, Literal, NamedTuple, Tuple, Mapping, List, Seq
 
 from dlt.common.exceptions import MissingDependencyException, TypeErrorWithKnownTypes
 from dlt.common.typing import TAny
+
+
+def is_installed_module(module_name: str) -> bool:
+    """Check if a module belongs to a pip-installed package.
+
+    Looks up the top-level package in distribution metadata (`.dist-info`). This assumes
+    the top-level import name matches the distribution name, which holds for dlt and its
+    plugin ecosystem. Packages where import and distribution names
+    differ (Pillow/PIL) would not be detected, but this is sufficient for
+    distinguishing user scripts from installed destination plugins.
+    """
+    top_level = module_name.split(".")[0]
+    try:
+        importlib.metadata.distribution(top_level)
+        return True
+    except importlib.metadata.PackageNotFoundError:
+        return False
 
 
 class DummyModule(ModuleType):

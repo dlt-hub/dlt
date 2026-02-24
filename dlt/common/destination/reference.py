@@ -31,7 +31,7 @@ from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import is_subclass
 from dlt.common.utils import get_full_callable_name, simple_repr, without_none
-from dlt.common.reflection.ref import object_from_ref
+from dlt.common.reflection.ref import is_installed_module, object_from_ref
 
 
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -146,7 +146,10 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @property
     def destination_type(self) -> str:
-        full_path = self.__class__.__module__ + "." + self.__class__.__qualname__
+        cls = self.__class__
+        if hasattr(cls, "__orig_base__") and not is_installed_module(cls.__module__):
+            cls = cls.__orig_base__
+        full_path = cls.__module__ + "." + cls.__qualname__
         return DestinationReference.normalize_type(full_path)
 
     @property
