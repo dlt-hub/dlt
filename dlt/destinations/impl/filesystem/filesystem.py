@@ -1,5 +1,6 @@
 import posixpath
 import os
+import time as _time
 import orjson
 import base64
 from contextlib import contextmanager
@@ -19,6 +20,13 @@ from typing import (
     TYPE_CHECKING,
 )
 from fsspec import AbstractFileSystem
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+    RetryCallState,
+)
 
 from dlt.common import logger, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
@@ -327,18 +335,82 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
         return identity_specs + hint_specs
 
 
-class HfFilesystemLoadJob(ReferenceFollowupJob):
-    def __init__(
-        self,
-        file_path: str,
-    ) -> None:
+class HfFilesystemUploadJob(HasFollowupJobs, FilesystemLoadJob):
+    """Pre-uploads a single file to HF LFS storage without creating a commit.
+
+    File content is uploaded to HF's content-addressed storage via preupload_lfs_files.
+    The actual git commit is created later by HfFilesystemCommitJob once all uploads
+    in the table chain complete.
+    """
+
+    _job_client: "HfFilesystemClient"
+
+    def run(self) -> None:
+        from huggingface_hub import CommitOperationAdd
+
+        operation = CommitOperationAdd(
+            path_in_repo=self.make_remote_file_path(self._file_name),
+            path_or_fileobj=self._file_path,
+        )
+        start = _time.monotonic()
+        self._job_client.hf_api.preupload_lfs_files(
+            repo_id=self._job_client.repo_id,
+            additions=[operation],
+            repo_type="dataset",
+        )
+        elapsed = _time.monotonic() - start
+        logger.info(
+            f"HF pre-upload of {self._file_name} to {self._job_client.repo_id}"
+            f" completed in {elapsed:.1f}s"
+        )
+
+
+def _is_hf_conflict(exc: BaseException) -> bool:
+    """Return True for HF Hub commit conflict errors (409 or 412)."""
+    from huggingface_hub.errors import HfHubHTTPError
+
+    return (
+        isinstance(exc, HfHubHTTPError)
+        and hasattr(exc, "response")
+        and exc.response is not None
+        and exc.response.status_code in (409, 412)
+    )
+
+
+def _log_hf_retry(retry_state: RetryCallState) -> None:
+    """Log warning on each tenacity retry for HF commit conflicts."""
+    exc = retry_state.outcome.exception()
+    wait = retry_state.next_action.sleep if retry_state.next_action else 0
+    logger.warning(
+        f"HF commit conflict on attempt {retry_state.attempt_number},"
+        f" retrying after {wait:.1f}s: {exc}"
+    )
+
+
+class HfFilesystemCommitJob(ReferenceFollowupJob):
+    """Commits pre-uploaded files to a HF dataset repo.
+
+    Files are already in HF's content-addressed storage (uploaded by HfFilesystemUploadJob).
+    create_commit internally detects pre-uploaded blobs and only creates the git commit.
+    Retries on 409/412 commit conflicts with exponential backoff via tenacity.
+    Other errors propagate to dlt load engine for dlt-level retry.
+    """
+
+    def __init__(self, file_path: str) -> None:
         super().__init__(file_path)
         self._job_client: HfFilesystemClient = None
 
+    @retry(
+        retry=retry_if_exception(_is_hf_conflict),
+        wait=wait_exponential(multiplier=1, max=30),
+        stop=stop_after_attempt(5),
+        reraise=True,
+        before_sleep=_log_hf_retry,
+    )
     def run(self) -> None:
-        """Adds all files to Hugging Face dataset repo in single commit."""
         from huggingface_hub import CommitOperationAdd
 
+        start = _time.monotonic()
         self._job_client.hf_api.create_commit(
             repo_id=self._job_client.repo_id,
             operations=[
@@ -347,6 +419,11 @@ class HfFilesystemLoadJob(ReferenceFollowupJob):
             ],
             commit_message=f"Add files to {self.load_table_name}",
             repo_type="dataset",
+        )
+        elapsed = _time.monotonic() - start
+        logger.info(
+            f"HF commit to {self._job_client.repo_id} for {self.load_table_name}"
+            f" ({len(self.file_paths)} files) completed in {elapsed:.1f}s"
         )
         self._job_client.fs_client.invalidate_cache()
 
@@ -1260,6 +1337,16 @@ class HfFilesystemClient(FilesystemClient):
         self.hf_api.delete_repo(repo_id=self.repo_id, repo_type="dataset")
         self.fs_client.invalidate_cache()
 
+    def get_load_job_class(self, table: PreparedTableSchema, file_path: str) -> Type[LoadJob]:
+        if table["name"] == self.schema.state_table_name and not self.config.as_staging_destination:
+            return FinalizedLoadJob
+        elif ReferenceFollowupJobRequest.is_reference_job(file_path):
+            return HfFilesystemCommitJob
+        else:
+            return HfFilesystemUploadJob
+
     @staticmethod
-    def get_reference_followup_job_class(table: PreparedTableSchema) -> Type[HfFilesystemLoadJob]:
-        return HfFilesystemLoadJob
+    def get_reference_followup_job_class(
+        table: PreparedTableSchema,
+    ) -> Type[HfFilesystemCommitJob]:
+        return HfFilesystemCommitJob

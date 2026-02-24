@@ -834,3 +834,63 @@ def test_cleanup_states_shared_dataset(destination_config: DestinationTestConfig
     assert len(p1_state_files) == 5
 
     assert len(p2_state_files) == 2
+
+
+@pytest.mark.parametrize(
+    "status_code,retry_level",
+    [
+        (412, "tenacity"),
+        (500, "dlt"),
+    ],
+    ids=["conflict-tenacity-retry", "server-error-dlt-retry"],
+)
+def test_hf_commit_retry(default_buckets_env: str, status_code: int, retry_level: str) -> None:
+    """Real pipeline load where first HF commit fails and is retried.
+
+    Pre-uploads go through to real HF storage. Only create_commit is patched to
+    fail on the first call. Depending on the status code:
+    - 412: tenacity catches it and retries internally (same job execution)
+    - 500: tenacity reraises, dlt load engine retries (new job instance)
+    """
+    if not default_buckets_env.startswith("hf://"):
+        pytest.skip("only runs on hf:// protocol")
+
+    import httpx
+    from unittest import mock
+    from huggingface_hub import HfApi
+    from huggingface_hub.errors import HfHubHTTPError
+
+    original_create_commit = HfApi.create_commit
+    commit_call_count = 0
+
+    def fail_first_data_commit(self, *args, **kwargs):
+        nonlocal commit_call_count
+        # only intercept data commits from HfFilesystemCommitJob, not repo init commits
+        commit_message = kwargs.get("commit_message", "")
+        if commit_message.startswith("Add files to "):
+            commit_call_count += 1
+            if commit_call_count == 1:
+                request = httpx.Request("POST", "https://huggingface.co/api/datasets/commit")
+                response = httpx.Response(status_code, request=request)
+                raise HfHubHTTPError(f"HTTP {status_code}", response=response)
+        return original_create_commit(self, *args, **kwargs)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_hf_retry_" + uniq_id(),
+        destination="filesystem",
+        dataset_name="test_" + uniq_id(),
+    )
+
+    @dlt.resource
+    def some_data():
+        yield [{"id": 1, "name": "test"}]
+
+    with mock.patch.object(HfApi, "create_commit", fail_first_data_commit):
+        # both tenacity and dlt-level retries succeed within a single pipeline.run:
+        # - 412: tenacity catches and retries internally (same job execution)
+        # - 500: dlt load engine catches transient error, re-enqueues job, retries in next loop
+        info = pipeline.run(some_data(), table_name="test_data")
+
+    assert info.has_failed_jobs is False
+    assert commit_call_count >= 2
+    assert load_table_counts(pipeline, "test_data") == {"test_data": 1}

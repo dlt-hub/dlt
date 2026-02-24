@@ -438,9 +438,9 @@ sftp_password = "pass"                   # Replace "pass" with your SFTP passwor
 This configuration allows flexible SFTP authentication, whether you're using passwords, keys, or agents, and ensures secure communication between your local environment and the SFTP server.
 
 ### Hugging Face
-The `fileystem` destination supports loading into Hugging Face datasets. Run `pip install "dlt[hf]"` to install the required dependencies.
+The `filesystem` destination supports loading into Hugging Face datasets. Run `pip install "dlt[hf]"` to install the required dependencies.
 
-#### Confguration
+#### Configuration
 Configure a bucket url with `hf` scheme and a Hugging Face [User Access Token](https://huggingface.co/docs/hub/security-tokens) to connect to Hugging Face:
 
 ```toml
