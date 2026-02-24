@@ -130,13 +130,16 @@ def ai_secrets_update_fragment_command(fragment: str, path: Optional[str] = None
     """Merges a TOML fragment into secrets file and prints the redacted result."""
     from dlt.common.utils import update_dict_nested
 
+    from dlt.common.configuration.providers.toml import SettingsTomlProvider
+
     resolved = _default_secrets_path(path)
-    settings_dir = os.path.dirname(resolved)
+    settings_dir = os.path.dirname(resolved) or "."
+    file_name = os.path.basename(resolved)
     os.makedirs(settings_dir, exist_ok=True)
     if not os.path.isfile(resolved):
         with open(resolved, "w", encoding="utf-8") as f:
             f.write("")
-    provider = SecretsTomlProvider(settings_dir=settings_dir)
+    provider = SettingsTomlProvider(file_name, True, file_name, [settings_dir])
     try:
         parsed = tomlkit.parse(fragment)
     except tomlkit.exceptions.TOMLKitError as ex:

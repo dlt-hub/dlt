@@ -11,6 +11,7 @@ import tomlkit
 from dlt._workspace.cli.ai.commands import (
     DEFAULT_AI_WORKBENCH_BRANCH,
     DEFAULT_AI_WORKBENCH_REPO,
+    _default_secrets_path,
     _execute_install,
     _install_init_silently,
     _plan_toolkit_install,
@@ -119,6 +120,76 @@ def test_ai_secrets_update_fragment_invalid_toml(tmp_path: Path) -> None:
         ai_secrets_update_fragment_command(
             fragment="this is [not valid toml", path=str(secrets_file)
         )
+
+
+def test_ai_secrets_default_path_uses_profile() -> None:
+    """Without --path, _default_secrets_path returns the profile-scoped secrets file."""
+    # the autouse fixture activates the "dev" profile in workspace context
+    default = _default_secrets_path()
+    assert "dev.secrets.toml" in default
+
+
+def test_ai_secrets_update_fragment_writes_to_profile(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Without --path, update-fragment writes to the profile-scoped secrets file."""
+    default = _default_secrets_path()
+    fragment = '[sources.my_api]\ntoken = "profile-token"\n'
+    ai_secrets_update_fragment_command(fragment=fragment)
+    assert Path(default).is_file()
+    content = Path(default).read_text(encoding="utf-8")
+    assert "profile-token" in content
+    output = capsys.readouterr().out
+    assert "profile-token" not in output
+
+
+def test_ai_secrets_update_fragment_custom_path(capsys: pytest.CaptureFixture[str]) -> None:
+    """update-fragment with --path writes to the exact file specified, not the profile default."""
+    custom = Path(".dlt/prod.secrets.toml")
+    fragment = '[sources.my_api]\ntoken = "secret-prod-token"\n'
+    ai_secrets_update_fragment_command(fragment=fragment, path=str(custom))
+    assert custom.is_file()
+    content = custom.read_text(encoding="utf-8")
+    assert "secret-prod-token" in content
+    # profile default was NOT written
+    default = _default_secrets_path()
+    if Path(default).exists():
+        assert "secret-prod-token" not in Path(default).read_text(encoding="utf-8")
+
+
+def test_ai_secrets_roundtrip_custom_path(capsys: pytest.CaptureFixture[str]) -> None:
+    """Write via update-fragment --path, then read back via view-redacted --path."""
+    custom = Path(".dlt/staging.secrets.toml")
+    fragment = '[destination.postgres]\npassword = "staging-pw"\n'
+    ai_secrets_update_fragment_command(fragment=fragment, path=str(custom))
+    capsys.readouterr()
+
+    ai_secrets_view_redacted_command(path=str(custom))
+    output = capsys.readouterr().out
+    assert "[destination.postgres]" in output
+    assert "staging-pw" not in output
+    assert "***" in output
+
+
+def test_ai_secrets_oss_context(
+    autouse_test_storage: None,
+    preserve_run_context: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """In OSS context (no profiles), default path is plain secrets.toml."""
+    from tests.workspace.utils import isolated_workspace
+
+    with isolated_workspace("legacy", required="RunContext"):
+        default = _default_secrets_path()
+        assert "secrets.toml" in default
+        # no profile prefix
+        assert os.path.basename(default) == "secrets.toml"
+
+        fragment = '[sources.oss]\nkey = "oss-value"\n'
+        ai_secrets_update_fragment_command(fragment=fragment)
+        assert Path(default).is_file()
+        content = Path(default).read_text(encoding="utf-8")
+        assert "oss-value" in content
 
 
 def _make_mock_toolkit(
