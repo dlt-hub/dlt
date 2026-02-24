@@ -111,9 +111,6 @@ def test_exception_pipeline(
     _open_section(page, "loads")
     expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
 
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
-
 
 def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
     _go_home(page)
@@ -242,10 +239,6 @@ def test_simple_incremental_pipeline(
     # since we are not waiting for the result but clicking ahead, pause to avoid locked duckdb
     time.sleep(2.0)
 
-    # ibis page
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
-
 
 def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
     # check fruit pipeline
@@ -282,10 +275,6 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
         page.get_by_role("row", name="fruitshop").nth(0)
     ).to_be_visible()  #  this is in the loads table
 
-    # ibis page
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
-
 
 def test_never_run_pipeline(page: Page, never_run_pipeline: Any, pipelines_dir: Path):
     _go_home(page)
@@ -315,9 +304,6 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any, pipelines_dir: 
     # loads page
     _open_section(page, "loads")
     expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
-
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipelines_dir: Path):
@@ -354,9 +340,6 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipel
     expect(
         page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is only shown in trace yaml
-
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_workspace_profile_prod(page: Page):

@@ -640,8 +640,11 @@ def section_ibis_backend(
     dlt_section_ibis_browser_switch: mo.ui.switch,
 ):
     """
-    Connects to ibis backend and makes it available in the datasources panel
+    Connects to ibis backend and makes it available in the datasources panel.
+    Only shown in edit mode since it is a developer tool.
     """
+    mo.stop(mo.app_meta().mode != "edit")
+
     _result, _show = utils.ui.section(
         strings.ibis_backend, dlt_pipeline, dlt_section_ibis_browser_switch
     )
