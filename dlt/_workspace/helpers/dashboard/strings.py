@@ -232,7 +232,7 @@ state = TSectionStrings(
 #
 data_quality = TSectionStrings(
     "data_quality_section",
-    "Data Quality",
+    "Dataset: Data Quality",
     "View the results of your data quality checks.",
     "View the results of your data quality checks.",
 )

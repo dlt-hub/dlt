@@ -257,64 +257,6 @@ def ui_data_quality_controls(
 
 
 @app.cell(hide_code=True)
-def section_data_quality(
-    dlt_pipeline: dlt.Pipeline,
-    dlt_section_data_quality_switch: mo.ui.switch,
-    dlt_data_quality_show_failed_filter: mo.ui.checkbox,
-    dlt_data_quality_table_filter: mo.ui.dropdown,
-    dlt_data_quality_rate_filter: mo.ui.slider,
-    dlt_data_quality_checks_arrow,
-):
-    """Show data quality of the currently selected pipeline (only if dlt.hub is installed)."""
-    dlt_data_quality_show_raw_table_switch = None
-    if not utils.home.detect_dlt_hub():
-        _result: List[mo.Html] = []
-    else:
-        _result, _show = utils.ui.section(
-            strings.data_quality, dlt_pipeline, dlt_section_data_quality_switch
-        )
-        if _show:
-            _dq_widgets, dlt_data_quality_show_raw_table_switch = (
-                utils.data_quality.build_dq_section(
-                    dlt_pipeline,
-                    dlt_data_quality_show_failed_filter,
-                    dlt_data_quality_table_filter,
-                    dlt_data_quality_rate_filter,
-                    dlt_data_quality_checks_arrow,
-                )
-            )
-            _result.extend(_dq_widgets)
-        else:
-            dlt_data_quality_show_raw_table_switch = None
-    mo.vstack(_result) if _result else None
-    return dlt_data_quality_show_raw_table_switch
-
-
-@app.cell(hide_code=True)
-def section_data_quality_raw_table(
-    dlt_pipeline: dlt.Pipeline,
-    dlt_section_data_quality_switch: mo.ui.switch,
-    dlt_data_quality_show_raw_table_switch: mo.ui.switch,
-    dlt_get_last_query_result,
-    dlt_set_last_query_result,
-):
-    """Display the raw data quality checks table with _dlt_load_id column."""
-    _result = []
-
-    if (
-        dlt_pipeline
-        and dlt_section_data_quality_switch.value
-        and dlt_data_quality_show_raw_table_switch is not None
-        and dlt_data_quality_show_raw_table_switch.value
-    ):
-        _result = utils.data_quality.build_dq_raw_table(
-            dlt_pipeline, dlt_get_last_query_result, dlt_set_last_query_result
-        )
-    mo.vstack(_result) if _result else None
-    return
-
-
-@app.cell(hide_code=True)
 def section_browse_data_table_list(
     dlt_clear_result_cache: mo.ui.run_button,
     dlt_data_table_list: mo.ui.table,
@@ -520,6 +462,64 @@ def section_browse_data_query_history(
                 _result.append(utils.ui.error_callout(_q_error, traceback_string=_q_traceback))
             else:
                 _result.append(utils.ui.dlt_table(_q_result, freeze_column=None))
+    mo.vstack(_result) if _result else None
+    return
+
+
+@app.cell(hide_code=True)
+def section_data_quality(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+    dlt_data_quality_show_failed_filter: mo.ui.checkbox,
+    dlt_data_quality_table_filter: mo.ui.dropdown,
+    dlt_data_quality_rate_filter: mo.ui.slider,
+    dlt_data_quality_checks_arrow,
+):
+    """Show data quality of the currently selected pipeline (only if dlt.hub is installed)."""
+    dlt_data_quality_show_raw_table_switch = None
+    if not utils.home.detect_dlt_hub():
+        _result: List[mo.Html] = []
+    else:
+        _result, _show = utils.ui.section(
+            strings.data_quality, dlt_pipeline, dlt_section_data_quality_switch
+        )
+        if _show:
+            _dq_widgets, dlt_data_quality_show_raw_table_switch = (
+                utils.data_quality.build_dq_section(
+                    dlt_pipeline,
+                    dlt_data_quality_show_failed_filter,
+                    dlt_data_quality_table_filter,
+                    dlt_data_quality_rate_filter,
+                    dlt_data_quality_checks_arrow,
+                )
+            )
+            _result.extend(_dq_widgets)
+        else:
+            dlt_data_quality_show_raw_table_switch = None
+    mo.vstack(_result) if _result else None
+    return dlt_data_quality_show_raw_table_switch
+
+
+@app.cell(hide_code=True)
+def section_data_quality_raw_table(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+    dlt_data_quality_show_raw_table_switch: mo.ui.switch,
+    dlt_get_last_query_result,
+    dlt_set_last_query_result,
+):
+    """Display the raw data quality checks table with _dlt_load_id column."""
+    _result = []
+
+    if (
+        dlt_pipeline
+        and dlt_section_data_quality_switch.value
+        and dlt_data_quality_show_raw_table_switch is not None
+        and dlt_data_quality_show_raw_table_switch.value
+    ):
+        _result = utils.data_quality.build_dq_raw_table(
+            dlt_pipeline, dlt_get_last_query_result, dlt_set_last_query_result
+        )
     mo.vstack(_result) if _result else None
     return
 
