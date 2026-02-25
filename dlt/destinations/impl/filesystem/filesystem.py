@@ -410,22 +410,46 @@ class HfFilesystemCommitJob(ReferenceFollowupJob):
     def run(self) -> None:
         from huggingface_hub import CommitOperationAdd
 
+        operations: List[Any] = [
+            CommitOperationAdd(path_in_repo=self.make_path_in_repo(path), path_or_fileobj=path)
+            for path in self.file_paths
+        ]
+
+        # for replace disposition, delete existing table files in the same atomic commit
+        delete_ops = self._get_delete_operations()
+        if delete_ops:
+            operations = delete_ops + operations
+
         start = _time.monotonic()
         self._job_client.hf_api.create_commit(
             repo_id=self._job_client.repo_id,
-            operations=[
-                CommitOperationAdd(path_in_repo=self.make_path_in_repo(path), path_or_fileobj=path)
-                for path in self.file_paths
-            ],
+            operations=operations,
             commit_message=f"Add files to {self.load_table_name}",
             repo_type="dataset",
         )
         elapsed = _time.monotonic() - start
+        n_adds = len(self.file_paths)
+        n_deletes = len(delete_ops) if delete_ops else 0
         logger.info(
             f"HF commit to {self._job_client.repo_id} for {self.load_table_name}"
-            f" ({len(self.file_paths)} files) completed in {elapsed:.1f}s"
+            f" ({n_adds} added, {n_deletes} deleted) completed in {elapsed:.1f}s"
         )
         self._job_client.fs_client.invalidate_cache()
+
+    def _get_delete_operations(self) -> List[Any]:
+        """Return CommitOperationDelete ops for tables with replace write disposition."""
+        table_names_to_replace = []
+        for path in self.file_paths:
+            file_name = self._job_client.pathlib.basename(path)
+            parsed = ParsedLoadJobFileName.parse(file_name)
+            table = self._job_client.prepare_load_table(parsed.table_name)
+            if (
+                table["write_disposition"] == "replace"
+                and parsed.table_name not in table_names_to_replace
+            ):
+                table_names_to_replace.append(parsed.table_name)
+
+        return self._job_client._collect_delete_operations(table_names_to_replace)
 
     def make_path_in_repo(self, file_path: str) -> str:
         """Returns path relative to repo root, without namespace and repo name."""
@@ -1336,6 +1360,55 @@ class HfFilesystemClient(FilesystemClient):
     def drop_dataset(self) -> None:
         self.hf_api.delete_repo(repo_id=self.repo_id, repo_type="dataset")
         self.fs_client.invalidate_cache()
+
+    def _collect_delete_operations(self, table_names: List[str]) -> List[Any]:
+        """Collect CommitOperationDelete ops for files belonging to given tables."""
+        from huggingface_hub import CommitOperationDelete
+
+        ops: List[Any] = []
+        table_dirs = set(self.get_table_dirs(table_names))
+        table_prefixes = [self.get_table_prefix(t) for t in table_names]
+        for table_dir in table_dirs:
+            if self.fs_client.exists(table_dir):
+                for file_path in self.list_files_with_prefixes(table_dir, table_prefixes):
+                    path_in_repo = self.pathlib.relpath(file_path, self.dataset_path)
+                    ops.append(CommitOperationDelete(path_in_repo=path_in_repo))
+        return ops
+
+    def _hf_commit_operations(self, operations: List[Any], commit_message: str) -> None:
+        """Commit operations to HF repo and invalidate fsspec cache."""
+        if not operations:
+            return
+        self.hf_api.create_commit(
+            repo_id=self.repo_id,
+            operations=operations,
+            commit_message=commit_message,
+            repo_type="dataset",
+        )
+        self.fs_client.invalidate_cache()
+
+    def truncate_tables(self, table_names: List[str]) -> None:
+        """Truncates tables in a single HF commit.
+        Note: tables won't be present in storage but dlt schemas are not reset
+        """
+        ops = self._collect_delete_operations(table_names)
+        self._hf_commit_operations(ops, f"Truncate tables: {', '.join(table_names)}")
+
+    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        """Drop tables and optionally schema files in a single HF commit."""
+        from huggingface_hub import CommitOperationDelete
+
+        ops = self._collect_delete_operations(list(tables))
+        if delete_schema:
+            for filepath, fileparts in self._iter_stored_schema_files():
+                if fileparts[0] == self.schema.name:
+                    path_in_repo = self.pathlib.relpath(filepath, self.dataset_path)
+                    ops.append(CommitOperationDelete(path_in_repo=path_in_repo))
+        self._hf_commit_operations(ops, f"Drop tables: {', '.join(tables)}")
+
+    def should_truncate_table_before_load(self, table_name: str) -> bool:
+        # HF handles replace atomically in the commit job (delete + add in one commit)
+        return False
 
     def get_load_job_class(self, table: PreparedTableSchema, file_path: str) -> Type[LoadJob]:
         if table["name"] == self.schema.state_table_name and not self.config.as_staging_destination:

@@ -894,3 +894,48 @@ def test_hf_commit_retry(default_buckets_env: str, status_code: int, retry_level
     assert info.has_failed_jobs is False
     assert commit_call_count >= 2
     assert load_table_counts(pipeline, "test_data") == {"test_data": 1}
+
+
+def test_hf_truncate_tables(default_buckets_env: str) -> None:
+    """Test that HfFilesystemClient.truncate_tables deletes files in a single HF commit."""
+    if not default_buckets_env.startswith("hf://"):
+        pytest.skip("only runs on hf:// protocol")
+
+    from dlt.destinations.impl.filesystem.filesystem import HfFilesystemClient
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_hf_truncate_" + uniq_id(),
+        destination="filesystem",
+        dataset_name="test_" + uniq_id(),
+    )
+
+    @dlt.resource
+    def table_a():
+        yield [{"id": 1}, {"id": 2}]
+
+    @dlt.resource
+    def table_b():
+        yield [{"x": "foo"}, {"x": "bar"}]
+
+    # load data for both tables
+    info = pipeline.run([table_a(), table_b()])
+    assert info.has_failed_jobs is False
+
+    client: HfFilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
+    with client:
+        # verify files exist
+        a_files = client.list_table_files("table_a")
+        b_files = client.list_table_files("table_b")
+        assert len(a_files) > 0
+        assert len(b_files) > 0
+
+        # truncate only table_a
+        client.truncate_tables(["table_a"])
+
+        # table_a files should be gone, table_b files remain
+        assert len(client.list_table_files("table_a")) == 0
+        assert len(client.list_table_files("table_b")) == len(b_files)
+
+        # truncate table_b
+        client.truncate_tables(["table_b"])
+        assert len(client.list_table_files("table_b")) == 0
