@@ -307,7 +307,6 @@ const sidebars = {
             'general-usage/dataset-access/sql-client',
             'general-usage/dataset-access/view-dlt-schema',
             'general-usage/destination-tables',
-            'general-usage/dataset-access/streamlit',
           ]
         },
         {

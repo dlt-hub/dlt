@@ -189,7 +189,7 @@ Generates and launches workspace dashboard with the loading status and dataset e
 
 **Usage**
 ```sh
-dlt pipeline [pipeline_name] show [-h] [--streamlit] [--edit]
+dlt pipeline [pipeline_name] show [-h] [--edit]
 ```
 
 **Description**
@@ -200,7 +200,7 @@ This dashboard should be executed from the same folder from which you ran the pi
 
 If the --edit flag is used, will launch the editable version of the dashboard if it exists in the current directory, or create this version and launch it in edit mode.
 
-Requires `marimo` to be installed in the current environment: `pip install marimo`. Use the --streamlit flag to launch the legacy streamlit app.
+Requires `marimo` to be installed in the current environment: `pip install marimo`.
 
 <details>
 
@@ -210,8 +210,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--streamlit` - Launch the legacy streamlit dashboard instead of the new workspace dashboard.
-* `--edit` - Creates editable version of workspace dashboard in current directory if it does not exist there yet and launches it in edit mode. will have no effect when using the streamlit flag.
+* `--edit` - Creates editable version of workspace dashboard in current directory if it does not exist there yet and launches it in edit mode.
 
 </details>
 
