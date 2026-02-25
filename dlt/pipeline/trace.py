@@ -15,6 +15,7 @@ from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import ExceptionTrace, ResourceNameNotAvailable
 from dlt.common.logger import suppress_and_warn
+from dlt.common.runtime.tracking import SupportsTracking
 from dlt.common.runtime.exec_info import TExecutionContext, get_execution_context
 from dlt.common.pipeline import (
     ExtractInfo,
@@ -37,6 +38,8 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 
 TRACE_ENGINE_VERSION = 1
 TRACE_FILE_NAME = "trace.pickle"
+# plug in your own tracking modules here
+TRACKING_MODULES: List[SupportsTracking] = None
 
 
 # @dataclasses.dataclass(init=True)
@@ -196,13 +199,6 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
 
     def __str__(self) -> str:
         return self.asstr(verbosity=0)
-
-
-from dlt.common.runtime.tracking import SupportsTracking
-
-
-# plug in your own tracking modules here
-TRACKING_MODULES: List[SupportsTracking] = None
 
 
 def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrace:

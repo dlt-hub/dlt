@@ -71,7 +71,7 @@ from dlt.pipeline.exceptions import (
 from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace
 from dlt.pipeline.typing import TPipelineStep
 
 from tests.common.utils import TEST_SENTRY_DSN
@@ -4854,6 +4854,129 @@ def test_pending_package_exception_warning() -> None:
     assert pip_ex.value.load_id is not None
     assert pip_ex.value.is_package_partially_loaded is True
     # assert pip_ex.value.has_pending_data is False
+
+
+def test_run_once_sidecar_wrapper() -> None:
+    """Demonstrates __class__ swap on a pipeline instance to run a sidecar source
+    (different schema) after the original extract-normalize-load cycle, all within
+    one trace transaction. Same pattern as Dataset.__enter__ (dataset.py:354).
+    """
+
+    SIDECAR_LOADED_KEY = "_sidecar_loaded"
+
+    @dlt.source(name="sidecar_metrics")
+    def sidecar_source():
+        @dlt.resource
+        def quality_metrics():
+            yield [{"metric": "row_count", "value": 2}]
+
+        return quality_metrics
+
+    # static subclass — defined once, reused across context manager invocations.
+    # __reduce__ ensures the trace pickle serializes the instance as Pipeline
+    # (the subclass adds behavior, not state).
+    # NOTE: pickling traces (containing Pipeline instance) will go away soon
+    class SidecarPipeline(Pipeline):
+        def _run_once(self, data: Any, **kwargs: Any) -> LoadInfo:
+            load_info = Pipeline._run_once(self, data, **kwargs)
+            # guard idempotency via local state
+            try:
+                self.get_local_state_val(SIDECAR_LOADED_KEY)
+            except KeyError:
+                self.set_local_state_val(SIDECAR_LOADED_KEY, True)
+                Pipeline._run_once(self, sidecar_source(), **kwargs)
+            return load_info
+
+        def __reduce__(self):
+            return (Pipeline.__new__, (Pipeline,), Pipeline.__getstate__(self))
+
+    @contextlib.contextmanager
+    def enable_sidecar(pipeline: Pipeline):
+        """Swaps __class__ on the instance to SidecarPipeline while active."""
+        original_cls = pipeline.__class__
+        pipeline.__class__ = SidecarPipeline
+        try:
+            yield pipeline
+        finally:
+            pipeline.__class__ = original_cls
+
+    @dlt.source(name="main_data")
+    def main_source():
+        @dlt.resource
+        def users():
+            yield [{"id": 1, "name": "alice"}, {"id": 2, "name": "bob"}]
+
+        return users
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_run_once_sidecar",
+        destination="duckdb",
+    )
+
+    with enable_sidecar(pipeline):
+        load_info = pipeline.run(main_source())
+
+    # (1) both schemas are present
+    assert "main_data" in pipeline.schema_names
+    assert "sidecar_metrics" in pipeline.schema_names
+
+    # (2) data is present in both schemas
+    main_ds = pipeline.dataset(schema="main_data")
+    users_rows = main_ds.users.fetchall()
+    assert len(users_rows) == 2
+
+    sidecar_ds = pipeline.dataset(schema="sidecar_metrics")
+    metrics_rows = sidecar_ds.quality_metrics.fetchall()
+    assert len(metrics_rows) == 1
+
+    # (3) trace contains expected number of steps:
+    #     original: extract + normalize + load
+    #     sidecar:  extract + normalize + load
+    #     outer:    run
+    #     total: 7
+    trace = pipeline.last_trace
+    assert trace is not None
+    assert pipeline._trace is None
+    step_names = [s.step for s in trace.steps]
+    assert step_names == [
+        "extract",
+        "normalize",
+        "load",
+        "extract",
+        "normalize",
+        "load",
+        "run",
+    ]
+
+    # (4) the returned load_info is from the original _run_once
+    assert_load_info(load_info)
+    for pkg in load_info.load_packages:
+        table_names = [j.job_file_info.table_name for j in pkg.jobs["completed_jobs"]]
+        assert any("users" in t for t in table_names)
+        assert not any("quality_metrics" in t for t in table_names)
+
+    # last_extract_info returns the latest extract step (sidecar)
+    assert trace.last_extract_info is not None
+    assert trace.last_normalize_info is not None
+    assert trace.last_load_info is not None
+
+    # the original extract info is the first extract step
+    original_extract = trace.steps[0].step_info
+    assert isinstance(original_extract, ExtractInfo)
+    assert any("users" in t for m in original_extract.metrics.values() for t in m[0]["job_metrics"])
+
+    # after context manager exit, __class__ is restored
+    assert pipeline.__class__ is Pipeline
+
+    # (5) unpickled trace has a real Pipeline instance, not SidecarPipeline
+    loaded_trace = load_trace(pipeline.working_dir)
+    assert loaded_trace is not None
+    assert len(loaded_trace.steps) == len(trace.steps)
+    # the run step carries the returned load_info which references the pipeline
+    run_step = loaded_trace.steps[-1]
+    assert run_step.step == "run"
+    assert isinstance(run_step.step_info, LoadInfo)
+    assert type(run_step.step_info.pipeline) is Pipeline
 
 
 def test_cleanup() -> None:
