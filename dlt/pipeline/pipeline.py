@@ -782,8 +782,11 @@ class Pipeline(SupportsPipeline):
     ) -> LoadInfo:
         """Extracts, normalizes and loads data in a single pass.
 
-        Called from `run` within an active trace transaction. Override to wrap or
-        extend the extract-normalize-load cycle while staying in one trace.
+        Intended to be overriden in derived classes to extend the loading process
+        with additional load packages coming from "sidecar" data like data quarantine
+        or quality metrics.
+
+        Use ``dlt.pipeline(..., _impl_cls=MyPipeline)`` to activate the subclass.
         """
         self.extract(
             data,

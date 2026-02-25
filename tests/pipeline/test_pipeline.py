@@ -12,7 +12,7 @@ import random
 import shutil
 import threading
 from time import sleep
-from typing import Any, List, Tuple, cast, Optional
+from typing import Any, Dict, List, Tuple, cast, Optional
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
 import pytest
@@ -4854,6 +4854,57 @@ def test_pending_package_exception_warning() -> None:
     assert pip_ex.value.load_id is not None
     assert pip_ex.value.is_package_partially_loaded is True
     # assert pip_ex.value.has_pending_data is False
+
+
+def test_run_once_signature() -> None:
+    """Validates the _run_once contract: every relevant kwarg that `run`
+    receives is forwarded to `_run_once` with the correct value."""
+
+    captured: List[Dict[str, Any]] = []
+
+    class CapturingPipeline(Pipeline):
+        def _run_once(self, data: Any, **kwargs: Any) -> LoadInfo:
+            captured.append({"data": data, **kwargs})
+            return Pipeline._run_once(self, data, **kwargs)
+
+    @dlt.resource
+    def dummy_data():
+        yield [{"id": 1}]
+
+    schema = Schema("custom")
+    pipeline = dlt.pipeline(
+        pipeline_name="test_run_once_params",
+        destination=DUMMY_COMPLETE,
+        _impl_cls=CapturingPipeline,
+    )
+
+    pipeline.run(
+        dummy_data(),
+        table_name="my_table",
+        write_disposition="replace",
+        columns=[{"name": "id", "data_type": "bigint"}],
+        primary_key="id",
+        schema=schema,
+        loader_file_format="jsonl",
+        schema_contract="evolve",
+    )
+
+    assert len(captured) == 1
+    call_args = captured[0]
+    # data is the resource — just verify it arrived
+    assert call_args["data"] is not None
+    # extract-related kwargs forwarded verbatim
+    assert call_args["table_name"] == "my_table"
+    assert call_args["write_disposition"] == "replace"
+    assert call_args["columns"] == [{"name": "id", "data_type": "bigint"}]
+    assert call_args["primary_key"] == "id"
+    assert call_args["schema"] is schema
+    assert call_args["loader_file_format"] == "jsonl"
+    assert call_args["schema_contract"] == "evolve"
+    # load-related kwargs forwarded (destination resolved by run before calling _run_once)
+    assert "destination" in call_args
+    assert "dataset_name" in call_args
+    assert "credentials" in call_args
 
 
 def test_run_once_sidecar_wrapper() -> None:
