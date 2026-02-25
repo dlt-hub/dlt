@@ -27,6 +27,7 @@ from dlt._workspace.helpers.dashboard.utils.formatters import (
 )
 from dlt._workspace.helpers.dashboard.utils.schema import schemas_to_table_items
 from dlt._workspace.helpers.dashboard.utils import ui
+from dlt.destinations.impl.destination.factory import destination as custom_destination_factory
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.trace import PipelineTrace
 
@@ -132,8 +133,8 @@ def get_local_data_path(pipeline: dlt.Pipeline) -> str:
     """Get the local data path of a pipeline"""
     if not pipeline.destination:
         return None
-    # custom destinations don't provide local data paths
-    if pipeline.destination.destination_type == "dlt.destinations.destination":
+    # custom destination config does not implement WithLocalFiles
+    if isinstance(pipeline.destination, custom_destination_factory):
         return None
     try:
         config = pipeline._get_destination_clients(dlt.Schema("temp"))[0].config

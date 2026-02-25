@@ -147,8 +147,11 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @property
     def destination_type(self) -> str:
         cls = self.__class__
-        if hasattr(cls, "__orig_base__") and not is_installed_module(cls.__module__):
-            cls = cls.__orig_base__
+        if getattr(cls, "__is_synthesized_destination__", False) and not is_installed_module(
+            cls.__module__
+        ):
+            # __orig_base__ is always set alongside __is_synthesized_destination__
+            cls = cls.__orig_base__  # type: ignore[attr-defined]
         full_path = cls.__module__ + "." + cls.__qualname__
         return DestinationReference.normalize_type(full_path)
 

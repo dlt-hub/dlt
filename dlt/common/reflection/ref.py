@@ -1,4 +1,5 @@
 import builtins
+import functools
 import importlib.metadata
 import importlib.util
 from importlib import import_module
@@ -9,14 +10,18 @@ from dlt.common.exceptions import MissingDependencyException, TypeErrorWithKnown
 from dlt.common.typing import TAny
 
 
+@functools.lru_cache(maxsize=64)
 def is_installed_module(module_name: str) -> bool:
     """Check if a module belongs to a pip-installed package.
 
-    Looks up the top-level package in distribution metadata (`.dist-info`). This assumes
-    the top-level import name matches the distribution name, which holds for dlt and its
-    plugin ecosystem. Packages where import and distribution names
-    differ (Pillow/PIL) would not be detected, but this is sufficient for
-    distinguishing user scripts from installed destination plugins.
+    Checks whether the top-level package of `module_name` has distribution metadata
+    (i.e., was installed via pip/uv). This distinguishes installed packages that are
+    resolvable from any Python process from user scripts and local modules that happen
+    to be importable via sys.path.
+
+    The check only needs the top-level package name because Python packages are installed
+    as a unit — if the top-level package has a distribution, all its submodules are
+    guaranteed to be resolvable.
     """
     top_level = module_name.split(".")[0]
     try:
