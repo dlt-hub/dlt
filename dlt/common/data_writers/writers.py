@@ -342,16 +342,20 @@ class ParquetDataWriter(DataWriter):
         #     ).unit
         #     self.allow_truncated_timestamps = True
 
-        return pyarrow.parquet.ParquetWriter(
-            self._f,
-            schema,
-            flavor=self.parquet_format.flavor,
-            version=self.parquet_format.version,
-            data_page_size=self.parquet_format.data_page_size,
-            coerce_timestamps=self.parquet_format.coerce_timestamps,
-            allow_truncated_timestamps=self.parquet_format.allow_truncated_timestamps,
-            use_compliant_nested_type=self.parquet_format.use_compliant_nested_type,
-        )
+        parquet_writer_kwargs = {
+            "flavor": self.parquet_format.flavor,
+            "version": self.parquet_format.version,
+            "data_page_size": self.parquet_format.data_page_size,
+            "coerce_timestamps": self.parquet_format.coerce_timestamps,
+            "allow_truncated_timestamps": self.parquet_format.allow_truncated_timestamps,
+            "use_compliant_nested_type": self.parquet_format.use_compliant_nested_type,
+            "write_page_index": self.parquet_format.write_page_index,
+        }
+        if Version(pyarrow.__version__).major >= 21:
+            parquet_writer_kwargs["use_content_defined_chunking"] = (
+                self.parquet_format.use_content_defined_chunking
+            )
+        return pyarrow.parquet.ParquetWriter(self._f, schema, **parquet_writer_kwargs)
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         from dlt.common.libs.pyarrow import columns_to_arrow

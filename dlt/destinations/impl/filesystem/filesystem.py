@@ -1,10 +1,12 @@
 import posixpath
 import os
+import time as _time
 import orjson
 import base64
 from contextlib import contextmanager
 from types import TracebackType
 from typing import (
+    ClassVar,
     List,
     Type,
     Iterable,
@@ -18,6 +20,13 @@ from typing import (
     TYPE_CHECKING,
 )
 from fsspec import AbstractFileSystem
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+    RetryCallState,
+)
 
 from dlt.common import logger, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
@@ -38,7 +47,7 @@ from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop, is_nested_table
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
@@ -63,6 +72,7 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.destination.exceptions import (
+    TableFormatNotSupported,
     WriteDispositionNotSupported,
     DestinationUndefinedEntity,
     OpenTableCatalogNotSupported,
@@ -74,7 +84,10 @@ from dlt.destinations.job_impl import (
     FinalizedLoadJob,
     FinalizedLoadJobWithFollowupJobs,
 )
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+from dlt.destinations.impl.filesystem.configuration import (
+    FilesystemDestinationClientConfiguration,
+    HfFilesystemDestinationClientConfiguration,
+)
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.utils import (
@@ -118,31 +131,39 @@ class FilesystemLoadJob(RunnableLoadJob):
             self._job_client.fs_client.makedirs(os.path.dirname(remote_path), exist_ok=True)
         self._job_client.fs_client.put_file(self._file_path, remote_path)
 
-    def make_remote_path(self) -> str:
-        """Returns path on the remote filesystem to which copy the file, without scheme. For local filesystem a native path is used"""
-
+    @property
+    def load_package_timestamp(self) -> Optional[pendulum.DateTime]:
         # package state is optional
         try:
-            package_timestamp = current_load_package()["state"]["created_at"]
+            return ensure_pendulum_datetime_utc(current_load_package()["state"]["created_at"])
         except CurrentLoadPackageStateNotAvailable:
-            package_timestamp = None
+            return None
 
-        destination_file_name = path_utils.create_path(
-            self._job_client.config.layout,
-            self._file_name,
-            self._job_client.schema.name,
-            self._load_id,
+    def make_remote_file_path(self, file_name: str) -> str:
+        """Returns path on remote filesystem to move file to, without scheme and dataset."""
+        return path_utils.create_path(
+            layout=self._job_client.config.layout,
+            file_name=file_name,
+            schema_name=self._job_client.schema.name,
+            load_id=self._load_id,
             current_datetime=self._job_client.config.current_datetime,
-            load_package_timestamp=package_timestamp,
+            load_package_timestamp=self.load_package_timestamp,
             extra_placeholders=self._job_client.config.extra_placeholders,
         )
+
+    def make_remote_path(self) -> str:
+        """Returns path on remote filesystem to move file(s) to, without scheme, but with dataset.
+
+        For local filesystem a native path is used.
+        """
+        remote_file_path = self.make_remote_file_path(self._file_name)
         # pick local filesystem pathlib or posix for buckets
         pathlib = self._job_client.config.pathlib
         # path.join does not normalize separators and available
         # normalization functions are very invasive and may strip the trailing separator
         return pathlib.join(  # type: ignore[no-any-return]
             self._job_client.dataset_path,
-            path_utils.normalize_path_sep(pathlib, destination_file_name),
+            path_utils.normalize_path_sep(pathlib, remote_file_path),
         )
 
     def make_remote_url(self) -> str:
@@ -157,15 +178,16 @@ class FilesystemLoadJob(RunnableLoadJob):
         return m._replace(remote_url=self.make_remote_url())
 
 
-class TableFormatLoadFilesystemJob(FilesystemLoadJob):
+class ReferenceFollowupJob(FilesystemLoadJob):
     def __init__(self, file_path: str) -> None:
         super().__init__(file_path=file_path)
-
         self.file_paths = ReferenceFollowupJobRequest.resolve_references(self._file_path)
 
     def make_remote_path(self) -> str:
         return self._job_client.get_table_dir(self.load_table_name)
 
+
+class TableFormatLoadFilesystemJob(ReferenceFollowupJob):
     @property
     def arrow_dataset(self) -> Any:
         from dlt.common.libs.pyarrow import pyarrow
@@ -313,6 +335,128 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
         return identity_specs + hint_specs
 
 
+class HfFilesystemUploadJob(HasFollowupJobs, FilesystemLoadJob):
+    """Pre-uploads a single file to HF LFS storage without creating a commit.
+
+    File content is uploaded to HF's content-addressed storage via preupload_lfs_files.
+    The actual git commit is created later by HfFilesystemCommitJob once all uploads
+    in the table chain complete.
+    """
+
+    _job_client: "HfFilesystemClient"
+
+    def run(self) -> None:
+        from huggingface_hub import CommitOperationAdd
+
+        operation = CommitOperationAdd(
+            path_in_repo=self.make_remote_file_path(self._file_name),
+            path_or_fileobj=self._file_path,
+        )
+        start = _time.monotonic()
+        self._job_client.hf_api.preupload_lfs_files(
+            repo_id=self._job_client.repo_id,
+            additions=[operation],
+            repo_type="dataset",
+        )
+        elapsed = _time.monotonic() - start
+        logger.info(
+            f"HF pre-upload of {self._file_name} to {self._job_client.repo_id}"
+            f" completed in {elapsed:.1f}s"
+        )
+
+
+def _is_hf_conflict(exc: BaseException) -> bool:
+    """Return True for HF Hub commit conflict errors (409 or 412)."""
+    from huggingface_hub.errors import HfHubHTTPError
+
+    return (
+        isinstance(exc, HfHubHTTPError)
+        and hasattr(exc, "response")
+        and exc.response is not None
+        and exc.response.status_code in (409, 412)
+    )
+
+
+def _log_hf_retry(retry_state: RetryCallState) -> None:
+    """Log warning on each tenacity retry for HF commit conflicts."""
+    exc = retry_state.outcome.exception()
+    wait = retry_state.next_action.sleep if retry_state.next_action else 0
+    logger.warning(
+        f"HF commit conflict on attempt {retry_state.attempt_number},"
+        f" retrying after {wait:.1f}s: {exc}"
+    )
+
+
+class HfFilesystemCommitJob(ReferenceFollowupJob):
+    """Commits pre-uploaded files to a HF dataset repo.
+
+    Files are already in HF's content-addressed storage (uploaded by HfFilesystemUploadJob).
+    create_commit internally detects pre-uploaded blobs and only creates the git commit.
+    Retries on 409/412 commit conflicts with exponential backoff via tenacity.
+    Other errors propagate to dlt load engine for dlt-level retry.
+    """
+
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: HfFilesystemClient = None
+
+    @retry(
+        retry=retry_if_exception(_is_hf_conflict),
+        wait=wait_exponential(multiplier=1, max=30),
+        stop=stop_after_attempt(5),
+        reraise=True,
+        before_sleep=_log_hf_retry,
+    )
+    def run(self) -> None:
+        from huggingface_hub import CommitOperationAdd
+
+        operations: List[Any] = [
+            CommitOperationAdd(path_in_repo=self.make_path_in_repo(path), path_or_fileobj=path)
+            for path in self.file_paths
+        ]
+
+        # for replace disposition, delete existing table files in the same atomic commit
+        delete_ops = self._get_delete_operations()
+        if delete_ops:
+            operations = delete_ops + operations
+
+        start = _time.monotonic()
+        self._job_client.hf_api.create_commit(
+            repo_id=self._job_client.repo_id,
+            operations=operations,
+            commit_message=f"Add files to {self.load_table_name}",
+            repo_type="dataset",
+        )
+        elapsed = _time.monotonic() - start
+        n_adds = len(self.file_paths)
+        n_deletes = len(delete_ops) if delete_ops else 0
+        logger.info(
+            f"HF commit to {self._job_client.repo_id} for {self.load_table_name}"
+            f" ({n_adds} added, {n_deletes} deleted) completed in {elapsed:.1f}s"
+        )
+        self._job_client.fs_client.invalidate_cache()
+
+    def _get_delete_operations(self) -> List[Any]:
+        """Return CommitOperationDelete ops for tables with replace write disposition."""
+        table_names_to_replace = []
+        for path in self.file_paths:
+            file_name = self._job_client.pathlib.basename(path)
+            parsed = ParsedLoadJobFileName.parse(file_name)
+            table = self._job_client.prepare_load_table(parsed.table_name)
+            if (
+                table["write_disposition"] == "replace"
+                and parsed.table_name not in table_names_to_replace
+            ):
+                table_names_to_replace.append(parsed.table_name)
+
+        return self._job_client._collect_delete_operations(table_names_to_replace)
+
+    def make_path_in_repo(self, file_path: str) -> str:
+        """Returns path relative to repo root, without namespace and repo name."""
+        file_name = self._job_client.pathlib.basename(file_path)
+        return self.make_remote_file_path(file_name)
+
+
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJobRequest]:
         jobs = super().create_followup_jobs(final_state)
@@ -338,6 +482,8 @@ class FilesystemClient(
     bucket_path: str
     # name of the dataset
     dataset_name: str
+    batch_table_chain: ClassVar[bool] = False
+    """If True, uses single reference followup job for entire table chain. If False, uses separate reference followup job for each table in chain."""
 
     def __init__(
         self,
@@ -401,9 +547,17 @@ class FilesystemClient(
         """Returns the path to the init file for the current dataset"""
         return str(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))
 
+    def create_dataset(self) -> None:
+        """Creates empty dataset directory."""
+        self.fs_client.makedirs(self.dataset_path)
+
+    def drop_dataset(self) -> None:
+        """Removes dataset directory with all its content."""
+        self.fs_client.rm(self.dataset_path, recursive=True)
+
     def drop_storage(self) -> None:
         if self.is_storage_initialized():
-            self.fs_client.rm(self.dataset_path, recursive=True)
+            self.drop_dataset()
 
     @property
     def dataset_path(self) -> str:
@@ -452,8 +606,7 @@ class FilesystemClient(
 
             return
 
-        # we mark the storage folder as initialized
-        self.fs_client.makedirs(self.dataset_path, exist_ok=True)
+        self.create_dataset()
 
         # we set the version to "2" to indicate that .gz extension is added by default
         # version "1" corresponds to an empty init file and indicates that .gz is not added to compressed files
@@ -620,7 +773,27 @@ class FilesystemClient(
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
+        if exceptions := self.verify_schema_table_format(loaded_tables):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
         return loaded_tables
+
+    def verify_schema_table_format(
+        self, load_tables: Sequence[PreparedTableSchema]
+    ) -> List[Exception]:
+        exception_log: List[Exception] = []
+        for table in load_tables:
+            # from now on validate only top level tables
+            if is_nested_table(table):
+                continue
+            table_format = table.get("table_format")
+            if table_format and table_format not in self.capabilities.supported_table_formats:
+                message = f"supported table formats are {self.capabilities.supported_table_formats}"
+                if self.config.protocol == "hf":
+                    message = "the `hf` protocol does not support table formats"
+                exception_log.append(TableFormatNotSupported(table_format, table["name"], message))
+        return exception_log
 
     def update_stored_schema(
         self,
@@ -738,37 +911,41 @@ class FilesystemClient(
     def is_storage_initialized(self) -> bool:
         return self.fs_client.exists(self.init_file_path)  # type: ignore[no-any-return]
 
+    @staticmethod
+    def get_reference_followup_job_class(
+        table: PreparedTableSchema,
+    ) -> Optional[Type[ReferenceFollowupJob]]:
+        # NOTE: we import deltalake/pyiceberg libs here to raise early if deps are not present
+        if table.get("table_format") == "delta":
+            import dlt.common.libs.deltalake
+
+            return DeltaLoadFilesystemJob
+        elif table.get("table_format") == "iceberg":
+            import dlt.common.libs.pyiceberg
+
+            return IcebergLoadFilesystemJob
+        return None
+
+    def get_load_job_class(self, table: PreparedTableSchema, file_path: str) -> Type[LoadJob]:
+        if table["name"] == self.schema.state_table_name and not self.config.as_staging_destination:
+            # skip the state table, we create a jsonl file in the complete_load step
+            # this does not apply to scenarios where we are using filesystem as staging
+            # where we want to load the state the regular way
+            return FinalizedLoadJob
+        elif reference_followup_job_class := self.get_reference_followup_job_class(table):
+            if ReferenceFollowupJobRequest.is_reference_job(file_path):
+                return reference_followup_job_class
+            else:
+                return FinalizedLoadJobWithFollowupJobs
+        elif self.config.as_staging_destination:
+            return FilesystemLoadJobWithFollowup
+        else:
+            return FilesystemLoadJob
+
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        # skip the state table, we create a jsonl file in the complete_load step
-        # this does not apply to scenarios where we are using filesystem as staging
-        # where we want to load the state the regular way
-        if table["name"] == self.schema.state_table_name and not self.config.as_staging_destination:
-            return FinalizedLoadJob(file_path)
-
-        table_format = table.get("table_format")
-        if table_format in ("delta", "iceberg"):
-            # a reference job for a delta table indicates a table chain followup job
-            if ReferenceFollowupJobRequest.is_reference_job(file_path):
-                if table_format == "delta":
-                    import dlt.common.libs.deltalake
-
-                    return DeltaLoadFilesystemJob(file_path)
-                elif table_format == "iceberg":
-                    import dlt.common.libs.pyiceberg
-
-                    return IcebergLoadFilesystemJob(file_path)
-
-            # otherwise just continue
-            return FinalizedLoadJobWithFollowupJobs(file_path)
-
-        cls = (
-            FilesystemLoadJobWithFollowup
-            if self.config.as_staging_destination
-            else FilesystemLoadJob
-        )
-        return cls(file_path)
+        return self.get_load_job_class(table, file_path)(file_path)
 
     def make_remote_url(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""
@@ -1013,23 +1190,44 @@ class FilesystemClient(
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
         )
-        if table_chain[0].get("table_format") in ("delta", "iceberg"):
+        if self.get_reference_followup_job_class(table_chain[0]):
+            jobs.extend(
+                self.get_reference_followup_job_requests(
+                    table_chain,
+                    completed_table_chain_jobs,
+                )
+            )
+        return jobs
+
+    def get_reference_followup_job_requests(
+        self,
+        table_chain: Sequence[PreparedTableSchema],
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]],
+    ) -> List["ReferenceFollowupJobRequest"]:
+        def get_job_file_paths(*table_names: str) -> List[str]:
+            return [
+                job.file_path
+                for job in completed_table_chain_jobs
+                if job.job_file_info.table_name in table_names
+            ]
+
+        if self.batch_table_chain:
+            job_file_paths = get_job_file_paths(*[t["name"] for t in table_chain])
+            file_name = FileStorage.get_file_name_from_file_path(job_file_paths[0])
+            return [ReferenceFollowupJobRequest(file_name, job_file_paths)]
+        else:
+            jobs = []
             for table in table_chain:
-                table_job_paths = [
-                    job.file_path
-                    for job in completed_table_chain_jobs
-                    if job.job_file_info.table_name == table["name"]
-                ]
-                if table_job_paths:
-                    file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-                    jobs.append(ReferenceFollowupJobRequest(file_name, table_job_paths))
+                job_file_paths = get_job_file_paths(table["name"])
+                if job_file_paths:
+                    file_name = FileStorage.get_file_name_from_file_path(job_file_paths[0])
+                    jobs.append(ReferenceFollowupJobRequest(file_name, job_file_paths))
                 else:
                     # file_name = ParsedLoadJobFileName(table["name"], "empty", 0, "reference").file_name()
                     # TODO: if we implement removal od orphaned rows, we may need to propagate such job without files
                     # to the delta load job
                     pass
-
-        return jobs
+            return jobs
 
     # SupportsOpenTables implementation
 
@@ -1132,3 +1330,96 @@ class FilesystemClient(
             return False
         detected_format = prepared_table.get("table_format")
         return table_format == detected_format
+
+
+# NOTE: HfFilesystemClient uses both fsspec and HfApi clients. We manually invalidate fsspec client
+# cache after each filesystem mutation executed through HfApi to ensure consistency.
+class HfFilesystemClient(FilesystemClient):
+    batch_table_chain: ClassVar[bool] = True
+
+    def __init__(
+        self,
+        schema: Schema,
+        config: HfFilesystemDestinationClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        from huggingface_hub import HfApi
+
+        super().__init__(schema, config, capabilities)
+        self.config: HfFilesystemDestinationClientConfiguration = config
+        self.hf_api = HfApi(**config.credentials.to_hf_api_credentials())
+
+    @property
+    def repo_id(self) -> str:
+        return self.config.hf_namespace + "/" + self.dataset_name
+
+    def create_dataset(self) -> None:
+        self.hf_api.create_repo(repo_id=self.repo_id, repo_type="dataset")
+        self.fs_client.invalidate_cache()
+
+    def drop_dataset(self) -> None:
+        self.hf_api.delete_repo(repo_id=self.repo_id, repo_type="dataset")
+        self.fs_client.invalidate_cache()
+
+    def _collect_delete_operations(self, table_names: List[str]) -> List[Any]:
+        """Collect CommitOperationDelete ops for files belonging to given tables."""
+        from huggingface_hub import CommitOperationDelete
+
+        ops: List[Any] = []
+        table_dirs = set(self.get_table_dirs(table_names))
+        table_prefixes = [self.get_table_prefix(t) for t in table_names]
+        for table_dir in table_dirs:
+            if self.fs_client.exists(table_dir):
+                for file_path in self.list_files_with_prefixes(table_dir, table_prefixes):
+                    path_in_repo = self.pathlib.relpath(file_path, self.dataset_path)
+                    ops.append(CommitOperationDelete(path_in_repo=path_in_repo))
+        return ops
+
+    def _hf_commit_operations(self, operations: List[Any], commit_message: str) -> None:
+        """Commit operations to HF repo and invalidate fsspec cache."""
+        if not operations:
+            return
+        self.hf_api.create_commit(
+            repo_id=self.repo_id,
+            operations=operations,
+            commit_message=commit_message,
+            repo_type="dataset",
+        )
+        self.fs_client.invalidate_cache()
+
+    def truncate_tables(self, table_names: List[str]) -> None:
+        """Truncates tables in a single HF commit.
+        Note: tables won't be present in storage but dlt schemas are not reset
+        """
+        ops = self._collect_delete_operations(table_names)
+        self._hf_commit_operations(ops, f"Truncate tables: {', '.join(table_names)}")
+
+    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        """Drop tables and optionally schema files in a single HF commit."""
+        from huggingface_hub import CommitOperationDelete
+
+        ops = self._collect_delete_operations(list(tables))
+        if delete_schema:
+            for filepath, fileparts in self._iter_stored_schema_files():
+                if fileparts[0] == self.schema.name:
+                    path_in_repo = self.pathlib.relpath(filepath, self.dataset_path)
+                    ops.append(CommitOperationDelete(path_in_repo=path_in_repo))
+        self._hf_commit_operations(ops, f"Drop tables: {', '.join(tables)}")
+
+    def should_truncate_table_before_load(self, table_name: str) -> bool:
+        # HF handles replace atomically in the commit job (delete + add in one commit)
+        return False
+
+    def get_load_job_class(self, table: PreparedTableSchema, file_path: str) -> Type[LoadJob]:
+        if table["name"] == self.schema.state_table_name and not self.config.as_staging_destination:
+            return FinalizedLoadJob
+        elif ReferenceFollowupJobRequest.is_reference_job(file_path):
+            return HfFilesystemCommitJob
+        else:
+            return HfFilesystemUploadJob
+
+    @staticmethod
+    def get_reference_followup_job_class(
+        table: PreparedTableSchema,
+    ) -> Type[HfFilesystemCommitJob]:
+        return HfFilesystemCommitJob
