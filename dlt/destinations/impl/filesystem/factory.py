@@ -124,12 +124,11 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
         class _BucketUrlConfig(BaseConfiguration):
             bucket_url: Optional[str] = None
 
-        config = FilesystemDestinationClientConfiguration()
         sections = (
-            *config.__recommended_sections__,
+            *FilesystemDestinationClientConfiguration.__recommended_sections__,
             self.resolve_destination_name(destination_name),
         )
-        resolved = resolve_configuration(_BucketUrlConfig(), sections=sections, accept_partial=True)
+        resolved = resolve_configuration(_BucketUrlConfig(), sections=sections)
         return resolved.bucket_url
 
     def __init__(
