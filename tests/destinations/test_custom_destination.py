@@ -322,7 +322,8 @@ def test_destination_type_uses_orig_base_for_non_installed_modules() -> None:
     dest = my_sink()
     cls = dest.__class__
 
-    # synthesized class has __orig_base__ pointing to the base factory
+    # synthesized class carries explicit marker and __orig_base__
+    assert getattr(cls, "__is_synthesized_destination__", False) is True
     assert hasattr(cls, "__orig_base__")
 
     # test module is not installed — falls back to base factory path
@@ -334,8 +335,9 @@ def test_destination_type_uses_orig_base_for_non_installed_modules() -> None:
         assert dest.destination_type == expected
         assert dest.destination_type != "dlt.destinations.destination"
 
-    # built-in destinations (no __orig_base__) are unaffected
+    # built-in destinations (no __is_synthesized_destination__) are unaffected
     builtin = Destination.from_reference("duckdb")
+    assert getattr(builtin.__class__, "__is_synthesized_destination__", False) is False
     assert builtin.destination_type == "dlt.destinations.duckdb"
 
 

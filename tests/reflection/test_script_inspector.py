@@ -71,7 +71,11 @@ def test_import_wrong_pipeline_script() -> None:
     ids=["installed-top-level", "installed-submodule", "main", "test-module", "fictional"],
 )
 def test_is_installed_module(module_name: str, expected: bool) -> None:
+    is_installed_module.cache_clear()
     assert is_installed_module(module_name) is expected
+    # second call hits the lru_cache
+    assert is_installed_module(module_name) is expected
+    assert is_installed_module.cache_info().hits >= 1
 
 
 def test_package_dummy_clash() -> None:

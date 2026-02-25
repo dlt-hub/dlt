@@ -253,7 +253,11 @@ def destination(
         D: Type[_destination] = type(
             cls_name,
             (_ConcreteDestinationBase,),
-            {"__module__": module.__name__, "__orig_base__": _destination},
+            {
+                "__module__": module.__name__,
+                "__orig_base__": _destination,
+                "__is_synthesized_destination__": True,
+            },
         )
         # add to the module
         setattr(module, cls_name, D)
