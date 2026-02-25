@@ -8,6 +8,7 @@ from dlt.common.schema.typing import (
     TTableReferenceStandalone,
     TTableSchema,
 )
+from dlt.common.schema.utils import is_complete_column
 
 
 INDENT = "    "
@@ -25,6 +26,9 @@ def schema_to_mermaid(
 
     for table_name, table_schema in schema["tables"].items():
         if not include_dlt_tables and table_name.startswith("_dlt"):
+            continue
+        # skip tables with no complete columns
+        if not any(is_complete_column(c) for c in table_schema.get("columns", {}).values()):
             continue
 
         mermaid_er_diagram += INDENT + _to_mermaid_table(
@@ -51,6 +55,8 @@ def _to_mermaid_table(
 
     if hide_columns is False:
         for column in table["columns"].values():
+            if not is_complete_column(column):
+                continue
             mermaid_table += INDENT + _to_mermaid_column(
                 column,
                 hide_descriptions=hide_descriptions,
