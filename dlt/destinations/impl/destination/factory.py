@@ -113,12 +113,13 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
                 )
             else:
                 destination_callable = imported_callable
-        # provide dummy callable for cases where no callable is provided
-        # this is needed for cli commands to work
         if not destination_callable:
             logger.warning(
-                "No destination callable provided, providing dummy callable which will fail on"
-                " load."
+                "Custom destination callable was not provided, using a dummy placeholder."
+                " Pipeline inspection will work but loading will not. This typically"
+                " happens when a pipeline using @dlt.destination defined in a local"
+                " script is accessed from another process (CLI, dashboard) because the"
+                " callable cannot be imported if it is not part of an installed package."
             )
             destination_callable = dummy_custom_destination
         elif not callable(destination_callable):
