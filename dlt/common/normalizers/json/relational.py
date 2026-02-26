@@ -1,3 +1,4 @@
+import json
 from functools import lru_cache, partial
 from typing import (
     ClassVar,
@@ -45,6 +46,7 @@ from dlt.common.normalizers.json.helpers import (
     get_row_hash,
     requires_root_key,
 )
+from dlt.common.normalizers.json.expansion import expand_json_column
 from dlt.common.validation import validate_dict
 
 
@@ -260,6 +262,42 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         is_root: bool = False,
     ) -> TNormalizedRowIterator:
         table = self._shorten_fragments(*parent_path, *ident_path)
+        
+        # JSON expansion: parse JSON string → dict → merge with prefix → DLT._flatten()
+        table_schema = self.schema.tables.get(table)
+        if table_schema:
+            expanded_row = dict_row.copy()
+            
+            for column_name, column_schema in table_schema.get("columns", {}).items():
+                if column_name not in dict_row:
+                    continue
+                
+                flatten_spec = column_schema.get("x-json-flatten")
+                keep_original = column_schema.get("x-json-keep-original", False)
+                
+                # AC5: keep_original with dict but no flatten_spec
+                if not flatten_spec and keep_original and isinstance(dict_row[column_name], dict):
+                    expanded_row[f"{column_name}__original"] = json.dumps(dict_row[column_name])
+                    continue
+                
+                if flatten_spec or keep_original:
+                    original_value, expanded_dict = expand_json_column(
+                        dict_row[column_name],
+                        flatten_spec,
+                        keep_original,
+                    )
+                    
+                    if expanded_dict is not None:
+                        for key, value in expanded_dict.items():
+                            expanded_row[f"{column_name}__{key}"] = value
+                    
+                    if keep_original:
+                        expanded_row[column_name] = original_value
+                    elif expanded_dict is not None:
+                        expanded_row.pop(column_name, None)
+            
+            dict_row = expanded_row
+        
         # flatten current row and extract all lists to recur into
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row

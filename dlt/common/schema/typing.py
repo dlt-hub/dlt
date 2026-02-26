@@ -197,6 +197,14 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     hard_delete: Optional[bool]
     dedup_sort: Optional[TSortOrder]
     incremental: Optional[bool]
+    # JSON expansion hints (TypedDict with total=False allows any x-* keys)
+    # x-json-flatten: Optional[Union[bool, List[str]]]
+    #   - True: Flatten entire JSON object
+    #   - List[str]: Flatten only specified paths (e.g., ["user.name", "user.email"])
+    #   - None/absent: No expansion (default behavior)
+    # x-json-keep-original: Optional[bool]
+    #   - True: Keep original column value alongside flattened columns
+    #   - False: Replace original column with flattened columns (default)
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]
