@@ -138,12 +138,10 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 
 ## Troubleshooting
 
-### My database is attached in read-only mode
-i.e., `Error: Invalid Input Error: Cannot execute statement of type "CREATE" on database "dlt_data" which is attached in read-only mode!`
-We encountered this problem for databases created with `duckdb 0.9.x` and then migrated to `0.10.x`. After switching to `1.0.x` on Motherduck, all our databases had permission "read-only" visible in UI. We could not figure out how to change it, so we dropped and recreated our databases.
-
 ### I see some exception with home_dir missing when opening `md:` connection.
+
 Some internal component (HTTPS) requires the **HOME** env variable to be present. Export such a variable to the command line. Here is what we do in our tests:
+
 ```py
 os.environ["HOME"] = "/tmp"
 ```
