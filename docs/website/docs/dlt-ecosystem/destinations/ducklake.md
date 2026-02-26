@@ -92,7 +92,7 @@ catalog="postgres://loader:pass@localhost:5432/dlt_data"
 
 ```toml
 [destination.ducklake.credentials]
-catalog="md:///<your_motherduck_database>"
+catalog="md:<your_motherduck_database>"
 ```
 
 Double check that your Motherduck token is in your environment!
