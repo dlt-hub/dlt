@@ -98,9 +98,8 @@ The Parquet files are written with:
 
 ## Table formats
 
-:::warning
 The Hugging Face destination does **not** support [Delta](./delta-iceberg) or [Iceberg](./iceberg) table formats.
-:::
+
 
 ## Files layout
 
@@ -134,7 +133,7 @@ The `hf` protocol does **not** support the `iceberg` and `delta` table formats.
 
 ### Parquet with page index and CDC
 
-The `hf` protocol defaults to `parquet` file format and always writes files with [page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md) and **[content-defined chunking](https://huggingface.co/blog/parquet-cdc)** for efficient versioned storage on the Hub. This enables efficient column statistics and skipping, and is required for the Hugging Face [dataset viewer](https://huggingface.co/docs/dataset-viewer/index) to preview datasets on the Hub.
+The `hf` protocol defaults to `parquet` file format and always writes files with [page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md) and [content-defined chunking](https://huggingface.co/blog/parquet-cdc) for efficient versioned storage on the Hub. This enables efficient column statistics and skipping, and is required for the Hugging Face [dataset viewer](https://huggingface.co/docs/dataset-viewer/index) to preview datasets on the Hub.
 
 ### Dual client
 
