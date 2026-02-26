@@ -406,10 +406,15 @@ def test_filesystem_destination_extended_layout_placeholders(
 def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     def _collect_files(p) -> List[str]:
         client = p.destination_client()
+        if not client.fs_client.exists(client.dataset_path):
+            return []
         found = []
         for basedir, _dirs, files in client.fs_client.walk(client.dataset_path):
             for file in files:
                 found.append(os.path.join(basedir, file).replace(client.dataset_path, ""))
+        # exclude .gitattributes file that is automatically created in Hugging Face datasets
+        if client.config.protocol == "hf":
+            found.remove(".gitattributes")
         return found
 
     def _collect_table_counts(p, *items: str) -> Dict[str, int]:
@@ -612,16 +617,18 @@ def test_client_methods(
         assert file_count == 5
 
     # check opening of file
-    values = []
-    for line in fs_client.read_text(t1_files[0], encoding="utf-8").split("\n"):
-        if line:
-            values.append(json.loads(line)["value"])
-    assert values == [1, 2, 3, 4, 5]
+    file_path = t1_files[0]
+    if not file_path.endswith(".parquet"):  # utf-8 codec can't decode parquet
+        values = []
+        for line in fs_client.read_text(file_path, encoding="utf-8").split("\n"):
+            if line:
+                values.append(json.loads(line)["value"])
+        assert values == [1, 2, 3, 4, 5]
 
-    # check binary read
-    assert fs_client.read_bytes(t1_files[0]) == str.encode(
-        fs_client.read_text(t1_files[0], encoding="utf-8")
-    )
+        # check binary read
+        assert fs_client.read_bytes(file_path) == str.encode(
+            fs_client.read_text(file_path, encoding="utf-8")
+        )
 
     # check truncate
     fs_client.truncate_tables(["table_1"])
@@ -827,3 +834,108 @@ def test_cleanup_states_shared_dataset(destination_config: DestinationTestConfig
     assert len(p1_state_files) == 5
 
     assert len(p2_state_files) == 2
+
+
+@pytest.mark.parametrize(
+    "status_code,retry_level",
+    [
+        (412, "tenacity"),
+        (500, "dlt"),
+    ],
+    ids=["conflict-tenacity-retry", "server-error-dlt-retry"],
+)
+def test_hf_commit_retry(default_buckets_env: str, status_code: int, retry_level: str) -> None:
+    """Real pipeline load where first HF commit fails and is retried.
+
+    Pre-uploads go through to real HF storage. Only create_commit is patched to
+    fail on the first call. Depending on the status code:
+    - 412: tenacity catches it and retries internally (same job execution)
+    - 500: tenacity reraises, dlt load engine retries (new job instance)
+    """
+    if not default_buckets_env.startswith("hf://"):
+        pytest.skip("only runs on hf:// protocol")
+
+    import httpx
+    from unittest import mock
+    from huggingface_hub import HfApi
+    from huggingface_hub.errors import HfHubHTTPError
+
+    original_create_commit = HfApi.create_commit
+    commit_call_count = 0
+
+    def fail_first_data_commit(self, *args, **kwargs):
+        nonlocal commit_call_count
+        # only intercept data commits from HfFilesystemCommitJob, not repo init commits
+        commit_message = kwargs.get("commit_message", "")
+        if commit_message.startswith("Add files to "):
+            commit_call_count += 1
+            if commit_call_count == 1:
+                request = httpx.Request("POST", "https://huggingface.co/api/datasets/commit")
+                response = httpx.Response(status_code, request=request)
+                raise HfHubHTTPError(f"HTTP {status_code}", response=response)
+        return original_create_commit(self, *args, **kwargs)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_hf_retry_" + uniq_id(),
+        destination="filesystem",
+        dataset_name="test_" + uniq_id(),
+    )
+
+    @dlt.resource
+    def some_data():
+        yield [{"id": 1, "name": "test"}]
+
+    with mock.patch.object(HfApi, "create_commit", fail_first_data_commit):
+        # both tenacity and dlt-level retries succeed within a single pipeline.run:
+        # - 412: tenacity catches and retries internally (same job execution)
+        # - 500: dlt load engine catches transient error, re-enqueues job, retries in next loop
+        info = pipeline.run(some_data(), table_name="test_data")
+
+    assert info.has_failed_jobs is False
+    assert commit_call_count >= 2
+    assert load_table_counts(pipeline, "test_data") == {"test_data": 1}
+
+
+def test_hf_truncate_tables(default_buckets_env: str) -> None:
+    """Test that HfFilesystemClient.truncate_tables deletes files in a single HF commit."""
+    if not default_buckets_env.startswith("hf://"):
+        pytest.skip("only runs on hf:// protocol")
+
+    from dlt.destinations.impl.filesystem.filesystem import HfFilesystemClient
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_hf_truncate_" + uniq_id(),
+        destination="filesystem",
+        dataset_name="test_" + uniq_id(),
+    )
+
+    @dlt.resource
+    def table_a():
+        yield [{"id": 1}, {"id": 2}]
+
+    @dlt.resource
+    def table_b():
+        yield [{"x": "foo"}, {"x": "bar"}]
+
+    # load data for both tables
+    info = pipeline.run([table_a(), table_b()])
+    assert info.has_failed_jobs is False
+
+    client: HfFilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
+    with client:
+        # verify files exist
+        a_files = client.list_table_files("table_a")
+        b_files = client.list_table_files("table_b")
+        assert len(a_files) > 0
+        assert len(b_files) > 0
+
+        # truncate only table_a
+        client.truncate_tables(["table_a"])
+
+        # table_a files should be gone, table_b files remain
+        assert len(client.list_table_files("table_a")) == 0
+        assert len(client.list_table_files("table_b")) == len(b_files)
+
+        # truncate table_b
+        client.truncate_tables(["table_b"])
+        assert len(client.list_table_files("table_b")) == 0

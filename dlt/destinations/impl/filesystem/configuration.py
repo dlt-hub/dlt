@@ -1,9 +1,11 @@
 import dataclasses
 
-from typing import Final, Optional, Type, Dict, Any
+import os
+from typing import Final, Optional, Type
 
 from dlt.common import logger
 from dlt.common.configuration import configspec, resolve_type
+from dlt.common.configuration.specs.hf_credentials import HfCredentials
 from dlt.common.destination.client import (
     CredentialsConfiguration,
     DestinationClientStagingConfiguration,
@@ -38,3 +40,12 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
         )
         if unused_placeholders:
             logger.info(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")
+
+
+@configspec
+class HfFilesystemDestinationClientConfiguration(FilesystemDestinationClientConfiguration):
+    credentials: HfCredentials
+
+    @property
+    def hf_namespace(self) -> str:
+        return os.path.basename(self.bucket_url)

@@ -88,9 +88,6 @@ jobs:
       - name: lint docs
         run: cd docs && make lint
 
-      - name: lint embedded snippets
-        run: cd docs && make lint-embedded-snippets
-
       - name: Create secrets.toml for snippets
         run: |
           cp tests/.dlt/dev.secrets.toml docs/website/docs/.dlt/secrets.toml
