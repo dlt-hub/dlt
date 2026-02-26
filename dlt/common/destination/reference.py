@@ -31,7 +31,7 @@ from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import is_subclass
 from dlt.common.utils import get_full_callable_name, simple_repr, without_none
-from dlt.common.reflection.ref import is_installed_module, object_from_ref
+from dlt.common.reflection.ref import callable_typechecker, is_installed_module, object_from_ref
 
 
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -407,14 +407,28 @@ class DestinationReference:
         if not isinstance(ref, str):
             raise InvalidDestinationReference(ref)
 
-        factory = cls.find(ref)
-
         if credentials:
             kwargs["credentials"] = credentials
         if destination_name:
             kwargs["destination_name"] = destination_name
         if environment:
             kwargs["environment"] = environment
+
+        try:
+            factory = cls.find(ref)
+        except UnknownDestinationModule:
+            # plain functions from installed packages used as destination_callable (without
+            # @dlt.destination decorator) store their importable path as destination_type
+            # in pipeline state (e.g. "my_pkg.my_func"). find() fails here because the ref
+            # resolves to a function, not a Destination subclass. import it and wrap in the
+            # custom destination factory.
+            if "." in ref:
+                imported, _ = object_from_ref(ref, callable_typechecker)
+                if imported is not None and inspect.isfunction(imported):
+                    dest_factory_cls = cls.find("destination")
+                    return dest_factory_cls(destination_callable=imported, **kwargs)
+            raise
+
         return factory(**kwargs)
 
     @staticmethod
