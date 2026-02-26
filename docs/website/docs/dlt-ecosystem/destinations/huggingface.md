@@ -128,6 +128,10 @@ Each dlt dataset creates or updates a Hugging Face dataset repository (not a dir
 
 All data files for a table and its child tables are committed to the Hub in a single git commit via the `HfApi` client. This minimizes the number of commits, avoids hitting Hugging Face [rate limits](https://huggingface.co/docs/hub/rate-limits#rate-limit-tiers), and prevents commit conflicts.
 
+### No table formats
+
+The `hf` protocol does **not** support the `iceberg` and `delta` table formats.
+
 ### Parquet with page index and CDC
 
 The `hf` protocol defaults to `parquet` file format and always writes files with [page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md) and [CDC](https://huggingface.co/blog/parquet-cdc) support. This enables efficient column statistics and skipping, and is required for the Hugging Face [dataset viewer](https://huggingface.co/docs/dataset-viewer/index) to preview datasets on the Hub.
