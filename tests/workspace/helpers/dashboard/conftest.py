@@ -11,6 +11,8 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     create_no_destination_pipeline,
     create_sync_exception_pipeline,
     create_custom_destination_pipeline,
+    create_custom_dest_callable_pipeline,
+    create_custom_dest_string_ref_pipeline,
 )
 
 
@@ -110,3 +112,15 @@ def sync_exception_pipeline():
 def custom_destination_pipeline():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_custom_destination_pipeline(temp_dir)
+
+
+@pytest.fixture
+def custom_dest_callable_pipeline():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield create_custom_dest_callable_pipeline(temp_dir)
+
+
+@pytest.fixture
+def custom_dest_string_ref_pipeline():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield create_custom_dest_string_ref_pipeline(temp_dir)
