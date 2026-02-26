@@ -88,11 +88,11 @@ catalog="postgres://loader:pass@localhost:5432/dlt_data"
 
 - 🧪 **mysql**: uses the same code path as for **postgres** but we never tested it
 
-- 🧪 **Motherduck** is also available as a catalog database, post version 1.4!
+- 🧪 **Motherduck** is also available as a catalog database, starting with ducklake extension version 1.4 (experimental — expect rough edges).
 
 ```toml
 [destination.ducklake.credentials]
-catalog="md:///URI_TO_YOUR_MD_INSTANCE"
+catalog="md:///<your_motherduck_database>"
 ```
 
 Double check that your Motherduck token is in your environment!
