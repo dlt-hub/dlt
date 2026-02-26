@@ -88,12 +88,14 @@ catalog="postgres://loader:pass@localhost:5432/dlt_data"
 
 - 🧪 **mysql**: uses the same code path as for **postgres** but we never tested it
 
-- 🧪 **motherduck**: theoretically you could use Motherduck as catalog database. We were able to establish connection but unfortunately ducklake 1.2 segfaults when catalog is being attached.
+- 🧪 **Motherduck** is also available as a catalog database, post version 1.4!
+
 ```toml
 [destination.ducklake.credentials]
-catalog="md:///dlt_data"
+catalog="md:///URI_TO_YOUR_MD_INSTANCE"
 ```
-Make sure that you have Motherduck token in your environment. Hopefully situation improves when duckdb 1.4 is supported.
+
+Double check that your Motherduck token is in your environment!
 
 ### Configure storage
 **storage** config reuses configuration of [filesystem](filesystem.md) destination. You can pick the following options:
