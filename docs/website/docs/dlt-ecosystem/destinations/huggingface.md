@@ -157,7 +157,7 @@ max_state_files = 100  # set to 0 or negative to disable cleanup
 
 ## Hugging Face environment variables
 
-You can set Hugging Face [environment variables](https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables) to configure the `huggingface_hub` library that `dlt` uses under the hood. For example, to increase the upload timeout:
+You can set Hugging Face [environment variables](https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables) to configure the `huggingface_hub` library that `dlt` uses under the hood. For example, to increase the download timeout:
 
 ```sh
 HF_HUB_DOWNLOAD_TIMEOUT="30" python run_my_dlt_pipe.py
@@ -176,6 +176,7 @@ import dlt
 def my_data():
     yield [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
 
+# Requires bucket_url = "hf://datasets/<namespace>" in .dlt/secrets.toml
 pipeline = dlt.pipeline(
     pipeline_name="my_pipeline",
     destination="filesystem",
