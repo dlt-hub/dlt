@@ -6,12 +6,17 @@ from dlt.common.destination.exceptions import DestinationException
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming.naming import NamingConvention
 from dlt.common.reflection.exceptions import ReferenceImportError
-from dlt.common.reflection.ref import ImportTrace, callable_typechecker, object_from_ref
+from dlt.common.reflection.ref import (
+    ImportTrace,
+    callable_typechecker,
+    is_installed_module,
+    object_from_ref,
+)
 from dlt.common.typing import AnyFun
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.configuration import known_sections, with_config, get_fun_spec
 from dlt.common.configuration.exceptions import ConfigurationValueError
-from dlt.common.utils import get_callable_name, is_inner_callable
+from dlt.common.utils import get_callable_name, get_full_callable_name, is_inner_callable
 
 from dlt.destinations.impl.destination.configuration import (
     CustomDestinationClientConfiguration,
@@ -115,11 +120,13 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
                 destination_callable = imported_callable
         if not destination_callable:
             logger.warning(
-                "Custom destination callable was not provided, using a dummy placeholder."
-                " Pipeline inspection will work but loading will not. This typically"
-                " happens when a pipeline using @dlt.destination defined in a local"
-                " script is accessed from another process (CLI, dashboard) because the"
-                " callable cannot be imported if it is not part of an installed package."
+                "Could not restore the custom destination callable. This happens when"
+                " CLI commands access a pipeline whose destination callable is defined"
+                " in a local script, because the callable cannot be imported from"
+                " another process. Pipeline inspection and schema access will work from"
+                " CLI, and loading will continue to work when running your script"
+                " directly. To remove this warning, move the callable into an installed"
+                " package."
             )
             destination_callable = dummy_custom_destination
         elif not callable(destination_callable):
@@ -153,6 +160,24 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
             destination_callable=conf_callable,
             **kwargs,
         )
+
+    @property
+    def destination_type(self) -> str:
+        # for synthesized classes (@dlt.destination decorator), defer to base class
+        if getattr(self.__class__, "__is_synthesized_destination__", False):
+            return super().destination_type
+        callable_obj = self.config_params["destination_callable"]
+        # dummy replaces the real callable when it cannot be imported (see __init__),
+        # skip it so we don't store its internal path as destination_type
+        if callable_obj is dummy_custom_destination:
+            return super().destination_type
+        # for plain factory with a resolved callable, check if the callable is from
+        # an installed package and use its importable path as the destination type
+        if not is_inner_callable(callable_obj):
+            ref = get_full_callable_name(callable_obj)
+            if is_installed_module(ref):
+                return ref
+        return super().destination_type
 
     @classmethod
     def adjust_capabilities(
