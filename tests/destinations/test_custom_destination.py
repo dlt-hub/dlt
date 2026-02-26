@@ -19,6 +19,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException, Con
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.utils import get_full_callable_name
 
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
 from dlt.destinations.impl.destination.factory import UnknownCustomDestinationCallable, destination
@@ -341,23 +342,118 @@ def test_destination_type_uses_orig_base_for_non_installed_modules() -> None:
     assert builtin.destination_type == "dlt.destinations.duckdb"
 
 
+@pytest.mark.parametrize(
+    "assume_installed",
+    [True, False],
+)
+def test_destination_type_plain_callable(assume_installed: bool) -> None:
+    """destination_type for a module-level callable passed via destination_callable=func.
+
+    When the callable comes from an installed package, destination_type returns its
+    full importable path (e.g. "my_pkg.my_func"). For non-installed modules (like test
+    files), it falls back to the generic "dlt.destinations.destination".
+    """
+    with patch(
+        "dlt.destinations.impl.destination.factory.is_installed_module",
+        return_value=assume_installed,
+    ):
+        dest = dlt.destination("plain_sink", destination_callable=global_sink_func)
+        expected = (
+            "tests.destinations.test_custom_destination.global_sink_func"
+            if assume_installed
+            else "dlt.destinations.destination"
+        )
+        assert dest.destination_type == expected
+
+
+@pytest.mark.parametrize(
+    "assume_installed",
+    [True, False],
+)
+def test_destination_type_string_ref(assume_installed: bool) -> None:
+    """destination_type for a string ref passed via destination_callable='mod.func'.
+
+    The string is resolved to a function at init time, so the behaviour matches
+    the plain callable case: installed modules get the full importable path,
+    non-installed modules fall back to "dlt.destinations.destination".
+    """
+    with patch(
+        "dlt.destinations.impl.destination.factory.is_installed_module",
+        return_value=assume_installed,
+    ):
+        ref = "tests.destinations.test_custom_destination.global_sink_func"
+        dest = dlt.destination("string_ref_sink", destination_callable=ref)
+        expected = ref if assume_installed else "dlt.destinations.destination"
+        assert dest.destination_type == expected
+
+
+@pytest.mark.parametrize(
+    "assume_installed",
+    [True, False],
+)
+def test_destination_type_inner_callable(assume_installed: bool) -> None:
+    """Inner callables (closures) have '<locals>' in their qualname, which makes
+    them non-importable. destination_type always falls back to the generic
+    "dlt.destinations.destination" regardless of the installed-module check.
+    """
+
+    def make_sink():
+        def inner_sink(items: TDataItems, table: TTableSchema) -> None:
+            pass
+
+        return inner_sink
+
+    inner_func = make_sink()
+
+    with patch(
+        "dlt.destinations.impl.destination.factory.is_installed_module",
+        return_value=assume_installed,
+    ):
+        dest = dlt.destination("inner_sink", destination_callable=inner_func)
+        assert dest.destination_type == "dlt.destinations.destination"
+
+
 def test_custom_destination_cli_info() -> None:
-    """Test that `dlt pipeline <name> info` works for a custom destination pipeline."""
+    """Test that `dlt pipeline <name> info` works for all custom destination patterns."""
     from dlt._workspace.cli import _pipeline_command
 
+    # pattern 1: @dlt.destination decorator
     @dlt.destination
     def my_sink(items, table):
         pass
 
-    p = dlt.pipeline("custom_dest_cli_test", destination=my_sink, dev_mode=True)
+    p = dlt.pipeline("cli_info_decorator", destination=my_sink, dev_mode=True)
     p.run([1, 2, 3], table_name="items")
     assert p.destination.destination_type == "dlt.destinations.destination"
 
-    # attach and run CLI info (simulates `dlt pipeline custom_dest_cli_test info`)
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        _pipeline_command.pipeline_command("info", "custom_dest_cli_test", p.pipelines_dir, 0)
+        _pipeline_command.pipeline_command("info", "cli_info_decorator", p.pipelines_dir, 0)
         info_output = buf.getvalue()
-    assert "custom_dest_cli_test" in info_output
+    assert "cli_info_decorator" in info_output
+
+    # pattern 2: plain callable via destination_callable=func
+    dest_func = dlt.destination("func_sink", destination_callable=global_sink_func)
+    p2 = dlt.pipeline("cli_info_func", destination=dest_func, dev_mode=True)
+    global global_calls
+    global_calls = []
+    p2.run([1, 2, 3], table_name="items")
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command("info", "cli_info_func", p2.pipelines_dir, 0)
+        info_output = buf.getvalue()
+    assert "cli_info_func" in info_output
+
+    # pattern 3: string ref via destination_callable="mod.func"
+    ref = "tests.destinations.test_custom_destination.global_sink_func"
+    dest_str = dlt.destination("str_sink", destination_callable=ref)
+    p3 = dlt.pipeline("cli_info_str", destination=dest_str, dev_mode=True)
+    global_calls = []
+    p3.run([1, 2, 3], table_name="items")
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command("info", "cli_info_str", p3.pipelines_dir, 0)
+        info_output = buf.getvalue()
+    assert "cli_info_str" in info_output
 
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)

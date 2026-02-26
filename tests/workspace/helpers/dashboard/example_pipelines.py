@@ -31,6 +31,8 @@ LOAD_EXCEPTION_PIPELINE = "load_exception_pipeline"
 NO_DESTINATION_PIPELINE = "no_destination_pipeline"
 SYNC_EXCEPTION_PIPELINE = "sync_exception_pipeline"
 CUSTOM_DESTINATION_PIPELINE = "custom_destination_pipeline"
+CUSTOM_DEST_CALLABLE_PIPELINE = "custom_dest_callable_pipeline"
+CUSTOM_DEST_STRING_REF_PIPELINE = "custom_dest_string_ref_pipeline"
 
 ALL_PIPELINES = [
     SUCCESS_PIPELINE_DUCKDB,
@@ -42,6 +44,14 @@ ALL_PIPELINES = [
     SUCCESS_PIPELINE_FILESYSTEM,
     SYNC_EXCEPTION_PIPELINE,
     CUSTOM_DESTINATION_PIPELINE,
+    CUSTOM_DEST_CALLABLE_PIPELINE,
+    CUSTOM_DEST_STRING_REF_PIPELINE,
+]
+
+CUSTOM_DESTINATION_PIPELINES = [
+    CUSTOM_DESTINATION_PIPELINE,
+    CUSTOM_DEST_CALLABLE_PIPELINE,
+    CUSTOM_DEST_STRING_REF_PIPELINE,
 ]
 
 PIPELINES_WITH_EXCEPTIONS = [
@@ -283,6 +293,11 @@ def create_sync_exception_pipeline(pipelines_dir: str = None):
     return pipeline
 
 
+def _dashboard_sink_func(items, table):
+    """Module-level sink used by plain callable and string ref dashboard pipelines."""
+    pass
+
+
 def create_custom_destination_pipeline(pipelines_dir: str = None):
     """Create a test pipeline with a @dlt.destination custom sink"""
 
@@ -294,6 +309,35 @@ def create_custom_destination_pipeline(pipelines_dir: str = None):
         pipeline_name=CUSTOM_DESTINATION_PIPELINE,
         pipelines_dir=pipelines_dir,
         destination=test_sink,
+    )
+
+    pipeline.run([1, 2, 3], table_name="items", schema=dlt.Schema("fruitshop"))
+
+    return pipeline
+
+
+def create_custom_dest_callable_pipeline(pipelines_dir: str = None):
+    """Create a test pipeline with a plain callable passed via destination_callable=func"""
+    dest = dlt.destination("callable_sink", destination_callable=_dashboard_sink_func)
+    pipeline = dlt.pipeline(
+        pipeline_name=CUSTOM_DEST_CALLABLE_PIPELINE,
+        pipelines_dir=pipelines_dir,
+        destination=dest,
+    )
+
+    pipeline.run([1, 2, 3], table_name="items", schema=dlt.Schema("fruitshop"))
+
+    return pipeline
+
+
+def create_custom_dest_string_ref_pipeline(pipelines_dir: str = None):
+    """Create a test pipeline with a string ref passed via destination_callable='mod.func'"""
+    ref = "tests.workspace.helpers.dashboard.example_pipelines._dashboard_sink_func"
+    dest = dlt.destination("string_ref_sink", destination_callable=ref)
+    pipeline = dlt.pipeline(
+        pipeline_name=CUSTOM_DEST_STRING_REF_PIPELINE,
+        pipelines_dir=pipelines_dir,
+        destination=dest,
     )
 
     pipeline.run([1, 2, 3], table_name="items", schema=dlt.Schema("fruitshop"))

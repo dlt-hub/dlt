@@ -19,7 +19,10 @@ from dlt._workspace.helpers.dashboard.utils.visualization import get_steps_data_
 from dlt._workspace.helpers.dashboard.const import TPipelineRunStatus, TVisualPipelineStep
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
+    CUSTOM_DESTINATION_PIPELINES,
     CUSTOM_DESTINATION_PIPELINE,
+    CUSTOM_DEST_CALLABLE_PIPELINE,
+    CUSTOM_DEST_STRING_REF_PIPELINE,
     EXTRACT_EXCEPTION_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
     NO_DESTINATION_PIPELINE,
@@ -44,7 +47,7 @@ def test_get_local_data_path(pipeline: dlt.Pipeline):
     if pipeline.pipeline_name in [
         LOAD_EXCEPTION_PIPELINE,
         NO_DESTINATION_PIPELINE,
-        CUSTOM_DESTINATION_PIPELINE,
+        *CUSTOM_DESTINATION_PIPELINES,
     ]:
         # custom destination does not support local data path
         assert get_local_data_path(pipeline) is None
@@ -91,7 +94,7 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
     elif pipeline.pipeline_name in [
         LOAD_EXCEPTION_PIPELINE,
         "normalize_exception_pipeline",
-        CUSTOM_DESTINATION_PIPELINE,
+        *CUSTOM_DESTINATION_PIPELINES,
     ]:
         # custom destination does not support remote data info
         assert len(result) == 8
@@ -111,6 +114,10 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
         assert details_dict["destination"] == "dummy (dlt.destinations.dummy)"
     elif pipeline.pipeline_name == CUSTOM_DESTINATION_PIPELINE:
         assert details_dict["destination"] == "test_sink (dlt.destinations.destination)"
+    elif pipeline.pipeline_name == CUSTOM_DEST_CALLABLE_PIPELINE:
+        assert details_dict["destination"] == "callable_sink (dlt.destinations.destination)"
+    elif pipeline.pipeline_name == CUSTOM_DEST_STRING_REF_PIPELINE:
+        assert details_dict["destination"] == "string_ref_sink (dlt.destinations.destination)"
     else:
         assert details_dict["destination"] == "duckdb (dlt.destinations.duckdb)"
     assert details_dict["dataset_name"] == pipeline.dataset_name

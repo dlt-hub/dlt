@@ -416,6 +416,7 @@ class DestinationReference:
 
         try:
             factory = cls.find(ref)
+            return factory(**kwargs)
         except UnknownDestinationModule:
             # plain functions from installed packages used as destination_callable (without
             # @dlt.destination decorator) store their importable path as destination_type
@@ -428,8 +429,6 @@ class DestinationReference:
                     dest_factory_cls = cls.find("destination")
                     return dest_factory_cls(destination_callable=imported, **kwargs)
             raise
-
-        return factory(**kwargs)
 
     @staticmethod
     def normalize_type(destination_type: str) -> str:
