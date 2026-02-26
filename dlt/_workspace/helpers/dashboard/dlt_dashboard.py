@@ -1347,7 +1347,10 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     )
 
     # read sections from query params to allow navigation via URL
-    _open_sections = (cast(str, mo.query_params().get("sections")) or "").split(",")
+    try:
+        _open_sections = (cast(str, mo.query_params().get("sections")) or "").split(",")
+    except Exception:
+        _open_sections = []
 
     # page switches
     dlt_section_sync_switch: mo.ui.switch = mo.ui.switch(
