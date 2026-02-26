@@ -85,7 +85,7 @@ The Hugging Face destination supports two write dispositions:
 - `replace` — existing data files for the table are deleted, then the new files are added
 
 :::warning
-`merge` write disposition is **not supported** for the Hugging Face destination. Pipelines using `merge` will raise an error at load time.
+`merge` write disposition is **not supported** for the Hugging Face destination. Pipelines using `merge` will fall back to `append` with a warning.
 :::
 
 ## File format
@@ -120,14 +120,26 @@ layout = "{table_name}/{load_id}.{file_id}.{ext}"
 
 ## Hugging Face-specific behavior
 
-The `hf` protocol has several behaviors that differ from other filesystem protocols:
+### Dataset repositories
 
-- **Dataset repositories**: Each dlt dataset creates or updates a Hugging Face dataset repository (not a directory). The repository name is `<namespace>/<dataset_name>`.
-- **Atomic commits**: All data files for a table and its child tables are committed to the Hub in a single commit. This avoids hitting Hugging Face [rate limits](https://huggingface.co/docs/hub/rate-limits#rate-limit-tiers) and prevents commit conflicts.
-- **Parquet only**: The file format is always Parquet with page index and CDC support (see above).
-- **No table formats**: Delta Lake and Iceberg table formats are not supported.
-- **No merge**: The `merge` write disposition is not supported.
-- **Dual client**: `dlt` uses both the `fsspec`-based `HfFileSystem` client and the native `HfApi` client. The `HfApi` client is used for repository management and atomic commits; the `HfFileSystem` client is used for file reads.
+Each dlt dataset creates or updates a Hugging Face dataset repository (not a directory). The repository name is `<namespace>/<dataset_name>`, where `<namespace>` comes from the `bucket_url` and `<dataset_name>` is the pipeline's `dataset_name`.
+
+### Atomic commits
+
+All data files for a table and its child tables are committed to the Hub in a single git commit via the `HfApi` client. This minimizes the number of commits, avoids hitting Hugging Face [rate limits](https://huggingface.co/docs/hub/rate-limits#rate-limit-tiers), and prevents commit conflicts.
+
+### Parquet with page index and CDC
+
+The `hf` protocol defaults to `parquet` file format and always writes files with [page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md) and [CDC](https://huggingface.co/blog/parquet-cdc) support. This enables efficient column statistics and skipping, and is required for the Hugging Face [dataset viewer](https://huggingface.co/docs/dataset-viewer/index) to preview datasets on the Hub.
+
+### Dual client
+
+`dlt` uses two Hugging Face clients together:
+
+- **`HfApi`** — used for repository management (create/delete repo) and atomic commits
+- **`HfFileSystem`** (fsspec) — used for file reads and DuckDB data access
+
+The fsspec cache is invalidated after each `HfApi` mutation to keep the two clients consistent.
 
 ## Syncing dlt state
 
@@ -185,3 +197,4 @@ If you see authentication errors, verify that:
 1. Your token has **write** access to the target namespace.
 2. The token is correctly set in `hf_token`, `HF_TOKEN`, or via `huggingface-cli login`.
 3. If using a Private Hub, `hf_endpoint` points to the correct URL.
+4. Dataset `dataset_name` exists.
