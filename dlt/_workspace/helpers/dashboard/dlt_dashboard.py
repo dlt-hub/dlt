@@ -1346,33 +1346,44 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         label="<small>Refresh</small>",
     )
 
+    # read sections from query params to allow navigation via URL
+    _open_sections = (cast(str, mo.query_params().get("sections")) or "").split(",")
+
     # page switches
     dlt_section_sync_switch: mo.ui.switch = mo.ui.switch(
         value=True, label="sync" if mo_cli_arg_with_test_identifiers else ""
     )
     dlt_section_info_switch: mo.ui.switch = mo.ui.switch(
-        value=False, label="overview" if mo_cli_arg_with_test_identifiers else ""
+        value="overview" in _open_sections,
+        label="overview" if mo_cli_arg_with_test_identifiers else "",
     )
     dlt_section_schema_switch: mo.ui.switch = mo.ui.switch(
-        value=False, label="schema" if mo_cli_arg_with_test_identifiers else ""
+        value="schema" in _open_sections,
+        label="schema" if mo_cli_arg_with_test_identifiers else "",
     )
     dlt_section_browse_data_switch: mo.ui.switch = mo.ui.switch(
-        value=False, label="data" if mo_cli_arg_with_test_identifiers else ""
+        value="data" in _open_sections,
+        label="data" if mo_cli_arg_with_test_identifiers else "",
     )
     dlt_section_state_switch: mo.ui.switch = mo.ui.switch(
-        value=False, label="state" if mo_cli_arg_with_test_identifiers else ""
+        value="state" in _open_sections,
+        label="state" if mo_cli_arg_with_test_identifiers else "",
     )
     dlt_section_trace_switch: mo.ui.switch = mo.ui.switch(
-        value=False, label="trace" if mo_cli_arg_with_test_identifiers else ""
+        value="trace" in _open_sections,
+        label="trace" if mo_cli_arg_with_test_identifiers else "",
     )
     dlt_section_loads_switch: mo.ui.switch = mo.ui.switch(
-        value=False, label="loads" if mo_cli_arg_with_test_identifiers else ""
+        value="loads" in _open_sections,
+        label="loads" if mo_cli_arg_with_test_identifiers else "",
     )
     dlt_section_ibis_browser_switch: mo.ui.switch = mo.ui.switch(
-        value=False, label="ibis" if mo_cli_arg_with_test_identifiers else ""
+        value="ibis" in _open_sections,
+        label="ibis" if mo_cli_arg_with_test_identifiers else "",
     )
     dlt_section_data_quality_switch: mo.ui.switch = mo.ui.switch(
-        value=False, label="data_quality" if mo_cli_arg_with_test_identifiers else ""
+        value="data_quality" in _open_sections,
+        label="data_quality" if mo_cli_arg_with_test_identifiers else "",
     )
 
     # other switches
