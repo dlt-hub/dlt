@@ -433,7 +433,7 @@ def test_sections_query_param(page: Page, fruit_pipeline: Any):
     expect(page.get_by_role("switch", name="state")).not_to_be_checked()
 
     # verify the trace section content is actually visible
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text("An overview of the last load trace")).to_be_visible()
 
     # verify loads section content is visible
     expect(page.get_by_role("row", name="fruitshop").nth(0)).to_be_visible()
