@@ -1,3 +1,6 @@
+from unittest.mock import MagicMock, patch
+import pytest
+
 from dlt.common.utils import custom_environ
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.configuration import (
@@ -82,3 +85,34 @@ def test_resolve_bucket_url_ignores_foreign_credentials():
     with custom_environ({"CREDENTIALS": "postgres://loader:password@localhost:5432/dlt_data"}):
         fs = filesystem()
         assert not fs.is_hf
+
+
+@pytest.mark.parametrize("hf_dataset_card", [True, False])
+def test_hf_dataset_card_flag(hf_dataset_card: bool) -> None:
+    """Card operations are called only when hf_dataset_card is True."""
+    client = MagicMock(spec=HfFilesystemClient)
+    client.config = MagicMock(spec=HfFilesystemDestinationClientConfiguration)
+    client.config.hf_dataset_card = hf_dataset_card
+    client.repo_id = "org/dataset"
+    client.hf_api = MagicMock()
+    client.fs_client = MagicMock()
+
+    # test create_dataset
+    HfFilesystemClient.create_dataset(client)
+    client.hf_api.create_repo.assert_called_once()
+    if hf_dataset_card:
+        client._safe_card_operation.assert_called_once()
+    else:
+        client._safe_card_operation.assert_not_called()
+
+    client.reset_mock()
+
+    # test complete_load
+    with patch.object(FilesystemClient, "complete_load"):
+        HfFilesystemClient.complete_load(client, "1234567890.123")
+    if hf_dataset_card:
+        client._safe_card_operation.assert_called_once()
+        args = client._safe_card_operation.call_args
+        assert "1234567890.123" in args[0]
+    else:
+        client._safe_card_operation.assert_not_called()
