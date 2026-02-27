@@ -1,6 +1,5 @@
 import abc
 import csv
-from packaging.version import Version
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -8,38 +7,41 @@ from typing import (
     Dict,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Sequence,
     Tuple,
     Type,
-    NamedTuple,
     TypeVar,
+    Union,
     cast,
 )
 
-from dlt.common.json import json
 from dlt.common.configuration import with_config
 from dlt.common.data_writers.exceptions import (
-    SpecLookupFailed,
     DataWriterNotFound,
     FileFormatForItemFormatNotFound,
     FileSpecNotFound,
     InvalidDataItem,
+    SpecLookupFailed,
+)
+from dlt.common.destination import (
+    LOADER_FILE_FORMATS,
+    DestinationCapabilitiesContext,
+    TLoaderFileFormat,
 )
 from dlt.common.destination.configuration import (
+    ArrowIPCFormatConfiguration,
     CsvFormatConfiguration,
     CsvQuoting,
     ParquetFormatConfiguration,
 )
-from dlt.common.destination import (
-    DestinationCapabilitiesContext,
-    TLoaderFileFormat,
-    LOADER_FILE_FORMATS,
-)
 from dlt.common.exceptions import ValueErrorWithKnownValues
+from dlt.common.json import json
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny, TDataItem, TDataItems
+from packaging.version import Version
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
@@ -407,6 +409,118 @@ class ParquetDataWriter(DataWriter):
         )
 
 
+class ArrowIPCDataWriter(DataWriter):
+    """Apache Arrow IPC (Feather v2) file format writer for Python object data.
+
+    This writer converts Python dictionaries/objects to Arrow format and writes to Arrow IPC files.
+
+    Note: The Arrow IPC file's extension is `.arrow` which could be confused with the Arrow data
+    format also used in dlt. `.feather` is the legacy v1 extension and not implemented here.
+    """
+
+    @with_config(spec=ArrowIPCFormatConfiguration)
+    def __init__(
+        self,
+        f: IO[Any],
+        caps: DestinationCapabilitiesContext = None,
+        *,
+        allow_64bit: bool = False,
+        compression: Optional[Literal["lz4", "zstd"]] = None,
+        use_threads: bool = True,
+        emit_dictionary_deltas: bool = False,
+        unify_dictionaries: bool = False,
+        _format: ArrowIPCFormatConfiguration = None,  # will receive the full config
+    ) -> None:
+        """Initialises the Arrow IPC data writer with the given configuration"""
+        super().__init__(f, caps or DestinationCapabilitiesContext.generic_capabilities("arrow"))
+        from dlt.common.libs.pyarrow import pyarrow
+
+        self.writer: Optional[pyarrow.ipc.RecordBatchFileWriter] = None
+        self.schema: Optional[pyarrow.Schema] = None
+        self.nested_indices: List[str] = None
+        self.file_metadata: Optional[Dict[str, str]] = None
+        if self._caps.arrow_ipc_format is not None:
+            self.arrow_ipc_format = self._caps.arrow_ipc_format.copy()
+            self.arrow_ipc_format.update(_format.as_dict_nondefault())
+        else:
+            self.arrow_ipc_format = _format
+
+    def write_header(self, columns_schema: TTableSchemaColumns) -> None:
+        """Converts the schema into Arrow schema, writes it into the Arrow IPC file, and prepares
+        the writer for data rows.
+
+        Args:
+            columns_schema (TTableSchemaColumns): The schema of the columns to be written.
+
+        Returns:
+            None
+        """
+        from dlt.common.libs.pyarrow import columns_to_arrow, pyarrow
+
+        # build schema
+        self.schema = columns_to_arrow(columns_schema, self._caps)
+        # find row items that are of the json type
+        self.nested_indices = [
+            i for i, field in columns_schema.items() if field["data_type"] == "json"
+        ]
+
+        options = pyarrow.ipc.IpcWriteOptions(
+            allow_64bit=self.arrow_ipc_format.allow_64bit,
+            compression=self.arrow_ipc_format.compression,
+            use_threads=self.arrow_ipc_format.use_threads,
+            emit_dictionary_deltas=self.arrow_ipc_format.emit_dictionary_deltas,
+            unify_dictionaries=self.arrow_ipc_format.unify_dictionaries,
+        )
+
+        self.writer = pyarrow.ipc.new_file(self._f, self.schema, options=options)
+
+    def write_data(self, items: Sequence[TDataItem]) -> None:
+        """Converts Python data rows into Arrow records and writes them into the Arrow IPC file
+
+        Args:
+            items (Sequence[TDataItem]): The data items to be written.
+
+        Returns:
+            None
+        """
+        super().write_data(items)
+        from dlt.common.libs.pyarrow import pyarrow
+
+        # serialise json types and replace with strings
+        for key in self.nested_indices:
+            for row in items:
+                if (value := row.get(key)) is not None:
+                    if not isinstance(value, str):
+                        row[key] = json.dumps(value)
+
+        table: pyarrow.Table = pyarrow.Table.from_pylist(items, schema=self.schema)
+        # detect non-null columns receiving nulls. above v.19 it is checked in `write_table`
+        if Version(pyarrow.__version__).major < 19:
+            table = table.cast(self.schema)
+
+        if self.writer:
+            self.writer.write_table(table)
+
+    def close(self) -> None:
+        """Closes the IPC writer"""
+        if self.writer:
+            self.writer.close()
+            self.writer = None
+
+    @classmethod
+    def writer_spec(cls) -> FileWriterSpec:
+        """Returns the writer specification for Arrow IPC file format"""
+        return FileWriterSpec(
+            file_format="arrow",
+            data_item_format="object",
+            file_extension="arrow",
+            is_binary_format=True,
+            supports_schema_changes="False",  # IPC is fixed once the schema is written
+            requires_destination_capabilities=True,
+            supports_compression=False,  # Disabled as Arrow IPC uses internal compression
+        )
+
+
 class CsvWriter(DataWriter):
     @with_config(spec=CsvFormatConfiguration)
     def __init__(
@@ -552,6 +666,84 @@ class ArrowToParquetWriter(ParquetDataWriter):
         )
 
 
+class ArrowToArrowIPCWriter(ArrowIPCDataWriter):
+    """Apache Arrow IPC (Feather v2) file format writer for Arrow data.
+
+    This writer writes Arrow tables/batches directly to Arrow IPC files.
+
+    Note: The Arrow IPC file's extension is `.arrow` which could be confused with the Arrow data
+    format also used in dlt. `.feather` is the legacy v1 extension and not implemented here.
+    """
+
+    def write_header(self, columns_schema: TTableSchemaColumns) -> None:
+        """Writes an Arrow schema to the Arrow IPC file and prepares the writer for data rows
+
+        Args:
+            columns_schema (TTableSchemaColumns): The schema of the columns to be written.
+
+        Returns:
+            None
+        """
+        # Schema will be written as-is from the arrow table
+        self._column_schema = columns_schema
+
+    def write_data(self, items: Sequence[TDataItem]) -> None:
+        """Writes Arrow data rows into the Arrow IPC file
+
+        Args:
+            items (Sequence[TDataItem]): The data items to be written.
+
+        Returns:
+            None
+        """
+        from dlt.common.libs.pyarrow import concat_batches_and_tables_in_order, pyarrow
+
+        if not items:
+            return
+        # concat batches and tables into a single one, preserving order
+        # pyarrow writer starts a record batch for each item it writes (even with 0 rows)
+        # it also converts batches into tables internally. by creating a single table
+        # we allow the user rudimentary control over record batch size via max buffered items
+        table = concat_batches_and_tables_in_order(items)
+        self.items_count += table.num_rows
+
+        if not self.writer:
+            options = pyarrow.ipc.IpcWriteOptions(
+                allow_64bit=self.arrow_ipc_format.allow_64bit,
+                compression=self.arrow_ipc_format.compression,
+                use_threads=self.arrow_ipc_format.use_threads,
+                emit_dictionary_deltas=self.arrow_ipc_format.emit_dictionary_deltas,
+                unify_dictionaries=self.arrow_ipc_format.unify_dictionaries,
+            )
+
+            self.writer = pyarrow.ipc.new_file(self._f, table.schema, options=options)
+
+        if self.writer:
+            self.writer.write_table(table)
+
+    def write_footer(self) -> None:
+        """Finalises the Arrow IPC file writing process."""
+        if not self.writer:
+            raise NotImplementedError("Arrow IPC Writer does not support writing empty files")
+        return super().write_footer()
+
+    def close(self) -> None:
+        return super().close()
+
+    @classmethod
+    def writer_spec(cls) -> FileWriterSpec:
+        """Returns the writer specification for Arrow IPC file format"""
+        return FileWriterSpec(
+            file_format="arrow",
+            data_item_format="arrow",
+            file_extension="arrow",
+            is_binary_format=True,
+            supports_schema_changes="False",  # IPC is fixed once the schema is written
+            requires_destination_capabilities=True,
+            supports_compression=False,  # Disabled as Arrow IPC uses internal compression
+        )
+
+
 class ArrowToCsvWriter(DataWriter):
     @with_config(spec=CsvFormatConfiguration)
     def __init__(
@@ -574,8 +766,8 @@ class ArrowToCsvWriter(DataWriter):
         self._columns_schema = columns_schema
 
     def write_data(self, items: Sequence[TDataItem]) -> None:
-        from dlt.common.libs.pyarrow import pyarrow
         import pyarrow.csv
+        from dlt.common.libs.pyarrow import pyarrow
 
         for item in items:
             if isinstance(item, (pyarrow.Table, pyarrow.RecordBatch)):
@@ -682,8 +874,8 @@ class ArrowToCsvWriter(DataWriter):
         # This is a workaround to create a header which respects the quote style.
         # See https://github.com/apache/arrow/issues/47575 for details.
         # This needs to be removed once https://github.com/apache/arrow/issues/47575 is released.
-        from dlt.common.libs.pyarrow import pyarrow
         import pyarrow.csv
+        from dlt.common.libs.pyarrow import pyarrow
 
         names = [col["name"] for col in self._columns_schema.values()]
         arrays = [pyarrow.array([n]) for n in names]
@@ -751,8 +943,10 @@ ALL_WRITERS: List[Type[DataWriter]] = [
     TypedJsonlListWriter,
     InsertValuesWriter,
     ParquetDataWriter,
+    ArrowIPCDataWriter,
     CsvWriter,
     ArrowToParquetWriter,
+    ArrowToArrowIPCWriter,
     ArrowToInsertValuesWriter,
     ArrowToJsonlWriter,
     ArrowToTypedJsonlListWriter,
