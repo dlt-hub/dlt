@@ -161,7 +161,7 @@ Run `pip install "dlt[gs]"` which will install the `gcfs` package.
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`.
 You'll see AWS credentials by default.
-Use Google cloud credentials that you may know from [BigQuery destination](bigquery.md)
+Use Google cloud credentials that you may know from [BigQuery destination](bigquery)
 ```toml
 [destination.filesystem]
 bucket_url = "gs://[your_bucket_name]" # replace with your bucket name,
@@ -261,6 +261,10 @@ azure_tenant_id = "tenant_id" # please set me up!
 max_concurrency=3
 ```
 :::
+
+### Hugging Face
+
+The filesystem destination supports loading into [Hugging Face Datasets](https://huggingface.co/docs/datasets/index) using the `hf://` protocol. See the [Hugging Face destination](huggingface) page for setup and configuration details.
 
 ### Local file system
 
@@ -543,9 +547,9 @@ The default layout format has changed from `{schema_name}.{table_name}.{load_id}
 
 #### Standard placeholders
 
-* `schema_name` - the name of the [schema](../../general-usage/schema.md)
+* `schema_name` - the name of the [schema](../../general-usage/schema)
 * `table_name` - the table name
-* `load_id` - the ID of the [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) from which the file comes
+* `load_id` - the ID of the [load package](../../general-usage/destination-tables#load-packages-and-load-ids) from which the file comes
 * `file_id` - the ID of the file; if there are many files with data for a single table, they are copied with different file IDs
 * `ext` - the format of the file, i.e., `jsonl` or `parquet`
 
@@ -556,8 +560,8 @@ Keep in mind all values are lowercased.
 
 * `timestamp` - the current timestamp in Unix Timestamp format rounded to seconds
 * `timestamp_ms` - the current timestamp in Unix Timestamp format in milliseconds
-* `load_package_timestamp` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format rounded to seconds
-* `load_package_timestamp_ms` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format in milliseconds
+* `load_package_timestamp` - timestamp from [load package](../../general-usage/destination-tables#load-packages-and-load-ids) in Unix Timestamp format rounded to seconds
+* `load_package_timestamp_ms` - timestamp from [load package](../../general-usage/destination-tables#load-packages-and-load-ids) in Unix Timestamp format in milliseconds
 
 :::note
 Both `timestamp_ms` and `load_package_timestamp_ms` are in milliseconds (e.g., 12334455233), not fractional seconds to ensure millisecond precision without decimals.
@@ -717,15 +721,15 @@ Adopting this layout offers several advantages:
 ## Supported file formats
 
 You can choose the following file formats:
-* [JSONL](../file-formats/jsonl.md) is used by default
-* [Parquet](../file-formats/parquet.md) is supported
-* [CSV](../file-formats/csv.md) is supported
+* [JSONL](../file-formats/jsonl) is used by default
+* [Parquet](../file-formats/parquet) is supported
+* [CSV](../file-formats/csv) is supported
 
 ## Supported table formats
 
 You can choose the following table formats:
-* [Delta table](./delta-iceberg.md)
-* [Iceberg](./iceberg.md)
+* [Delta table](./delta-iceberg)
+* [Iceberg](./iceberg)
 
 ## Syncing of dlt state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files will be created at your destination which hold information about your pipeline state, schemas, and completed loads. These folders DO NOT respect your settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are managed in the regular way by the final destination you have configured.
@@ -737,8 +741,10 @@ When a load generates a new state, for example when using incremental loads, a n
 :::
 
 ## Data access
-`filesystem` implements [`sql_client`](../../general-usage/dataset-access/sql-client.md#the-filesystem-sql-client) which provides read only
-SQL access to files and iceberg/delta tables with duckdb dialect. By default views that are created are "frozen" to minimize reading form bucket.
+`filesystem` implements [`sql_client`](../../general-usage/dataset-access/sql-client#the-filesystem-sql-client) which provides read only
+SQL access to files and iceberg/delta tables with duckdb dialect. This also enables [`pipeline.dataset()`](../../general-usage/dataset-access/dataset), giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
+
+By default views that are created are "frozen" to minimize reading form bucket.
 You can enable views autorefesh:
 
 ```toml

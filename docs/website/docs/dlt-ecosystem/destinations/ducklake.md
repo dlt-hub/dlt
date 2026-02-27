@@ -185,7 +185,7 @@ destination = dlt.destinations.ducklake(
 You have read and write access to the data in ducklake. You can take native duckdb connection with attached catalog and authenticated
 storage using `sql_client`. This is demonstrated in examples below.
 
-[dataset access](../../general-usage/dataset-access/) and **ibis** handover are fully supported.
+[`pipeline.dataset()`](../../general-usage/dataset-access/dataset) and **ibis** handover are fully supported, giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
 
 ### Set catalog options
 Certain **ducklake** options are persisted in the catalog and are set differently than [connection options](#configure-additional-connection-options-pragmas-and-extensions). You can do that from code:

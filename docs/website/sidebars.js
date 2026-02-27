@@ -221,6 +221,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/synapse',
         'dlt-ecosystem/destinations/clickhouse',
         'dlt-ecosystem/destinations/filesystem',
+        'dlt-ecosystem/destinations/huggingface',
         'dlt-ecosystem/destinations/delta-iceberg',
         'dlt-ecosystem/destinations/iceberg',
         'dlt-ecosystem/destinations/postgres',
