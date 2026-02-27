@@ -81,6 +81,14 @@ class LoadDummyBaseJob(RunnableLoadJob):
                 # this will make the job go to a retry state
                 raise DestinationTransientException("a random retry occurred")
 
+            # check table name first to fail
+            if self.config.fail_table_names is not None:
+                table_name = self._parsed_file_name.table_name
+                if table_name in self.config.fail_table_names:
+                    raise DestinationTerminalException(f"table {table_name} configured to fail")
+                else:
+                    break
+
             # fail prob
             c_r = random.random()
             if self.config.fail_prob >= c_r:
