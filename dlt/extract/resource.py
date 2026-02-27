@@ -524,9 +524,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 incremental = self.incremental
 
             if incremental:
-                primary_key = table_schema_template.get("primary_key", incremental.primary_key)
-                if primary_key is not None:
-                    incremental.primary_key = primary_key
+                resource_primary_key = table_schema_template.get("primary_key")
+                if resource_primary_key is not None and incremental.primary_key is None:
+                    incremental.primary_key = resource_primary_key
 
             if table_schema_template.get("validator") is not None:
                 self.validator = table_schema_template["validator"]
