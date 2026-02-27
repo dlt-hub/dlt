@@ -96,6 +96,50 @@ const REDIRECTS = [
         to: "/docs/dlt-ecosystem/verified-sources/rest_api"
     },
 
+    // renamed / relocated pages
+    {
+        from: "/docs/walkthroughs/load-data-from-an-api",
+        to: "/docs/tutorial/load-data-from-an-api"
+    },
+    {
+        from: "/docs/load-data-from-an-api",
+        to: "/docs/tutorial/load-data-from-an-api"
+    },
+    {
+        from: "/docs/destinations/snowflake",
+        to: "/docs/dlt-ecosystem/destinations/snowflake"
+    },
+    {
+        from: "/docs/destinations/duckdb",
+        to: "/docs/dlt-ecosystem/destinations/duckdb"
+    },
+    {
+        from: "/docs/pipelines/salesforce",
+        to: "/docs/dlt-ecosystem/verified-sources/salesforce"
+    },
+    {
+        from: "/docs/dlt-ecosystem/verified-sources/stripe_analytics",
+        to: "/docs/dlt-ecosystem/verified-sources/stripe"
+    },
+    {
+        from: "/docs/dlt-ecosystem/transformations/pandas",
+        to: "/docs/dlt-ecosystem/transformations/python"
+    },
+    {
+        from: "/docs/getting-started/build-a-data-pipeline",
+        to: "/docs/build-a-pipeline-tutorial"
+    },
+
+    // api_reference paths gained a /dlt/ prefix
+    {
+        from: "/docs/api_reference/extract/resource",
+        to: "/docs/api_reference/dlt/extract/resource"
+    },
+    {
+        from: "/docs/api_reference/common/configuration/specs/base_configuration",
+        to: "/docs/api_reference/dlt/common/configuration/specs/base_configuration"
+    },
+
 ]
 
 const ROUTE_404 = "/docs/404";
