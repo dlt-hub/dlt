@@ -1450,7 +1450,10 @@ class HfFilesystemClient(FilesystemClient):
 
         # TODO: make dataset card content configurable
         return DatasetCard(content="").push_to_hub(  # type: ignore[no-any-return]
-            repo_id=self.repo_id, repo_type="dataset", commit_message="Initialize dataset card"
+            repo_id=self.repo_id,
+            token=self.config.credentials.hf_token,
+            repo_type="dataset",
+            commit_message="Initialize dataset card",
         )
 
     @staticmethod
@@ -1481,5 +1484,6 @@ class HfFilesystemClient(FilesystemClient):
             metadata=self.create_dataset_card_metadata(),
             repo_type="dataset",
             overwrite=True,
+            token=self.config.credentials.hf_token,
             commit_message="Update dataset card metadata",
         )
