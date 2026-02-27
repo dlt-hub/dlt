@@ -48,6 +48,10 @@ GitHub Actions workflow DAG:
 Using `dlt` [tracing](tracing.md), you can configure [Sentry](https://sentry.io) DSN to start
 receiving rich information on executed pipelines, including encountered errors and exceptions.
 
+### OpenTelemetry
+
+Using `dlt` `OpenTelemetryCollector` in your pipeline's progress argument, you can automatically export metrics and traces into your `OpenTelemetry` collector of choice. This allows you to get a cloud native open-source option to add observability and alerting to your pipeline, through tools such as `Grafana` or `Prometheus`. See more in the [tracing](tracing.md) documentation.
+
 ## Data monitoring
 
 Data quality monitoring is concerned with ensuring that quality data arrives at the data warehouse
