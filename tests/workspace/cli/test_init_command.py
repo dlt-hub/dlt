@@ -7,6 +7,7 @@ import contextlib
 from subprocess import CalledProcessError
 from typing import List, Tuple, Optional
 import pytest
+import requests_mock as rm
 from unittest import mock
 from pytest import MonkeyPatch
 import re
@@ -883,3 +884,60 @@ def assert_common_files(
         assert secrets.get_value(not_there, type, None, "destination", destination_name)[0] is None
 
     return visitor, secrets
+
+
+# integration tests for scaffold source listing (uses actual scaffold API at localhost:8000)
+
+
+def test_list_sources_includes_scaffold_sources(repo_dir: str) -> None:
+    """Default listing includes scaffold sources section from the API."""
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _init_command.list_sources_command(
+            repo_dir,
+            search_term=None,
+        )
+        _out = buf.getvalue()
+
+    # existing sections still present
+    for source in SOME_KNOWN_VERIFIED_SOURCES + TEMPLATES + CORE_SOURCES:
+        assert source in _out
+
+        # scaffold section present
+    assert "llm-ready docs from dlthub.com/context" in _out
+    # sources ording may change, lets not assume any particular source here
+    assert "Use --search-term <keyword>" in _out
+
+
+def test_list_sources_with_search_term(repo_dir: str) -> None:
+    """Filtered listing shows matching scaffold sources."""
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _init_command.list_sources_command(
+            repo_dir,
+            search_term="ether",
+        )
+        _out = buf.getvalue()
+
+        assert "dlthub.com/context" in _out
+        assert "etherscan" in _out.lower()
+
+
+def test_list_sources_scaffold_api_failure(repo_dir: str, requests_mock: rm.Mocker) -> None:
+    """When scaffold API is unreachable, other sections still display."""
+    requests_mock.get(
+        re.compile(r".*/api/v1/scaffolds/sources"),
+        status_code=404,
+    )
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _init_command.list_sources_command(
+            repo_dir,
+            search_term=None,
+        )
+        _out = buf.getvalue()
+
+    # other sections still present
+    for source in SOME_KNOWN_VERIFIED_SOURCES + TEMPLATES + CORE_SOURCES:
+        assert source in _out
+
+    # warning shown when scaffold API fails
+    assert "WARNING" in _out

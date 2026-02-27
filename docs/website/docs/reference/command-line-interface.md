@@ -525,8 +525,8 @@ Creates a pipeline project in the current folder by adding existing verified sou
 
 **Usage**
 ```sh
-dlt init [-h] [--list-sources] [--list-destinations] [--location LOCATION]
-    [--branch BRANCH] [--eject] [source] [destination]
+dlt init [-h] [--list-sources] [--search-term SEARCH_TERM] [--list-destinations]
+    [--location LOCATION] [--branch BRANCH] [--eject] [source] [destination]
 ```
 
 **Description**
@@ -555,7 +555,8 @@ Inherits arguments from [`dlt`](#dlt).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--list-sources, -l` - Shows all available verified sources and their short descriptions. for each source, it checks if your local `dlt` version requires an update and prints the relevant warning.
+* `--list-sources, -l` - Shows all available sources and their short descriptions. for all core and verified source, it checks if your local `dlt` version requires an update and prints the relevant warning.
+* `--search-term SEARCH_TERM` - Filter sources scaffolds from dlthub.com/context by keyword when used with --list-sources.
 * `--list-destinations` - Shows the name of all core dlt destinations.
 * `--location LOCATION` - Advanced. uses a specific url or local path to verified sources repository.
 * `--branch BRANCH` - Advanced. uses specific branch of the verified sources repository to fetch the template.
