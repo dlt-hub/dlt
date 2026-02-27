@@ -366,16 +366,13 @@ class PipelineTasksGroup(TaskGroup):
                 A source decomposition strategy into Airflow tasks:
                     none - no decomposition, default value.
                     serialize - decompose the source into a sequence of Airflow tasks.
-                    parallel - decompose the source into a parallel Airflow task group,
-                               except the first resource must be completed first.
+                    parallel - decompose the source into a parallel Airflow task group.
                                All tasks that are run in parallel share the same pipeline state.
                                If two of them modify the state, part of state may be lost
                     parallel-isolated - decompose the source into a parallel Airflow task group.
-                               with the same exception as above. All task have separate pipeline
+                               All task have separate pipeline
                                state (via separate pipeline name) but share the same dataset,
                                schemas and tables.
-                NOTE: The first component of the source in both parallel models is done first,
-                      after that the rest are executed in parallel to each other.
                 NOTE: In case the SequentialExecutor is used by Airflow, the tasks
                       will remain sequential despite 'parallel' or 'parallel-isolated' mode.
                       Use another executor (e.g. CeleryExecutor) to make tasks parallel!
@@ -451,10 +448,10 @@ class PipelineTasksGroup(TaskGroup):
                 tasks = []
                 sources = data.decompose("scc")
                 t_name = self._task_name(pipeline, data)
-                start = make_task(pipeline, sources[0])
+                start = EmptyOperator(task_id=f"{t_name}_start")
 
                 # parallel tasks
-                for source in sources[1:]:
+                for source in sources:
                     for resource in source.resources.values():
                         if resource.incremental:
                             logger.warn(
@@ -488,21 +485,17 @@ class PipelineTasksGroup(TaskGroup):
                 tasks = []
                 naming = SnakeCaseNamingConvention()
                 sources = data.decompose("scc")
-                start = make_task(
-                    pipeline,
-                    sources[0],
-                    naming.normalize_identifier(self._task_name(pipeline, sources[0])),
-                )
+                t_name = self._task_name(pipeline, data)
+                start = EmptyOperator(task_id=f"{t_name}_start")
 
                 # parallel tasks
-                for source in sources[1:]:
+                for source in sources:
                     # name pipeline the same as task
                     new_pipeline_name = naming.normalize_identifier(
                         self._task_name(pipeline, source)
                     )
                     tasks.append(make_task(pipeline, source, new_pipeline_name))
 
-                t_name = self._task_name(pipeline, data)
                 end = EmptyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
