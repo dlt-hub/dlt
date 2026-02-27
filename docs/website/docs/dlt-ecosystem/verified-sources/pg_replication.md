@@ -288,3 +288,11 @@ def query_adapter_callback(query, table, incremental=None, _engine=None) -> sa.T
 ```
 
 This approach enables you to track changes based on the `xmin` value instead of a manually defined column, which is especially useful in cases where mutation tracking is needed but a timestamp or serial column is not available.
+
+## Alternative: CDC with Debezium
+
+If you need CDC from other databases, Debezium can be the CDC source and dlt can load the change events into your destination.
+
+In this setup, Debezium runs in-process (via `pydbzengine`). It reads the database's transaction log (for example WAL or binlog) and produces a JSON record for each change. A dlt pipeline loads those records into your destination.
+
+See the [Debezium + dlt demo](https://github.com/dlt-hub/dlt_demos/tree/main/dlt-debezium-demo) for a complete example.
