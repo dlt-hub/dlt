@@ -74,6 +74,28 @@ const REDIRECTS = [
         to: "/docs/hub/intro"
     },
 
+    // top-404 redirects
+    {
+        from: "/docs/dlt-ecosystem/llm-tooling/cursor-restapi",
+        to: "/docs/dlt-ecosystem/llm-tooling/llm-native-workflow"
+    },
+    {
+        from: "/docs/general-usage/filesystem",
+        to: "/docs/dlt-ecosystem/verified-sources/filesystem/"
+    },
+    {
+        from: "/docs/hub/features/projects",
+        to: "/docs/hub/features/project"
+    },
+    {
+        from: "/docs/walkthroughs/",
+        to: "/docs/intro/"
+    },
+    {
+        from: "/docs/dlt-ecosystem/verified-sources/rest_api/reference",
+        to: "/docs/dlt-ecosystem/verified-sources/rest_api"
+    },
+
 ]
 
 const ROUTE_404 = "/docs/404";
