@@ -476,6 +476,19 @@ The `filesystem` destination behaves different for `hf` compared to other protoc
 To be able to implement this specific behavior, `dlt` uses the non-`fsspec` based `HfApi` client in addition to the `fsspec`-based `HfFileSystem` client.
 :::
 
+#### Dataset repository visibility
+The Hugging Face dataset repositories created by `dlt` are **public**, unless your Hugging Face organization's default is private.
+
+#### Dataset card
+`dlt` creates a [dataset card](https://huggingface.co/docs/datasets/dataset_card) (i.e. the repo's `README.md`) without any content (but with metadata). You can manually update the dataset card to e.g. add a dataset description.
+
+:::note
+Do not manually change the [configurations](https://huggingface.co/docs/datasets/repository_structure#configurations) specified in the `YAML` metadata section. This metadata defines the subsets (see next section) and is managed by `dlt`.
+:::
+
+#### Subsets and split
+`dlt` creates a [subset](https://huggingface.co/docs/dataset-viewer/en/configs_and_splits#subsets) for each table in the dataset, so the dataset viewer displays each table properly. All data is loaded into the `train` [split](https://huggingface.co/docs/dataset-viewer/en/configs_and_splits#splits).
+
 #### Hugging Face environment variables
 You can set Hugging Face [environment variables](https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables) to configure the `huggingface_hub` library that `dlt` uses under the hood to connect to Hugging Face. For example, to increase the download timeout:
 ```sh

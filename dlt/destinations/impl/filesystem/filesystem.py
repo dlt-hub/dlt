@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from pathlib import Path
 import posixpath
 import os
 import time as _time
@@ -96,6 +99,7 @@ from dlt.destinations.utils import (
 )
 
 if TYPE_CHECKING:
+    import huggingface_hub
     from dlt.destinations.impl.filesystem.iceberg_adapter import PartitionSpec
 
 CURRENT_VERSION: int = 2
@@ -1355,11 +1359,16 @@ class HfFilesystemClient(FilesystemClient):
 
     def create_dataset(self) -> None:
         self.hf_api.create_repo(repo_id=self.repo_id, repo_type="dataset")
+        self.init_dataset_card()
         self.fs_client.invalidate_cache()
 
     def drop_dataset(self) -> None:
         self.hf_api.delete_repo(repo_id=self.repo_id, repo_type="dataset")
         self.fs_client.invalidate_cache()
+
+    def complete_load(self, load_id: str) -> None:
+        self.update_dataset_card_metadata()
+        super().complete_load(load_id)
 
     def _collect_delete_operations(self, table_names: List[str]) -> List[Any]:
         """Collect CommitOperationDelete ops for files belonging to given tables."""
@@ -1418,8 +1427,59 @@ class HfFilesystemClient(FilesystemClient):
         else:
             return HfFilesystemUploadJob
 
+    def to_path_in_repo(self, path: str) -> str:
+        """Strips dataset path prefix to return path relative to repo root."""
+        return str(Path(path).relative_to(self.dataset_path))
+
+    def list_table_files_in_repo(self, table_name: str) -> List[str]:
+        """Lists files for `table_name` with paths relative to repo root."""
+        return [self.to_path_in_repo(path) for path in self.list_table_files(table_name)]
+
     @staticmethod
     def get_reference_followup_job_class(
         table: PreparedTableSchema,
     ) -> Type[HfFilesystemCommitJob]:
         return HfFilesystemCommitJob
+
+    #
+    # Dataset card management
+    #
+
+    def init_dataset_card(self) -> huggingface_hub.CommitInfo:
+        from huggingface_hub import DatasetCard
+
+        # TODO: make dataset card content configurable
+        return DatasetCard(content="").push_to_hub(  # type: ignore[no-any-return]
+            repo_id=self.repo_id, repo_type="dataset", commit_message="Initialize dataset card"
+        )
+
+    @staticmethod
+    def create_dataset_card_metadata_config(
+        config_name: str, data_file_paths: List[str]
+    ) -> Dict[str, Any]:
+        return {
+            "config_name": config_name,
+            "data_files": [{"split": "train", "path": [path for path in data_file_paths]}],
+        }
+
+    def create_dataset_card_metadata_configs(self) -> List[Dict[str, Any]]:
+        return [
+            self.create_dataset_card_metadata_config(
+                config_name=table_name, data_file_paths=self.list_table_files_in_repo(table_name)
+            )
+            for table_name in self.schema.data_table_names(seen_data_only=True)
+        ]
+
+    def create_dataset_card_metadata(self) -> Dict[str, Any]:
+        return {"configs": self.create_dataset_card_metadata_configs()}
+
+    def update_dataset_card_metadata(self) -> str:
+        from huggingface_hub import metadata_update
+
+        return metadata_update(
+            repo_id=self.repo_id,
+            metadata=self.create_dataset_card_metadata(),
+            repo_type="dataset",
+            overwrite=True,
+            commit_message="Update dataset card metadata",
+        )

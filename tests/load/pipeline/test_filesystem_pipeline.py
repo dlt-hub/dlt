@@ -10,6 +10,8 @@ import pytest
 
 from dlt.common import json
 from dlt.common import pendulum
+from dlt.common.normalizers.json.relational import DataItemNormalizer
+from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TFileFormat, TPartialTableSchema
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.destinations import filesystem
@@ -412,9 +414,10 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
         for basedir, _dirs, files in client.fs_client.walk(client.dataset_path):
             for file in files:
                 found.append(os.path.join(basedir, file).replace(client.dataset_path, ""))
-        # exclude .gitattributes file that is automatically created in Hugging Face datasets
+        # remove additional files that are unique to `hf``
         if client.config.protocol == "hf":
             found.remove(".gitattributes")
+            found.remove("README.md")
         return found
 
     def _collect_table_counts(p, *items: str) -> Dict[str, int]:
@@ -939,3 +942,176 @@ def test_hf_truncate_tables(default_buckets_env: str) -> None:
         # truncate table_b
         client.truncate_tables(["table_b"])
         assert len(client.list_table_files("table_b")) == 0
+
+
+@pytest.mark.parametrize(
+    "file_format,layout,expected_ext",
+    [
+        ("parquet", "{schema_name}/{table_name}/{load_id}.{file_id}.foo.{ext}", ".foo.parquet"),
+        ("jsonl", "{table_name}-{load_id}.{file_id}-bar.{ext}", "-bar.jsonl.gz"),
+    ],
+)
+def test_hf_dataset_card(
+    default_buckets_env: str, file_format: TFileFormat, layout: str, expected_ext: str
+) -> None:
+    """Tests that the Hugging Face dataset card (README.md) is created and updated correctly.
+
+    Specifically, it verifies that subset configurations are added to the card for each table in the
+    dataset.
+    """
+    if not default_buckets_env.startswith("hf://"):
+        pytest.skip("only runs on hf:// protocol")
+
+    from datasets import load_dataset  # type: ignore[import-untyped]
+    from huggingface_hub import DatasetCardData
+    from dlt.destinations.impl.filesystem.filesystem import HfFilesystemClient
+
+    def create_expected_config(table_name: str, table_files: List[str]) -> Dict[str, Any]:
+        return {"config_name": table_name, "data_files": [{"split": "train", "path": table_files}]}
+
+    def get_dataset_card_data(client: HfFilesystemClient) -> DatasetCardData:
+        dataset_info = client.hf_api.dataset_info(repo_id=client.repo_id)
+        card_data = dataset_info.card_data
+        assert card_data is not None  # we always add card data
+        return card_data
+
+    def assert_dataset_card_configs(
+        client: HfFilesystemClient, tables: Dict[str, List[str]]
+    ) -> None:
+        expected_configs = [
+            create_expected_config(table_name, table_files)
+            for table_name, table_files in tables.items()
+        ]
+        card_data = get_dataset_card_data(client)
+        assert card_data.configs == expected_configs  # type: ignore[attr-defined]
+
+    # define resources, pipeline, client
+    table_a_name = "a"
+    table_b_name = "b"
+    nested_column_name = "child"
+    table_a_child_name = table_a_name + "__" + nested_column_name
+    table_a_data = [{"a": 1, nested_column_name: [1, 2]}]  # one row
+    table_b_data = [{"b": 1}, {"b": 2}]  # two rows
+    res_a = dlt.resource(table_a_data, name=table_a_name, file_format=file_format)
+    res_b = dlt.resource(table_b_data, name=table_b_name, file_format=file_format)
+    pipe = dlt.pipeline(
+        pipeline_name="hf_test_dataset_card_" + uniq_id(),
+        destination=filesystem(layout=layout),
+    )
+    client: HfFilesystemClient = pipe.destination_client()  # type: ignore[assignment]
+
+    # load table a
+    pipe.run(res_a)
+
+    # dataset card (README.md) should be created
+    assert client.hf_api.file_exists(
+        repo_id=client.repo_id,
+        filename="README.md",
+        repo_type="dataset",
+    )
+
+    # dataset card metadata should have config for table a
+    table_a_files_in_repo = client.list_table_files_in_repo(table_a_name)
+    table_a_child_files_in_repo = client.list_table_files_in_repo(table_a_child_name)
+    assert len(table_a_files_in_repo) == 1
+    assert len(table_a_child_files_in_repo) == 1
+    assert all(file_path.endswith(expected_ext) for file_path in table_a_files_in_repo)
+    assert_dataset_card_configs(
+        client,
+        {table_a_name: table_a_files_in_repo, table_a_child_name: table_a_child_files_in_repo},
+    )
+
+    # load dataset a by config name and verify content
+    dataset_path = "dlthub/" + pipe.dataset_name
+    dataset_a = load_dataset(dataset_path, name=table_a_name, split="train")
+    assert dataset_a.num_rows == 1
+    assert dataset_a.column_names == ["a", C_DLT_LOAD_ID, C_DLT_ID]
+
+    # same for dataset a child
+    dataset_a_child = load_dataset(dataset_path, name=table_a_child_name, split="train")
+    assert dataset_a_child.num_rows == 2
+    assert dataset_a_child.column_names == [
+        "value",
+        DataItemNormalizer.C_DLT_PARENT_ID,
+        DataItemNormalizer.C_DLT_LIST_IDX,
+        C_DLT_ID,
+    ]
+
+    # add empty table to schema, we will not load data into it, and it should not be included in
+    # dataset card configs
+    empty_table: TPartialTableSchema = {
+        "name": "empty",
+        "columns": {"c": {"name": "c", "data_type": "text"}},
+    }
+    schema = pipe.default_schema
+    schema.update_table(empty_table)
+    assert empty_table["name"] in schema.data_table_names(seen_data_only=False)
+    assert empty_table["name"] not in schema.data_table_names(seen_data_only=True)
+
+    # append data to table a
+    pipe.run(res_a, write_disposition="append")
+
+    # dataset card config for table a should be updated with new data file
+    table_a_files_in_repo = client.list_table_files_in_repo(table_a_name)
+    table_a_child_files_in_repo = client.list_table_files_in_repo(table_a_child_name)
+    assert len(table_a_files_in_repo) == 2
+    assert len(table_a_child_files_in_repo) == 2
+    assert_dataset_card_configs(
+        client,
+        {table_a_name: table_a_files_in_repo, table_a_child_name: table_a_child_files_in_repo},
+    )
+
+    # load dataset a by config name again and verify it now has two rows
+    dataset_a = load_dataset(dataset_path, name=table_a_name, split="train")
+    assert dataset_a.num_rows == 2
+
+    # same for dataset a child
+    dataset_a_child = load_dataset(dataset_path, name=table_a_child_name, split="train")
+    assert dataset_a_child.num_rows == 4
+
+    # load table b
+    pipe.run(res_b)
+
+    # config for table b should be added to dataset card, existing configs for table a should remain
+    table_b_files_in_repo = client.list_table_files_in_repo(table_b_name)
+    assert len(table_b_files_in_repo) == 1
+    assert_dataset_card_configs(
+        client,
+        {
+            table_a_name: table_a_files_in_repo,
+            table_a_child_name: table_a_child_files_in_repo,
+            table_b_name: table_b_files_in_repo,
+        },
+    )
+
+    # load dataset b by config name and verify content
+    dataset_b = load_dataset(dataset_path, name=table_b_name, split="train")
+    assert dataset_b.num_rows == 2
+    assert dataset_b.column_names == ["b", C_DLT_LOAD_ID, C_DLT_ID]
+
+    # replace data in both tables
+    pipe.run([res_a, res_b], write_disposition="replace")
+
+    # dataset card config for both tables should be updated and include only new files
+    table_a_files_in_repo = client.list_table_files_in_repo(table_a_name)
+    table_a_child_files_in_repo = client.list_table_files_in_repo(table_a_child_name)
+    table_b_files_in_repo = client.list_table_files_in_repo(table_b_name)
+    assert len(table_a_files_in_repo) == 1
+    assert len(table_a_child_files_in_repo) == 1
+    assert len(table_b_files_in_repo) == 1
+    assert_dataset_card_configs(
+        client,
+        {
+            table_a_name: table_a_files_in_repo,
+            table_a_child_name: table_a_child_files_in_repo,
+            table_b_name: table_b_files_in_repo,
+        },
+    )
+
+    # load all datasets again and verify row counts
+    dataset_a = load_dataset(dataset_path, name=table_a_name, split="train")
+    assert dataset_a.num_rows == 1
+    dataset_a_child = load_dataset(dataset_path, name=table_a_child_name, split="train")
+    assert dataset_a_child.num_rows == 2
+    dataset_b = load_dataset(dataset_path, name=table_b_name, split="train")
+    assert dataset_b.num_rows == 2

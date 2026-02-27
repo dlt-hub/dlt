@@ -293,6 +293,7 @@ pipeline = [
     "pyarrow>=16.0.0",
     # this pandas and above has functional numpy dependency
     "pandas>=2.1.4",
+    "datasets>=4.5.0",
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
 ibis = [
