@@ -59,12 +59,15 @@ Authentication is attempted in that order of priority: `hf_token` config → `HF
 
 ### Private Hub endpoint
 
-By default, `https://huggingface.co` is used as the API endpoint. To use a [Private Hub](https://huggingface.co/docs/hub/enterprise-hub) or a self-hosted endpoint, set `hf_endpoint`:
+By default, `https://huggingface.co` is used as the API endpoint. To use a [Private Hub](https://huggingface.co/docs/hub/enterprise-hub) or a self-hosted endpoint, set the `HF_ENDPOINT` [environment variable](#hugging-face-environment-variables):
 
-```toml
-[destination.filesystem.credentials]
-hf_endpoint = "https://your-private-hub.example.com"
+```sh
+export HF_ENDPOINT="https://your-private-hub.example.com"
 ```
+
+:::note
+dlt also supports `hf_endpoint` in the configuration, but this only configures the filesystem and API clients — not the [dataset card](#dataset-card) operations. Use `HF_ENDPOINT` to ensure all operations target the correct endpoint.
+:::
 
 ### Full example configuration
 
@@ -74,7 +77,6 @@ bucket_url = "hf://datasets/my-org"
 
 [destination.filesystem.credentials]
 hf_token = "hf_..."
-# hf_endpoint = "https://your-private-hub.example.com"  # optional
 ```
 
 ## Write disposition
@@ -135,6 +137,16 @@ Do not manually change the [configurations](https://huggingface.co/docs/datasets
 
 ### Subsets and split
 `dlt` creates a [subset](https://huggingface.co/docs/dataset-viewer/en/configs_and_splits#subsets) for each table in the dataset, so the dataset viewer displays each table properly. All data is loaded into the `train` [split](https://huggingface.co/docs/dataset-viewer/en/configs_and_splits#splits).
+
+### Disabling dataset card management
+To disable automatic dataset card creation and metadata updates (e.g. to reduce API calls and avoid [rate limits](https://huggingface.co/docs/hub/rate-limits#rate-limit-tiers)), set `hf_dataset_card` to `false`:
+
+```toml
+[destination.filesystem]
+hf_dataset_card = false
+```
+
+When disabled, the dataset viewer will not display table subsets, but data loading is unaffected.
 
 ### Atomic commits
 
@@ -213,5 +225,5 @@ If you see authentication errors, verify that:
 
 1. Your token has **write** access to the target namespace.
 2. The token is correctly set in `hf_token`, `HF_TOKEN`, or via `huggingface-cli login`.
-3. If using a Private Hub, `hf_endpoint` points to the correct URL.
+3. If using a Private Hub, `HF_ENDPOINT` is set to the correct URL.
 4. Dataset `dataset_name` exists.
