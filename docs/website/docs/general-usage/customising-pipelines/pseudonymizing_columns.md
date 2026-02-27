@@ -6,54 +6,114 @@ keywords: [pseudonymize, anonymize, columns, special characters]
 
 # Pseudonymizing columns
 
-Pseudonymization is a deterministic way to hide personally identifiable information (PII), enabling us to consistently achieve the same mapping. If instead you wish to anonymize, you can delete the data or replace it with a constant. In the example below, we create a dummy source with a PII column called "name", which we replace with deterministic hashes (i.e., replacing the German umlaut).
+Pseudonymization is a deterministic way to hide personally identifiable information (PII), enabling us to consistently achieve the same mapping. If instead you wish to anonymize, you can delete the data or replace it with a constant.
+
+## Masking columns with a closure
+
+In real-world scenarios, you typically want to mask specific columns dynamically rather than hardcoding column names. The example below shows a realistic approach using a closure that works with all backends supported by the `sql_database` source (PyArrow, ConnectorX, Pandas, and SQLAlchemy).
 
 ```py
+from enum import Enum
+from typing import Any, Callable, Optional
+
+import pyarrow as pa
+import pandas as pd
 import dlt
-import hashlib
 
-@dlt.source
-def dummy_source(prefix: str = None):
-    @dlt.resource
-    def dummy_data():
-        for _ in range(3):
-            yield {'id': _, 'name': f'Jane Washington {_}'}
-    return dummy_data(),
 
-def pseudonymize_name(doc):
-    '''
-    Pseudonymization is a deterministic type of PII-obscuring.
-    Its role is to allow identifying users by their hash,
-    without revealing the underlying info.
-    '''
-    # add a constant salt to generate
-    salt = 'WI@N57%zZrmk#88c'
-    salted_string = doc['name'] + salt
-    sh = hashlib.sha256()
-    sh.update(salted_string.encode())
-    hashed_string = sh.digest().hex()
-    doc['name'] = hashed_string
-    return doc
+class MaskingMethod(str, Enum):
+    MASK = "mask"
+    NULLIFY = "nullify"
 
-# run it as is
-for row in dummy_source().dummy_data.add_map(pseudonymize_name):
-    print(row)
 
-#{'id': 0, 'name': '96259edb2b28b48bebce8278c550e99fbdc4a3fac8189e6b90f183ecff01c442'}
-#{'id': 1, 'name': '92d3972b625cbd21f28782fb5c89552ce1aa09281892a2ab32aee8feeb3544a1'}
-#{'id': 2, 'name': '443679926a7cff506a3b5d5d094dc7734861352b9e0791af5d39db5a7356d11a'}
+def mask_columns(
+    columns: list[str],
+    method: Optional[MaskingMethod] = None,
+    mask: str = "******",
+) -> Callable[..., Any]:
+    """Mask specified columns in a table or row.
 
-# Or create an instance of the data source, modify the resource and run the source.
+    All backends supported by the sql_database source, as of version 1.4.1, are
+    supported. See https://github.com/dlt-hub/dlt/blob/devel/dlt/sources/sql_database/helpers.py#L50
 
-# 1. Create an instance of the source so you can edit it.
-source_instance = dummy_source()
-# 2. Modify this source instance's resource
-data_resource = source_instance.dummy_data.add_map(pseudonymize_name)
-# 3. Inspect your result
-for row in source_instance:
-    print(row)
+    Args:
+        columns (list[str]): The list of columns to mask.
+        method (Optional[MaskingMethod]): The masking method to use (MASK or NULLIFY).
+        mask (str): The mask string to use when method is MASK.
 
-pipeline = dlt.pipeline(pipeline_name='example', destination='bigquery', dataset_name='normalized_data')
-load_info = pipeline.run(source_instance)
+    Returns:
+        Callable: A function that masks the specified columns in a table or row.
+
+    """
+    resolved_method: MaskingMethod = method if method is not None else MaskingMethod.MASK
+
+    def apply_masking(
+        table_or_row: Any,
+    ) -> Any:
+        # Handle `pyarrow` and `connectorx` backends.
+        if isinstance(table_or_row, pa.Table):
+            table = table_or_row
+            for col in table.schema.names:
+                if col in columns:
+                    if resolved_method == MaskingMethod.MASK:
+                        replace_with = pa.array([mask] * table.num_rows)
+                    elif resolved_method == MaskingMethod.NULLIFY:
+                        replace_with = pa.nulls(
+                            table.num_rows, type=table.schema.field(col).type
+                        )
+                    table = table.set_column(
+                        table.schema.get_field_index(col),
+                        col,
+                        replace_with,
+                    )
+            return table
+
+        # Handle `pandas` backend.
+        if isinstance(table_or_row, pd.DataFrame):
+            table = table_or_row
+
+            for col in table.columns:
+                if col in columns:
+                    if resolved_method == MaskingMethod.MASK:
+                        table[col] = mask
+                    elif resolved_method == MaskingMethod.NULLIFY:
+                        table[col] = None
+            return table
+
+        # Handle `sqlalchemy` backend.
+        if isinstance(table_or_row, dict):
+            row = table_or_row
+            for col in row:
+                if col in columns:
+                    if resolved_method == MaskingMethod.MASK:
+                        row[col] = mask
+                    elif resolved_method == MaskingMethod.NULLIFY:
+                        row[col] = None
+            return row
+
+        # Handle unsupported table types.
+        msg = f"Unsupported table type: {type(table_or_row)}. Supported backends: (pyarrow, connectorx, pandas, sqlalchemy)."
+        raise NotImplementedError(msg)
+
+    return apply_masking
+
+
+# Usage example with sql_database source
+from dlt.sources.sql_database import sql_table
+
+# Mask the 'password' and 'ssn' columns in a table
+table = sql_table(table="users")
+table.add_map(mask_columns(columns=["password", "ssn"]))
+
+pipeline = dlt.pipeline(pipeline_name='example', destination='bigquery', dataset_name='masked_data')
+load_info = pipeline.run(table)
+
+# Or use NULLIFY method to replace with NULL instead of a mask string
+table = sql_table(table="users")
+table.add_map(mask_columns(columns=["password", "ssn"], method=MaskingMethod.NULLIFY))
+
+pipeline = dlt.pipeline(pipeline_name='example', destination='bigquery', dataset_name='masked_data')
+load_info = pipeline.run(table)
 ```
 
+This approach uses a closure to capture the `columns`, `method`, and `mask` parameters, allowing you to reuse the same masking logic across different resources with different column configurations. The function automatically handles different data formats (PyArrow tables, Pandas DataFrames, and dictionaries) depending on the backend used by your source.
