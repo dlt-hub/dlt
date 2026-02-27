@@ -870,7 +870,7 @@ def test_hf_commit_retry(default_buckets_env: str, status_code: int, retry_level
         nonlocal commit_call_count
         # only intercept data commits from HfFilesystemCommitJob, not repo init commits
         commit_message = kwargs.get("commit_message", "")
-        if commit_message.startswith("Add files to "):
+        if "add files to " in commit_message:
             commit_call_count += 1
             if commit_call_count == 1:
                 request = httpx.Request("POST", "https://huggingface.co/api/datasets/commit")
