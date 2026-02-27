@@ -948,7 +948,8 @@ def test_hf_truncate_tables(default_buckets_env: str) -> None:
     "file_format,layout,expected_ext",
     [
         ("parquet", "{schema_name}/{table_name}/{load_id}.{file_id}.foo.{ext}", ".foo.parquet"),
-        ("jsonl", "{table_name}-{load_id}.{file_id}-bar.{ext}", "-bar.jsonl.gz"),
+        # removed to avoid rate limits
+        # ("jsonl", "{table_name}-{load_id}.{file_id}-bar.{ext}", "-bar.jsonl.gz"),
     ],
 )
 def test_hf_dataset_card(
