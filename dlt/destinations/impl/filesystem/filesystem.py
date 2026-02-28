@@ -420,18 +420,26 @@ class HfFilesystemCommitJob(ReferenceFollowupJob):
         if delete_ops:
             operations = delete_ops + operations
 
+        table_names = list(
+            dict.fromkeys(
+                ParsedLoadJobFileName.parse(self._job_client.pathlib.basename(path)).table_name
+                for path in self.file_paths
+            )
+        )
+        tables_str = ", ".join(table_names)
+
         start = _time.monotonic()
         self._job_client.hf_api.create_commit(
             repo_id=self._job_client.repo_id,
             operations=operations,
-            commit_message=f"Add files to {self.load_table_name}",
+            commit_message=f"Load {self._load_id}: add files to {tables_str}",
             repo_type="dataset",
         )
         elapsed = _time.monotonic() - start
         n_adds = len(self.file_paths)
         n_deletes = len(delete_ops) if delete_ops else 0
         logger.info(
-            f"HF commit to {self._job_client.repo_id} for {self.load_table_name}"
+            f"HF commit to {self._job_client.repo_id} for {tables_str}"
             f" ({n_adds} added, {n_deletes} deleted) completed in {elapsed:.1f}s"
         )
         self._job_client.fs_client.invalidate_cache()
@@ -1355,11 +1363,20 @@ class HfFilesystemClient(FilesystemClient):
 
     def create_dataset(self) -> None:
         self.hf_api.create_repo(repo_id=self.repo_id, repo_type="dataset")
+        if self.config.hf_dataset_card:
+            self._safe_card_operation("initialize dataset card", self.init_dataset_card)
         self.fs_client.invalidate_cache()
 
     def drop_dataset(self) -> None:
         self.hf_api.delete_repo(repo_id=self.repo_id, repo_type="dataset")
         self.fs_client.invalidate_cache()
+
+    def complete_load(self, load_id: str) -> None:
+        if self.config.hf_dataset_card:
+            self._safe_card_operation(
+                "update dataset card metadata", self.update_dataset_card_metadata, load_id
+            )
+        super().complete_load(load_id)
 
     def _collect_delete_operations(self, table_names: List[str]) -> List[Any]:
         """Collect CommitOperationDelete ops for files belonging to given tables."""
@@ -1418,8 +1435,79 @@ class HfFilesystemClient(FilesystemClient):
         else:
             return HfFilesystemUploadJob
 
+    def to_path_in_repo(self, path: str) -> str:
+        """Strips dataset path prefix to return path relative to repo root."""
+        return self.pathlib.relpath(path, self.dataset_path)  # type: ignore[no-any-return]
+
+    def list_table_files_in_repo(self, table_name: str) -> List[str]:
+        """Lists files for `table_name` with paths relative to repo root."""
+        return [self.to_path_in_repo(path) for path in self.list_table_files(table_name)]
+
     @staticmethod
     def get_reference_followup_job_class(
         table: PreparedTableSchema,
     ) -> Type[HfFilesystemCommitJob]:
         return HfFilesystemCommitJob
+
+    def _safe_card_operation(self, operation: str, func: Any, *args: Any) -> None:
+        """Run a dataset card operation with retry and exception swallowing.
+
+        Card operations are non-critical — a failure should not break data loads.
+        """
+        try:
+            retry(
+                wait=wait_exponential(multiplier=1, max=10),
+                stop=stop_after_attempt(3),
+                reraise=True,
+            )(func)(*args)
+        except Exception as ex:
+            logger.warning(
+                f"Failed to {operation} for {self.repo_id} after retries,"
+                f" skipping: {type(ex).__name__}: {ex}"
+            )
+
+    def init_dataset_card(self) -> None:
+        from huggingface_hub import DatasetCard
+
+        # TODO: make dataset card content configurable
+        DatasetCard(content="").push_to_hub(
+            repo_id=self.repo_id,
+            token=self.config.credentials.hf_token,
+            repo_type="dataset",
+            commit_message="Initialize dataset card",
+        )
+
+    @staticmethod
+    def create_dataset_card_metadata_config(
+        config_name: str, data_file_paths: List[str]
+    ) -> Dict[str, Any]:
+        return {
+            "config_name": config_name,
+            "data_files": [{"split": "train", "path": data_file_paths}],
+        }
+
+    def create_dataset_card_metadata_configs(self) -> List[Dict[str, Any]]:
+        return [
+            self.create_dataset_card_metadata_config(
+                config_name=table_name, data_file_paths=self.list_table_files_in_repo(table_name)
+            )
+            for table_name in self.schema.data_table_names(seen_data_only=True)
+        ]
+
+    def create_dataset_card_metadata(self) -> Dict[str, Any]:
+        return {"configs": self.create_dataset_card_metadata_configs()}
+
+    def update_dataset_card_metadata(self, load_id: str) -> None:
+        from huggingface_hub import metadata_update
+
+        table_names = list(self.schema.data_table_names(seen_data_only=True))
+        metadata_update(
+            repo_id=self.repo_id,
+            metadata=self.create_dataset_card_metadata(),
+            repo_type="dataset",
+            overwrite=True,
+            token=self.config.credentials.hf_token,
+            commit_message=(
+                f"Load {load_id}: update dataset card metadata for {', '.join(table_names)}"
+            ),
+        )
