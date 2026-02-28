@@ -79,7 +79,7 @@ def test_load_gzip(tmp_path):
     assert loaded_obj == obj
 
 
-def test_load_inser_values_gzip(tmp_path):
+def test_load_insert_values_gzip(tmp_path):
     file_path = tmp_path / "file.gzip"
     obj = r"""
 INSERT INTO {}("sku","name","type")

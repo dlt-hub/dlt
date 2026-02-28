@@ -151,7 +151,7 @@ overview_last_executed_label = " - last executed: "
 #
 schema = TSectionStrings(
     "schema_section",
-    "Dataset Browser: Schema",
+    "Dataset: Inspect Schema",
     "Browse the default schema of the selected pipeline",
     "Browse the selected schema of the current pipeline. The following list shows all tables "
     "found in the dlt schema of the current pipeline. In some cases, the dlt schema may differ "
@@ -185,7 +185,7 @@ ui_limit_to_1000_rows = "Limit to 1000 rows"
 #
 browse_data = TSectionStrings(
     "browse_data_section",
-    "Dataset Browser: Data and Source/Resource State",
+    "Dataset: Browse Data and State",
     "Browse data from the current pipeline.",
     "Browse data from the current pipeline. Select a table from the list to start, or write an SQL"
     " query in the text area below. Clicking the row counts button will load the row counts for all"
@@ -232,7 +232,7 @@ state = TSectionStrings(
 #
 data_quality = TSectionStrings(
     "data_quality_section",
-    "Data Quality",
+    "Dataset: Data Quality",
     "View the results of your data quality checks.",
     "View the results of your data quality checks.",
 )
@@ -249,10 +249,8 @@ data_quality_raw_table_not_available = "dltHub data quality module is not availa
 trace = TSectionStrings(
     "trace_section",
     "Last Pipeline Run Trace",
-    "An overview of the last load trace from the most recent successful run of the selected"
-    " pipeline, if available.",
-    "An overview of the last load trace from the most recent successful run of the selected"
-    " pipeline, if available.",
+    "Trace from the last successful pipeline run.",
+    "Trace from the last successful pipeline run.",
 )
 
 trace_show_raw_trace_text = "Show"
@@ -290,8 +288,7 @@ trace_error_building_section = "Error while building trace section: {}"
 loads = TSectionStrings(
     "loads_section",
     "Pipeline Loads",
-    "View a list of all loads that have been executed on the destination dataset of the "
-    "selected pipeline.",
+    "All loads executed on this pipeline's dataset.",
     "View a list of all loads that have been executed on the destination dataset of the selected"
     " pipeline. Select one to see all available details. Additional data will be loaded from the"
     " destination, such as the row count for that load and the schema for this load. Depending on"
@@ -320,10 +317,7 @@ loads_details_error_text = "Error loading load details. "
 #
 # Ibis backend section
 #
-_ibis_backend_subtitle = (
-    "Connect to the Ibis backend for the selected pipeline. This will make "
-    "the destination available in the Marimo datasources panel."
-)
+_ibis_backend_subtitle = "Connect to the Ibis backend for this pipeline."
 ibis_backend = TSectionStrings(
     "ibis_backend_section",
     "Ibis Backend",

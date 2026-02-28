@@ -194,7 +194,6 @@ def exception_section(p: dlt.Pipeline) -> List[mo.Html]:
         ui.title_and_subtitle(
             title,
             subtitle,
-            title_level=2,
         )
     )
 

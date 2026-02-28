@@ -16,7 +16,7 @@ from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 from dlt.destinations.utils import is_compression_disabled
 from dlt.destinations.path_utils import get_file_format_and_compression
 
-SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
+SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss", "hf"]
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
