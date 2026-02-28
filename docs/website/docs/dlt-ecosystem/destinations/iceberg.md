@@ -11,7 +11,42 @@ dlt supports writing [Iceberg](https://iceberg.apache.org/) tables when using th
 dlt uses the [PyIceberg](https://py.iceberg.apache.org/) library to write Iceberg tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into `pyiceberg`.
 
 ## Iceberg catalogs support
-dlt leverages `pyiceberg`'s `load_catalog` function to be able to work with the same catalogs that `pyiceberg` would support, including `REST` and `SQL` catalogs. This includes using single-table, ephemeral, in-memory, SQLite-based catalogs. For more information on how `pyiceberg` works with catalogs, reference [their documentation](https://py.iceberg.apache.org/). To enable this, dlt either translates the configuration in the `secrets.toml` and `config.toml` into a valid `pyiceberg` config, or it delegates `pyiceberg` the task of resolving the needed configuration. 
+dlt leverages `pyiceberg`'s `load_catalog` function to be able to work with the same catalogs that `pyiceberg` would support, including `REST` and `SQL` catalogs. This includes using single-table, ephemeral, in-memory, SQLite-based catalogs. For more information on how `pyiceberg` works with catalogs, reference [their documentation](https://py.iceberg.apache.org/). To enable this, dlt either translates the configuration in the `secrets.toml` and `config.toml` into a valid `pyiceberg` config, or it delegates `pyiceberg` the task of resolving the needed configuration.
+
+## Namespace properties
+
+When creating Iceberg namespaces (which map to dlt datasets), you can specify namespace properties that will be passed to the catalog's `create_namespace` method. This is useful for setting metadata like ownership, location, or other catalog-specific properties.
+
+### Setting namespace properties via configuration
+
+Configure namespace properties in your `secrets.toml`:
+
+```toml
+[iceberg_catalog.namespace_properties]
+owner = "data-team"
+location = "gs://my-bucket/warehouse"
+```
+
+Or via environment variables:
+
+```sh
+export ICEBERG_CATALOG__NAMESPACE_PROPERTIES='{"owner": "data-team", "location": "gs://my-bucket/warehouse"}'
+```
+
+### Example: Setting GCP region for BigLake
+
+When using Google Cloud Storage with BigLake, you can set the region property:
+
+```toml
+[iceberg_catalog.namespace_properties]
+"gcp-region" = "us"
+```
+
+Or via environment variable:
+
+```sh
+export ICEBERG_CATALOG__NAMESPACE_PROPERTIES='{"gcp-region": "us"}'
+```
 
 ## Iceberg dependencies
 
@@ -218,6 +253,49 @@ iceberg_adapter(
     ],
 )
 ```
+
+#### Table properties
+
+You can set Iceberg table properties using the `table_properties` parameter. These properties control table behavior such as format version, write modes, and commit retry settings.
+
+```py
+from dlt.destinations.adapters import iceberg_adapter
+
+data_items = [
+    {"id": 1, "category": "A", "created_at": "2025-01-01"},
+    {"id": 2, "category": "B", "created_at": "2025-01-15"},
+]
+
+@dlt.resource(table_format="iceberg")
+def events():
+    yield data_items
+
+# Set table properties
+iceberg_adapter(
+    events,
+    partition="category",
+    table_properties={
+        "format-version": "2",
+        "write.delete.mode": "delete-file",
+        "commit.retry.num-retries": "3",
+    },
+)
+
+pipeline.run(events)
+```
+
+Common table properties include:
+
+| Property | Description | Example Value |
+|----------|-------------|---------------|
+| `format-version` | Iceberg table format version | `"1"` or `"2"` |
+| `write.delete.mode` | How deletes are written | `"delete-file"` or `"merge-on-read"` |
+| `write.merge.mode` | How merges are written | `"merge-on-read"` or `"copy-on-write"` |
+| `commit.retry.num-retries` | Number of commit retry attempts | `"3"` |
+
+:::note
+Table properties are passed directly to the PyIceberg `create_table` method. Refer to the [PyIceberg documentation](https://py.iceberg.apache.org/) for available properties specific to your catalog.
+:::
 
 ### Using column-level `partition` property
 
