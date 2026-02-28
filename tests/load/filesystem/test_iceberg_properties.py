@@ -1,11 +1,12 @@
 import os
-import shutil
-from typing import cast
 import pytest
+import shutil
 from unittest.mock import MagicMock, patch
 
 import dlt
-from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+import dlt.common.libs.pyiceberg as pyiceberg_module
+from dlt.destinations.impl.filesystem.iceberg_adapter import TABLE_PROPERTIES_HINT
+from pyiceberg.exceptions import NoSuchTableError
 
 
 def test_iceberg_namespace_properties_mock() -> None:
@@ -13,8 +14,8 @@ def test_iceberg_namespace_properties_mock() -> None:
     if os.path.exists(storage_path):
         shutil.rmtree(storage_path)
 
-    # Set up namespace properties in config
-    os.environ["DESTINATION__FILESYSTEM__ICEBERG_NAMESPACE_PROPERTIES"] = '{"prop1": "val1"}'
+    # Set up namespace properties in config using iceberg_catalog section
+    os.environ["ICEBERG_CATALOG__NAMESPACE_PROPERTIES"] = '{"prop1": "val1"}'
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = f"file://{storage_path}"
 
     pipeline = dlt.pipeline(
@@ -27,11 +28,10 @@ def test_iceberg_namespace_properties_mock() -> None:
     def my_table():
         yield {"id": 1, "name": "test"}
 
-    # Mock external dependencies
-    with (
-        patch("dlt.common.libs.pyiceberg.get_catalog") as mock_get_catalog,
-        patch("dlt.common.libs.pyiceberg.create_table") as mock_create_table,
-    ):
+    # Mock external dependencies - use sys.modules to patch before the import
+    import dlt.common.libs.pyiceberg as pyiceberg_module
+
+    with (patch.object(pyiceberg_module, "get_catalog") as mock_get_catalog,):
         mock_catalog = MagicMock()
         mock_get_catalog.return_value = mock_catalog
 
@@ -68,20 +68,11 @@ def test_iceberg_table_properties_mock() -> None:
         yield {"id": 1, "name": "test"}
 
     # Apply hints to specify table properties
-    my_table.apply_hints(
-        additional_table_hints={"x-iceberg-table-properties": {"table.prop1": "table_val1"}}
-    )
-
-    try:
-        from pyiceberg.exceptions import NoSuchTableError
-    except ImportError:
-
-        class NoSuchTableError(Exception):
-            pass
+    my_table.apply_hints(additional_table_hints={TABLE_PROPERTIES_HINT: {"prop1": "val1"}})
 
     with (
-        patch("dlt.common.libs.pyiceberg.get_catalog") as mock_get_catalog,
-        patch("dlt.common.libs.pyiceberg.create_table") as mock_create_table,
+        patch.object(pyiceberg_module, "get_catalog") as mock_get_catalog,
+        patch.object(pyiceberg_module, "create_table") as mock_create_table,
         patch(
             "dlt.destinations.impl.filesystem.iceberg_partition_spec.build_iceberg_partition_spec"
         ) as mock_build_spec,
@@ -105,11 +96,42 @@ def test_iceberg_table_properties_mock() -> None:
         found_table_call = False
         for args, kwargs in calls:
             # Check table_id (2nd arg)
-            if "test_iceberg_ds_tbl_props.my_table" in args[1]:
-                # Check properties
-                if kwargs.get("properties") == {"table.prop1": "table_val1"}:
-                    found_table_call = True
+            if "test_iceberg_ds_tbl_props.my_table" in args[1] and kwargs.get("properties") == {
+                "prop1": "val1"
+            }:
+                found_table_call = True
 
         assert (
             found_table_call
         ), f"create_table was not called with expected properties. Calls: {calls}"
+
+
+def test_iceberg_adapter_table_properties() -> None:
+    """Test iceberg_adapter with table_properties parameter."""
+    from dlt.destinations.adapters import iceberg_adapter
+
+    data = [{"id": 1, "category": "A"}]
+
+    resource = iceberg_adapter(
+        data,
+        partition="category",
+        table_properties={"format-version": "2", "write.delete.mode": "delete-file"},
+    )
+
+    table_schema = resource.compute_table_schema()
+    table_hints = table_schema.get(TABLE_PROPERTIES_HINT, {})
+
+    assert table_hints == {"format-version": "2", "write.delete.mode": "delete-file"}
+
+
+def test_iceberg_adapter_table_properties_validation() -> None:
+    """Test that iceberg_adapter validates table_properties."""
+    from dlt.destinations.adapters import iceberg_adapter
+
+    data = [{"id": 1}]
+
+    with pytest.raises(ValueError, match=r"`table_properties` must be a dictionary"):
+        iceberg_adapter(data, partition="id", table_properties="not a dict")  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="Table property keys must be strings"):
+        iceberg_adapter(data, partition="id", table_properties={123: "value"})  # type: ignore[dict-item]

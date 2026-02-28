@@ -19,6 +19,7 @@ from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
+from dlt.common.typing import DictStrAny
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt.common.configuration.inject import with_config
@@ -208,6 +209,9 @@ class IcebergConfig(BaseConfiguration):
         s3.region = "cool-bucket-region"
     """
 
+    namespace_properties: Optional[DictStrAny] = None
+    """Properties to be passed to create_namespace when creating the Iceberg namespace (dataset)."""
+
 
 def _load_catalog_from_pyiceberg(
     catalog_name: str,
@@ -384,7 +388,7 @@ def get_catalog(
     logger.info(
         "No catalog configuration found, using in-memory SQLite catalog (backward compatibility)"
     )
-    return get_sql_catalog(iceberg_catalog_name or "default", "sqlite:///:memory:", credentials)
+    return get_sql_catalog(iceberg_catalog_name, "sqlite:///:memory:", credentials)
 
 
 def evolve_table(
@@ -422,7 +426,7 @@ def create_table(
     schema: Union[pa.Schema, "pyiceberg.schema.Schema"],
     partition_columns: Optional[List[str]] = None,
     partition_spec: Optional[IcebergPartitionSpec] = UNPARTITIONED_PARTITION_SPEC,
-    properties: Dict[str, str] = None,
+    properties: Optional[DictStrAny] = None,
 ) -> None:
     if isinstance(schema, pa.Schema):
         schema = ensure_iceberg_compatible_arrow_schema(schema)

@@ -17,9 +17,9 @@ from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 
 @configspec
-class FilesystemDestinationClientConfiguration(
+class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration
-):  # type: ignore[misc]
+):
     destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
         default="filesystem", init=False, repr=False, compare=False
     )
@@ -29,8 +29,6 @@ class FilesystemDestinationClientConfiguration(
     """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
     always_refresh_views: bool = False
     """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
-    iceberg_namespace_properties: Optional[Dict[str, str]] = None
-    """Properties to be passed to create_namespace when creating the Iceberg namespace (dataset)"""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:

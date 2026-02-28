@@ -1342,3 +1342,58 @@ def test_iceberg_adapter_and_partition_column_coexistence(
     assert isinstance(it.spec().fields[1].transform, YearTransform)
 
     assert load_table_counts(pipeline, "events")["events"] == 3
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg_adapter_table_properties(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test Iceberg table properties with iceberg_adapter."""
+    from dlt.destinations.adapters import iceberg_adapter
+    from dlt.destinations.impl.filesystem.iceberg_adapter import TABLE_PROPERTIES_HINT
+
+    @dlt.resource(
+        columns={
+            "id": {"data_type": "bigint", "nullable": False},
+            "event_time": {"data_type": "timestamp"},
+            "category": {"data_type": "text"},
+        },
+        primary_key="id",
+        table_format="iceberg",
+    )
+    def events_with_props() -> List[Dict[str, Any]]:
+        return [
+            {
+                "id": i,
+                "event_time": "2024-01-01T10:00:00Z",
+                "category": "A" if i % 2 == 0 else "B",
+            }
+            for i in range(5)
+        ]
+
+    # Use iceberg_adapter with table_properties
+    resource = iceberg_adapter(
+        events_with_props,
+        partition="category",
+        table_properties={
+            "format-version": "2",
+            "write.delete.mode": "delete-file",
+            "commit.retry.num-retries": "3",
+        },
+    )
+
+    # Verify that table properties are set in the resource's hints
+    table_schema = resource.compute_table_schema()
+    assert table_schema.get(TABLE_PROPERTIES_HINT) == {
+        "format-version": "2",
+        "write.delete.mode": "delete-file",
+        "commit.retry.num-retries": "3",
+    }
