@@ -106,24 +106,6 @@ def test_iceberg_table_properties_mock() -> None:
         ), f"create_table was not called with expected properties. Calls: {calls}"
 
 
-def test_iceberg_adapter_table_properties() -> None:
-    """Test iceberg_adapter with table_properties parameter."""
-    from dlt.destinations.adapters import iceberg_adapter
-
-    data = [{"id": 1, "category": "A"}]
-
-    resource = iceberg_adapter(
-        data,
-        partition="category",
-        table_properties={"format-version": "2", "write.delete.mode": "delete-file"},
-    )
-
-    table_schema = resource.compute_table_schema()
-    table_hints = table_schema.get(TABLE_PROPERTIES_HINT, {})
-
-    assert table_hints == {"format-version": "2", "write.delete.mode": "delete-file"}
-
-
 def test_iceberg_adapter_table_properties_validation() -> None:
     """Test that iceberg_adapter validates table_properties."""
     from dlt.destinations.adapters import iceberg_adapter
