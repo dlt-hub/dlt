@@ -75,6 +75,10 @@ def test_in_storage(test_storage: FileStorage) -> None:
         )
         is True
     )
+    # CWE-22: sibling directory with prefix-matching name must not pass
+    # os.path.commonprefix would incorrectly match "/storage_evil" against "/storage"
+    sibling_path = test_storage.storage_path + "_evil/secret.txt"
+    assert test_storage.is_path_in_storage(sibling_path) is False
 
 
 def test_from_wd_to_relative_path(test_storage: FileStorage) -> None:
