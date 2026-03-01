@@ -93,6 +93,7 @@ R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
 SFTP_BUCKET = dlt.config.get("tests.bucket_url_sftp", str)
 HTTP_BUCKET = dlt.config.get("tests.bucket_url_http", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
+HF_BUCKET = dlt.config.get("tests.bucket_url_hf", str)
 
 # S3 tables
 S3_TABLE_BUCKET_ARN = dlt.config.get("tests.s3_table_bucket_arn", str)
@@ -109,6 +110,7 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "https",
     "r2",
     "sftp",
+    "hf",
 ]
 
 # Filter out buckets not in all filesystem drivers
@@ -121,6 +123,7 @@ WITH_GDRIVE_BUCKETS = [
     AZ_BUCKET,
     GDRIVE_BUCKET,
     SFTP_BUCKET,
+    HF_BUCKET,
 ]
 WITH_GDRIVE_BUCKETS = [
     bucket
@@ -778,7 +781,7 @@ def destinations_configs(
 
     # all filesystem configs also implement read-only sql client
     if all_buckets_filesystem_configs or read_only_sqlclient_configs:
-        for bucket in DEFAULT_BUCKETS:
+        for bucket in set(DEFAULT_BUCKETS) - {HF_BUCKET}:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
@@ -788,11 +791,23 @@ def destinations_configs(
                     file_format="jsonl",  # keep jsonl as default, test utils are setup for this
                 )
             ]
+        if "hf" in ALL_FILESYSTEM_DRIVERS:
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="filesystem",
+                    bucket_url=HF_BUCKET,
+                    extra_info=HF_BUCKET,
+                    supports_merge=False,
+                    file_format="parquet",
+                    # increase timeout to avoid flakes (default is 10s)
+                    env_vars={"HF_HUB_DOWNLOAD_TIMEOUT": "30"},
+                )
+            ]
 
     # table format configs also implement read-only sqlclient configs
     if table_format_filesystem_configs or table_format_local_configs or read_only_sqlclient_configs:
         if table_format_filesystem_configs:
-            table_buckets = set(DEFAULT_BUCKETS) - {SFTP_BUCKET, MEMORY_BUCKET}
+            table_buckets = set(DEFAULT_BUCKETS) - {SFTP_BUCKET, MEMORY_BUCKET, HF_BUCKET}
         else:
             table_buckets = {FILE_BUCKET}
 

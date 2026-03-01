@@ -42,13 +42,12 @@ known_sections = [
     "state",
     "trace",
     "loads",
-    "ibis",
 ]
 
 
 def _open_section(
     page: Page,
-    section: Literal["overview", "schema", "data", "state", "trace", "loads", "ibis"],
+    section: Literal["overview", "schema", "data", "state", "trace", "loads"],
     close_other_sections: bool = True,
 ) -> None:
     if close_other_sections:
@@ -104,15 +103,12 @@ def test_exception_pipeline(
     expect(page.get_by_text("_local")).to_be_visible()
 
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
     expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
-
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
@@ -121,9 +117,8 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
 
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    # allow marimo reactivity to process
-    page.wait_for_timeout(500)
-    expect(page.get_by_text("name: fruitshop_customers").nth(1)).to_be_attached()
+
+    expect(page.locator(".cm-line", has_text="name: fruitshop_customers").first).to_be_attached()
 
     def _select_schema_and_verify(
         schema_selector: Any,
@@ -196,13 +191,11 @@ def test_simple_incremental_pipeline(
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    # allow marimo reactivity to process
-    page.wait_for_timeout(500)
-    expect(page.get_by_text("name: one_two_three").nth(1)).to_be_attached()
+    expect(page.locator(".cm-line", has_text="name: one_two_three").first).to_be_attached()
 
     # check first table and columns
     page.get_by_role("checkbox").nth(0).check()
-    expect(page.get_by_text("id", exact=True)).to_be_visible()
+    expect(page.get_by_role("table").get_by_text("id", exact=True)).to_be_visible()
 
     # browse data
     _open_section(page, "data")
@@ -230,7 +223,7 @@ def test_simple_incremental_pipeline(
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text("execution_context").nth(0)
@@ -245,10 +238,6 @@ def test_simple_incremental_pipeline(
     # since we are not waiting for the result but clicking ahead, pause to avoid locked duckdb
     time.sleep(2.0)
 
-    # ibis page
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
-
 
 def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
     # check fruit pipeline
@@ -262,9 +251,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    # allow marimo reactivity to process
-    page.wait_for_timeout(500)
-    expect(page.get_by_text("name: fruitshop").nth(1)).to_be_attached()
+    expect(page.locator(".cm-line", has_text="name: fruitshop").first).to_be_attached()
 
     # browse data
     _open_section(page, "data")
@@ -275,7 +262,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text("execution_context").nth(0)
@@ -286,10 +273,6 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
     expect(
         page.get_by_role("row", name="fruitshop").nth(0)
     ).to_be_visible()  #  this is in the loads table
-
-    # ibis page
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
 
 def test_never_run_pipeline(page: Page, never_run_pipeline: Any, pipelines_dir: Path):
@@ -314,15 +297,12 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any, pipelines_dir: 
     expect(page.get_by_text("_local")).to_be_visible()
 
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     expect(page.get_by_text(app_strings.trace_no_trace_text.strip()).nth(0)).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
     expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
-
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipelines_dir: Path):
@@ -339,9 +319,7 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipel
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    # allow marimo reactivity to process
-    page.wait_for_timeout(500)
-    expect(page.get_by_text("name: fruitshop").nth(1)).to_be_attached()
+    expect(page.locator(".cm-line", has_text="name: fruitshop").first).to_be_attached()
 
     # browse data
     _open_section(page, "data")
@@ -356,14 +334,11 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipel
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is only shown in trace yaml
-
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_workspace_profile_prod(page: Page):

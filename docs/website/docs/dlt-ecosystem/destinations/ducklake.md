@@ -88,12 +88,14 @@ catalog="postgres://loader:pass@localhost:5432/dlt_data"
 
 - 🧪 **mysql**: uses the same code path as for **postgres** but we never tested it
 
-- 🧪 **motherduck**: theoretically you could use Motherduck as catalog database. We were able to establish connection but unfortunately ducklake 1.2 segfaults when catalog is being attached.
+- 🧪 **Motherduck** is also available as a catalog database, starting with ducklake extension version 1.4 (experimental — expect rough edges).
+
 ```toml
 [destination.ducklake.credentials]
-catalog="md:///dlt_data"
+catalog="md:<your_motherduck_database>"
 ```
-Make sure that you have Motherduck token in your environment. Hopefully situation improves when duckdb 1.4 is supported.
+
+Double check that your Motherduck token is in your environment!
 
 ### Configure storage
 **storage** config reuses configuration of [filesystem](filesystem.md) destination. You can pick the following options:
@@ -183,7 +185,7 @@ destination = dlt.destinations.ducklake(
 You have read and write access to the data in ducklake. You can take native duckdb connection with attached catalog and authenticated
 storage using `sql_client`. This is demonstrated in examples below.
 
-[dataset access](../../general-usage/dataset-access/) and **ibis** handover are fully supported.
+[`pipeline.dataset()`](../../general-usage/dataset-access/dataset) and **ibis** handover are fully supported, giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
 
 ### Set catalog options
 Certain **ducklake** options are persisted in the catalog and are set differently than [connection options](#configure-additional-connection-options-pragmas-and-extensions). You can do that from code:

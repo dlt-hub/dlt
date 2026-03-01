@@ -4,9 +4,18 @@ import time
 from datetime import datetime, date, timezone, timedelta, time as dt_time  # noqa: I251
 from pendulum.tz import UTC, FixedTimezone, Timezone, fixed_timezone
 from contextlib import contextmanager
+from datetime import datetime, date, timezone, timedelta, time as dt_time  # noqa: I251
+from unittest import mock
+
+from pendulum.tz import UTC, fixed_timezone
 
 from dlt.common import pendulum
+from dlt.common.storages.load_package import create_load_id
 from dlt.common.time import (
+    MonotonicPreciseTime,
+    LockedMonotonicPreciseTime,
+    increasing_precise_time,
+    precise_time,
     parse_iso_like_datetime,
     timestamp_before,
     timestamp_within,
@@ -18,9 +27,9 @@ from dlt.common.time import (
     ensure_pendulum_datetime_non_utc,
     ensure_pendulum_time,
     normalize_timezone,
+    datetime_obj_to_str,
 )
 from dlt.common.typing import TAnyDateTime
-from dlt.common.time import datetime_obj_to_str
 
 
 @contextmanager
@@ -873,3 +882,99 @@ def test_ensure_pendulum_date_stdlib_timezone(value, expected_date) -> None:
     """stdlib timezone offsets crossing midnight must shift the date accordingly."""
     result = ensure_pendulum_date(value)
     assert result == expected_date
+
+
+@pytest.mark.parametrize(
+    "clock_cls",
+    [MonotonicPreciseTime, LockedMonotonicPreciseTime],
+    ids=["unlocked", "locked"],
+)
+def test_monotonic_precise_time_never_goes_backward(clock_cls: type) -> None:
+    clock = clock_cls()
+    values = [clock() for _ in range(10_000)]
+    for i in range(1, len(values)):
+        assert values[i] >= values[i - 1], f"went backward at index {i}"
+
+
+@pytest.mark.parametrize(
+    "clock_cls",
+    [MonotonicPreciseTime, LockedMonotonicPreciseTime],
+    ids=["unlocked", "locked"],
+)
+def test_monotonic_precise_time_tracks_wall_clock(clock_cls: type) -> None:
+    clock = clock_cls()
+    m = clock()
+    w = precise_time()
+    # should be within 100ms of wall clock
+    assert abs(m - w) < 0.1, f"monotonic {m} too far from wall {w}"
+
+
+@pytest.mark.parametrize(
+    "clock_cls",
+    [MonotonicPreciseTime, LockedMonotonicPreciseTime],
+    ids=["unlocked", "locked"],
+)
+def test_monotonic_precise_time_survives_backward_step(clock_cls: type) -> None:
+    """Simulate a wall-clock backward jump and verify the high-water mark holds."""
+    clock = clock_cls()
+    t0 = clock()
+
+    # simulate clock jumping backward by 5 seconds
+    with mock.patch("dlt.common.time.precise_time", return_value=t0 - 5.0):
+        t1 = clock()
+    assert t1 == t0, "clock must return high-water mark when wall clock goes backward"
+
+    # after the backward step, a normal reading must still be >= high-water mark
+    t2 = clock()
+    assert t2 >= t0
+
+
+@pytest.mark.parametrize(
+    "clock_cls",
+    [MonotonicPreciseTime, LockedMonotonicPreciseTime],
+    ids=["unlocked", "locked"],
+)
+def test_strictly_increasing_advances_on_frozen_clock(clock_cls: type) -> None:
+    """With strictly_increasing=True, every call returns a strictly greater value."""
+    clock = clock_cls(strictly_increasing=True)
+    t0 = clock()
+
+    # freeze wall clock at current value
+    with mock.patch("dlt.common.time.precise_time", return_value=t0):
+        values = [clock() for _ in range(50)]
+
+    for i in range(1, len(values)):
+        assert values[i] > values[i - 1], f"not strictly increasing at index {i}"
+
+    # values should still be very close to wall clock (nextafter increments)
+    assert values[-1] - t0 < 0.001
+
+
+def test_increasing_precise_time_is_strictly_increasing() -> None:
+    """Module-level increasing_precise_time must produce unique values."""
+    assert isinstance(increasing_precise_time, LockedMonotonicPreciseTime)
+    values = [increasing_precise_time() for _ in range(100)]
+    for i in range(1, len(values)):
+        assert values[i] > values[i - 1], f"not strictly increasing at index {i}"
+
+
+def test_create_load_id_strictly_increasing() -> None:
+    """create_load_id must return strictly increasing values even under clock jitter."""
+    ids = [create_load_id() for _ in range(100)]
+    for i in range(1, len(ids)):
+        assert float(ids[i]) > float(
+            ids[i - 1]
+        ), f"load id not strictly increasing at index {i}: {ids[i - 1]} >= {ids[i]}"
+
+    # simulate a backward jump: mock the module-level singleton
+    baseline = float(create_load_id())
+    with mock.patch(
+        "dlt.common.storages.load_package.increasing_precise_time",
+        return_value=baseline - 10.0,
+    ):
+        backward_id = float(create_load_id())
+    assert backward_id == baseline - 10.0  # mock fully replaces the callable
+
+    # after removing the mock the real singleton still has its high-water mark
+    restored = float(create_load_id())
+    assert restored >= baseline

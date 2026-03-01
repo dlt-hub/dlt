@@ -31,6 +31,7 @@ from dlt.common.configuration.specs import (
     GcpCredentials,
     AwsCredentials,
     AzureCredentials,
+    HfCredentials,
     SFTPCredentials,
 )
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
@@ -64,6 +65,7 @@ MTIME_DISPATCH = {
     "adl": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
     "az": lambda f: ensure_pendulum_datetime_utc(f["last_modified"]),
     "gcs": lambda f: ensure_pendulum_datetime_utc(f["updated"]),
+    "hf": lambda f: ensure_pendulum_datetime_utc(f["last_commit"]["date"]),
     "https": lambda f: cast(
         pendulum.DateTime,
         pendulum.parse(
@@ -92,6 +94,7 @@ CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]]
     "s3": lambda config: cast(AwsCredentials, config.credentials).to_s3fs_credentials(),
     "az": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
     "gs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
+    "hf": lambda config: cast(HfCredentials, config.credentials).to_hffs_credentials(),
     "gdrive": lambda config: {"credentials": cast(GcpCredentials, config.credentials)},
     "sftp": lambda config: cast(SFTPCredentials, config.credentials).to_fsspec_credentials(),
 }
@@ -102,9 +105,11 @@ CREDENTIALS_DISPATCH["abfss"] = CREDENTIALS_DISPATCH["az"]
 CREDENTIALS_DISPATCH["gcs"] = CREDENTIALS_DISPATCH["gs"]
 
 # Default kwargs for protocol
-DEFAULT_KWARGS = {
+DEFAULT_KWARGS: Dict[str, Dict[str, Any]] = {
     # disable concurrent
-    "az": {"max_concurrency": 1}
+    "az": {"max_concurrency": 1},
+    # get last_commit info which includes last_commit.date
+    "hf": {"expand_info": True},
 }
 DEFAULT_KWARGS["adl"] = DEFAULT_KWARGS["az"]
 DEFAULT_KWARGS["abfs"] = DEFAULT_KWARGS["az"]
@@ -195,6 +200,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     * az, abfs, abfss, adl, azure
     * gcs, gs
     * sftp
+    * hf
 
     All other filesystems are not authenticated
 
@@ -371,6 +377,10 @@ def glob_files(
         # convert to fs_path
         root_dir = fs_client._strip_protocol(bucket_url)
         filter_url = posixpath.join(root_dir, file_glob)
+        # for `hf` we need to invalidate the cache to ensure fresh data (not sure why, maybe their
+        # fsspec impl does not invalidate cache like other fsspec impls)
+        if fs_client.protocol == "hf":
+            fs_client.invalidate_cache(filter_url)
         glob_result = fs_client.glob(filter_url, detail=True)
         if isinstance(glob_result, list):
             raise NotImplementedError(

@@ -91,7 +91,7 @@ class AdbcParquetCopyJob(RunnableLoadJob, HasFollowupJobs, ABC):
             catalog_name, schema_name = self._set_catalog_and_schema()
             kwargs = dict(catalog_name=catalog_name, db_schema_name=schema_name)
 
-            t_ = time.time()
+            t_ = time.monotonic()
             rows = cur.adbc_ingest(
                 self.load_table_name,
                 _iter_batches(self._file_path),
@@ -101,7 +101,7 @@ class AdbcParquetCopyJob(RunnableLoadJob, HasFollowupJobs, ABC):
             conn.commit()
             logger.info(
                 f"{rows} rows copied from {self._file_name} to"
-                f" {self.load_table_name}.{schema_name} in {time.time()-t_} s"
+                f" {self.load_table_name}.{schema_name} in {time.monotonic()-t_} s"
             )
 
 
