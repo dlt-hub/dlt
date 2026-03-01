@@ -47,7 +47,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import load_yml_case
-from tests.utils import auto_unload_modules
+from tests.utils import auto_unload_modules, skipifworktree
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -832,6 +832,7 @@ def test_source_shorthand_reference() -> None:
     assert list(factory(["A", "B"])) == ["A", "B"]
 
 
+@skipifworktree
 def test_source_reference() -> None:
     # sources accessible via full type
     factory = SourceReference.find("tests.extract.test_decorators.alpha_source")

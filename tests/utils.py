@@ -369,14 +369,18 @@ class MockableRunContext(RunContext):
 
 @pytest.fixture(autouse=True)
 def auto_unload_modules() -> Iterator[None]:
-    """Unload all modules inspected in this tests"""
+    """Restore sys.modules to pre-test state: unload added modules, re-add removed ones."""
     prev_modules = dict(sys.modules)
     try:
         yield
     finally:
-        mod_diff = set(sys.modules.keys()) - set(prev_modules.keys())
-        for mod in mod_diff:
+        # remove modules added during the test
+        for mod in set(sys.modules.keys()) - set(prev_modules.keys()):
             del sys.modules[mod]
+        # restore modules removed during the test
+        for mod, module in prev_modules.items():
+            if mod not in sys.modules:
+                sys.modules[mod] = module
 
 
 @pytest.fixture(autouse=True)
@@ -608,6 +612,11 @@ skipifgithubfork = pytest.mark.skipif(
 
 skipifgithubci = pytest.mark.skipif(
     is_running_in_github_ci(), reason="This test does not work on github CI"
+)
+
+skipifworktree = pytest.mark.skipif(
+    os.path.basename(os.path.abspath(".")) != "dlt",
+    reason="Test requires run dir to be 'dlt' (skipped in worktrees)",
 )
 
 
