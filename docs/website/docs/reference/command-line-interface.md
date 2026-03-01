@@ -738,7 +738,7 @@ Use AI-powered development tools and utilities.
 
 **Usage**
 ```sh
-dlt ai [-h] {init,secrets,toolkit,mcp} ...
+dlt ai [-h] {status,init,secrets,toolkit,mcp} ...
 ```
 
 **Description**
@@ -755,10 +755,35 @@ Inherits arguments from [`dlt`](#dlt).
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+* [`status`](#dlt-ai-status) - Show ai setup status: dlt version, agent, toolkits, readiness checks
 * [`init`](#dlt-ai-init) - Install initial ai rules and skills for your ai coding agent
 * [`secrets`](#dlt-ai-secrets) - Manage secrets files used by dlt
 * [`toolkit`](#dlt-ai-toolkit) - Manage ai toolkit plugins (list, info, install)
 * [`mcp`](#dlt-ai-mcp) - Run or install the dlt mcp server
+
+</details>
+
+### `dlt ai status`
+
+Show AI setup status: dlt version, agent, toolkits, readiness checks.
+
+**Usage**
+```sh
+dlt ai status [-h]
+```
+
+**Description**
+
+Show AI setup status: dlt version, agent, toolkits, readiness checks.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai`](#dlt-ai).
+
+**Options**
+* `-h, --help` - Show this help message and exit
 
 </details>
 
@@ -849,7 +874,7 @@ dlt ai secrets view-redacted [-h] [--path PATH]
 
 **Description**
 
-Print secrets TOML with all values replaced by '***'.
+Without --path, shows the unified view merged from all project secret files. With --path, shows that exact file.
 
 <details>
 
@@ -859,7 +884,7 @@ Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--path PATH` - Path to secrets toml file (default: .dlt/secrets.toml)
+* `--path PATH` - Show this exact file instead of the unified provider view
 
 </details>
 
@@ -869,7 +894,7 @@ Merge a TOML fragment into the secrets file.
 
 **Usage**
 ```sh
-dlt ai secrets update-fragment [-h] [--path PATH] [fragment]
+dlt ai secrets update-fragment [-h] --path PATH [fragment]
 ```
 
 **Description**
@@ -887,7 +912,7 @@ Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--path PATH` - Path to secrets toml file (default: .dlt/secrets.toml)
+* `--path PATH` - Path to the secrets toml file to write to
 
 </details>
 
@@ -980,7 +1005,7 @@ Install toolkit components into project.
 **Usage**
 ```sh
 dlt ai toolkit [name] install [-h] [--location LOCATION] [--branch BRANCH]
-    [--agent {claude,cursor,codex}] [--overwrite]
+    [--agent {claude,cursor,codex}] [--overwrite] [--strict]
 ```
 
 **Description**
@@ -999,6 +1024,7 @@ Inherits arguments from [`dlt ai toolkit`](#dlt-ai-toolkit).
 * `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
 * `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
 * `--overwrite` - Overwrite existing files instead of skipping them.
+* `--strict` - Fail on validation warnings (invalid frontmatter, etc.).
 
 </details>
 
@@ -1041,7 +1067,7 @@ Start the MCP server (default).
 
 **Usage**
 ```sh
-dlt ai mcp run [-h]
+dlt ai mcp run [-h] [--stdio] [--sse] [--port PORT] [--features [FEATURES ...]]
 ```
 
 **Description**
@@ -1056,6 +1082,10 @@ Inherits arguments from [`dlt ai mcp`](#dlt-ai-mcp).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--stdio` - Use stdio transport mode
+* `--sse` - Use legacy sse transport instead of streamable-http
+* `--port PORT` - Port for the mcp server (default: 8000)
+* `--features [FEATURES ...]` - Additional mcp feature sets to enable (default: pipeline, workspace)
 
 </details>
 
