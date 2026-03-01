@@ -80,8 +80,42 @@ def plug_mcp_workspace(features: Set[str]) -> Optional[McpFeatures]:
 
     return McpFeatures(
         name="workspace",
-        tools=[data_tools.list_pipelines],
+        tools=[data_tools.list_pipelines, data_tools.get_workspace_info],
     )
 
 
-__all__ = ["plug_workspace_context_impl", "plug_mcp_pipeline", "plug_mcp_workspace"]
+@_plugins.hookimpl(specname="plug_mcp")
+def plug_mcp_toolkit(features: Set[str]) -> Optional[McpFeatures]:
+    """Contribute toolkit discovery tools: list and inspect available toolkits.
+
+    Activated by the "toolkit" feature.
+    """
+    if "toolkit" not in features:
+        return None
+
+    from dlt._workspace.mcp.tools import toolkit_tools
+
+    return McpFeatures(name="toolkit", tools=list(toolkit_tools.__tools__))
+
+
+@_plugins.hookimpl(specname="plug_mcp")
+def plug_mcp_secrets(features: Set[str]) -> Optional[McpFeatures]:
+    """Contribute secrets management tools: list, view-redacted, update.
+
+    Activated by the "secrets" feature.
+    """
+    if "secrets" not in features:
+        return None
+
+    from dlt._workspace.mcp.tools import secrets_tools
+
+    return McpFeatures(name="secrets", tools=list(secrets_tools.__tools__))
+
+
+__all__ = [
+    "plug_workspace_context_impl",
+    "plug_mcp_pipeline",
+    "plug_mcp_workspace",
+    "plug_mcp_toolkit",
+    "plug_mcp_secrets",
+]
