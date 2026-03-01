@@ -20,12 +20,12 @@ _context_reload_lock = threading.Lock()
 def _get_agent_info() -> Optional[Dict[str, str]]:
     """Extract connecting client metadata from the MCP session.
 
-    Reads ``clientInfo`` sent by the MCP client during the ``initialize``
+    Reads `clientInfo` sent by the MCP client during the `initialize`
     handshake.  The session id is hashed so the raw value is never stored.
 
     Returns:
-        A dict with ``name``, ``version``, and ``session_hash`` when a
-        session is active, or ``None`` outside of an MCP request.
+        A dict with `name`, `version`, and `session_hash` when a
+        session is active, or `None` outside of an MCP request.
     """
     try:
         from fastmcp.server.context import _current_context
@@ -52,31 +52,13 @@ def _get_agent_info() -> Optional[Dict[str, str]]:
 def with_mcp_tool_telemetry(**extra_props: Any) -> Callable[[TFun], TFun]:
     """Telemetry decorator for MCP tool functions.
 
-    Emits an anonymous ``mcp_tool_{name}`` telemetry event after each tool
+    Emits an anonymous `mcp_tool_{name}` telemetry event after each tool
     invocation.  Before executing the tool the decorator fully reloads the
     runtime context from disk (workspace marker, profile pin, secrets /
     config files) so that every MCP call sees the latest on-disk state.
     Reload and execution are serialized under a module-level lock.
 
-    Event shape (``category="mcp"``, ``event_name="tool_{fn.__name__}"``)::
-
-        {
-            "event": "mcp_tool_secrets_list",
-            "properties": {
-                "event_category": "mcp",
-                "event_name": "tool_secrets_list",
-                "mcp_primitive": "tool",
-                "elapsed": 0.023,
-                "success": True,
-                "agent_info": {
-                    "name": "claude-ai",
-                    "version": "1.0.0",
-                    "session_hash": "abc123...",
-                },
-            },
-        }
-
-    ``agent_info`` is ``None`` when the session metadata is not available
+    `agent_info` is `None` when the session metadata is not available
     (e.g. during tests that call tool functions directly).
 
     Args:

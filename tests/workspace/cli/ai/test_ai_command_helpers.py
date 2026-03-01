@@ -1,4 +1,3 @@
-import functools
 import hashlib
 import json
 import os
@@ -627,27 +626,21 @@ def test_overlapping_toolkits(overwrite: bool) -> None:
 
 def test_resolve_agent_from_init_index(capsys: pytest.CaptureFixture[str]) -> None:
     """_resolve_agent uses agent from init toolkit index, falls through without it."""
-    project_root = Path("project")
-    project_root.mkdir()
+    project_root = Path.cwd()
+    settings_dir = project_root / ".dlt"
+    os.makedirs(settings_dir, exist_ok=True)
+    index_path = settings_dir / ".toolkits"
 
-    with patch("dlt.common.runtime.run_context.active") as mock_ctx:
-        settings_dir = str(project_root / ".dlt")
-        mock_ctx.return_value.run_dir = str(project_root)
-        mock_ctx.return_value.settings_dir = settings_dir
-        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
-        os.makedirs(settings_dir, exist_ok=True)
-        index_path = os.path.join(settings_dir, ".toolkits")
+    with open(index_path, "w", encoding="utf-8") as f:
+        yaml.dump({"init": {"version": "1.0.0", "agent": "cursor"}}, f)
+    agent = _resolve_agent(None, project_root)
+    assert agent.name == "cursor"
 
-        with open(index_path, "w", encoding="utf-8") as f:
-            yaml.dump({"init": {"version": "1.0.0", "agent": "cursor"}}, f)
-        agent = _resolve_agent(None, project_root)
-        assert agent.name == "cursor"
-
-        with open(index_path, "w", encoding="utf-8") as f:
-            yaml.dump({"init": {"version": "1.0.0"}}, f)
-        with (
-            patch.dict(os.environ, {}, clear=True),
-            patch("dlt._workspace.cli.ai.agents.home_dir", return_value=None),
-            pytest.raises(CliCommandException),
-        ):
-            _resolve_agent(None, project_root)
+    with open(index_path, "w", encoding="utf-8") as f:
+        yaml.dump({"init": {"version": "1.0.0"}}, f)
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch("dlt._workspace.cli.ai.agents.home_dir", return_value=None),
+        pytest.raises(CliCommandException),
+    ):
+        _resolve_agent(None, project_root)

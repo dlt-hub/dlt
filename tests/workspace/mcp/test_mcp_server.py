@@ -24,9 +24,14 @@ from dlt._workspace._plugins import (
     plug_mcp_toolkit,
     plug_mcp_workspace,
 )
+from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
 from dlt._workspace.mcp.tools import data_tools, secrets_tools, toolkit_tools
 
-from tests.utils import disable_temporary_telemetry as disable_temporary_telemetry
+from tests.common.runtime.utils import mock_github_env, mock_pod_env
+from tests.utils import (
+    disable_temporary_telemetry as disable_temporary_telemetry,
+    start_test_telemetry,
+)
 from tests.workspace.utils import (
     isolated_workspace,
     pokemon_pipeline_context as pokemon_pipeline_context,
@@ -273,11 +278,6 @@ def test_mcp_tool_telemetry_emits_event(
     disable_temporary_telemetry: None,
 ) -> None:
     """MCP tools emit mcp_tool_<name> telemetry with primitive, elapsed, success."""
-    from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
-
-    from tests.common.runtime.utils import mock_github_env, mock_pod_env
-    from tests.utils import start_test_telemetry
-
     mock_github_env(os.environ)
     mock_pod_env(os.environ)
     SENT_ITEMS.clear()

@@ -204,7 +204,7 @@ def section(
     Returns:
         Tuple of (result list, should_render_content). The list already
         contains the section marker and header.  Append content only when
-        should_render_content is True, then call ``mo.vstack(result)``.
+        should_render_content is True, then call `mo.vstack(result)`.
     """
     result = [
         section_marker(section_strings.section_name, has_content=dlt_pipeline is not None),

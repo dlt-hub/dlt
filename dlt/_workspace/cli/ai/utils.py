@@ -389,7 +389,7 @@ def scan_workbench_toolkits(base: Path, listed_only: bool = False) -> Dict[str, 
 def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitInfo:
     """Build a `TToolkitInfo` from raw plugin.json / toolkit.json dict.
 
-    Raises ``ValueError`` when ``name``, ``description``, or ``version`` is
+    Raises `ValueError` when `name`, `description`, or `version` is
     missing or empty.
     """
     missing = [k for k in ("name", "description", "version") if not meta.get(k)]

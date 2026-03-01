@@ -8,6 +8,7 @@ from fastmcp.exceptions import ToolError
 import dlt
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
+from dlt._workspace.cli.utils import list_local_pipelines
 from dlt._workspace.mcp.tools.data_tools import (
     list_pipelines,
     list_tables,
@@ -34,8 +35,6 @@ def test_list_pipelines(pokemon_pipeline_context: RunContextBase) -> None:
 def test_list_pipelines_project_dir_filter(pokemon_pipeline_context: RunContextBase) -> None:
     # the workspace context has profiles so list_pipelines returns all
     # test filtering via list_local_pipelines directly
-    from dlt._workspace.cli.utils import list_local_pipelines
-
     local_dir = pokemon_pipeline_context.local_dir
     _, pipelines = list_local_pipelines(sort_by_trace=False, run_dir=local_dir)
     assert any(p["name"] == "rest_api_pokemon" for p in pipelines)

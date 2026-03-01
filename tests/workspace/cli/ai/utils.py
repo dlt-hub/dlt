@@ -1,18 +1,81 @@
 import json
 import shutil
 from pathlib import Path
+from typing import Optional
 
 import pytest
+import yaml
 
 from dlt.common.libs import git
+from dlt._workspace.cli.ai.agents import AI_AGENTS
 from dlt._workspace.cli.ai.utils import (
     DEFAULT_AI_WORKBENCH_BRANCH,
     DEFAULT_AI_WORKBENCH_REPO,
+    compute_file_hash,
 )
-from dlt._workspace.typing import TToolkitInfo
+from dlt._workspace.typing import TToolkitIndexEntry, TToolkitInfo
 
 # known toolkits in the repo (init is now visible)
 KNOWN_TOOLKITS = ["data-exploration", "init", "rest-api-pipeline", "dlthub-runtime"]
+INSTALLABLE_TOOLKITS = [t for t in KNOWN_TOOLKITS if t != "init"]
+AGENT_NAMES = ["claude", "cursor", "codex"]
+
+
+def assert_toolkit_install(
+    project_root: Path,
+    toolkit_name: str,
+    agent_name: str,
+    *,
+    check_dependencies: bool = True,
+) -> TToolkitIndexEntry:
+    """Validate a toolkit was installed correctly: index, files, hashes, MCP.
+
+    Returns the index entry for further assertions by the caller.
+    """
+    index_path = project_root / ".dlt" / ".toolkits"
+    assert index_path.is_file(), ".toolkits index missing at %s" % index_path
+
+    index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    assert toolkit_name in index, "%s not in index (keys: %s)" % (
+        toolkit_name,
+        list(index.keys()),
+    )
+
+    entry: TToolkitIndexEntry = index[toolkit_name]
+
+    # required scalar fields
+    assert entry.get("agent") == agent_name, "agent mismatch: %s" % entry.get("agent")
+    assert entry.get("version"), "version is empty"
+    assert entry.get("description"), "description is empty"
+    assert entry.get("installed_at"), "installed_at is empty"
+
+    # every tracked file must exist and its hash must match
+    files = entry.get("files", {})
+    assert isinstance(files, dict) and len(files) > 0, "files dict is empty"
+    for rel_path, file_info in files.items():
+        abs_path = project_root / rel_path
+        assert abs_path.is_file(), "tracked file missing: %s" % abs_path
+        expected_hash = file_info["sha3_256"]
+        actual_hash = compute_file_hash(abs_path)
+        assert actual_hash == expected_hash, "hash mismatch for %s" % rel_path
+
+    # dependency toolkits must also be in the index
+    if check_dependencies:
+        for dep_name in entry.get("dependencies", []):
+            assert dep_name in index, "dependency %s not in index" % dep_name
+
+    # MCP servers recorded in index must exist in agent config
+    mcp_servers: Optional[list] = entry.get("mcp_servers")  # type: ignore[assignment]
+    if mcp_servers:
+        agent = AI_AGENTS[agent_name]()
+        mcp_path = agent.mcp_config_path(project_root)
+        assert mcp_path.is_file(), "MCP config missing at %s" % mcp_path
+        content = mcp_path.read_text(encoding="utf-8")
+        parsed_servers = agent.parse_mcp_servers(content)
+        for srv in mcp_servers:
+            assert srv in parsed_servers, "MCP server %s not in config" % srv
+
+    return entry
 
 
 def make_mock_toolkit_info(
@@ -22,7 +85,7 @@ def make_mock_toolkit_info(
     tags: None = None,
     workflow_entry_skill: str = "",
 ) -> TToolkitInfo:
-    """Build a ``TToolkitInfo`` for tests."""
+    """Build a `TToolkitInfo` for tests."""
     meta = TToolkitInfo(
         name=name,
         version=version,

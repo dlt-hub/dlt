@@ -334,8 +334,8 @@ def track_command(
 ) -> Callable[[TFun], TFun]:
     """Return a telemetry decorator for CLI commands.
 
-    Wraps a function with anonymous telemetry tracking using ``with_telemetry``. Depending on
-    ``track_before``, emits an event either before execution or after execution with success
+    Wraps a function with anonymous telemetry tracking using `with_telemetry`. Depending on
+    `track_before`, emits an event either before execution or after execution with success
     information.
 
     Success semantics:

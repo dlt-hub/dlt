@@ -8,7 +8,7 @@ from dlt.common.json import custom_encode, json
 
 
 def parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
-    """Split YAML frontmatter (``---`` delimited) from markdown body."""
+    """Split YAML frontmatter (`---` delimited) from markdown body."""
     lines = text.split("\n")
     if not lines or lines[0].rstrip("\r") != "---":
         return {}, text
@@ -28,7 +28,7 @@ def parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
 
 
 def render_frontmatter(data: Dict[str, Any], body: str) -> str:
-    """Combine frontmatter dict and body into ``---\\nyaml\\n---\\nbody``."""
+    """Combine frontmatter dict and body into `---\\nyaml\\n---\\nbody`."""
     if not data:
         return body
     fm = yaml.dump(data, default_flow_style=False, sort_keys=False).rstrip("\n")

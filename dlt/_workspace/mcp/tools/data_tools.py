@@ -324,5 +324,7 @@ __tools__ = (
     get_row_counts,
     display_schema,
     get_local_pipeline_state,
-    pipeline_trace,
+    # TODO: pipeline_trace returns raw trace.asdict() which is too large for MCP.
+    #   Return a summary (timing, step outcomes, errors) like the CLI trace command does.
 )
+

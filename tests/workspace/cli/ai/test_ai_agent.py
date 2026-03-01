@@ -1,6 +1,5 @@
-from os import environ
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Type
+from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import pytest
 
@@ -12,13 +11,6 @@ from dlt._workspace.cli.ai.agents import (
     _CursorAgent,
 )
 from dlt._workspace.cli.formatters import parse_frontmatter
-
-
-@pytest.fixture()
-def environment() -> Iterator[Any]:
-    """Clear environ for the test, restore via autouse preserve_environ."""
-    environ.clear()
-    yield environ
 
 
 @pytest.fixture()

@@ -4,11 +4,13 @@ import os
 from typing import Any
 
 import pytest
+import yaml
 from _pytest.capture import CaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 from pytest_mock import MockerFixture
 from unittest.mock import patch, Mock
 
+from dlt.version import __version__ as dlt_version
 from dlt._workspace.cli.utils import (
     delete_local_data,
     check_delete_local_data,
@@ -364,12 +366,10 @@ def test_instrumentation_wrappers() -> None:
 
 def test_fetch_workspace_info_has_dlt_fields() -> None:
     """fetch_workspace_info returns dlt_version, dlthub_version, initialized, installed_toolkits."""
-    from dlt.version import __version__ as expected_version
-
     with isolated_workspace("empty"):
         info = fetch_workspace_info()
 
-    assert info["dlt_version"] == expected_version
+    assert info["dlt_version"] == dlt_version
     # dlthub_version is None unless the dlthub package is installed
     assert "dlthub_version" in info
     # initialized depends on config.toml presence
@@ -397,7 +397,6 @@ def test_fetch_workspace_info_initialized_flag() -> None:
 
 def test_fetch_workspace_info_installed_toolkits() -> None:
     """installed_toolkits reflects the .dlt/.toolkits index."""
-    import yaml
 
     with isolated_workspace("empty") as ctx:
         # initially empty
