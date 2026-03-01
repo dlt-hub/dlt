@@ -728,7 +728,15 @@ class Pipeline(SupportsPipeline):
         self._set_dataset_name(dataset_name)
 
         # sync state with destination
-        self._maybe_sync_destination(destination, staging, dataset_name)
+        if (
+            self.config.restore_from_destination
+            and not self.dev_mode
+            and not self._state_restored
+            and (self._destination or destination)
+        ):
+            self._sync_destination(destination, staging, dataset_name)
+            # sync only once
+            self._state_restored = True
 
         if self.has_pending_data:
             if data is not None:
@@ -786,22 +794,6 @@ class Pipeline(SupportsPipeline):
         )
 
     @with_schemas_sync
-    def _maybe_sync_destination(
-        self,
-        destination: TDestinationReferenceArg = None,
-        staging: TDestinationReferenceArg = None,
-        dataset_name: str = None,
-    ) -> None:
-        """Syncs state and schemas from destination if not yet done and conditions are met."""
-        if (
-            self.config.restore_from_destination
-            and not self.dev_mode
-            and not self._state_restored
-            and (self._destination or destination)
-        ):
-            self._sync_destination(destination, staging, dataset_name)
-            self._state_restored = True
-
     def _sync_destination(
         self,
         destination: TDestinationReferenceArg = None,

@@ -513,6 +513,40 @@ def test_dev_mode_reset_syncs_with_destination() -> None:
     assert 99 not in ids
 
 
+def test_dev_mode_configured_via_env_then_removed() -> None:
+    """dev_mode set via config env var, then removed — should reset to regular dataset (#3276)."""
+    pipeline_name = "pipe_cfg_dev_" + uniq_id()
+    dataset_name = "cfg_data"
+    env_key = f"PIPELINES__{pipeline_name.upper()}__DEV_MODE"
+
+    # 1. enable dev_mode via env var and run
+    os.environ[env_key] = "true"
+    try:
+        p = dlt.pipeline(
+            pipeline_name=pipeline_name,
+            destination="duckdb",
+            dataset_name=dataset_name,
+        )
+        assert p.dev_mode is True
+        dev_dataset = p.dataset_name
+        assert dev_dataset != dataset_name
+        info = p.run([{"id": 1}], table_name="items")
+        assert_load_info(info)
+    finally:
+        del os.environ[env_key]
+
+    # 2. config removed — dev_mode defaults to False, should detect transition and reset
+    p2 = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset_name,
+    )
+    assert p2.dev_mode is False
+    assert p2.dataset_name == dataset_name
+    assert p2.first_run is True
+    assert p2.default_schema_name is None
+
+
 def test_dataset_pipeline_never_ran() -> None:
     p = dlt.pipeline(destination="duckdb", dev_mode=True, dataset_name="_main_")
     # we get a dataset with an empty schema with the name of the dataset
