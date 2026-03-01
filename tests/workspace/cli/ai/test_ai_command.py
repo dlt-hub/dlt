@@ -3,6 +3,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -13,7 +14,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.version import __version__ as dlt_version
 
-from dlt._workspace.cli.ai.agents import _ClaudeAgent
+from dlt._workspace.cli.ai.agents import AI_AGENTS, _ClaudeAgent
 from dlt._workspace.cli.ai.commands import (
     _execute_install,
     _plan_toolkit_install,
@@ -36,7 +37,10 @@ from dlt._workspace.cli.ai.utils import (
 from dlt._workspace.cli.exceptions import CliCommandException
 
 from tests.workspace.cli.ai.utils import (
+    AGENT_NAMES,
+    INSTALLABLE_TOOLKITS,
     KNOWN_TOOLKITS,
+    assert_toolkit_install,
     make_mock_toolkit_info,
     make_mock_workbench,
     make_versioned_workbench,
@@ -494,7 +498,7 @@ def test_install_stores_workflow_entry_skill(capsys: pytest.CaptureFixture[str])
         assert not idx["init"].get("workflow_entry_skill")
 
 
-def test_smoke_toolkit_list(workbench_repo: str, capsys: pytest.CaptureFixture[str]) -> None:
+def test_toolkit_list_workbench(workbench_repo: str, capsys: pytest.CaptureFixture[str]) -> None:
     """List toolkits from the real workbench repo."""
     ai_toolkit_list_command(location=workbench_repo, branch=None)
     output = capsys.readouterr().out
@@ -505,7 +509,7 @@ def test_smoke_toolkit_list(workbench_repo: str, capsys: pytest.CaptureFixture[s
 
 
 @pytest.mark.parametrize("toolkit_name", KNOWN_TOOLKITS)
-def test_smoke_toolkit_info(
+def test_toolkit_info_workbench(
     toolkit_name: str, workbench_repo: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Info for each real toolkit shows its name."""
@@ -514,109 +518,91 @@ def test_smoke_toolkit_info(
     assert toolkit_name in output
 
 
-def test_smoke_toolkit_install(workbench_repo: str, capsys: pytest.CaptureFixture[str]) -> None:
-    """Install a real toolkit into a temp project dir."""
-    project_root = Path("project")
-    project_root.mkdir()
-
-    with patch("dlt.common.runtime.run_context.active") as mock_ctx:
-        settings_dir = str(project_root / ".dlt")
-        mock_ctx.return_value.run_dir = str(project_root)
-        mock_ctx.return_value.settings_dir = settings_dir
-        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
-        ai_toolkit_install_command(
-            name="rest-api-pipeline",
-            agent="claude",
-            location=workbench_repo,
-            branch=None,
-        )
-
-    output = capsys.readouterr().out
-    assert "item(s) installed" in output
-    assert (project_root / ".claude").is_dir()
-    init_rules = list((project_root / ".claude" / "rules").glob("init-*.md"))
-    assert len(init_rules) > 0, "init rules should be installed as dependency"
-    mcp_config = project_root / ".mcp.json"
-    assert mcp_config.is_file()
-    mcp_data = json.loads(mcp_config.read_text())
-    assert "dlt-workspace-mcp" in mcp_data["mcpServers"]
-    toolkits_file = project_root / ".dlt" / ".toolkits"
-    assert toolkits_file.is_file()
-    toolkits_data = yaml.safe_load(toolkits_file.read_text())
-    assert "rest-api-pipeline" in toolkits_data
-    assert "version" in toolkits_data["rest-api-pipeline"]
-    assert "installed_at" in toolkits_data["rest-api-pipeline"]
-    assert toolkits_data["rest-api-pipeline"]["agent"] == "claude"
-    assert toolkits_data["rest-api-pipeline"]["workflow_entry_skill"] == "find-source"
-
-
-def test_smoke_init(workbench_repo: str, capsys: pytest.CaptureFixture[str]) -> None:
-    """Run ai init from the real workbench repo."""
-    project_root = Path("project")
-    project_root.mkdir()
-
-    with patch("dlt.common.runtime.run_context.active") as mock_ctx:
-        settings_dir = str(project_root / ".dlt")
-        mock_ctx.return_value.run_dir = str(project_root)
-        mock_ctx.return_value.settings_dir = settings_dir
-        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
-        ai_init_command(
-            agent="claude",
-            location=workbench_repo,
-            branch=None,
-        )
-
-    output = capsys.readouterr().out
-    assert "item(s) installed" in output
-    mcp_config = project_root / ".mcp.json"
-    assert mcp_config.is_file()
-    mcp_data = json.loads(mcp_config.read_text())
-    assert "dlt-workspace-mcp" in mcp_data["mcpServers"]
-
-
-def test_smoke_toolkit_install_overwrite(
-    workbench_repo: str, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize("agent_name", AGENT_NAMES)
+@pytest.mark.parametrize("toolkit_name", INSTALLABLE_TOOLKITS)
+def test_toolkit_install_workbench(
+    toolkit_name: str,
+    agent_name: str,
+    workbench_repo: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Install, then reinstall with --overwrite against real repo."""
-    project_root = Path("project")
-    project_root.mkdir()
+    """Install one toolkit for one agent, validate index, files, hashes."""
+    project_root = Path.cwd()
+    ai_toolkit_install_command(
+        name=toolkit_name,
+        agent=agent_name,
+        location=workbench_repo,
+        branch=None,
+    )
 
-    with patch("dlt.common.runtime.run_context.active") as mock_ctx:
-        settings_dir = str(project_root / ".dlt")
-        mock_ctx.return_value.run_dir = str(project_root)
-        mock_ctx.return_value.settings_dir = settings_dir
-        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
-        ai_toolkit_install_command(
-            name="rest-api-pipeline",
-            agent="claude",
-            location=workbench_repo,
-            branch=None,
-        )
-        first_output = capsys.readouterr().out
-        assert "already exists" not in first_output
+    output = capsys.readouterr().out
+    assert "item(s) installed" in output
 
-        ai_toolkit_install_command(
-            name="rest-api-pipeline",
-            agent="claude",
-            location=workbench_repo,
-            branch=None,
-        )
-        skip_output = capsys.readouterr().out
-        assert "already installed" in skip_output
+    entry = assert_toolkit_install(project_root, toolkit_name, agent_name)
+    if wes := entry.get("workflow_entry_skill"):
+        assert wes in output, "entry skill %s should appear in output" % wes
 
-        ai_toolkit_install_command(
-            name="rest-api-pipeline",
-            agent="claude",
-            location=workbench_repo,
-            branch=None,
-            overwrite=True,
-        )
-        overwrite_output = capsys.readouterr().out
-        assert "already exists" not in overwrite_output
-        assert "item(s) installed" in overwrite_output
+    # init is always installed as a dependency
+    assert_toolkit_install(project_root, "init", agent_name)
 
 
-def test_smoke_dependency_map(workbench_repo: str) -> None:
+@pytest.mark.parametrize("agent_name", AGENT_NAMES)
+def test_init_workbench(
+    agent_name: str, workbench_repo: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Run ai init for each agent, validate index, files, hashes."""
+    project_root = Path.cwd()
+    ai_init_command(
+        agent=agent_name,
+        location=workbench_repo,
+        branch=None,
+    )
+
+    output = capsys.readouterr().out
+    assert "item(s) installed" in output
+    assert_toolkit_install(project_root, "init", agent_name)
+
+
+@pytest.mark.parametrize("agent_name", AGENT_NAMES)
+def test_toolkit_install_overwrite_workbench(
+    agent_name: str, workbench_repo: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Install, skip, overwrite flow for each agent against real repo."""
+    project_root = Path.cwd()
+
+    ai_toolkit_install_command(
+        name="rest-api-pipeline",
+        agent=agent_name,
+        location=workbench_repo,
+        branch=None,
+    )
+    first_output = capsys.readouterr().out
+    assert "already exists" not in first_output
+    assert_toolkit_install(project_root, "rest-api-pipeline", agent_name)
+
+    ai_toolkit_install_command(
+        name="rest-api-pipeline",
+        agent=agent_name,
+        location=workbench_repo,
+        branch=None,
+    )
+    skip_output = capsys.readouterr().out
+    assert "already installed" in skip_output
+
+    ai_toolkit_install_command(
+        name="rest-api-pipeline",
+        agent=agent_name,
+        location=workbench_repo,
+        branch=None,
+        overwrite=True,
+    )
+    overwrite_output = capsys.readouterr().out
+    assert "already exists" not in overwrite_output
+    assert "item(s) installed" in overwrite_output
+    assert_toolkit_install(project_root, "rest-api-pipeline", agent_name)
+
+
+def test_dependency_map_workbench(workbench_repo: str) -> None:
     """build_dependency_map reads workbench dependencies."""
     base = Path(workbench_repo) / AI_WORKBENCH_BASE_DIR
     toolkits = scan_workbench_toolkits(base)
@@ -630,7 +616,7 @@ def test_smoke_dependency_map(workbench_repo: str) -> None:
         resolve_toolkit_dependencies(name, dep_map)
 
 
-def test_smoke_toolkit_info_shows_entry_skill(
+def test_toolkit_info_entry_skill_workbench(
     workbench_repo: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """toolkit info shows entry skill for real toolkits."""
@@ -638,3 +624,54 @@ def test_smoke_toolkit_info_shows_entry_skill(
     output = capsys.readouterr().out
     assert "Use find-source skill to start!" in output
     assert "Dependencies:" not in output
+
+
+@pytest.mark.parametrize("agent_name", AGENT_NAMES)
+def test_toolkit_install_all_together_workbench(
+    agent_name: str, workbench_repo: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Install all installable toolkits into one project, validate each."""
+    project_root = Path.cwd()
+
+    for toolkit_name in INSTALLABLE_TOOLKITS:
+        ai_toolkit_install_command(
+            name=toolkit_name,
+            agent=agent_name,
+            location=workbench_repo,
+            branch=None,
+        )
+        capsys.readouterr()
+
+    for toolkit_name in INSTALLABLE_TOOLKITS:
+        assert_toolkit_install(project_root, toolkit_name, agent_name)
+    assert_toolkit_install(project_root, "init", agent_name)
+
+
+@pytest.mark.parametrize("agent_name", AGENT_NAMES)
+def test_init_autodetect_workbench(
+    agent_name: str,
+    workbench_repo: str,
+    environment: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ai_init_command(agent=None) auto-detects agent via global marker."""
+    project_root = Path.cwd()
+
+    # plant exactly one agent's global marker in a fake home
+    fake_home = Path("fake_home")
+    fake_home.mkdir()
+    marker = AI_AGENTS[agent_name]._GLOBAL_MARKER
+    (fake_home / marker).mkdir()
+    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+
+    ai_init_command(
+        agent=None,
+        location=workbench_repo,
+        branch=None,
+    )
+
+    output = capsys.readouterr().out
+    assert "item(s) installed" in output
+    assert agent_name in output
+    assert_toolkit_install(project_root, "init", agent_name)
