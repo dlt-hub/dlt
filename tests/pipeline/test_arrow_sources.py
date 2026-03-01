@@ -103,10 +103,8 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
 
     # Check schema detection
     schema_columns = schema.tables["some_data"]["columns"]
-    # null column is present, with x-normalizer seen-null-first, without data type
-    assert set(schema_columns) - set(df_tbl.columns) == {"null"}
-    assert schema_columns["null"]["x-normalizer"]["seen-null-first"] is True
-    assert "data_type" not in schema_columns["null"]
+    # null column should not appear in schema at all
+    assert "null" not in schema_columns
     assert schema_columns["date"]["data_type"] == "date"
     assert schema_columns["int"]["data_type"] == "bigint"
     assert schema_columns["float"]["data_type"] == "double"
@@ -324,6 +322,8 @@ def test_normalize_with_dlt_columns(item_type: TPythonTableFormat):
     schema = pipeline.default_schema
     assert schema.tables["some_data"]["columns"]["_dlt_id"]["data_type"] == "text"
     assert schema.tables["some_data"]["columns"]["_dlt_load_id"]["data_type"] == "text"
+    # null column removed during rewrite path via dlt.null_columns metadata
+    assert "null" not in schema.tables["some_data"]["columns"]
 
     pipeline.load()
 
@@ -346,6 +346,34 @@ def test_normalize_with_dlt_columns(item_type: TPythonTableFormat):
 
     schema = pipeline.default_schema
     assert schema.tables["some_data"]["columns"]["static_int"]["data_type"] == "bigint"
+
+
+def test_user_defined_incomplete_column_preserved_with_null_data():
+    """User-defined incomplete columns must not be removed when arrow data has all NULLs."""
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
+
+    # arrow table with a null-type column
+    item = pa.table(
+        {
+            "id": pa.array([1, 2, 3]),
+            "value": pa.array([None, None, None]),  # all nulls → pa.null() type
+        }
+    )
+
+    @dlt.resource(columns={"value": {"name": "value", "nullable": True, "description": "user col"}})
+    def user_data():
+        yield item
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+    pipeline.extract(user_data(), loader_file_format="parquet")
+    pipeline.normalize()
+
+    schema = pipeline.default_schema
+    # user-defined column must survive even though data was all NULLs
+    assert "value" in schema.tables["user_data"]["columns"]
+    col = schema.tables["user_data"]["columns"]["value"]
+    assert col["description"] == "user col"
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])

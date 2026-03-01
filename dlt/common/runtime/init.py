@@ -1,7 +1,7 @@
-from typing import Optional
+from typing import Dict, Optional, Type
 
 from dlt.common.configuration.specs import RuntimeConfiguration
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.specs.pluggable_run_context import (
     PluggableRunContext,
     RunContextBase,
@@ -33,19 +33,33 @@ def initialize_runtime(logger_name: str, runtime_config: RuntimeConfiguration) -
 
 
 def restore_run_context(
-    run_context: RunContextBase, section_context: Optional[ConfigSectionContext] = None
+    run_context: RunContextBase,
+    worker_contexts: Optional[
+        Dict[Type[ContainerInjectableContext], ContainerInjectableContext]
+    ] = None,
 ) -> None:
-    """Restores `run_context` and optionally `section_context` by placing them into container.
-    If `runtime_config` is present, initializes runtime.
+    """Restores run context and worker-affinity contexts in a worker process.
 
-    Intended to be called by workers in a process pool.
+    Called by process pool workers to restore the execution environment from the
+    main process. The `run_context` is used to create a new `PluggableRunContext`,
+    while `worker_contexts` are contexts marked with `worker_affinity=True` that
+    are placed directly into the container.
+
+    Args:
+        run_context: The RunContextBase from the main process. Must have
+            `runtime_config` attached.
+        worker_contexts: Dict mapping context types to instances, collected via
+            `Container.get_worker_contexts()`. Each context is placed into the
+            worker's container under its type key.
     """
     from dlt.common.configuration.container import Container
 
     # make sure runtime configuration is attached
     assert run_context.runtime_config is not None
 
-    Container()[PluggableRunContext] = PluggableRunContext(run_context)
+    container = Container()
+    container[PluggableRunContext] = PluggableRunContext(run_context)
 
-    if section_context:
-        Container()[ConfigSectionContext] = section_context
+    if worker_contexts:
+        for spec, ctx in worker_contexts.items():
+            container[spec] = ctx

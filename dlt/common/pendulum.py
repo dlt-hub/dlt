@@ -1,7 +1,8 @@
 from datetime import datetime, timezone, timedelta, tzinfo  # noqa: I251
-from typing import SupportsIndex
+from typing import Optional, SupportsIndex, Union
 import pendulum  # noqa: I251
-
+from pendulum.tz import UTC
+from pendulum.tz.timezone import FixedTimezone, Timezone
 
 # force UTC as the local timezone to prevent local dates to be written to dbs
 pendulum.set_local_timezone(pendulum.timezone("UTC"))
@@ -16,6 +17,23 @@ def __utcnow() -> pendulum.DateTime:
     return pendulum.now()
 
 
+def to_pendulum_tz(tz: Optional[tzinfo]) -> Optional[Union[Timezone, FixedTimezone]]:
+    """Convert a tzinfo to a pendulum Timezone/FixedTimezone"""
+    if tz is None:
+        return None
+    # already a pendulum timezone
+    if isinstance(tz, (Timezone, FixedTimezone)):
+        return tz
+    # Python stdlib fixed offset - use cached fixed_timezone
+    if isinstance(tz, timezone):
+        offset_seconds = int(tz.utcoffset(None).total_seconds())
+        if offset_seconds == 0:
+            return UTC
+        return pendulum.fixed_timezone(offset_seconds)
+    # named timezone (pytz, dateutil, zoneinfo) - need _safe_timezone for DST
+    return pendulum._safe_timezone(tz)
+
+
 def create_dt(
     year: SupportsIndex,
     month: SupportsIndex,
@@ -27,17 +45,22 @@ def create_dt(
     tz: tzinfo = None,
     fold: int = 1,
 ) -> pendulum.DateTime:
-    """
-    Creates a new DateTime instance from a specific date and time.
-    """
-    if tz is not None:
-        tz = pendulum._safe_timezone(tz)
+    """Creates a new DateTime instance from a specific date and time."""
+    pend_tz = to_pendulum_tz(tz)
 
+    if pend_tz is None:
+        # naive datetime
+        return pendulum.DateTime(year, month, day, hour, minute, second, microsecond)
+
+    if isinstance(pend_tz, FixedTimezone) or pend_tz is UTC:
+        # fixed offset or UTC - no DST, no conversion needed
+        return pendulum.DateTime(
+            year, month, day, hour, minute, second, microsecond, tzinfo=pend_tz
+        )
+
+    # named timezone - need convert() for DST handling
     dt = datetime(year, month, day, hour, minute, second, microsecond, fold=fold)
-
-    if tz is not None:
-        dt = tz.convert(dt)
-
+    dt = pend_tz.convert(dt)
     return pendulum.DateTime(
         dt.year,
         dt.month,
@@ -47,6 +70,37 @@ def create_dt(
         dt.second,
         dt.microsecond,
         tzinfo=dt.tzinfo,
+        fold=dt.fold,
+    )
+
+
+def ensure_pendulum_dt(dt: datetime) -> pendulum.DateTime:
+    """Convert a stdlib datetime to pendulum DateTime preserving timezone."""
+    tz = dt.tzinfo
+    if tz is None:
+        return pendulum.DateTime(
+            dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond
+        )
+    if tz is UTC:
+        return pendulum.DateTime(
+            dt.year,
+            dt.month,
+            dt.day,
+            dt.hour,
+            dt.minute,
+            dt.second,
+            dt.microsecond,
+            tzinfo=UTC,
+        )
+    return create_dt(
+        dt.year,
+        dt.month,
+        dt.day,
+        dt.hour,
+        dt.minute,
+        dt.second,
+        dt.microsecond,
+        tz=tz,
         fold=dt.fold,
     )
 

@@ -2,7 +2,7 @@ import os
 import pytest
 
 from dlt.common.schema.exceptions import SchemaEngineNoUpgradePathException
-from dlt.common.schema.migrations import migrate_schema
+from dlt.common.schema.migrations import migrate_schema, _remove_seen_null_first
 from dlt.common.schema.normalizers import DEFAULT_NAMING_MODULE
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
@@ -182,6 +182,65 @@ def test_row_and_parent_key_migration_upper_case() -> None:
     # row && parent key
     assert default_hints["row_key"] == ["_DLT_ID"]
     assert default_hints["parent_key"] == ["_DLT_PARENT_ID"]
+
+
+def test_seen_null_first_cleanup() -> None:
+    """seen-null-first columns are cleaned up when schema is loaded."""
+    schema = Schema("test")
+
+    # incomplete column with seen-null-first and no data_type -> should be removed
+    schema.tables["my_table"] = new_table("my_table")
+    schema.tables["my_table"]["columns"]["null_col"] = {
+        "name": "null_col",
+        "nullable": True,
+        "x-normalizer": {"seen-null-first": True},
+    }
+    # column with seen-null-first AND data_type -> hint stripped, column kept
+    schema.tables["my_table"]["columns"]["typed_col"] = {
+        "name": "typed_col",
+        "nullable": True,
+        "data_type": "text",
+        "x-normalizer": {"seen-null-first": True},
+    }
+    # column with seen-null-first AND data_type AND other x-normalizer keys -> only hint stripped
+    schema.tables["my_table"]["columns"]["multi_hint_col"] = {
+        "name": "multi_hint_col",
+        "nullable": True,
+        "data_type": "bigint",
+        "x-normalizer": {"seen-null-first": True, "seen-data": True},
+    }
+    # normal complete column -> untouched
+    schema.tables["my_table"]["columns"]["normal_col"] = {
+        "name": "normal_col",
+        "nullable": True,
+        "data_type": "bigint",
+    }
+
+    schema_dict = schema.to_dict()
+    _remove_seen_null_first(schema_dict)  # type: ignore[arg-type]
+
+    cols = schema_dict["tables"]["my_table"]["columns"]
+    # incomplete null-only column removed
+    assert "null_col" not in cols
+    # typed column kept, hint stripped
+    assert cols["typed_col"]["data_type"] == "text"
+    assert "x-normalizer" not in cols["typed_col"]
+    # multi-hint column: seen-null-first stripped, other keys preserved
+    assert cols["multi_hint_col"]["data_type"] == "bigint"
+    assert cols["multi_hint_col"]["x-normalizer"] == {"seen-data": True}
+    # normal column untouched
+    assert cols["normal_col"] == {"name": "normal_col", "nullable": True, "data_type": "bigint"}
+
+    # verify round-trip through Schema.from_dict also cleans up
+    schema2 = Schema("test2")
+    schema2.tables["tbl"] = new_table("tbl")
+    schema2.tables["tbl"]["columns"]["ghost"] = {
+        "name": "ghost",
+        "nullable": True,
+        "x-normalizer": {"seen-null-first": True},
+    }
+    reloaded = Schema.from_dict(schema2.to_dict())  # type: ignore[arg-type]
+    assert "ghost" not in reloaded.tables["tbl"]["columns"]
 
 
 def test_unknown_engine_upgrade() -> None:
