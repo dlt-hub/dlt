@@ -328,6 +328,9 @@ adbc = [
 dlt = "dlt.__plugins__"
 
 [tool.uv]
+# cyclopts (via fastmcp) pulls in docstring-parser which conflicts with
+# docstring-parser-fork (same Python module). The fork is a superset used by pydoclint.
+override-dependencies = ["docstring-parser ; sys_platform == 'never'"]
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }

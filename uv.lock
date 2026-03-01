@@ -40,6 +40,9 @@ resolution-markers = [
     "python_full_version < '3.10' and os_name != 'nt' and sys_platform == 'emscripten'",
 ]
 
+[manifest]
+overrides = [{ name = "docstring-parser", marker = "sys_platform == 'never'" }]
+
 [[package]]
 name = "about-time"
 version = "4.2.1"
@@ -1883,7 +1886,7 @@ version = "4.5.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "docstring-parser", marker = "python_full_version >= '3.10'" },
+    { name = "docstring-parser", marker = "python_full_version >= '3.10' and sys_platform == 'never'" },
     { name = "rich", marker = "python_full_version >= '3.10'" },
     { name = "rich-rst", marker = "python_full_version >= '3.10'" },
     { name = "tomli", marker = "python_full_version == '3.10.*'" },
@@ -2975,11 +2978,11 @@ wheels = [
 
 [[package]]
 name = "docstring-parser-fork"
-version = "0.0.12"
+version = "0.0.14"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c6/72/61f7243ad62e14d527f93304cd4f333e681295aa3ef9bcc4afc36c07001a/docstring_parser_fork-0.0.12.tar.gz", hash = "sha256:b44c5e0be64ae80f395385f01497d381bd094a57221fd9ff020987d06857b2a0", size = 31608, upload-time = "2025-01-13T07:57:43.351Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/bf/27f9cab2f0cd1d17a4420572088bbc19f36d726fbcf165edf226a8926dbc/docstring_parser_fork-0.0.14.tar.gz", hash = "sha256:a2743a63d8d36c09650594f7b4ab5b2758fee8629dcf794d1b221b23179baa5c", size = 34551, upload-time = "2025-09-07T17:27:38.272Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/50/0d/eed05d4b1065f11f8bef2f57440759d4dacc73c22780764948bfa4aaa304/docstring_parser_fork-0.0.12-py3-none-any.whl", hash = "sha256:55d7cbbc8b367655efd64372b9a0b33a49bae930a8ddd5cdc4c6112312e28a87", size = 42185, upload-time = "2025-01-13T07:57:39.993Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/50/98b146aea0f1cd7531d25f12bea69fa9ce8d1662124f93fb30dc4511b65e/docstring_parser_fork-0.0.14-py3-none-any.whl", hash = "sha256:4c544f234ef2cc2749a3df32b70c437d77888b1099143a1ad5454452c574b9af", size = 43063, upload-time = "2025-09-07T17:27:37.012Z" },
 ]
 
 [[package]]
