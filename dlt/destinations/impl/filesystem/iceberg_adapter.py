@@ -2,10 +2,12 @@ from dataclasses import dataclass
 from typing import Any, List, Dict, Union, Sequence, Optional, cast
 
 from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.typing import DictStrAny
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 
 PARTITION_HINT = "x-iceberg-partition"
+TABLE_PROPERTIES_HINT = "x-iceberg-table-properties"
 
 
 @dataclass(frozen=True)
@@ -149,11 +151,12 @@ class iceberg_partition:
 def iceberg_adapter(
     data: Any,
     partition: Union[str, PartitionSpec, Sequence[Union[str, PartitionSpec]]] = None,
+    table_properties: Optional[DictStrAny] = None,
 ) -> DltResource:
     """Prepares data or a DltResource for loading into Apache Iceberg table.
 
     Takes raw data or an existing DltResource and configures it for Iceberg,
-    primarily by defining partitioning strategies via the DltResource's hints.
+    primarily by defining partitioning strategies and table properties via the DltResource's hints.
 
     Args:
         data: The data to be transformed. This can be raw data (e.g., list of dicts)
@@ -166,14 +169,19 @@ def iceberg_adapter(
               including transformation types (year, month, day, hour, bucket, truncate).
               Use the `iceberg_partition` helper class to create these specs.
             - A sequence of the above: To define multiple partition columns.
+        table_properties: Optional dictionary of Iceberg table properties to set.
+            These properties will be passed to the Iceberg table creation.
+            Example: {"format-version": "2", "write.delete.mode": "delete-file"}
 
     Returns:
-        A `DltResource` instance configured with Iceberg-specific partitioning hints,
-        ready for loading.
+        A `DltResource` instance configured with Iceberg-specific partitioning hints
+        and table properties, ready for loading.
 
     Raises:
         ValueError: If `partition` is not specified or if an invalid
             partition transform is requested within a `PartitionSpec`.
+            Also raised if `table_properties` is not a dictionary or contains
+            non-string keys.
 
     Examples:
         >>> data = [{"id": 1, "event_time": "2023-03-15T10:00:00Z", "category": "A"}]
@@ -187,7 +195,7 @@ def iceberg_adapter(
         >>> # The resource's hints now contain the Iceberg partition specs:
         >>> # resource.compute_table_schema().get('x-iceberg-partition')
         >>> # [
-        >>> #     {'transform': 'identity', 'source_column': 'event_time'},
+        >>> #     {'transform': 'identity', 'source_column': 'category'},
         >>> #     {'transform': 'year', 'source_column': 'event_time'},
         >>> # ]
         >>> #
@@ -196,6 +204,13 @@ def iceberg_adapter(
         ... def my_data():
         ...     yield [{"value": "abc"}]
         >>> iceberg_adapter(my_data, partition="value")
+        >>>
+        >>> # Set table properties
+        >>> resource = iceberg_adapter(
+        ...     data,
+        ...     partition="category",
+        ...     table_properties={"format-version": "2", "write.delete.mode": "delete-file"}
+        ... )
     """
     resource = get_resource_for_adapter(data)
     additional_table_hints: Dict[str, Any] = {}
@@ -213,6 +228,18 @@ def iceberg_adapter(
                 specs.append(iceberg_partition.identity(item))
 
         additional_table_hints[PARTITION_HINT] = [spec.to_dict() for spec in specs]
+
+    if table_properties:
+        if not isinstance(table_properties, dict):
+            raise ValueError("`table_properties` must be a dictionary of key-value pairs.")
+
+        # Validate all keys are strings
+        for key in table_properties.keys():
+            if not isinstance(key, str):
+                raise ValueError("Table property keys must be strings.")
+
+        # Add table properties hint
+        additional_table_hints[TABLE_PROPERTIES_HINT] = table_properties
 
     if additional_table_hints:
         resource.apply_hints(additional_table_hints=additional_table_hints)

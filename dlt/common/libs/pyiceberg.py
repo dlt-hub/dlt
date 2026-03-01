@@ -19,6 +19,7 @@ from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
+from dlt.common.typing import DictStrAny
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt.common.configuration.inject import with_config
@@ -207,6 +208,9 @@ class IcebergConfig(BaseConfiguration):
         s3.secret-access-key = "cool-bucket-secret-key"
         s3.region = "cool-bucket-region"
     """
+
+    namespace_properties: Optional[DictStrAny] = None
+    """Properties to be passed to create_namespace when creating the Iceberg namespace (dataset)."""
 
 
 def _load_catalog_from_pyiceberg(
@@ -422,6 +426,7 @@ def create_table(
     schema: Union[pa.Schema, "pyiceberg.schema.Schema"],
     partition_columns: Optional[List[str]] = None,
     partition_spec: Optional[IcebergPartitionSpec] = UNPARTITIONED_PARTITION_SPEC,
+    properties: Optional[DictStrAny] = None,
 ) -> None:
     if isinstance(schema, pa.Schema):
         schema = ensure_iceberg_compatible_arrow_schema(schema)
@@ -434,6 +439,7 @@ def create_table(
             table_id,
             schema=schema,
             location=table_location,
+            properties=properties or {},
         ) as txn:
             # add partitioning
             with txn.update_spec() as update_spec:
@@ -445,6 +451,7 @@ def create_table(
             schema=schema,
             location=table_location,
             partition_spec=partition_spec,
+            properties=properties or {},
         )
 
 

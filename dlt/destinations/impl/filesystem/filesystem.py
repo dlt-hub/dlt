@@ -90,6 +90,7 @@ from dlt.destinations.impl.filesystem.configuration import (
 )
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
+from dlt.destinations.impl.filesystem.iceberg_adapter import TABLE_PROPERTIES_HINT
 from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
@@ -273,6 +274,8 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
 
             spec_list = self._get_partition_spec_list()
+            # get properties from hints
+            properties: DictStrAny = self._load_table.get(TABLE_PROPERTIES_HINT)  # type: ignore[assignment]
 
             if spec_list:
                 partition_spec, iceberg_schema = build_iceberg_partition_spec(
@@ -284,6 +287,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table_location=location,
                     schema=iceberg_schema,
                     partition_spec=partition_spec,
+                    properties=properties,
                 )
             else:
                 create_table(
@@ -291,6 +295,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table_id,
                     table_location=location,
                     schema=self.arrow_dataset.schema,
+                    properties=properties,
                 )
             # run again with created table
             self.run()
@@ -1307,7 +1312,17 @@ class FilesystemClient(
 
         # Create namespace
         try:
-            catalog.create_namespace(self.dataset_name)
+            from dlt.common.configuration import resolve_configuration
+            from dlt.common.libs.pyiceberg import IcebergConfig
+
+            # Get namespace properties from IcebergConfig if available
+            iceberg_config = resolve_configuration(
+                IcebergConfig(),
+                sections=("iceberg_catalog",),
+            )
+            namespace_properties = iceberg_config.namespace_properties
+
+            catalog.create_namespace(self.dataset_name, namespace_properties)
             logger.info(f"Created Iceberg namespace: {self.dataset_name}")
         except NamespaceAlreadyExistsError as e:
             logger.debug(f"Namespace {self.dataset_name} already exists or error: {e}")

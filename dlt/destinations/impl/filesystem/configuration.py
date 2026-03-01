@@ -17,7 +17,9 @@ from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 
 @configspec
-class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration):  # type: ignore[misc]
+class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
+    FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration
+):
     destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
         default="filesystem", init=False, repr=False, compare=False
     )
