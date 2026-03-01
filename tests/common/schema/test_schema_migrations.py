@@ -2,7 +2,7 @@ import os
 import pytest
 
 from dlt.common.schema.exceptions import SchemaEngineNoUpgradePathException
-from dlt.common.schema.migrations import migrate_schema
+from dlt.common.schema.migrations import migrate_schema, _remove_seen_null_first
 from dlt.common.schema.normalizers import DEFAULT_NAMING_MODULE
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
@@ -186,8 +186,6 @@ def test_row_and_parent_key_migration_upper_case() -> None:
 
 def test_seen_null_first_cleanup() -> None:
     """seen-null-first columns are cleaned up when schema is loaded."""
-    from dlt.common.schema.migrations import _remove_seen_null_first
-
     schema = Schema("test")
 
     # incomplete column with seen-null-first and no data_type -> should be removed
