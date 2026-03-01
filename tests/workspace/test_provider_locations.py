@@ -9,11 +9,8 @@ from dlt._workspace.cli.ai import (
     ai_secrets_view_redacted_command,
     ai_secrets_update_fragment_command,
 )
-from dlt._workspace.cli.utils import (
-    ProviderInfo,
-    ProviderLocationInfo,
-    get_provider_locations,
-)
+from dlt._workspace.cli.utils import get_provider_locations
+from dlt._workspace.typing import ProviderInfo, ProviderLocationInfo
 
 from tests.workspace.utils import isolated_workspace
 

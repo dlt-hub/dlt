@@ -1,6 +1,7 @@
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, NamedTuple, Optional
 from typing_extensions import NotRequired
 
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.typing import TypedDict
 
 
@@ -91,3 +92,15 @@ class TWorkspaceInfo(TypedDict):
     dlthub_version: Optional[str]
     initialized: bool
     installed_toolkits: Dict[str, TToolkitIndexEntry]
+
+
+class ProviderLocationInfo(NamedTuple):
+    path: str
+    present: bool
+    scope: TLocationScope
+    profile_name: Optional[str]
+
+
+class ProviderInfo(NamedTuple):
+    provider: ConfigProvider
+    locations: List[ProviderLocationInfo]

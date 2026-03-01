@@ -1,7 +1,7 @@
 import ast
 import os
 import shutil
-from typing import Any, Callable, Dict, List, Literal, NamedTuple, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
@@ -31,6 +31,8 @@ from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerEx
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
 from dlt._workspace.typing import (
+    ProviderInfo,
+    ProviderLocationInfo,
     TLocationInfo,
     TLocationScope,
     TProfileInfo,
@@ -365,18 +367,6 @@ def make_dlt_settings_path(path: str = None) -> str:
     if not path:
         return ctx.settings_dir
     return ctx.get_setting(path)
-
-
-class ProviderLocationInfo(NamedTuple):
-    path: str
-    present: bool
-    scope: TLocationScope
-    profile_name: Optional[str]
-
-
-class ProviderInfo(NamedTuple):
-    provider: ConfigProvider
-    locations: List[ProviderLocationInfo]
 
 
 def get_provider_locations() -> List[ProviderInfo]:
