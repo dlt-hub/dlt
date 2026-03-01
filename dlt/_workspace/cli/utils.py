@@ -1,31 +1,44 @@
 import ast
 import os
 import shutil
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Literal, NamedTuple, Optional, Tuple
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.time import ensure_pendulum_datetime_non_utc
 from dlt.common.typing import TAnyDateTime, TFun
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.pluggable_run_context import (
+    PluggableRunContext,
     RunContextBase,
     ProfilesRunContext,
 )
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.runtime import run_context
+from dlt.common.runtime.exec_info import get_plus_version
 from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.versioned_state import json_decode_state
 
-from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
-from dlt._workspace.cli import echo as fmt
-from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
-
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import get_trace_file_path
 from dlt.reflection.script_visitor import PipelineScriptVisitor
+
+from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
+from dlt._workspace.cli import echo as fmt
+from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
+from dlt._workspace.typing import (
+    TLocationInfo,
+    TLocationScope,
+    TProfileInfo,
+    TProviderInfo,
+    TToolkitIndexEntry,
+    TWorkspaceInfo,
+)
+
 
 
 REQUIREMENTS_TXT = "requirements.txt"
@@ -353,3 +366,128 @@ def make_dlt_settings_path(path: str = None) -> str:
     if not path:
         return ctx.settings_dir
     return ctx.get_setting(path)
+
+
+class ProviderLocationInfo(NamedTuple):
+    path: str
+    present: bool
+    scope: TLocationScope
+    profile_name: Optional[str]
+
+
+class ProviderInfo(NamedTuple):
+    provider: ConfigProvider
+    locations: List[ProviderLocationInfo]
+
+
+def get_provider_locations() -> List[ProviderInfo]:
+    """Return structured info about all config providers and their locations.
+
+    Works with both RunContext (OSS, no profiles) and WorkspaceRunContext
+    (profile-aware). Always reflects the currently active profile.
+    """
+    ctx_plug = Container()[PluggableRunContext]
+    ctx = ctx_plug.context
+    providers = ctx_plug.providers.providers
+
+    settings_dir = os.path.abspath(ctx.settings_dir)
+    global_dir = os.path.abspath(ctx.global_dir)
+
+    result: List[ProviderInfo] = []
+    for provider in providers:
+        profile: Optional[str] = getattr(provider, "_profile", None)
+        present_set = set(os.path.abspath(p) for p in provider.present_locations)
+
+        loc_infos: List[ProviderLocationInfo] = []
+        for path in provider.locations:
+            abs_path = os.path.abspath(path)
+            is_present = abs_path in present_set
+
+            # determine scope: project if under settings_dir, global otherwise
+            if abs_path.startswith(settings_dir + os.sep) or abs_path == settings_dir:
+                scope: TLocationScope = "project"
+            elif abs_path.startswith(global_dir + os.sep) or abs_path == global_dir:
+                scope = "global"
+            else:
+                scope = "global"
+
+            # determine if this specific location is profile-scoped
+            profile_name: Optional[str] = None
+            if profile and os.path.basename(path).startswith(f"{profile}."):
+                profile_name = profile
+
+            loc_infos.append(ProviderLocationInfo(path, is_present, scope, profile_name))
+
+        result.append(ProviderInfo(provider, loc_infos))
+    return result
+
+
+def fetch_workspace_info() -> TWorkspaceInfo:
+    """Return workspace information as a structured dict.
+
+    Works with both OSS RunContext (no profiles) and WorkspaceRunContext.
+    Always includes all provider locations (verbose mode).
+    """
+    from dlt._workspace.cli.ai.utils import load_toolkits_index
+
+    ctx = Container()[PluggableRunContext].context
+
+    # profile info — only when profiles are available
+    profile_info: Optional[TProfileInfo] = None
+    if isinstance(ctx, ProfilesRunContext):
+        from dlt._workspace.profile import read_profile_pin
+
+        profile_info = TProfileInfo(
+            name=ctx.profile,
+            is_pinned=ctx.profile == read_profile_pin(ctx),
+            data_dir=ctx.data_dir,
+            local_dir=ctx.local_dir,
+            configured_profiles=ctx.configured_profiles(),
+        )
+
+    # workspace name — only meaningful for WorkspaceRunContext
+    name: Optional[str] = None
+    if isinstance(ctx, ProfilesRunContext):
+        name = ctx.name
+
+    # provider locations — always verbose (all locations)
+    providers: List[TProviderInfo] = []
+    for info in get_provider_locations():
+        providers.append(
+            TProviderInfo(
+                name=info.provider.name,
+                is_empty=info.provider.is_empty,
+                locations=[
+                    TLocationInfo(
+                        path=loc.path,
+                        present=loc.present,
+                        scope=loc.scope,
+                        profile_name=loc.profile_name,
+                    )
+                    for loc in info.locations
+                ],
+            )
+        )
+
+    # dlt and dlthub versions
+    plus_version = get_plus_version()
+    dlthub_version: Optional[str] = plus_version["version"] if plus_version else None
+
+    # initialized: config.toml exists in settings dir
+    initialized = os.path.isfile(make_dlt_settings_path("config.toml"))
+
+    # installed toolkits from local index
+    installed_toolkits: Dict[str, TToolkitIndexEntry] = load_toolkits_index()
+
+    return TWorkspaceInfo(
+        name=name,
+        run_dir=ctx.run_dir,
+        settings_dir=ctx.settings_dir,
+        global_dir=ctx.global_dir,
+        profile=profile_info,
+        providers=providers,
+        dlt_version=dlt.__version__,
+        dlthub_version=dlthub_version,
+        initialized=initialized,
+        installed_toolkits=installed_toolkits,
+    )

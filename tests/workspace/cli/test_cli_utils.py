@@ -9,15 +9,32 @@ from _pytest.monkeypatch import MonkeyPatch
 from pytest_mock import MockerFixture
 from unittest.mock import patch, Mock
 
-from dlt._workspace.cli.utils import delete_local_data, check_delete_local_data, track_command
+from dlt._workspace.cli.utils import (
+    delete_local_data,
+    check_delete_local_data,
+    fetch_workspace_info,
+    track_command,
+)
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
 from dlt.common.runtime.run_context import RunContext
 from dlt.common.runtime.anon_tracker import disable_anon_tracker
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
-from tests.workspace.utils import fruitshop_pipeline_context as fruitshop_pipeline_context
-from dlt._workspace.cli import echo
+from tests.workspace.utils import (
+    fruitshop_pipeline_context as fruitshop_pipeline_context,
+    isolated_workspace,
+)
+from dlt._workspace.cli import DEFAULT_VERIFIED_SOURCES_REPO, echo
+from dlt._workspace.cli._deploy_command import (
+    DeploymentMethods,
+    COMMAND_DEPLOY_REPO_LOCATION,
+    deploy_command_wrapper,
+)
+from dlt._workspace.cli._init_command import (
+    init_command_wrapper,
+    list_sources_command_wrapper,
+)
 from tests.common.runtime.utils import mock_github_env, mock_pod_env
 from tests.utils import SentryLoggerConfiguration, start_test_telemetry, disable_temporary_telemetry
 
@@ -305,21 +322,6 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
-    from dlt._workspace.cli import (
-        DEFAULT_VERIFIED_SOURCES_REPO,
-    )
-    from dlt._workspace.cli._deploy_command import (
-        DeploymentMethods,
-        COMMAND_DEPLOY_REPO_LOCATION,
-    )
-    from dlt._workspace.cli._init_command import (
-        init_command_wrapper,
-        list_sources_command_wrapper,
-    )
-    from dlt._workspace.cli._deploy_command import (
-        deploy_command_wrapper,
-    )
-
     config = WorkspaceRuntimeConfiguration(dlthub_telemetry=True)
 
     with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
@@ -358,6 +360,70 @@ def test_instrumentation_wrappers() -> None:
         assert msg["event"] == "command_deploy"
         assert msg["properties"]["deployment_method"] == DeploymentMethods.github_actions.value
         assert msg["properties"]["success"] is False
+
+
+def test_fetch_workspace_info_has_dlt_fields() -> None:
+    """fetch_workspace_info returns dlt_version, dlthub_version, initialized, installed_toolkits."""
+    from dlt.version import __version__ as expected_version
+
+    with isolated_workspace("empty"):
+        info = fetch_workspace_info()
+
+    assert info["dlt_version"] == expected_version
+    # dlthub_version is None unless the dlthub package is installed
+    assert "dlthub_version" in info
+    # initialized depends on config.toml presence
+    assert isinstance(info["initialized"], bool)
+    # installed_toolkits is a dict (may be empty)
+    assert isinstance(info["installed_toolkits"], dict)
+
+
+def test_fetch_workspace_info_initialized_flag() -> None:
+    """initialized is True when config.toml exists, False otherwise."""
+    with isolated_workspace("empty") as ctx:
+        # no config.toml yet
+        info = fetch_workspace_info()
+        assert info["initialized"] is False
+
+        # create config.toml
+        config_path = os.path.join(ctx.settings_dir, "config.toml")
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, "w", encoding="utf-8") as f:
+            f.write("[runtime]\n")
+
+        info = fetch_workspace_info()
+        assert info["initialized"] is True
+
+
+def test_fetch_workspace_info_installed_toolkits() -> None:
+    """installed_toolkits reflects the .dlt/.toolkits index."""
+    import yaml
+
+    with isolated_workspace("empty") as ctx:
+        # initially empty
+        info = fetch_workspace_info()
+        assert info["installed_toolkits"] == {}
+
+        # write a toolkit entry
+        toolkits_path = os.path.join(ctx.settings_dir, ".toolkits")
+        os.makedirs(os.path.dirname(toolkits_path), exist_ok=True)
+        entry = {
+            "my-tk": {
+                "version": "1.0.0",
+                "installed_at": "2025-01-01T00:00:00+00:00",
+                "agent": "claude",
+                "description": "My toolkit",
+                "tags": ["test"],
+            }
+        }
+        with open(toolkits_path, "w", encoding="utf-8") as f:
+            yaml.dump(entry, f)
+
+        info = fetch_workspace_info()
+        assert "my-tk" in info["installed_toolkits"]
+        assert info["installed_toolkits"]["my-tk"]["version"] == "1.0.0"
+        assert info["installed_toolkits"]["my-tk"]["description"] == "My toolkit"
+        assert info["installed_toolkits"]["my-tk"]["tags"] == ["test"]
 
 
 # telemetry helpers local to this module (avoid depending on other test modules)

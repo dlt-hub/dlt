@@ -9,7 +9,7 @@ from dlt._workspace.cli.ai import (
     ai_secrets_view_redacted_command,
     ai_secrets_update_fragment_command,
 )
-from dlt._workspace.utils import (
+from dlt._workspace.cli.utils import (
     ProviderInfo,
     ProviderLocationInfo,
     get_provider_locations,

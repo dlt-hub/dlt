@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import pytest
+import yaml
 
 from dlt._workspace.cli.formatters import (
     extract_first_heading,
@@ -9,6 +10,7 @@ from dlt._workspace.cli.formatters import (
     read_md_name_desc,
     render_frontmatter,
 )
+from tests.utils import get_test_storage_root
 
 
 @pytest.mark.parametrize(
@@ -29,16 +31,6 @@ from dlt._workspace.cli.formatters import (
             "# Body",
         ),
         (
-            "---\nname: skill\nargument-hint: [pipeline-name] [-- <hints>]\n---\n# Body",
-            {},
-            "---\nname: skill\nargument-hint: [pipeline-name] [-- <hints>]\n---\n# Body",
-        ),
-        (
-            "---\n: invalid\n{broken yaml\n---\nBody",
-            {},
-            "---\n: invalid\n{broken yaml\n---\nBody",
-        ),
-        (
             "---\n- list\n- not a dict\n---\nBody",
             {},
             "---\n- list\n- not a dict\n---\nBody",
@@ -47,16 +39,6 @@ from dlt._workspace.cli.formatters import (
             "---\njust a scalar string\n---\nBody",
             {},
             "---\njust a scalar string\n---\nBody",
-        ),
-        (
-            "---\nname: colon: in value\n---\n# Body",
-            {},
-            "---\nname: colon: in value\n---\n# Body",
-        ),
-        (
-            "---\nname: ok\ntags: {invalid: [nested}\n---\nBody",
-            {},
-            "---\nname: ok\ntags: {invalid: [nested}\n---\nBody",
         ),
         (
             "---\r\nname: crlf\r\n---\r\n# Body",
@@ -71,12 +53,8 @@ from dlt._workspace.cli.formatters import (
         "no-closing",
         "empty-fm",
         "yaml-with-dashes",
-        "yaml-flow-seq-in-value",
-        "broken-yaml",
         "yaml-list-not-dict",
         "yaml-scalar-not-dict",
-        "yaml-ambiguous-colon",
-        "yaml-mismatched-brackets",
         "crlf-line-endings",
     ],
 )
@@ -84,6 +62,26 @@ def test_parse_frontmatter(text: str, expected_fm: Dict[str, Any], expected_body
     fm, body = parse_frontmatter(text)
     assert fm == expected_fm
     assert body == expected_body
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "---\nname: skill\nargument-hint: [pipeline-name] [-- <hints>]\n---\n# Body",
+        "---\n: invalid\n{broken yaml\n---\nBody",
+        "---\nname: colon: in value\n---\n# Body",
+        "---\nname: ok\ntags: {invalid: [nested}\n---\nBody",
+    ],
+    ids=[
+        "yaml-flow-seq-in-value",
+        "broken-yaml",
+        "yaml-ambiguous-colon",
+        "yaml-mismatched-brackets",
+    ],
+)
+def test_parse_frontmatter_raises_on_invalid_yaml(text: str) -> None:
+    with pytest.raises(yaml.YAMLError):
+        parse_frontmatter(text)
 
 
 def test_render_frontmatter() -> None:
@@ -119,8 +117,8 @@ def test_extract_first_heading(body: str, expected: str) -> None:
     assert extract_first_heading(body) == expected
 
 
-def test_read_md_name_desc_with_frontmatter(tmp_path: Path) -> None:
-    md = tmp_path / "my-skill.md"
+def test_read_md_name_desc_with_frontmatter() -> None:
+    md = Path("my-skill.md")
     md.write_text(
         "---\nname: Custom Name\ndescription: A description\n---\n# Heading\nBody",
         encoding="utf-8",
@@ -130,9 +128,9 @@ def test_read_md_name_desc_with_frontmatter(tmp_path: Path) -> None:
     assert desc == "A description"
 
 
-def test_read_md_name_desc_invalid_yaml(tmp_path: Path) -> None:
+def test_read_md_name_desc_invalid_yaml() -> None:
     """Falls back to stem/heading when frontmatter is invalid YAML."""
-    md = tmp_path / "my-skill.md"
+    md = Path("my-skill.md")
     md.write_text(
         "---\nname: my-skill\nargument-hint: [pipeline] [-- <hints>]\n---\n"
         "# Skill Heading\nBody text",
@@ -143,16 +141,16 @@ def test_read_md_name_desc_invalid_yaml(tmp_path: Path) -> None:
     assert desc == "Skill Heading"
 
 
-def test_read_md_name_desc_no_frontmatter(tmp_path: Path) -> None:
-    md = tmp_path / "plain.md"
+def test_read_md_name_desc_no_frontmatter() -> None:
+    md = Path("plain.md")
     md.write_text("# First Heading\nSome content", encoding="utf-8")
     name, desc = read_md_name_desc(md)
     assert name == "plain"
     assert desc == "First Heading"
 
 
-def test_read_md_name_desc_no_heading(tmp_path: Path) -> None:
-    md = tmp_path / "bare.md"
+def test_read_md_name_desc_no_heading() -> None:
+    md = Path("bare.md")
     md.write_text("Just some text with no heading", encoding="utf-8")
     name, desc = read_md_name_desc(md)
     assert name == "bare"

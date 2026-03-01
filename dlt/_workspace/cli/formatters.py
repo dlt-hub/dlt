@@ -21,10 +21,7 @@ def parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
         return {}, text
     fm_str = "\n".join(lines[1:close])
     body = "\n".join(lines[close + 1 :])
-    try:
-        data: Dict[str, Any] = yaml.safe_load(fm_str) or {}
-    except yaml.YAMLError:
-        return {}, text
+    data: Dict[str, Any] = yaml.safe_load(fm_str) or {}
     if not isinstance(data, dict):
         return {}, text
     return data, body
@@ -50,7 +47,10 @@ def extract_first_heading(body: str) -> Optional[str]:
 def read_md_name_desc(path: Path) -> Tuple[str, str]:
     """Read a markdown file and return (name, description) from its frontmatter."""
     text = path.read_text(encoding="utf-8")
-    fm, body = parse_frontmatter(text)
+    try:
+        fm, body = parse_frontmatter(text)
+    except yaml.YAMLError:
+        fm, body = {}, text
     name = fm.get("name", path.stem)
     desc = fm.get("description") or extract_first_heading(body) or ""
     return name, desc

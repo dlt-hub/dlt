@@ -198,14 +198,8 @@ This dashboard should be executed from the same folder from which you ran the pi
 
 If the --edit flag is used, will launch the editable version of the dashboard if it exists in the current directory, or create this version and launch it in edit mode.
 
-Requires `marimo` to be installed in the current environment: `pip install marimo`. Use the --streamlit flag to launch the legacy streamlit app.
+Requires `marimo` to be installed in the current environment: `pip install marimo`.
 """,
-        )
-        show_cmd.add_argument(
-            "--streamlit",
-            default=False,
-            action="store_true",
-            help="Launch the legacy Streamlit dashboard instead of the new workspace dashboard. ",
         )
         show_cmd.add_argument(
             "--edit",
@@ -213,8 +207,7 @@ Requires `marimo` to be installed in the current environment: `pip install marim
             action="store_true",
             help=(
                 "Creates editable version of workspace dashboard in current directory if it does"
-                " not exist there yet and launches it in edit mode. Will have no effect when using"
-                " the streamlit flag."
+                " not exist there yet and launches it in edit mode."
             ),
         )
         pipeline_subparsers.add_parser(
@@ -751,6 +744,12 @@ class AiCommand(SupportsCliCommand):
             title="Available subcommands", dest="operation", required=False
         )
 
+        # status command
+        ai_subparsers.add_parser(
+            "status",
+            help="Show AI setup status: dlt version, agent, toolkits, readiness checks",
+        )
+
         # init command
         from dlt._workspace.cli.ai import (
             DEFAULT_AI_WORKBENCH_BRANCH,
@@ -794,11 +793,15 @@ class AiCommand(SupportsCliCommand):
         view_cmd = secrets_subparsers.add_parser(
             "view-redacted",
             help="Print secrets TOML with all values replaced by '***'",
+            description=(
+                "Without --path, shows the unified view merged from all project"
+                " secret files. With --path, shows that exact file."
+            ),
         )
         view_cmd.add_argument(
             "--path",
             default=None,
-            help="Path to secrets TOML file (default: .dlt/secrets.toml)",
+            help="Show this exact file instead of the unified provider view",
         )
         update_cmd = secrets_subparsers.add_parser(
             "update-fragment",
@@ -812,8 +815,8 @@ class AiCommand(SupportsCliCommand):
         )
         update_cmd.add_argument(
             "--path",
-            default=None,
-            help="Path to secrets TOML file (default: .dlt/secrets.toml)",
+            required=True,
+            help="Path to the secrets TOML file to write to",
         )
 
         # toolkit command group
@@ -866,33 +869,42 @@ class AiCommand(SupportsCliCommand):
             action="store_true",
             help="Overwrite existing files instead of skipping them.",
         )
-
-        # mcp command group — run flags live on the parent so bare `dlt ai mcp --stdio` works
-        mcp_cmd = ai_subparsers.add_parser(
-            "mcp",
-            help="Run or install the dlt MCP server",
+        install_cmd.add_argument(
+            "--strict",
+            default=False,
+            action="store_true",
+            help="Fail on validation warnings (invalid frontmatter, etc.).",
         )
-        mcp_cmd.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
-        mcp_cmd.add_argument(
+
+        # shared run flags — used by both `dlt ai mcp [flags]` and `dlt ai mcp run [flags]`
+        mcp_run_flags = argparse.ArgumentParser(add_help=False)
+        mcp_run_flags.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
+        mcp_run_flags.add_argument(
             "--sse",
             action="store_true",
             help="Use legacy SSE transport instead of streamable-http",
         )
-        mcp_cmd.add_argument(
+        mcp_run_flags.add_argument(
             "--port",
             type=int,
             default=8000,
             help="Port for the MCP server (default: 8000)",
         )
-        mcp_cmd.add_argument(
+        mcp_run_flags.add_argument(
             "--features",
             nargs="*",
             default=None,
             help="Additional MCP feature sets to enable (default: pipeline, workspace)",
         )
+
+        mcp_cmd = ai_subparsers.add_parser(
+            "mcp",
+            help="Run or install the dlt MCP server",
+            parents=[mcp_run_flags],
+        )
         mcp_sub = mcp_cmd.add_subparsers(dest="mcp_operation", required=False)
 
-        mcp_sub.add_parser("run", help="Start the MCP server (default)")
+        mcp_sub.add_parser("run", help="Start the MCP server (default)", parents=[mcp_run_flags])
 
         mcp_install_cmd = mcp_sub.add_parser(
             "install",
@@ -928,6 +940,7 @@ class AiCommand(SupportsCliCommand):
         from dlt._workspace.cli.ai import (
             DEFAULT_AI_WORKBENCH_BRANCH,
             DEFAULT_AI_WORKBENCH_REPO,
+            ai_status_command,
             ai_init_command,
             ai_mcp_run_command,
             ai_mcp_install_command,
@@ -939,7 +952,9 @@ class AiCommand(SupportsCliCommand):
             ai_toolkit_info_command,
         )
 
-        if args.operation == "init":
+        if args.operation == "status":
+            ai_status_command()
+        elif args.operation == "init":
             ai_init_command(
                 agent=args.agent,
                 location=args.location,
@@ -980,6 +995,7 @@ class AiCommand(SupportsCliCommand):
                     location=args.location,
                     branch=args.branch,
                     overwrite=args.overwrite,
+                    strict=args.strict,
                 )
             else:
                 # default: list toolkits

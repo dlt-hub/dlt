@@ -43,6 +43,7 @@ from dlt._workspace.cli._init_command import (
     _list_template_sources,
     _list_verified_sources,
 )
+from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.cli.requirements import SourceRequirements
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
@@ -138,8 +139,6 @@ def test_init_command_pipeline_default_template(
 def test_init_command_invalid_identifiers(
     repo_dir: str, workspace_files: FileStorage, source_name: str, destination: str
 ) -> None:
-    from dlt._workspace.cli.exceptions import CliCommandException
-
     with pytest.raises(CliCommandException):
         _init_command.init_command(source_name, destination, repo_dir)
 
@@ -149,8 +148,6 @@ def test_init_command_dotted_destination_accepted(
 ) -> None:
     """Dotted destination references like dlt.destinations.dremio must not be
     rejected by the source name identifier validation."""
-    from dlt._workspace.cli.exceptions import CliCommandException
-
     # must not raise CliCommandException for invalid identifier
     try:
         _init_command.init_command("debug", "dlt.destinations.duckdb", repo_dir)
