@@ -40,7 +40,6 @@ from dlt._workspace.typing import (
 )
 
 
-
 REQUIREMENTS_TXT = "requirements.txt"
 PYPROJECT_TOML = "pyproject.toml"
 GITHUB_WORKFLOWS_DIR = os.path.join(".github", "workflows")

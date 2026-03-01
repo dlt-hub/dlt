@@ -203,16 +203,16 @@ def evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) 
 
     if deltalake_semver.major == 0:
         new_fields = [
-            deltalake.Field.from_pyarrow(field)
+            deltalake.Field.from_pyarrow(field)  # type: ignore[attr-defined]
             for field in ensure_delta_compatible_arrow_schema(arrow_schema)
-            if field.name not in delta_table.schema().to_pyarrow().names
+            if field.name not in delta_table.schema().to_pyarrow().names  # type: ignore[attr-defined]
         ]
     else:
         # deltalake 1.x changed pyarrow to arrow
         new_fields = [
-            deltalake.Field.from_arrow(field)  # type: ignore[attr-defined]
+            deltalake.Field.from_arrow(field)
             for field in ensure_delta_compatible_arrow_schema(arrow_schema)
-            if field.name not in delta_table.schema().to_arrow().names  # type: ignore[attr-defined]
+            if field.name not in delta_table.schema().to_arrow().names
         ]
     if new_fields:
         delta_table.alter.add_columns(new_fields)
