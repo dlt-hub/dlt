@@ -672,7 +672,7 @@ def test_boundary_timestamp(
     ]
     current_time: Dict[str, Optional[float]] = {"ts": None}
     with mock.patch(
-        "dlt.common.storages.load_package.precise_time",
+        "dlt.common.storages.load_package.monotonic_precise_time",
         side_effect=lambda: current_time["ts"],
     ):
         # load 1 — initial load
