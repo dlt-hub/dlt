@@ -479,6 +479,8 @@ class TPipelineLocalState(TypedDict, total=False):
     """Run dir when pipeline was instantiated for a first time, defaults to cwd on OSS run context"""
     last_run_context: Optional[TLastRunContext]
     """Context from the last successful pipeline run or sync"""
+    _dev_mode: bool
+    """Tracks whether pipeline was created in dev_mode"""
 
 
 class TPipelineState(TVersionedState, total=False):
