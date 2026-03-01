@@ -9,6 +9,7 @@ from dlt.common.typing import TLoaderFileFormat
 from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
+from dlt.destinations.impl.filesystem.filesystem import HfFilesystemClient
 from tests.cases import arrow_table_all_data_types, prepare_shuffled_tables
 from tests.pipeline.utils import (
     assert_table_counts,
@@ -61,7 +62,11 @@ def test_load_csv(
         loader_file_format="csv",
     )
     assert_load_info(load_info)
-    job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
+    jobs = load_info.load_packages[0].jobs["completed_jobs"]
+    if isinstance(pipeline.destination_client(), HfFilesystemClient):
+        # HfFilesystemClient has an additional reference job
+        jobs = [job for job in jobs if job.job_file_info.file_format != "reference"]
+    job = jobs[0].file_path
     assert job.endswith("csv")
     assert_table_counts(pipeline, {"table": 5432 * 3})
     load_tables_to_dicts(pipeline, "table")

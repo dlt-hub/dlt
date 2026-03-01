@@ -1,5 +1,5 @@
 import os
-from typing import List, Sequence
+from typing import Dict, List, Sequence, Tuple
 
 from dlt.common.storages import FileStorage
 from dlt.common.libs.git import clone_repo
@@ -8,15 +8,16 @@ from dlt.helpers.dbt.exceptions import DBTNodeResult
 JAFFLE_SHOP_REPO = "https://github.com/dbt-labs/jaffle_shop.git"
 TEST_CASES_PATH = "./tests/helpers/dbt_tests/cases/"
 
-JAFFLE_RESULT_MESSAGES = {
+JAFFLE_RESULT_MESSAGES: Dict[str, Dict[str, Tuple[str, ...]]] = {
     "postgres": {
-        "stg_orders": "CREATE VIEW",
-        "customers": "SELECT 100",
+        "stg_orders": ("CREATE VIEW",),
+        "customers": ("SELECT 100",),
     },
-    # Snowflake only returns generic success messages
+    # dbt < 1.10 returns generic "SUCCESS 1" for all models,
+    # dbt >= 1.10 returns actual row counts eg. "SUCCESS 100"
     "snowflake": {
-        "stg_orders": "SUCCESS 1",
-        "customers": "SUCCESS 1",
+        "stg_orders": ("SUCCESS 1",),
+        "customers": ("SUCCESS 1", "SUCCESS 100"),
     },
 }
 
@@ -48,9 +49,9 @@ def assert_jaffle_completed(
     assert len(results) == 5
     assert all(r.status == "success" for r in results)
     stg_orders = find_run_result(results, "stg_orders")
-    assert stg_orders.message == JAFFLE_RESULT_MESSAGES[destination_name]["stg_orders"]
+    assert stg_orders.message in JAFFLE_RESULT_MESSAGES[destination_name]["stg_orders"]
     customers = find_run_result(results, "customers")
-    assert customers.message == JAFFLE_RESULT_MESSAGES[destination_name]["customers"]
+    assert customers.message in JAFFLE_RESULT_MESSAGES[destination_name]["customers"]
     # `run_dbt` has injected credentials into environ. make sure that credentials were removed
     assert "CREDENTIALS__PASSWORD" not in os.environ
     # make sure jaffle_shop was cloned into right dir

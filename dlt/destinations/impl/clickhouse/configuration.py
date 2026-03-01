@@ -88,6 +88,8 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """Special table to mark dataset as existing"""
     staging_use_https: bool = True
     """Connect to the staging buckets via https"""
+    select_sequential_consistency: int = 1
+    """Ensures read-after-write consistency on ClickHouse Cloud and clusters"""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "dataset_table_separator",

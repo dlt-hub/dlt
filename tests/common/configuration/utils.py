@@ -8,6 +8,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Set,
     Tuple,
     Type,
     Dict,
@@ -20,6 +21,7 @@ from dlt.common import Decimal, pendulum
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider
+from dlt.common.configuration.providers.vault import VaultDocProvider
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
@@ -189,6 +191,42 @@ class SecretMockProvider(MockProvider):
     @property
     def supports_secrets(self) -> bool:
         return True
+
+
+class MockVaultProvider(VaultDocProvider):
+    """In-memory vault for testing VaultDocProvider logic without external services.
+
+    ``_vault`` dict emulates the external secret store (Airflow Variables,
+    Google Secret Manager, etc.). Use ``set_secret`` to populate it the same
+    way you would create a secret in the real backend.
+    """
+
+    def __init__(
+        self,
+        only_secrets: bool = False,
+        only_toml_fragments: bool = False,
+        list_secrets: bool = False,
+    ) -> None:
+        self._vault: Dict[str, str] = {}
+        self._look_vault_calls: List[str] = []
+        super().__init__(only_secrets, only_toml_fragments, list_secrets)
+
+    def set_secret(self, key: str, value: str) -> None:
+        """Store a secret in the mock vault, like creating an Airflow Variable or GCP secret."""
+        self._vault[key] = value
+
+    def _look_vault(self, full_key: str, hint: type) -> Optional[str]:
+        """Dict lookup instead of a network call to the external vault."""
+        self._look_vault_calls.append(full_key)
+        return self._vault.get(full_key)
+
+    def _list_vault(self) -> Set[str]:
+        """Return all keys in the mock vault."""
+        return set(self._vault.keys())
+
+    @property
+    def name(self) -> str:
+        return "Mock Vault Provider"
 
 
 COERCIONS = {

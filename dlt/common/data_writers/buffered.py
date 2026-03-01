@@ -1,5 +1,4 @@
 import gzip
-import time
 import contextlib
 from typing import ClassVar, Iterator, List, IO, Any, Optional, Type, Generic
 
@@ -16,6 +15,7 @@ from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration import with_config, known_sections, configspec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.time import MonotonicPreciseTime
 from dlt.common.utils import uniq_id
 
 
@@ -67,6 +67,7 @@ class BufferedDataWriter(Generic[TWriter]):
         # the open function is either gzip.open or open
         self.open = gzip.open if self.should_compress else open
 
+        self._clock = MonotonicPreciseTime()
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
         self._buffered_items: List[TDataItem] = []
@@ -107,7 +108,7 @@ class BufferedDataWriter(Generic[TWriter]):
             self._buffered_items.append(item)
         self._buffered_items_count += new_rows_count
         # set last modification date
-        self._last_modified = time.time()
+        self._last_modified = self._clock()
         # flush if max buffer exceeded, the second path of the expression prevents empty data frames to pile up in the buffer
         if (
             self._buffered_items_count >= self.buffer_max_items
@@ -130,7 +131,7 @@ class BufferedDataWriter(Generic[TWriter]):
         self._rotate_file()
         if columns is not None:
             self._current_columns = dict(columns)
-        self._last_modified = time.time()
+        self._last_modified = self._clock()
         return self._rotate_file(allow_empty_file=True)
 
     def import_file(
@@ -162,7 +163,7 @@ class BufferedDataWriter(Generic[TWriter]):
         except FileNotFoundError as f_ex:
             raise FileImportNotFound(file_path, self._file_name) from f_ex
 
-        self._last_modified = time.time()
+        self._last_modified = self._clock()
         metrics = metrics._replace(
             file_path=self._file_name,
             created=self._created,
@@ -231,7 +232,7 @@ class BufferedDataWriter(Generic[TWriter]):
         else:
             self._file_name = f"{base_filename}.{file_extension}"
 
-        self._created = time.time()
+        self._created = self._clock()
         return metrics
 
     def _flush_items(self, allow_empty_file: bool = False) -> None:

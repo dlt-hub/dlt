@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic.networks import AnyUrl
 from mcp.server.fastmcp.resources import FunctionResource
 
+import dlt
 from dlt import Pipeline
 from dlt import Dataset
 from dlt._workspace.mcp.tools.helpers import format_csv
@@ -93,9 +94,10 @@ class BaseMCPTools(ABC):
             col_schema["normalized_name"] = dataset.sql_client.escape_column_name(
                 schema.naming.normalize_tables_path(col_schema["name"])
             )
-            col_schema["arrow_data_type"] = str(
-                get_py_arrow_datatype(col_schema, dataset.sql_client.capabilities, "UTC")
-            )
+            if "data_type" in col_schema:
+                col_schema["arrow_data_type"] = str(
+                    get_py_arrow_datatype(col_schema, dataset.sql_client.capabilities, "UTC")
+                )
         stored_schema = schema.to_dict(remove_defaults=True, bump_version=False)
         return stored_schema["tables"][table_name]  # type: ignore[return-value]
 
@@ -167,12 +169,15 @@ class BaseMCPTools(ABC):
 
 
 class PipelineMCPTools(BaseMCPTools):
-    def __init__(self, pipeline: Pipeline):
+    def __init__(self, pipeline_name: str):
         super().__init__()
-        self.pipeline = pipeline
+        self.pipeline_name = pipeline_name
+
+    def _attach(self) -> Pipeline:
+        return dlt.attach(self.pipeline_name)
 
     def register_with(self, mcp_server: FastMCP) -> None:
-        pipeline_name = self.pipeline.pipeline_name
+        pipeline_name = self.pipeline_name
         mcp_server.add_tool(
             self.available_tables,
             name="available_tables",
@@ -221,21 +226,26 @@ class PipelineMCPTools(BaseMCPTools):
         )
 
     def available_tables(self) -> Dict[str, Any]:
+        pipeline = self._attach()
         return {
             "schemas": {
                 schema_name: [table["name"] for table in schema.data_tables()]
-                for schema_name, schema in self.pipeline.schemas.items()
+                for schema_name, schema in pipeline.schemas.items()
             }
         }
 
     def table_head(self, table_name: str) -> str:
-        return format_csv(self.pipeline.dataset()[table_name].head(10).arrow())
+        pipeline = self._attach()
+        return format_csv(pipeline.dataset()[table_name].head(10).arrow())
 
     def table_schema(self, table: str) -> Dict[str, Any]:
-        return self._make_table_schema(self.pipeline.dataset(), table)
+        pipeline = self._attach()
+        return self._make_table_schema(pipeline.dataset(), table)
 
     def query_sql(self, sql: str) -> str:
-        return self._execute_sql(self.pipeline.dataset(), sql)
+        pipeline = self._attach()
+        return self._execute_sql(pipeline.dataset(), sql)
 
     def bookmark_sql(self, sql: str, bookmark: str) -> str:
-        return self._execute_sql(self.pipeline.dataset(), sql, bookmark)
+        pipeline = self._attach()
+        return self._execute_sql(pipeline.dataset(), sql, bookmark)

@@ -27,6 +27,7 @@ else:
     tqdm = EnlCounter = EnlStatusBar = EnlManager = Any
 
 from dlt.common import logger as dlt_logger
+from dlt.common.time import MonotonicPreciseTime
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime.collector_base import Collector
 from dlt.common.warnings import DltDeprecationWarning
@@ -137,6 +138,7 @@ class LogCollector(Collector):
                 )
                 dump_system_stats = False
         self.dump_system_stats = dump_system_stats
+        self._clock = MonotonicPreciseTime()
         self.last_log_time: float = None
 
     def update(
@@ -154,7 +156,7 @@ class LogCollector(Collector):
             self.counters[counter_key] = 0
             self.counter_info[counter_key] = LogCollector.CounterInfo(
                 description=f"{name} ({label})" if label else name,
-                start_time=time.time(),
+                start_time=self._clock(),
                 total=total,
             )
             self.messages[counter_key] = None
@@ -175,10 +177,10 @@ class LogCollector(Collector):
 
     def maybe_log(self) -> None:
         """Check if should report and if so, call self.on_log"""
-        current_time = time.time()
+        current_time = self._clock()
         if self.last_log_time is None or current_time - self.last_log_time >= self.log_period:
             self.on_log()
-            self.last_log_time = time.time()
+            self.last_log_time = self._clock()
 
     def _counter_to_log_line(
         self, counter_key: str, count: int, info: CounterInfo, current_time: float
@@ -223,7 +225,7 @@ class LogCollector(Collector):
 
     def dump_counters(self) -> None:
         """Dump all counters to log using the shared formatting methods."""
-        current_time = time.time()
+        current_time = self._clock()
         log_lines = []
 
         step_header = f" {self.step} ".center(80, "-")
@@ -253,7 +255,7 @@ class LogCollector(Collector):
         self.counters = defaultdict(int)
         self.counter_info = {}
         self.messages = {}
-        self.last_log_time = time.time()
+        self.last_log_time = self._clock()
 
     def _stop(self) -> None:
         self.on_log()

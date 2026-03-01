@@ -320,12 +320,9 @@ class FileStorage:
 
     @staticmethod
     def rmtree_del_ro(action: AnyFun, name: str, exc: Any) -> Any:
-        if action is os.unlink or action is os.remove or action is os.rmdir:
+        if action in (os.unlink, os.remove, os.rmdir):
             os.chmod(name, stat.S_IWRITE)
-            if os.path.isdir(name):
-                os.rmdir(name)
-            else:
-                os.remove(name)
+            action(name)
 
     @staticmethod
     def open_zipsafe_ro(path: str, mode: str = "r", **kwargs: Any) -> IO[Any]:
