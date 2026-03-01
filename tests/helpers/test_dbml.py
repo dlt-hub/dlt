@@ -120,11 +120,10 @@ def assert_equal_dbml_references(ref1: Reference, ref2: Reference) -> None:
             Column(name="custom_str_col", type="text", properties={"x-label": "custom"}),
         ),
         (
-            # we ignore `x-normalizer` because it's a processing hint to indicate `data_type` is not set yet
+            # incomplete column without data_type hint
             {
                 "name": "unknown_data_type_col",
                 "nullable": True,
-                "x-normalizer": {"seen-null-first": True},
             },
             Column(name="unknown_data_type_col", type="UNKNOWN", not_null=False),
         ),

@@ -453,7 +453,7 @@ def test_is_arrow_item(pa_type: Any) -> None:
 def test_null_arrow_type() -> None:
     obj = pa.null()
     column_type = get_column_type_from_py_arrow(obj)
-    assert {"seen-null-first": True} == column_type["x-normalizer"]  # type: ignore[typeddict-item]
+    assert {} == column_type
 
 
 def test_remove_null_columns_from_schema() -> None:
