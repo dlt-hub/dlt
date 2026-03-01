@@ -36,9 +36,7 @@ from dlt._workspace.cli._pipeline_files import (
     TVerifiedSourceFileIndex,
 )
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
-
-
-DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
+from dlt._workspace.cli._urls import DLT_INIT_DOCS_URL  # noqa: F401
 
 
 def list_sources_command(repo_location: str, branch: str = None) -> None:

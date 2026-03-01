@@ -15,18 +15,14 @@ from dlt.common.schema.utils import (
     is_complete_column,
     remove_defaults,
 )
-from dlt.common.storages import FileStorage, PackageStorage
+from dlt.common.storages import PackageStorage
 
 from dlt.extract.state import resource_state
 from dlt.pipeline.helpers import pipeline_drop
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
-
-
-DLT_PIPELINE_COMMAND_DOCS_URL = (
-    "https://dlthub.com/docs/reference/command-line-interface#dlt-pipeline"
-)
+from dlt._workspace.cli._urls import DLT_PIPELINE_COMMAND_DOCS_URL  # noqa: F401
 
 
 def list_pipelines(pipelines_dir: str = None, verbosity: int = 1) -> None:

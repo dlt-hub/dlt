@@ -2,35 +2,18 @@ import argparse
 import os
 from typing import Optional
 
-import yaml
-
-from dlt.common import json
-from dlt.common.schema.schema import Schema
-from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
-from dlt.common.typing import DictStrAny
-
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.cli.utils import add_mcp_arg_parser
-from dlt._workspace.cli._pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
-from dlt._workspace.cli._init_command import DLT_INIT_DOCS_URL
-from dlt._workspace.cli._telemetry_command import DLT_TELEMETRY_DOCS_URL
-
-from dlt._workspace.cli._deploy_command import (
-    DeploymentMethods,
-    COMMAND_DEPLOY_REPO_LOCATION,
-    SecretFormats,
+from dlt._workspace.cli._urls import (
+    DLT_INIT_DOCS_URL,
+    DLT_PIPELINE_COMMAND_DOCS_URL,
+    DLT_TELEMETRY_DOCS_URL,
     DLT_DEPLOY_DOCS_URL,
 )
 
-try:
-    import pipdeptree
-    import cron_descriptor
-
-    deploy_command_available = True
-except ImportError:
-    deploy_command_available = False
+# NOTE: do not add command specific import here - do that inline to reduce import time
 
 
 class InitCommand(SupportsCliCommand):
@@ -144,6 +127,9 @@ The `dlt pipeline` command provides a set of commands to inspect the pipeline wo
     """
 
     def configure_parser(self, pipe_cmd: argparse.ArgumentParser) -> None:
+        # keep here to avoid importing schema storages at cli startup
+        from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
+
         self.parser = pipe_cmd
 
         pipe_cmd.add_argument(
@@ -450,6 +436,9 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
     """
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        # keep here to avoid importing schema storages at cli startup
+        from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
+
         self.parser = parser
 
         parser.add_argument(
@@ -470,6 +459,13 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         )
 
     def execute(self, args: argparse.Namespace) -> None:
+        # keep here to avoid importing schema/yaml at cli startup
+        import yaml
+
+        from dlt.common import json
+        from dlt.common.schema.schema import Schema
+        from dlt.common.typing import DictStrAny
+
         @utils.track_command("schema", False, "format_")
         def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) -> None:
             with open(file_path, "rb") as f:
@@ -557,6 +553,13 @@ The `dlt deploy` command prepares your pipeline for deployment and gives you ste
     """
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        # keep here to avoid importing heavy deploy deps at cli startup
+        from dlt._workspace.cli._deploy_command import (
+            DeploymentMethods,
+            COMMAND_DEPLOY_REPO_LOCATION,
+            SecretFormats,
+        )
+
         self.parser = parser
         deploy_cmd = parser
         deploy_comm = argparse.ArgumentParser(
@@ -621,7 +624,6 @@ Follow the guide on how to deploy a pipeline with GitHub Actions in our document
             action="store_true",
             help="Runs the pipeline with every push to the repository.",
         )
-        from rich.markdown import Markdown
 
         # deploy airflow composer
         deploy_airflow_cmd = deploy_sub_parsers.add_parser(
@@ -649,6 +651,15 @@ the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers
         )
 
     def execute(self, args: argparse.Namespace) -> None:
+        # keep here: pipdeptree scans all installed packages on import
+        try:
+            import pipdeptree  # noqa: F401
+            import cron_descriptor  # noqa: F401
+
+            deploy_command_available = True
+        except ImportError:
+            deploy_command_available = False
+
         # exit if deploy command is not available
         if not deploy_command_available:
             fmt.warning(
@@ -751,7 +762,7 @@ class AiCommand(SupportsCliCommand):
         )
 
         # init command
-        from dlt._workspace.cli.ai import (
+        from dlt._workspace.cli._urls import (
             DEFAULT_AI_WORKBENCH_BRANCH,
             DEFAULT_AI_WORKBENCH_REPO,
         )
@@ -937,9 +948,11 @@ class AiCommand(SupportsCliCommand):
     def execute(self, args: argparse.Namespace) -> None:
         import sys
 
-        from dlt._workspace.cli.ai import (
+        from dlt._workspace.cli._urls import (
             DEFAULT_AI_WORKBENCH_BRANCH,
             DEFAULT_AI_WORKBENCH_REPO,
+        )
+        from dlt._workspace.cli.ai import (
             ai_status_command,
             ai_init_command,
             ai_mcp_run_command,
