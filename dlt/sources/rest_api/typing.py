@@ -71,6 +71,7 @@ class PageNumberPaginatorConfig(PaginatorTypeConfig, total=False):
     has_more_path: Optional[jsonpath.TJsonPath]
     page_body_path: Optional[str]
 
+
 class OffsetPaginatorConfig(PaginatorTypeConfig, total=False):
     """A paginator that uses offset-based pagination strategy."""
 
