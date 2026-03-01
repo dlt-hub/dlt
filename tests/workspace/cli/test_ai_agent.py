@@ -1,6 +1,6 @@
 from os import environ
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Type
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Type
 
 import pytest
 
@@ -21,6 +21,16 @@ def environment() -> Iterator[Any]:
     yield environ
 
 
+@pytest.fixture()
+def no_home_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Suppress global home-directory detection so only env probes fire.
+
+    Note: LOCAL detection also requires the tool's global marker to exist,
+    so with no home dir only ENV detection works.
+    """
+    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: None)
+
+
 @pytest.mark.parametrize(
     ("variant_name", "expected_skill", "expected_command", "expected_rule"),
     [
@@ -35,25 +45,26 @@ def test_variant_component_dir(
     expected_skill: str,
     expected_command: str,
     expected_rule: str,
-    tmp_path: Path,
 ) -> None:
+    project = Path("project")
+    project.mkdir(exist_ok=True)
     variant = AI_AGENTS[variant_name]()
-    assert variant.component_dir("skill", tmp_path) == tmp_path / expected_skill
+    assert variant.component_dir("skill", project) == project / expected_skill
 
     if expected_command is not None:
-        assert variant.component_dir("command", tmp_path) == tmp_path / expected_command
+        assert variant.component_dir("command", project) == project / expected_command
     else:
         with pytest.raises(NotImplementedError):
-            variant.component_dir("command", tmp_path)
+            variant.component_dir("command", project)
 
     if expected_rule is not None:
-        assert variant.component_dir("rule", tmp_path) == tmp_path / expected_rule
+        assert variant.component_dir("rule", project) == project / expected_rule
     else:
         with pytest.raises(NotImplementedError):
-            variant.component_dir("rule", tmp_path)
+            variant.component_dir("rule", project)
 
     # ignore always resolves to project root
-    assert variant.component_dir("ignore", tmp_path) == tmp_path
+    assert variant.component_dir("ignore", project) == project
 
 
 @pytest.mark.parametrize(
@@ -183,114 +194,148 @@ def test_codex_transform_rule() -> None:
 
 
 @pytest.mark.parametrize(
-    ("env_vars", "expected_cls"),
+    ("env_vars", "expected_names"),
     [
-        ({"CLAUDECODE": "1"}, _ClaudeAgent),
-        ({"CODEX_CI": "1"}, _CodexAgent),
-        ({"CURSOR_AGENT": "1"}, _CursorAgent),
-        ({"CLAUDECODE": "1", "CODEX_CI": "1"}, _ClaudeAgent),
-        ({"CODEX_CI": "1", "CURSOR_AGENT": "1"}, _CodexAgent),
+        ({"CLAUDECODE": "1"}, {"claude"}),
+        ({"CODEX_CI": "1"}, {"codex"}),
+        ({"CURSOR_AGENT": "1"}, {"cursor"}),
+        ({"CLAUDECODE": "1", "CODEX_CI": "1"}, {"claude", "codex"}),
+        ({"CODEX_CI": "1", "CURSOR_AGENT": "1"}, {"codex", "cursor"}),
+        ({"CLAUDECODE": "1", "CODEX_CI": "1", "CURSOR_AGENT": "1"}, {"claude", "codex", "cursor"}),
     ],
     ids=[
         "claude-env",
         "codex-env",
         "cursor-env",
-        "claude-beats-codex",
-        "codex-beats-cursor",
+        "claude-and-codex",
+        "codex-and-cursor",
+        "all-three",
     ],
 )
-def test_detect_runtime_env(
+def test_detect_all_runtime_env(
     env_vars: Dict[str, str],
-    expected_cls: Type[_AIAgent],
-    tmp_path: Path,
+    expected_names: Set[str],
     environment: Any,
+    no_home_dir: None,
 ) -> None:
     environment.update(env_vars)
-    result = _AIAgent.detect(tmp_path)
-    assert isinstance(result, expected_cls)
+    project = Path("project")
+    project.mkdir(exist_ok=True)
+    agents = _AIAgent.detect_all(project)
+    assert {a.name for a, _ in agents} == expected_names
 
 
 @pytest.mark.parametrize(
-    ("probe_paths", "expected_cls"),
+    ("probe_paths", "global_markers", "expected_names"),
     [
-        ([".claude"], _ClaudeAgent),
-        (["AGENTS.md"], _CodexAgent),
-        ([".cursor"], _CursorAgent),
-        ([".claude", ".cursor"], _ClaudeAgent),
-        (["AGENTS.md", ".cursor"], _CodexAgent),
+        ([".claude"], [".claude"], {"claude"}),
+        (["AGENTS.md"], [".codex"], {"codex"}),
+        ([".cursor"], [".cursor"], {"cursor"}),
+        ([".claude", ".cursor"], [".claude", ".cursor"], {"claude", "cursor"}),
+        (["AGENTS.md", ".cursor"], [".codex", ".cursor"], {"codex", "cursor"}),
+        # LOCAL probe without matching global marker → not detected at LOCAL level
+        ([".cursor"], [], set()),
+        (["AGENTS.md"], [], set()),
     ],
     ids=[
         "claude-dir",
         "codex-agents-md",
         "cursor-dir",
-        "claude-beats-cursor",
-        "codex-beats-cursor",
+        "claude-and-cursor",
+        "codex-and-cursor",
+        "cursor-no-global",
+        "agents-md-no-global",
     ],
 )
-def test_detect_project_probes(
+def test_detect_all_project_probes(
     probe_paths: List[str],
-    expected_cls: Type[_AIAgent],
-    tmp_path: Path,
+    global_markers: List[str],
+    expected_names: Set[str],
     environment: Any,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """LOCAL detection requires the tool's global marker (~/.tool) to exist."""
+    fake_home = Path("home")
+    fake_home.mkdir()
+    for m in global_markers:
+        (fake_home / m).mkdir(exist_ok=True)
+    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+
+    project = Path("project")
+    project.mkdir()
     for p in probe_paths:
-        target = tmp_path / p
+        target = project / p
         if "." in p and not p.startswith("."):
             target.touch()
         else:
             target.mkdir(exist_ok=True)
-    result = _AIAgent.detect(tmp_path)
-    assert isinstance(result, expected_cls)
+    agents = _AIAgent.detect_all(project)
+    assert {a.name for a, _ in agents} == expected_names
 
 
-def test_detect_global_fallback(
-    tmp_path: Path, environment: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_detect_all_global_fallback(environment: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """Falls back to global home probes when project root has no markers."""
-    fake_home = tmp_path / "home"
+    fake_home = Path("home")
     fake_home.mkdir()
     (fake_home / ".cursor").mkdir()
     monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
 
-    project = tmp_path / "project"
+    project = Path("project")
     project.mkdir()
-    result = _AIAgent.detect(project)
-    assert isinstance(result, _CursorAgent)
+    agents = _AIAgent.detect_all(project)
+    assert [a.name for a, _ in agents] == ["cursor"]
 
 
-def test_detect_project_probes_before_global(
-    tmp_path: Path, environment: Any, monkeypatch: pytest.MonkeyPatch
+def test_detect_all_env_before_local(
+    environment: Any,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Project-local probe wins even when a higher-priority variant exists globally."""
-    fake_home = tmp_path / "home"
+    """ENV-detected agent comes before LOCAL-detected agent."""
+    fake_home = Path("home")
     fake_home.mkdir()
     (fake_home / ".claude").mkdir()
     monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
 
-    project = tmp_path / "project"
+    environment["CURSOR_AGENT"] = "1"
+    project = Path("project")
     project.mkdir()
-    (project / ".cursor").mkdir()
-    result = _AIAgent.detect(project)
-    assert isinstance(result, _CursorAgent)
+    (project / ".claude").mkdir()
+    agents = _AIAgent.detect_all(project)
+    assert [a.name for a, _ in agents] == ["cursor", "claude"]
 
 
-def test_detect_returns_none(
-    tmp_path: Path, environment: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: None)
-    assert _AIAgent.detect(tmp_path) is None
+def test_detect_all_local_before_global(environment: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Project-local probe comes before global-only probe in the list."""
+    fake_home = Path("home")
+    fake_home.mkdir()
+    (fake_home / ".claude").mkdir()
+    (fake_home / ".cursor").mkdir()
+    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
 
-
-def test_detect_no_home(tmp_path: Path, environment: Any, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Project probes still work when home directory is unavailable."""
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: None)
-
-    project = tmp_path / "project"
+    project = Path("project")
     project.mkdir()
-    assert _AIAgent.detect(project) is None
-
+    # cursor detected at LOCAL (project .cursor + global .cursor)
+    # claude detected at GLOBAL only (no project marker)
     (project / ".cursor").mkdir()
-    assert isinstance(_AIAgent.detect(project), _CursorAgent)
+    agents = _AIAgent.detect_all(project)
+    assert [a.name for a, _ in agents] == ["cursor", "claude"]
+
+
+def test_detect_all_returns_empty(environment: Any, no_home_dir: None) -> None:
+    empty = Path("empty_dir")
+    empty.mkdir()
+    assert _AIAgent.detect_all(empty) == []
+
+
+def test_detect_all_no_home(environment: Any, no_home_dir: None) -> None:
+    """No detection without home directory (LOCAL needs global marker too)."""
+    project = Path("project")
+    project.mkdir()
+    assert _AIAgent.detect_all(project) == []
+
+    # LOCAL probes alone are not enough without the global marker
+    (project / ".cursor").mkdir()
+    assert _AIAgent.detect_all(project) == []
 
 
 @pytest.mark.parametrize(
@@ -302,6 +347,8 @@ def test_detect_no_home(tmp_path: Path, environment: Any, monkeypatch: pytest.Mo
     ],
     ids=["claude", "cursor", "codex"],
 )
-def test_variant_mcp_config_path(variant_name: str, expected_path: str, tmp_path: Path) -> None:
+def test_variant_mcp_config_path(variant_name: str, expected_path: str) -> None:
+    project = Path("project")
+    project.mkdir(exist_ok=True)
     variant = AI_AGENTS[variant_name]()
-    assert variant.mcp_config_path(tmp_path) == tmp_path / expected_path
+    assert variant.mcp_config_path(project) == project / expected_path

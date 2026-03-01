@@ -34,12 +34,7 @@ class InstallAction(NamedTuple):
 
 
 class _AIAgent(ABC):
-    """Maps toolkit component types to agent-specific paths and formats.
-
-    Each subclass represents an AI coding agent (Claude, Cursor, Codex).
-    Pure logic -- no I/O. The orchestrator reads source, calls this for
-    paths and transforms, then writes the results.
-    """
+    """Maps toolkit component types to agent-specific paths and formats."""
 
     @property
     @abstractmethod
@@ -47,6 +42,12 @@ class _AIAgent(ABC):
 
     _DIRS: ClassVar[Dict[TComponentType, str]]
     """maps component types to relative directory paths under project root"""
+
+    _GLOBAL_MARKER: ClassVar[str]
+    """home-dir marker that proves the tool is installed (e.g. ".claude")"""
+
+    _LOCAL_PROBES: ClassVar[Tuple[str, ...]]
+    """project-root paths that indicate usage of this agent"""
 
     @property
     @abstractmethod
@@ -118,26 +119,36 @@ class _AIAgent(ABC):
 
     @classmethod
     @abstractmethod
-    def _detect(cls, project_root: Path) -> Optional[DetectLevel]:
-        """Return detection level or None."""
+    def _is_env(cls) -> bool:
+        """Return True when the agent's runtime env var is set."""
 
     @classmethod
-    def detect(cls, project_root: Path) -> Optional["_AIAgent"]:
-        """Detect the active AI coding agent.
+    def _detect(cls, project_root: Path) -> Optional[DetectLevel]:
+        """Detect agent via ENV var, local project probes, or global marker.
 
-        Checks all agents in priority order (claude > codex > cursor),
-        preferring env over local over global detection.
+        LOCAL probes only fire when the global marker (`~/_GLOBAL_MARKER`)
+        also exists, preventing false positives from stale project files.
         """
-        best_rank = (len(DetectLevel), 0)
-        best_cls: Optional[Type[_AIAgent]] = None
-        for idx, variant_cls in enumerate(_AGENT_ORDER):
+        if cls._is_env():
+            return DetectLevel.ENV
+        home = home_dir()
+        installed = home is not None and (home / cls._GLOBAL_MARKER).exists()
+        if installed and any((project_root / p).exists() for p in cls._LOCAL_PROBES):
+            return DetectLevel.LOCAL
+        if installed:
+            return DetectLevel.GLOBAL
+        return None
+
+    @classmethod
+    def detect_all(cls, project_root: Path) -> List[Tuple["_AIAgent", "DetectLevel"]]:
+        """Return all detected AI coding agents sorted by detection level."""
+        detected: List[Tuple[DetectLevel, Type[_AIAgent]]] = []
+        for variant_cls in AI_AGENTS.values():
             level = variant_cls._detect(project_root)
             if level is not None:
-                rank = (level, idx)
-                if rank < best_rank:
-                    best_rank = rank
-                    best_cls = variant_cls
-        return best_cls() if best_cls else None
+                detected.append((level, variant_cls))
+        detected.sort(key=lambda t: t[0])
+        return [(variant_cls(), level) for level, variant_cls in detected]
 
 
 class _ClaudeAgent(_AIAgent):
@@ -146,23 +157,18 @@ class _ClaudeAgent(_AIAgent):
         "command": ".claude/commands",
         "rule": ".claude/rules",
     }
+    _GLOBAL_MARKER: ClassVar[str] = ".claude"
+    _LOCAL_PROBES: ClassVar[Tuple[str, ...]] = (".claude", "CLAUDE.md")
 
     @property
     def name(self) -> str:
         return "claude"
 
     @classmethod
-    def _detect(cls, project_root: Path) -> Optional[DetectLevel]:
+    def _is_env(cls) -> bool:
         from dlt.common.runtime.exec_info import is_claude_code
 
-        if is_claude_code():
-            return DetectLevel.ENV
-        if any((project_root / p).exists() for p in (".claude", "CLAUDE.md")):
-            return DetectLevel.LOCAL
-        home = home_dir()
-        if home and (home / ".claude").exists():
-            return DetectLevel.GLOBAL
-        return None
+        return is_claude_code()
 
     @property
     def ignore_file_name(self) -> str:
@@ -196,23 +202,18 @@ class _CursorAgent(_AIAgent):
         "command": ".cursor/commands",
         "rule": ".cursor/rules",
     }
+    _GLOBAL_MARKER: ClassVar[str] = ".cursor"
+    _LOCAL_PROBES: ClassVar[Tuple[str, ...]] = (".cursor", ".cursorignore", ".cursorrules")
 
     @property
     def name(self) -> str:
         return "cursor"
 
     @classmethod
-    def _detect(cls, project_root: Path) -> Optional[DetectLevel]:
+    def _is_env(cls) -> bool:
         from dlt.common.runtime.exec_info import is_cursor
 
-        if is_cursor():
-            return DetectLevel.ENV
-        if any((project_root / p).exists() for p in (".cursor", ".cursorignore", ".cursorrules")):
-            return DetectLevel.LOCAL
-        home = home_dir()
-        if home and (home / ".cursor").exists():
-            return DetectLevel.GLOBAL
-        return None
+        return is_cursor()
 
     @property
     def ignore_file_name(self) -> str:
@@ -244,23 +245,18 @@ class _CodexAgent(_AIAgent):
     _DIRS: ClassVar[Dict[TComponentType, str]] = {
         "skill": ".agents/skills",
     }
+    _GLOBAL_MARKER: ClassVar[str] = ".codex"
+    _LOCAL_PROBES: ClassVar[Tuple[str, ...]] = (".agents", "AGENTS.md")
 
     @property
     def name(self) -> str:
         return "codex"
 
     @classmethod
-    def _detect(cls, project_root: Path) -> Optional[DetectLevel]:
+    def _is_env(cls) -> bool:
         from dlt.common.runtime.exec_info import is_codex
 
-        if is_codex():
-            return DetectLevel.ENV
-        if any((project_root / p).exists() for p in (".agents", "AGENTS.md")):
-            return DetectLevel.LOCAL
-        home = home_dir()
-        if home and (home / ".codex").exists():
-            return DetectLevel.GLOBAL
-        return None
+        return is_codex()
 
     @property
     def ignore_file_name(self) -> str:
@@ -295,5 +291,3 @@ AI_AGENTS: Dict[str, Type[_AIAgent]] = {
     "cursor": _CursorAgent,
     "codex": _CodexAgent,
 }
-
-_AGENT_ORDER: List[Type[_AIAgent]] = [_ClaudeAgent, _CodexAgent, _CursorAgent]
