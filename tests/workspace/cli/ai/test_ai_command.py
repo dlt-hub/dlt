@@ -2,6 +2,7 @@ import functools
 import json
 import os
 import shutil
+import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, Set, Type
 from unittest.mock import patch
@@ -111,7 +112,13 @@ def test_ai_status_with_toolkits(capsys: pytest.CaptureFixture[str]) -> None:
     assert "Agent: claude" in out
     assert "not initialized" not in out.lower()
     assert "run dlt ai init" not in out.lower()
-    assert "mcp server cannot be started" not in out.lower()
+
+    if sys.version_info < (3, 10):
+        # fastmcp requires Python >=3.10, so the MCP warning must appear
+        assert "mcp server cannot be started" in out.lower()
+        assert "workspace" in out.lower(), "MCP warning should suggest workspace extras"
+    else:
+        assert "mcp server cannot be started" not in out.lower()
     assert "rest-api-pipeline" in out
     assert "find-source" in out
     # init toolkit should not be listed
