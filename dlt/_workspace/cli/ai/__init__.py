@@ -1,7 +1,10 @@
-from dlt._workspace.cli.ai.commands import (
+from dlt._workspace.cli.ai.utils import (
     DEFAULT_AI_WORKBENCH_BRANCH,
     DEFAULT_AI_WORKBENCH_REPO,
+)
+from dlt._workspace.cli.ai.commands import (
     ai_context_source_setup,
+    ai_status_command,
     ai_init_command,
     ai_mcp_command,
     ai_mcp_run_command,
@@ -18,6 +21,7 @@ __all__ = [
     "DEFAULT_AI_WORKBENCH_BRANCH",
     "DEFAULT_AI_WORKBENCH_REPO",
     "ai_context_source_setup",
+    "ai_status_command",
     "ai_init_command",
     "ai_mcp_command",
     "ai_mcp_run_command",

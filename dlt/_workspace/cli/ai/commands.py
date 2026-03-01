@@ -4,14 +4,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import tomlkit
 import tomlkit.exceptions
+import yaml
 
 from dlt.common.json import json
-from dlt.common.libs import git
-from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runtime import run_context
-from dlt.common.configuration.providers.toml import SECRETS_TOML, SecretsTomlProvider
+from dlt.common.configuration.providers.toml import SecretsTomlProvider
+from dlt.version import __version__ as dlt_version
 
 from dlt._workspace.cli import echo as fmt, utils
+from dlt._workspace.cli.utils import make_dlt_settings_path
+from dlt._workspace.cli.formatters import parse_frontmatter
 from dlt._workspace.cli._scaffold_api_client import get_scaffold_files_storage
 from dlt._workspace.cli.exceptions import (
     CliCommandException,
@@ -19,20 +21,27 @@ from dlt._workspace.cli.exceptions import (
     ScaffoldSourceNotFound,
 )
 from dlt._workspace.cli.ai.agents import AI_AGENTS, _AIAgent, InstallAction
+from dlt._workspace.typing import TToolkitInfo
 from dlt._workspace.cli.ai.utils import (
+    build_toolkits_dependency_map,
+    compute_file_hash,
     copy_repo_files,
-    iter_toolkits,
-    read_mcp_servers,
-    read_plugin_meta,
-    redact_toml_document,
+    extract_toolkit_info,
+    fetch_secrets_list,
+    fetch_secrets_update_fragment,
+    fetch_secrets_view_redacted,
+    fetch_workbench_toolkit_info,
+    fetch_workbench_toolkit_list,
+    fetch_workbench_base,
+    is_toolkit_installed,
+    load_toolkits_index,
+    read_workbench_toolkit_mcp_servers,
+    read_workbench_toolkit_combined_info,
+    resolve_toolkit_dependencies,
+    save_toolkit_entry,
 )
 
-
-DEFAULT_AI_WORKBENCH_REPO = "https://github.com/dlt-hub/dlthub-ai-workbench.git"
-# DEFAULT_AI_WORKBENCH_REPO = "/home/rudolfix/src/dlt-ai-dev-kit"
-DEFAULT_AI_WORKBENCH_BRANCH = None
-AI_WORKBENCH_BASE_DIR = "workbench"
-_INIT_TOOLKIT = "_init"
+_INIT_TOOLKIT = "init"
 
 
 def ai_context_source_setup(
@@ -63,92 +72,44 @@ def ai_context_source_setup(
             fmt.echo(fmt.bold(file))
 
 
-def _list_secrets_paths() -> List[str]:
-    """Return project-scoped secrets.toml paths from TOML providers."""
-    from dlt.common.configuration.providers.toml import SecretsTomlProvider
-    from dlt._workspace.utils import get_provider_locations
-
-    paths: List[str] = []
-    for info in get_provider_locations():
-        if not isinstance(info.provider, SecretsTomlProvider):
-            continue
-        project_locs = [loc for loc in info.locations if loc.scope == "project"]
-        project_locs.sort(key=lambda loc: (loc.profile_name is None, loc.path))
-        for loc in project_locs:
-            paths.append(loc.path)
-    return paths
-
-
-def _default_secrets_path(path: Optional[str] = None) -> str:
-    """Returns `path` if given, first project secrets path, or the settings default."""
-    if path:
-        return path
-    paths = _list_secrets_paths()
-    if paths:
-        return paths[0]
-    return utils.make_dlt_settings_path(SECRETS_TOML)
-
-
 @utils.track_command("ai", False, operation="secrets_list")
 def ai_secrets_list_command() -> None:
     """Lists project-scoped secret file locations from TOML providers."""
-    from dlt.common.configuration.providers.toml import SecretsTomlProvider
-    from dlt._workspace.utils import get_provider_locations
-
+    locations = fetch_secrets_list()
     fmt.echo("Secret file locations:")
-    for info in get_provider_locations():
-        if not isinstance(info.provider, SecretsTomlProvider):
-            continue
-        project_locs = [loc for loc in info.locations if loc.scope == "project"]
-        project_locs.sort(key=lambda loc: (loc.profile_name is None, loc.path))
-        if not project_locs:
-            continue
-        for loc in project_locs:
-            tag = "profile: %s" % loc.profile_name if loc.profile_name else ""
-            if tag:
-                fmt.echo("  %s (%s)" % (loc.path, tag))
-            else:
-                fmt.echo("  %s" % loc.path)
+    for loc in locations:
+        if profile_name := loc.get("profile_name"):
+            fmt.echo("  %s (profile: %s)" % (loc["path"], profile_name))
+        else:
+            fmt.echo("  %s" % loc["path"])
 
 
 @utils.track_command("ai", False, operation="secrets_view_redacted")
 def ai_secrets_view_redacted_command(path: Optional[str] = None) -> None:
-    """Prints a redacted version of a secrets TOML file."""
-    resolved = _default_secrets_path(path)
-    try:
-        with open(resolved, "r", encoding="utf-8") as f:
-            doc = tomlkit.load(f)
-    except FileNotFoundError:
-        fmt.warning("Secrets file not found: %s" % resolved)
+    """Prints a redacted secrets TOML.
+
+    Without --path, shows the unified view from the project SecretsTomlProvider
+    (merged from all project secret files). With --path, shows that exact file.
+    """
+    result = fetch_secrets_view_redacted(path)
+    if result is None:
+        if path:
+            fmt.warning("Secrets file not found: %s" % path)
+        else:
+            fmt.warning("No secrets found in project providers.")
         return
-    redacted = redact_toml_document(doc)
-    fmt.echo(tomlkit.dumps(redacted))
+    fmt.echo(result)
 
 
 @utils.track_command("ai", False, operation="secrets_update_fragment")
-def ai_secrets_update_fragment_command(fragment: str, path: Optional[str] = None) -> None:
+def ai_secrets_update_fragment_command(fragment: str, path: str) -> None:
     """Merges a TOML fragment into secrets file and prints the redacted result."""
-    from dlt.common.utils import update_dict_nested
-
-    from dlt.common.configuration.providers.toml import SettingsTomlProvider
-
-    resolved = _default_secrets_path(path)
-    settings_dir = os.path.dirname(resolved) or "."
-    file_name = os.path.basename(resolved)
-    os.makedirs(settings_dir, exist_ok=True)
-    if not os.path.isfile(resolved):
-        with open(resolved, "w", encoding="utf-8") as f:
-            f.write("")
-    provider = SettingsTomlProvider(file_name, True, file_name, [settings_dir])
     try:
-        parsed = tomlkit.parse(fragment)
+        result = fetch_secrets_update_fragment(fragment, path)
     except tomlkit.exceptions.TOMLKitError as ex:
         fmt.error("Invalid TOML fragment: %s" % str(ex))
         raise CliCommandException()
-    update_dict_nested(provider._config_toml, parsed)
-    provider.write_toml()
-    redacted = redact_toml_document(provider._config_toml)
-    fmt.echo(tomlkit.dumps(redacted))
+    fmt.echo(result)
 
 
 @utils.track_command("ai", track_before=True, operation="mcp")
@@ -214,17 +175,31 @@ def ai_mcp_install_command(
     fmt.echo("Installed MCP server %s in %s" % (fmt.bold(name), config_path))
 
 
-def _fetch_workbench_base(location: str, branch: Optional[str]) -> Optional[Path]:
-    """Fetch AI workbench repo and return base Path, or None with warning."""
-    branch = branch or DEFAULT_AI_WORKBENCH_BRANCH
-    src_storage = git.get_fresh_repo_files(location, get_dlt_repos_dir(), branch=branch)
-    if not src_storage.has_folder(AI_WORKBENCH_BASE_DIR):
-        fmt.warning(
-            "AI workbench directory not found in repo %s branch %s"
-            % (fmt.bold(location), fmt.bold(branch))
-        )
-        return None
-    return Path(src_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
+def _fetch_workbench_base_cli(location: str, branch: Optional[str]) -> Optional[Path]:
+    """Fetch AI workbench repo, warn on failure. CLI wrapper around fetch_workbench_base."""
+    base = fetch_workbench_base(location, branch)
+    if base is None:
+        fmt.warning("AI workbench directory not found in repo %s" % fmt.bold(location))
+    return base
+
+
+def _validate_md_frontmatter(md_file: Path) -> Optional[str]:
+    """Validate YAML frontmatter in a markdown file. Returns error message or None."""
+    try:
+        parse_frontmatter(md_file.read_text(encoding="utf-8"))
+    except yaml.YAMLError as ex:
+        return "%s: invalid YAML frontmatter: %s" % (md_file.name, ex)
+    return None
+
+
+def _validate_skill_dir(skill_path: Path) -> List[str]:
+    """Validate all markdown files in a skill directory. Returns list of errors."""
+    errors: List[str] = []
+    for md_file in sorted(skill_path.rglob("*.md")):
+        err = _validate_md_frontmatter(md_file)
+        if err:
+            errors.append(err)
+    return errors
 
 
 def _plan_toolkit_install(
@@ -233,17 +208,23 @@ def _plan_toolkit_install(
     project_root: Path,
     toolkit_name: str,
     overwrite: bool = False,
-) -> List["InstallAction"]:
+) -> Tuple[List["InstallAction"], List[str]]:
     """Scan toolkit directory and build install actions. Reads source files but does not
-    write to project_root."""
-    from dlt._workspace.cli.ai.agents import InstallAction, TComponentType
+    write to project_root. Returns (actions, validation_warnings)."""
+    from dlt._workspace.cli.ai.agents import TComponentType
 
     actions: List[InstallAction] = []
+    warnings: List[str] = []
 
     skills_dir = toolkit_dir / "skills"
     if skills_dir.is_dir():
         for skill_path in sorted(skills_dir.iterdir()):
             if not skill_path.is_dir() or not (skill_path / "SKILL.md").exists():
+                continue
+            errors = _validate_skill_dir(skill_path)
+            if errors:
+                for err in errors:
+                    warnings.append("Skipping skill %s: %s" % (skill_path.name, err))
                 continue
             _, _, out_name = agent.transform("skill", "", skill_path.name, toolkit_name)
             dest = agent.component_dir("skill", project_root) / out_name
@@ -282,6 +263,10 @@ def _plan_toolkit_install(
         if not src_dir.is_dir():
             continue
         for md_file in sorted(src_dir.glob("*.md")):
+            err = _validate_md_frontmatter(md_file)
+            if err:
+                warnings.append("Skipping %s %s: %s" % (component_type, md_file.stem, err))
+                continue
             source_name = md_file.stem
             raw_content = md_file.read_text(encoding="utf-8")
             out_type, out_content, out_filename = agent.transform(
@@ -301,7 +286,7 @@ def _plan_toolkit_install(
                 )
             )
 
-    mcp_servers = read_mcp_servers(toolkit_dir)
+    mcp_servers = read_workbench_toolkit_mcp_servers(toolkit_dir)
     if mcp_servers:
         config_path = agent.mcp_config_path(project_root)
         existing_content = ""
@@ -330,12 +315,20 @@ def _plan_toolkit_install(
                 )
             )
 
-    return actions
+    return actions, warnings
 
 
-def _execute_install(actions: List["InstallAction"], overwrite: bool = False) -> int:
+def _execute_install(
+    actions: List["InstallAction"],
+    overwrite: bool = False,
+    toolkit_meta: Optional[TToolkitInfo] = None,
+    agent_name: Optional[str] = None,
+    project_root: Optional[Path] = None,
+) -> int:
     """Write non-conflicting actions to disk. Returns count of items installed."""
     installed = 0
+    written_paths: List[Tuple[Path, str]] = []  # (dest_path, kind)
+    mcp_server_names: List[str] = []
     for action in actions:
         if action.conflict:
             continue
@@ -350,7 +343,32 @@ def _execute_install(actions: List["InstallAction"], overwrite: bool = False) ->
             action.dest_path.write_text(
                 action.content_or_path, encoding="utf-8"  # type: ignore[arg-type]
             )
+        if action.kind == "mcp":
+            # source_name is ", ".join(sorted(new_servers))
+            mcp_server_names.extend(s.strip() for s in action.source_name.split(",") if s.strip())
+        else:
+            written_paths.append((action.dest_path, action.op))
         installed += 1
+
+    if installed > 0 and toolkit_meta is not None:
+        tracked_files: Optional[Dict[str, Any]] = None
+        if project_root is not None:
+            tracked_files = {}
+            for dest_path, op in written_paths:
+                if op == "copytree":
+                    for f in sorted(dest_path.rglob("*")):
+                        if f.is_file():
+                            rel = str(f.relative_to(project_root))
+                            tracked_files[rel] = {"sha3_256": compute_file_hash(f)}
+                else:
+                    rel = str(dest_path.relative_to(project_root))
+                    tracked_files[rel] = {"sha3_256": compute_file_hash(dest_path)}
+        save_toolkit_entry(
+            toolkit_meta,
+            agent=agent_name,
+            files=tracked_files,
+            mcp_servers=sorted(mcp_server_names) if mcp_server_names else None,
+        )
     return installed
 
 
@@ -362,16 +380,50 @@ def _resolve_agent(agent: Optional[str], project_root: Path) -> "_AIAgent":
             raise CliCommandException()
         return AI_AGENTS[agent]()
 
-    detected = _AIAgent.detect(project_root)
-    if detected is None:
-        fmt.error("Could not detect AI coding agent. Use --agent to specify one.")
+    # check init toolkit in .toolkits index for a previously recorded agent
+    index = load_toolkits_index()
+    init_entry = index.get(_INIT_TOOLKIT)
+    if isinstance(init_entry, dict):
+        recorded = init_entry.get("agent")
+        if recorded and recorded in AI_AGENTS:
+            return AI_AGENTS[recorded]()
+
+    detected = _AIAgent.detect_all(project_root)
+    if not detected:
+        available = ", ".join(sorted(AI_AGENTS))
+        fmt.error("Could not detect AI coding agent. Use --agent to specify one of: %s" % available)
         raise CliCommandException()
-    fmt.echo("Detected AI coding agent: %s" % fmt.bold(detected.name))
-    return detected
+    best_agent, best_level = detected[0]
+    at_best = [a for a, lvl in detected if lvl == best_level]
+    if len(at_best) > 1:
+        names = ", ".join(a.name for a in at_best)
+        fmt.error("Multiple AI coding agents detected: %s. Use --agent to specify one." % names)
+        raise CliCommandException()
+    fmt.echo("Detected AI coding agent: %s" % fmt.bold(best_agent.name))
+    return best_agent
 
 
-def _report_and_execute(actions: List["InstallAction"], overwrite: bool = False) -> int:
-    """Print planned actions, skip conflicts, execute, return count installed."""
+def _report_and_execute(
+    actions: List["InstallAction"],
+    validation_warnings: List[str],
+    overwrite: bool = False,
+    strict: bool = False,
+    toolkit_meta: Optional[TToolkitInfo] = None,
+    agent_name: Optional[str] = None,
+    project_root: Optional[Path] = None,
+) -> int:
+    """Print planned actions, skip conflicts, execute, return count installed.
+
+    In strict mode, validation warnings are treated as errors and raise CliCommandException.
+    """
+    for w in validation_warnings:
+        fmt.warning(w)
+    if strict and validation_warnings:
+        fmt.error(
+            "%d validation error(s). Fix the issues above or install without --strict."
+            % len(validation_warnings)
+        )
+        raise CliCommandException()
     for a in actions:
         if not a.conflict:
             fmt.echo("  + %s %s -> %s" % (a.kind, fmt.bold(a.source_name), a.dest_path))
@@ -380,9 +432,137 @@ def _report_and_execute(actions: List["InstallAction"], overwrite: bool = False)
             fmt.warning(
                 "  Skipping %s %s (already exists at %s)" % (a.kind, a.source_name, a.dest_path)
             )
-    installed = _execute_install(actions, overwrite=overwrite)
+    installed = _execute_install(
+        actions,
+        overwrite=overwrite,
+        toolkit_meta=toolkit_meta,
+        agent_name=agent_name,
+        project_root=project_root,
+    )
     fmt.echo("%s item(s) installed." % fmt.bold(str(installed)))
+    workflow_entry_skill = toolkit_meta.get("workflow_entry_skill") if toolkit_meta else None
+    if installed > 0 and workflow_entry_skill:
+        fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
     return installed
+
+
+def _install_toolkit(
+    name: str,
+    base: Path,
+    agent: "_AIAgent",
+    project_root: Path,
+    overwrite: bool = False,
+    strict: bool = False,
+) -> None:
+    """Core install logic: read plugin.json, version-check, plan, execute."""
+    toolkit_dir = base / name
+    meta = read_workbench_toolkit_combined_info(toolkit_dir)
+    if meta is None:
+        fmt.warning(
+            "Toolkit %s not found (missing %s)" % (fmt.bold(name), ".claude-plugin/plugin.json")
+        )
+        return
+
+    toolkit_meta = extract_toolkit_info(meta, name)
+    toolkit_name = toolkit_meta["name"]
+    toolkit_version = toolkit_meta["version"]
+
+    installed_index = load_toolkits_index()
+    local = installed_index.get(toolkit_name)
+    if local and not overwrite:
+        local_version = local.get("version", "?")
+        if local_version == toolkit_version:
+            fmt.echo("Toolkit %s %s is already installed." % (toolkit_name, local_version))
+        else:
+            fmt.echo(
+                "Toolkit %s %s is installed, version %s available. Use --overwrite to update."
+                % (toolkit_name, local_version, toolkit_version)
+            )
+        if workflow_entry_skill := toolkit_meta.get("workflow_entry_skill"):
+            fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
+        return
+
+    actions, warnings = _plan_toolkit_install(
+        toolkit_dir, agent, project_root, toolkit_name, overwrite=overwrite
+    )
+    if not actions and not warnings:
+        fmt.echo("No components found in toolkit %s." % fmt.bold(name))
+        return
+
+    _report_and_execute(
+        actions,
+        warnings,
+        overwrite=overwrite,
+        strict=strict,
+        toolkit_meta=toolkit_meta,
+        agent_name=agent.name,
+        project_root=project_root,
+    )
+
+
+def _install_dependencies(name: str, base: Path, agent: "_AIAgent", project_root: Path) -> None:
+    """Install upstream dependencies for `name` that are not yet installed."""
+    dep_map = build_toolkits_dependency_map(base)
+    try:
+        deps = resolve_toolkit_dependencies(name, dep_map)
+    except ValueError as ex:
+        fmt.warning(str(ex))
+        return
+    for dep in deps:
+        if is_toolkit_installed(dep):
+            continue
+        _install_toolkit(dep, base, agent, project_root)
+
+
+@utils.track_command("ai", False, operation="status")
+def ai_status_command() -> None:
+    """Show current AI setup status: dlt version, agent, toolkits, and readiness checks."""
+    fmt.echo("dlt %s" % fmt.bold(dlt_version))
+
+    # detect agent
+    project_root = Path(run_context.active().run_dir)
+    index = load_toolkits_index()
+    init_entry = index.get(_INIT_TOOLKIT)
+    agent_name: Optional[str] = None
+    if isinstance(init_entry, dict):
+        agent_name = init_entry.get("agent")
+    if not agent_name:
+        detected = _AIAgent.detect_all(project_root)
+        if detected:
+            agent_name = detected[0][0].name
+    if agent_name:
+        fmt.echo("Agent: %s" % fmt.bold(agent_name))
+
+    # initialized?
+    if not os.path.isfile(make_dlt_settings_path("config.toml")):
+        fmt.warning("Workspace not yet initialized (dlt init not yet run)")
+
+    # init toolkit installed?
+    has_init = _INIT_TOOLKIT in index
+    if not has_init:
+        fmt.warning("MCP server and workflow rules not available (dlt ai init not yet run)")
+
+    # installed toolkits (excluding init)
+    toolkits = {k: v for k, v in index.items() if k != _INIT_TOOLKIT}
+    if toolkits:
+        fmt.echo("\nInstalled toolkits:")
+        for name, entry in sorted(toolkits.items()):
+            skill = entry.get("workflow_entry_skill", "")
+            if skill:
+                fmt.echo("  %s — start with %s skill" % (fmt.bold(name), fmt.bold(skill)))
+            else:
+                fmt.echo("  %s" % fmt.bold(name))
+    else:
+        fmt.warning("No toolkit with workflow is installed!")
+
+    # check if MCP dependencies are available
+    try:
+        from dlt._workspace.mcp import WorkspaceMCP  # noqa: F401
+
+        WorkspaceMCP("dlt")
+    except Exception as ex:
+        fmt.warning("MCP server cannot be started due to:")
+        fmt.echo("  %s" % str(ex))
 
 
 @utils.track_command("ai", False, operation="init")
@@ -391,36 +571,17 @@ def ai_init_command(
     location: str,
     branch: Optional[str] = None,
 ) -> None:
-    """Install the built-in _init toolkit into the current project."""
+    """Install the init toolkit into the current project."""
     project_root = Path(run_context.active().run_dir)
     var = _resolve_agent(agent, project_root)
 
     fmt.echo("Initializing AI rules for %s from %s..." % (fmt.bold(var.name), fmt.bold(location)))
 
-    base = _fetch_workbench_base(location, branch)
+    base = _fetch_workbench_base_cli(location, branch)
     if base is None:
         return
 
-    toolkit_dir = base / _INIT_TOOLKIT
-    if not toolkit_dir.is_dir():
-        fmt.warning("Init toolkit not found in %s" % fmt.bold(location))
-        return
-
-    actions = _plan_toolkit_install(toolkit_dir, var, project_root, _INIT_TOOLKIT)
-    if not actions:
-        fmt.echo("No components found in init toolkit.")
-        return
-
-    _report_and_execute(actions)
-
-
-def _install_init_silently(base: Path, agent: "_AIAgent", project_root: Path) -> None:
-    """Install the _init toolkit without overwrite and without conflict warnings."""
-    init_dir = base / _INIT_TOOLKIT
-    if not init_dir.is_dir():
-        return
-    actions = _plan_toolkit_install(init_dir, agent, project_root, _INIT_TOOLKIT)
-    _execute_install(actions)
+    _install_toolkit(_INIT_TOOLKIT, base, var, project_root)
 
 
 @utils.track_command("ai", False, operation="toolkit_install")
@@ -430,6 +591,7 @@ def ai_toolkit_install_command(
     location: str,
     branch: Optional[str] = None,
     overwrite: bool = False,
+    strict: bool = False,
 ) -> None:
     """Install toolkit components into the current project."""
     project_root = Path(run_context.active().run_dir)
@@ -440,35 +602,12 @@ def ai_toolkit_install_command(
         % (fmt.bold(name), fmt.bold(var.name), fmt.bold(location))
     )
 
-    base = _fetch_workbench_base(location, branch)
+    base = _fetch_workbench_base_cli(location, branch)
     if base is None:
         return
 
-    _install_init_silently(base, var, project_root)
-
-    toolkit_dir = base / name
-    meta_json = toolkit_dir / ".claude-plugin" / "plugin.json"
-    if not meta_json.exists():
-        fmt.warning(
-            "Toolkit %s not found (missing %s)" % (fmt.bold(name), ".claude-plugin/plugin.json")
-        )
-        return
-
-    try:
-        meta = json.loads(meta_json.read_text(encoding="utf-8"))
-    except (ValueError, OSError) as ex:
-        fmt.warning("Invalid plugin.json: %s" % str(ex))
-        return
-    toolkit_name = meta.get("name", name)
-
-    actions = _plan_toolkit_install(
-        toolkit_dir, var, project_root, toolkit_name, overwrite=overwrite
-    )
-    if not actions:
-        fmt.echo("No components found in toolkit %s." % fmt.bold(name))
-        return
-
-    _report_and_execute(actions, overwrite=overwrite)
+    _install_dependencies(name, base, var, project_root)
+    _install_toolkit(name, base, var, project_root, overwrite=overwrite, strict=strict)
 
 
 @utils.track_command("ai", False, operation="toolkit_list")
@@ -477,32 +616,49 @@ def ai_toolkit_list_command(
     branch: Optional[str] = None,
 ) -> None:
     """List available toolkits with name and description."""
-    base = _fetch_workbench_base(location, branch)
-    if base is None:
+    toolkits = fetch_workbench_toolkit_list(location, branch)
+    if toolkits is None:
+        fmt.warning("AI workbench directory not found in repo %s" % fmt.bold(location))
         return
-
-    toolkits = iter_toolkits(base)
     if not toolkits:
         fmt.echo("No toolkits found.")
         return
 
-    fmt.echo("Available toolkits:")
-    for dir_name, meta in toolkits:
-        name = meta.get("name", dir_name)
-        description = meta.get("description", "")
-        fmt.echo("  %-20s %s" % (fmt.bold(name), description))
+    installed = load_toolkits_index()
+    installed_tks = []
+    available_tks = []
+    for tk in toolkits:
+        if tk["name"] in installed:
+            installed_tks.append(tk)
+        else:
+            available_tks.append(tk)
 
+    if installed_tks:
+        fmt.echo("Installed toolkits:")
+        for tk in installed_tks:
+            name = tk["name"]
+            description = tk["description"]
+            remote_version = tk.get("version", "")
+            local_version = installed[name].get("version", "?")
+            if remote_version and remote_version != local_version:
+                ver = "%s, %s available" % (
+                    fmt.bold(local_version),
+                    fmt.style(remote_version, fg="yellow"),
+                )
+            else:
+                ver = fmt.bold(local_version)
+            fmt.echo("  %-20s %s (%s)" % (fmt.bold(name), description, ver))
 
-def _echo_md_components(label: str, md_files: List[Path]) -> None:
-    """Print a labeled list of markdown components (skills, commands, rules)."""
-    from dlt._workspace.cli.formatters import read_md_name_desc
-
-    if not md_files:
-        return
-    fmt.echo("\n%s:" % label)
-    for md_file in md_files:
-        n, d = read_md_name_desc(md_file)
-        fmt.echo("  %-20s %s" % (fmt.bold(n), d))
+    if available_tks:
+        if installed_tks:
+            fmt.echo("")
+        fmt.echo("Available toolkits:")
+        for tk in available_tks:
+            name = tk["name"]
+            description = tk["description"]
+            version = tk.get("version", "")
+            ver = " (%s)" % fmt.bold(version) if version else ""
+            fmt.echo("  %-20s %s%s" % (fmt.bold(name), description, ver))
 
 
 @utils.track_command("ai", False, operation="toolkit_info")
@@ -512,50 +668,35 @@ def ai_toolkit_info_command(
     branch: Optional[str] = None,
 ) -> None:
     """Show what's inside a toolkit."""
-    base = _fetch_workbench_base(location, branch)
-    if base is None:
-        return
-
-    toolkit_dir = base / name
-    meta = read_plugin_meta(toolkit_dir)
-    if meta is None:
+    info = fetch_workbench_toolkit_info(name, location, branch)
+    if info is None:
         fmt.warning(
             "Toolkit %s not found (missing %s)" % (fmt.bold(name), ".claude-plugin/plugin.json")
         )
         return
 
-    toolkit_name = meta.get("name", name)
-    description = meta.get("description", "")
-    fmt.echo("Toolkit: %s" % fmt.bold(toolkit_name))
-    if description:
-        fmt.echo("  %s" % description)
+    fmt.echo("Toolkit: %s" % fmt.bold(info["name"]))
+    if info["description"]:
+        fmt.echo("  %s" % info["description"])
+    if workflow_entry_skill := info.get("workflow_entry_skill"):
+        fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
 
-    skills_dir = toolkit_dir / "skills"
-    if skills_dir.is_dir():
-        _echo_md_components(
-            "Skills",
-            [
-                p / "SKILL.md"
-                for p in sorted(skills_dir.iterdir())
-                if p.is_dir() and (p / "SKILL.md").exists()
-            ],
-        )
+    for label, items in [
+        ("Skills", info["skills"]),
+        ("Commands", info["commands"]),
+        ("Rules", info["rules"]),
+    ]:
+        if items:
+            fmt.echo("\n%s:" % label)
+            for item in items:
+                fmt.echo("  %-20s %s" % (fmt.bold(item["name"]), item["description"]))
 
-    cmd_dir = toolkit_dir / "commands"
-    if cmd_dir.is_dir():
-        _echo_md_components("Commands", sorted(cmd_dir.glob("*.md")))
-
-    rules_dir = toolkit_dir / "rules"
-    if rules_dir.is_dir():
-        _echo_md_components("Rules", sorted(rules_dir.glob("*.md")))
-
-    mcp_servers = read_mcp_servers(toolkit_dir)
-    if mcp_servers:
+    if info.get("mcp_servers"):
         fmt.echo("\nMCP servers:")
-        for srv_name, srv_config in sorted(mcp_servers.items()):
+        for srv_name, srv_config in info["mcp_servers"].items():
             cmd = srv_config.get("command", "")
             srv_args = " ".join(srv_config.get("args", []))
             fmt.echo("  %-20s %s %s" % (fmt.bold(srv_name), cmd, srv_args))
 
-    if (toolkit_dir / ".claudeignore").is_file():
+    if info["has_ignore"]:
         fmt.echo("\nIgnore: .claudeignore")

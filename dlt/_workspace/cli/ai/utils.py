@@ -1,18 +1,51 @@
+import hashlib
 import os
 import shutil
+import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import tomlkit
+import yaml
 
 from dlt.common.json import json
+from dlt.common.utils import update_dict_nested
 from dlt.common.configuration.const import TYPE_EXAMPLES
+from dlt.common.configuration.providers.toml import SecretsTomlProvider, SettingsTomlProvider
+
+from dlt._workspace.typing import TWorkbenchComponentInfo, TWorkbenchMcpServerInfo
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli.formatters import (
     extract_first_heading,
     parse_frontmatter,
     render_frontmatter,
+    read_md_name_desc,
 )
+from dlt._workspace.cli.utils import get_provider_locations
+from dlt._workspace.typing import (
+    TLocationInfo,
+    TToolkitIndexEntry,
+    TToolkitInfo,
+    TWorkbenchToolkitInfo,
+)
+
+
+DEFAULT_AI_WORKBENCH_REPO = "https://github.com/dlt-hub/dlthub-ai-workbench.git"
+# DEFAULT_AI_WORKBENCH_REPO = "/home/rudolfix/src/dlt-ai-dev-kit"
+DEFAULT_AI_WORKBENCH_BRANCH: Optional[str] = "rfix/more-workbench"
+AI_WORKBENCH_BASE_DIR = "workbench"
+
+_workbench_lock = threading.Lock()
+
+
+def compute_file_hash(file_path: Path) -> str:
+    """Return the SHA3-256 hex digest of a file's raw bytes."""
+    return hashlib.sha3_256(file_path.read_bytes()).hexdigest()
+
+
+def compute_content_hash(content: str) -> str:
+    """Return the SHA3-256 hex digest of a string encoded as UTF-8."""
+    return hashlib.sha3_256(content.encode("utf-8")).hexdigest()
 
 
 def home_dir() -> Optional[Path]:
@@ -127,7 +160,7 @@ def redact_value(val: Any) -> str:
 def redact_toml_document(doc: tomlkit.TOMLDocument) -> tomlkit.TOMLDocument:
     """Returns a deep copy of `doc` with all leaf values replaced by stars.
 
-    Configuration placeholder values from TYPE_EXAMPLES (e.g. ``<configure me>``)
+    Configuration placeholder values from TYPE_EXAMPLES (e.g. `<configure me>`)
     are preserved verbatim so the caller can see which fields still need to be set.
     """
     placeholders = set(TYPE_EXAMPLES.values())
@@ -152,20 +185,105 @@ def redact_toml_document(doc: tomlkit.TOMLDocument) -> tomlkit.TOMLDocument:
     return redacted
 
 
-def read_plugin_meta(toolkit_dir: Path) -> Optional[Dict[str, Any]]:
-    """Read plugin.json from a toolkit directory. Returns None on failure."""
-    meta_json = toolkit_dir / ".claude-plugin" / "plugin.json"
+def fetch_secrets_list() -> List[TLocationInfo]:
+    """Return project-scoped secret file locations, profile-scoped first."""
+    locations: List[TLocationInfo] = []
+    for info in get_provider_locations():
+        if not isinstance(info.provider, SecretsTomlProvider):
+            continue
+        project_locs = [loc for loc in info.locations if loc.scope == "project"]
+        project_locs.sort(key=lambda loc: (loc.profile_name is None, loc.path))
+        for loc in project_locs:
+            entry = TLocationInfo(
+                path=loc.path,
+                present=loc.present,
+                scope=loc.scope,
+            )
+            if loc.profile_name is not None:
+                entry["profile_name"] = loc.profile_name
+            locations.append(entry)
+    return locations
+
+
+def fetch_secrets_view_redacted(path: Optional[str] = None) -> Optional[str]:
+    """Return redacted secrets TOML string, or None if not found.
+
+    Without path, returns the unified merged view from SecretsTomlProvider.
+    With path, returns that exact file redacted.
+    """
+    if path:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                doc = tomlkit.load(f)
+        except FileNotFoundError:
+            return None
+    else:
+        doc = None
+        for info in get_provider_locations():
+            if not isinstance(info.provider, SecretsTomlProvider):
+                continue
+            doc = info.provider._config_toml
+            break
+        if doc is None or len(doc.body) == 0:
+            return None
+    return tomlkit.dumps(redact_toml_document(doc))
+
+
+def fetch_secrets_update_fragment(fragment: str, path: str) -> str:
+    """Merge a TOML fragment into the secrets file at path.
+
+    Creates the file if needed. Returns the redacted TOML after merge.
+    Raises tomlkit.exceptions.TOMLKitError on invalid fragment.
+    """
+    settings_dir = os.path.dirname(path) or "."
+    file_name = os.path.basename(path)
+    os.makedirs(settings_dir, exist_ok=True)
+    if not os.path.isfile(path):
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("")
+    provider = SettingsTomlProvider(file_name, True, file_name, [settings_dir])
+    # allow literal \n (two chars) as newline — agents on Windows/PowerShell
+    # can't easily pass real newlines, so we accept the escaped form
+    if "\\n" in fragment and "\n" not in fragment:
+        fragment = fragment.replace("\\n", "\n")
+    parsed = tomlkit.parse(fragment)
+    update_dict_nested(provider._config_toml, parsed)
+    provider.write_toml()
+    return tomlkit.dumps(redact_toml_document(provider._config_toml))
+
+
+def read_workbench_toolkit_combined_info(toolkit_dir: Path) -> Optional[Dict[str, Any]]:
+    """Read plugin.json and toolkit.json from a toolkit directory.
+
+    plugin.json must exist and is the base metadata (validated by Claude).
+    toolkit.json is optional and carries dlt-specific fields (`listed`,
+    `dependencies`) that are not part of the Claude plugin schema.  When
+    present its keys are merged on top of plugin.json.
+
+    Returns None when plugin.json is missing or unreadable.
+    """
+    plugin_dir = toolkit_dir / ".claude-plugin"
+    meta_json = plugin_dir / "plugin.json"
     if not meta_json.exists():
         return None
     try:
-        return json.loads(meta_json.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
+        meta: Dict[str, Any] = json.loads(meta_json.read_text(encoding="utf-8"))
     except (ValueError, OSError):
         return None
+    # merge dlt-specific toolkit.json when present
+    toolkit_json = plugin_dir / "toolkit.json"
+    if toolkit_json.is_file():
+        try:
+            extra = json.loads(toolkit_json.read_text(encoding="utf-8"))
+            meta.update(extra)
+        except (ValueError, OSError):
+            pass
+    return meta
 
 
-def read_mcp_servers(toolkit_dir: Path) -> Dict[str, Any]:
+def read_workbench_toolkit_mcp_servers(toolkit_dir: Path) -> Dict[str, Any]:
     """Read MCP server definitions from plugin.json mcpServers or standalone .mcp.json/mcp.json."""
-    meta = read_plugin_meta(toolkit_dir)
+    meta = read_workbench_toolkit_combined_info(toolkit_dir)
     if meta and "mcpServers" in meta:
         servers: Dict[str, Any] = meta["mcpServers"]
         return servers
@@ -184,19 +302,184 @@ def read_mcp_servers(toolkit_dir: Path) -> Dict[str, Any]:
     return {}
 
 
-def iter_toolkits(base: Path) -> List[Tuple[str, Dict[str, Any]]]:
-    """Iterate toolkit subdirs in base, skipping names starting with ``_``.
+def iter_workbench_toolkits(
+    base: Path, listed_only: bool = False
+) -> List[Tuple[str, Dict[str, Any]]]:
+    """Iterate toolkit subdirs that contain a valid plugin.json.
+
+    When *listed_only* is True, also skips toolkits whose toolkit.json
+    has `"listed": false` (defaults to `true` when absent).
 
     Returns sorted list of (dir_name, plugin_meta) tuples.
     """
     results: List[Tuple[str, Dict[str, Any]]] = []
     for entry in sorted(base.iterdir()):
-        if not entry.is_dir() or entry.name.startswith("_"):
+        if not entry.is_dir():
             continue
-        meta = read_plugin_meta(entry)
+        meta = read_workbench_toolkit_combined_info(entry)
         if meta is not None:
+            if listed_only and meta.get("listed", True) is False:
+                continue
             results.append((entry.name, meta))
     return results
+
+
+def build_toolkits_dependency_map(base: Path) -> Dict[str, List[str]]:
+    """Build a map of toolkit name → list of dependency toolkit names.
+
+    Reads the `dependencies` list from each toolkit's plugin.json.
+    Toolkits without dependencies map to an empty list.
+    """
+    dep_map: Dict[str, List[str]] = {}
+    for entry in sorted(base.iterdir()):
+        if not entry.is_dir():
+            continue
+        meta = read_workbench_toolkit_combined_info(entry)
+        if meta is None:
+            continue
+        name = meta.get("name", entry.name)
+        dep_map[name] = list(meta.get("dependencies", []))
+    return dep_map
+
+
+def resolve_toolkit_dependencies(name: str, dep_map: Dict[str, List[str]]) -> List[str]:
+    """Return install-order list of dependencies for `name` (excluding `name` itself).
+
+    Raises:
+        ValueError: On circular dependencies.
+    """
+    order: List[str] = []
+    visited: Set[str] = set()
+    path: Set[str] = set()
+
+    def _visit(n: str) -> None:
+        if n in path:
+            raise ValueError("Circular dependency: %s" % " -> ".join([*path, n]))
+        if n in visited:
+            return
+        path.add(n)
+        for dep in dep_map.get(n, []):
+            _visit(dep)
+        path.discard(n)
+        visited.add(n)
+        order.append(n)
+
+    _visit(name)
+    # remove the toolkit itself — caller installs it separately
+    order.remove(name)
+    return order
+
+
+def fetch_workbench_base(location: str, branch: Optional[str]) -> Optional[Path]:
+    """Fetch AI workbench repo and return base Path, or None if not found.
+
+    Thread-safe: git operations on the shared repo directory are serialized.
+    """
+    from dlt.common.libs import git
+    from dlt.common.pipeline import get_dlt_repos_dir
+
+    branch = branch or DEFAULT_AI_WORKBENCH_BRANCH
+    with _workbench_lock:
+        src_storage = git.get_fresh_repo_files(location, get_dlt_repos_dir(), branch=branch)
+    if not src_storage.has_folder(AI_WORKBENCH_BASE_DIR):
+        return None
+    return Path(src_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
+
+
+def fetch_workbench_toolkit_list(
+    location: str, branch: Optional[str] = None
+) -> Optional[List[Dict[str, Any]]]:
+    """Return toolkit metadata list, or None if workbench unavailable.
+
+    Each item: `{"name": str, "dir_name": str, "description": str}`.
+    """
+    base = fetch_workbench_base(location, branch)
+    if base is None:
+        return None
+    return [
+        {
+            "name": meta.get("name", dir_name),
+            "dir_name": dir_name,
+            "description": meta.get("description", ""),
+            "version": meta.get("version", ""),
+            "dependencies": list(meta.get("dependencies", [])),
+        }
+        for dir_name, meta in iter_workbench_toolkits(base, listed_only=True)
+    ]
+
+
+def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitInfo:
+    """Build a `TToolkitInfo` from raw plugin.json / toolkit.json dict."""
+    tk_meta = TToolkitInfo(
+        name=meta.get("name", fallback_name),
+        version=meta.get("version", "0.0.0"),
+        description=meta.get("description") or "",
+        tags=list(meta.get("keywords", [])),
+    )
+    if wes := meta.get("workflow_entry_skill"):
+        tk_meta["workflow_entry_skill"] = wes
+    return tk_meta
+
+
+def fetch_workbench_toolkit_info(
+    name: str, location: str, branch: Optional[str] = None
+) -> Optional[TWorkbenchToolkitInfo]:
+    """Return detailed toolkit info, or None if not found."""
+
+    base = fetch_workbench_base(location, branch)
+    if base is None:
+        return None
+
+    toolkit_dir = base / name
+    meta = read_workbench_toolkit_combined_info(toolkit_dir)
+    if meta is None:
+        return None
+
+    tk_meta = extract_toolkit_info(meta, name)
+
+    def _components(md_files: List[Path]) -> List[TWorkbenchComponentInfo]:
+        return [
+            TWorkbenchComponentInfo(name=n, description=d)
+            for n, d in (read_md_name_desc(f) for f in md_files)
+        ]
+
+    skills: List[TWorkbenchComponentInfo] = []
+    skills_dir = toolkit_dir / "skills"
+    if skills_dir.is_dir():
+        skills = _components(
+            [
+                p / "SKILL.md"
+                for p in sorted(skills_dir.iterdir())
+                if p.is_dir() and (p / "SKILL.md").exists()
+            ]
+        )
+
+    commands: List[TWorkbenchComponentInfo] = []
+    cmd_dir = toolkit_dir / "commands"
+    if cmd_dir.is_dir():
+        commands = _components(sorted(cmd_dir.glob("*.md")))
+
+    rules: List[TWorkbenchComponentInfo] = []
+    rules_dir = toolkit_dir / "rules"
+    if rules_dir.is_dir():
+        rules = _components(sorted(rules_dir.glob("*.md")))
+
+    servers = read_workbench_toolkit_mcp_servers(toolkit_dir)
+
+    info = TWorkbenchToolkitInfo(
+        **tk_meta,
+        dependencies=list(meta.get("dependencies", [])),
+        skills=skills,
+        commands=commands,
+        rules=rules,
+        has_ignore=(toolkit_dir / ".claudeignore").is_file(),
+    )
+    if servers:
+        info["mcp_servers"] = {
+            srv: TWorkbenchMcpServerInfo(command=cfg.get("command", ""), args=cfg.get("args", []))
+            for srv, cfg in sorted(servers.items())
+        }
+    return info
 
 
 def copy_repo_files(
@@ -204,7 +487,7 @@ def copy_repo_files(
 ) -> Tuple[List[str], int]:
     """Copy files from src_dir into dest_dir, skipping existing files.
 
-    ``.message`` files are echoed instead of copied.  Returns (copied_names, total_count).
+    `.message` files are echoed instead of copied.  Returns (copied_names, total_count).
     """
     copied_files: List[str] = []
     count_files = 0
@@ -229,3 +512,61 @@ def copy_repo_files(
         copied_files.append(src_sub_path.name)
 
     return copied_files, count_files
+
+
+TOOLKITS_INDEX_FILE = ".toolkits"
+
+
+def _toolkits_index_path() -> str:
+    from dlt._workspace.cli.utils import make_dlt_settings_path
+
+    return make_dlt_settings_path(TOOLKITS_INDEX_FILE)
+
+
+def load_toolkits_index() -> Dict[str, TToolkitIndexEntry]:
+    """Load the installed toolkits index from .dlt/.toolkits."""
+    path = _toolkits_index_path()
+    if not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data: Dict[str, TToolkitIndexEntry] = yaml.safe_load(f)
+        if not data:
+            return {}
+        # restore name from the YAML key (stripped on write)
+        for key, entry in data.items():
+            entry["name"] = key
+        return data
+    except (yaml.YAMLError, OSError):
+        return {}
+
+
+def is_toolkit_installed(name: str) -> bool:
+    """Check whether a toolkit is recorded in the index."""
+    return name in load_toolkits_index()
+
+
+def save_toolkit_entry(
+    toolkit_meta: TToolkitInfo,
+    agent: Optional[str] = None,
+    files: Optional[Dict[str, Any]] = None,
+    mcp_servers: Optional[List[str]] = None,
+) -> None:
+    """Record that a toolkit was installed (or updated)."""
+    from dlt.common.pendulum import pendulum
+
+    index = load_toolkits_index()
+    entry: Dict[str, Any] = dict(toolkit_meta)
+    name = entry.pop("name")
+    entry["installed_at"] = pendulum.now("UTC").isoformat()
+    if agent:
+        entry["agent"] = agent
+    if files:
+        entry["files"] = files
+    if mcp_servers:
+        entry["mcp_servers"] = mcp_servers
+    index[name] = entry  # type: ignore[assignment]
+    path = _toolkits_index_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)

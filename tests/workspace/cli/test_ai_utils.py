@@ -5,9 +5,10 @@ from typing import Any, Callable, Dict
 import pytest
 import tomlkit
 
+from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt._workspace.cli.ai.utils import (
     ensure_cursor_frontmatter,
-    iter_toolkits,
+    iter_workbench_toolkits,
     merge_json_mcp_servers,
     merge_toml_mcp_servers,
     parse_json_mcp,
@@ -201,8 +202,6 @@ def test_redact_toml_document_does_not_mutate_original() -> None:
 
 
 def test_redact_toml_document_preserves_placeholders() -> None:
-    from dlt.common.configuration.const import TYPE_EXAMPLES
-
     doc = tomlkit.parse(
         '[destination.credentials]\nhost = "<configure me>"\npassword = "real-secret"\n'
     )
@@ -215,24 +214,35 @@ def test_redact_toml_document_preserves_placeholders() -> None:
         assert r["t"]["k"] == placeholder_val  # type: ignore[index]
 
 
-def test_iter_toolkits_skips_init(tmp_path: Path) -> None:
-    """Skips dirs starting with _ and those without plugin.json."""
-    base = tmp_path / "workbench"
+def test_iter_toolkits() -> None:
+    """Skips dirs without plugin.json; listed_only filters unlisted toolkits."""
+    base = Path("workbench")
     base.mkdir()
 
-    # _init — should be skipped
-    init_meta = base / "_init" / ".claude-plugin"
-    init_meta.mkdir(parents=True)
-    (init_meta / "plugin.json").write_text(json.dumps({"name": "_init"}), encoding="utf-8")
-
-    # valid toolkit
+    # valid toolkit (no "listed" key — defaults to listed)
     tk_meta = base / "my-toolkit" / ".claude-plugin"
     tk_meta.mkdir(parents=True)
     (tk_meta / "plugin.json").write_text(json.dumps({"name": "my-toolkit"}), encoding="utf-8")
 
+    # explicitly listed toolkit (via toolkit.json)
+    tk2_meta = base / "also-visible" / ".claude-plugin"
+    tk2_meta.mkdir(parents=True)
+    (tk2_meta / "plugin.json").write_text(json.dumps({"name": "also-visible"}), encoding="utf-8")
+    (tk2_meta / "toolkit.json").write_text(json.dumps({"listed": True}), encoding="utf-8")
+
+    # unlisted toolkit (via toolkit.json)
+    unlisted_meta = base / "hidden" / ".claude-plugin"
+    unlisted_meta.mkdir(parents=True)
+    (unlisted_meta / "plugin.json").write_text(json.dumps({"name": "hidden"}), encoding="utf-8")
+    (unlisted_meta / "toolkit.json").write_text(json.dumps({"listed": False}), encoding="utf-8")
+
     # dir without plugin.json — should be skipped
     (base / "no-meta").mkdir()
 
-    toolkits = iter_toolkits(base)
-    names = [name for name, _ in toolkits]
-    assert names == ["my-toolkit"]
+    # default: returns all valid toolkits including unlisted
+    all_names = [name for name, _ in iter_workbench_toolkits(base)]
+    assert all_names == ["also-visible", "hidden", "my-toolkit"]
+
+    # listed_only=True filters out unlisted
+    names = [name for name, _ in iter_workbench_toolkits(base, listed_only=True)]
+    assert names == ["also-visible", "my-toolkit"]
