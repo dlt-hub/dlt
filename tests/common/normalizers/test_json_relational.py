@@ -586,6 +586,43 @@ def test_propagates_table_context(
     )
 
 
+def test_propagation_does_not_leak_across_siblings(norm: RelationalNormalizer) -> None:
+    """Propagated values from one sibling must not leak to the next sibling in the same list.
+
+    Regression test: the old code mutated the shared `extend` dict in-place via
+    `.update()`, so table-level propagation from sibling #1 was visible in sibling #2.
+    """
+    add_dlt_root_id_propagation(norm)
+    prop_config: RelationalNormalizerConfigPropagation = norm.schema._normalizers_config["json"][
+        "config"
+    ]["propagation"]
+    # propagate "vx" from table__lvl1 rows into their children as "__vx"
+    prop_config["tables"]["table__lvl1"] = {
+        TColumnName("vx"): TColumnName("__vx"),
+    }
+
+    row = {
+        "_dlt_id": "root_id",
+        "lvl1": [
+            # sibling 1: has "vx" so its children should get __vx
+            {"vx": "from_first", "lvl2": [{"val": "child_a"}]},
+            # sibling 2: does NOT have "vx" so its children must NOT get __vx
+            {"lvl2": [{"val": "child_b"}]},
+        ],
+    }
+    normalized_rows = list(norm._normalize_row(row, {}, ("table",), _r_lvl=1000, is_root=True))
+    lvl2_rows = [r for r in normalized_rows if r[0][0] == "table__lvl1__lvl2"]
+    assert len(lvl2_rows) == 2
+
+    child_a = next(r[1] for r in lvl2_rows if r[1]["val"] == "child_a")
+    child_b = next(r[1] for r in lvl2_rows if r[1]["val"] == "child_b")
+
+    # sibling 1's child gets the propagated value
+    assert child_a["__vx"] == "from_first"
+    # sibling 2's child must NOT see it — this failed with the old mutating code
+    assert "__vx" not in child_b
+
+
 def test_propagates_table_context_to_lists(norm: RelationalNormalizer) -> None:
     add_dlt_root_id_propagation(norm)
     prop_config: RelationalNormalizerConfigPropagation = norm.schema._normalizers_config["json"][
@@ -1179,87 +1216,79 @@ def add_dlt_root_id_propagation(norm: RelationalNormalizer) -> None:
     norm._reset()
 
 
-def test_propagation_mapping_cache_not_stale_after_extend_table(norm: RelationalNormalizer) -> None:
-    """Test that propagation mapping cache is cleared when extend_table modifies it.
+def test_cache_cleared_after_extend_table(norm: RelationalNormalizer) -> None:
+    """Verify that extend_table invalidates propagation, nested-type and should-be-nested caches.
 
-    Scenario: We have root propagation configured. We normalize "users" table which
-    populates the cache. Then extend_table("users") adds table-specific propagation.
-    When we normalize again, the new table-specific propagation should be used.
+    1. Propagation: add table-level propagation via extend_table, new rows must see it.
+    2. Nested type: mark a column as json via extend_table, flattening must stop for it.
+    3. Should-be-nested: register a child as a non-nested (root) table, verify it gets _dlt_load_id.
     """
-    # Set up initial propagation config with root propagation only
     add_dlt_root_id_propagation(norm)
 
     with Container().injectable_context(
         DestinationCapabilitiesContext(supported_merge_strategies=["delete-insert"])
     ):
-        # Normalize "users" - this populates the cache for ("users", True)
-        # At this point, only root propagation exists (no table-specific for "users")
-        row = {"_dlt_id": "user_123", "orders": [{"item": "book"}]}
+        # -- phase 1: normalize to populate all caches ----------------------------
+        row = {
+            "_dlt_id": "u1",
+            "custom_field": "val",
+            "meta": {"nested_key": "deep"},
+            "orders": [{"item": "book"}],
+        }
         rows_before = list(norm._normalize_row(row, {}, ("users",), _r_lvl=1000, is_root=True))
 
-        # Verify root propagation works - nested rows have _dlt_root_id
-        nested_before = [r for r in rows_before if r[0][0] == "users__orders"]
-        assert len(nested_before) == 1
-        assert nested_before[0][1]["_dlt_root_id"] == "user_123"
+        # propagation: only root _dlt_root_id exists, no table-specific
+        nested = [r for r in rows_before if r[0][0] == "users__orders"]
+        assert nested[0][1]["_dlt_root_id"] == "u1"
+        assert "propagated_custom" not in nested[0][1]
 
-        # Now extend_table adds table-specific propagation for "users"
-        # This happens when table disposition changes to merge
+        # nested type: "meta" is flattened, so "nested_key" appears as "meta__nested_key"
+        root = next(r[1] for r in rows_before if r[0][0] == "users")
+        assert "meta__nested_key" in root
+        assert "meta" not in root  # dict was flattened away
+
+        # should_be_nested: orders is a nested table (no _dlt_load_id)
+        assert "_dlt_load_id" not in nested[0][1]
+
+        # -- phase 2: extend_table to change schema, must invalidate caches ------
+
+        # 2a. add table-level propagation for "users"
         users_table = new_table("users", write_disposition="merge")
         norm.schema.update_table(users_table)
-
-        # Add a custom field to propagate (simulating additional table config)
         prop_config = norm.schema._normalizers_config["json"]["config"]["propagation"]
         prop_config["tables"]["users"]["custom_field"] = "propagated_custom"
 
-        # The cache for ("users", True) should be cleared
-        # Normalize again with a row that has custom_field
-        row2 = {"_dlt_id": "user_456", "custom_field": "my_value", "orders": [{"item": "pen"}]}
+        # 2b. mark "meta" column as json so it should stop being flattened
+        norm.schema.update_table(
+            new_table(
+                "users",
+                columns=[{"name": "meta", "data_type": "json", "nullable": True}],
+            )
+        )
+
+        # 2c. register "users__orders" as a root-level (non-nested) table
+        norm.schema.update_table(new_table("users__orders"))
+
+        # -- phase 3: normalize again and verify caches were invalidated ----------
+        row2 = {
+            "_dlt_id": "u2",
+            "custom_field": "val2",
+            "meta": {"nested_key": "deep2"},
+            "orders": [{"item": "pen"}],
+        }
         rows_after = list(norm._normalize_row(row2, {}, ("users",), _r_lvl=1000, is_root=True))
 
-        # Verify the new table-specific propagation is applied
+        # propagation cache cleared: nested rows now get the table-level propagation
         nested_after = [r for r in rows_after if r[0][0] == "users__orders"]
-        assert len(nested_after) == 1
-        assert nested_after[0][1]["_dlt_root_id"] == "user_456"
-        # This would fail if cache was stale - custom_field propagation wouldn't be there
-        assert nested_after[0][1].get("propagated_custom") == "my_value"
+        assert nested_after[0][1].get("propagated_custom") == "val2"
 
+        # is_nested_type cache cleared: "meta" is now json, kept as-is in root row
+        root_after = next(r[1] for r in rows_after if r[0][0] == "users")
+        assert root_after["meta"] == {"nested_key": "deep2"}
+        assert "meta__nested_key" not in root_after
 
-def test_propagation_mapping_cache_not_stale_after_remove_table(norm: RelationalNormalizer) -> None:
-    """Test that propagation mapping cache is cleared when remove_table modifies it.
-
-    Scenario: We have table-specific propagation for "users". We normalize which
-    populates the cache. Then remove_table("users") removes the propagation.
-    When we normalize again, the table-specific propagation should no longer apply.
-    """
-    # Set up propagation with table-specific config for "users"
-    add_dlt_root_id_propagation(norm)
-    prop_config = norm.schema._normalizers_config["json"]["config"]["propagation"]
-    prop_config["tables"]["users"] = {"custom_field": "propagated_custom"}
-
-    # Normalize "users" - this populates the cache for ("users", True)
-    row = {"_dlt_id": "user_123", "custom_field": "my_value", "orders": [{"item": "book"}]}
-    rows_before = list(norm._normalize_row(row, {}, ("users",), _r_lvl=1000, is_root=True))
-
-    # Verify table-specific propagation works
-    nested_before = [r for r in rows_before if r[0][0] == "users__orders"]
-    assert len(nested_before) == 1
-    assert nested_before[0][1]["_dlt_root_id"] == "user_123"
-    assert nested_before[0][1].get("propagated_custom") == "my_value"
-
-    # Now remove_table clears the table-specific propagation for "users"
-    norm.remove_table("users")
-
-    # The cache for ("users", True) should be cleared
-    # Normalize again
-    rows_after = list(norm._normalize_row(row, {}, ("users",), _r_lvl=1000, is_root=True))
-
-    # Verify table-specific propagation no longer applies
-    nested_after = [r for r in rows_after if r[0][0] == "users__orders"]
-    assert len(nested_after) == 1
-    # Root propagation should still work
-    assert nested_after[0][1]["_dlt_root_id"] == "user_123"
-    # But table-specific propagation should be gone (would fail if cache was stale)
-    assert "propagated_custom" not in nested_after[0][1]
+        # should_be_nested cache cleared: "users__orders" is now a root table
+        assert "_dlt_load_id" in nested_after[0][1]
 
 
 def test_py_type_to_sc_type(norm: RelationalNormalizer) -> None:
