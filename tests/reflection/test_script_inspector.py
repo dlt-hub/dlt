@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 import pytest
 
-from dlt.common.reflection.ref import DummyModule
+from dlt.common.reflection.ref import DummyModule, is_installed_module
 
 from dlt.reflection.script_inspector import (
     import_script_module,
@@ -57,6 +57,25 @@ def test_import_module_capitalized_as_type() -> None:
 def test_import_wrong_pipeline_script() -> None:
     with pytest.raises(PipelineIsRunning):
         import_pipeline_script(MODULE_CASES, "executes_resource", ignore_missing_imports=False)
+
+
+@pytest.mark.parametrize(
+    "module_name,expected",
+    [
+        ("dlt", True),
+        ("dlt.common.destination.reference", True),
+        ("__main__", False),
+        ("tests.reflection.test_script_inspector", False),
+        ("nonexistent_pkg_xyzzy", False),
+    ],
+    ids=["installed-top-level", "installed-submodule", "main", "test-module", "fictional"],
+)
+def test_is_installed_module(module_name: str, expected: bool) -> None:
+    is_installed_module.cache_clear()
+    assert is_installed_module(module_name) is expected
+    # second call hits the lru_cache
+    assert is_installed_module(module_name) is expected
+    assert is_installed_module.cache_info().hits >= 1
 
 
 def test_package_dummy_clash() -> None:

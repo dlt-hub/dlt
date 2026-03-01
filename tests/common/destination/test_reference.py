@@ -46,6 +46,36 @@ def test_destination_reference_not_a_factory() -> None:
     assert len(traces) == 1 and traces[0].reason == "TypeCheck"
 
 
+def test_from_reference_plain_callable_fallback() -> None:
+    """When pipeline state stores a plain callable path as destination_type (e.g.
+    "my_pkg.my_func"), from_reference must resolve it back to a working destination
+    during pipeline restore. find() fails because the ref points to a function, not
+    a Destination subclass, so the fallback imports the function and wraps it in
+    the custom destination factory. Non-functions, missing attrs, and bare names
+    without dots should still raise UnknownDestinationModule.
+    """
+    # importable module-level function, find() fails, fallback wraps it
+    ref = "tests.destinations.test_custom_destination.global_sink_func"
+    dest = DestinationReference.from_reference(ref, destination_name="wrapped_sink")
+    assert dest is not None
+    assert dest.destination_name == "wrapped_sink"
+    assert dest.destination_type == "dlt.destinations.destination"
+
+    # non-existent attribute, fallback import returns None, re-raises
+    with pytest.raises(UnknownDestinationModule):
+        DestinationReference.from_reference(
+            "tests.destinations.test_custom_destination.does_not_exist"
+        )
+
+    # class ref (not a function), fallback imports it but inspect.isfunction is False
+    with pytest.raises(UnknownDestinationModule):
+        DestinationReference.from_reference("tests.load.cases.fake_destination.not_a_destination")
+
+    # ref without dot, fallback is skipped, re-raises immediately
+    with pytest.raises(UnknownDestinationModule):
+        DestinationReference.from_reference("meltdb")
+
+
 def test_custom_destination_module() -> None:
     destination = DestinationReference.from_reference(
         "tests.common.cases.destinations.null", destination_name="null-test"

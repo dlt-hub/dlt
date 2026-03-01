@@ -1,4 +1,6 @@
 import builtins
+import functools
+import importlib.metadata
 import importlib.util
 from importlib import import_module
 from types import ModuleType, SimpleNamespace
@@ -6,6 +8,27 @@ from typing import Any, Callable, Literal, NamedTuple, Tuple, Mapping, List, Seq
 
 from dlt.common.exceptions import MissingDependencyException, TypeErrorWithKnownTypes
 from dlt.common.typing import TAny
+
+
+@functools.lru_cache(maxsize=64)
+def is_installed_module(module_name: str) -> bool:
+    """Check if a module belongs to a pip-installed package.
+
+    Checks whether the top-level package of `module_name` has distribution metadata
+    (i.e., was installed via pip/uv). This distinguishes installed packages that are
+    resolvable from any Python process from user scripts and local modules that happen
+    to be importable via sys.path.
+
+    The check only needs the top-level package name because Python packages are installed
+    as a unit — if the top-level package has a distribution, all its submodules are
+    guaranteed to be resolvable.
+    """
+    top_level = module_name.split(".")[0]
+    try:
+        importlib.metadata.distribution(top_level)
+        return True
+    except importlib.metadata.PackageNotFoundError:
+        return False
 
 
 class DummyModule(ModuleType):

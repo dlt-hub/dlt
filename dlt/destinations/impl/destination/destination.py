@@ -28,7 +28,6 @@ class DestinationClient(JobClientBase):
         config: CustomDestinationClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        config.ensure_callable()
         super().__init__(schema, config, capabilities)
         self.config: CustomDestinationClientConfiguration = config
         # create pre-resolved callable to avoid multiple config resolutions during execution of the jobs
@@ -55,6 +54,7 @@ class DestinationClient(JobClientBase):
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
+        self.config.ensure_callable()
         # skip internal tables and remove columns from schema if so configured
         if self.config.skip_dlt_columns_and_tables:
             if is_dlt_table_or_column(table["name"], self.schema._dlt_tables_prefix):

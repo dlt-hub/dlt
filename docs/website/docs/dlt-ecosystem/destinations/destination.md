@@ -158,6 +158,10 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
   )
   ```
 
+:::note
+All three patterns work with CLI commands, such as `dlt pipeline info` and `dlt pipeline show`. When your callable is defined in a local script, the CLI logs a warning that the callable could not be restored. Pipeline inspection and schema access will work from the CLI, and loading will continue to work when running your script directly. To get rid of the warning, move the callable into an installed Python package so `dlt` can import it from any process.
+:::
+
 ## Adjust batch size and retry policy for atomic loads
 The destination keeps a local record of how many `DataItems` were processed, so if you, for example, use the custom destination to push `DataItems` to a remote API, and this
 API becomes unavailable during the load resulting in a failed `dlt` pipeline run, you can repeat the run of your pipeline at a later moment and the custom destination will **restart from the whole batch that failed**. We are preventing any data from being lost, but you can still get duplicated data if you committed half of the batch, for example, to a database and then failed.
