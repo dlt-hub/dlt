@@ -130,6 +130,19 @@ def test_ai_mcp_run_subcommand(
     assert result.returncode == 0
 
 
+def test_ai_mcp_run_subcommand_stdio(
+    fruitshop_pipeline_context: RunContext, script_runner: ScriptRunner, mocker: MockerFixture
+) -> None:
+    mock = mocker.patch.object(FastMCP, "run")
+    result = script_runner.run(["dlt", "--debug", "ai", "mcp", "run", "--stdio"])
+    assert mock.called
+    call_kwargs = mock.call_args.kwargs
+    assert call_kwargs["transport"] == "stdio"
+    assert "port" not in call_kwargs
+    assert "path" not in call_kwargs
+    assert result.returncode == 0
+
+
 def test_ai_mcp_install_command(
     fruitshop_pipeline_context: RunContext, script_runner: ScriptRunner
 ) -> None:

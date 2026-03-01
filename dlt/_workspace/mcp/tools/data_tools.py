@@ -9,6 +9,8 @@ from fastmcp.exceptions import ToolError
 import dlt
 from dlt.common.typing import Annotated
 from dlt._workspace.cli import formatters
+from dlt._workspace.cli.utils import fetch_workspace_info
+from dlt._workspace.mcp.tools._context import with_mcp_tool_telemetry
 
 TResultFormat = Literal["markdown", "jsonl"]
 
@@ -23,6 +25,7 @@ def _get_dataset(pipeline_name: str) -> dlt.Dataset:
     return _attach(pipeline_name).dataset()
 
 
+@with_mcp_tool_telemetry()
 def list_pipelines() -> List[str]:
     """List all dlt pipelines available in this workspace"""
     from dlt.common.runtime.run_context import active as active_run_context
@@ -36,6 +39,21 @@ def list_pipelines() -> List[str]:
     return [p["name"] for p in pipelines]
 
 
+@with_mcp_tool_telemetry()
+def get_workspace_info() -> Dict[str, Any]:
+    """Get information about the current dlt workspace or project.
+
+    Returns workspace name, directories, active profile, configured profiles,
+    and configuration provider locations with their status."""
+
+    info = fetch_workspace_info()
+    # prune bulky file-tracking data from toolkit entries
+    for entry in info.get("installed_toolkits", {}).values():
+        entry.pop("files", None)
+    return info
+
+
+@with_mcp_tool_telemetry()
 def list_tables(
     pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
 ) -> Dict[str, Any]:
@@ -50,6 +68,7 @@ def list_tables(
     }
 
 
+@with_mcp_tool_telemetry()
 def get_table_schema(
     pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
     table_name: Annotated[str, Field(description="Name of the table")],
@@ -86,6 +105,7 @@ def get_table_schema(
         ) from e
 
 
+@with_mcp_tool_telemetry()
 def get_table_create_sql(
     pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
     table_name: Annotated[str, Field(description="Name of the table")],
@@ -154,6 +174,7 @@ def get_table_create_sql(
         ) from e
 
 
+@with_mcp_tool_telemetry()
 def preview_table(
     pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
     table_name: Annotated[str, Field(description="Name of the table to preview")],
@@ -178,6 +199,7 @@ def preview_table(
         ) from e
 
 
+@with_mcp_tool_telemetry()
 def execute_sql_query(
     pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
     sql_select_query: Annotated[
@@ -213,6 +235,7 @@ def execute_sql_query(
     return formatters.md_table(columns, rows)
 
 
+@with_mcp_tool_telemetry()
 def get_row_counts(
     pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
     output_format: Annotated[
@@ -240,6 +263,7 @@ def get_row_counts(
 TSchemaFormat = Literal["mermaid", "yaml", "dbml"]
 
 
+@with_mcp_tool_telemetry()
 def display_schema(
     pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
     hide_columns: Annotated[
@@ -274,6 +298,7 @@ def display_schema(
         ) from e
 
 
+@with_mcp_tool_telemetry()
 def get_local_pipeline_state(
     pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
 ) -> Dict[str, Any]:
@@ -290,6 +315,7 @@ def get_local_pipeline_state(
         ) from e
 
 
+@with_mcp_tool_telemetry()
 def pipeline_trace(
     pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
 ) -> Dict[str, Any]:

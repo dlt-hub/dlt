@@ -1,6 +1,6 @@
 import functools
 import inspect
-from typing import Any, Callable, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from fastmcp import FastMCP
 from fastmcp.prompts import Prompt
@@ -32,7 +32,7 @@ class DltMCP(FastMCP):
         self._register_features()
 
     def run(self, transport: str = "streamable-http", **kwargs: Any) -> None:
-        run_kwargs: dict[str, Any] = dict(kwargs)
+        run_kwargs: Dict[str, Any] = dict(kwargs)
         if transport != "stdio":
             run_kwargs.setdefault("port", self._port)
             run_kwargs.setdefault("path", self._path)
@@ -61,7 +61,7 @@ class DltMCP(FastMCP):
 class WorkspaceMCP(DltMCP):
     """MCP working in Workspace context"""
 
-    DEFAULT_FEATURES: Set[str] = {"workspace", "pipeline"}
+    DEFAULT_FEATURES: Set[str] = {"workspace", "pipeline", "toolkit", "secrets"}
 
     def __init__(
         self,
