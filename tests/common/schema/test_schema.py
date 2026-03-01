@@ -14,6 +14,7 @@ from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import (
+    IncompatibleSchemaException,
     InvalidSchemaName,
     ParentTableNotFoundException,
     SchemaCorruptedException,
@@ -1123,3 +1124,78 @@ def test_get_nested_tables(include_self: bool, max_nesting: int) -> None:
         tables=schema_eth.tables,
         table_name="non_existend",
     )
+
+
+def test_unify_schemas_basic() -> None:
+    schema_a = Schema("alpha")
+    schema_a.update_table(utils.new_table("users", columns=[{"name": "id", "data_type": "bigint"}]))
+
+    schema_b = Schema("beta")
+    schema_b.update_table(
+        utils.new_table("orders", columns=[{"name": "id", "data_type": "bigint"}])
+    )
+
+    unified = schema_a.unify_schemas([schema_b])
+    assert unified.name == "u_alpha_beta"
+    assert "users" in unified.tables
+    assert "orders" in unified.tables
+    # unified schema is fully disconnected
+    assert unified.is_new
+    assert unified.previous_hashes == []
+    assert unified.stored_version_hash is None
+    # originals are unchanged
+    assert "orders" not in schema_a.tables
+    assert "users" not in schema_b.tables
+
+
+def test_unify_schemas_overlapping_tables() -> None:
+    schema_a = Schema("alpha")
+    schema_a.update_table(
+        utils.new_table("shared", columns=[{"name": "col_a", "data_type": "text"}])
+    )
+
+    schema_b = Schema("beta")
+    schema_b.update_table(
+        utils.new_table("shared", columns=[{"name": "col_b", "data_type": "bigint"}])
+    )
+
+    unified = schema_a.unify_schemas([schema_b])
+    columns = unified.get_table("shared")["columns"]
+    assert "col_a" in columns
+    assert "col_b" in columns
+
+
+def test_unify_schemas_naming_mismatch() -> None:
+    schema_a = Schema("alpha")
+    schema_b = Schema("beta")
+    schema_b._configure_normalizers({"names": "dlt.common.normalizers.naming.direct", "json": None})
+    with pytest.raises(IncompatibleSchemaException, match="naming convention mismatch"):
+        schema_a.unify_schemas([schema_b])
+
+
+def test_unify_schemas_nested_tables() -> None:
+    schema_a = Schema("alpha")
+    schema_a.update_table(utils.new_table("events", columns=[]))
+    schema_a.update_table(
+        utils.new_table("events__details", parent_table_name="events", columns=[])
+    )
+
+    schema_b = Schema("beta")
+    unified = schema_b.unify_schemas([schema_a])
+    assert "events" in unified.tables
+    assert "events__details" in unified.tables
+    assert unified.get_table("events__details")["parent"] == "events"
+
+
+def test_unify_schemas_empty_sequence() -> None:
+    schema = Schema("alpha")
+    schema.update_table(utils.new_table("items", columns=[]))
+    unified = schema.unify_schemas([])
+    assert unified.name == "u_alpha"
+    assert "items" in unified.tables
+    # verify it's a clone, not the same object
+    assert unified is not schema
+    # unified schema is fully disconnected
+    assert unified.is_new
+    assert unified.previous_hashes == []
+    assert unified.stored_version_hash is None

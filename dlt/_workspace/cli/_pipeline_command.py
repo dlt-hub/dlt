@@ -9,26 +9,20 @@ from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
 from dlt.common.destination.reference import TDestinationReferenceArg
-from dlt.common.runners import Venv
-from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import (
     group_tables_by_resource,
     has_table_seen_data,
     is_complete_column,
     remove_defaults,
 )
-from dlt.common.storages import FileStorage, PackageStorage
+from dlt.common.storages import PackageStorage
 
 from dlt.extract.state import resource_state
 from dlt.pipeline.helpers import pipeline_drop
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
-
-
-DLT_PIPELINE_COMMAND_DOCS_URL = (
-    "https://dlthub.com/docs/reference/command-line-interface#dlt-pipeline"
-)
+from dlt._workspace.cli._urls import DLT_PIPELINE_COMMAND_DOCS_URL  # noqa: F401
 
 
 def list_pipelines(pipelines_dir: str = None, verbosity: int = 1) -> None:
@@ -80,11 +74,10 @@ def pipeline_command(
         return
 
     # we may open the dashboard for a pipeline without checking if it exists
-    if operation == "show" and not command_kwargs.get("streamlit"):
+    if operation == "show":
         from dlt._workspace.helpers.dashboard.runner import run_dashboard
 
         run_dashboard(pipeline_name, edit=command_kwargs.get("edit"), pipelines_dir=pipelines_dir)
-        # return so streamlit does not run
         return
 
     try:
@@ -167,33 +160,6 @@ def pipeline_command(
         return
 
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
-
-    if operation == "show":
-        from dlt.common.runtime import signals
-
-        with signals.intercepted_signals():
-            streamlit_cmd = [
-                "streamlit",
-                "run",
-                os.path.join(
-                    os.path.dirname(dlt.__file__),
-                    "_workspace",
-                    "helpers",
-                    "streamlit_app",
-                    "index.py",
-                ),
-                "--client.showSidebarNavigation",
-                "false",
-            ]
-
-            streamlit_cmd.append("--")
-            streamlit_cmd.append(pipeline_name)
-            streamlit_cmd.append("--pipelines-dir")
-            streamlit_cmd.append(p.pipelines_dir)
-
-            venv = Venv.restore_current()
-            for line in iter_stdout(venv, *streamlit_cmd):
-                fmt.echo(line)
 
     if operation == "info":
         state: TSourceState = p.state  # type: ignore

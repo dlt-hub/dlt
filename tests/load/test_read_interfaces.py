@@ -1580,3 +1580,95 @@ def test_naming_convention_propagation(destination_config: DestinationTestConfig
         assert client.dataset_name.startswith("Read_test")
         tables = client.native_connection.sql("SHOW TABLES;")
         assert "ItemS" in str(tables)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_read_unified_schema(populated_pipeline: Pipeline) -> None:
+    """Test that a unified schema allows querying tables from all schemas."""
+    default_schema = populated_pipeline.default_schema
+    other_schemas = [
+        populated_pipeline.schemas[name]
+        for name in populated_pipeline.schemas
+        if name != default_schema.name
+    ]
+    unified = default_schema.unify_schemas(other_schemas)
+    # tables from both schemas should be present
+    assert "items" in unified.tables
+    assert "digits" in unified.tables
+
+    dataset = populated_pipeline.dataset(schema=unified)
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    # query table from default schema
+    items = dataset.items.fetchall()
+    assert len(items) == total_records
+    # query table from aleph schema
+    digits = dataset.digits.fetchall()
+    assert len(digits) == 3
+
+    # row_counts should include tables from all schemas
+    row_counts = dict(dataset.row_counts().fetchall())
+    assert row_counts["items"] == total_records
+    assert row_counts["digits"] == 3
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_read_unified_schema_ibis(populated_pipeline: Pipeline) -> None:
+    """Test that ibis works with a unified schema dataset."""
+    try:
+        import ibis  # noqa: F401
+    except ImportError:
+        pytest.skip("ibis not installed")
+
+    if populated_pipeline.destination.destination_type not in (
+        "dlt.destinations.duckdb",
+        "dlt.destinations.postgres",
+        "dlt.destinations.motherduck",
+    ):
+        pytest.skip("ibis test only on sql destinations with ibis support")
+
+    default_schema = populated_pipeline.default_schema
+    other_schemas = [
+        populated_pipeline.schemas[name]
+        for name in populated_pipeline.schemas
+        if name != default_schema.name
+    ]
+    unified = default_schema.unify_schemas(other_schemas)
+    dataset = populated_pipeline.dataset(schema=unified)
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+
+    # ibis on table from default schema
+    items_ibis = dataset.items.to_ibis()
+    assert dataset(items_ibis).fetchone() is not None
+
+    count_query = items_ibis.count()
+    assert dataset(count_query).fetchone()[0] == total_records
+
+    # ibis on table from aleph schema
+    digits_ibis = dataset.digits.to_ibis()
+    count_query = digits_ibis.count()
+    assert dataset(count_query).fetchone()[0] == 3
+
+    # cross-schema join: items (default schema) x digits (aleph schema)
+    joined = (
+        items_ibis.join(digits_ibis, items_ibis.id == digits_ibis.value)
+        .select(items_ibis.id, digits_ibis.value)
+        .order_by("id")
+    )
+    result = dataset(joined).fetchall()
+    # digits has values 1, 2, 3 — so join produces 3 rows
+    assert len(result) == 3
+    assert [row[0] for row in result] == [1, 2, 3]

@@ -49,9 +49,6 @@ lint-deps: ## Checks dependencies, hub extras, and API breaking changes (informa
 
 lint-core: ## Runs core linting (mypy, ruff, flake8)
 	uv run mypy --config-file mypy.ini dlt tests tools
-	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
-	uv pip uninstall docstring_parser
-	uv pip install docstring_parser_fork --reinstall
 	uv run ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt tools

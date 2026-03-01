@@ -9,7 +9,7 @@ from unittest.mock import patch
 from dlt.common.runners.venv import Venv
 from dlt.common.utils import custom_environ
 
-from dlt._workspace.cli import echo as fmt
+from dlt._workspace.cli import _debug, echo as fmt
 from tests.workspace.cli.utils import WORKSPACE_CLI_CASES_DIR
 from tests.utils import get_test_storage_root
 
@@ -19,8 +19,6 @@ BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
 @pytest.fixture(autouse=True)
 def disable_debug() -> None:
     # reset debug flag so other tests may pass
-    from dlt._workspace.cli import _debug
-
     _debug.disable_debug()
 
 

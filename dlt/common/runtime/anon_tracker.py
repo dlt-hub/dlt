@@ -17,7 +17,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.version import __version__
 
-TEventCategory = Literal["pipeline", "command", "helper"]
+TEventCategory = Literal["pipeline", "command", "helper", "mcp"]
 
 _THREAD_POOL: ManagedThreadPool = None
 _WRITE_KEY: str = None
