@@ -1,7 +1,7 @@
 import json
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import pytest
 import yaml
@@ -65,7 +65,7 @@ def assert_toolkit_install(
             assert dep_name in index, "dependency %s not in index" % dep_name
 
     # MCP servers recorded in index must exist in agent config
-    mcp_servers: Optional[list] = entry.get("mcp_servers")  # type: ignore[assignment]
+    mcp_servers: Optional[List[str]] = entry.get("mcp_servers")
     if mcp_servers:
         agent = AI_AGENTS[agent_name]()
         mcp_path = agent.mcp_config_path(project_root)

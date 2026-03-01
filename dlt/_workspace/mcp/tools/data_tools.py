@@ -327,4 +327,3 @@ __tools__ = (
     # TODO: pipeline_trace returns raw trace.asdict() which is too large for MCP.
     #   Return a summary (timing, step outcomes, errors) like the CLI trace command does.
 )
-
