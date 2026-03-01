@@ -177,10 +177,10 @@ class TransactionalFile:
         self._fs.touch(self.lock_path)
         locks = self._sync_locks()
         active_lock = min(locks)
-        start = time.time()
+        start = time.monotonic()
 
         while active_lock != self.lock_path:
-            if not blocking or (timeout > 0 and time.time() - start > timeout):
+            if not blocking or (timeout > 0 and time.monotonic() - start > timeout):
                 self._fs.rm(self.lock_path)
                 return False
 
