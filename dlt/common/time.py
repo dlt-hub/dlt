@@ -33,6 +33,46 @@ except ImportError:
     precise_time = _built_in_time
 
 
+class MonotonicPreciseTime:
+    """Wall-clock timer guaranteed to never go backward.
+
+    Reads wall clock on every call and tracks the highest value seen.  When the
+    wall clock jumps backward (NTP step corrections, VM/WSL clock drift) the
+    previous high-water mark is returned instead.
+
+    Not thread-safe. Use ``LockedMonotonicPreciseTime`` for shared instances.
+    """
+
+    def __init__(self) -> None:
+        self._last: float = precise_time()
+
+    def __call__(self) -> float:
+        wall = precise_time()
+        if wall > self._last:
+            self._last = wall
+        return self._last
+
+
+class LockedMonotonicPreciseTime(MonotonicPreciseTime):
+    """Thread-safe variant using a lock (one uncontended futex CAS)."""
+
+    def __init__(self) -> None:
+        import threading
+
+        super().__init__()
+        self._lock = threading.Lock()
+
+    def __call__(self) -> float:
+        wall = precise_time()
+        with self._lock:
+            if wall > self._last:
+                self._last = wall
+            return self._last
+
+
+monotonic_precise_time = LockedMonotonicPreciseTime()
+
+
 def timestamp_within(
     timestamp: float, min_exclusive: Optional[float], max_inclusive: Optional[float]
 ) -> bool:

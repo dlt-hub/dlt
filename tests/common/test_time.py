@@ -7,6 +7,10 @@ from contextlib import contextmanager
 
 from dlt.common import pendulum
 from dlt.common.time import (
+    MonotonicPreciseTime,
+    LockedMonotonicPreciseTime,
+    monotonic_precise_time,
+    precise_time,
     parse_iso_like_datetime,
     timestamp_before,
     timestamp_within,
@@ -18,9 +22,9 @@ from dlt.common.time import (
     ensure_pendulum_datetime_non_utc,
     ensure_pendulum_time,
     normalize_timezone,
+    datetime_obj_to_str,
 )
 from dlt.common.typing import TAnyDateTime
-from dlt.common.time import datetime_obj_to_str
 
 
 @contextmanager
@@ -763,3 +767,39 @@ def test_ensure_pendulum_time_invalid(value) -> None:
     else:
         with pytest.raises(TypeError):
             ensure_pendulum_time(value)
+
+
+@pytest.mark.parametrize(
+    "clock_cls",
+    [MonotonicPreciseTime, LockedMonotonicPreciseTime],
+    ids=["unlocked", "locked"],
+)
+def test_monotonic_precise_time_never_goes_backward(clock_cls: type) -> None:
+    clock = clock_cls()
+    values = [clock() for _ in range(10_000)]
+    for i in range(1, len(values)):
+        assert values[i] >= values[i - 1], f"went backward at index {i}"
+
+
+@pytest.mark.parametrize(
+    "clock_cls",
+    [MonotonicPreciseTime, LockedMonotonicPreciseTime],
+    ids=["unlocked", "locked"],
+)
+def test_monotonic_precise_time_tracks_wall_clock(clock_cls: type) -> None:
+    clock = clock_cls()
+    m = clock()
+    w = precise_time()
+    # should be within 100ms of wall clock
+    assert abs(m - w) < 0.1, f"monotonic {m} too far from wall {w}"
+
+
+def test_monotonic_precise_time_module_instance() -> None:
+    # module-level instance is the locked variant
+    assert isinstance(monotonic_precise_time, LockedMonotonicPreciseTime)
+    t = monotonic_precise_time()
+    assert isinstance(t, float)
+    # should be a unix timestamp (year 2001+)
+    assert t > 1_000_000_000
+    t2 = monotonic_precise_time()
+    assert t2 >= t
