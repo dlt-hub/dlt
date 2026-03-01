@@ -1,34 +1,25 @@
 import marimo
 
-__generated_with = "0.14.17"
+__generated_with = "0.19.2"
 app = marimo.App(width="medium")
 
 with app.setup:
+    from typing import Any, cast
+    from itertools import chain
+
     import marimo as mo
 
     import dlt
-    from dlt.common.storages import FileStorage
-    from dlt.common.pipeline import get_dlt_pipelines_dir
+    from dlt.common.utils import without_none
+
+    pipeline_name = None
 
 
 @app.cell
 def _():
-    _storage = FileStorage(get_dlt_pipelines_dir())
-
-    try:
-        _pipelines = _storage.list_folder_dirs(".", to_root=False)
-    except Exception:
-        _pipelines = []
-
-    _pipelines = sorted(_pipelines)
-
-    select_pipeline = mo.ui.dropdown(
-        _pipelines,
-        value=_pipelines[0],
-        label="Pipeline",
-    )
-    select_pipeline
-    return (select_pipeline,)
+    mo.stop(pipeline_name is None)
+    pipeline = dlt.attach(pipeline_name)
+    return (pipeline,)
 
 
 @app.function
@@ -63,11 +54,6 @@ def pipeline_details(pipeline: dlt.Pipeline) -> list[dict]:
 
 @app.cell
 def _():
-    from typing import Any, cast
-    from itertools import chain
-
-    from dlt.common.utils import without_none
-
     def _align_dict_keys(items: list[dict]) -> list[dict]:
         """
         Makes sure all dicts have the same keys, sets "-" as default. Makes for nicer rendering in marimo table
@@ -137,7 +123,7 @@ def _(dlt_schema_table_list, pipeline):
         if col_name in [table["Name"].lower() for table in dlt_schema_table_list.value]
     }
 
-    dlt.Schema.from_dict(schema_dict)
+    mo.mermaid(dlt.Schema.from_dict(schema_dict).to_mermaid())
     return
 
 
@@ -156,12 +142,6 @@ def _(create_table_list, pipeline, style_cell):
     )
     dlt_schema_table_list
     return (dlt_schema_table_list,)
-
-
-@app.cell
-def _(select_pipeline):
-    pipeline = dlt.attach(select_pipeline.value)
-    return (pipeline,)
 
 
 @app.cell

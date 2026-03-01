@@ -1,4 +1,4 @@
-from typing import Union, Dict
+from typing import List, Union, Dict
 import posixpath
 import os
 import json
@@ -14,6 +14,8 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     extract_inner_hint,
 )
+from dlt.common.destination.exceptions import TableFormatNotSupported
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.configuration import FilesystemConfiguration
@@ -147,6 +149,9 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
     """Test load is successful with an empty destination dataset
     Note: removed gdrive because it is slow
     """
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
@@ -196,6 +201,9 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
 
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_replace_write_disposition(layout: str, default_buckets_env: str) -> None:
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
@@ -276,6 +284,9 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_append_write_disposition(layout: str, default_buckets_env: str) -> None:
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
@@ -447,3 +458,33 @@ def test_list_dlt_table_files_with_separator_in_pipeline_name(pipeline_name: str
     assert len(results) == 1
     assert results[0][0] == test_file
     assert results[0][1] == [pipeline_name, "load123", "hash123"]
+
+
+def test_verify_schema_table_format(with_gdrive_buckets_env: str) -> None:
+    filesystem_ = filesystem(with_gdrive_buckets_env)
+    client = _client_factory(filesystem_)
+    table_kwargs = {
+        "columns": {"c1": {"name": "c1", "data_type": "text"}},
+        "write_disposition": "append",
+    }
+    tables: List[PreparedTableSchema] = [
+        {"name": "delta_table", "table_format": "delta", **table_kwargs},  # type: ignore[typeddict-item]
+        {"name": "iceberg_table", "table_format": "iceberg", **table_kwargs},  # type: ignore[typeddict-item]
+        {"name": "other_table", **table_kwargs},  # type: ignore[typeddict-item]
+    ]
+
+    # test verify_schema_table_format
+    exceptions = client.verify_schema_table_format(tables)
+    if client.config.protocol == "hf":
+        assert len(exceptions) == 2
+        assert isinstance(exceptions[0], TableFormatNotSupported)
+    else:
+        assert len(exceptions) == 0
+
+    # test verify_schema
+    client.schema.update_table(tables[0])
+    if client.config.protocol == "hf":
+        with pytest.raises(TableFormatNotSupported):
+            client.verify_schema(["delta_table"])
+    else:
+        client.verify_schema(["delta_table"])
