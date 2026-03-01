@@ -9,6 +9,7 @@ import tomlkit
 import yaml
 
 from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.utils import update_dict_nested
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, SettingsTomlProvider
@@ -34,8 +35,9 @@ DEFAULT_AI_WORKBENCH_REPO = "https://github.com/dlt-hub/dlthub-ai-workbench.git"
 # DEFAULT_AI_WORKBENCH_REPO = "/home/rudolfix/src/dlt-ai-dev-kit"
 DEFAULT_AI_WORKBENCH_BRANCH: Optional[str] = "rfix/more-workbench"
 AI_WORKBENCH_BASE_DIR = "workbench"
+TOOLKITS_INDEX_FILE = ".toolkits"
 
-_workbench_lock = threading.Lock()
+_workbench_lock = threading.Lock()  # lock git clone operation
 
 
 def compute_file_hash(file_path: Path) -> str:
@@ -108,18 +110,17 @@ def merge_toml_mcp_servers(
     return tomlkit.dumps(doc)
 
 
-def strip_non_claude_frontmatter(content: str) -> str:
-    """Remove frontmatter that is not relevant to Claude."""
+def strip_rule_frontmatter(content: str) -> str:
+    """Strip frontmatter keys that Claude Code rules don't use (e.g. alwaysApply)."""
     fm, body = parse_frontmatter(content)
     if not fm:
         return content
-    claude_keys = {"name", "description"}
-    kept = {k: v for k, v in fm.items() if k in claude_keys}
-    return render_frontmatter(kept, body)
+    kept = {k: v for k, v in fm.items() if k in ("name", "description")}
+    return render_frontmatter(kept, body) if kept else body
 
 
-def ensure_cursor_frontmatter(content: str) -> str:
-    """Ensure Cursor-compatible frontmatter with alwaysApply and description."""
+def ensure_cursor_rule_frontmatter(content: str) -> str:
+    """Ensure Cursor rule has alwaysApply and description in frontmatter."""
     fm, body = parse_frontmatter(content)
     fm["alwaysApply"] = True
     if "description" not in fm:
@@ -129,12 +130,15 @@ def ensure_cursor_frontmatter(content: str) -> str:
     return render_frontmatter(fm, body)
 
 
-def wrap_as_skill(content: str, skill_name: str) -> str:
+def wrap_as_skill(content: str, skill_name: str, always_apply: bool = False) -> str:
     """Wrap content as a Codex SKILL.md with name/description frontmatter."""
     fm, body = parse_frontmatter(content)
     skill_fm: Dict[str, Any] = {}
     skill_fm["name"] = fm.get("name", skill_name)
-    skill_fm["description"] = fm.get("description") or extract_first_heading(body) or skill_name
+    desc = fm.get("description") or extract_first_heading(body) or skill_name
+    if always_apply:
+        desc = "ALWAYS read and follow this skill before acting. " + desc
+    skill_fm["description"] = desc
     return render_frontmatter(skill_fm, body)
 
 
@@ -302,44 +306,11 @@ def read_workbench_toolkit_mcp_servers(toolkit_dir: Path) -> Dict[str, Any]:
     return {}
 
 
-def iter_workbench_toolkits(
-    base: Path, listed_only: bool = False
-) -> List[Tuple[str, Dict[str, Any]]]:
-    """Iterate toolkit subdirs that contain a valid plugin.json.
-
-    When *listed_only* is True, also skips toolkits whose toolkit.json
-    has `"listed": false` (defaults to `true` when absent).
-
-    Returns sorted list of (dir_name, plugin_meta) tuples.
-    """
-    results: List[Tuple[str, Dict[str, Any]]] = []
-    for entry in sorted(base.iterdir()):
-        if not entry.is_dir():
-            continue
-        meta = read_workbench_toolkit_combined_info(entry)
-        if meta is not None:
-            if listed_only and meta.get("listed", True) is False:
-                continue
-            results.append((entry.name, meta))
-    return results
-
-
-def build_toolkits_dependency_map(base: Path) -> Dict[str, List[str]]:
-    """Build a map of toolkit name → list of dependency toolkit names.
-
-    Reads the `dependencies` list from each toolkit's plugin.json.
-    Toolkits without dependencies map to an empty list.
-    """
-    dep_map: Dict[str, List[str]] = {}
-    for entry in sorted(base.iterdir()):
-        if not entry.is_dir():
-            continue
-        meta = read_workbench_toolkit_combined_info(entry)
-        if meta is None:
-            continue
-        name = meta.get("name", entry.name)
-        dep_map[name] = list(meta.get("dependencies", []))
-    return dep_map
+def build_toolkits_dependency_map(
+    toolkits: Dict[str, TToolkitInfo],
+) -> Dict[str, List[str]]:
+    """Build a map of toolkit name -> list of dependency toolkit names."""
+    return {name: list(info.get("dependencies", [])) for name, info in toolkits.items()}
 
 
 def resolve_toolkit_dependencies(name: str, dep_map: Dict[str, List[str]]) -> List[str]:
@@ -370,10 +341,13 @@ def resolve_toolkit_dependencies(name: str, dep_map: Dict[str, List[str]]) -> Li
     return order
 
 
-def fetch_workbench_base(location: str, branch: Optional[str]) -> Optional[Path]:
-    """Fetch AI workbench repo and return base Path, or None if not found.
+def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
+    """Fetch AI workbench repo and return base Path.
 
     Thread-safe: git operations on the shared repo directory are serialized.
+
+    Raises:
+        FileNotFoundError: When the workbench directory is missing from the repo.
     """
     from dlt.common.libs import git
     from dlt.common.pipeline import get_dlt_repos_dir
@@ -382,40 +356,55 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Optional[Path]
     with _workbench_lock:
         src_storage = git.get_fresh_repo_files(location, get_dlt_repos_dir(), branch=branch)
     if not src_storage.has_folder(AI_WORKBENCH_BASE_DIR):
-        return None
+        raise FileNotFoundError(
+            "Workbench directory '%s' not found in repo %s" % (AI_WORKBENCH_BASE_DIR, location)
+        )
     return Path(src_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
 
 
-def fetch_workbench_toolkit_list(
-    location: str, branch: Optional[str] = None
-) -> Optional[List[Dict[str, Any]]]:
-    """Return toolkit metadata list, or None if workbench unavailable.
+def scan_workbench_toolkits(base: Path, listed_only: bool = False) -> Dict[str, TToolkitInfo]:
+    """Scan workbench directory and return mapping of toolkit name -> TToolkitInfo.
 
-    Each item: `{"name": str, "dir_name": str, "description": str}`.
+    Reads and validates plugin.json for every toolkit subdirectory.
+    Toolkits with invalid metadata are skipped with a warning.
     """
-    base = fetch_workbench_base(location, branch)
-    if base is None:
-        return None
-    return [
-        {
-            "name": meta.get("name", dir_name),
-            "dir_name": dir_name,
-            "description": meta.get("description", ""),
-            "version": meta.get("version", ""),
-            "dependencies": list(meta.get("dependencies", [])),
-        }
-        for dir_name, meta in iter_workbench_toolkits(base, listed_only=True)
-    ]
+    result: Dict[str, TToolkitInfo] = {}
+    for entry in sorted(base.iterdir()):
+        if not entry.is_dir():
+            continue
+        meta = read_workbench_toolkit_combined_info(entry)
+        if meta is None:
+            continue
+        if listed_only and meta.get("listed", True) is False:
+            continue
+        try:
+            info = extract_toolkit_info(meta, entry.name)
+        except ValueError as ex:
+            fmt.warning(str(ex))
+            continue
+        result[info["name"]] = info
+    return result
 
 
 def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitInfo:
-    """Build a `TToolkitInfo` from raw plugin.json / toolkit.json dict."""
+    """Build a `TToolkitInfo` from raw plugin.json / toolkit.json dict.
+
+    Raises ``ValueError`` when ``name``, ``description``, or ``version`` is
+    missing or empty.
+    """
+    missing = [k for k in ("name", "description", "version") if not meta.get(k)]
+    if missing:
+        raise ValueError(
+            "plugin.json for %s missing required fields: %s" % (fallback_name, ", ".join(missing))
+        )
     tk_meta = TToolkitInfo(
-        name=meta.get("name", fallback_name),
-        version=meta.get("version", "0.0.0"),
-        description=meta.get("description") or "",
+        name=meta["name"],
+        version=meta["version"],
+        description=meta["description"],
         tags=list(meta.get("keywords", [])),
     )
+    if deps := meta.get("dependencies"):
+        tk_meta["dependencies"] = list(deps)
     if wes := meta.get("workflow_entry_skill"):
         tk_meta["workflow_entry_skill"] = wes
     return tk_meta
@@ -425,11 +414,7 @@ def fetch_workbench_toolkit_info(
     name: str, location: str, branch: Optional[str] = None
 ) -> Optional[TWorkbenchToolkitInfo]:
     """Return detailed toolkit info, or None if not found."""
-
     base = fetch_workbench_base(location, branch)
-    if base is None:
-        return None
-
     toolkit_dir = base / name
     meta = read_workbench_toolkit_combined_info(toolkit_dir)
     if meta is None:
@@ -468,7 +453,6 @@ def fetch_workbench_toolkit_info(
 
     info = TWorkbenchToolkitInfo(
         **tk_meta,
-        dependencies=list(meta.get("dependencies", [])),
         skills=skills,
         commands=commands,
         rules=rules,
@@ -514,9 +498,6 @@ def copy_repo_files(
     return copied_files, count_files
 
 
-TOOLKITS_INDEX_FILE = ".toolkits"
-
-
 def _toolkits_index_path() -> str:
     from dlt._workspace.cli.utils import make_dlt_settings_path
 
@@ -553,7 +534,6 @@ def save_toolkit_entry(
     mcp_servers: Optional[List[str]] = None,
 ) -> None:
     """Record that a toolkit was installed (or updated)."""
-    from dlt.common.pendulum import pendulum
 
     index = load_toolkits_index()
     entry: Dict[str, Any] = dict(toolkit_meta)

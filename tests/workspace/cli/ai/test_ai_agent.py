@@ -182,7 +182,7 @@ def test_codex_transform_rule() -> None:
     assert (out_type, out_name) == ("skill", "my-toolkit-coding")
     fm, body = parse_frontmatter(out_content)
     assert fm["name"] == "my-toolkit-coding"
-    assert fm["description"] == "Coding Style"
+    assert fm["description"] == "ALWAYS read and follow this skill before acting. Coding Style"
 
     # with frontmatter: preserves name/description from source
     content2 = "---\nname: Custom\ndescription: Custom desc\n---\n# Rule\nBody"
@@ -190,7 +190,7 @@ def test_codex_transform_rule() -> None:
     assert out_name2 == "my-toolkit-style"
     fm2, _ = parse_frontmatter(out_content2)
     assert fm2["name"] == "Custom"
-    assert fm2["description"] == "Custom desc"
+    assert fm2["description"] == "ALWAYS read and follow this skill before acting. Custom desc"
 
 
 @pytest.mark.parametrize(

@@ -49,19 +49,19 @@ class TWorkbenchMcpServerInfo(TypedDict):
 
 
 class TToolkitInfo(TypedDict):
-    """Core toolkit identity from plugin.json + toolkit.json."""
+    """Core toolkit info from plugin.json + toolkit.json."""
 
     name: str
     version: str
     description: str
     tags: List[str]
+    dependencies: NotRequired[List[str]]
     workflow_entry_skill: NotRequired[str]
 
 
 class TWorkbenchToolkitInfo(TToolkitInfo):
     """Extends meta with structural data from directory scan."""
 
-    dependencies: List[str]
     skills: List[TWorkbenchComponentInfo]
     commands: List[TWorkbenchComponentInfo]
     rules: List[TWorkbenchComponentInfo]

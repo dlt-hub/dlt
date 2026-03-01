@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Literal, NamedTuple, Optional, Tuple, Type, Union
 
 from dlt._workspace.cli.ai.utils import (
-    ensure_cursor_frontmatter,
+    ensure_cursor_rule_frontmatter,
     home_dir,
     merge_json_mcp_servers,
     merge_toml_mcp_servers,
     parse_json_mcp,
     parse_toml_mcp,
-    strip_non_claude_frontmatter,
+    strip_rule_frontmatter,
     wrap_as_skill,
 )
 
@@ -18,7 +18,7 @@ TComponentType = Literal["skill", "command", "rule", "ignore", "mcp"]
 TInstallOp = Literal["copytree", "save"]
 
 
-class DetectLevel(IntEnum):
+class AgentDetectLevel(IntEnum):
     ENV = 0
     LOCAL = 1
     GLOBAL = 2
@@ -123,26 +123,26 @@ class _AIAgent(ABC):
         """Return True when the agent's runtime env var is set."""
 
     @classmethod
-    def _detect(cls, project_root: Path) -> Optional[DetectLevel]:
+    def _detect(cls, project_root: Path) -> Optional[AgentDetectLevel]:
         """Detect agent via ENV var, local project probes, or global marker.
 
         LOCAL probes only fire when the global marker (`~/_GLOBAL_MARKER`)
         also exists, preventing false positives from stale project files.
         """
         if cls._is_env():
-            return DetectLevel.ENV
+            return AgentDetectLevel.ENV
         home = home_dir()
         installed = home is not None and (home / cls._GLOBAL_MARKER).exists()
         if installed and any((project_root / p).exists() for p in cls._LOCAL_PROBES):
-            return DetectLevel.LOCAL
+            return AgentDetectLevel.LOCAL
         if installed:
-            return DetectLevel.GLOBAL
+            return AgentDetectLevel.GLOBAL
         return None
 
     @classmethod
-    def detect_all(cls, project_root: Path) -> List[Tuple["_AIAgent", "DetectLevel"]]:
+    def detect_all(cls, project_root: Path) -> List[Tuple["_AIAgent", "AgentDetectLevel"]]:
         """Return all detected AI coding agents sorted by detection level."""
-        detected: List[Tuple[DetectLevel, Type[_AIAgent]]] = []
+        detected: List[Tuple[AgentDetectLevel, Type[_AIAgent]]] = []
         for variant_cls in AI_AGENTS.values():
             level = variant_cls._detect(project_root)
             if level is not None:
@@ -183,7 +183,7 @@ class _ClaudeAgent(_AIAgent):
     ) -> Tuple[TComponentType, str, str]:
         if component_type == "command":
             return ("command", content, source_name + ".md")
-        transformed = strip_non_claude_frontmatter(content)
+        transformed = strip_rule_frontmatter(content)
         return ("rule", transformed, toolkit_name + "-" + source_name + ".md")
 
     def mcp_config_path(self, project_root: Path) -> Path:
@@ -228,7 +228,7 @@ class _CursorAgent(_AIAgent):
     ) -> Tuple[TComponentType, str, str]:
         if component_type == "command":
             return ("command", content, source_name + ".md")
-        transformed = ensure_cursor_frontmatter(content)
+        transformed = ensure_cursor_rule_frontmatter(content)
         return ("rule", transformed, toolkit_name + "-" + source_name + ".mdc")
 
     def mcp_config_path(self, project_root: Path) -> Path:
@@ -273,7 +273,7 @@ class _CodexAgent(_AIAgent):
             wrapped = wrap_as_skill(content, source_name)
             return ("skill", wrapped, source_name)
         name = toolkit_name + "-" + source_name
-        wrapped = wrap_as_skill(content, name)
+        wrapped = wrap_as_skill(content, name, always_apply=True)
         return ("skill", wrapped, name)
 
     def mcp_config_path(self, project_root: Path) -> Path:

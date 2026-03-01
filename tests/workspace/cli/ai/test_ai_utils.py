@@ -7,15 +7,16 @@ import tomlkit
 
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt._workspace.cli.ai.utils import (
-    ensure_cursor_frontmatter,
-    iter_workbench_toolkits,
+    ensure_cursor_rule_frontmatter,
+    extract_toolkit_info,
     merge_json_mcp_servers,
     merge_toml_mcp_servers,
     parse_json_mcp,
     parse_toml_mcp,
     redact_toml_document,
     redact_value,
-    strip_non_claude_frontmatter,
+    scan_workbench_toolkits,
+    strip_rule_frontmatter,
     wrap_as_skill,
     MIN_REDACT_STARS,
 )
@@ -85,38 +86,40 @@ def test_merge_toml_mcp_servers() -> None:
     assert doc["mcp_servers"]["srv"]["command"] == "uv"  # type: ignore[index]
 
 
-def test_strip_non_claude_frontmatter() -> None:
-    # keeps only name and description
+def test_strip_rule_frontmatter() -> None:
     content = "---\nalwaysApply: true\nname: keep\ndescription: also keep\n---\n# Body"
-    result = strip_non_claude_frontmatter(content)
+    result = strip_rule_frontmatter(content)
     assert "name: keep" in result
     assert "description: also keep" in result
     assert "alwaysApply" not in result
 
     # no frontmatter passes through
     plain = "# Just a heading\nBody text"
-    assert strip_non_claude_frontmatter(plain) == plain
+    assert strip_rule_frontmatter(plain) == plain
 
     # empty frontmatter passes through
     empty_fm = "---\n---\n# Body"
-    assert strip_non_claude_frontmatter(empty_fm) == empty_fm
+    assert strip_rule_frontmatter(empty_fm) == empty_fm
+
+    # frontmatter with only unknown keys is stripped entirely
+    unknown = "---\nalwaysApply: true\nglobs: '*.py'\n---\n# Body"
+    assert strip_rule_frontmatter(unknown) == "# Body"
 
 
-def test_ensure_cursor_frontmatter() -> None:
-    # adds alwaysApply and derives description from heading
+def test_ensure_cursor_rule_frontmatter() -> None:
     content = "---\nname: test\n---\n# Heading\nBody"
-    fm, _ = parse_frontmatter(ensure_cursor_frontmatter(content))
+    fm, _ = parse_frontmatter(ensure_cursor_rule_frontmatter(content))
     assert fm["alwaysApply"] is True
     assert fm["description"] == "Heading"
 
     # preserves existing description
     content2 = "---\ndescription: Custom\n---\n# Heading\nBody"
-    fm2, _ = parse_frontmatter(ensure_cursor_frontmatter(content2))
+    fm2, _ = parse_frontmatter(ensure_cursor_rule_frontmatter(content2))
     assert fm2["description"] == "Custom"
     assert fm2["alwaysApply"] is True
 
     # no heading → no description key
-    fm3, _ = parse_frontmatter(ensure_cursor_frontmatter("Just text, no heading"))
+    fm3, _ = parse_frontmatter(ensure_cursor_rule_frontmatter("Just text, no heading"))
     assert fm3["alwaysApply"] is True
     assert "description" not in fm3
 
@@ -138,6 +141,11 @@ def test_wrap_as_skill() -> None:
     fm3, _ = parse_frontmatter(wrap_as_skill("Just text", "my-skill"))
     assert fm3["name"] == "my-skill"
     assert fm3["description"] == "my-skill"
+
+    # always_apply prefixes description
+    fm4, _ = parse_frontmatter(wrap_as_skill("# Heading\nBody", "s", always_apply=True))
+    assert fm4["description"].startswith("ALWAYS read and follow")
+    assert fm4["description"].endswith("Heading")
 
 
 def test_redact_value_length() -> None:
@@ -214,35 +222,68 @@ def test_redact_toml_document_preserves_placeholders() -> None:
         assert r["t"]["k"] == placeholder_val  # type: ignore[index]
 
 
-def test_iter_toolkits() -> None:
+def test_scan_workbench_toolkits() -> None:
     """Skips dirs without plugin.json; listed_only filters unlisted toolkits."""
     base = Path("workbench")
     base.mkdir()
+    _valid = {"version": "0.1.0", "description": "A toolkit"}
 
     # valid toolkit (no "listed" key — defaults to listed)
     tk_meta = base / "my-toolkit" / ".claude-plugin"
     tk_meta.mkdir(parents=True)
-    (tk_meta / "plugin.json").write_text(json.dumps({"name": "my-toolkit"}), encoding="utf-8")
+    (tk_meta / "plugin.json").write_text(
+        json.dumps({"name": "my-toolkit", **_valid}), encoding="utf-8"
+    )
 
     # explicitly listed toolkit (via toolkit.json)
     tk2_meta = base / "also-visible" / ".claude-plugin"
     tk2_meta.mkdir(parents=True)
-    (tk2_meta / "plugin.json").write_text(json.dumps({"name": "also-visible"}), encoding="utf-8")
+    (tk2_meta / "plugin.json").write_text(
+        json.dumps({"name": "also-visible", **_valid}), encoding="utf-8"
+    )
     (tk2_meta / "toolkit.json").write_text(json.dumps({"listed": True}), encoding="utf-8")
 
     # unlisted toolkit (via toolkit.json)
     unlisted_meta = base / "hidden" / ".claude-plugin"
     unlisted_meta.mkdir(parents=True)
-    (unlisted_meta / "plugin.json").write_text(json.dumps({"name": "hidden"}), encoding="utf-8")
+    (unlisted_meta / "plugin.json").write_text(
+        json.dumps({"name": "hidden", **_valid}), encoding="utf-8"
+    )
     (unlisted_meta / "toolkit.json").write_text(json.dumps({"listed": False}), encoding="utf-8")
 
     # dir without plugin.json — should be skipped
     (base / "no-meta").mkdir()
 
     # default: returns all valid toolkits including unlisted
-    all_names = [name for name, _ in iter_workbench_toolkits(base)]
+    all_names = sorted(scan_workbench_toolkits(base).keys())
     assert all_names == ["also-visible", "hidden", "my-toolkit"]
 
     # listed_only=True filters out unlisted
-    names = [name for name, _ in iter_workbench_toolkits(base, listed_only=True)]
+    names = sorted(scan_workbench_toolkits(base, listed_only=True).keys())
     assert names == ["also-visible", "my-toolkit"]
+
+
+def test_extract_toolkit_info() -> None:
+    meta: Dict[str, Any] = {
+        "name": "tk",
+        "description": "A toolkit",
+        "version": "1.0.0",
+        "keywords": ["tag1"],
+    }
+    info = extract_toolkit_info(meta, "fallback")
+    assert info["name"] == "tk"
+    assert info["version"] == "1.0.0"
+    assert info["description"] == "A toolkit"
+    assert info["tags"] == ["tag1"]
+
+
+def test_extract_toolkit_info_missing_fields() -> None:
+    with pytest.raises(ValueError, match="name, description, version"):
+        extract_toolkit_info({}, "bad-toolkit")
+
+    with pytest.raises(ValueError, match="description"):
+        extract_toolkit_info({"name": "tk", "version": "1.0.0"}, "tk")
+
+    # empty string counts as missing
+    with pytest.raises(ValueError, match="version"):
+        extract_toolkit_info({"name": "tk", "description": "ok", "version": ""}, "tk")
