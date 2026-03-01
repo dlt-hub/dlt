@@ -8,9 +8,13 @@ help: ## Shows this help message
 dev: ## Prepares development environment for docs tooling
 	uv sync 
 
-lint: ## Lints the docs tooling, non-embedded snippets, examples and notebooks NOTE: embedded snippets and notebooks are linted separately
+lint: lint-core lint-embedded-snippets lint-notebooks ## Runs all linters
+
+# Generated example test files (docs/examples/**/test_*.py) are gitignored and
+# created by prepare-examples-tests, so exclude them from mypy
+lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks
 	uv run ruff check
-	uv run mypy --config-file ../mypy.ini docs_tools website examples --exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude website/versioned_docs/
+	uv run mypy --config-file ../mypy.ini docs_tools website examples --exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
 	uv run flake8 --max-line-length=200 docs_tools examples website/docs --exclude docs_tools/snippets/lint_setup
 	uv run black docs_tools website examples --check --diff --color
 

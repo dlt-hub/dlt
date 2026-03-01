@@ -250,6 +250,16 @@ class DestinationInvalidFileFormat(DestinationTerminalException):
         )
 
 
+class TableFormatNotSupported(DestinationTerminalException):
+    def __init__(self, table_format: str, table_name: str, message: str) -> None:
+        self.table_format = table_format
+        self.table_name = table_name
+        self.message = message
+        super().__init__(
+            f"Table `{table_name}` has unsupported table format `{table_format}`: {message}"
+        )
+
+
 class OpenTableFormatNotSupported(DestinationTerminalException):
     def __init__(self, table_format: str, table_name: str, detected_table_format: str):
         self.table_format = table_format
