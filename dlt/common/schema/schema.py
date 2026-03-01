@@ -55,6 +55,7 @@ from dlt.common.schema.typing import (
     TColumnType,
 )
 from dlt.common.schema.exceptions import (
+    IncompatibleSchemaException,
     InvalidSchemaName,
     ParentTableNotFoundException,
     SchemaCorruptedException,
@@ -351,7 +352,6 @@ class Schema:
         self,
         partial_table: TPartialTableSchema,
         normalize_identifiers: bool = True,
-        from_diff: bool = False,
         merge_compound_props: bool = True,
     ) -> TPartialTableSchema:
         """Adds or merges `partial_table` into the schema.
@@ -359,8 +359,6 @@ class Schema:
         Args:
             partial_table: Table schema to add or merge
             normalize_identifiers: If True, normalizes identifiers using schema naming convention
-            from_diff: If True, `partial_table` is assumed to be a diff (contains only differences)
-                vs. table in schema. In that case diff will not be created but directly applied.
             merge_compound_props: If False, compound properties (see `is_compound_prop()` in schema utils)
                 in partial_table replace rather than merge with those in existing table.
 
@@ -387,17 +385,9 @@ class Schema:
                 )
         table = self._schema_tables.get(table_name)
         if table is None:
-            # add the whole new table to SchemaTables
-            assert not from_diff, "Cannot update the whole table from diff"
             self._schema_tables[table_name] = partial_table
         else:
-            if from_diff:
-                partial_table = utils.merge_diff(table, partial_table, merge_compound_props)
-            else:
-                # merge tables performing additional checks
-                partial_table = utils.merge_table(
-                    self.name, table, partial_table, merge_compound_props
-                )
+            partial_table = utils.merge_table(self.name, table, partial_table, merge_compound_props)
 
         self.data_item_normalizer.extend_table(table_name)
         return partial_table
@@ -416,6 +406,34 @@ class Schema:
             if not utils.is_nested_table(table):
                 for chain_table in utils.get_nested_tables(schema._schema_tables, table["name"]):
                     self.update_table(chain_table)
+
+    def unify_schemas(self, schemas: Sequence["Schema"]) -> "Schema":
+        """Create a new schema containing tables from self and all given schemas.
+
+        All schemas must use the same naming convention (type, case sensitivity,
+        and max_length). Tables are merged without normalizing identifiers
+        (assumed already normalized). Parent tables are added before children.
+
+        Raises:
+            IncompatibleSchemaException: when naming conventions differ
+        """
+        all_names = sorted([self.name] + [s.name for s in schemas])
+        unified_name = utils.normalize_schema_name("u_" + "_".join(all_names))
+        unified = self.clone(with_name=unified_name)
+        for schema in schemas:
+            if str(unified.naming) != str(schema.naming):
+                raise IncompatibleSchemaException(
+                    unified.name,
+                    schema.name,
+                    f"naming convention mismatch: `{unified.naming}` vs `{schema.naming}`",
+                )
+            for table in schema.tables.values():
+                if not utils.is_nested_table(table):
+                    for chain_table in utils.get_nested_tables(
+                        schema._schema_tables, table["name"]
+                    ):
+                        unified.update_table(chain_table, normalize_identifiers=False)
+        return unified
 
     def drop_tables(self, table_names: Sequence[str]) -> List[TTableSchema]:
         """Drops tables from the schema and returns the dropped tables. List of table names
