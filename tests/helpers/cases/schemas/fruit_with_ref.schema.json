@@ -1,0 +1,119 @@
+{
+  "version": 2,
+  "version_hash": "iW0MtTw8NXm1r/amMiYpOF63Of44Mx5VfYOh5DM6/7s=",
+  "engine_version": 11,
+  "name": "fruit_with_ref",
+  "tables": {
+    "_dlt_version": {
+      "name": "_dlt_version",
+      "columns": {
+        "version": {"name": "version", "data_type": "bigint", "nullable": false},
+        "engine_version": {"name": "engine_version", "data_type": "bigint", "nullable": false},
+        "inserted_at": {"name": "inserted_at", "data_type": "timestamp", "nullable": false},
+        "schema_name": {"name": "schema_name", "data_type": "text", "nullable": false},
+        "version_hash": {"name": "version_hash", "data_type": "text", "nullable": false},
+        "schema": {"name": "schema", "data_type": "text", "nullable": false}
+      },
+      "write_disposition": "skip",
+      "resource": "_dlt_version",
+      "description": "Created by DLT. Tracks schema updates"
+    },
+    "_dlt_loads": {
+      "name": "_dlt_loads",
+      "columns": {
+        "load_id": {"name": "load_id", "data_type": "text", "nullable": false},
+        "schema_name": {"name": "schema_name", "data_type": "text", "nullable": true},
+        "status": {"name": "status", "data_type": "bigint", "nullable": false},
+        "inserted_at": {"name": "inserted_at", "data_type": "timestamp", "nullable": false},
+        "schema_version_hash": {"name": "schema_version_hash", "data_type": "text", "nullable": true}
+      },
+      "write_disposition": "skip",
+      "resource": "_dlt_loads",
+      "description": "Created by DLT. Tracks completed loads"
+    },
+    "customers": {
+      "columns": {
+        "id": {"name": "id", "nullable": false, "primary_key": true, "data_type": "bigint"},
+        "name": {"x-annotation-pii": true, "name": "name", "data_type": "text", "nullable": true},
+        "city": {"name": "city", "data_type": "text", "nullable": true},
+        "_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text", "nullable": false},
+        "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": false, "unique": true, "row_key": true}
+      },
+      "write_disposition": "append",
+      "name": "customers",
+      "resource": "customers",
+      "x-normalizer": {"seen-data": true}
+    },
+    "purchases": {
+      "columns": {
+        "id": {"name": "id", "nullable": false, "primary_key": true, "data_type": "bigint"},
+        "customer_id": {"name": "customer_id", "data_type": "bigint", "nullable": true},
+        "inventory_id": {"name": "inventory_id", "data_type": "bigint", "nullable": true},
+        "quantity": {"name": "quantity", "data_type": "bigint", "nullable": true},
+        "date": {"name": "date", "data_type": "text", "nullable": true},
+        "_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text", "nullable": false},
+        "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": false, "unique": true, "row_key": true}
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "columns": ["customer_id"],
+          "referenced_table": "customers",
+          "referenced_columns": ["id"]
+        }
+      ],
+      "name": "purchases",
+      "resource": "purchases",
+      "x-normalizer": {"seen-data": true}
+    },
+    "_dlt_pipeline_state": {
+      "columns": {
+        "version": {"name": "version", "data_type": "bigint", "nullable": false},
+        "engine_version": {"name": "engine_version", "data_type": "bigint", "nullable": false},
+        "pipeline_name": {"name": "pipeline_name", "data_type": "text", "nullable": false},
+        "state": {"name": "state", "data_type": "text", "nullable": false},
+        "created_at": {"name": "created_at", "data_type": "timestamp", "nullable": false},
+        "version_hash": {"name": "version_hash", "data_type": "text", "nullable": true},
+        "_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text", "nullable": false},
+        "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": false, "unique": true, "row_key": true}
+      },
+      "write_disposition": "append",
+      "file_format": "preferred",
+      "name": "_dlt_pipeline_state",
+      "resource": "_dlt_pipeline_state",
+      "x-normalizer": {"seen-data": true}
+    },
+    "purchases__items": {
+      "name": "purchases__items",
+      "columns": {
+        "purchase_id": {"name": "purchase_id", "data_type": "bigint", "nullable": false},
+        "name": {"name": "name", "data_type": "text", "nullable": false},
+        "price": {"name": "price", "data_type": "bigint", "nullable": false},
+        "_dlt_root_id": {"name": "_dlt_root_id", "data_type": "text", "nullable": false, "root_key": true},
+        "_dlt_parent_id": {"name": "_dlt_parent_id", "data_type": "text", "nullable": false, "parent_key": true},
+        "_dlt_list_idx": {"name": "_dlt_list_idx", "data_type": "bigint", "nullable": false},
+        "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": false, "unique": true, "row_key": true}
+      },
+      "parent": "purchases",
+      "x-normalizer": {"seen-data": true}
+    }
+  },
+  "settings": {
+    "detections": ["iso_timestamp"],
+    "default_hints": {
+      "not_null": ["_dlt_id", "_dlt_root_id", "_dlt_parent_id", "_dlt_list_idx", "_dlt_load_id"],
+      "parent_key": ["_dlt_parent_id"],
+      "root_key": ["_dlt_root_id"],
+      "unique": ["_dlt_id"],
+      "row_key": ["_dlt_id"]
+    }
+  },
+  "normalizers": {
+    "names": "snake_case",
+    "json": {"module": "dlt.common.normalizers.json.relational"}
+  },
+  "previous_hashes": [
+    "+stnjP5XdPbykNQJVpK/zpfo0iVbyRFfSIIRzuPzcI4=",
+    "nTU+qnLwEmiMSWTwu+QH321j4zl8NrOVL4Hx/GxQAHE="
+  ]
+}

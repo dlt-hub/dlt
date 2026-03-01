@@ -47,7 +47,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import load_yml_case
-from tests.utils import auto_unload_modules
+from tests.utils import auto_unload_modules, skipifworktree
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -544,6 +544,27 @@ def test_source_explicit_section() -> None:
         # source state key is still source name
         assert state["sources"]["custom_section"]["val"] == "CUSTOM"
 
+    # section path (sources.section.key) takes precedence over compact (sources.name.key)
+    os.environ["SOURCES__WITH_SECTION__SECRET"] = "COMPACT"
+    state = {}
+    with Container().injectable_context(StateInjectableContext(state=state)):
+        assert list(with_section()) == [1]
+        assert state["sources"]["custom_section"]["val"] == "CUSTOM"
+
+    # compact sources layout: sources.name.key works when section-level is absent
+    del os.environ["SOURCES__CUSTOM_SECTION__SECRET"]
+    state = {}
+    with Container().injectable_context(StateInjectableContext(state=state)):
+        assert list(with_section()) == [1]
+        assert state["sources"]["custom_section"]["val"] == "COMPACT"
+
+    # full path (sources.section.name.key) takes precedence over compact
+    os.environ["SOURCES__CUSTOM_SECTION__WITH_SECTION__SECRET"] = "FULL"
+    state = {}
+    with Container().injectable_context(StateInjectableContext(state=state)):
+        assert list(with_section()) == [1]
+        assert state["sources"]["custom_section"]["val"] == "FULL"
+
 
 def test_resource_section() -> None:
     r = dlt.resource([1, 2, 3], name="T")
@@ -640,6 +661,25 @@ def test_resources_injected_sections() -> None:
             "SOURCES__EXTERNAL_RESOURCES__INIT_RESOURCE_F_2__VAL",
             "SOURCES__EXTERNAL_RESOURCES__RESOURCE_F_2__VAL",
         ]
+
+
+def test_sources_compact_section_layout() -> None:
+    """Compact sources layout: sources.name.key resolves when section != name."""
+    from tests.extract.cases.section_source.external_resources import with_external
+
+    # env vars for the external resources (resolved under source's section context)
+    os.environ["SOURCES__EXTERNAL_RESOURCES__VAL"] = "EXT_VAL"
+
+    # compact layout: sources.name.key (skipping module section)
+    os.environ["SOURCES__WITH_EXTERNAL__SOURCE_VAL"] = "COMPACT_VAL"
+    s = with_external()
+    assert s.section == "external_resources"
+    assert s.name == "with_external"
+    assert list(s) == ["COMPACT_VAL", "COMPACT_VAL", "EXT_VAL", "EXT_VAL"]
+
+    # full path sources.section.name.key takes precedence over compact
+    os.environ["SOURCES__EXTERNAL_RESOURCES__WITH_EXTERNAL__SOURCE_VAL"] = "FULL_VAL"
+    assert list(with_external()) == ["FULL_VAL", "FULL_VAL", "EXT_VAL", "EXT_VAL"]
 
 
 def test_source_schema_context() -> None:
@@ -792,6 +832,7 @@ def test_source_shorthand_reference() -> None:
     assert list(factory(["A", "B"])) == ["A", "B"]
 
 
+@skipifworktree
 def test_source_reference() -> None:
     # sources accessible via full type
     factory = SourceReference.find("tests.extract.test_decorators.alpha_source")

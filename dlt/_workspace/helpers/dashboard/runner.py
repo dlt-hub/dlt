@@ -23,8 +23,18 @@ except ModuleNotFoundError:
         "to install the dlt workspace extra.",
     )
 
-EJECTED_APP_FILE_NAME = "dlt_dashboard.py"
-STYLE_FILE_NAME = "dlt_dashboard_styles.css"
+from dlt._workspace.helpers.dashboard.const import (
+    DASHBOARD_STARTUP_TIMEOUT_S,
+    DASHBOARD_STARTUP_WAIT_ON_OK_S,
+    DEFAULT_DASHBOARD_PORT,
+    EJECTED_APP_FILE_NAME,
+    HTTP_READY_POLL_INTERVAL_S,
+    HTTP_READY_TIMEOUT_S,
+    HTTP_READY_WAIT_ON_OK_S,
+    MARIMO_COMMAND,
+    PROCESS_TERMINATE_TIMEOUT_S,
+    STYLE_FILE_NAME,
+)
 
 
 def run_dashboard(
@@ -47,25 +57,29 @@ def run_dashboard(
         pass
 
 
-def _wait_http_up(url: str, timeout_s: float = 15.0, wait_on_ok: float = 0.1) -> None:
-    start = time.time()
-    while time.time() - start < timeout_s:
+def _wait_http_up(
+    url: str,
+    timeout_s: float = HTTP_READY_TIMEOUT_S,
+    wait_on_ok: float = HTTP_READY_WAIT_ON_OK_S,
+) -> None:
+    start = time.monotonic()
+    while time.monotonic() - start < timeout_s:
         try:
             with urllib.request.urlopen(url, timeout=1.0):
                 time.sleep(wait_on_ok)
                 return
         except Exception:
-            time.sleep(0.1)
+            time.sleep(HTTP_READY_POLL_INTERVAL_S)
     raise TimeoutError(f"Server did not become ready: {url}")
 
 
 @contextlib.contextmanager
 def start_dashboard(
     pipelines_dir: str = None,
-    port: int = 2718,
+    port: int = DEFAULT_DASHBOARD_PORT,
     test_identifiers: bool = True,
     headless: bool = True,
-    wait_on_ok: float = 1.0,
+    wait_on_ok: float = DASHBOARD_STARTUP_WAIT_ON_OK_S,
 ) -> Iterator[subprocess.Popen[bytes]]:
     """Launches dashboard in context manager that will kill it after use"""
     command = run_dashboard_command(
@@ -79,12 +93,16 @@ def start_dashboard(
     # start the dashboard process using subprocess.Popen
     proc = subprocess.Popen(command)
     try:
-        _wait_http_up(f"http://localhost:{port}", timeout_s=60.0, wait_on_ok=wait_on_ok)
+        _wait_http_up(
+            f"http://localhost:{port}",
+            timeout_s=DASHBOARD_STARTUP_TIMEOUT_S,
+            wait_on_ok=wait_on_ok,
+        )
         yield proc
     finally:
         proc.terminate()
         try:
-            proc.wait(timeout=10)
+            proc.wait(timeout=PROCESS_TERMINATE_TIMEOUT_S)
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
@@ -115,7 +133,7 @@ def run_dashboard_command(
         css_file_path = Path(files("dlt._workspace.helpers.dashboard") / STYLE_FILE_NAME)  # type: ignore
         with open(css_file_path, "r", encoding="utf-8") as f:
             css_content = f.read()
-        with open(os.path.join(os.getcwd(), ejected_css_path), "w", encoding="utf-8") as f:
+        with open(ejected_css_path, "w", encoding="utf-8") as f:
             f.write(css_content)
         ejected_app_exists = True
 
@@ -127,7 +145,7 @@ def run_dashboard_command(
     # app file
     app_file_path = dlt_dashboard.__file__ if not ejected_app_exists else ejected_app_path
 
-    dashboard_cmd = ["marimo", "run" if not edit else "edit", app_file_path]
+    dashboard_cmd = [MARIMO_COMMAND, "run" if not edit else "edit", app_file_path]
 
     if port:
         dashboard_cmd.append("--port")
@@ -140,17 +158,15 @@ def run_dashboard_command(
     if headless:
         dashboard_cmd.append("--headless")
 
+    # collect marimo app CLI args (after the "--" separator)
+    app_args: List[str] = []
     if pipeline_name:
-        dashboard_cmd.append("--")
-        dashboard_cmd.append("--pipeline")
-        dashboard_cmd.append(pipeline_name)
+        app_args += ["--pipeline", pipeline_name]
     if pipelines_dir:
-        dashboard_cmd.append("--")
-        dashboard_cmd.append("--pipelines-dir")
-        dashboard_cmd.append(pipelines_dir)
+        app_args += ["--pipelines-dir", pipelines_dir]
     if with_test_identifiers:
-        dashboard_cmd.append("--")
-        dashboard_cmd.append("--with_test_identifiers")
-        dashboard_cmd.append("true")
+        app_args += ["--with_test_identifiers", "true"]
+    if app_args:
+        dashboard_cmd += ["--"] + app_args
 
     return dashboard_cmd
