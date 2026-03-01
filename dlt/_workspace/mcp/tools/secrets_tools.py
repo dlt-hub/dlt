@@ -9,15 +9,13 @@ from dlt._workspace.cli.ai.utils import (
     fetch_secrets_update_fragment,
     fetch_secrets_view_redacted,
 )
-from dlt._workspace.mcp.tools._context import with_mcp_tool_telemetry
+from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 
 
 @with_mcp_tool_telemetry()
 def secrets_list() -> List[Dict[str, Any]]:
-    """List project-scoped secret file locations with profile and presence info.
+    """List secret file paths, profiles, and whether each file exists."""
 
-    Returns locations sorted with profile-scoped files first. Use this to
-    discover which secrets files exist before reading or updating them."""
     return fetch_secrets_list()  # type: ignore[return-value]
 
 
@@ -27,17 +25,18 @@ def secrets_view_redacted(
         Optional[str],
         Field(
             description=(
-                "Path to a specific secrets file to view. "
-                "Omit to see the unified merged view from all project secret files."
+                "Absolute path to a specific secrets file (from secrets_list)."
+                " Omit to get the unified merged view of all secret files."
             )
         ),
     ] = None,
 ) -> str:
-    """View secrets TOML with all values replaced by '***'.
+    """Show secrets TOML with every value replaced by '***'.
 
-    Without path, shows the unified merged view from all project secret files
-    (same view dlt uses internally). With path, shows that exact file redacted.
-    Use this to inspect which credentials are configured without exposing values."""
+    Without path: returns the unified merged view across all project secret files
+    (read-only, shows effective configuration). With path: returns that single file
+    redacted. Use secrets_list to discover file paths.
+    """
     result = fetch_secrets_view_redacted(path)
     if result is None:
         if path:
@@ -54,18 +53,10 @@ def secrets_update_fragment(
     ],
     path: Annotated[
         str,
-        Field(
-            description=(
-                "Path to the secrets file to update. "
-                "Use secrets_list to discover available paths."
-            )
-        ),
+        Field(description="Absolute path to the secrets file to update (from secrets_list)."),
     ],
 ) -> str:
-    """Merge a TOML fragment into a secrets file and return the redacted result.
-
-    Creates the file if needed. Deep-merges without overwriting other sections.
-    Use secrets_list to find the target file, then pass it as path."""
+    """Deep-merge a TOML fragment into a secrets file; returns the redacted result. The file is created if it does not exist."""
     try:
         return fetch_secrets_update_fragment(fragment, path)
     except Exception as ex:

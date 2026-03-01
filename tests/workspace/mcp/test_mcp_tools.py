@@ -1,9 +1,11 @@
 import json
 import re
+from typing import Generator
 
 import pytest
 from fastmcp.exceptions import ToolError
 
+import dlt
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
 from dlt._workspace.mcp.tools.data_tools import (
@@ -18,7 +20,10 @@ from dlt._workspace.mcp.tools.data_tools import (
     get_local_pipeline_state,
 )
 
-from tests.workspace.utils import pokemon_pipeline_context as pokemon_pipeline_context
+from tests.workspace.utils import (
+    isolated_workspace,
+    pokemon_pipeline_context as pokemon_pipeline_context,
+)
 
 
 def test_list_pipelines(pokemon_pipeline_context: RunContextBase) -> None:
@@ -42,7 +47,7 @@ def test_list_pipelines_project_dir_filter(pokemon_pipeline_context: RunContextB
 
 def test_list_tables(pokemon_pipeline_context: RunContextBase) -> None:
     result = list_tables("rest_api_pokemon")
-    assert result == {"schemas": {"pokemon": ["pokemon", "berry", "location"]}}
+    assert result == {"tables": ["pokemon", "berry", "location"]}
 
 
 def test_get_table_schema(pokemon_pipeline_context: RunContextBase) -> None:
@@ -183,3 +188,63 @@ def test_get_local_pipeline_state(pokemon_pipeline_context: RunContextBase) -> N
     state = get_local_pipeline_state("rest_api_pokemon")
     assert isinstance(state, dict)
     assert "_state_version" in state
+
+
+# -- multi-schema tests --
+
+
+@dlt.source(name="fruits")
+def _fruits_source():
+    @dlt.resource
+    def fruit():
+        yield [{"name": "apple", "color": "red"}, {"name": "banana", "color": "yellow"}]
+
+    return fruit
+
+
+@dlt.source(name="veggies")
+def _veggies_source():
+    @dlt.resource
+    def vegetable():
+        yield [{"name": "carrot", "color": "orange"}, {"name": "pea", "color": "green"}]
+
+    return vegetable
+
+
+@pytest.fixture
+def multi_schema_pipeline_context() -> Generator[RunContextBase, None, None]:
+    with isolated_workspace(name="pipelines") as ctx:
+        p = dlt.pipeline("multi_schema", destination="duckdb", dataset_name="multi_ds")
+        p.run(_fruits_source())
+        p.run(_veggies_source())
+        yield ctx
+
+
+def test_list_tables_multi_schema(multi_schema_pipeline_context: RunContextBase) -> None:
+    result = list_tables("multi_schema")
+    tables = result["tables"]
+    assert "fruit" in tables
+    assert "vegetable" in tables
+
+
+def test_get_table_schema_unified(
+    multi_schema_pipeline_context: RunContextBase,
+) -> None:
+    schema = get_table_schema("multi_schema", "vegetable")
+    assert "columns" in schema
+    assert "name" in schema["columns"]
+
+
+def test_preview_table_unified(
+    multi_schema_pipeline_context: RunContextBase,
+) -> None:
+    result = preview_table("multi_schema", "vegetable")
+    assert "carrot" in result
+
+
+def test_display_schema_unified(
+    multi_schema_pipeline_context: RunContextBase,
+) -> None:
+    result = display_schema("multi_schema", output_format="yaml")
+    assert "vegetable" in result
+    assert "fruit" in result

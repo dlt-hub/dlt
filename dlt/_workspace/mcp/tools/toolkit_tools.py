@@ -11,15 +11,13 @@ from dlt._workspace.cli.ai.utils import (
     fetch_workbench_toolkit_info,
     scan_workbench_toolkits,
 )
-from dlt._workspace.mcp.tools._context import with_mcp_tool_telemetry
+from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 from dlt._workspace.typing import TToolkitInfo, TWorkbenchToolkitInfo
 
 
 @with_mcp_tool_telemetry()
 def list_toolkits() -> Dict[str, TToolkitInfo]:
-    """List available dlt AI toolkits with their names and descriptions.
-
-    Fetches the toolkit index from the dlt AI workbench repository."""
+    """List available dlt AI toolkits with their names and descriptions."""
     try:
         base = fetch_workbench_base(DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH)
     except FileNotFoundError as ex:
@@ -31,8 +29,7 @@ def list_toolkits() -> Dict[str, TToolkitInfo]:
 def toolkit_info(
     name: Annotated[str, Field(description="Name of the toolkit to inspect")],
 ) -> TWorkbenchToolkitInfo:
-    """Show detailed contents of a dlt AI toolkit including skills, commands,
-    rules, and MCP server definitions."""
+    """Show detailed contents of a dlt AI toolkit."""
     try:
         info = fetch_workbench_toolkit_info(
             name, DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH

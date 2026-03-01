@@ -1,5 +1,5 @@
 # mypy: disable-error-code="return-value, no-any-return"
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Optional
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -7,10 +7,12 @@ from pydantic import Field
 from fastmcp.exceptions import ToolError
 
 import dlt
+from dlt.common.schema.exceptions import IncompatibleSchemaException
+from dlt.common.schema.schema import Schema
 from dlt.common.typing import Annotated
 from dlt._workspace.cli import formatters
 from dlt._workspace.cli.utils import fetch_workspace_info
-from dlt._workspace.mcp.tools._context import with_mcp_tool_telemetry
+from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 
 TResultFormat = Literal["markdown", "jsonl"]
 
@@ -20,9 +22,26 @@ def _attach(pipeline_name: str) -> dlt.Pipeline:
     return dlt.attach(pipeline_name)
 
 
+def _get_unified_schema(pipeline: dlt.Pipeline) -> Schema:
+    """Build a unified schema from all pipeline schemas.
+
+    Falls back to default schema if naming conventions are incompatible.
+    """
+    schema_names = list(pipeline.schemas)
+    if len(schema_names) <= 1:
+        return pipeline.default_schema
+    default = pipeline.default_schema
+    others = [pipeline.schemas[n] for n in schema_names if n != default.name]
+    try:
+        return default.unify_schemas(others)
+    except IncompatibleSchemaException:
+        return default
+
+
 def _get_dataset(pipeline_name: str) -> dlt.Dataset:
-    """Attach to a pipeline and return its dataset."""
-    return _attach(pipeline_name).dataset()
+    """Attach to a pipeline and return its dataset with unified schema."""
+    pipeline = _attach(pipeline_name)
+    return pipeline.dataset(schema=_get_unified_schema(pipeline))
 
 
 @with_mcp_tool_telemetry()
@@ -41,10 +60,7 @@ def list_pipelines() -> List[str]:
 
 @with_mcp_tool_telemetry()
 def get_workspace_info() -> Dict[str, Any]:
-    """Get information about the current dlt workspace or project.
-
-    Returns workspace name, directories, active profile, configured profiles,
-    and configuration provider locations with their status."""
+    """Get workspace info: name, directories, active profile, and config providers."""
 
     info = fetch_workspace_info()
     # prune bulky file-tracking data from toolkit entries
@@ -55,30 +71,20 @@ def get_workspace_info() -> Dict[str, Any]:
 
 @with_mcp_tool_telemetry()
 def list_tables(
-    pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
+    pipeline_name: str,
 ) -> Dict[str, Any]:
-    """List all schemas and their data tables for a pipeline. Use the returned table
-    names with get_table_schema, get_table_create_sql, and preview_table tools."""
+    """List all data tables for a pipeline."""
     pipeline = _attach(pipeline_name)
-    return {
-        "schemas": {
-            schema_name: [table["name"] for table in schema.data_tables()]
-            for schema_name, schema in pipeline.schemas.items()
-        }
-    }
+    schema = _get_unified_schema(pipeline)
+    return {"tables": [table["name"] for table in schema.data_tables()]}
 
 
 @with_mcp_tool_telemetry()
 def get_table_schema(
-    pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
-    table_name: Annotated[str, Field(description="Name of the table")],
+    pipeline_name: str,
+    table_name: str,
 ) -> Dict[str, Any]:
-    """Get the schema of a table including column names, data types, and SQL identifiers.
-
-    Each column includes a sql_identifier field with the properly escaped column name
-    for use in SQL queries. The table-level sql_identifier is the escaped table name.
-    Use the sql_dialect field to determine the SQL dialect for query construction.
-    """
+    """Get table schema with column names, data types, and escaped sql_identifier fields."""
     try:
         dataset = _get_dataset(pipeline_name)
         schema = dataset.schema
@@ -107,15 +113,10 @@ def get_table_schema(
 
 @with_mcp_tool_telemetry()
 def get_table_create_sql(
-    pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
-    table_name: Annotated[str, Field(description="Name of the table")],
+    pipeline_name: str,
+    table_name: str,
 ) -> str:
-    """Get a CREATE TABLE SQL statement for the table in the destination's SQL dialect.
-
-    The DDL includes column names, data types, NOT NULL constraints, and COMMENT
-    annotations for columns and tables that have a description in the schema.
-    Use this to understand the exact SQL types and write precise queries.
-    """
+    """Get CREATE TABLE DDL for the table in the destination's SQL dialect."""
     from dlt.common.libs.sqlglot import to_sqlglot_type
 
     try:
@@ -176,15 +177,14 @@ def get_table_create_sql(
 
 @with_mcp_tool_telemetry()
 def preview_table(
-    pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
-    table_name: Annotated[str, Field(description="Name of the table to preview")],
+    pipeline_name: str,
+    table_name: str,
     output_format: Annotated[
         TResultFormat,
-        Field(description="Output format: 'markdown' table or 'jsonl' (JSON-lines)"),
+        Field(description="Output format: 'markdown' or 'jsonl'"),
     ] = "markdown",
 ) -> str:
-    """Get the first 10 rows from a table. Default output is a Markdown table;
-    use output_format='jsonl' for structured JSON-lines output with proper type encoding."""
+    """Get the first 10 rows from a table."""
     try:
         relation = _get_dataset(pipeline_name)[table_name].limit(10)
         columns = relation.columns
@@ -201,24 +201,17 @@ def preview_table(
 
 @with_mcp_tool_telemetry()
 def execute_sql_query(
-    pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
+    pipeline_name: str,
     sql_select_query: Annotated[
         str,
-        Field(
-            description=(
-                "SQL SELECT query to execute. Use column and table names from get_table_schema "
-                "or get_table_create_sql tools. Only SELECT statements are allowed."
-            )
-        ),
+        Field(description="SQL SELECT query to execute (only SELECT is allowed)"),
     ],
     output_format: Annotated[
         TResultFormat,
-        Field(description="Output format: 'markdown' table or 'jsonl' (JSON-lines)"),
+        Field(description="Output format: 'markdown' or 'jsonl'"),
     ] = "markdown",
 ) -> str:
-    """Execute a SELECT SQL query and return results. Use get_table_schema to discover
-    column names and sql_identifier values. Only SELECT is allowed; INSERT, UPDATE,
-    and DELETE are rejected."""
+    """Execute a read-only SQL query against the pipeline's destination dataset."""
     parsed = sqlglot.parse(sql_select_query)
     if any(
         isinstance(expr, (sqlglot.exp.Insert, sqlglot.exp.Update, sqlglot.exp.Delete))
@@ -237,14 +230,13 @@ def execute_sql_query(
 
 @with_mcp_tool_telemetry()
 def get_row_counts(
-    pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
+    pipeline_name: str,
     output_format: Annotated[
         TResultFormat,
-        Field(description="Output format: 'markdown' table or 'jsonl' (JSON-lines)"),
+        Field(description="Output format: 'markdown' or 'jsonl'"),
     ] = "markdown",
 ) -> str:
-    """Get row counts for all data tables in a pipeline. Default output is a
-    Markdown table; use output_format='jsonl' for structured JSON-lines output."""
+    """Get row counts for all data tables in a pipeline."""
     try:
         dataset = _get_dataset(pipeline_name)
         relation = dataset.row_counts()
@@ -265,27 +257,21 @@ TSchemaFormat = Literal["mermaid", "yaml", "dbml"]
 
 @with_mcp_tool_telemetry()
 def display_schema(
-    pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
+    pipeline_name: str,
+    schema_name: Optional[str] = None,
     hide_columns: Annotated[
         bool,
         Field(description="Hide column details for better readability of large schemas"),
     ] = False,
     output_format: Annotated[
         TSchemaFormat,
-        Field(
-            description=(
-                "Output format: 'mermaid' ER diagram (default), 'yaml' schema dump, "
-                "or 'dbml' database markup (requires dlt[dbml] extra)"
-            )
-        ),
+        Field(description="Output format: 'mermaid', 'yaml', or 'dbml'"),
     ] = "mermaid",
 ) -> str:
-    """Display the pipeline schema. Default is a Mermaid ER diagram; use
-    output_format='yaml' for a human-readable schema dump, or 'dbml' for
-    database markup language (requires dlt[dbml] extra)."""
+    """Display the pipeline schema as a diagram or structured dump."""
     try:
         pipeline = _attach(pipeline_name)
-        schema = pipeline.default_schema
+        schema = pipeline.schemas[schema_name] if schema_name else _get_unified_schema(pipeline)
         if output_format == "yaml":
             return schema.to_pretty_yaml()
         if output_format == "dbml":
@@ -300,11 +286,9 @@ def display_schema(
 
 @with_mcp_tool_telemetry()
 def get_local_pipeline_state(
-    pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
+    pipeline_name: str,
 ) -> Dict[str, Any]:
-    """Get the pipeline local state including incremental cursors, resource state,
-    and source state. Use this to understand what data has been loaded and the
-    current incremental loading positions."""
+    """Get pipeline state: incremental cursors, resource state, and source state."""
     try:
         pipeline = _attach(pipeline_name)
         return pipeline.state  # type: ignore[return-value]
@@ -317,14 +301,9 @@ def get_local_pipeline_state(
 
 @with_mcp_tool_telemetry()
 def pipeline_trace(
-    pipeline_name: Annotated[str, Field(description="Name of the dlt pipeline")],
+    pipeline_name: str,
 ) -> Dict[str, Any]:
-    """Get the full trace of the last pipeline run as a JSON dictionary.
-
-    The trace includes timing information, step outcomes (extract, normalize, load),
-    resolved configuration values (secrets are filtered), and exception details
-    for failed steps.
-    """
+    """Get the trace of the last pipeline run: timing, step outcomes, and errors."""
     pipeline = _attach(pipeline_name)
     trace = pipeline.last_trace
     if trace is None:
@@ -345,4 +324,5 @@ __tools__ = (
     get_row_counts,
     display_schema,
     get_local_pipeline_state,
+    pipeline_trace,
 )
