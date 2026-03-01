@@ -6,20 +6,23 @@ from dlt.common.configuration.specs.pluggable_run_context import (
 
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace._workspace_context import WorkspaceRunContext
-from dlt._workspace.cli.utils import check_delete_local_data, delete_local_data
-from dlt._workspace.utils import ProviderLocationInfo, get_provider_locations
+from dlt._workspace.typing import TLocationInfo
+from dlt._workspace.cli.utils import (
+    check_delete_local_data,
+    delete_local_data,
+    fetch_workspace_info,
+)
 from dlt._workspace.cli._pipeline_command import list_pipelines
-from dlt._workspace.profile import read_profile_pin
 
 
-def _format_location_tag(loc: ProviderLocationInfo) -> str:
+def _format_location_tag(loc: TLocationInfo) -> str:
     """Build a human-readable tag for a location (e.g. '(global, profile: dev)')."""
     parts = []
-    if loc.scope == "global":
+    if loc["scope"] == "global":
         parts.append("global")
-    if loc.profile_name:
-        parts.append("profile: %s" % loc.profile_name)
-    if not loc.present:
+    if profile_name := loc.get("profile_name"):
+        parts.append("profile: %s" % profile_name)
+    if not loc["present"]:
         parts.append("not found")
     if parts:
         return " (%s)" % ", ".join(parts)
@@ -28,47 +31,57 @@ def _format_location_tag(loc: ProviderLocationInfo) -> str:
 
 @utils.track_command("workspace", track_before=False, operation="info")
 def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -> None:
-    fmt.echo("Workspace %s:" % fmt.bold(run_context.name))
-    fmt.echo("Workspace dir: %s" % fmt.bold(run_context.run_dir))
-    fmt.echo("Settings dir: %s" % fmt.bold(run_context.settings_dir))
-    # profile info
-    fmt.echo()
-    fmt.echo("Settings for profile %s:" % fmt.bold(run_context.profile))
-    fmt.echo("  Pipelines and other working data: %s" % fmt.bold(run_context.data_dir))
-    fmt.echo("  Locally loaded data: %s" % fmt.bold(run_context.local_dir))
-    if run_context.profile == read_profile_pin(run_context):
-        fmt.echo("  Profile is %s" % fmt.bold("pinned"))
-    configured_profiles = run_context.configured_profiles()
-    if configured_profiles:
-        fmt.echo(
-            "Profiles with configs or pipelines: %s" % fmt.bold(", ".join(configured_profiles))
-        )
+    info = fetch_workspace_info()
 
-    # provider info
+    if info["name"]:
+        fmt.echo("Workspace %s:" % fmt.bold(info["name"]))
+    fmt.echo("Workspace dir: %s" % fmt.bold(info["run_dir"]))
+    fmt.echo("Settings dir: %s" % fmt.bold(info["settings_dir"]))
+
+    profile = info["profile"]
+    if profile:
+        fmt.echo()
+        fmt.echo("Settings for profile %s:" % fmt.bold(profile["name"]))
+        fmt.echo("  Pipelines and other working data: %s" % fmt.bold(profile["data_dir"]))
+        fmt.echo("  Locally loaded data: %s" % fmt.bold(profile["local_dir"]))
+        if profile["is_pinned"]:
+            fmt.echo("  Profile is %s" % fmt.bold("pinned"))
+        if profile["configured_profiles"]:
+            fmt.echo(
+                "Profiles with configs or pipelines: %s"
+                % fmt.bold(", ".join(profile["configured_profiles"]))
+            )
+
     fmt.echo()
     fmt.echo("dlt found configuration in following locations:")
     total_not_found_count = 0
-    for info in get_provider_locations():
-        provider = info.provider
-        fmt.echo("* %s" % fmt.bold(provider.name))
-        for loc in info.locations:
-            if loc.present:
+    for prov in info["providers"]:
+        fmt.echo("* %s" % fmt.bold(prov["name"]))
+        for loc in prov["locations"]:
+            if loc["present"]:
                 tag = _format_location_tag(loc)
-                fmt.echo("    %s%s" % (loc.path, tag))
+                fmt.echo("    %s%s" % (loc["path"], tag))
             else:
                 if verbosity > 0:
                     tag = _format_location_tag(loc)
-                    fmt.echo("    %s" % fmt.style("%s%s" % (loc.path, tag), fg="yellow"))
+                    fmt.echo("    %s" % fmt.style("%s%s" % (loc["path"], tag), fg="yellow"))
                 else:
                     total_not_found_count += 1
-        if provider.is_empty:
+        if prov["is_empty"]:
             fmt.echo("    provider is empty")
-    # at verbosity 0, show summary of not found locations
     if verbosity == 0 and total_not_found_count > 0:
         fmt.echo(
             "%s location(s) were probed but not found. Use %s to see details."
             % (fmt.bold(str(total_not_found_count)), fmt.bold("-v"))
         )
+    # installed toolkits
+    if info["installed_toolkits"]:
+        fmt.echo()
+        fmt.echo(
+            "Installed toolkits: %s"
+            % ", ".join(fmt.bold(n) for n in sorted(info["installed_toolkits"]))
+        )
+
     # list pipelines in the workspace
     fmt.echo()
     list_pipelines(run_context.get_data_entity("pipelines"), verbosity)
