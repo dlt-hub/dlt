@@ -62,8 +62,8 @@ def _wait_http_up(
     timeout_s: float = HTTP_READY_TIMEOUT_S,
     wait_on_ok: float = HTTP_READY_WAIT_ON_OK_S,
 ) -> None:
-    start = time.time()
-    while time.time() - start < timeout_s:
+    start = time.monotonic()
+    while time.monotonic() - start < timeout_s:
         try:
             with urllib.request.urlopen(url, timeout=1.0):
                 time.sleep(wait_on_ok)

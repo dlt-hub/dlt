@@ -4,10 +4,10 @@ from pathlib import Path
 import tarfile
 import yaml
 
-from dlt.common.time import precise_time
+from dlt.common.storages.load_package import create_load_id
 from dlt.common.utils import digest256_tar_stream
 
-from dlt._workspace.deployment.file_selector import BaseFileSelector, WorkspaceFileSelector
+from dlt._workspace.deployment.file_selector import BaseFileSelector
 from dlt._workspace.deployment.manifest import (
     TDeploymentFileItem,
     TDeploymentManifest,
@@ -71,7 +71,7 @@ class PackageBuilder:
 
     def build_package(self, file_selector: BaseFileSelector) -> Tuple[Path, str]:
         """Create deployment package file, return (path, content_hash)"""
-        package_name = DEFAULT_DEPLOYMENT_PACKAGE_LAYOUT.format(timestamp=str(precise_time()))
+        package_name = DEFAULT_DEPLOYMENT_PACKAGE_LAYOUT.format(timestamp=create_load_id())
         package_path = Path(self.run_context.get_data_entity(package_name))
 
         with open(package_path, "w+b") as f:
