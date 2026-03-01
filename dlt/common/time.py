@@ -1,5 +1,6 @@
 import contextlib
 import datetime  # noqa: I251
+import math
 import re
 import sys
 from typing import Any, Optional, Union, overload, TypeVar, Callable  # noqa
@@ -31,6 +32,56 @@ except ImportError:
     from time import time as _built_in_time
 
     precise_time = _built_in_time
+
+
+class MonotonicPreciseTime:
+    """Wall-clock timer guaranteed to never go backward.
+
+    Reads wall clock on every call and tracks the highest value seen.  When the
+    wall clock jumps backward (NTP step corrections, VM/WSL clock drift) the
+    previous high-water mark is returned instead.
+
+    Args:
+        strictly_increasing: every call returns a value strictly greater than
+            the previous one by bumping with ``math.nextafter`` when the wall
+            clock does not advance. Use for callers that need unique timestamps.
+
+    Not thread-safe. Use ``LockedMonotonicPreciseTime`` for shared instances.
+    """
+
+    def __init__(self, strictly_increasing: bool = False) -> None:
+        self._last: float = precise_time()
+        self._strictly_increasing = strictly_increasing
+
+    def __call__(self) -> float:
+        wall = precise_time()
+        if wall > self._last:
+            self._last = wall
+        elif self._strictly_increasing:
+            self._last = math.nextafter(self._last, math.inf)
+        return self._last
+
+
+class LockedMonotonicPreciseTime(MonotonicPreciseTime):
+    """Thread-safe variant using a lock (one uncontended futex CAS)."""
+
+    def __init__(self, strictly_increasing: bool = False) -> None:
+        import threading
+
+        super().__init__(strictly_increasing=strictly_increasing)
+        self._lock = threading.Lock()
+
+    def __call__(self) -> float:
+        wall = precise_time()
+        with self._lock:
+            if wall > self._last:
+                self._last = wall
+            elif self._strictly_increasing:
+                self._last = math.nextafter(self._last, math.inf)
+            return self._last
+
+
+increasing_precise_time = LockedMonotonicPreciseTime(strictly_increasing=True)
 
 
 def timestamp_within(

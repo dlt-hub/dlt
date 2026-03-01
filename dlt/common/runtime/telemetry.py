@@ -114,11 +114,11 @@ def with_telemetry(
             props = {p: bound_args.arguments[p] for p in args if p in bound_args.arguments}
             # append additional props from kwargs
             props.update(kwargs)
-            start_ts = time.time()
+            start_ts = time.monotonic()
 
             def _track(success: bool) -> None:
                 with contextlib.suppress(Exception):
-                    props["elapsed"] = time.time() - start_ts
+                    props["elapsed"] = time.monotonic() - start_ts
                     props["success"] = success
                     # resolve runtime config and init telemetry
                     if not _TELEMETRY_STARTED:
