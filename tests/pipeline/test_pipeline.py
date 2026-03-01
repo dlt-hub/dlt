@@ -350,6 +350,203 @@ def test_run_dev_mode_underscored_dataset() -> None:
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
 
 
+@pytest.mark.parametrize("dataset_name", ["my_test_dataset", None])
+def test_dev_mode_to_non_dev_resets_state(dataset_name: Optional[str]) -> None:
+    """After dev_mode→non-dev, state is fully reset (#3276)."""
+    pipeline_name = "pipe_dev_mode_" + uniq_id()
+    p = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset_name,
+        dev_mode=True,
+    )
+    dev_instance_id = p._pipeline_instance_id
+    assert p.dataset_name.endswith(dev_instance_id)
+    p.run([{"id": 1}, {"id": 2}], table_name="items")
+
+    p2 = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset_name,
+        dev_mode=False,
+    )
+    assert not p2.dataset_name.endswith(dev_instance_id)
+    assert p2.first_run is True
+    assert p2.default_schema_name is None
+    assert p2.schema_names == []
+    if dataset_name:
+        assert p2.dataset_name == dataset_name
+
+
+def test_dev_mode_attach_preserves_state_and_flag() -> None:
+    """attach() preserves dev data, dev_mode flag, and flag survives multiple attaches."""
+    pipeline_name = "pipe_dev_mode_" + uniq_id()
+
+    p = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name="my_data",
+        dev_mode=True,
+    )
+    dev_dataset = p.dataset_name
+    dev_instance_id = p._pipeline_instance_id
+    info = p.run([{"id": 1}, {"id": 2}], table_name="items")
+    assert_load_info(info)
+
+    # attach preserves dev state and data
+    r_p = dlt.attach(pipeline_name=pipeline_name)
+    assert r_p.dataset_name == dev_dataset
+    assert r_p.dev_mode is True
+    rows = r_p.dataset().items.fetchall()
+    assert len(rows) == 2
+
+    # second attach still preserves _dev_mode flag
+    r_p2 = dlt.attach(pipeline_name=pipeline_name)
+    assert r_p2.dev_mode is True
+
+    # transition to non-dev still triggers reset after multiple attaches
+    p2 = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name="my_data",
+        dev_mode=False,
+    )
+    assert p2.dataset_name == "my_data"
+    assert not p2.dataset_name.endswith(dev_instance_id)
+    assert p2.first_run is True
+
+
+def test_dev_mode_reset_dataset_readable_without_run() -> None:
+    """After non-dev→dev→non-dev reset, dataset() can still read original data."""
+    pipeline_name = "pipe_dev_mode_" + uniq_id()
+    dataset = "read_test"
+
+    # 1. production run
+    p = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset,
+        dev_mode=False,
+    )
+    info = p.run([{"id": 1, "val": "prod"}], table_name="items")
+    assert_load_info(info)
+    # simulare another schema after a short gap so it will be loaded as default
+    # at the end
+    sleep(0.3)
+    p.run([{"id": 2, "val": "stage"}], table_name="items_2", schema=Schema("second"))
+
+    # 2. dev run with different data
+    p_dev = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset,
+        dev_mode=True,
+    )
+    info_dev = p_dev.run([{"id": 99, "val": "dev"}], table_name="items")
+    assert_load_info(info_dev)
+
+    # 3. back to non-dev — no run(), just dataset()
+    p2 = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset,
+        dev_mode=False,
+    )
+    assert p2.first_run is True
+    assert p2.default_schema_name is None
+    # data from original production run should be readable
+    ds = p2.dataset()
+    assert not ds.schema.is_new
+    rows = ds.items.fetchall()
+    ids = {r[0] for r in rows}
+    assert 1 in ids
+    assert 99 not in ids
+
+
+def test_dev_mode_reset_syncs_with_destination() -> None:
+    """non-dev run → dev run → non-dev run restores original data via destination sync."""
+    pipeline_name = "pipe_dev_mode_" + uniq_id()
+    dataset = "prod_data"
+
+    # 1. production run
+    p = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset,
+        dev_mode=False,
+    )
+    info = p.run([{"id": 1, "val": "prod"}], table_name="items")
+    assert_load_info(info)
+    assert p.dataset_name == dataset
+    assert p.first_run is False
+
+    # 2. dev experiment with different data
+    p_dev = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset,
+        dev_mode=True,
+    )
+    assert p_dev.dataset_name.startswith(dataset)
+    assert p_dev.dataset_name != dataset
+    info_dev = p_dev.run([{"id": 99, "val": "dev"}], table_name="items")
+    assert_load_info(info_dev)
+
+    # 3. back to production — reset triggers, sync_destination restores original state
+    p2 = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset,
+        dev_mode=False,
+    )
+    assert p2.dataset_name == dataset
+    assert p2.first_run is True
+    # run to trigger sync_destination which restores state from destination
+    info2 = p2.run([{"id": 2, "val": "prod2"}], table_name="items")
+    assert_load_info(info2)
+    assert p2.first_run is False
+    # original production data + new row visible, not the dev data
+    rows = p2.dataset().items.fetchall()
+    ids = {r[0] for r in rows}
+    assert 1 in ids
+    assert 2 in ids
+    assert 99 not in ids
+
+
+def test_dev_mode_configured_via_env_then_removed() -> None:
+    """dev_mode set via config env var, then removed — should reset to regular dataset (#3276)."""
+    pipeline_name = "pipe_cfg_dev_" + uniq_id()
+    dataset_name = "cfg_data"
+    env_key = f"PIPELINES__{pipeline_name.upper()}__DEV_MODE"
+
+    # 1. enable dev_mode via env var and run
+    os.environ[env_key] = "true"
+    try:
+        p = dlt.pipeline(
+            pipeline_name=pipeline_name,
+            destination="duckdb",
+            dataset_name=dataset_name,
+        )
+        assert p.dev_mode is True
+        dev_dataset = p.dataset_name
+        assert dev_dataset != dataset_name
+        info = p.run([{"id": 1}], table_name="items")
+        assert_load_info(info)
+    finally:
+        del os.environ[env_key]
+
+    # 2. config removed — dev_mode defaults to False, should detect transition and reset
+    p2 = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset_name,
+    )
+    assert p2.dev_mode is False
+    assert p2.dataset_name == dataset_name
+    assert p2.first_run is True
+    assert p2.default_schema_name is None
+
+
 def test_dataset_pipeline_never_ran() -> None:
     p = dlt.pipeline(destination="duckdb", dev_mode=True, dataset_name="_main_")
     # we get a dataset with an empty schema with the name of the dataset
@@ -364,6 +561,64 @@ def test_dataset_unknown_schema() -> None:
 
     dataset = p.dataset(schema="unknown")
     assert dataset.schema.name == "unknown"
+    assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
+
+
+def test_dataset_no_state_but_has_schema() -> None:
+    """When restore_from_destination is disabled, state is not stored but schemas are.
+    dataset() should still resolve schema from destination."""
+    pipeline_name = "pipe_no_state_" + uniq_id()
+    dataset_name = "no_state_ds"
+    p = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset_name,
+    )
+    p.config.restore_from_destination = False
+    p.run([{"id": 1}], table_name="items")
+
+    # re-create pipeline — no sync_destination, local state wiped by dev_mode
+    p2 = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=dataset_name,
+        dev_mode=True,
+    )
+    p2.config.restore_from_destination = False
+    # point back at original dataset to test schema resolution without state
+    p2.dataset_name = dataset_name
+    dataset = p2.dataset()
+    # schema should be resolved from _dlt_version table (schemas are always stored)
+    assert not dataset.schema.is_new
+    assert "items" in dataset.schema.tables
+
+
+def test_dataset_empty_dataset_on_destination() -> None:
+    """When dataset exists on destination but has no dlt tables, schema falls back to empty."""
+    p = dlt.pipeline(
+        pipeline_name="pipe_empty_" + uniq_id(),
+        destination="duckdb",
+        dataset_name="empty_ds",
+    )
+    # create the duckdb schema (dataset) with a non-dlt table
+    with p.sql_client() as client:
+        client.execute_sql(f'CREATE SCHEMA IF NOT EXISTS "{p.dataset_name}"')
+        client.execute_sql(f'CREATE TABLE "{p.dataset_name}".dummy (x INT)')
+    dataset = p.dataset()
+    assert dataset.schema.is_new
+    assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
+
+
+def test_dataset_non_existing_dataset_on_destination() -> None:
+    """When dataset does not exist at all on destination, schema falls back to empty."""
+    p = dlt.pipeline(
+        pipeline_name="pipe_noexist_" + uniq_id(),
+        destination="duckdb",
+        dataset_name="this_dataset_does_not_exist",
+    )
+    dataset = p.dataset()
+    assert dataset.schema.is_new
+    assert dataset.schema.name == p.dataset_name
     assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
 
 
