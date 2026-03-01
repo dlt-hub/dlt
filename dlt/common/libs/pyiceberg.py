@@ -2,6 +2,7 @@ import os
 from typing import Dict, Any, List, Optional, Union
 from pathlib import Path
 import warnings
+import time
 
 from fsspec import AbstractFileSystem
 from packaging.version import Version
@@ -10,7 +11,6 @@ from dlt import version
 from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.common.time import precise_time
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
 from dlt.common.pipeline import SupportsPipeline
@@ -79,14 +79,14 @@ def write_iceberg_table(
     data: pa.Table,
     write_disposition: TWriteDisposition,
 ) -> None:
-    start_ts = precise_time()
+    start_ts = time.monotonic()
     if write_disposition == "append":
         table.append(ensure_iceberg_compatible_arrow_data(data))
     elif write_disposition == "replace":
         table.overwrite(ensure_iceberg_compatible_arrow_data(data))
     logger.debug(
         f"pyiceberg: {write_disposition} arrow with {data.num_rows} rows to table {table.name()} at"
-        f" location {table.location()} took {(precise_time() - start_ts)} seconds."
+        f" location {table.location()} took {(time.monotonic() - start_ts)} seconds."
     )
 
 

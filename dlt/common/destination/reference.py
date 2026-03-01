@@ -130,10 +130,14 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         """Returns raw capabilities, before being adjusted with naming convention and config"""
         ...
 
+    def resolve_destination_name(self, destination_name: Optional[str]) -> str:
+        """Resolves destination name by falling back to type-derived name if not explicitly provided."""
+        return destination_name or self.to_name(self.destination_type)
+
     @property
     def destination_name(self) -> str:
         """The destination name will either be explicitly set while creating the destination or will be taken from the type"""
-        return self.config_params.get("destination_name") or self.to_name(self.destination_type)
+        return self.resolve_destination_name(self.config_params.get("destination_name"))
 
     @property
     def configured_name(self) -> str:
