@@ -30,11 +30,17 @@ def plug_workspace_context_impl(
         from dlt._workspace.profile import DEFAULT_PROFILE, read_profile_pin
         from dlt._workspace.run_context import default_name
         from dlt._workspace._workspace_context import WorkspaceRunContext
+        from dlt._workspace._known_env import WORKSPACE__PROFILE
 
         profile: str = None
         if runtime_kwargs:
             profile = runtime_kwargs.get("profile")
-        profile = profile or read_profile_pin(RunContext(run_dir)) or DEFAULT_PROFILE
+        profile = (
+            profile
+            or os.environ.get(WORKSPACE__PROFILE)
+            or read_profile_pin(RunContext(run_dir))
+            or DEFAULT_PROFILE
+        )
         return WorkspaceRunContext(default_name(run_dir), run_dir, profile)
     elif runtime_kwargs and runtime_kwargs.get("_required") == "WorkspaceRunContext":
         from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
@@ -80,7 +86,7 @@ def plug_mcp_workspace(features: Set[str]) -> Optional[McpFeatures]:
 
     return McpFeatures(
         name="workspace",
-        tools=[data_tools.list_pipelines, data_tools.get_workspace_info],
+        tools=[data_tools.list_pipelines, data_tools.list_profiles, data_tools.get_workspace_info],
     )
 
 
