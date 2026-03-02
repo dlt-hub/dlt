@@ -84,10 +84,6 @@ const REDIRECTS = [
         to: "/docs/dlt-ecosystem/verified-sources/filesystem/"
     },
     {
-        from: "/docs/hub/features/projects",
-        to: "/docs/hub/features/project"
-    },
-    {
         from: "/docs/walkthroughs/",
         to: "/docs/intro/"
     },
@@ -138,6 +134,26 @@ const REDIRECTS = [
     {
         from: "/docs/api_reference/common/configuration/specs/base_configuration",
         to: "/docs/api_reference/dlt/common/configuration/specs/base_configuration"
+    },
+    {
+        from: "/docs/hub/reference",
+        to: "/docs/hub/intro"
+    },
+    {
+        from: "/docs/general-usage/connectors",
+        to: "/docs/dlt-ecosystem/verified-sources/"
+    },
+    {
+        from: "/docs/api_reference/pipeline/configuration",
+        to: "/docs/general-usage/credentials/"
+    },
+    {
+        from: "/docs/walkthroughs/grouping-resources",
+        to: "/docs/general-usage/source"
+    },
+    {
+        from: "/docs/general-usage/dlt",
+        to: "/docs/intro"
     },
 
 ]
