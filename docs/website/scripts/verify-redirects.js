@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Post-build verification for worker.ts redirect targets.
+ * Post-build verification for redirect targets.
  *
- * Parses the REDIRECTS array from worker.ts and checks that every `to` target
- * resolves to an existing HTML page in the build output. Run after
+ * Imports the shared REDIRECTS array from redirects.js and checks that every
+ * `to` target resolves to an existing HTML page in the build output. Run after
  * `docusaurus build`:
  *
  *   node scripts/verify-redirects.js
@@ -14,26 +14,26 @@ const fs = require('fs');
 const path = require('path');
 
 const BUILD_DIR = path.resolve(__dirname, '..', 'build', 'docs');
-const WORKER_PATH = path.resolve(__dirname, '..', 'worker.ts');
+const redirects = require('../redirects.js');
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 let errors = 0;
+let warnings = 0;
 
 function error(msg) {
   console.error(`  ERROR: ${msg}`);
   errors++;
 }
 
-function ok(msg) {
-  console.log(`  OK:    ${msg}`);
+function warn(msg) {
+  console.warn(`  WARN:  ${msg}`);
+  warnings++;
 }
 
-function extractRedirectTargets() {
-  const content = fs.readFileSync(WORKER_PATH, 'utf8');
-  const targets = new Set();
-  for (const match of content.matchAll(/to:\s*["']([^"']+)["']/g)) {
-    targets.add(match[1]);
-  }
-  return [...targets];
+function ok(msg) {
+  console.log(`  OK:    ${msg}`);
 }
 
 function targetExists(rel) {
@@ -48,7 +48,7 @@ function targetExists(rel) {
 // Main
 // ---------------------------------------------------------------------------
 
-console.log('\n--- redirect targets (worker.ts) ---');
+console.log('\n--- redirect targets (redirects.js) ---');
 
 if (!fs.existsSync(BUILD_DIR)) {
   console.error(`Build directory not found: ${BUILD_DIR}`);
@@ -56,29 +56,57 @@ if (!fs.existsSync(BUILD_DIR)) {
   process.exit(1);
 }
 
-if (!fs.existsSync(WORKER_PATH)) {
-  console.error(`Worker file not found: ${WORKER_PATH}`);
-  process.exit(1);
+ok(`${redirects.length} redirects loaded from redirects.js`);
+
+// Check for duplicate `from` entries
+const fromCounts = {};
+for (const r of redirects) {
+  fromCounts[r.from] = (fromCounts[r.from] || 0) + 1;
+}
+const dupFroms = Object.entries(fromCounts).filter(([, c]) => c > 1);
+if (dupFroms.length > 0) {
+  for (const [from, count] of dupFroms) {
+    error(`duplicate "from" path: ${from} (appears ${count} times)`);
+  }
+} else {
+  ok('no duplicate "from" paths');
 }
 
-const targets = extractRedirectTargets();
-
-for (const target of targets.sort()) {
-  if (!target.startsWith('/docs/')) continue;
-
-  const rel = target.replace(/^\/docs\//, '').replace(/\/$/, '');
-  if (!targetExists(rel)) {
-    error(`redirect target ${target} has no HTML page (checked ${rel}.html and ${rel}/index.html)`);
+// Check for redirect chains (to → from)
+const fromSet = new Set(redirects.map((r) => r.from));
+for (const r of redirects) {
+  if (fromSet.has(r.to)) {
+    warn(`redirect chain: ${r.from} → ${r.to} → ... (target is itself a redirect source)`);
   }
 }
 
-if (errors === 0) {
-  ok(`all ${targets.length} redirect targets resolve to existing pages`);
-} else {
-  console.error(`\n  ${errors} redirect target(s) are broken`);
+// Verify each target resolves to an existing page
+let checked = 0;
+let skipped = 0;
+
+for (const r of redirects) {
+  if (!r.to.startsWith('/docs/')) {
+    skipped++;
+    continue;
+  }
+
+  checked++;
+  const rel = r.to.replace(/^\/docs\//, '').replace(/\/$/, '');
+  if (!targetExists(rel)) {
+    error(`redirect target ${r.to} has no HTML page (from: ${r.from}, checked ${rel}.html and ${rel}/index.html)`);
+  }
 }
 
-console.log(`\n=== Redirects: ${errors} errors ===`);
+if (skipped > 0) {
+  ok(`skipped ${skipped} non-/docs/ targets`);
+}
+
+if (errors === 0) {
+  ok(`all ${checked} checked redirect targets resolve to existing pages`);
+}
+
+// Summary
+console.log(`\n=== Redirects: ${errors} errors, ${warnings} warnings ===`);
 if (errors > 0) {
   process.exit(1);
 }
