@@ -1161,6 +1161,61 @@ def test_iceberg_adapter_partitioning(
     ),
     ids=lambda x: x.name,
 )
+def test_iceberg_table_properties(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Config-level defaults, adapter-only, and merge (adapter wins) in one pipeline run."""
+    from dlt.common.libs.pyiceberg import get_iceberg_tables
+    from dlt.destinations.adapters import iceberg_adapter
+
+    # config sets defaults for all tables
+    os.environ["DESTINATION__FILESYSTEM__ICEBERG_TABLE_PROPERTIES"] = (
+        '{"write.format.default": "avro", "write.target-file-size-bytes": "536870912"}'
+    )
+
+    try:
+        pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+        @dlt.resource(table_format="iceberg")
+        def config_only():
+            yield [{"id": 1, "value": "a"}]
+
+        @dlt.resource(table_format="iceberg")
+        def adapter_override():
+            yield [{"id": 1, "value": "b"}]
+
+        info = pipeline.run(
+            [
+                config_only,
+                iceberg_adapter(
+                    adapter_override,
+                    table_properties={"write.format.default": "parquet"},
+                ),
+            ]
+        )
+        assert_load_info(info)
+
+        tables = get_iceberg_tables(pipeline, "config_only", "adapter_override")
+
+        # config-only: both config properties applied
+        assert tables["config_only"].properties["write.format.default"] == "avro"
+        assert tables["config_only"].properties["write.target-file-size-bytes"] == "536870912"
+
+        # adapter override: adapter wins on conflict, config default kept
+        assert tables["adapter_override"].properties["write.format.default"] == "parquet"
+        assert tables["adapter_override"].properties["write.target-file-size-bytes"] == "536870912"
+    finally:
+        del os.environ["DESTINATION__FILESYSTEM__ICEBERG_TABLE_PROPERTIES"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
 def test_iceberg_adapter_data_verification(
     destination_config: DestinationTestConfiguration,
 ) -> None:

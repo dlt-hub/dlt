@@ -3,6 +3,8 @@ import dataclasses
 import os
 from typing import Final, Optional, Type
 
+from dlt.common.typing import DictStrAny, DictStrOptionalStr
+
 from dlt.common import logger
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.configuration.specs.hf_credentials import HfCredentials
@@ -27,6 +29,14 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
     always_refresh_views: bool = False
     """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
+    deltalake_storage_options: Optional[DictStrAny] = None
+    """Additional storage options passed to `deltalake` library, overriding credentials-derived values."""
+    deltalake_configuration: Optional[DictStrOptionalStr] = None
+    """Delta table configuration passed to `write_deltalake` and `create_deltalake` calls."""
+    deltalake_streamed_exec: bool = True
+    """When true, delta merge operations use streamed execution to reduce memory usage."""
+    iceberg_table_properties: Optional[Dict[str, str]] = None
+    """Default Iceberg table properties applied to all tables; per-table adapter properties take precedence."""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:

@@ -269,10 +269,21 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 schema=self.arrow_dataset.schema,
             )
         except DestinationUndefinedEntity:
+            from dlt.destinations.impl.filesystem.iceberg_adapter import TABLE_PROPERTIES_HINT
+
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
 
             spec_list = self._get_partition_spec_list()
+            # merge config-level defaults with per-table adapter overrides
+            config_properties = self._job_client.config.iceberg_table_properties
+            adapter_properties: Optional[Dict[str, str]] = self._load_table.get(
+                TABLE_PROPERTIES_HINT
+            )  # type: ignore[assignment]
+            if config_properties or adapter_properties:
+                properties = {**(config_properties or {}), **(adapter_properties or {})}
+            else:
+                properties = None
 
             if spec_list:
                 partition_spec, iceberg_schema = build_iceberg_partition_spec(
@@ -284,6 +295,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table_location=location,
                     schema=iceberg_schema,
                     partition_spec=partition_spec,
+                    properties=properties,
                 )
             else:
                 create_table(
@@ -291,6 +303,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table_id,
                     table_location=location,
                     schema=self.arrow_dataset.schema,
+                    properties=properties,
                 )
             # run again with created table
             self.run()
