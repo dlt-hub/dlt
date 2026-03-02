@@ -11,7 +11,7 @@ from dlt.common.libs.utils import load_open_tables
 from dlt.common.schema.typing import TWriteDisposition, TTableSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
-from dlt.common.storages import FilesystemConfiguration
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 
@@ -172,7 +172,7 @@ def get_delta_tables(
     )
 
 
-def deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:
+def deltalake_storage_options(config: FilesystemDestinationClientConfiguration) -> Dict[str, str]:
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
     creds = {}
     extra_options = {}
