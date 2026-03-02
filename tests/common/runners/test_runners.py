@@ -149,10 +149,13 @@ def default_args() -> Iterator[None]:
     signals._received_signal = 0
     global _counter
     _counter = 0
+    saved = Container._INSTANCE
+    Container._INSTANCE = None
     try:
         yield
     finally:
         signals._received_signal = 0
+        Container._INSTANCE = saved
 
 
 # test runner functions
