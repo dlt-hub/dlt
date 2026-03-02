@@ -1,7 +1,7 @@
 import dataclasses
 
 import os
-from typing import Final, Optional, Type
+from typing import Dict, Final, Optional, Type
 
 from dlt.common.typing import DictStrAny, DictStrOptionalStr
 
