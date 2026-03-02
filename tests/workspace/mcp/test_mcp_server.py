@@ -72,8 +72,9 @@ def test_workspace_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
     tools = asyncio.run(mcp.list_tools())
 
     tool_names_actual = [tool.name for tool in tools]
-    # workspace tools: list_pipelines, get_workspace_info
+    # workspace tools: list_pipelines, list_profiles, get_workspace_info
     assert "list_pipelines" in tool_names_actual
+    assert "list_profiles" in tool_names_actual
     assert "get_workspace_info" in tool_names_actual
     # toolkit tools: list_toolkits, toolkit_info
     assert "list_toolkits" in tool_names_actual
@@ -99,6 +100,7 @@ def test_workspace_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
     # tools that should NOT expose pipeline_name
     no_pipeline_name = {
         "list_pipelines",
+        "list_profiles",
         "get_workspace_info",
         "list_toolkits",
         "toolkit_info",
@@ -140,8 +142,9 @@ def test_plug_mcp_workspace_returns_workspace_tools() -> None:
     assert result is not None
     assert result.name == "workspace"
     assert data_tools.list_pipelines in result.tools
+    assert data_tools.list_profiles in result.tools
     assert data_tools.get_workspace_info in result.tools
-    assert len(result.tools) == 2
+    assert len(result.tools) == 3
 
 
 def test_register_tool_and_prompt_objects(pokemon_pipeline_context: RunContextBase) -> None:

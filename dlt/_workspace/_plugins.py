@@ -63,7 +63,8 @@ def plug_mcp_pipeline(features: Set[str]) -> Optional[McpFeatures]:
     from dlt._workspace.mcp.tools import data_tools
     from dlt._workspace.mcp import prompts
 
-    tools_list = [t for t in data_tools.__tools__ if t is not data_tools.list_pipelines]
+    _workspace_only = {data_tools.list_pipelines, data_tools.list_profiles}
+    tools_list = [t for t in data_tools.__tools__ if t not in _workspace_only]
 
     return McpFeatures(
         name="pipeline",
