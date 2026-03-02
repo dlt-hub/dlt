@@ -44,7 +44,7 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
 
 @configspec
 class HfFilesystemDestinationClientConfiguration(FilesystemDestinationClientConfiguration):
-    credentials: HfCredentials
+    credentials: HfCredentials = None
     hf_dataset_card: bool = True
     """Create and update dataset card (README.md) with subset metadata for the Hugging Face dataset viewer."""
 
