@@ -1216,6 +1216,43 @@ def test_iceberg_table_properties(
     ),
     ids=lambda x: x.name,
 )
+def test_iceberg_namespace_properties(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Namespace properties from config are applied when creating the Iceberg namespace."""
+    os.environ["DESTINATION__FILESYSTEM__ICEBERG_NAMESPACE_PROPERTIES"] = (
+        '{"owner": "data-team", "description": "test namespace"}'
+    )
+
+    try:
+        pipeline = destination_config.setup_pipeline("fs_pipe_ns", dev_mode=True)
+
+        @dlt.resource(table_format="iceberg")
+        def ns_data():
+            yield [{"id": 1, "value": "a"}]
+
+        info = pipeline.run(ns_data)
+        assert_load_info(info)
+
+        from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+
+        client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
+        catalog = client.get_open_table_catalog("iceberg")
+        ns_props = catalog.load_namespace_properties(client.dataset_name)
+        assert ns_props["owner"] == "data-team"
+        assert ns_props["description"] == "test namespace"
+    finally:
+        del os.environ["DESTINATION__FILESYSTEM__ICEBERG_NAMESPACE_PROPERTIES"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
 def test_iceberg_adapter_data_verification(
     destination_config: DestinationTestConfiguration,
 ) -> None:

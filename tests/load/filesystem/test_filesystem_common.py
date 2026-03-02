@@ -238,6 +238,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         },
         deltalake_streamed_exec=False,
         iceberg_table_properties={"write.format.default": "parquet"},
+        iceberg_namespace_properties={"owner": "data-team"},
     )
     config_dict = dict(config)
     assert config_dict["deltalake_storage_options"] == {"AWS_S3_LOCKING_PROVIDER": "dynamodb"}
@@ -247,6 +248,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
     }
     assert config_dict["deltalake_streamed_exec"] is False
     assert config_dict["iceberg_table_properties"] == {"write.format.default": "parquet"}
+    assert config_dict["iceberg_namespace_properties"] == {"owner": "data-team"}
 
 
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")

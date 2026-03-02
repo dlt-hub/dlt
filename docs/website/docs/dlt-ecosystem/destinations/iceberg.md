@@ -304,6 +304,19 @@ When both destination-level and per-table properties are set, they are merged. P
 Table properties are only applied at table creation time. If the table already exists, the properties are ignored.
 :::
 
+## Namespace properties
+
+You can set properties on the Iceberg namespace (schema) via configuration. These are passed to the catalog when the namespace is first created.
+
+```toml
+[destination.filesystem]
+iceberg_namespace_properties = '{"owner": "data-team", "description": "Production tables"}'
+```
+
+:::note
+Namespace properties are only applied at namespace creation time. If the namespace already exists, the properties are ignored.
+:::
+
 ## Table access helper functions
 You can use the `get_iceberg_tables` helper function to access native table objects. These are `pyiceberg` [Table](https://py.iceberg.apache.org/reference/pyiceberg/table/#pyiceberg.table.Table) objects.
 

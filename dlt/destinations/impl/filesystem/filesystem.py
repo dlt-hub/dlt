@@ -1320,7 +1320,10 @@ class FilesystemClient(
 
         # Create namespace
         try:
-            catalog.create_namespace(self.dataset_name)
+            catalog.create_namespace(
+                self.dataset_name,
+                properties=self.config.iceberg_namespace_properties or {},
+            )
             logger.info(f"Created Iceberg namespace: {self.dataset_name}")
         except NamespaceAlreadyExistsError as e:
             logger.debug(f"Namespace {self.dataset_name} already exists or error: {e}")

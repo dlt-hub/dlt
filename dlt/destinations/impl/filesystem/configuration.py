@@ -37,6 +37,8 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     """When true, delta merge operations use streamed execution to reduce memory usage."""
     iceberg_table_properties: Optional[Dict[str, str]] = None
     """Default Iceberg table properties applied to all tables; per-table adapter properties take precedence."""
+    iceberg_namespace_properties: Optional[Dict[str, str]] = None
+    """Properties passed to the Iceberg catalog when creating the namespace."""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
