@@ -68,12 +68,6 @@ const REDIRECTS = [
         to: "/docs/general-usage/dataset-access/"
     },
 
-    // dlt+ redirect
-    {
-        from: "/docs/hub",
-        to: "/docs/hub/intro"
-    },
-
     // top-404 redirects
     {
         from: "/docs/dlt-ecosystem/llm-tooling/cursor-restapi",
