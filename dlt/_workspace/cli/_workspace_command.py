@@ -46,10 +46,10 @@ def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -
         fmt.echo("  Locally loaded data: %s" % fmt.bold(profile["local_dir"]))
         if profile["is_pinned"]:
             fmt.echo("  Profile is %s" % fmt.bold("pinned"))
-        if profile["configured_profiles"]:
+        if info["configured_profiles"]:
             fmt.echo(
                 "Profiles with configs or pipelines: %s"
-                % fmt.bold(", ".join(profile["configured_profiles"]))
+                % fmt.bold(", ".join(info["configured_profiles"]))
             )
 
     fmt.echo()

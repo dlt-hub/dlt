@@ -11,7 +11,7 @@ from dlt.common.schema.exceptions import IncompatibleSchemaException
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import Annotated
 from dlt._workspace.cli import formatters
-from dlt._workspace.cli.utils import fetch_workspace_info
+from dlt._workspace.cli.utils import fetch_profiles_list, fetch_workspace_info
 from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 
 TResultFormat = Literal["markdown", "jsonl"]
@@ -67,6 +67,12 @@ def get_workspace_info() -> Dict[str, Any]:
     for entry in info.get("installed_toolkits", {}).values():
         entry.pop("files", None)
     return info
+
+
+@with_mcp_tool_telemetry()
+def list_profiles() -> List[Dict[str, Any]]:
+    """List all available workspace profiles with status flags (current, pinned, configured)."""
+    return fetch_profiles_list()  # type: ignore[return-value]
 
 
 @with_mcp_tool_telemetry()
@@ -316,6 +322,7 @@ def pipeline_trace(
 
 __tools__ = (
     list_pipelines,
+    list_profiles,
     list_tables,
     get_table_schema,
     get_table_create_sql,

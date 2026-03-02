@@ -30,9 +30,11 @@ from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
+from dlt._workspace.profile import BUILT_IN_PROFILES, read_profile_pin
 from dlt._workspace.typing import (
     ProviderInfo,
     ProviderLocationInfo,
+    TCurrentProfileInfo,
     TLocationInfo,
     TLocationScope,
     TProfileInfo,
@@ -411,6 +413,31 @@ def get_provider_locations() -> List[ProviderInfo]:
     return result
 
 
+def fetch_profiles_list() -> List[TProfileInfo]:
+    """Return all available profiles with their status flags.
+
+    Works with ProfilesRunContext (workspace). Returns an empty list for OSS RunContext.
+    """
+    ctx = Container()[PluggableRunContext].context
+    if not isinstance(ctx, ProfilesRunContext):
+        return []
+
+    pinned = read_profile_pin(ctx)
+    current = ctx.profile
+    configured = set(ctx.configured_profiles())
+
+    return [
+        TProfileInfo(
+            name=name,
+            description=BUILT_IN_PROFILES.get(name, "custom profile"),
+            is_current=name == current,
+            is_pinned=name == pinned,
+            is_configured=name in configured,
+        )
+        for name in ctx.available_profiles()
+    ]
+
+
 def fetch_workspace_info() -> TWorkspaceInfo:
     """Return workspace information as a structured dict.
 
@@ -422,16 +449,18 @@ def fetch_workspace_info() -> TWorkspaceInfo:
     ctx = Container()[PluggableRunContext].context
 
     # profile info — only when profiles are available
-    profile_info: Optional[TProfileInfo] = None
+    profile_info: Optional[TCurrentProfileInfo] = None
+    configured_profiles: List[str] = []
     if isinstance(ctx, ProfilesRunContext):
-        from dlt._workspace.profile import read_profile_pin
-
-        profile_info = TProfileInfo(
+        configured_profiles = ctx.configured_profiles()
+        profile_info = TCurrentProfileInfo(
             name=ctx.profile,
+            description="",
+            is_current=True,
             is_pinned=ctx.profile == read_profile_pin(ctx),
+            is_configured=ctx.profile in configured_profiles,
             data_dir=ctx.data_dir,
             local_dir=ctx.local_dir,
-            configured_profiles=ctx.configured_profiles(),
         )
 
     # workspace name — only meaningful for WorkspaceRunContext
@@ -474,6 +503,7 @@ def fetch_workspace_info() -> TWorkspaceInfo:
         settings_dir=ctx.settings_dir,
         global_dir=ctx.global_dir,
         profile=profile_info,
+        configured_profiles=configured_profiles,
         providers=providers,
         dlt_version=dlt.__version__,
         dlthub_version=dlthub_version,

@@ -11,6 +11,7 @@ from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt._workspace.cli.utils import list_local_pipelines
 from dlt._workspace.mcp.tools.data_tools import (
     list_pipelines,
+    list_profiles,
     list_tables,
     get_table_schema,
     get_table_create_sql,
@@ -25,6 +26,23 @@ from tests.workspace.utils import (
     isolated_workspace,
     pokemon_pipeline_context as pokemon_pipeline_context,
 )
+
+
+def test_list_profiles(pokemon_pipeline_context: RunContextBase) -> None:
+    profiles = list_profiles()
+    by_name = {p["name"]: p for p in profiles}
+    # workspace context has profiles
+    assert "dev" in by_name or "tests" in by_name
+    # exactly one is current
+    current = [p for p in profiles if p["is_current"]]
+    assert len(current) == 1
+    # all have required keys
+    for p in profiles:
+        assert "name" in p
+        assert "description" in p
+        assert "is_current" in p
+        assert "is_pinned" in p
+        assert "is_configured" in p
 
 
 def test_list_pipelines(pokemon_pipeline_context: RunContextBase) -> None:

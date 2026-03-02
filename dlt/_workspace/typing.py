@@ -26,13 +26,20 @@ class TProviderInfo(TypedDict):
 
 
 class TProfileInfo(TypedDict):
-    """Active workspace profile with its directories and settings."""
+    """A single profile with its status flags."""
 
     name: str
+    description: str
+    is_current: bool
     is_pinned: bool
+    is_configured: bool
+
+
+class TCurrentProfileInfo(TProfileInfo):
+    """The active profile, extending base with session directories."""
+
     data_dir: str
     local_dir: str
-    configured_profiles: List[str]
 
 
 class TWorkbenchComponentInfo(TypedDict):
@@ -86,7 +93,8 @@ class TWorkspaceInfo(TypedDict):
     run_dir: str
     settings_dir: str
     global_dir: str
-    profile: Optional[TProfileInfo]
+    profile: Optional[TCurrentProfileInfo]
+    configured_profiles: List[str]
     providers: List[TProviderInfo]
     dlt_version: str
     dlthub_version: Optional[str]
