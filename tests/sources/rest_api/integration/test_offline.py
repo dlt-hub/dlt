@@ -2037,3 +2037,43 @@ def test_dependent_resource_parallelized_with_incremental(mock_api_server):
         f"SELECT MIN(id) FROM {post_comments_table}",
         [45],
     )
+
+
+def test_dependent_resource_header_link_pagination(mock_api_server):
+    """Test that paginator state does not leak between parent items
+    when using reference-based paginators like HeaderLinkPaginator."""
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        dev_mode=True,
+    )
+
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "posts_header_link",
+                        "paginator": "header_link",
+                    },
+                },
+                {
+                    "name": "post_comments",
+                    "endpoint": {
+                        "path": "posts/{resources.posts.id}/comments_header_link",
+                        "paginator": "header_link",
+                    },
+                },
+            ],
+        }
+    )
+
+    load_info = pipeline.run(mock_source)
+    assert_load_info(load_info)
+    table_counts = load_table_counts(pipeline)
+    total_posts = DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["posts"] == total_posts
+    assert table_counts["post_comments"] == total_posts * DEFAULT_COMMENTS_COUNT

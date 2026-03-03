@@ -111,6 +111,21 @@ def mock_api_server():
 
             return response
 
+        @router.get(r"/posts/(\d+)/comments_header_link(\?page=\d+)?$")
+        def post_comments_header_link(request, context):
+            post_id = int(request.url.split("/posts/")[1].split("/")[0])
+            records = generate_comments(post_id)
+            page_number = get_page_number(request.qs)
+            paginator = PageNumberPaginator(records, page_number)
+
+            response = paginator.page_records
+
+            if paginator.next_page_url_params:
+                next_page_url = create_next_page_url(request, paginator)
+                context.headers["Link"] = f'<{next_page_url}>; rel="next"'
+
+            return response
+
         @router.get(r"/posts_header_cursor(\?page=\d+)?$")
         def posts_header_cursor(request, context):
             records = generate_posts()

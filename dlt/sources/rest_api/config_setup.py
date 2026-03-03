@@ -1062,6 +1062,7 @@ def paginate_dependent_resource(
             incremental_value_convert=incremental_cursor_transform,
         )
 
+        item_paginator = copy(paginator) if paginator else None
         for child_page in client.paginate(
             method=method,
             path=processed_data.path,
@@ -1069,7 +1070,7 @@ def paginate_dependent_resource(
             params=processed_data.params,
             json=processed_data.json,
             data=processed_data.data,
-            paginator=paginator,
+            paginator=item_paginator,
             data_selector=data_selector,
             hooks=hooks,
         ):

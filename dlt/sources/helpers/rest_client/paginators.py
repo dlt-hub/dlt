@@ -614,6 +614,10 @@ class BaseReferencePaginator(BasePaginator):
         super().__init__()
         self.__next_reference: Optional[str] = None
 
+    def init_request(self, request: Request) -> None:
+        self._next_reference = None
+        self._has_next_page = True
+
     @property
     def _next_reference(self) -> Optional[str]:
         """The reference to the next page, such as a URL or a cursor.

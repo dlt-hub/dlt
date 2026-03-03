@@ -39,6 +39,17 @@ class TestHeaderLinkPaginator:
         paginator.update_state(response)
         assert paginator.has_next_page is False
 
+    def test_init_request_resets_state(self):
+        paginator = HeaderLinkPaginator()
+        response = Mock(Response)
+        response.links = {}
+        paginator.update_state(response)
+        assert paginator.has_next_page is False
+
+        paginator.init_request(Mock(Request))
+        assert paginator.has_next_page is True
+        assert paginator._next_reference is None
+
     def test_client_pagination(self, rest_client):
         pages_iter = rest_client.paginate(
             "/posts_header_link",
@@ -920,6 +931,16 @@ class TestJSONResponseCursorPaginator:
         paginator.update_state(response)
         assert paginator._next_reference == "cursor-2"
         assert paginator.has_next_page is True
+
+    def test_init_request_resets_state(self):
+        paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
+        response = Mock(Response, json=lambda: {"next_cursor": None, "results": []})
+        paginator.update_state(response)
+        assert paginator.has_next_page is False
+
+        paginator.init_request(Mock(Request))
+        assert paginator.has_next_page is True
+        assert paginator._next_reference is None
 
     def test_cursor_param_initialization(self):
         # Test that cursor_param defaults to 'cursor' when both cursor_param and cursor_body_path are None
