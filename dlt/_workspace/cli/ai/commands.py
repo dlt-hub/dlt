@@ -1,4 +1,3 @@
-import os
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -7,24 +6,19 @@ import tomlkit.exceptions
 import yaml
 
 from dlt.common.runtime import run_context
-from dlt.version import __version__ as dlt_version
-
 from dlt._workspace.cli import echo as fmt, utils
-from dlt._workspace.cli.utils import make_dlt_settings_path
+from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES
 from dlt._workspace.cli.formatters import parse_frontmatter
-from dlt._workspace.cli._scaffold_api_client import get_scaffold_files_storage
 from dlt._workspace.cli.exceptions import (
     CliCommandException,
-    ScaffoldApiError,
-    ScaffoldSourceNotFound,
 )
 from dlt._workspace.cli.ai.agents import AI_AGENTS, TComponentType, _AIAgent, InstallAction
-from dlt._workspace.typing import TToolkitInfo
+from dlt._workspace.typing import TAiStatusInfo, TToolkitInfo
 from dlt._workspace.cli.ai.utils import (
     build_toolkits_dependency_map,
     compute_file_hash,
-    copy_repo_files,
     extract_toolkit_info,
+    fetch_ai_status,
     fetch_secrets_list,
     fetch_secrets_update_fragment,
     fetch_secrets_view_redacted,
@@ -35,39 +29,11 @@ from dlt._workspace.cli.ai.utils import (
     read_workbench_toolkit_mcp_servers,
     read_workbench_toolkit_combined_info,
     resolve_toolkit_dependencies,
+    safe_write_text,
     save_toolkit_entry,
     scan_workbench_toolkits,
+    _INIT_TOOLKIT,
 )
-
-_INIT_TOOLKIT = "init"
-
-
-def ai_context_source_setup(
-    source: str,
-) -> None:
-    """Copies files from context API into the current working folder"""
-
-    fmt.echo("Looking up in dltHub for rules, docs and snippets for %s..." % fmt.bold(source))
-    try:
-        src_storage = get_scaffold_files_storage(source)
-    except ScaffoldSourceNotFound:
-        fmt.warning("We have nothing for %s at dltHub yet." % fmt.bold(source))
-        return
-    except ScaffoldApiError as e:
-        fmt.warning("There was an error connecting to the scaffold-api: %s" % str(e))
-        return
-    src_dir = Path(src_storage.storage_path)
-
-    dest_dir = Path(run_context.active().run_dir)
-    copied_files, count_files = copy_repo_files(src_dir, dest_dir)
-    if count_files == 0:
-        fmt.warning("We have nothing for %s at dltHub yet." % fmt.bold(source))
-    else:
-        fmt.echo(
-            "%s file(s) supporting %s were copied:" % (fmt.bold(str(count_files)), fmt.bold(source))
-        )
-        for file in copied_files:
-            fmt.echo(fmt.bold(file))
 
 
 @utils.track_command("ai", False, operation="secrets_list")
@@ -126,10 +92,14 @@ def ai_mcp_run_command(
         transport = "sse"
     else:
         transport = "streamable-http"
-    if transport != "stdio":
-        fmt.echo("Starting dlt MCP server", err=True)
-    extra_features = set(features) if features else set()
-    mcp_server = WorkspaceMCP("dlt", port=port, extra_features=extra_features)
+    from dlt._workspace.mcp.server import resolve_features
+
+    resolved = resolve_features(features)
+    fmt.echo(
+        "Starting dlt MCP server with features: %s" % ", ".join(sorted(resolved)),
+        err=True,
+    )
+    mcp_server = WorkspaceMCP("dlt", port=port, features=resolved)
     mcp_server.run(transport=transport)
 
 
@@ -143,12 +113,15 @@ def ai_mcp_install_command(
     """Install dlt MCP server config into the agent's config file."""
     from dlt.common.runtime.run_context import active as active_run_context
 
+    from dlt._workspace.mcp.server import resolve_features
+
     project_root = Path(active_run_context().run_dir)
     variant = _resolve_agent(agent, project_root)
 
+    resolved = resolve_features(features)
     args = ["uv", "run", "dlt", "ai", "mcp", "run", "--stdio"]
-    if features:
-        args.extend(["--features"] + features)
+    if resolved != DEFAULT_MCP_FEATURES:
+        args.extend(["--features"] + sorted(resolved))
 
     server_config: Dict[str, Any] = {"command": args[0], "args": args[1:], "type": "stdio"}
     new_servers = {name: server_config}
@@ -221,16 +194,9 @@ def _plan_toolkit_install(
                 for err in errors:
                     warnings.append("Skipping skill %s: %s" % (skill_path.name, err))
                 continue
-            _, _, out_name = agent.transform("skill", "", skill_path.name, toolkit_name)
-            dest = agent.component_dir("skill", project_root) / out_name
-            actions.append(
-                InstallAction(
-                    kind="skill",
-                    source_name=skill_path.name,
-                    dest_path=dest,
-                    op="copytree",
-                    content_or_path=skill_path,
-                    conflict=not overwrite and dest.exists(),
+            actions.extend(
+                agent.install_actions(
+                    "skill", skill_path, skill_path.name, toolkit_name, project_root, overwrite
                 )
             )
 
@@ -238,18 +204,9 @@ def _plan_toolkit_install(
     ignore_file = toolkit_dir / ".claudeignore"
     if ignore_file.is_file():
         raw_content = ignore_file.read_text(encoding="utf-8")
-        _, out_content, out_filename = agent.transform(
-            "ignore", raw_content, ".claudeignore", toolkit_name
-        )
-        dest = agent.component_dir("ignore", project_root) / out_filename
-        actions.append(
-            InstallAction(
-                kind="ignore",
-                source_name=".claudeignore",
-                dest_path=dest,
-                op="save",
-                content_or_path=out_content,
-                conflict=not overwrite and dest.exists(),
+        actions.extend(
+            agent.install_actions(
+                "ignore", raw_content, ".claudeignore", toolkit_name, project_root, overwrite
             )
         )
 
@@ -266,20 +223,9 @@ def _plan_toolkit_install(
                 continue
             source_name = md_file.stem
             raw_content = md_file.read_text(encoding="utf-8")
-            out_type, out_content, out_filename = agent.transform(
-                component_type, raw_content, source_name, toolkit_name
-            )
-            dest = agent.component_dir(out_type, project_root) / out_filename
-            if out_type == "skill":
-                dest = dest / "SKILL.md"
-            actions.append(
-                InstallAction(
-                    kind=out_type,
-                    source_name=source_name,
-                    dest_path=dest,
-                    op="save",
-                    content_or_path=out_content,
-                    conflict=not overwrite and dest.exists(),
+            actions.extend(
+                agent.install_actions(
+                    component_type, raw_content, source_name, toolkit_name, project_root, overwrite
                 )
             )
 
@@ -313,6 +259,7 @@ def _plan_toolkit_install(
                 )
             )
 
+    actions = agent.finalize_actions(actions, project_root)
     return actions, warnings
 
 
@@ -338,12 +285,13 @@ def _execute_install(
                 dirs_exist_ok=overwrite,
             )
         else:
-            action.dest_path.write_text(
-                action.content_or_path, encoding="utf-8"  # type: ignore[arg-type]
-            )
+            safe_write_text(action.dest_path, action.content_or_path)  # type: ignore[arg-type]
         if action.kind == "mcp":
             # source_name is ", ".join(sorted(new_servers))
             mcp_server_names.extend(s.strip() for s in action.source_name.split(",") if s.strip())
+        elif action.skip_index:
+            # shared merge targets (e.g. AGENTS.md) — don't track per-toolkit
+            pass
         else:
             written_paths.append((action.dest_path, action.op))
         installed += 1
@@ -436,7 +384,10 @@ def _report_and_execute(
         agent_name=agent_name,
         project_root=project_root,
     )
-    fmt.echo("%s item(s) installed." % fmt.bold(str(installed)))
+    fmt.echo(
+        "%s item(s) installed. Please restart your %s session for changes to take effect"
+        % (fmt.bold(str(installed)), fmt.bold(str(agent_name)))
+    )
     workflow_entry_skill = toolkit_meta.get("workflow_entry_skill") if toolkit_meta else None
     if installed > 0 and workflow_entry_skill:
         fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
@@ -521,36 +472,27 @@ def _install_dependencies(
         _install_toolkit(dep, base, agent, project_root)
 
 
-@utils.track_command("ai", False, operation="status")
-def ai_status_command() -> None:
-    """Show current AI setup status: dlt version, agent, toolkits, and readiness checks."""
-    fmt.echo("dlt %s" % fmt.bold(dlt_version))
+_WARNING_MESSAGES = {
+    "not_initialized": "Workspace not yet initialized (dlt init not yet run)",
+    "no_init_toolkit": "MCP server and workflow rules not available (dlt ai init not yet run)",
+    "no_toolkits": "No toolkit with workflow is installed!",
+    "mcp_unavailable": "MCP server cannot be started due to:",
+}
 
-    # detect agent
-    project_root = Path(run_context.active().run_dir)
-    index = load_toolkits_index()
-    init_entry = index.get(_INIT_TOOLKIT)
-    agent_name: Optional[str] = None
-    if isinstance(init_entry, dict):
-        agent_name = init_entry.get("agent")
-    if not agent_name:
-        detected = _AIAgent.detect_all(project_root)
-        if detected:
-            agent_name = detected[0][0].name
-    if agent_name:
-        fmt.echo("Agent: %s" % fmt.bold(agent_name))
 
-    # initialized?
-    if not os.path.isfile(make_dlt_settings_path("config.toml")):
-        fmt.warning("Workspace not yet initialized (dlt init not yet run)")
+def _print_ai_status(status: TAiStatusInfo) -> None:
+    """Render AI status info to the CLI."""
+    fmt.echo("dlt %s" % fmt.bold(status["dlt_version"]))
+    if status["agent_name"]:
+        fmt.echo("Agent: %s" % fmt.bold(status["agent_name"]))
 
-    # init toolkit installed?
-    has_init = _INIT_TOOLKIT in index
-    if not has_init:
-        fmt.warning("MCP server and workflow rules not available (dlt ai init not yet run)")
+    for code in status["warnings"]:
+        msg = _WARNING_MESSAGES.get(code, code)
+        fmt.warning(msg)
+        if code == "mcp_unavailable" and "mcp_error" in status:
+            fmt.echo("  %s" % status["mcp_error"])
 
-    # installed toolkits (excluding init)
-    toolkits = {k: v for k, v in index.items() if k != _INIT_TOOLKIT}
+    toolkits = status["toolkits"]
     if toolkits:
         fmt.echo("\nInstalled toolkits:")
         for name, entry in sorted(toolkits.items()):
@@ -559,17 +501,13 @@ def ai_status_command() -> None:
                 fmt.echo("  %s — start with %s skill" % (fmt.bold(name), fmt.bold(skill)))
             else:
                 fmt.echo("  %s" % fmt.bold(name))
-    else:
-        fmt.warning("No toolkit with workflow is installed!")
 
-    # check if MCP dependencies are available
-    try:
-        from dlt._workspace.mcp import WorkspaceMCP  # noqa: F401
 
-        WorkspaceMCP("dlt")
-    except Exception as ex:
-        fmt.warning("MCP server cannot be started due to:")
-        fmt.echo("  %s" % str(ex))
+@utils.track_command("ai", False, operation="status")
+def ai_status_command() -> None:
+    """Show current AI setup status: dlt version, agent, toolkits, and readiness checks."""
+    project_root = Path(run_context.active().run_dir)
+    _print_ai_status(fetch_ai_status(project_root))
 
 
 @utils.track_command("ai", False, operation="init")
@@ -577,6 +515,7 @@ def ai_init_command(
     agent: Optional[str],
     location: str,
     branch: Optional[str] = None,
+    overwrite: bool = False,
 ) -> None:
     """Install the init toolkit into the current project."""
     project_root = Path(run_context.active().run_dir)
@@ -588,7 +527,23 @@ def ai_init_command(
     if base is None:
         return
 
-    _install_toolkit(_INIT_TOOLKIT, base, var, project_root)
+    _install_toolkit(_INIT_TOOLKIT, base, var, project_root, overwrite=overwrite)
+
+    status = fetch_ai_status(project_root)
+    if "mcp_unavailable" in status["warnings"]:
+        fmt.warning("MCP server cannot be started. Run `dlt ai status` for details.")
+    if var.name == "cursor":
+        fmt.warning(
+            "Cursor requires you to manually enable MCP servers per-project."
+            " Open Cursor Settings > MCP and enable the servers installed by dlt."
+        )
+
+    if len(load_toolkits_index()) == 1:
+        fmt.echo()
+        fmt.echo(
+            "Now you can install your first toolkit. Use `dlt ai toolkit list` for more"
+            " information."
+        )
 
 
 @utils.track_command("ai", False, operation="toolkit_install")

@@ -1,11 +1,12 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import pytest
 import yaml
 
 from dlt._workspace.cli.formatters import (
     extract_first_heading,
+    merge_agents_md_skills,
     parse_frontmatter,
     read_md_name_desc,
     render_frontmatter,
@@ -155,3 +156,69 @@ def test_read_md_name_desc_no_heading() -> None:
     name, desc = read_md_name_desc(md)
     assert name == "bare"
     assert desc == ""
+
+
+_HEADING = "# ALWAYS ACTIVATE those skills"
+_SECTION_WITH_A = "%s\n- `skill-a`\n" % _HEADING
+
+
+@pytest.mark.parametrize(
+    ("existing", "skills", "check"),
+    [
+        # creates section from scratch
+        (
+            "",
+            ["skill-a"],
+            lambda r: _HEADING in r and "- `skill-a`" in r,
+        ),
+        # appends to existing section, single heading
+        (
+            _SECTION_WITH_A,
+            ["skill-b"],
+            lambda r: ("- `skill-a`" in r and "- `skill-b`" in r and r.count(_HEADING) == 1),
+        ),
+        # duplicate in existing is skipped (identity)
+        (_SECTION_WITH_A, ["skill-a"], lambda r: r == _SECTION_WITH_A),
+        # mixed new + existing
+        (
+            _SECTION_WITH_A,
+            ["skill-a", "skill-b"],
+            lambda r: r.count("- `skill-a`") == 1 and "- `skill-b`" in r,
+        ),
+        # deduplicates within the input list
+        ("", ["skill-a", "skill-a"], lambda r: r.count("- `skill-a`") == 1),
+        # empty skill list is identity
+        ("some content", [], lambda r: r == "some content"),
+        # backtick mention anywhere counts as present
+        (
+            "Text mentioning `skill-a` inline.\n",
+            ["skill-a"],
+            lambda r: r == "Text mentioning `skill-a` inline.\n",
+        ),
+    ],
+    ids=[
+        "empty-file",
+        "append-to-section",
+        "skip-duplicate",
+        "mixed-new-and-existing",
+        "dedup-input",
+        "no-skills",
+        "backtick-in-body",
+    ],
+)
+def test_merge_agents_md_skills(existing: str, skills: List[str], check: Any) -> None:
+    assert check(merge_agents_md_skills(existing, skills))
+
+
+def test_merge_agents_md_skills_preserves_surrounding_content() -> None:
+    """User content before and after the skills section is kept intact."""
+    existing = (
+        "# My Project\n\nSome user notes.\n\n%s\n- `skill-a`\n\n# Other section\nMore content.\n"
+        % _HEADING
+    )
+    result = merge_agents_md_skills(existing, ["skill-b"])
+    assert "# My Project" in result
+    assert "Some user notes." in result
+    assert "# Other section" in result
+    assert "More content." in result
+    assert "- `skill-b`" in result

@@ -13,6 +13,7 @@ from dlt._workspace.cli.ai.utils import (
     strip_rule_frontmatter,
     wrap_as_skill,
 )
+from dlt._workspace.cli.formatters import merge_agents_md_skills
 
 TComponentType = Literal["skill", "command", "rule", "ignore", "mcp"]
 TInstallOp = Literal["copytree", "save"]
@@ -31,6 +32,8 @@ class InstallAction(NamedTuple):
     op: TInstallOp
     content_or_path: Union[str, Path]
     conflict: bool
+    source_kind: Optional[TComponentType] = None
+    skip_index: bool = False
 
 
 class _AIAgent(ABC):
@@ -58,52 +61,130 @@ class _AIAgent(ABC):
         """Root directory for the given component type.
 
         Raises NotImplementedError for types the agent does not support
-        natively (e.g. codex has no command/rule dirs -- transform converts
-        them to skills first).
+        natively (e.g. codex has no command/rule dirs -- install_actions
+        converts them to skills first).
         """
         if component_type == "ignore":
             return project_root
         if component_type not in self._DIRS:
             raise NotImplementedError(
-                "%s not supported by %s (transform converts to skill)" % (component_type, self.name)
+                "%s not supported by %s (install_actions converts to skill)"
+                % (component_type, self.name)
             )
         return project_root / self._DIRS[component_type]
 
-    def transform(
+    def install_actions(
         self,
         component_type: TComponentType,
-        content: str,
+        content_or_path: Union[str, Path],
         source_name: str,
         toolkit_name: str,
-    ) -> Tuple[TComponentType, str, str]:
-        """Transform content for this agent.
+        project_root: Path,
+        overwrite: bool = False,
+    ) -> List["InstallAction"]:
+        """Build install actions for a single component.
+
+        Handles all component types: skill (copytree), ignore (save), and
+        delegates command/rule to _install_command_or_rule().
 
         Args:
-            component_type: "skill", "command", or "rule"
-            content: raw file content (markdown with possible frontmatter)
-            source_name: original name (stem, e.g. "find-source", "bootstrap")
-            toolkit_name: toolkit identifier (e.g. "rest-api-pipeline")
+            component_type: "skill", "command", "rule", or "ignore"
+            content_or_path: file content (str) or source directory (Path)
+            source_name: original name (stem or dir name)
+            toolkit_name: toolkit identifier
+            project_root: target project root
+            overwrite: if True, ignore existing conflicts
 
         Returns:
-            (output_type, output_content, output_filename)
-            output_type may differ from input (e.g. codex: rule -> skill)
-            output_filename is the destination filename or dir name
+            list of InstallAction to execute
         """
         if component_type == "skill":
-            return ("skill", content, source_name)
+            assert isinstance(content_or_path, Path)
+            dest = self.component_dir("skill", project_root) / source_name
+            return [
+                InstallAction(
+                    kind="skill",
+                    source_name=source_name,
+                    dest_path=dest,
+                    op="copytree",
+                    content_or_path=content_or_path,
+                    conflict=not overwrite and dest.exists(),
+                )
+            ]
         if component_type == "ignore":
-            return ("ignore", content, self.ignore_file_name)
-        return self._transform_command_or_rule(component_type, content, source_name, toolkit_name)
+            assert isinstance(content_or_path, str)
+            dest = self.component_dir("ignore", project_root) / self.ignore_file_name
+            return [
+                InstallAction(
+                    kind="ignore",
+                    source_name=".claudeignore",
+                    dest_path=dest,
+                    op="save",
+                    content_or_path=content_or_path,
+                    conflict=not overwrite and dest.exists(),
+                )
+            ]
+        assert isinstance(content_or_path, str)
+        return self._install_command_or_rule(
+            component_type, content_or_path, source_name, toolkit_name, project_root, overwrite
+        )
 
-    @abstractmethod
-    def _transform_command_or_rule(
+    _RULE_EXT: ClassVar[str] = ".md"
+    """file extension for rule files"""
+
+    def _transform_rule(self, content: str) -> str:
+        """Transform rule content before writing. Override for agent-specific formatting."""
+        return content
+
+    def _install_command_or_rule(
         self,
         component_type: TComponentType,
         content: str,
         source_name: str,
         toolkit_name: str,
-    ) -> Tuple[TComponentType, str, str]:
-        """Agent-specific transform for commands and rules."""
+        project_root: Path,
+        overwrite: bool,
+    ) -> List["InstallAction"]:
+        """Install actions for commands and rules.
+
+        Commands are saved as ``source_name.md`` under the command dir.
+        Rules are transformed via ``_transform_rule`` and saved as
+        ``toolkit_name-source_name{_RULE_EXT}`` under the rule dir.
+        """
+        if component_type == "command":
+            dest = self.component_dir("command", project_root) / (source_name + ".md")
+            return [
+                InstallAction(
+                    kind="command",
+                    source_name=source_name,
+                    dest_path=dest,
+                    op="save",
+                    content_or_path=content,
+                    conflict=not overwrite and dest.exists(),
+                )
+            ]
+        transformed = self._transform_rule(content)
+        out_filename = toolkit_name + "-" + source_name + self._RULE_EXT
+        dest = self.component_dir("rule", project_root) / out_filename
+        return [
+            InstallAction(
+                kind="rule",
+                source_name=source_name,
+                dest_path=dest,
+                op="save",
+                content_or_path=transformed,
+                conflict=not overwrite and dest.exists(),
+            )
+        ]
+
+    def finalize_actions(
+        self, actions: List["InstallAction"], project_root: Path
+    ) -> List["InstallAction"]:
+        """Post-process the full action list. Default is identity.
+
+        Subclasses override to coalesce shared targets (e.g. AGENTS.md).
+        """
+        return actions
 
     @abstractmethod
     def mcp_config_path(self, project_root: Path) -> Path:
@@ -174,17 +255,8 @@ class _ClaudeAgent(_AIAgent):
     def ignore_file_name(self) -> str:
         return ".claudeignore"
 
-    def _transform_command_or_rule(
-        self,
-        component_type: TComponentType,
-        content: str,
-        source_name: str,
-        toolkit_name: str,
-    ) -> Tuple[TComponentType, str, str]:
-        if component_type == "command":
-            return ("command", content, source_name + ".md")
-        transformed = strip_rule_frontmatter(content)
-        return ("rule", transformed, toolkit_name + "-" + source_name + ".md")
+    def _transform_rule(self, content: str) -> str:
+        return strip_rule_frontmatter(content)
 
     def mcp_config_path(self, project_root: Path) -> Path:
         return project_root / ".mcp.json"
@@ -215,21 +287,14 @@ class _CursorAgent(_AIAgent):
 
         return is_cursor()
 
+    _RULE_EXT: ClassVar[str] = ".mdc"
+
     @property
     def ignore_file_name(self) -> str:
         return ".cursorignore"
 
-    def _transform_command_or_rule(
-        self,
-        component_type: TComponentType,
-        content: str,
-        source_name: str,
-        toolkit_name: str,
-    ) -> Tuple[TComponentType, str, str]:
-        if component_type == "command":
-            return ("command", content, source_name + ".md")
-        transformed = ensure_cursor_rule_frontmatter(content)
-        return ("rule", transformed, toolkit_name + "-" + source_name + ".mdc")
+    def _transform_rule(self, content: str) -> str:
+        return ensure_cursor_rule_frontmatter(content)
 
     def mcp_config_path(self, project_root: Path) -> Path:
         return project_root / ".cursor" / "mcp.json"
@@ -262,19 +327,77 @@ class _CodexAgent(_AIAgent):
     def ignore_file_name(self) -> str:
         return ".codexignore"
 
-    def _transform_command_or_rule(
+    def agents_md_path(self, project_root: Path) -> Path:
+        """Path to the AGENTS.md file for skill registration."""
+        return project_root / "AGENTS.md"
+
+    def _install_command_or_rule(
         self,
         component_type: TComponentType,
         content: str,
         source_name: str,
         toolkit_name: str,
-    ) -> Tuple[TComponentType, str, str]:
+        project_root: Path,
+        overwrite: bool,
+    ) -> List["InstallAction"]:
         if component_type == "command":
             wrapped = wrap_as_skill(content, source_name)
-            return ("skill", wrapped, source_name)
-        name = toolkit_name + "-" + source_name
-        wrapped = wrap_as_skill(content, name, always_apply=True)
-        return ("skill", wrapped, name)
+            dest = self.component_dir("skill", project_root) / source_name / "SKILL.md"
+            return [
+                InstallAction(
+                    kind="skill",
+                    source_name=source_name,
+                    dest_path=dest,
+                    op="save",
+                    content_or_path=wrapped,
+                    conflict=not overwrite and dest.exists(),
+                    source_kind="command",
+                )
+            ]
+        # rule → always-apply skill (AGENTS.md is handled by finalize_actions)
+        skill_name = toolkit_name + "-" + source_name
+        wrapped = wrap_as_skill(content, skill_name, always_apply=True)
+        skill_dest = self.component_dir("skill", project_root) / skill_name / "SKILL.md"
+        return [
+            InstallAction(
+                kind="skill",
+                source_name=source_name,
+                dest_path=skill_dest,
+                op="save",
+                content_or_path=wrapped,
+                conflict=not overwrite and skill_dest.exists(),
+                source_kind="rule",
+            )
+        ]
+
+    def finalize_actions(
+        self, actions: List["InstallAction"], project_root: Path
+    ) -> List["InstallAction"]:
+        """Coalesce rule-converted-to-skill actions into a single AGENTS.md merge action."""
+        skill_names: List[str] = []
+        for a in actions:
+            if a.source_kind == "rule" and not a.conflict:
+                skill_names.append(a.dest_path.parent.name)
+
+        if not skill_names:
+            return actions
+
+        agents_md = self.agents_md_path(project_root)
+        existing = agents_md.read_text(encoding="utf-8") if agents_md.is_file() else ""
+        merged = merge_agents_md_skills(existing, skill_names)
+        if merged != existing:
+            actions.append(
+                InstallAction(
+                    kind="rule",
+                    source_name="AGENTS.md",
+                    dest_path=agents_md,
+                    op="save",
+                    content_or_path=merged,
+                    conflict=False,
+                    skip_index=True,
+                )
+            )
+        return actions
 
     def mcp_config_path(self, project_root: Path) -> Path:
         return project_root / ".codex" / "config.toml"

@@ -56,7 +56,7 @@ from tests.workspace.cli.ai.utils import (
         ),
         (
             _CodexAgent,
-            {"skill", "ignore"},
+            {"skill", "ignore", "rule"},
             ".agents/skills/test-toolkit-coding/SKILL.md",
             lambda c: "Coding Style" in c,
             ".codexignore",
@@ -79,7 +79,6 @@ def test_toolkit_install_all_variants(
     variant = variant_cls()
     actions, _warnings = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
 
-    assert len(actions) == 4
     assert {a.kind for a in actions} == expected_kinds
     assert all(not a.conflict for a in actions)
 
@@ -99,6 +98,14 @@ def test_toolkit_install_all_variants(
     ignore_dest = project_root / ignore_file
     assert ignore_dest.is_file()
     assert "secrets.toml" in ignore_dest.read_text(encoding="utf-8")
+
+    # codex also creates AGENTS.md with skill entry
+    if variant_cls == _CodexAgent:
+        agents_md = project_root / "AGENTS.md"
+        assert agents_md.is_file()
+        agents_content = agents_md.read_text(encoding="utf-8")
+        assert "`test-toolkit-coding`" in agents_content
+        assert "# ALWAYS ACTIVATE those skills" in agents_content
 
 
 def test_toolkit_install_skips_bad_frontmatter() -> None:

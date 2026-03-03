@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import yaml
 
@@ -99,7 +99,7 @@ def _sanitize_json_value(val: Any) -> Any:
     return sanitize_string(str(encoded))
 
 
-def md_table(
+def render_md_table(
     columns: Sequence[str],
     rows: Sequence[Tuple[Any, ...]],
 ) -> str:
@@ -119,7 +119,7 @@ def md_table(
     return "\n".join(lines)
 
 
-def jsonl(
+def render_jsonl(
     columns: Sequence[str],
     rows: Sequence[Tuple[Any, ...]],
 ) -> str:
@@ -136,3 +136,53 @@ def jsonl(
                 obj[col_list[i]] = _sanitize_json_value(val)
         lines.append(json.dumps(obj))
     return "\n".join(lines)
+
+
+def merge_agents_md_skills(existing: str, skill_names: List[str]) -> str:
+    """Merge always-activate skill entries into an AGENTS.md file.
+
+    For each skill, checks if it's already listed (`` `skill_name` `` present).
+    Finds the ``# ALWAYS ACTIVATE those skills`` heading and appends new entries
+    after the last ``- `...` `` line in that block. If the heading is missing,
+    appends a full section at end of file. Preserves all user content.
+    """
+    # deduplicate while preserving order, skip already-present skills
+    to_add: List[str] = []
+    seen: Set[str] = set()
+    for name in skill_names:
+        if name in seen:
+            continue
+        seen.add(name)
+        # check for backtick-wrapped name anywhere in existing content
+        if ("`%s`" % name) in existing:
+            continue
+        to_add.append(name)
+
+    if not to_add:
+        return existing
+
+    new_lines = ["- `%s`" % name for name in to_add]
+    heading = "# ALWAYS ACTIVATE those skills"
+    subheading = "they are essential for ANY work in this project"
+
+    lines = existing.split("\n") if existing else []
+    heading_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == heading:
+            heading_idx = i
+            break
+
+    if heading_idx is not None:
+        # insert right after heading (and subheading if present)
+        insert_idx = heading_idx + 1
+        if insert_idx < len(lines) and lines[insert_idx].strip() == subheading:
+            insert_idx += 1
+        for j, entry in enumerate(new_lines):
+            lines.insert(insert_idx + j, entry)
+        return "\n".join(lines)
+    else:
+        # append section at end
+        section = "\n%s\n%s\n%s\n" % (heading, subheading, "\n".join(new_lines))
+        if existing and not existing.endswith("\n"):
+            section = "\n" + section
+        return existing + section

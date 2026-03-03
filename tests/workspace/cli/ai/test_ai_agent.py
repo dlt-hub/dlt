@@ -60,129 +60,259 @@ def test_variant_component_dir(
 
 
 @pytest.mark.parametrize(
-    ("variant_cls", "component_type", "content", "source_name", "toolkit_name", "exp"),
+    ("variant_cls", "ignore_file_name"),
     [
-        # claude: skill passthrough
-        (_ClaudeAgent, "skill", "content", "my-skill", "p", ("skill", "content", "my-skill")),
-        # claude: command passthrough with .md suffix
-        (_ClaudeAgent, "command", "# Do", "bootstrap", "p", ("command", "# Do", "bootstrap.md")),
-        # cursor: skill passthrough
-        (_CursorAgent, "skill", "content", "my-skill", "p", ("skill", "content", "my-skill")),
-        # cursor: command passthrough with .md suffix
-        (_CursorAgent, "command", "# Do", "bootstrap", "p", ("command", "# Do", "bootstrap.md")),
-        # codex: skill passthrough
-        (_CodexAgent, "skill", "content", "my-skill", "p", ("skill", "content", "my-skill")),
-        # ignore: each variant maps to its own ignore file name
-        (_ClaudeAgent, "ignore", "*.secret", "x", "p", ("ignore", "*.secret", ".claudeignore")),
-        (_CursorAgent, "ignore", "*.secret", "x", "p", ("ignore", "*.secret", ".cursorignore")),
-        (_CodexAgent, "ignore", "*.secret", "x", "p", ("ignore", "*.secret", ".codexignore")),
+        (_ClaudeAgent, ".claudeignore"),
+        (_CursorAgent, ".cursorignore"),
+        (_CodexAgent, ".codexignore"),
     ],
-    ids=[
-        "claude-skill",
-        "claude-command",
-        "cursor-skill",
-        "cursor-command",
-        "codex-skill",
-        "claude-ignore",
-        "cursor-ignore",
-        "codex-ignore",
-    ],
+    ids=["claude", "cursor", "codex"],
 )
-def test_transform_passthrough(
-    variant_cls: Type[_AIAgent],
-    component_type: str,
-    content: str,
-    source_name: str,
-    toolkit_name: str,
-    exp: Tuple[str, str, str],
-) -> None:
-    """Skill passthrough and simple command transforms share logic across variants."""
-    assert variant_cls().transform(component_type, content, source_name, toolkit_name) == exp  # type: ignore[arg-type]
+def test_install_actions_skill(variant_cls: Type[_AIAgent], ignore_file_name: str) -> None:
+    """Skill install_actions returns a single copytree action for all agents."""
+    project = Path("project")
+    project.mkdir(exist_ok=True)
+    skill_src = Path("src_skill")
+    skill_src.mkdir(exist_ok=True)
+
+    variant = variant_cls()
+    actions = variant.install_actions("skill", skill_src, "my-skill", "p", project)
+    assert len(actions) == 1
+    assert actions[0].kind == "skill"
+    assert actions[0].op == "copytree"
+    assert actions[0].source_name == "my-skill"
+    assert actions[0].content_or_path == skill_src
 
 
-def test_claude_transform_rule() -> None:
+@pytest.mark.parametrize(
+    ("variant_cls", "ignore_file_name"),
+    [
+        (_ClaudeAgent, ".claudeignore"),
+        (_CursorAgent, ".cursorignore"),
+        (_CodexAgent, ".codexignore"),
+    ],
+    ids=["claude", "cursor", "codex"],
+)
+def test_install_actions_ignore(variant_cls: Type[_AIAgent], ignore_file_name: str) -> None:
+    """Ignore install_actions returns a save action with agent-specific filename."""
+    project = Path("project")
+    project.mkdir(exist_ok=True)
+
+    variant = variant_cls()
+    actions = variant.install_actions("ignore", "*.secret", ".claudeignore", "p", project)
+    assert len(actions) == 1
+    assert actions[0].kind == "ignore"
+    assert actions[0].op == "save"
+    assert actions[0].dest_path == project / ignore_file_name
+    assert actions[0].content_or_path == "*.secret"
+
+
+@pytest.mark.parametrize(
+    ("variant_cls", "expected_dest_suffix"),
+    [
+        (_ClaudeAgent, ".claude/commands/bootstrap.md"),
+        (_CursorAgent, ".cursor/commands/bootstrap.md"),
+    ],
+    ids=["claude", "cursor"],
+)
+def test_install_actions_command(variant_cls: Type[_AIAgent], expected_dest_suffix: str) -> None:
+    """Command install_actions returns a single save action for Claude/Cursor."""
+    project = Path("project")
+    project.mkdir(exist_ok=True)
+
+    variant = variant_cls()
+    actions = variant.install_actions("command", "# Do", "bootstrap", "p", project)
+    assert len(actions) == 1
+    assert actions[0].kind == "command"
+    assert actions[0].op == "save"
+    assert actions[0].dest_path == project / expected_dest_suffix
+    assert actions[0].content_or_path == "# Do"
+
+
+def test_claude_install_actions_rule() -> None:
+    """Claude rule install_actions strips non-Claude frontmatter keys."""
+    project = Path("project")
+    project.mkdir(exist_ok=True)
     variant = _ClaudeAgent()
 
     # strips non-Claude frontmatter keys, keeps name/description
     content = "---\nalwaysApply: true\ndescription: Cursor rule\nname: keep-me\n---\n# Rule"
-    out_type, out_content, out_name = variant.transform("rule", content, "coding", "my-toolkit")
-    assert (out_type, out_name) == ("rule", "my-toolkit-coding.md")
-    fm, body = parse_frontmatter(out_content)
+    actions = variant.install_actions("rule", content, "coding", "my-toolkit", project)
+    assert len(actions) == 1
+    a = actions[0]
+    assert a.kind == "rule"
+    assert a.dest_path == project / ".claude/rules/my-toolkit-coding.md"
+    fm, body = parse_frontmatter(a.content_or_path)  # type: ignore[arg-type]
     assert "alwaysApply" not in fm
     assert fm.get("name") == "keep-me"
     assert body == "# Rule"
 
     # no frontmatter passes through unchanged
     plain = "# Plain rule\nDo this."
-    _, out_content, _ = variant.transform("rule", plain, "style", "my-toolkit")
-    assert out_content == plain
+    actions2 = variant.install_actions("rule", plain, "style", "my-toolkit", project)
+    assert actions2[0].content_or_path == plain
 
 
-def test_cursor_transform_rule() -> None:
+def test_cursor_install_actions_rule() -> None:
+    """Cursor rule install_actions adds alwaysApply and derives description."""
+    project = Path("project")
+    project.mkdir(exist_ok=True)
     variant = _CursorAgent()
 
     # adds alwaysApply, derives description from heading
     content = "---\nname: test\n---\n# My Rule\nContent here"
-    out_type, out_content, out_name = variant.transform("rule", content, "coding", "my-toolkit")
-    assert (out_type, out_name) == ("rule", "my-toolkit-coding.mdc")
-    fm, _ = parse_frontmatter(out_content)
+    actions = variant.install_actions("rule", content, "coding", "my-toolkit", project)
+    assert len(actions) == 1
+    a = actions[0]
+    assert a.kind == "rule"
+    assert a.dest_path == project / ".cursor/rules/my-toolkit-coding.mdc"
+    fm, _ = parse_frontmatter(a.content_or_path)  # type: ignore[arg-type]
     assert fm["alwaysApply"] is True
     assert fm["description"] == "My Rule"
 
     # preserves existing description
     content2 = "---\ndescription: Custom desc\n---\n# Heading\nBody"
-    _, out_content2, _ = variant.transform("rule", content2, "coding", "my-toolkit")
-    fm2, _ = parse_frontmatter(out_content2)
+    actions2 = variant.install_actions("rule", content2, "coding", "my-toolkit", project)
+    fm2, _ = parse_frontmatter(actions2[0].content_or_path)  # type: ignore[arg-type]
     assert fm2["description"] == "Custom desc"
     assert fm2["alwaysApply"] is True
 
     # no heading means no description key
-    _, out_content3, _ = variant.transform("rule", "Just text", "coding", "my-toolkit")
-    fm3, _ = parse_frontmatter(out_content3)
+    actions3 = variant.install_actions("rule", "Just text", "coding", "my-toolkit", project)
+    fm3, _ = parse_frontmatter(actions3[0].content_or_path)  # type: ignore[arg-type]
     assert fm3["alwaysApply"] is True
     assert "description" not in fm3
 
 
-def test_codex_transform_command() -> None:
+def test_codex_install_actions_command() -> None:
     """Codex converts commands to skills, preserving or deriving frontmatter."""
+    project = Path("project")
+    project.mkdir(exist_ok=True)
     variant = _CodexAgent()
 
     # with frontmatter: preserves name/description
     content = "---\nname: Bootstrap\ndescription: Set up project\n---\n# Bootstrap\nDo stuff"
-    out_type, out_content, out_name = variant.transform("command", content, "bootstrap", "p")
-    assert (out_type, out_name) == ("skill", "bootstrap")
-    fm, body = parse_frontmatter(out_content)
+    actions = variant.install_actions("command", content, "bootstrap", "p", project)
+    assert len(actions) == 1
+    a = actions[0]
+    assert a.kind == "skill"
+    assert a.dest_path == project / ".agents/skills/bootstrap/SKILL.md"
+    fm, body = parse_frontmatter(a.content_or_path)  # type: ignore[arg-type]
     assert fm["name"] == "Bootstrap"
     assert fm["description"] == "Set up project"
     assert "# Bootstrap" in body
 
     # without frontmatter: derives from source_name and heading
     content2 = "# Bootstrap\nDo stuff"
-    _, out_content2, _ = variant.transform("command", content2, "bootstrap", "p")
-    fm2, _ = parse_frontmatter(out_content2)
+    actions2 = variant.install_actions("command", content2, "bootstrap", "p", project)
+    fm2, _ = parse_frontmatter(actions2[0].content_or_path)  # type: ignore[arg-type]
     assert fm2["name"] == "bootstrap"
     assert fm2["description"] == "Bootstrap"
 
 
-def test_codex_transform_rule() -> None:
-    """Codex converts rules to skills with toolkit-prefixed names."""
+def test_codex_install_actions_rule() -> None:
+    """Codex converts rules to always-apply skills with toolkit-prefixed names."""
+    project = Path("project")
+    project.mkdir(exist_ok=True)
     variant = _CodexAgent()
 
     # derives name from toolkit+source_name, description from heading
     content = "# Coding Style\nFollow these rules."
-    out_type, out_content, out_name = variant.transform("rule", content, "coding", "my-toolkit")
-    assert (out_type, out_name) == ("skill", "my-toolkit-coding")
-    fm, body = parse_frontmatter(out_content)
+    actions = variant.install_actions("rule", content, "coding", "my-toolkit", project)
+    # install_actions returns just the skill; AGENTS.md is handled by finalize_actions
+    assert len(actions) == 1
+    skill_action = actions[0]
+    assert skill_action.kind == "skill"
+    assert skill_action.dest_path == project / ".agents/skills/my-toolkit-coding/SKILL.md"
+    fm, _ = parse_frontmatter(skill_action.content_or_path)  # type: ignore[arg-type]
     assert fm["name"] == "my-toolkit-coding"
     assert fm["description"] == "ALWAYS read and follow this skill before acting. Coding Style"
 
     # with frontmatter: preserves name/description from source
     content2 = "---\nname: Custom\ndescription: Custom desc\n---\n# Rule\nBody"
-    _, out_content2, out_name2 = variant.transform("rule", content2, "style", "my-toolkit")
-    assert out_name2 == "my-toolkit-style"
-    fm2, _ = parse_frontmatter(out_content2)
+    actions2 = variant.install_actions("rule", content2, "style", "my-toolkit", project)
+    assert len(actions2) == 1
+    fm2, _ = parse_frontmatter(actions2[0].content_or_path)  # type: ignore[arg-type]
     assert fm2["name"] == "Custom"
     assert fm2["description"] == "ALWAYS read and follow this skill before acting. Custom desc"
+
+
+def test_codex_finalize_actions_agents_md() -> None:
+    """finalize_actions produces a single AGENTS.md action from all always-apply skills."""
+    project = Path("project")
+    project.mkdir(exist_ok=True)
+    variant = _CodexAgent()
+
+    # simulate two rule→skill actions
+    from dlt._workspace.cli.ai.agents import InstallAction
+
+    skills_dir = variant.component_dir("skill", project)
+    actions = [
+        InstallAction(
+            kind="skill",
+            source_name="coding",
+            dest_path=skills_dir / "tk-coding" / "SKILL.md",
+            op="save",
+            content_or_path=(
+                "---\nname: tk-coding\ndescription: ALWAYS read and follow"
+                " this skill before acting. Coding\n---\n# Coding"
+            ),
+            conflict=False,
+            source_kind="rule",
+        ),
+        InstallAction(
+            kind="skill",
+            source_name="styling",
+            dest_path=skills_dir / "tk-styling" / "SKILL.md",
+            op="save",
+            content_or_path=(
+                "---\nname: tk-styling\ndescription: ALWAYS read and follow"
+                " this skill before acting. Styling\n---\n# Styling"
+            ),
+            conflict=False,
+            source_kind="rule",
+        ),
+    ]
+    result = variant.finalize_actions(actions, project)
+    assert len(result) == 3
+    agents_action = result[-1]
+    assert agents_action.kind == "rule"
+    assert agents_action.dest_path == project / "AGENTS.md"
+    content = str(agents_action.content_or_path)
+    assert "`tk-coding`" in content
+    assert "`tk-styling`" in content
+    assert "# ALWAYS ACTIVATE those skills" in content
+
+
+def test_codex_finalize_actions_dedup() -> None:
+    """finalize_actions skips AGENTS.md when all skills are already listed."""
+    project = Path("project")
+    project.mkdir(exist_ok=True)
+    agents_md = project / "AGENTS.md"
+    agents_md.write_text("# ALWAYS ACTIVATE those skills\n- `tk-coding`\n", encoding="utf-8")
+
+    variant = _CodexAgent()
+    from dlt._workspace.cli.ai.agents import InstallAction
+
+    skills_dir = variant.component_dir("skill", project)
+    actions = [
+        InstallAction(
+            kind="skill",
+            source_name="coding",
+            dest_path=skills_dir / "tk-coding" / "SKILL.md",
+            op="save",
+            content_or_path=(
+                "---\nname: tk-coding\ndescription: ALWAYS read and follow"
+                " this skill before acting. Coding\n---\n# Coding"
+            ),
+            conflict=False,
+            source_kind="rule",
+        ),
+    ]
+    result = variant.finalize_actions(actions, project)
+    # no AGENTS.md action added since skill is already listed
+    assert len(result) == 1
+    assert all(a.kind == "skill" for a in result)
 
 
 @pytest.mark.parametrize(
