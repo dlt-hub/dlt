@@ -7,6 +7,25 @@ from dlt.common.typing import TypedDict
 
 TLocationScope = Literal["project", "global"]
 
+TAiStatusWarning = Literal[
+    "not_initialized",
+    "no_init_toolkit",
+    "no_toolkits",
+    "mcp_unavailable",
+]
+
+
+class TAiStatusInfo(TypedDict):
+    """AI setup status: version, agent, toolkits, and readiness warnings."""
+
+    dlt_version: str
+    agent_name: Optional[str]
+    initialized: bool
+    has_init_toolkit: bool
+    toolkits: Dict[str, "TToolkitIndexEntry"]
+    warnings: List[TAiStatusWarning]
+    mcp_error: NotRequired[str]
+
 
 class TLocationInfo(TypedDict):
     """A single config file location with its scope and presence status."""
@@ -100,6 +119,15 @@ class TWorkspaceInfo(TypedDict):
     dlthub_version: Optional[str]
     initialized: bool
     installed_toolkits: Dict[str, TToolkitIndexEntry]
+
+
+class TSourceItem(TypedDict):
+    """A source returned by the AI context search API."""
+
+    source_name: str
+    description: Optional[str]
+    description_verbose: NotRequired[str]
+    sample_urls: NotRequired[str]
 
 
 class ProviderLocationInfo(NamedTuple):

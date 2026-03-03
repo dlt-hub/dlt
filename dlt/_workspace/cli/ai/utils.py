@@ -10,7 +10,7 @@ import yaml
 
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.utils import update_dict_nested
+from dlt.common.utils import uniq_id, update_dict_nested
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, SettingsTomlProvider
 
@@ -24,6 +24,8 @@ from dlt._workspace.cli.formatters import (
 )
 from dlt._workspace.cli.utils import get_provider_locations
 from dlt._workspace.typing import (
+    TAiStatusInfo,
+    TAiStatusWarning,
     TLocationInfo,
     TToolkitIndexEntry,
     TToolkitInfo,
@@ -140,6 +142,24 @@ def wrap_as_skill(content: str, skill_name: str, always_apply: bool = False) -> 
         desc = "ALWAYS read and follow this skill before acting. " + desc
     skill_fm["description"] = desc
     return render_frontmatter(skill_fm, body)
+
+
+def safe_write_text(dest: Path, content: str) -> None:
+    """Write content to dest atomically via write-then-move.
+
+    Writes to a uniquely-named temp sibling first, then uses os.replace()
+    for an atomic rename on the same filesystem.
+    """
+    tmp = dest.parent / (dest.name + "." + uniq_id(8) + ".tmp")
+    try:
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(tmp, dest)
+    except BaseException:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 MIN_REDACT_STARS = 10
@@ -550,3 +570,60 @@ def save_toolkit_entry(
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+
+_INIT_TOOLKIT = "init"
+
+
+def fetch_ai_status(project_root: Path) -> TAiStatusInfo:
+    """Collect AI setup status: version, agent, toolkits, and readiness warnings."""
+    from dlt._workspace.cli.ai.agents import _AIAgent
+    from dlt._workspace.cli.utils import make_dlt_settings_path
+    from dlt.version import __version__ as dlt_ver
+
+    index = load_toolkits_index()
+    warnings: List[TAiStatusWarning] = []
+
+    # detect agent
+    agent_name: Optional[str] = None
+    init_entry = index.get(_INIT_TOOLKIT)
+    if isinstance(init_entry, dict):
+        agent_name = init_entry.get("agent")
+    if not agent_name:
+        detected = _AIAgent.detect_all(project_root)
+        if detected:
+            agent_name = detected[0][0].name
+
+    # workspace initialized?
+    initialized = os.path.isfile(make_dlt_settings_path("config.toml"))
+    if not initialized:
+        warnings.append("not_initialized")
+
+    # init toolkit installed?
+    has_init = _INIT_TOOLKIT in index
+    if not has_init:
+        warnings.append("no_init_toolkit")
+
+    # non-init toolkits
+    toolkits = {k: v for k, v in index.items() if k != _INIT_TOOLKIT}
+    if not toolkits:
+        warnings.append("no_toolkits")
+
+    # check MCP availability
+    status = TAiStatusInfo(
+        dlt_version=dlt_ver,
+        agent_name=agent_name,
+        initialized=initialized,
+        has_init_toolkit=has_init,
+        toolkits=toolkits,
+        warnings=warnings,
+    )
+    try:
+        from dlt._workspace.mcp import WorkspaceMCP  # noqa: F401
+
+        WorkspaceMCP("dlt")
+    except Exception as ex:
+        warnings.append("mcp_unavailable")
+        status["mcp_error"] = str(ex)
+
+    return status

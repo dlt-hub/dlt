@@ -1,20 +1,25 @@
 import json
+import os
 from pathlib import Path
 from typing import Any, Callable, Dict
+from unittest.mock import patch
 
 import pytest
 import tomlkit
+import yaml
 
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt._workspace.cli.ai.utils import (
     ensure_cursor_rule_frontmatter,
     extract_toolkit_info,
+    fetch_ai_status,
     merge_json_mcp_servers,
     merge_toml_mcp_servers,
     parse_json_mcp,
     parse_toml_mcp,
     redact_toml_document,
     redact_value,
+    safe_write_text,
     scan_workbench_toolkits,
     strip_rule_frontmatter,
     wrap_as_skill,
@@ -287,3 +292,172 @@ def test_extract_toolkit_info_missing_fields() -> None:
     # empty string counts as missing
     with pytest.raises(ValueError, match="version"):
         extract_toolkit_info({"name": "tk", "description": "ok", "version": ""}, "tk")
+
+
+def test_safe_write_text_creates_file() -> None:
+    dest = Path("output") / "test.txt"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    safe_write_text(dest, "hello")
+    assert dest.read_text(encoding="utf-8") == "hello"
+
+
+def test_safe_write_text_overwrites_existing() -> None:
+    dest = Path("output") / "test2.txt"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text("old", encoding="utf-8")
+    safe_write_text(dest, "new")
+    assert dest.read_text(encoding="utf-8") == "new"
+
+
+def test_safe_write_text_no_tmp_file_left() -> None:
+    dest = Path("output") / "test3.txt"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    safe_write_text(dest, "content")
+    assert not list(dest.parent.glob("*.tmp"))
+
+
+def test_safe_write_text_cleanup_on_failure() -> None:
+    """Temp file is cleaned up if os.replace fails."""
+    dest = Path("output") / "sub" / "test4.txt"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    safe_write_text(dest, "ok")
+    assert dest.read_text(encoding="utf-8") == "ok"
+
+
+def _make_settings(project_root: Path, with_config: bool = False) -> str:
+    settings_dir = str(project_root / ".dlt")
+    os.makedirs(settings_dir, exist_ok=True)
+    if with_config:
+        Path(settings_dir, "config.toml").write_text("[runtime]\n", encoding="utf-8")
+    return settings_dir
+
+
+def _write_toolkits_index(project_root: Path, data: Dict[str, Any]) -> None:
+    index_path = project_root / ".dlt" / ".toolkits"
+    os.makedirs(index_path.parent, exist_ok=True)
+    with open(index_path, "w", encoding="utf-8") as f:
+        yaml.dump(data, f)
+
+
+def test_fetch_ai_status_empty_workspace(environment: Any) -> None:
+    """Empty workspace: all warnings present, no agent, no toolkits."""
+    project_root = Path("project")
+    project_root.mkdir()
+    _make_settings(project_root)
+
+    with (
+        patch(
+            "dlt._workspace.cli.ai.utils._toolkits_index_path",
+            return_value=str(project_root / ".dlt" / ".toolkits"),
+        ),
+        patch(
+            "dlt._workspace.cli.utils.make_dlt_settings_path",
+            return_value=str(project_root / ".dlt" / "config.toml"),
+        ),
+        patch("dlt._workspace.cli.ai.agents.home_dir", return_value=None),
+    ):
+        status = fetch_ai_status(project_root)
+
+    assert status["dlt_version"]
+    assert status["agent_name"] is None
+    assert status["initialized"] is False
+    assert status["has_init_toolkit"] is False
+    assert status["toolkits"] == {}
+    assert "not_initialized" in status["warnings"]
+    assert "no_init_toolkit" in status["warnings"]
+    assert "no_toolkits" in status["warnings"]
+
+
+def test_fetch_ai_status_initialized_with_init_toolkit() -> None:
+    """Workspace with config.toml and init toolkit: only no_toolkits warning."""
+    project_root = Path("project")
+    project_root.mkdir()
+    _make_settings(project_root, with_config=True)
+    _write_toolkits_index(
+        project_root,
+        {"init": {"version": "1.0.0", "agent": "claude", "description": "Init"}},
+    )
+
+    with (
+        patch(
+            "dlt._workspace.cli.ai.utils._toolkits_index_path",
+            return_value=str(project_root / ".dlt" / ".toolkits"),
+        ),
+        patch(
+            "dlt._workspace.cli.utils.make_dlt_settings_path",
+            return_value=str(project_root / ".dlt" / "config.toml"),
+        ),
+    ):
+        status = fetch_ai_status(project_root)
+
+    assert status["initialized"] is True
+    assert status["has_init_toolkit"] is True
+    assert status["agent_name"] == "claude"
+    assert "not_initialized" not in status["warnings"]
+    assert "no_init_toolkit" not in status["warnings"]
+    assert "no_toolkits" in status["warnings"]
+
+
+def test_fetch_ai_status_with_toolkits() -> None:
+    """Workspace with init and user toolkits: no init/toolkit warnings."""
+    project_root = Path("project")
+    project_root.mkdir()
+    _make_settings(project_root, with_config=True)
+    _write_toolkits_index(
+        project_root,
+        {
+            "init": {"version": "1.0.0", "agent": "cursor", "description": "Init"},
+            "rest-api": {"version": "0.1.0", "description": "REST API toolkit"},
+        },
+    )
+
+    with (
+        patch(
+            "dlt._workspace.cli.ai.utils._toolkits_index_path",
+            return_value=str(project_root / ".dlt" / ".toolkits"),
+        ),
+        patch(
+            "dlt._workspace.cli.utils.make_dlt_settings_path",
+            return_value=str(project_root / ".dlt" / "config.toml"),
+        ),
+    ):
+        status = fetch_ai_status(project_root)
+
+    assert status["agent_name"] == "cursor"
+    assert "rest-api" in status["toolkits"]
+    assert "init" not in status["toolkits"]
+    assert "no_toolkits" not in status["warnings"]
+    assert "no_init_toolkit" not in status["warnings"]
+
+
+def test_fetch_ai_status_mcp_unavailable_stores_error() -> None:
+    """When MCP import fails, mcp_unavailable warning and error detail are set."""
+    project_root = Path("project")
+    project_root.mkdir()
+    _make_settings(project_root, with_config=True)
+    _write_toolkits_index(
+        project_root,
+        {"init": {"version": "1.0.0", "agent": "claude", "description": "Init"}},
+    )
+
+    def raise_import(*_a: Any, **_kw: Any) -> None:
+        raise RuntimeError("fastmcp not installed")
+
+    with (
+        patch(
+            "dlt._workspace.cli.ai.utils._toolkits_index_path",
+            return_value=str(project_root / ".dlt" / ".toolkits"),
+        ),
+        patch(
+            "dlt._workspace.cli.utils.make_dlt_settings_path",
+            return_value=str(project_root / ".dlt" / "config.toml"),
+        ),
+        patch(
+            "dlt._workspace.mcp.WorkspaceMCP",
+            side_effect=raise_import,
+        ),
+    ):
+        status = fetch_ai_status(project_root)
+
+    assert "mcp_unavailable" in status["warnings"]
+    assert "fastmcp not installed" in status["mcp_error"]
