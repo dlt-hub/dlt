@@ -116,7 +116,7 @@ def test_ai_mcp_command_extra_features(
     )
     assert result.returncode == 0
     init_kwargs = spy.call_args
-    features = init_kwargs.kwargs.get("extra_features") or init_kwargs[0][3]
+    features = init_kwargs.kwargs.get("features") or init_kwargs.kwargs.get("extra_features")
     assert "rest-api-pipeline" in features
     assert "data-exploration" in features
 

@@ -196,8 +196,8 @@ def preview_table(
         columns = relation.columns
         rows = relation.fetchall()
         if output_format == "jsonl":
-            return formatters.jsonl(columns, rows)
-        return formatters.md_table(columns, rows)
+            return formatters.render_jsonl(columns, rows)
+        return formatters.render_md_table(columns, rows)
     except Exception as e:
         raise ToolError(
             "Tool `preview_table` failed. Verify `pipeline_name` and `table_name`. "
@@ -230,8 +230,8 @@ def execute_sql_query(
     columns = relation.columns
     rows = relation.fetchall()
     if output_format == "jsonl":
-        return formatters.jsonl(columns, rows)
-    return formatters.md_table(columns, rows)
+        return formatters.render_jsonl(columns, rows)
+    return formatters.render_md_table(columns, rows)
 
 
 @with_mcp_tool_telemetry()
@@ -249,8 +249,8 @@ def get_row_counts(
         columns = relation.columns
         rows = relation.fetchall()
         if output_format == "jsonl":
-            return formatters.jsonl(columns, rows)
-        return formatters.md_table(columns, rows)
+            return formatters.render_jsonl(columns, rows)
+        return formatters.render_md_table(columns, rows)
     except Exception as e:
         raise ToolError(
             "Tool `get_row_counts` failed. Verify `pipeline_name`. "

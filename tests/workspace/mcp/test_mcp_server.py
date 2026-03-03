@@ -17,8 +17,10 @@ from dlt.common.runtime.anon_tracker import disable_anon_tracker
 from dlt.common.typing import DictStrAny
 
 from dlt._workspace.mcp import PipelineMCP, WorkspaceMCP
+from dlt._workspace.mcp.server import resolve_features
 from dlt._workspace._plugins import (
     McpFeatures,
+    plug_mcp_context,
     plug_mcp_pipeline,
     plug_mcp_secrets,
     plug_mcp_toolkit,
@@ -83,6 +85,8 @@ def test_workspace_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
     assert "secrets_list" in tool_names_actual
     assert "secrets_view_redacted" in tool_names_actual
     assert "secrets_update_fragment" in tool_names_actual
+    # context tools
+    assert "search_dlthub_sources" in tool_names_actual
     # pipeline tools
     for pipeline_tool in [
         "list_tables",
@@ -107,6 +111,7 @@ def test_workspace_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
         "secrets_list",
         "secrets_view_redacted",
         "secrets_update_fragment",
+        "search_dlthub_sources",
     }
     # pipeline-scoped tools should expose pipeline_name
     for tool in tools:
@@ -208,6 +213,63 @@ def test_plug_mcp_secrets_returns_tools() -> None:
     assert secrets_tools.secrets_view_redacted in result.tools
     assert secrets_tools.secrets_update_fragment in result.tools
     assert len(result.tools) == 3
+
+
+def test_plug_mcp_context_returns_none_for_unknown_features() -> None:
+    assert plug_mcp_context({"unknown"}) is None
+
+
+def test_plug_mcp_context_returns_tools() -> None:
+    from dlt._workspace.mcp.tools import context_tools
+
+    result = plug_mcp_context({"context"})
+    assert result is not None
+    assert result.name == "context"
+    assert context_tools.search_dlthub_sources in result.tools
+    assert len(result.tools) == 1
+
+
+def test_resolve_features_defaults() -> None:
+    assert resolve_features(None) == WorkspaceMCP.DEFAULT_FEATURES
+    assert resolve_features([]) == WorkspaceMCP.DEFAULT_FEATURES
+
+
+def test_resolve_features_add_and_remove() -> None:
+    result = resolve_features(["-secrets", "+context"])
+    assert "secrets" not in result
+    assert "context" in result
+    # other defaults still present
+    assert "pipeline" in result
+    assert "workspace" in result
+    assert "toolkit" in result
+
+
+def test_resolve_features_plain_name_adds() -> None:
+    result = resolve_features(["context"])
+    assert result == WorkspaceMCP.DEFAULT_FEATURES | {"context"}
+
+
+def test_resolve_features_comma_separated() -> None:
+    result = resolve_features(["-secrets,+context"])
+    assert "secrets" not in result
+    assert "context" in result
+    assert "pipeline" in result
+
+
+def test_resolve_features_cli_argparse() -> None:
+    """Prove that argparse can parse --features=-secrets,+context."""
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--features", nargs="*", default=None)
+    # use = form so argparse doesn't treat -secrets as a flag
+    args = parser.parse_args(["--features=-secrets,+context"])
+    result = resolve_features(args.features)
+    assert "secrets" not in result
+    assert "context" in result
+    assert "pipeline" in result
+    assert "workspace" in result
+    assert "toolkit" in result
 
 
 @pytest.mark.parametrize(

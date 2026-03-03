@@ -1,12 +1,76 @@
 import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from fastmcp import FastMCP
 from fastmcp.prompts import Prompt
 
 from dlt.common import logger
 from dlt.common.configuration.plugins import manager
+from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES as _DEFAULT_MCP_FEATURES
+
+
+# large sentinel set used to discover all registered feature names
+_ALL_FEATURE_NAMES = frozenset(
+    {
+        "workspace",
+        "pipeline",
+        "toolkit",
+        "secrets",
+        "context",
+        # add future feature names here so they are discoverable
+    }
+)
+
+
+def discover_features() -> Tuple[Set[str], Set[str]]:
+    """Probe plugin hooks and return (all_available, extra_only) feature names.
+
+    *all_available* is every feature that at least one hook responds to.
+    *extra_only* is `all_available - WorkspaceMCP.DEFAULT_FEATURES`.
+    """
+    available: Set[str] = set()
+    for name in _ALL_FEATURE_NAMES:
+        results = manager().hook.plug_mcp(features={name})
+        if any(r is not None for r in results):
+            available.add(name)
+    extra = available - WorkspaceMCP.DEFAULT_FEATURES
+    return available, extra
+
+
+def resolve_features(raw: Optional[List[str]], defaults: Set[str] = None) -> Set[str]:
+    """Build a feature set from CLI ``--features`` values.
+
+    Accepts a list of tokens (from ``nargs="*"``) that may themselves be
+    comma-separated.  Each individual token supports three forms:
+
+      * ``name``    — adds the feature  (same as ``+name``)
+      * ``+name``   — adds the feature
+      * ``-name``   — removes the feature from defaults
+
+    Because argparse treats leading ``-`` as a flag, callers must use the
+    ``=`` form for removals: ``--features=-secrets,+context``.
+
+    Returns the final resolved set.
+    """
+    if defaults is None:
+        defaults = WorkspaceMCP.DEFAULT_FEATURES
+    if not raw:
+        return set(defaults)
+
+    result = set(defaults)
+    for item in raw:
+        for token in item.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            if token.startswith("-"):
+                result.discard(token[1:])
+            elif token.startswith("+"):
+                result.add(token[1:])
+            else:
+                result.add(token)
+    return result
 
 
 def _curry_pipeline_name(fn: Callable[..., Any], pipeline_name: str) -> Callable[..., Any]:
@@ -61,17 +125,21 @@ class DltMCP(FastMCP):
 class WorkspaceMCP(DltMCP):
     """MCP working in Workspace context"""
 
-    DEFAULT_FEATURES: Set[str] = {"workspace", "pipeline", "toolkit", "secrets"}
+    DEFAULT_FEATURES: Set[str] = set(_DEFAULT_MCP_FEATURES)
 
     def __init__(
         self,
         name: str = "dlt",
         port: int = 8000,
         path: str = "/mcp",
+        features: Optional[Set[str]] = None,
         extra_features: Optional[Set[str]] = None,
     ) -> None:
-        features = self.DEFAULT_FEATURES | (extra_features or set())
-        super().__init__(name=name, features=features, port=port, path=path)
+        if features is not None:
+            resolved = features
+        else:
+            resolved = self.DEFAULT_FEATURES | (extra_features or set())
+        super().__init__(name=name, features=resolved, port=port, path=path)
 
 
 class PipelineMCP(DltMCP):

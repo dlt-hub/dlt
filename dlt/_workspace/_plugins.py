@@ -61,7 +61,6 @@ def plug_mcp_pipeline(features: Set[str]) -> Optional[McpFeatures]:
         return None
 
     from dlt._workspace.mcp.tools import data_tools
-    from dlt._workspace.mcp import prompts
 
     _workspace_only = {data_tools.list_pipelines, data_tools.list_profiles}
     tools_list = [t for t in data_tools.__tools__ if t not in _workspace_only]
@@ -69,7 +68,6 @@ def plug_mcp_pipeline(features: Set[str]) -> Optional[McpFeatures]:
     return McpFeatures(
         name="pipeline",
         tools=tools_list,
-        prompts=list(prompts.pipeline.__prompts__),
     )
 
 
@@ -119,10 +117,25 @@ def plug_mcp_secrets(features: Set[str]) -> Optional[McpFeatures]:
     return McpFeatures(name="secrets", tools=list(secrets_tools.__tools__))
 
 
+@_plugins.hookimpl(specname="plug_mcp")
+def plug_mcp_context(features: Set[str]) -> Optional[McpFeatures]:
+    """Contribute AI context tools: search dlthub sources.
+
+    Activated by the "context" feature.
+    """
+    if "context" not in features:
+        return None
+
+    from dlt._workspace.mcp.tools import context_tools
+
+    return McpFeatures(name="context", tools=list(context_tools.__tools__))
+
+
 __all__ = [
     "plug_workspace_context_impl",
     "plug_mcp_pipeline",
     "plug_mcp_workspace",
     "plug_mcp_toolkit",
     "plug_mcp_secrets",
+    "plug_mcp_context",
 ]
