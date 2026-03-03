@@ -416,6 +416,9 @@ def test_sections_query_param(page: Page, fruit_pipeline: Any):
     expect(page.get_by_role("switch", name="data")).not_to_be_checked()
     expect(page.get_by_role("switch", name="state")).not_to_be_checked()
 
+    # navigate away to release the DuckDB lock before the next test's fixture
+    _go_home(page)
+
 
 def test_sections_query_param_all(page: Page, fruit_pipeline: Any):
     """All sections should open when all are specified in ?sections= query param."""
@@ -430,3 +433,5 @@ def test_sections_query_param_all(page: Page, fruit_pipeline: Any):
     # all specified switches should be checked
     for section in ["overview", "schema", "data", "state", "trace", "loads"]:
         expect(page.get_by_role("switch", name=section)).to_be_checked()
+
+    _go_home(page)
