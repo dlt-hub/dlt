@@ -388,6 +388,107 @@ def test_arrow_parquet_row_group_size() -> None:
         assert reader.metadata.row_group(1).num_rows == 0
 
 
+def test_arrow_concat_promote_options_none_rejects_mismatched_types() -> None:
+    """Default promote_options="none" raises on schema mismatch."""
+    c1 = {"col1": new_column("col1", "bigint")}
+    table_int = pa.Table.from_pydict({"col1": pa.array([1, 2], type=pa.int64())})
+    table_float = pa.Table.from_pydict({"col1": pa.array([3.0, 4.0], type=pa.float64())})
+
+    with pytest.raises((pa.lib.ArrowInvalid, pa.lib.ArrowTypeError)):
+        with get_writer(ArrowToParquetWriter, buffer_max_items=10) as writer:
+            writer.write_data_item(table_int, columns=c1)
+            writer.write_data_item(table_float, columns=c1)
+
+
+def test_arrow_concat_promote_options_permissive() -> None:
+    """promote_options="permissive" promotes int64 → double on cross-family mismatch."""
+    c1 = {"col1": new_column("col1", "bigint")}
+    table_int = pa.Table.from_pydict({"col1": pa.array([1, 2], type=pa.int64())})
+    table_float = pa.Table.from_pydict({"col1": pa.array([3.0, 4.0], type=pa.float64())})
+
+    with get_writer(
+        ArrowToParquetWriter, buffer_max_items=10, arrow_concat_promote_options="permissive"
+    ) as writer:
+        writer.write_data_item(table_int, columns=c1)
+        writer.write_data_item(table_float, columns=c1)
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        table = reader.read()
+        assert table.schema.field("col1").type == pa.float64()
+        assert table.column("col1").to_pylist() == [1.0, 2.0, 3.0, 4.0]
+
+
+def test_arrow_concat_promote_options_default() -> None:
+    """promote_options="default" promotes null types and fills missing columns, but rejects
+    type mismatches between non-null types.
+    """
+    cols = {"col1": new_column("col1", "text")}
+
+    # null + string → string
+    table_str = pa.Table.from_pydict({"col1": pa.array(["a"], type=pa.string())})
+    table_null = pa.Table.from_pydict({"col1": pa.array([None], type=pa.null())})
+
+    with get_writer(
+        ArrowToParquetWriter, buffer_max_items=10, arrow_concat_promote_options="default"
+    ) as writer:
+        writer.write_data_item(table_str, columns=cols)
+        writer.write_data_item(table_null, columns=cols)
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        table = reader.read()
+        assert table.schema.field("col1").type == pa.string()
+        assert table.column("col1").to_pylist() == ["a", None]
+
+    # int64 + double still fails with "default"
+    c1 = {"col1": new_column("col1", "bigint")}
+    table_int = pa.Table.from_pydict({"col1": pa.array([1], type=pa.int64())})
+    table_float = pa.Table.from_pydict({"col1": pa.array([2.0], type=pa.float64())})
+    with pytest.raises((pa.lib.ArrowInvalid, pa.lib.ArrowTypeError)):
+        with get_writer(
+            ArrowToParquetWriter, buffer_max_items=10, arrow_concat_promote_options="default"
+        ) as writer:
+            writer.write_data_item(table_int, columns=c1)
+            writer.write_data_item(table_float, columns=c1)
+
+
+def test_arrow_concat_promote_options_permissive_null_column() -> None:
+    """promote_options="permissive" promotes null + string → string."""
+    cols = {"col1": new_column("col1", "text")}
+    table_str = pa.Table.from_pydict({"col1": pa.array(["a", "b"], type=pa.string())})
+    table_null = pa.Table.from_pydict({"col1": pa.array([None, None], type=pa.null())})
+
+    with get_writer(
+        ArrowToParquetWriter, buffer_max_items=10, arrow_concat_promote_options="permissive"
+    ) as writer:
+        writer.write_data_item(table_str, columns=cols)
+        writer.write_data_item(table_null, columns=cols)
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        table = reader.read()
+        assert table.schema.field("col1").type == pa.string()
+        assert table.column("col1").to_pylist() == ["a", "b", None, None]
+
+
+def test_arrow_concat_promote_options_permissive_missing_column() -> None:
+    """promote_options="permissive" fills missing columns with null."""
+    c1 = {"col1": new_column("col1", "bigint")}
+    table_two_cols = pa.Table.from_pydict(
+        {"col1": pa.array([1], type=pa.int64()), "col2": pa.array(["x"], type=pa.string())}
+    )
+    table_one_col = pa.Table.from_pydict({"col1": pa.array([2], type=pa.int64())})
+
+    with get_writer(
+        ArrowToParquetWriter, buffer_max_items=10, arrow_concat_promote_options="permissive"
+    ) as writer:
+        writer.write_data_item(table_two_cols, columns=c1)
+        writer.write_data_item(table_one_col, columns=c1)
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        table = reader.read()
+        assert table.column("col1").to_pylist() == [1, 2]
+        assert table.column("col2").to_pylist() == ["x", None]
+
+
 def test_empty_tables_get_flushed() -> None:
     c1 = {"col1": new_column("col1", "bigint")}
     single_elem_table = pa.Table.from_pylist([{"col1": 1}])
