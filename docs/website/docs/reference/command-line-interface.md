@@ -516,7 +516,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 * `--stdio` - Use stdio transport mode
 * `--sse` - Use legacy sse transport instead of streamable-http
 * `--port PORT` - Port for the mcp server (default: 43656)
-* `--features [FEATURES ...]` - Additional mcp feature sets to enable (default: pipeline, workspace)
+* `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
 
 </details>
 
@@ -794,7 +794,7 @@ Install initial AI rules and skills for your AI coding agent.
 **Usage**
 ```sh
 dlt ai init [-h] [--agent {claude,cursor,codex}] [--location LOCATION] [--branch
-    BRANCH]
+    BRANCH] [--overwrite]
 ```
 
 **Description**
@@ -812,6 +812,7 @@ Inherits arguments from [`dlt ai`](#dlt-ai).
 * `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
 * `--location LOCATION` - Advanced. git url or local path to ai workbench repository.
 * `--branch BRANCH` - Advanced. git branch to fetch from.
+* `--overwrite` - Overwrite existing files instead of skipping them.
 
 </details>
 
@@ -1057,7 +1058,7 @@ Inherits arguments from [`dlt ai`](#dlt-ai).
 * `--stdio` - Use stdio transport mode
 * `--sse` - Use legacy sse transport instead of streamable-http
 * `--port PORT` - Port for the mcp server (default: 8000)
-* `--features [FEATURES ...]` - Additional mcp feature sets to enable (default: pipeline, workspace)
+* `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
 
 </details>
 
@@ -1085,7 +1086,7 @@ Inherits arguments from [`dlt ai mcp`](#dlt-ai-mcp).
 * `--stdio` - Use stdio transport mode
 * `--sse` - Use legacy sse transport instead of streamable-http
 * `--port PORT` - Port for the mcp server (default: 8000)
-* `--features [FEATURES ...]` - Additional mcp feature sets to enable (default: pipeline, workspace)
+* `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
 
 </details>
 
