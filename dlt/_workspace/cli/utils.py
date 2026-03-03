@@ -1,7 +1,8 @@
+import argparse
 import ast
 import os
 import shutil
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Set, Tuple
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
@@ -47,6 +48,12 @@ from dlt._workspace.typing import (
 REQUIREMENTS_TXT = "requirements.txt"
 PYPROJECT_TOML = "pyproject.toml"
 GITHUB_WORKFLOWS_DIR = os.path.join(".github", "workflows")
+
+DEFAULT_MCP_FEATURES: FrozenSet[str] = frozenset(
+    {"workspace", "pipeline", "toolkit", "secrets", "context"}
+)
+"""Default MCP feature set. Defined here (not in server.py) so argparsers can
+reference it without importing fastmcp."""
 AIRFLOW_DAGS_FOLDER = os.path.join("dags")
 AIRFLOW_BUILD_FOLDER = os.path.join("build")
 MODULE_INIT = "__init__.py"
@@ -143,29 +150,52 @@ def display_run_context_info() -> None:
             )
 
 
-def add_mcp_arg_parser(subparsers: Any, description: str, help_str: str, default_port: int) -> None:
-    command_parser = subparsers.add_parser(
-        "mcp",
-        description=description,
-        help=help_str,
-    )
-    command_parser.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
-    command_parser.add_argument(
+def make_mcp_run_flags(default_port: int = 8000) -> argparse.ArgumentParser:
+    """Build a parent parser with the shared MCP run flags (--stdio, --sse, --port, --features).
+
+    Returns an ArgumentParser with ``add_help=False`` suitable for use as a
+    ``parents=[...]`` entry.  Does **not** require ``fastmcp`` to be installed.
+    """
+    flags = argparse.ArgumentParser(add_help=False)
+    flags.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
+    flags.add_argument(
         "--sse",
         action="store_true",
         help="Use legacy SSE transport instead of streamable-http",
     )
-    command_parser.add_argument(
+    flags.add_argument(
         "--port",
         type=int,
         default=default_port,
-        help=f"Port for the MCP server (default: {default_port})",
+        help="Port for the MCP server (default: %d)" % default_port,
     )
-    command_parser.add_argument(
+    defaults = sorted(DEFAULT_MCP_FEATURES)
+    flags.add_argument(
         "--features",
         nargs="*",
         default=None,
-        help="Additional MCP feature sets to enable (default: pipeline, workspace)",
+        help=(
+            "MCP features to enable/disable. Default: %s. "
+            "Use +name to add, -name to remove "
+            "(e.g. --features=-secrets,+context)"
+            % ", ".join(defaults)
+        ),
+    )
+    return flags
+
+
+def add_mcp_arg_parser(subparsers: Any, description: str, help_str: str, default_port: int) -> None:
+    try:
+        from dlt._workspace.mcp.server import WorkspaceMCP  # noqa: F401
+    except ImportError:
+        return
+
+    flags = make_mcp_run_flags(default_port)
+    subparsers.add_parser(
+        "mcp",
+        description=description,
+        help=help_str,
+        parents=[flags],
     )
 
 

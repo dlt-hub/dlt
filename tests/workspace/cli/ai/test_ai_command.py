@@ -18,6 +18,7 @@ from dlt._workspace.cli.ai.agents import AI_AGENTS, _ClaudeAgent
 from dlt._workspace.cli.ai.commands import (
     _execute_install,
     _plan_toolkit_install,
+    _print_ai_status,
     ai_status_command,
     ai_init_command,
     ai_secrets_list_command,
@@ -30,6 +31,7 @@ from dlt._workspace.cli.ai.commands import (
 from dlt._workspace.cli.ai.utils import (
     AI_WORKBENCH_BASE_DIR,
     build_toolkits_dependency_map,
+    fetch_ai_status,
     load_toolkits_index,
     resolve_toolkit_dependencies,
     scan_workbench_toolkits,
@@ -101,6 +103,32 @@ def test_ai_status_with_toolkits(capsys: pytest.CaptureFixture[str]) -> None:
     # init toolkit should not be listed
     assert "\n  init" not in out
     assert "no toolkit" not in out.lower()
+
+
+def test_ai_init_warns_mcp(capsys: pytest.CaptureFixture[str]) -> None:
+    """ai_init_command shows MCP warning when MCP server cannot start."""
+    base = make_mock_workbench()
+    project_root = Path("project")
+    project_root.mkdir()
+
+    def raise_mcp(*_a: Any, **_kw: Any) -> None:
+        raise RuntimeError("fastmcp not installed")
+
+    with (
+        patch("dlt.common.runtime.run_context.active") as mock_ctx,
+        patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base),
+        patch("dlt._workspace.mcp.WorkspaceMCP", side_effect=raise_mcp),
+    ):
+        settings_dir = str(project_root / ".dlt")
+        mock_ctx.return_value.run_dir = str(project_root)
+        mock_ctx.return_value.settings_dir = settings_dir
+        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
+
+        ai_init_command(agent="claude", location="mock://repo")
+
+    out = capsys.readouterr().out
+    assert "mcp server cannot be started" in out.lower()
+    assert "dlt ai status" in out.lower()
 
 
 def test_ai_secrets_list_workspace(capsys: pytest.CaptureFixture[str]) -> None:

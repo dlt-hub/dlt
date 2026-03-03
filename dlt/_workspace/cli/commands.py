@@ -5,7 +5,7 @@ from typing import Optional
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt._workspace.cli.exceptions import CliCommandException
-from dlt._workspace.cli.utils import add_mcp_arg_parser
+from dlt._workspace.cli.utils import add_mcp_arg_parser, make_mcp_run_flags
 from dlt._workspace.cli._urls import (
     DLT_INIT_DOCS_URL,
     DLT_PIPELINE_COMMAND_DOCS_URL,
@@ -787,6 +787,12 @@ class AiCommand(SupportsCliCommand):
             default=DEFAULT_AI_WORKBENCH_BRANCH,
             help="Advanced. Git branch to fetch from.",
         )
+        init_cmd.add_argument(
+            "--overwrite",
+            default=False,
+            action="store_true",
+            help="Overwrite existing files instead of skipping them.",
+        )
 
         # secrets command group
         secrets_cmd = ai_subparsers.add_parser(
@@ -888,25 +894,7 @@ class AiCommand(SupportsCliCommand):
         )
 
         # shared run flags — used by both `dlt ai mcp [flags]` and `dlt ai mcp run [flags]`
-        mcp_run_flags = argparse.ArgumentParser(add_help=False)
-        mcp_run_flags.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
-        mcp_run_flags.add_argument(
-            "--sse",
-            action="store_true",
-            help="Use legacy SSE transport instead of streamable-http",
-        )
-        mcp_run_flags.add_argument(
-            "--port",
-            type=int,
-            default=8000,
-            help="Port for the MCP server (default: 8000)",
-        )
-        mcp_run_flags.add_argument(
-            "--features",
-            nargs="*",
-            default=None,
-            help="Additional MCP feature sets to enable (default: pipeline, workspace)",
-        )
+        mcp_run_flags = make_mcp_run_flags(default_port=8000)
 
         mcp_cmd = ai_subparsers.add_parser(
             "mcp",
@@ -972,6 +960,7 @@ class AiCommand(SupportsCliCommand):
                 agent=args.agent,
                 location=args.location,
                 branch=args.branch,
+                overwrite=args.overwrite,
             )
         elif args.operation == "secrets":
             op = getattr(args, "secrets_operation", None)
