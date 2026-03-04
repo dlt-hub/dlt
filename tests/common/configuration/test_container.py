@@ -150,6 +150,7 @@ def test_raise_on_no_default_value(container: Container) -> None:
 def test_container_injectable_context(
     container: Container, spec: Type[InjectableTestContext]
 ) -> None:
+    """injectable_context sets context on enter and removes on exit."""
     with container.injectable_context(InjectableTestContext()) as current_config:
         assert current_config.current_value is None
         current_config.current_value = "TEST"
@@ -163,6 +164,7 @@ def test_container_injectable_context(
 def test_container_injectable_context_restore(
     container: Container, spec: Type[InjectableTestContext]
 ) -> None:
+    """Nested injectable_context restores previous context on exit."""
     # this will create InjectableTestConfiguration
     original = container[spec]
     original.current_value = "ORIGINAL"
@@ -182,6 +184,7 @@ def test_container_injectable_context_restore(
 def test_container_injectable_context_mangled(
     container: Container, spec: Type[InjectableTestContext]
 ) -> None:
+    """Overwriting context during injectable_context raises ContainerInjectableContextMangled."""
     original = container[spec]
     original.current_value = "ORIGINAL"
 
@@ -197,25 +200,26 @@ def test_container_injectable_context_mangled(
 
 @pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
 def test_container_thread_affinity(container: Container, spec: Type[InjectableTestContext]) -> None:
-    event = threading.Semaphore(0)
+    """Regular threads get isolated contexts; GlobalTestContext shares one instance."""
+    barrier = threading.Barrier(2, timeout=5)
     thread_item: InjectableTestContext = None
 
     def _thread() -> None:
-        container[spec] = spec(current_value="THREAD")
-        event.release()
-        event.acquire()
         nonlocal thread_item
+        container[spec] = spec(current_value="THREAD")
+        barrier.wait()  # sync 1: thread context is set
+        barrier.wait()  # sync 2: main has modified value
         thread_item = container[spec]
-        event.release()
 
-    threading.Thread(target=_thread, daemon=True).start()
-    event.acquire()
-    # it may be or separate copy (InjectableTestContext) or single copy (GlobalTestContext)
+    t = threading.Thread(target=_thread, daemon=True)
+    t.start()
+    barrier.wait()  # sync 1: wait for thread to set context
     main_item = container[spec]
     main_item.current_value = "MAIN"
-    event.release()
+    barrier.wait()  # sync 2: let thread proceed
+    t.join(timeout=5)
+    assert not t.is_alive()
     main_item = container[spec]
-    event.release()
     if spec is GlobalTestContext:
         # just one context is kept globally
         assert main_item is thread_item
@@ -229,27 +233,28 @@ def test_container_thread_affinity(container: Container, spec: Type[InjectableTe
 
 @pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
 def test_container_pool_affinity(container: Container, spec: Type[InjectableTestContext]) -> None:
-    event = threading.Semaphore(0)
+    """Threads named with pool prefix inherit the parent thread's context."""
+    barrier = threading.Barrier(2, timeout=5)
     thread_item: InjectableTestContext = None
 
     def _thread() -> None:
-        container[spec] = spec(current_value="THREAD")
-        event.release()
-        event.acquire()
         nonlocal thread_item
+        container[spec] = spec(current_value="THREAD")
+        barrier.wait()  # sync 1: thread context is set
+        barrier.wait()  # sync 2: main has modified value
         thread_item = container[spec]
-        event.release()
 
-    threading.Thread(target=_thread, daemon=True, name=Container.thread_pool_prefix()).start()
-    event.acquire()
-    # it may be or separate copy (InjectableTestContext) or single copy (GlobalTestContext)
+    t = threading.Thread(target=_thread, daemon=True, name=Container.thread_pool_prefix())
+    t.start()
+    barrier.wait()  # sync 1: wait for thread to set context
     main_item = container[spec]
     main_item.current_value = "MAIN"
-    event.release()
+    barrier.wait()  # sync 2: let thread proceed
+    t.join(timeout=5)
+    assert not t.is_alive()
     main_item = container[spec]
-    event.release()
 
-    # just one context is kept globally - Container user pool thread name to get the starting thread id
+    # just one context is kept globally - Container uses pool thread name to get the starting thread id
     # and uses it to retrieve context
     assert main_item is thread_item
     # MAIN was set after thread
@@ -257,6 +262,8 @@ def test_container_pool_affinity(container: Container, spec: Type[InjectableTest
 
 
 def test_thread_pool_affinity(container: Container) -> None:
+    """ThreadPoolExecutor with dlt pool prefix shares parent context; without prefix does not."""
+
     def _context() -> InjectableTestContext:
         return container[InjectableTestContext]
 
@@ -278,6 +285,7 @@ def test_thread_pool_affinity(container: Container) -> None:
 
 @pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
 def test_container_provider(container: Container, spec: Type[InjectableTestContext]) -> None:
+    """ContextProvider resolves injectable contexts from container, rejects sections."""
     provider = ContextProvider()
     # default value will be created
     v, k = provider.get_value("n/a", spec, None)
@@ -308,6 +316,7 @@ def test_container_provider(container: Container, spec: Type[InjectableTestConte
 
 
 def test_container_provider_embedded_inject(container: Container, environment: Any) -> None:
+    """Container provider takes precedence over environ for embedded injectable fields."""
     environment["INJECTED"] = "unparsable"
     with container.injectable_context(InjectableTestContext(current_value="Embed")) as injected:
         # must have top precedence - over the environ provider. environ provider is returning a value that will cannot be parsed
@@ -321,6 +330,7 @@ def test_container_provider_embedded_inject(container: Container, environment: A
 def test_container_provider_embedded_no_default(
     container: Container, spec: Type[InjectableTestContext]
 ) -> None:
+    """Embedded no-default context requires active injection or Optional field."""
     with container.injectable_context(NoDefaultInjectableContext()):
         resolve_configuration(EmbeddedWithNoDefaultInjectableContext())
     # default cannot be created so fails
@@ -421,8 +431,10 @@ def test_get_worker_contexts_thread_local(container: Container) -> None:
     t_b.start()
 
     t_b.join(timeout=5)
+    assert not t_b.is_alive()
     event1.acquire()  # wait for thread_a to finish
     t_a.join(timeout=5)
+    assert not t_a.is_alive()
 
     # each thread should get its own context
     assert ThreadLocalWorkerContext in results["thread_a"]
@@ -489,7 +501,9 @@ def test_get_worker_contexts_two_pools_different_contexts(container: Container) 
     t_a.start()
     t_b.start()
     t_a.join(timeout=5)
+    assert not t_a.is_alive()
     t_b.join(timeout=5)
+    assert not t_b.is_alive()
 
     # each pool should have gotten its parent thread's context
     assert ThreadLocalWorkerContext in results["pool_a"]
@@ -551,6 +565,7 @@ def test_injectable_context_lock_controls_concurrent_write(
     finally:
         write_completed.wait(timeout=5)
         t.join(timeout=5)
+        assert not t.is_alive()
 
 
 def test_injectable_context_lock_no_deadlock_on_new_thread(container: Container) -> None:
@@ -568,6 +583,7 @@ def test_injectable_context_lock_no_deadlock_on_new_thread(container: Container)
         t.start()
         assert thread_done.wait(timeout=5), "thread must not deadlock"
         t.join(timeout=5)
+        assert not t.is_alive()
 
 
 def test_concurrent_default_creation(container: Container) -> None:
@@ -585,6 +601,7 @@ def test_concurrent_default_creation(container: Container) -> None:
         t.start()
     for t in threads:
         t.join(timeout=5)
+        assert not t.is_alive()
 
     assert all(r is not None for r in results)
     # double-checked locking must produce exactly one instance
@@ -608,4 +625,5 @@ def test_injectable_context_setitem_exception_releases_lock(container: Container
     t.start()
     assert acquired.wait(timeout=5), "lock must be released after setitem exception"
     t.join(timeout=5)
+    assert not t.is_alive()
     assert container[GlobalTestContext].current_value == "AFTER_FAIL"

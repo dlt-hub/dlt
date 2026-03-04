@@ -214,9 +214,6 @@ class FilesystemConfiguration(BaseConfiguration):
     """Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore"""
     config_kwargs: Optional[DictStrAny] = None
     """Additional arguments as Config in botocore"""
-    deltalake_storage_options: Optional[DictStrAny] = None
-    deltalake_configuration: Optional[DictStrOptionalStr] = None
-    deltalake_streamed_exec: bool = True
 
     @property
     def protocol(self) -> str:
