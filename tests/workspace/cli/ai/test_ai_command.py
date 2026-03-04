@@ -36,6 +36,7 @@ from dlt._workspace.cli.ai.utils import (
     resolve_toolkit_dependencies,
     scan_workbench_toolkits,
 )
+from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_LICENSE_URL
 from dlt._workspace.cli.exceptions import CliCommandException
 
 from tests.workspace.cli.ai.utils import (
@@ -105,6 +106,7 @@ def test_ai_status_with_toolkits(capsys: pytest.CaptureFixture[str]) -> None:
     assert "no toolkit" not in out.lower()
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="fastmcp requires Python >=3.10")
 def test_ai_init_warns_mcp(capsys: pytest.CaptureFixture[str]) -> None:
     """ai_init_command shows MCP warning when MCP server cannot start."""
     base = make_mock_workbench()
@@ -631,8 +633,9 @@ def test_toolkit_install_overwrite_workbench(
 
 
 def test_dependency_map_workbench(workbench_repo: str) -> None:
-    """build_dependency_map reads workbench dependencies."""
-    base = Path(workbench_repo) / AI_WORKBENCH_BASE_DIR
+    """build_dependency_map reads workbench dependencies and license links."""
+    repo_root = Path(workbench_repo)
+    base = repo_root / AI_WORKBENCH_BASE_DIR
     toolkits = scan_workbench_toolkits(base)
     dep_map = build_toolkits_dependency_map(toolkits)
     for name in KNOWN_TOOLKITS:
@@ -642,6 +645,18 @@ def test_dependency_map_workbench(workbench_repo: str) -> None:
             assert "init" in dep_map[name], "%s should depend on init" % name
     for name in dep_map:
         resolve_toolkit_dependencies(name, dep_map)
+
+    # marketplace index and every plugin.json must link to the license
+    marketplace = json.loads(
+        (repo_root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
+    )
+    assert marketplace["metadata"]["license"] == DEFAULT_AI_WORKBENCH_LICENSE_URL
+    for entry in marketplace["plugins"]:
+        plugin_json_path = base / entry["name"] / ".claude-plugin" / "plugin.json"
+        plugin = json.loads(plugin_json_path.read_text(encoding="utf-8"))
+        assert plugin["license"] == DEFAULT_AI_WORKBENCH_LICENSE_URL, (
+            "%s plugin.json license mismatch" % entry["name"]
+        )
 
 
 def test_toolkit_info_entry_skill_workbench(

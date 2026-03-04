@@ -8,12 +8,6 @@ from yaml import Dumper
 from itertools import chain
 from typing import List, Optional, Sequence, Tuple, Any, Dict
 
-# optional dependencies
-try:
-    import pipdeptree
-except ImportError:
-    pipdeptree = None
-
 try:
     import cron_descriptor
 except ImportError:
@@ -389,6 +383,8 @@ def serialize_templated_yaml(tree: StrAny) -> str:
 
 
 def generate_pip_freeze(requirements_blacklist: List[str], requirements_file_name: str) -> str:
+    import pipdeptree
+
     pkgs = pipdeptree.get_installed_distributions(local_only=True, user_only=False)
 
     # construct graph with all packages
