@@ -659,6 +659,11 @@ the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers
             deploy_command_available = True
         except ImportError:
             deploy_command_available = False
+        except Exception:
+            # beartype import hook can break pip._vendor.distlib on Windows;
+            # pipdeptree is installed but cannot be imported — let deploy proceed,
+            # generate_pip_freeze will handle the failure gracefully
+            deploy_command_available = True
 
         # exit if deploy command is not available
         if not deploy_command_available:

@@ -79,7 +79,7 @@ The Codex CLI picks up the MCP server automatically; in the Codex UI you need to
 dlt ai toolkit install rest-api-pipeline
 ```
 
-This installs the **rest-api-pipeline** toolkit: a workflow rule that orchestrates the agent, an entry skill, step-by-step skills for each phase, and MCP tool definitions for data access.
+This installs the **rest-api-pipeline** toolkit: a workflow rule that orchestrates the agent, an entry skill and step-by-step skills for each phase.
 
 ## Build your first pipeline
 
@@ -129,7 +129,8 @@ The agent starts with a single endpoint, sets `dev_mode=True`, and adds `.add_li
 ### `setup-secrets` — configure credentials
 
 The agent uses MCP tools to manage secrets — it never reads `secrets.toml` directly.
-It will tell you what credentials are needed and where to obtain them. You provide the values and the agent writes them securely via `dlt ai secrets update-fragment`.
+It will tell you what credentials are needed and where to obtain them. Agent can see the shape of the secrets with out actual values so it
+is still able to detect misconfigurations and other dlt-related problems.
 
 ### `debug-pipeline` — run and fix
 
@@ -153,7 +154,7 @@ Load package 1749667187.541553 is LOADED and contains no failed jobs
 
 A pipeline that runs without errors is not necessarily correct. Before moving on, the agent helps you validate results using the dashboard, MCP queries, and schema inspection.
 
-Open the [dlt Dashboard](../../general-usage/dashboard.md):
+You can open [Workspace Dashboard](../../general-usage/dashboard.md) to make your own judgement:
 
 ```sh
 dlt pipeline github_pipeline show
@@ -256,4 +257,3 @@ By the end of this guide, you should have:
 Next steps:
 - [Explore the dataset and build a data product](../../general-usage/dataset-access/dataset.md)
 - [Replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset.md)
-- [Deploy the pipeline](../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions.md)
