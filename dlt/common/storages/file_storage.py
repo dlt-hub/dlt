@@ -268,9 +268,11 @@ class FileStorage:
         if not os.path.isabs(path):
             path = os.path.join(self.storage_path, path)
         file = os.path.realpath(path)
-        # return true, if the common prefix of both is equal to directory
-        # e.g. /a/b/c/d.rst and directory is /a/b, the common prefix is /a/b
-        return os.path.commonprefix([file, self.storage_path]) == self.storage_path
+        try:
+            return os.path.commonpath([file, self.storage_path]) == self.storage_path
+        except ValueError:
+            # paths on different drives on windows
+            return False
 
     def to_relative_path(self, path: str) -> str:
         if path == "":
