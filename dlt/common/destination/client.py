@@ -613,20 +613,31 @@ class JobClientBase(ABC):
 class WithStateSync(ABC):
     @abstractmethod
     def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
-        """
-        Retrieves newest schema with given name from destination storage
+        """Retrieves newest schema with given name from destination storage.
+
         If no name is provided, the newest schema found is retrieved.
+        Returns None if the schema is not found or if the dataset/storage tables
+        do not exist (DestinationUndefinedEntity is suppressed by SQL implementations).
         """
         pass
 
     @abstractmethod
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
-        """retrieves the stored schema by hash"""
+        """Retrieves the stored schema by hash.
+
+        Returns None if not found or if the dataset/storage tables do not exist
+        (DestinationUndefinedEntity is suppressed by SQL implementations).
+        """
         pass
 
     @abstractmethod
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
-        """Loads compressed state from destination storage"""
+        """Loads compressed state from destination storage.
+
+        Returns None if no state is found for the given pipeline name.
+        Raises DestinationUndefinedEntity if the state or loads tables do not exist
+        on the destination (e.g. pipeline never ran).
+        """
         pass
 
 

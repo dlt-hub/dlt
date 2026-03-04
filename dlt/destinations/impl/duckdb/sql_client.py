@@ -24,6 +24,7 @@ from typing import (
 )
 
 from dlt.common import logger
+from dlt.common.configuration.specs.hf_credentials import HfCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.configuration.specs import (
     AwsCredentials,
@@ -350,6 +351,15 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     ACCOUNT_NAME '{credentials.azure_storage_account_name}',
                     SCOPE '{scope}'
                 )""")
+
+        elif protocol == "hf":
+            credentials = cast(HfCredentials, credentials)
+            sql.append(f"""
+            CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                TYPE HUGGINGFACE,
+                TOKEN '{credentials.hf_token}'
+            )""")
+
         elif persist_secrets:
             raise ValueError(
                 "Cannot create persistent secret for filesystem protocol"

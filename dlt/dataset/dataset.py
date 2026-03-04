@@ -10,6 +10,7 @@ import dlt
 from dlt.common.destination.exceptions import OpenTableClientNotAvailable
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.json import json
+from dlt.common.versioned_state import decompress_state
 from dlt.common.destination.reference import AnyDestination, TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.schema import Schema
@@ -21,7 +22,10 @@ from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
-from dlt.common.destination.exceptions import SqlClientNotAvailable
+from dlt.common.destination.exceptions import (
+    DestinationUndefinedEntity,
+    SqlClientNotAvailable,
+)
 
 if TYPE_CHECKING:
     from dlt.common.libs.ibis import ir
@@ -41,6 +45,8 @@ class Dataset:
         self._destination: AnyDestination = Destination.from_reference(destination)
         self._dataset_name = dataset_name
         self._schema: Union[dlt.Schema, str, None] = schema
+        self._pipeline_name: Optional[str] = None
+        """If _schema not provided, used to get default schema from state"""
         # self._sqlglot_schema: SQLGlotSchema = None
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
@@ -79,7 +85,7 @@ class Dataset:
             )
 
         if not maybe_schema:
-            maybe_schema = _get_dataset_schema_from_destination_using_dataset_name(self)
+            maybe_schema = _get_dataset_schema_from_dataset_dlt_tables(self)
 
         if not maybe_schema:
             # uses local dlt pipeline data instead of destination
@@ -445,21 +451,37 @@ def _get_dataset_schema_from_destination_using_schema_name(
     return schema
 
 
-def _get_dataset_schema_from_destination_using_dataset_name(
+def _get_dataset_schema_from_dataset_dlt_tables(
     dataset: dlt.Dataset,
 ) -> Optional[dlt.Schema]:
-    schema = None
+    """Resolves schema from destination. First tries pipeline state to get default_schema_name,
+    then falls back to most recently stored schema."""
     with get_destination_clients(
         schema=dlt.Schema(dataset.dataset_name),
         destination=dataset._destination,
         destination_dataset_name=dataset.dataset_name,
     )[0] as client:
         if isinstance(client, WithStateSync):
+            # try to resolve via pipeline state for correct default schema
+            pipeline_name = dataset._pipeline_name
+            if pipeline_name:
+                try:
+                    stored_state = client.get_stored_state(pipeline_name)
+                except DestinationUndefinedEntity:
+                    # state tables may not exist if pipeline never ran
+                    stored_state = None
+                if stored_state:
+                    state = decompress_state(stored_state.state)
+                    schema_name = state.get("default_schema_name")
+                    if schema_name:
+                        stored_schema = client.get_stored_schema(schema_name)
+                        if stored_schema:
+                            return dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+            # fall back to most recently stored schema
             stored_schema = client.get_stored_schema()
             if stored_schema:
-                schema = dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
-
-    return schema
+                return dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+    return None
 
 
 def _get_load_ids(dataset: dlt.Dataset) -> list[str]:

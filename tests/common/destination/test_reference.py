@@ -14,9 +14,10 @@ from dlt.common.typing import is_subclass
 from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
 
 from tests.common.configuration.utils import environment
-from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root
+from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root, skipifworktree
 
 
+@skipifworktree
 def test_import_unknown_destination() -> None:
     # standard destination
     with pytest.raises(UnknownDestinationModule) as unk_ex:
