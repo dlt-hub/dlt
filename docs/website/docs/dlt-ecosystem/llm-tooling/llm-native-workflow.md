@@ -256,4 +256,4 @@ By the end of this guide, you should have:
 Next steps:
 - [Explore the dataset and build a data product](../../general-usage/dataset-access/dataset.md)
 - [Replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset.md)
-- [Deploy the pipeline](../../walkthroughs/deploy-a-pipeline/index.md)
+- [Deploy the pipeline](../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions.md)
