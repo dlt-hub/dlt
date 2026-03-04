@@ -105,7 +105,7 @@ def test_toolkit_install_all_variants(
         assert agents_md.is_file()
         agents_content = agents_md.read_text(encoding="utf-8")
         assert "`test-toolkit-coding`" in agents_content
-        assert "# ALWAYS ACTIVATE those skills" in agents_content
+        assert "## ALWAYS ACTIVATE those skills" in agents_content
 
 
 def test_toolkit_install_skips_bad_frontmatter() -> None:

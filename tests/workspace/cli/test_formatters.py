@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import pytest
 import yaml
 
 from dlt._workspace.cli.formatters import (
+    MarkdownDocument,
     extract_first_heading,
     merge_agents_md_skills,
     parse_frontmatter,
@@ -12,6 +13,7 @@ from dlt._workspace.cli.formatters import (
     render_frontmatter,
 )
 from tests.utils import get_test_storage_root
+from tests.workspace.cli.ai.utils import MOCK_AGENTS_MD_TEMPLATE
 
 
 @pytest.mark.parametrize(
@@ -158,7 +160,8 @@ def test_read_md_name_desc_no_heading() -> None:
     assert desc == ""
 
 
-_HEADING = "# ALWAYS ACTIVATE those skills"
+_TEMPLATE = MOCK_AGENTS_MD_TEMPLATE
+_HEADING = "## ALWAYS ACTIVATE those skills"
 _SECTION_WITH_A = "%s\n- `skill-a`\n" % _HEADING
 
 
@@ -207,7 +210,7 @@ _SECTION_WITH_A = "%s\n- `skill-a`\n" % _HEADING
     ],
 )
 def test_merge_agents_md_skills(existing: str, skills: List[str], check: Any) -> None:
-    assert check(merge_agents_md_skills(existing, skills))
+    assert check(merge_agents_md_skills(existing, skills, template=_TEMPLATE))
 
 
 def test_merge_agents_md_skills_preserves_surrounding_content() -> None:
@@ -216,9 +219,173 @@ def test_merge_agents_md_skills_preserves_surrounding_content() -> None:
         "# My Project\n\nSome user notes.\n\n%s\n- `skill-a`\n\n# Other section\nMore content.\n"
         % _HEADING
     )
-    result = merge_agents_md_skills(existing, ["skill-b"])
+    result = merge_agents_md_skills(existing, ["skill-b"], template=_TEMPLATE)
     assert "# My Project" in result
     assert "Some user notes." in result
     assert "# Other section" in result
     assert "More content." in result
     assert "- `skill-b`" in result
+
+
+def test_markdown_document_empty() -> None:
+    doc = MarkdownDocument("")
+    assert doc.is_empty
+    assert doc.lines == [""]
+    assert doc.frontmatter() == ({}, 0)
+    assert str(doc) == ""
+
+    # inserting a line makes it non-empty
+    doc.insert_lines(0, ["hello"])
+    assert not doc.is_empty
+
+    assert not MarkdownDocument("x").is_empty
+    assert not MarkdownDocument("\n").is_empty
+    assert not MarkdownDocument("\n\n").is_empty
+
+
+def test_markdown_document_roundtrip() -> None:
+    for text in [
+        "",
+        "hello",
+        "# H1\n\nBody\n## H2\nMore",
+        "---\nk: v\n---\nbody",
+        "trailing newline\n",
+        "two trailing\n\n",
+        "\nleading newline",
+    ]:
+        assert str(MarkdownDocument(text)) == text
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("# One\n## Two\n# Three", [("One", 1), ("Two", 2), ("Three", 1)]),
+        ("no headings here", []),
+        ("  ## Indented", [("Indented", 2)]),
+        ("##No space", []),
+    ],
+    ids=["mixed", "none", "indented", "no-space"],
+)
+def test_markdown_document_find_headings(
+    text: str,
+    expected: List[Tuple[str, int]],
+) -> None:
+    headings = MarkdownDocument(text).find_headings()
+    assert [(h.text, h.depth) for h in headings] == expected
+
+
+def test_markdown_document_find_headings_by_depth() -> None:
+    doc = MarkdownDocument("# A\n## B\n# C\n### D")
+    assert [h.text for h in doc.find_headings(depth=1)] == ["A", "C"]
+    assert [h.text for h in doc.find_headings(depth=2)] == ["B"]
+    assert [h.text for h in doc.find_headings(depth=3)] == ["D"]
+    assert doc.find_headings(depth=4) == []
+
+
+def test_markdown_document_find_first_heading() -> None:
+    assert MarkdownDocument("text\n## Second\n# First").find_first_heading().text == "Second"
+    assert MarkdownDocument("no heading").find_first_heading() is None
+
+
+def test_markdown_document_find_line() -> None:
+    doc = MarkdownDocument("alpha\n  beta  \ngamma")
+    assert doc.find_line("beta") == 1
+    assert doc.find_line("alpha") == 0
+    assert doc.find_line("missing") is None
+
+
+def test_markdown_document_search() -> None:
+    doc = MarkdownDocument("foo bar\nbaz\nfoo baz")
+    matches = doc.search(r"foo\s+(\w+)")
+    assert len(matches) == 2
+    assert matches[0][0] == 0
+    assert matches[0][1].group(1) == "bar"
+    assert matches[1][0] == 2
+    assert matches[1][1].group(1) == "baz"
+
+
+def test_markdown_document_insert_lines() -> None:
+    doc = MarkdownDocument("a\nb\nc")
+    doc.insert_lines(0, ["x"])
+    assert str(doc) == "x\na\nb\nc"
+
+    doc2 = MarkdownDocument("a\nb")
+    doc2.insert_lines(1, ["x", "y"])
+    assert str(doc2) == "a\nx\ny\nb"
+
+    doc3 = MarkdownDocument("a")
+    doc3.insert_lines(len(doc3.lines), ["z"])
+    assert str(doc3) == "a\nz"
+
+
+def test_markdown_document_frontmatter() -> None:
+    doc = MarkdownDocument("---\nname: test\n---\n# Body")
+    data, start = doc.frontmatter()
+    assert data == {"name": "test"}
+    assert start == 3
+    assert doc.body_text == "# Body"
+
+    doc2 = MarkdownDocument("no frontmatter")
+    data2, start2 = doc2.frontmatter()
+    assert data2 == {}
+    assert start2 == 0
+    assert doc2.body_text == "no frontmatter"
+
+    doc3 = MarkdownDocument("---\n: {bad\n---\nbody")
+    with pytest.raises(yaml.YAMLError):
+        doc3.frontmatter()
+
+
+def test_markdown_document_from_frontmatter() -> None:
+    original = {"name": "test", "key": "val"}
+    body = "# Content\nHello"
+    doc = MarkdownDocument.from_frontmatter(original, body)
+    data, _ = doc.frontmatter()
+    assert data == original
+    assert doc.body_text == body
+
+    assert str(MarkdownDocument.from_frontmatter({}, "bare")) == "bare"
+
+
+def test_markdown_document_insert_md() -> None:
+    doc = MarkdownDocument("a\nb\nc")
+    other = MarkdownDocument("x\ny")
+
+    # insert at index
+    doc.insert_md(1, other)
+    assert str(doc) == "a\nx\ny\nb\nc"
+
+    # None appends at end
+    doc2 = MarkdownDocument("a\nb")
+    doc2.insert_md(None, MarkdownDocument("z"))
+    assert str(doc2) == "a\nb\nz"
+
+    # insert into empty doc
+    doc3 = MarkdownDocument("")
+    doc3.insert_md(None, MarkdownDocument("hello"))
+    assert not doc3.is_empty
+
+
+def test_merge_agents_md_skills_with_template() -> None:
+    """Template heading/subheading override the hardcoded fallback."""
+    template = "## Custom Skills\nCustom description\n"
+    result = merge_agents_md_skills("", ["sk-a"], template=template)
+    assert "## Custom Skills" in result
+    assert "Custom description" in result
+    assert "# ALWAYS ACTIVATE" not in result
+    assert "- `sk-a`" in result
+
+
+def test_merge_agents_md_skills_template_no_subheading() -> None:
+    """Template with heading only (no subheading line)."""
+    template = "# Skills"
+    result = merge_agents_md_skills("", ["sk-a"], template=template)
+    assert "# Skills" in result
+    assert "- `sk-a`" in result
+
+    # appends to existing section with heading-only template
+    existing = "# Skills\n- `sk-a`\n"
+    result = merge_agents_md_skills(existing, ["sk-b"], template=template)
+    assert result.count("# Skills") == 1
+    assert "- `sk-a`" in result
+    assert "- `sk-b`" in result

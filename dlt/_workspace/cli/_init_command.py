@@ -36,7 +36,7 @@ from dlt._workspace.cli._pipeline_files import (
     TVerifiedSourceFileIndex,
 )
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
-from dlt._workspace.cli._urls import DLT_INIT_DOCS_URL  # noqa: F401
+from dlt._workspace.cli._urls import DLT_INIT_DOCS_URL, DLT_AI_DOCS_URL  # noqa: F401
 
 
 def list_sources_command(repo_location: str, branch: str = None) -> None:
@@ -91,17 +91,15 @@ def init_command(
     dry_run: bool = False,
     add_example_pipeline_script: bool = True,
 ) -> Tuple[Dict[str, str], files_ops.TSourceType]:
-    # strip dlthub: prefix — use the vibe_rest_api template with the display name
+    # detect and warn on deprecated dlthub: pattern
     display_source_name: Optional[str] = None
     if source_name.startswith("dlthub:"):
         display_source_name = source_name[7:]
         fmt.warning(
-            "The `dlthub:<source>` syntax is deprecated.\n"
-            "For AI-assisted pipelines, use the dlt AI workbench instead:\n"
-            "  1. dlt ai init                        # install AI rules and MCP server\n"
-            "  2. dlt ai toolkit install find-source  # install the source finder toolkit\n"
-            'Then ask your AI coding agent to help you build a pipeline for "%s".'
-            % display_source_name
+            "The `dlthub:<source>` syntax is deprecated. User dltHub AI Workbench instead:\n"
+            "1. dlt ai init\n"
+            "will get you started. See %s for more details."
+            % fmt.bold(DLT_AI_DOCS_URL)
         )
         source_name = "context_rest_api"
 

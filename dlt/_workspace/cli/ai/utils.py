@@ -575,6 +575,18 @@ def save_toolkit_entry(
 _INIT_TOOLKIT = "init"
 
 
+def read_agents_md_template(workbench_base: Optional[Path]) -> str:
+    """Read AGENTS.md template from init toolkit in workbench.
+
+    Raises ``FileNotFoundError`` when *workbench_base* is ``None``
+    or the template file is missing.
+    """
+    if workbench_base is None:
+        raise FileNotFoundError("workbench_base is required for AGENTS.md template")
+    tpl_path = workbench_base / _INIT_TOOLKIT / "AGENTS.md"
+    return tpl_path.read_text(encoding="utf-8")
+
+
 def fetch_ai_status(project_root: Path) -> TAiStatusInfo:
     """Collect AI setup status: version, agent, toolkits, and readiness warnings."""
     from dlt._workspace.cli.ai.agents import _AIAgent

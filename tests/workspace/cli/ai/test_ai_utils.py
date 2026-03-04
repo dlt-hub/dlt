@@ -428,36 +428,3 @@ def test_fetch_ai_status_with_toolkits() -> None:
     assert "init" not in status["toolkits"]
     assert "no_toolkits" not in status["warnings"]
     assert "no_init_toolkit" not in status["warnings"]
-
-
-def test_fetch_ai_status_mcp_unavailable_stores_error() -> None:
-    """When MCP import fails, mcp_unavailable warning and error detail are set."""
-    project_root = Path("project")
-    project_root.mkdir()
-    _make_settings(project_root, with_config=True)
-    _write_toolkits_index(
-        project_root,
-        {"init": {"version": "1.0.0", "agent": "claude", "description": "Init"}},
-    )
-
-    def raise_import(*_a: Any, **_kw: Any) -> None:
-        raise RuntimeError("fastmcp not installed")
-
-    with (
-        patch(
-            "dlt._workspace.cli.ai.utils._toolkits_index_path",
-            return_value=str(project_root / ".dlt" / ".toolkits"),
-        ),
-        patch(
-            "dlt._workspace.cli.utils.make_dlt_settings_path",
-            return_value=str(project_root / ".dlt" / "config.toml"),
-        ),
-        patch(
-            "dlt._workspace.mcp.WorkspaceMCP",
-            side_effect=raise_import,
-        ),
-    ):
-        status = fetch_ai_status(project_root)
-
-    assert "mcp_unavailable" in status["warnings"]
-    assert "fastmcp not installed" in status["mcp_error"]

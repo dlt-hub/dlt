@@ -97,9 +97,24 @@ def make_mock_toolkit_info(
     return meta
 
 
+MOCK_AGENTS_MD_TEMPLATE = (
+    "## ALWAYS ACTIVATE those skills\nthey are essential for ANY work in this project\n"
+)
+
+
+def _ensure_init_agents_template(base: Path) -> None:
+    """Create init/AGENTS.md template in workbench base if missing."""
+    init_dir = base / "init"
+    agents_md = init_dir / "AGENTS.md"
+    if not agents_md.exists():
+        init_dir.mkdir(parents=True, exist_ok=True)
+        agents_md.write_text(MOCK_AGENTS_MD_TEMPLATE, encoding="utf-8")
+
+
 def make_mock_toolkit(toolkit_name: str = "test-toolkit", with_mcp: bool = False) -> Path:
     """Create a mock toolkit directory with skills, commands, and rules."""
     toolkit_dir = Path("repo") / toolkit_name
+    _ensure_init_agents_template(toolkit_dir.parent)
     meta_dir = toolkit_dir / ".claude-plugin"
     meta_dir.mkdir(parents=True)
     (meta_dir / "plugin.json").write_text(
@@ -165,6 +180,7 @@ def make_mock_workbench() -> Path:
     (init_rules / "base.md").write_text(
         "---\ndescription: Base rules\n---\n# Base\nAlways follow these.", encoding="utf-8"
     )
+    (init_dir / "AGENTS.md").write_text(MOCK_AGENTS_MD_TEMPLATE, encoding="utf-8")
     (init_dir / ".claudeignore").write_text("_storage\n", encoding="utf-8")
 
     # rest-api toolkit

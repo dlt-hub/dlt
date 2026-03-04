@@ -1,47 +1,134 @@
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Set, Tuple
 
 import yaml
 
 from dlt.common.json import custom_encode, json
 
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)")
+
+
+class MarkdownHeading(NamedTuple):
+    line_index: int  # line index in document
+    depth: int  # number of # (1-6)
+    text: str  # heading text after # chars
+
+
+class MarkdownDocument:
+    """Simple line-based markdown document for heading lookup, frontmatter, and line insertion."""
+
+    def __init__(self, text: str) -> None:
+        self._lines: List[str] = text.split("\n")
+
+    def __str__(self) -> str:
+        return "\n".join(self._lines)
+
+    @property
+    def lines(self) -> List[str]:
+        return self._lines
+
+    @property
+    def is_empty(self) -> bool:
+        return self._lines == [""]
+
+    def find_headings(self, depth: Optional[int] = None) -> List[MarkdownHeading]:
+        """Return all headings, optionally filtered by depth (1-6)."""
+        result: List[MarkdownHeading] = []
+        for i, line in enumerate(self._lines):
+            m = _HEADING_RE.match(line.strip())
+            if m:
+                d = len(m.group(1))
+                if depth is None or d == depth:
+                    result.append(MarkdownHeading(i, d, m.group(2).strip()))
+        return result
+
+    def find_first_heading(self) -> Optional[MarkdownHeading]:
+        """Return the first heading or None."""
+        for i, line in enumerate(self._lines):
+            m = _HEADING_RE.match(line.strip())
+            if m:
+                return MarkdownHeading(i, len(m.group(1)), m.group(2).strip())
+        return None
+
+    def find_line(self, text: str) -> Optional[int]:
+        """Return index of first line whose stripped content equals *text*, or None."""
+        for i, line in enumerate(self._lines):
+            if line.strip() == text:
+                return i
+        return None
+
+    def search(self, pattern: str) -> List[Tuple[int, "re.Match[str]"]]:
+        """Return ``(index, match)`` for every line matching *pattern*."""
+        compiled = re.compile(pattern)
+        return [(i, m) for i, line in enumerate(self._lines) if (m := compiled.search(line))]
+
+    def insert_lines(self, index: int, new_lines: List[str]) -> None:
+        """Insert *new_lines* before *index*, mutating the document."""
+        for j, entry in enumerate(new_lines):
+            self._lines.insert(index + j, entry)
+
+    def insert_md(self, index: Optional[int], other: "MarkdownDocument") -> None:
+        """Insert all lines of *other* before *index*. ``None`` appends at end."""
+        if index is None:
+            index = len(self._lines)
+        self.insert_lines(index, other.lines)
+
+    def frontmatter(self) -> Tuple[Dict[str, Any], int]:
+        """Parse ``---`` delimited YAML frontmatter.
+
+        Returns ``(data_dict, body_start_index)``. When there is no valid
+        frontmatter, returns ``({}, 0)``.
+        """
+        if not self._lines or self._lines[0].rstrip("\r") != "---":
+            return {}, 0
+        close = None
+        for i in range(1, len(self._lines)):
+            if self._lines[i].rstrip("\r") == "---":
+                close = i
+                break
+        if close is None:
+            return {}, 0
+        fm_str = "\n".join(self._lines[1:close])
+        data: Dict[str, Any] = yaml.safe_load(fm_str) or {}
+        if not isinstance(data, dict):
+            return {}, 0
+        return data, close + 1
+
+    @property
+    def body_text(self) -> str:
+        """Text after frontmatter (or full text when there is none)."""
+        _, start = self.frontmatter()
+        return "\n".join(self._lines[start:])
+
+    @staticmethod
+    def from_frontmatter(data: Dict[str, Any], body: str) -> "MarkdownDocument":
+        """Create a document from a frontmatter dict and body text."""
+        if not data:
+            return MarkdownDocument(body)
+        fm = yaml.dump(data, default_flow_style=False, sort_keys=False).rstrip("\n")
+        return MarkdownDocument("---\n" + fm + "\n---\n" + body)
+
 
 def parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
     """Split YAML frontmatter (`---` delimited) from markdown body."""
-    lines = text.split("\n")
-    if not lines or lines[0].rstrip("\r") != "---":
+    doc = MarkdownDocument(text)
+    data, body_start = doc.frontmatter()
+    if not data and body_start == 0 and text:
+        # no valid frontmatter — return original text as body
         return {}, text
-    close = None
-    for i in range(1, len(lines)):
-        if lines[i].rstrip("\r") == "---":
-            close = i
-            break
-    if close is None:
-        return {}, text
-    fm_str = "\n".join(lines[1:close])
-    body = "\n".join(lines[close + 1 :])
-    data: Dict[str, Any] = yaml.safe_load(fm_str) or {}
-    if not isinstance(data, dict):
-        return {}, text
-    return data, body
+    return data, doc.body_text
 
 
 def render_frontmatter(data: Dict[str, Any], body: str) -> str:
     """Combine frontmatter dict and body into `---\\nyaml\\n---\\nbody`."""
-    if not data:
-        return body
-    fm = yaml.dump(data, default_flow_style=False, sort_keys=False).rstrip("\n")
-    return "---\n" + fm + "\n---\n" + body
+    return str(MarkdownDocument.from_frontmatter(data, body))
 
 
 def extract_first_heading(body: str) -> Optional[str]:
     """Return text of the first markdown heading, or None."""
-    for line in body.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            return stripped.lstrip("#").strip()
-    return None
+    h = MarkdownDocument(body).find_first_heading()
+    return h.text if h else None
 
 
 def read_md_name_desc(path: Path) -> Tuple[str, str]:
@@ -138,13 +225,19 @@ def render_jsonl(
     return "\n".join(lines)
 
 
-def merge_agents_md_skills(existing: str, skill_names: List[str]) -> str:
+def merge_agents_md_skills(existing: str, skill_names: List[str], template: str) -> str:
     """Merge always-activate skill entries into an AGENTS.md file.
 
+    *template* is the AGENTS.md snippet from the init toolkit whose first
+    heading defines the section to merge into.  When the heading already
+    exists in *existing*, new entries are inserted right after it (and its
+    first non-heading line).  Otherwise the whole template plus entries are
+    appended.
+
+    Raises ``ValueError`` when *template* has no markdown heading.
+
     For each skill, checks if it's already listed (`` `skill_name` `` present).
-    Finds the ``# ALWAYS ACTIVATE those skills`` heading and appends new entries
-    after the last ``- `...` `` line in that block. If the heading is missing,
-    appends a full section at end of file. Preserves all user content.
+    Preserves all user content.
     """
     # deduplicate while preserving order, skip already-present skills
     to_add: List[str] = []
@@ -153,7 +246,6 @@ def merge_agents_md_skills(existing: str, skill_names: List[str]) -> str:
         if name in seen:
             continue
         seen.add(name)
-        # check for backtick-wrapped name anywhere in existing content
         if ("`%s`" % name) in existing:
             continue
         to_add.append(name)
@@ -161,28 +253,36 @@ def merge_agents_md_skills(existing: str, skill_names: List[str]) -> str:
     if not to_add:
         return existing
 
-    new_lines = ["- `%s`" % name for name in to_add]
-    heading = "# ALWAYS ACTIVATE those skills"
-    subheading = "they are essential for ANY work in this project"
+    # parse template heading + subheading
+    tpl = MarkdownDocument(template)
+    tpl_heading = tpl.find_first_heading()
+    if tpl_heading is None:
+        raise ValueError("AGENTS.md template must contain a markdown heading")
 
-    lines = existing.split("\n") if existing else []
-    heading_idx = None
-    for i, line in enumerate(lines):
-        if line.strip() == heading:
-            heading_idx = i
-            break
+    heading = tpl.lines[tpl_heading.line_index]
+    sub_idx = tpl_heading.line_index + 1
+    subheading = tpl.lines[sub_idx].strip() if sub_idx < len(tpl.lines) else None
+
+    new_lines = ["- `%s`" % name for name in to_add]
+
+    doc = MarkdownDocument(existing) if existing else MarkdownDocument("")
+    heading_idx = doc.find_line(heading)
 
     if heading_idx is not None:
-        # insert right after heading (and subheading if present)
         insert_idx = heading_idx + 1
-        if insert_idx < len(lines) and lines[insert_idx].strip() == subheading:
+        if (
+            subheading
+            and insert_idx < len(doc.lines)
+            and doc.lines[insert_idx].strip() == subheading
+        ):
             insert_idx += 1
-        for j, entry in enumerate(new_lines):
-            lines.insert(insert_idx + j, entry)
-        return "\n".join(lines)
+        doc.insert_lines(insert_idx, new_lines)
+        return str(doc)
     else:
-        # append section at end
-        section = "\n%s\n%s\n%s\n" % (heading, subheading, "\n".join(new_lines))
+        section_lines = list(tpl.lines)
+        section_lines.extend(new_lines)
+        section_doc = MarkdownDocument("\n".join(section_lines) + "\n")
         if existing and not existing.endswith("\n"):
-            section = "\n" + section
-        return existing + section
+            doc.insert_lines(len(doc.lines), [""])
+        doc.insert_md(None, MarkdownDocument("\n" + str(section_doc)))
+        return str(doc)

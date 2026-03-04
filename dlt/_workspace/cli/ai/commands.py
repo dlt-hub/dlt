@@ -259,7 +259,7 @@ def _plan_toolkit_install(
                 )
             )
 
-    actions = agent.finalize_actions(actions, project_root)
+    actions = agent.finalize_actions(actions, project_root, workbench_base=toolkit_dir.parent)
     return actions, warnings
 
 

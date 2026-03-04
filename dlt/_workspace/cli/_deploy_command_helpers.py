@@ -383,7 +383,11 @@ def serialize_templated_yaml(tree: StrAny) -> str:
 
 
 def generate_pip_freeze(requirements_blacklist: List[str], requirements_file_name: str) -> str:
-    import pipdeptree
+    try:
+        import pipdeptree
+    except Exception as exc:
+        fmt.warning("pipdeptree does not work anymore on this system")
+        return "# please provide valid dependencies including dlt package"
 
     pkgs = pipdeptree.get_installed_distributions(local_only=True, user_only=False)
 

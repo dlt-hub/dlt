@@ -12,6 +12,8 @@ from dlt._workspace.cli.ai.agents import (
 )
 from dlt._workspace.cli.formatters import parse_frontmatter
 
+from tests.workspace.cli.ai.utils import _ensure_init_agents_template
+
 
 @pytest.fixture()
 def no_home_dir(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -241,6 +243,9 @@ def test_codex_finalize_actions_agents_md() -> None:
     """finalize_actions produces a single AGENTS.md action from all always-apply skills."""
     project = Path("project")
     project.mkdir(exist_ok=True)
+    wb = Path("workbench")
+    wb.mkdir(exist_ok=True)
+    _ensure_init_agents_template(wb)
     variant = _CodexAgent()
 
     # simulate two rule→skill actions
@@ -273,7 +278,7 @@ def test_codex_finalize_actions_agents_md() -> None:
             source_kind="rule",
         ),
     ]
-    result = variant.finalize_actions(actions, project)
+    result = variant.finalize_actions(actions, project, workbench_base=wb)
     assert len(result) == 3
     agents_action = result[-1]
     assert agents_action.kind == "rule"
@@ -281,7 +286,7 @@ def test_codex_finalize_actions_agents_md() -> None:
     content = str(agents_action.content_or_path)
     assert "`tk-coding`" in content
     assert "`tk-styling`" in content
-    assert "# ALWAYS ACTIVATE those skills" in content
+    assert "## ALWAYS ACTIVATE those skills" in content
 
 
 def test_codex_finalize_actions_dedup() -> None:
@@ -289,7 +294,10 @@ def test_codex_finalize_actions_dedup() -> None:
     project = Path("project")
     project.mkdir(exist_ok=True)
     agents_md = project / "AGENTS.md"
-    agents_md.write_text("# ALWAYS ACTIVATE those skills\n- `tk-coding`\n", encoding="utf-8")
+    agents_md.write_text("## ALWAYS ACTIVATE those skills\n- `tk-coding`\n", encoding="utf-8")
+    wb = Path("workbench")
+    wb.mkdir(exist_ok=True)
+    _ensure_init_agents_template(wb)
 
     variant = _CodexAgent()
     from dlt._workspace.cli.ai.agents import InstallAction
@@ -309,7 +317,7 @@ def test_codex_finalize_actions_dedup() -> None:
             source_kind="rule",
         ),
     ]
-    result = variant.finalize_actions(actions, project)
+    result = variant.finalize_actions(actions, project, workbench_base=wb)
     # no AGENTS.md action added since skill is already listed
     assert len(result) == 1
     assert all(a.kind == "skill" for a in result)

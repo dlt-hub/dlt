@@ -10,6 +10,7 @@ from dlt._workspace.cli.ai.utils import (
     merge_toml_mcp_servers,
     parse_json_mcp,
     parse_toml_mcp,
+    read_agents_md_template,
     strip_rule_frontmatter,
     wrap_as_skill,
 )
@@ -178,11 +179,15 @@ class _AIAgent(ABC):
         ]
 
     def finalize_actions(
-        self, actions: List["InstallAction"], project_root: Path
+        self,
+        actions: List["InstallAction"],
+        project_root: Path,
+        workbench_base: Optional[Path] = None,
     ) -> List["InstallAction"]:
         """Post-process the full action list. Default is identity.
 
         Subclasses override to coalesce shared targets (e.g. AGENTS.md).
+        *workbench_base* is the root of the fetched workbench repo.
         """
         return actions
 
@@ -371,7 +376,10 @@ class _CodexAgent(_AIAgent):
         ]
 
     def finalize_actions(
-        self, actions: List["InstallAction"], project_root: Path
+        self,
+        actions: List["InstallAction"],
+        project_root: Path,
+        workbench_base: Optional[Path] = None,
     ) -> List["InstallAction"]:
         """Coalesce rule-converted-to-skill actions into a single AGENTS.md merge action."""
         skill_names: List[str] = []
@@ -384,7 +392,8 @@ class _CodexAgent(_AIAgent):
 
         agents_md = self.agents_md_path(project_root)
         existing = agents_md.read_text(encoding="utf-8") if agents_md.is_file() else ""
-        merged = merge_agents_md_skills(existing, skill_names)
+        template = read_agents_md_template(workbench_base)
+        merged = merge_agents_md_skills(existing, skill_names, template=template)
         if merged != existing:
             actions.append(
                 InstallAction(
