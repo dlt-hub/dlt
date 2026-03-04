@@ -215,7 +215,10 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
             f" buffer: {pa.total_allocated_bytes()}]"
         )
         source_ds = self.arrow_dataset
-        storage_options = deltalake_storage_options(self._job_client.config)
+        storage_options = deltalake_storage_options(
+            self._job_client.config.credentials,
+            self._job_client.config.deltalake_storage_options,
+        )
         try:
             delta_table: DeltaTable = self._job_client.load_open_table(
                 "delta", self.load_table_name
@@ -1272,7 +1275,8 @@ class FilesystemClient(
             try:
                 return evolve_table(
                     catalog=catalog,
-                    client=self,
+                    fs_client=self.fs_client,
+                    config=self.config,
                     table_id=table_id,
                     table_location=table_location,
                     **kwargs,
@@ -1282,7 +1286,9 @@ class FilesystemClient(
         elif table_format == "delta":
             from dlt.common.libs.deltalake import deltalake_storage_options, DeltaTable
 
-            storage_options = deltalake_storage_options(self.config)
+            storage_options = deltalake_storage_options(
+                self.config.credentials, self.config.deltalake_storage_options
+            )
 
             if not DeltaTable.is_deltatable(table_location, storage_options):
                 raise DestinationUndefinedEntity(table_name)
