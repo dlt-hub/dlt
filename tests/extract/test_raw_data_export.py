@@ -48,7 +48,9 @@ def _memory_fs() -> Any:
     return fs
 
 
-def _make_exporter(bucket_url: str, name_path: str, fs: Any = None, **kwargs: Any) -> RawDataExporter:
+def _make_exporter(
+    bucket_url: str, name_path: str, fs: Any = None, **kwargs: Any
+) -> RawDataExporter:
     """Create a RawDataExporter with a pre-configured fsspec for testing.
 
     Sets fs_client directly since credentials are resolved via @configspec in production.
@@ -898,9 +900,7 @@ def test_add_filter_before_export() -> None:
         yield _make_file_item("keep.csv", b"keep_data")
         yield _make_file_item("skip.csv", b"skip_data")
 
-    filtered = my_files().add_filter(
-        lambda item: item["relative_path"] != "skip.csv"
-    )
+    filtered = my_files().add_filter(lambda item: item["relative_path"] != "skip.csv")
 
     _pipeline().extract(filtered)
 

@@ -67,9 +67,7 @@ class PipeIterator(Iterator[PipeItem]):
     ) -> None:
         self._sources = sources
         # default: derive from sources; from_pipes() overrides with full list
-        self._all_pipes: list = list(
-            {id(pipe): pipe for _, _, pipe, _ in sources}.values()
-        )
+        self._all_pipes: list = list({id(pipe): pipe for _, _, pipe, _ in sources}.values())
         self._next_item_mode: TPipeNextItemMode = next_item_mode
         self._initial_sources_count = len(sources)
         self._current_source_index: int = 0
@@ -148,9 +146,7 @@ class PipeIterator(Iterator[PipeItem]):
             _fork_pipeline(pipe)
 
         # create extractor — pass all_pipes for teardown (includes transformers)
-        iterator = cls(
-            max_parallel_items, workers, futures_poll_interval, sources, next_item_mode
-        )
+        iterator = cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
         iterator._all_pipes = list(pipes)
         return iterator
 

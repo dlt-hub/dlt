@@ -161,9 +161,7 @@ class RawDataExporter(ItemTransform[TDataItem, Dict[str, Any]], BaseConfiguratio
                 f"/{source_name}/{self._resource_name}"
             )
         else:
-            self._export_path = (
-                f"{bucket_url}/{pipeline_name}/{source_name}/{self._resource_name}"
-            )
+            self._export_path = f"{bucket_url}/{pipeline_name}/{source_name}/{self._resource_name}"
 
         # create fsspec filesystem from bucket_url + credentials
         # credentials are resolved by @configspec from secrets.toml / env vars
@@ -323,14 +321,10 @@ class RawDataExporter(ItemTransform[TDataItem, Dict[str, Any]], BaseConfiguratio
 
         name_value = self._resolve_name_value(item)
         effective_format = self.file_format or "parquet"
-        spec = DataWriter.writer_spec_from_file_format(
-            effective_format, "arrow"
-        )
+        spec = DataWriter.writer_spec_from_file_format(effective_format, "arrow")
         file_id = new_file_id()
         dir_path = f"{self._export_path}/{name_value}"
-        file_path = (
-            f"{dir_path}/{self._load_id}.{file_id}.{spec.file_extension}"
-        )
+        file_path = f"{dir_path}/{self._load_id}.{file_id}.{spec.file_extension}"
         self.fs_client.makedirs(dir_path, exist_ok=True)
 
         f = self.fs_client.open(file_path, "wb")
@@ -439,9 +433,7 @@ class RawDataExportWrapper(ItemTransform[TDataItem, Dict[str, Any]]):
             annotation = extract_inner_type(
                 resolve_single_annotation(p.annotation, globalns=globals())
             )
-            if is_subclass(annotation, RawDataExporter) or isinstance(
-                p.default, RawDataExporter
-            ):
+            if is_subclass(annotation, RawDataExporter) or isinstance(p.default, RawDataExporter):
                 return p
         return None
 
