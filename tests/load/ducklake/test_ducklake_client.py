@@ -266,6 +266,39 @@ def test_attach_statement_doesnt_use_postgresql() -> None:
     assert "postgresql" not in expected_attach_statement
 
 
+def test_ducklake_attach_statement_with_override_data_path() -> None:
+    expected_attach_statement = (
+        "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data'"
+        " AS foo (DATA_PATH '/path/to/storage', METADATA_SCHEMA 'foo',"
+        " OVERRIDE_DATA_PATH true)"
+    )
+    attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data"),
+        ducklake_name="foo",
+        storage_url="/path/to/storage",
+        override_data_path=True,
+    )
+    assert expected_attach_statement == attach_statement
+
+
+def test_ducklake_override_data_path_config() -> None:
+    configuration = resolve_configuration(
+        DuckLakeClientConfiguration(override_data_path=True)._bind_dataset_name(dataset_name="foo")
+    )
+    assert configuration.override_data_path is True
+
+    from dlt.destinations.impl.ducklake.configuration import _get_ducklake_capabilities
+
+    sql_client = DuckLakeSqlClient(
+        dataset_name="foo",
+        staging_dataset_name="foo_staging",
+        credentials=configuration.credentials,
+        capabilities=_get_ducklake_capabilities(),
+        override_data_path=configuration.override_data_path,
+    )
+    assert "OVERRIDE_DATA_PATH true" in sql_client.attach_statement
+
+
 def test_ducklake_conn_pool_always_open() -> None:
     # connection pool is embedded in configuration, configuration is a singleton during loading
     # phase which the pool needs. See DuckDbConnectionPool

@@ -160,6 +160,7 @@ class DuckLakeClient(DuckDbClient):
             staging_dataset_name=config.normalize_staging_dataset_name(schema),
             credentials=config.credentials,
             capabilities=capabilities,
+            override_data_path=config.override_data_path,
         )
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
