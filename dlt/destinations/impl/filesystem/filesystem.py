@@ -1466,16 +1466,42 @@ class HfFilesystemClient(FilesystemClient):
                 f" skipping: {type(ex).__name__}: {ex}"
             )
 
+    @contextmanager
+    def _hf_endpoint_env(self) -> Iterator[None]:
+        """Temporarily sets HF_ENDPOINT env var as specified in credentials.
+
+        Useful for methods that do not allow passing endpoint as argument.
+
+        Behavior in all four cases:
+        1. no endpoint in credentials, HF_ENDPOINT not set: no-op
+        2. no endpoint in credentials, HF_ENDPOINT set: no-op
+        3. endpoint in credentials, HF_ENDPOINT not set: sets HF_ENDPOINT to credentials endpoint temporarily
+        4. endpoint in credentials, HF_ENDPOINT set: overrides HF_ENDPOINT with credentials endpoint temporarily
+        """
+        if endpoint := self.config.credentials.hf_endpoint:
+            old = os.environ.get("HF_ENDPOINT")
+            os.environ["HF_ENDPOINT"] = endpoint
+            try:
+                yield
+            finally:
+                if old is None:
+                    del os.environ["HF_ENDPOINT"]
+                else:
+                    os.environ["HF_ENDPOINT"] = old
+        else:
+            yield
+
     def init_dataset_card(self) -> None:
         from huggingface_hub import DatasetCard
 
-        # TODO: make dataset card content configurable
-        DatasetCard(content="").push_to_hub(
-            repo_id=self.repo_id,
-            token=self.config.credentials.hf_token,
-            repo_type="dataset",
-            commit_message="Initialize dataset card",
-        )
+        with self._hf_endpoint_env():
+            # TODO: make dataset card content configurable
+            DatasetCard(content="").push_to_hub(
+                repo_id=self.repo_id,
+                token=self.config.credentials.hf_token,
+                repo_type="dataset",
+                commit_message="Initialize dataset card",
+            )
 
     @staticmethod
     def create_dataset_card_metadata_config(
@@ -1501,13 +1527,14 @@ class HfFilesystemClient(FilesystemClient):
         from huggingface_hub import metadata_update
 
         table_names = list(self.schema.data_table_names(seen_data_only=True))
-        metadata_update(
-            repo_id=self.repo_id,
-            metadata=self.create_dataset_card_metadata(),
-            repo_type="dataset",
-            overwrite=True,
-            token=self.config.credentials.hf_token,
-            commit_message=(
-                f"Load {load_id}: update dataset card metadata for {', '.join(table_names)}"
-            ),
-        )
+        with self._hf_endpoint_env():
+            metadata_update(
+                repo_id=self.repo_id,
+                metadata=self.create_dataset_card_metadata(),
+                repo_type="dataset",
+                overwrite=True,
+                token=self.config.credentials.hf_token,
+                commit_message=(
+                    f"Load {load_id}: update dataset card metadata for {', '.join(table_names)}"
+                ),
+            )
