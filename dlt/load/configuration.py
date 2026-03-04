@@ -22,6 +22,8 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     """If set to `True`, the staging dataset will be truncated after loading the data"""
     start_new_jobs_on_signal: bool = False
     """If set to False: will attempt to drain load pool on signal, if True: will continue loading new job"""
+    auto_abort_on_terminal_error: bool = True
+    """If set to True, automatically aborts packages with failed jobs."""
 
     def on_resolved(self) -> None:
         self.pool_type = (
