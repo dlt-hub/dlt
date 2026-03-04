@@ -61,10 +61,10 @@ Learn how to build you own dlt pipeline with [dlt Fundamentals course.](https://
 ### LLM-native setup
 
 A collaborative AI-human workflow that integrates `dlt` with AI editors and agents like:
-- **Cursor**,
-- **Continue**,
-- **Copilot**,
-- [the full list](../../dlt-ecosystem/llm-tooling/llm-native-workflow#configure-ide)
+- **Claude**
+- **Cursor**
+- **Codex**
+- [the full list](../../dlt-ecosystem/llm-tooling/llm-native-workflow#setup)
 
 
 **Initialize your first workspace pipeline**
