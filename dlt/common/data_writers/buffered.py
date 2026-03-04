@@ -249,9 +249,7 @@ class BufferedDataWriter(Generic[TWriter]):
                     self._file = self.open(self._file_name, "wt", encoding="utf-8", newline="")
                 self._writer = self.writer_cls(self._file, caps=self._caps)  # type: ignore[assignment]
                 if hasattr(self._writer, "_arrow_concat_promote_options"):
-                    self._writer._arrow_concat_promote_options = (
-                        self._arrow_concat_promote_options
-                    )
+                    self._writer._arrow_concat_promote_options = self._arrow_concat_promote_options
                 self._writer.write_header(self._current_columns)
             # swap out buffer before writing so batch references are released
             # as soon as write_data returns, without waiting for the next
