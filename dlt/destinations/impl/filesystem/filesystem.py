@@ -215,7 +215,10 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
             f" buffer: {pa.total_allocated_bytes()}]"
         )
         source_ds = self.arrow_dataset
-        storage_options = deltalake_storage_options(self._job_client.config)
+        storage_options = deltalake_storage_options(
+            self._job_client.config.credentials,
+            self._job_client.config.deltalake_storage_options,
+        )
         try:
             delta_table: DeltaTable = self._job_client.load_open_table(
                 "delta", self.load_table_name
@@ -269,10 +272,21 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 schema=self.arrow_dataset.schema,
             )
         except DestinationUndefinedEntity:
+            from dlt.destinations.impl.filesystem.iceberg_adapter import TABLE_PROPERTIES_HINT
+
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
 
             spec_list = self._get_partition_spec_list()
+            # merge config-level defaults with per-table adapter overrides
+            config_properties = self._job_client.config.iceberg_table_properties
+            adapter_properties: Optional[Dict[str, str]] = self._load_table.get(
+                TABLE_PROPERTIES_HINT
+            )  # type: ignore[assignment]
+            if config_properties or adapter_properties:
+                properties = {**(config_properties or {}), **(adapter_properties or {})}
+            else:
+                properties = None
 
             if spec_list:
                 partition_spec, iceberg_schema = build_iceberg_partition_spec(
@@ -284,6 +298,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table_location=location,
                     schema=iceberg_schema,
                     partition_spec=partition_spec,
+                    properties=properties,
                 )
             else:
                 create_table(
@@ -291,6 +306,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table_id,
                     table_location=location,
                     schema=self.arrow_dataset.schema,
+                    properties=properties,
                 )
             # run again with created table
             self.run()
@@ -1259,7 +1275,8 @@ class FilesystemClient(
             try:
                 return evolve_table(
                     catalog=catalog,
-                    client=self,
+                    fs_client=self.fs_client,
+                    config=self.config,
                     table_id=table_id,
                     table_location=table_location,
                     **kwargs,
@@ -1269,7 +1286,9 @@ class FilesystemClient(
         elif table_format == "delta":
             from dlt.common.libs.deltalake import deltalake_storage_options, DeltaTable
 
-            storage_options = deltalake_storage_options(self.config)
+            storage_options = deltalake_storage_options(
+                self.config.credentials, self.config.deltalake_storage_options
+            )
 
             if not DeltaTable.is_deltatable(table_location, storage_options):
                 raise DestinationUndefinedEntity(table_name)
@@ -1307,7 +1326,10 @@ class FilesystemClient(
 
         # Create namespace
         try:
-            catalog.create_namespace(self.dataset_name)
+            catalog.create_namespace(
+                self.dataset_name,
+                properties=self.config.iceberg_namespace_properties or {},
+            )
             logger.info(f"Created Iceberg namespace: {self.dataset_name}")
         except NamespaceAlreadyExistsError as e:
             logger.debug(f"Namespace {self.dataset_name} already exists or error: {e}")
