@@ -279,6 +279,7 @@ const sidebars = {
             'general-usage/incremental/troubleshooting',
           ]
         },
+        'general-usage/raw-data-export',
         {
           type: 'category',
           label: 'Configure pipelines and credentials',

@@ -1,4 +1,5 @@
 import inspect
+import logging
 import types
 from typing import (
     AsyncIterator,
@@ -43,6 +44,8 @@ from dlt.extract.concurrency import FuturesPool
 
 TPipeNextItemMode = Literal["fifo", "round_robin"]
 
+logger = logging.getLogger(__name__)
+
 
 class PipeIterator(Iterator[PipeItem]):
     @configspec
@@ -63,6 +66,10 @@ class PipeIterator(Iterator[PipeItem]):
         next_item_mode: TPipeNextItemMode,
     ) -> None:
         self._sources = sources
+        # default: derive from sources; from_pipes() overrides with full list
+        self._all_pipes: list = list(
+            {id(pipe): pipe for _, _, pipe, _ in sources}.values()
+        )
         self._next_item_mode: TPipeNextItemMode = next_item_mode
         self._initial_sources_count = len(sources)
         self._current_source_index: int = 0
@@ -140,8 +147,12 @@ class PipeIterator(Iterator[PipeItem]):
         for pipe in pipes:
             _fork_pipeline(pipe)
 
-        # create extractor
-        return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
+        # create extractor — pass all_pipes for teardown (includes transformers)
+        iterator = cls(
+            max_parallel_items, workers, futures_poll_interval, sources, next_item_mode
+        )
+        iterator._all_pipes = list(pipes)
+        return iterator
 
     def __next__(self) -> PipeItem:
         pipe_item: Union[ResolvablePipeItem, SourcePipeItem] = None
@@ -312,6 +323,22 @@ class PipeIterator(Iterator[PipeItem]):
         for gen, _, _, _ in self._sources:
             if inspect.isgenerator(gen):
                 gen.close()
+
+        # teardown all transform steps (flushes buffered writers etc.)
+        from dlt.extract.items_transform import ItemTransform
+
+        for pipe in self._all_pipes:
+            for step in pipe._steps:
+                if isinstance(step, ItemTransform):
+                    try:
+                        step.teardown()
+                    except Exception:
+                        logger.warning(
+                            "Failed to teardown step %s in pipe %s",
+                            type(step).__name__,
+                            pipe.name,
+                            exc_info=True,
+                        )
 
         self._sources.clear()
 
