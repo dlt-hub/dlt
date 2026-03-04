@@ -54,3 +54,27 @@ class ParquetFormatConfiguration(BaseConfiguration):
         return base
 
     __section__: ClassVar[str] = known_sections.DATA_WRITER
+
+
+@configspec
+class ArrowIPCFormatConfiguration(BaseConfiguration):
+    """Apache Arrow IPC Feather v2 format configuration
+
+    This configuration provides the pyarrow.ipc.IpcWriteOptions settings for the Arrow IPC writer.
+    Note: Legacy attributes have not been included.
+
+    Attributes:
+        allow_64bit: allow field lengths that do not fit in a signed 32-bit int
+        compression: compression codec to use for record batch buffers ("lz4", "zstd", or None)
+        use_threads: whether to use the global CPU thread pool to parallelize any computational tasks
+        emit_dictionary_deltas: whether to emit dictionary deltas
+        unify_dictionaries: will attempt to unify dictionaries across all batches in the table
+    """
+
+    allow_64bit: bool = False
+    compression: Optional[Literal["lz4", "zstd"]] = None
+    use_threads: bool = True
+    emit_dictionary_deltas: bool = False  # default is false for maximum stream compatibility.
+    unify_dictionaries: bool = False
+
+    __section__: ClassVar[str] = known_sections.DATA_WRITER
