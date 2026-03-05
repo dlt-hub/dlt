@@ -99,18 +99,85 @@ def test_databricks_abfss_converter() -> None:
     )
 
 
-def test_databricks_auth_invalid(mocker) -> None:
-    # Clear all relevant auth environment variables to ensure clean test state
+def _setup_sdk_auth(mock_ws):
+    """Enable SDK default authentication on the mock WorkspaceClient."""
+    mock_ws.config.authenticate = lambda: {"Authorization": "Bearer token"}
+    mock_ws.config.auth_type = "pat"
+
+
+def _setup_notebook_context(
+    mock_ws,
+    mocker,
+    cluster_id="0123-456789-abcdefgh",
+    workspace_id="1234567890123456",
+    api_token="nb-token",
+):
+    """Set up the dbutils notebook context chain on the mock WorkspaceClient."""
+    mock_cluster_id = mocker.MagicMock()
+    mock_cluster_id.get.return_value = cluster_id
+    mock_workspace_id = mocker.MagicMock()
+    mock_workspace_id.get.return_value = workspace_id
+
+    mock_context = mocker.MagicMock()
+    mock_context.clusterId.return_value = mock_cluster_id
+    mock_context.workspaceId.return_value = mock_workspace_id
+
+    mock_option = mocker.MagicMock()
+    mock_option.getOrElse.return_value = api_token
+    mock_context.apiToken.return_value = mock_option
+
+    mock_notebook = mocker.MagicMock()
+    mock_notebook.getContext.return_value = mock_context
+    mock_dbutils = mocker.MagicMock()
+    mock_dbutils.notebook.return_value = mock_notebook
+    mock_entry_point = mocker.MagicMock()
+    mock_entry_point.getDbutils.return_value = mock_dbutils
+    mock_ws.dbutils.notebook.entry_point = mock_entry_point
+
+
+def _setup_warehouse(
+    mock_ws,
+    mocker,
+    warehouse_id="wh-1",
+    hostname="warehouse.databricks.com",
+    path="/sql/1.0/warehouses/wh-1",
+):
+    """Set up warehouse mock. Uses get() if warehouse_id is set on config, list() otherwise."""
+    mock_warehouse = mocker.MagicMock()
+    mock_warehouse.id = warehouse_id
+    mock_warehouse.odbc_params.hostname = hostname
+    mock_warehouse.odbc_params.path = path
+    if mock_ws.config.warehouse_id:
+        mock_ws.warehouses.get.return_value = mock_warehouse
+    else:
+        mock_ws.warehouses.list.return_value = iter([mock_warehouse])
+
+
+@pytest.fixture
+def mock_databricks_env(mocker):
+    """Clears Databricks-related env vars and provides a mock WorkspaceClient.
+
+    Returns a mock WorkspaceClient instance. By default, notebook context and
+    warehouse discovery are disabled (raise exceptions). Tests can override
+    specific attributes on the returned mock as needed.
+    """
+    # clear only DESTINATION__DATABRICKS__ prefixed env vars to avoid
+    # interfering with other destination tests
     for key in list(os.environ.keys()):
-        if "DATABRICKS" in key or "CREDENTIALS" in key:
+        if key.startswith("DESTINATION__DATABRICKS__") or key.startswith("DATABRICKS_"):
             del os.environ[key]
 
-    # Mock WorkspaceClient to prevent it from providing default auth
-    mock_workspace_client = mocker.MagicMock()
-    mock_workspace_client.dbutils.notebook.entry_point.getDbutils.side_effect = Exception("No context")
-    mock_workspace_client.config.authenticate = None
-    mocker.patch("databricks.sdk.WorkspaceClient", return_value=mock_workspace_client)
+    mock_ws = mocker.MagicMock()
+    mock_ws.dbutils.notebook.entry_point.getDbutils.side_effect = Exception("No notebook context")
+    mock_ws.config.authenticate = None
+    mock_ws.config.warehouse_id = None
+    mock_ws.config.host = None
+    mock_ws.warehouses.list.return_value = iter([])
+    mocker.patch("databricks.sdk.WorkspaceClient", return_value=mock_ws)
+    return mock_ws
 
+
+def test_databricks_auth_invalid(mock_databricks_env) -> None:
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"] = ""
@@ -123,17 +190,8 @@ def test_databricks_auth_invalid(mocker) -> None:
         bricks.configuration(None, accept_partial=True)
 
 
-def test_databricks_missing_config_catalog(mocker) -> None:
-    # Clear all relevant environment variables to ensure clean test state
-    for key in list(os.environ.keys()):
-        if "DATABRICKS" in key or "CREDENTIALS" in key:
-            del os.environ[key]
-
-    # Mock WorkspaceClient to prevent it from providing default connection params
-    mock_workspace_client = mocker.MagicMock()
-    mock_workspace_client.dbutils.notebook.entry_point.getDbutils.side_effect = Exception("No context")
-    mock_workspace_client.warehouses.list.side_effect = Exception("No warehouses")
-    mocker.patch("databricks.sdk.WorkspaceClient", return_value=mock_workspace_client)
+def test_databricks_missing_config_catalog(mock_databricks_env) -> None:
+    mock_databricks_env.warehouses.list.side_effect = Exception("No warehouses")
 
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"] = "test_token"
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "test.databricks.com"
@@ -147,19 +205,7 @@ def test_databricks_missing_config_catalog(mocker) -> None:
         bricks.configuration(None, accept_partial=True)
 
 
-def test_databricks_missing_config_http_path(mocker) -> None:
-    # Clear all relevant environment variables to ensure clean test state
-    for key in list(os.environ.keys()):
-        if "DATABRICKS" in key or "CREDENTIALS" in key:
-            del os.environ[key]
-
-    # Mock WorkspaceClient to prevent it from providing default connection params
-    mock_workspace_client = mocker.MagicMock()
-    mock_workspace_client.dbutils.notebook.entry_point.getDbutils.side_effect = Exception("No context")
-    mock_workspace_client.config.warehouse_id = None
-    mock_workspace_client.warehouses.list.return_value = iter([])  # Empty iterator
-    mocker.patch("databricks.sdk.WorkspaceClient", return_value=mock_workspace_client)
-
+def test_databricks_missing_config_http_path(mock_databricks_env) -> None:
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"] = "test_token"
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "test.databricks.com"
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"] = "test_catalog"
@@ -173,20 +219,7 @@ def test_databricks_missing_config_http_path(mocker) -> None:
         bricks.configuration(None, accept_partial=True)
 
 
-def test_databricks_missing_config_server_hostname(mocker) -> None:
-    # Clear all relevant environment variables to ensure clean test state
-    for key in list(os.environ.keys()):
-        if "DATABRICKS" in key or "CREDENTIALS" in key:
-            del os.environ[key]
-
-    # Mock WorkspaceClient to prevent it from providing default connection params
-    mock_workspace_client = mocker.MagicMock()
-    mock_workspace_client.dbutils.notebook.entry_point.getDbutils.side_effect = Exception("No context")
-    mock_workspace_client.config.warehouse_id = None
-    mock_workspace_client.config.host = None
-    mock_workspace_client.warehouses.list.return_value = iter([])  # Empty iterator
-    mocker.patch("databricks.sdk.WorkspaceClient", return_value=mock_workspace_client)
-
+def test_databricks_missing_config_server_hostname(mock_databricks_env) -> None:
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"] = "test_token"
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"] = "test_catalog"
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"] = "/sql/1.0/test"
@@ -200,109 +233,130 @@ def test_databricks_missing_config_server_hostname(mocker) -> None:
         bricks.configuration(None, accept_partial=True)
 
 
-def test_shared_cluster_authentication(mocker) -> None:
-    """Test that credentials work correctly when running on a shared cluster.
+def test_shared_cluster_authentication(mock_databricks_env) -> None:
+    """Test that default SDK authentication is used when no explicit credentials
+    are provided and notebook context is unavailable."""
 
-    When running on a shared Databricks cluster without explicit credentials,
-    the code should attempt to use WorkspaceClient's default authentication.
-    """
-    # Clear all relevant environment variables to ensure clean test state
-    for key in list(os.environ.keys()):
-        if "DATABRICKS" in key or "CREDENTIALS" in key:
-            del os.environ[key]
-
-    # Create a mock authenticator function that simulates shared cluster auth
     def mock_authenticator():
         return {"Authorization": "Bearer mock-token"}
 
-    # Mock the WorkspaceClient to simulate shared cluster environment
-    mock_workspace_client = mocker.MagicMock()
-    mock_workspace_client.config.authenticate = mock_authenticator
-    mock_workspace_client.config.auth_type = "azure-cli"
-    # Make dbutils fail (simulating non-notebook context)
-    mock_workspace_client.dbutils.notebook.entry_point.getDbutils.side_effect = Exception(
-        "Not in notebook context"
-    )
+    mock_databricks_env.config.authenticate = mock_authenticator
+    mock_databricks_env.config.auth_type = "azure-cli"
 
-    mocker.patch(
-        "databricks.sdk.WorkspaceClient",
-        return_value=mock_workspace_client,
-    )
-
-    # Test credentials directly to avoid full configuration resolution complexity
     creds = DatabricksCredentials(
         catalog="test_catalog",
         server_hostname="test.databricks.com",
         http_path="/sql/1.0/test",
     )
-    # Manually trigger on_resolved
     creds.on_resolved()
 
-    # Verify the authenticator was picked up
     assert callable(creds.access_token)
     assert creds.access_token == mock_authenticator
 
-    # Verify connector params use credentials_provider for callable access_token
     params = creds.to_connector_params()
     assert "credentials_provider" in params
     assert callable(params["credentials_provider"])
 
-def test_cluster_context_connection_params(mocker) -> None:
-    """Test that server_hostname and http_path are fetched from cluster context.
 
-    When running in a Databricks notebook on user's compute, the code should
-    get server_hostname from workspace URL and construct http_path from
-    workspace ID and cluster ID.
-    """
-    # Clear all relevant environment variables to ensure clean test state
-    for key in list(os.environ.keys()):
-        if "DATABRICKS" in key or "CREDENTIALS" in key:
-            del os.environ[key]
+def test_cluster_context_connection_params(mock_databricks_env, mocker) -> None:
+    """Test that server_hostname and http_path are derived from the notebook
+    cluster context when not explicitly provided."""
+    mock_ws = mock_databricks_env
+    mock_ws.config.host = "https://adb-1234567890123456.12.azuredatabricks.net"
+    _setup_sdk_auth(mock_ws)
+    _setup_notebook_context(mock_ws, mocker)
 
-    # Mock the WorkspaceClient to simulate notebook environment
-    mock_workspace_client = mocker.MagicMock()
-
-    # Set up workspace config
-    mock_workspace_client.config.host = "https://adb-1234567890123456.12.azuredatabricks.net"
-
-    # Create mock chain for notebook context
-    mock_cluster_id = mocker.MagicMock()
-    mock_cluster_id.get.return_value = "0123-456789-abcdefgh"
-    mock_workspace_id = mocker.MagicMock()
-    mock_workspace_id.get.return_value = "1234567890123456"
-
-    mock_context = mocker.MagicMock()
-    mock_context.clusterId.return_value = mock_cluster_id
-    mock_context.workspaceId.return_value = mock_workspace_id
-
-    # For apiToken
-    mock_option = mocker.MagicMock()
-    mock_option.getOrElse.return_value = "notebook-context-token"
-    mock_context.apiToken.return_value = mock_option
-
-    mock_notebook = mocker.MagicMock()
-    mock_notebook.getContext.return_value = mock_context
-    mock_dbutils = mocker.MagicMock()
-    mock_dbutils.notebook.return_value = mock_notebook
-    mock_entry_point = mocker.MagicMock()
-    mock_entry_point.getDbutils.return_value = mock_dbutils
-    mock_workspace_client.dbutils.notebook.entry_point = mock_entry_point
-
-    mocker.patch(
-        "databricks.sdk.WorkspaceClient",
-        return_value=mock_workspace_client,
-    )
-
-    # Test credentials with only catalog provided
-    creds = DatabricksCredentials(
-        catalog="test_catalog",
-    )
-    # Manually trigger on_resolved
+    creds = DatabricksCredentials(catalog="test_catalog")
     creds.on_resolved()
 
-    # Verify connection params were fetched from cluster context
     assert creds.server_hostname == "adb-1234567890123456.12.azuredatabricks.net"
     assert creds.http_path == "/sql/protocolv1/o/1234567890123456/0123-456789-abcdefgh"
+
+
+def test_warehouse_provides_both_params(mock_databricks_env, mocker) -> None:
+    """No workspace URL, no cluster context — both server_hostname and http_path
+    come from the first warehouse on the list."""
+    _setup_sdk_auth(mock_databricks_env)
+    _setup_warehouse(mock_databricks_env, mocker)
+
+    creds = DatabricksCredentials(catalog="test_catalog")
+    creds.on_resolved()
+
+    assert creds.server_hostname == "warehouse.databricks.com"
+    assert creds.http_path == "/sql/1.0/warehouses/wh-1"
+
+
+def test_hostname_from_workspace_http_path_from_warehouse(mock_databricks_env, mocker) -> None:
+    """Workspace URL resolves server_hostname before warehouse fallback, so
+    warehouse only fills in http_path."""
+    mock_databricks_env.config.host = "https://adb-123.azuredatabricks.net"
+    _setup_sdk_auth(mock_databricks_env)
+    _setup_warehouse(mock_databricks_env, mocker)
+
+    creds = DatabricksCredentials(catalog="test_catalog")
+    creds.on_resolved()
+
+    assert creds.server_hostname == "adb-123.azuredatabricks.net"
+    assert creds.http_path == "/sql/1.0/warehouses/wh-1"
+
+
+def test_warehouse_id_selects_specific_warehouse(mock_databricks_env, mocker) -> None:
+    """When DATABRICKS_WAREHOUSE_ID is set, warehouses.get() is used instead
+    of warehouses.list()."""
+    _setup_sdk_auth(mock_databricks_env)
+    mock_databricks_env.config.warehouse_id = "specific-wh"
+    _setup_warehouse(
+        mock_databricks_env,
+        mocker,
+        warehouse_id="specific-wh",
+        path="/sql/1.0/warehouses/specific-wh",
+    )
+
+    creds = DatabricksCredentials(catalog="test_catalog")
+    creds.on_resolved()
+
+    mock_databricks_env.warehouses.get.assert_called_once_with("specific-wh")
+    assert creds.server_hostname == "warehouse.databricks.com"
+    assert creds.http_path == "/sql/1.0/warehouses/specific-wh"
+
+
+def test_explicit_params_skip_auto_resolution(mock_databricks_env) -> None:
+    """Test that explicitly provided server_hostname and http_path are not
+    overwritten by auto-resolution."""
+    mock_databricks_env.config.host = "https://should-not-overwrite.databricks.net"
+    _setup_sdk_auth(mock_databricks_env)
+
+    creds = DatabricksCredentials(
+        catalog="test_catalog",
+        server_hostname="explicit.databricks.com",
+        http_path="/sql/1.0/explicit",
+    )
+    creds.on_resolved()
+
+    assert creds.server_hostname == "explicit.databricks.com"
+    assert creds.http_path == "/sql/1.0/explicit"
+
+
+def test_notebook_token_overwritten_by_sdk_auth(mock_databricks_env, mocker) -> None:
+    """Test that w.config.authenticate always takes precedence over notebook
+    token — matches devel behavior where the second try block overwrites."""
+
+    def sdk_authenticator():
+        return {"Authorization": "Bearer sdk-token"}
+
+    mock_databricks_env.config.authenticate = sdk_authenticator
+    mock_databricks_env.config.auth_type = "azure-cli"
+    _setup_notebook_context(mock_databricks_env, mocker)
+
+    creds = DatabricksCredentials(
+        catalog="test_catalog",
+        server_hostname="test.databricks.com",
+        http_path="/sql/1.0/test",
+    )
+    creds.on_resolved()
+
+    # sdk authenticator overwrites notebook token (devel parity)
+    assert creds.access_token is sdk_authenticator
 
 
 @pytest.mark.parametrize("auth_type", ("pat", "oauth2"))
