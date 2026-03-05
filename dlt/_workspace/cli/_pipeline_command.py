@@ -366,20 +366,8 @@ def pipeline_command(
         format_ = command_kwargs.get("format")
         remove_defaults_ = command_kwargs.get("remove_defaults")
         s = p.default_schema
-        if format_ == "json":
-            schema_str = s.to_pretty_json(remove_defaults=remove_defaults_)
-        elif format_ == "yaml":
-            schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
-        elif format_ == "dbml":
-            schema_str = s.to_dbml()
-        elif format_ == "dot":
-            schema_str = s.to_dot()
-        elif format_ == "mermaid":
-            schema_str = s.to_mermaid()
-        else:
-            schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
-
-        fmt.echo(schema_str)
+        export = utils.fetch_schema_export(s, format_=format_, remove_defaults=remove_defaults_)
+        fmt.echo(export["content"])
 
     if operation == "drop":
         drop = pipeline_drop(

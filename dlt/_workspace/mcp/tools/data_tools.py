@@ -1,4 +1,5 @@
 # mypy: disable-error-code="return-value, no-any-return"
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
 import sqlglot
@@ -11,7 +12,7 @@ from dlt.common.schema.exceptions import IncompatibleSchemaException
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import Annotated
 from dlt._workspace.cli import formatters
-from dlt._workspace.cli.utils import fetch_profiles_list, fetch_workspace_info
+from dlt._workspace.cli.utils import fetch_profiles_list, fetch_schema_export, fetch_workspace_info
 from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 
 TResultFormat = Literal["markdown", "jsonl"]
@@ -258,11 +259,11 @@ def get_row_counts(
         ) from e
 
 
-TSchemaFormat = Literal["mermaid", "yaml", "dbml"]
+TMcpSchemaFormat = Literal["mermaid", "yaml", "dbml"]
 
 
 @with_mcp_tool_telemetry()
-def display_schema(
+def export_schema(
     pipeline_name: str,
     schema_name: Optional[str] = None,
     hide_columns: Annotated[
@@ -270,22 +271,33 @@ def display_schema(
         Field(description="Hide column details for better readability of large schemas"),
     ] = False,
     output_format: Annotated[
-        TSchemaFormat,
+        TMcpSchemaFormat,
         Field(description="Output format: 'mermaid', 'yaml', or 'dbml'"),
     ] = "mermaid",
+    save_to_file: Annotated[
+        Optional[str],
+        Field(
+            description=(
+                "Save the schema to this file path instead of returning it."
+                " Use an absolute path (e.g. /home/user/schema.yaml)."
+            )
+        ),
+    ] = None,
 ) -> str:
-    """Display the pipeline schema as a diagram or structured dump."""
+    """Export the pipeline schema as a diagram or structured dump."""
     try:
         pipeline = _attach(pipeline_name)
         schema = pipeline.schemas[schema_name] if schema_name else _get_unified_schema(pipeline)
-        if output_format == "yaml":
-            return schema.to_pretty_yaml()
-        if output_format == "dbml":
-            return schema.to_dbml()
-        return schema.to_mermaid(hide_columns=hide_columns)
+        export = fetch_schema_export(schema, format_=output_format, hide_columns=hide_columns)
+        if save_to_file:
+            path = Path(save_to_file)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(export["content"], encoding="utf-8")
+            return "Schema saved to %s" % path
+        return export["content"]
     except Exception as e:
         raise ToolError(
-            "Tool `display_schema` failed. Verify `pipeline_name`. "
+            "Tool `export_schema` failed. Verify `pipeline_name`. "
             "If the error persists, try starting a new conversation."
         ) from e
 
@@ -329,7 +341,7 @@ __tools__ = (
     preview_table,
     execute_sql_query,
     get_row_counts,
-    display_schema,
+    export_schema,
     get_local_pipeline_state,
     # TODO: pipeline_trace returns raw trace.asdict() which is too large for MCP.
     #   Return a summary (timing, step outcomes, errors) like the CLI trace command does.

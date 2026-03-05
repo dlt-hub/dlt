@@ -1,5 +1,6 @@
 import json
 import re
+from pathlib import Path
 from typing import Generator
 
 import pytest
@@ -18,7 +19,7 @@ from dlt._workspace.mcp.tools.data_tools import (
     preview_table,
     execute_sql_query,
     get_row_counts,
-    display_schema,
+    export_schema,
     get_local_pipeline_state,
 )
 
@@ -177,28 +178,39 @@ def test_get_row_counts_jsonl(pokemon_pipeline_context: RunContextBase) -> None:
     assert "row_count" in first
 
 
-def test_display_schema(pokemon_pipeline_context: RunContextBase) -> None:
-    result = display_schema("rest_api_pokemon")
+def test_export_schema(pokemon_pipeline_context: RunContextBase) -> None:
+    result = export_schema("rest_api_pokemon")
     assert "erDiagram" in result
     assert "pokemon" in result
 
 
-def test_display_schema_hide_columns(pokemon_pipeline_context: RunContextBase) -> None:
-    result = display_schema("rest_api_pokemon", hide_columns=True)
+def test_export_schema_hide_columns(pokemon_pipeline_context: RunContextBase) -> None:
+    result = export_schema("rest_api_pokemon", hide_columns=True)
     assert "erDiagram" in result
     assert "pokemon" in result
 
 
-def test_display_schema_dbml(pokemon_pipeline_context: RunContextBase) -> None:
-    result = display_schema("rest_api_pokemon", output_format="dbml")
+def test_export_schema_dbml(pokemon_pipeline_context: RunContextBase) -> None:
+    result = export_schema("rest_api_pokemon", output_format="dbml")
     assert "Table" in result
     assert "pokemon" in result
 
 
-def test_display_schema_yaml(pokemon_pipeline_context: RunContextBase) -> None:
-    result = display_schema("rest_api_pokemon", output_format="yaml")
+def test_export_schema_yaml(pokemon_pipeline_context: RunContextBase) -> None:
+    result = export_schema("rest_api_pokemon", output_format="yaml")
     assert "pokemon:" in result
     assert "columns:" in result
+
+
+def test_export_schema_save_to_file(
+    pokemon_pipeline_context: RunContextBase, tmp_path: Path
+) -> None:
+    out = tmp_path / "schema.yaml"
+    result = export_schema("rest_api_pokemon", output_format="yaml", save_to_file=str(out))
+    assert "Schema saved to" in result
+    content = out.read_text(encoding="utf-8")
+    assert "pokemon:" in content
+    assert "columns:" in content
 
 
 def test_get_local_pipeline_state(pokemon_pipeline_context: RunContextBase) -> None:
@@ -259,9 +271,9 @@ def test_preview_table_unified(
     assert "carrot" in result
 
 
-def test_display_schema_unified(
+def test_export_schema_unified(
     multi_schema_pipeline_context: RunContextBase,
 ) -> None:
-    result = display_schema("multi_schema", output_format="yaml")
+    result = export_schema("multi_schema", output_format="yaml")
     assert "vegetable" in result
     assert "fruit" in result

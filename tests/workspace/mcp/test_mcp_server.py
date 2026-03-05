@@ -53,7 +53,7 @@ def test_pipeline_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
         "preview_table",
         "execute_sql_query",
         "get_row_counts",
-        "display_schema",
+        "export_schema",
         "get_local_pipeline_state",
     ]
 
@@ -95,7 +95,7 @@ def test_workspace_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
         "preview_table",
         "execute_sql_query",
         "get_row_counts",
-        "display_schema",
+        "export_schema",
         "get_local_pipeline_state",
     ]:
         assert pipeline_tool in tool_names_actual

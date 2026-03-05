@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Literal, NamedTuple, Optional
 from typing_extensions import NotRequired
 
 from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.storages.configuration import TSchemaFileFormat
 from dlt.common.typing import TypedDict
 
 
@@ -128,6 +129,14 @@ class TSourceItem(TypedDict):
     description: Optional[str]
     description_verbose: NotRequired[str]
     sample_urls: NotRequired[str]
+
+
+class TSchemaExport(TypedDict):
+    """Exported schema in a requested format."""
+
+    schema_name: str
+    format_: TSchemaFileFormat
+    content: str
 
 
 class ProviderLocationInfo(NamedTuple):

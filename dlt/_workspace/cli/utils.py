@@ -6,6 +6,8 @@ from typing import Any, Callable, Dict, FrozenSet, List, Optional, Set, Tuple
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.schema import Schema
+from dlt.common.storages.configuration import TSchemaFileFormat
 from dlt.common.time import ensure_pendulum_datetime_non_utc
 from dlt.common.typing import TAnyDateTime, TFun
 from dlt.common.configuration.container import Container
@@ -40,6 +42,7 @@ from dlt._workspace.typing import (
     TLocationScope,
     TProfileInfo,
     TProviderInfo,
+    TSchemaExport,
     TToolkitIndexEntry,
     TWorkspaceInfo,
 )
@@ -539,4 +542,30 @@ def fetch_workspace_info() -> TWorkspaceInfo:
         dlthub_version=dlthub_version,
         initialized=initialized,
         installed_toolkits=installed_toolkits,
+    )
+
+
+def fetch_schema_export(
+    schema: Schema,
+    format_: TSchemaFileFormat = "yaml",
+    remove_defaults: bool = True,
+    hide_columns: bool = False,
+) -> TSchemaExport:
+    """Export a schema object in the requested format."""
+    if format_ == "json":
+        content = schema.to_pretty_json(remove_defaults=remove_defaults)
+    elif format_ == "yaml":
+        content = schema.to_pretty_yaml(remove_defaults=remove_defaults)
+    elif format_ == "dbml":
+        content = schema.to_dbml()
+    elif format_ == "dot":
+        content = schema.to_dot()
+    elif format_ == "mermaid":
+        content = schema.to_mermaid(hide_columns=hide_columns)
+    else:
+        content = schema.to_pretty_yaml(remove_defaults=remove_defaults)
+    return TSchemaExport(
+        schema_name=schema.name,
+        format_=format_,
+        content=content,
     )

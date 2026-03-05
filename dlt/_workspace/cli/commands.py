@@ -12,6 +12,7 @@ from dlt._workspace.cli._urls import (
     DLT_TELEMETRY_DOCS_URL,
     DLT_DEPLOY_DOCS_URL,
 )
+from dlt.common.storages.configuration import TSchemaFileFormat
 
 # NOTE: do not add command specific import here - do that inline to reduce import time
 
@@ -467,27 +468,17 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         from dlt.common.typing import DictStrAny
 
         @utils.track_command("schema", False, "format_")
-        def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) -> None:
+        def schema_command_wrapper(
+            file_path: str, format_: TSchemaFileFormat, remove_defaults: bool
+        ) -> None:
             with open(file_path, "rb") as f:
                 if os.path.splitext(file_path)[1][1:] == "json":
                     schema_dict: DictStrAny = json.load(f)
                 else:
                     schema_dict = yaml.safe_load(f)
             s = Schema.from_dict(schema_dict)
-            if format_ == "json":
-                schema_str = s.to_pretty_json(remove_defaults=remove_defaults)
-            elif format_ == "yaml":
-                schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
-            elif format_ == "dbml":
-                schema_str = s.to_dbml()
-            elif format_ == "dot":
-                schema_str = s.to_dot()
-            elif format == "mermaid":
-                schema_str = s.to_mermaid()
-            else:
-                schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
-
-            fmt.echo(schema_str)
+            export = utils.fetch_schema_export(s, format_=format_, remove_defaults=remove_defaults)
+            fmt.echo(export["content"])
 
         schema_command_wrapper(args.file, args.format, args.remove_defaults)
 
