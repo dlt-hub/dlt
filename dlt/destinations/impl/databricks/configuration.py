@@ -49,12 +49,18 @@ class DatabricksCredentials(CredentialsConfiguration):
             if w is not None:
                 try:
                     # attempt context authentication via notebook token
-                    self.access_token = w.dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)  # type: ignore[union-attr]
+                    self.access_token = (
+                        w.dbutils.notebook.entry_point.getDbutils()
+                        .notebook()
+                        .getContext()
+                        .apiToken()
+                        .getOrElse(None)
+                    )
                 except Exception:
                     self.access_token = None
 
                 try:
-                    self.access_token = w.config.authenticate  # type: ignore[assignment]
+                    self.access_token = w.config.authenticate
                     logger.info(f"Will attempt to use default auth of type {w.config.auth_type}")
                 except Exception:
                     pass
@@ -84,9 +90,7 @@ class DatabricksCredentials(CredentialsConfiguration):
                 if not self.http_path:
                     try:
                         notebook_context = (
-                            w.dbutils.notebook.entry_point.getDbutils()  # type: ignore[union-attr]
-                            .notebook()
-                            .getContext()
+                            w.dbutils.notebook.entry_point.getDbutils().notebook().getContext()
                         )
                         cluster_id = notebook_context.clusterId().get()
                         workspace_id = notebook_context.workspaceId().get()
@@ -104,7 +108,7 @@ class DatabricksCredentials(CredentialsConfiguration):
                         else:
                             # for some reason list of warehouses has different type
                             # than a single one
-                            warehouse = list(w.warehouses.list())[0]  # type: ignore[assignment]
+                            warehouse = list(w.warehouses.list())[0]
                         logger.info(
                             "Will attempt to use warehouse"
                             f" {warehouse.id} to get sql connection params"
