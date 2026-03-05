@@ -287,7 +287,7 @@ def test_toolkit_install_mcp_merge_existing() -> None:
 def test_build_dependency_map() -> None:
     """build_dependency_map reads dependencies from plugin.json."""
     base = make_mock_workbench()
-    toolkits = fetch_workbench_toolkits(base)
+    toolkits, _ = fetch_workbench_toolkits(base)
     dep_map = build_toolkits_dependency_map(toolkits)
     assert dep_map["rest-api-pipeline"] == ["init"]
     assert dep_map["sql-database"] == ["init"]
@@ -321,7 +321,7 @@ def test_install_dependencies(capsys: pytest.CaptureFixture[str]) -> None:
     project_root = Path("project")
     project_root.mkdir()
     agent = _ClaudeAgent()
-    toolkits = fetch_workbench_toolkits(base)
+    toolkits, _ = fetch_workbench_toolkits(base)
 
     with patch(
         "dlt._workspace.cli.ai.utils._toolkits_index_path",
@@ -341,7 +341,7 @@ def test_install_dependencies_already_installed(capsys: pytest.CaptureFixture[st
     project_root = Path("project")
     project_root.mkdir()
     agent = _ClaudeAgent()
-    toolkits = fetch_workbench_toolkits(base)
+    toolkits, _ = fetch_workbench_toolkits(base)
 
     with patch(
         "dlt._workspace.cli.ai.utils._toolkits_index_path",
@@ -362,7 +362,7 @@ def test_install_dependencies_no_deps(capsys: pytest.CaptureFixture[str]) -> Non
     project_root = Path("project")
     project_root.mkdir()
     agent = _ClaudeAgent()
-    toolkits = fetch_workbench_toolkits(base)
+    toolkits, _ = fetch_workbench_toolkits(base)
 
     _install_dependencies("init", toolkits, base, agent, project_root)
     output = capsys.readouterr().out

@@ -261,12 +261,16 @@ def test_scan_workbench_toolkits() -> None:
     (base / "no-meta").mkdir()
 
     # default: returns all valid toolkits including unlisted
-    all_names = sorted(fetch_workbench_toolkits(base).keys())
+    all_toolkits, warnings = fetch_workbench_toolkits(base)
+    all_names = sorted(all_toolkits.keys())
     assert all_names == ["also-visible", "hidden", "my-toolkit"]
+    assert warnings == []
 
     # listed_only=True filters out unlisted
-    names = sorted(fetch_workbench_toolkits(base, listed_only=True).keys())
+    listed, warnings = fetch_workbench_toolkits(base, listed_only=True)
+    names = sorted(listed.keys())
     assert names == ["also-visible", "my-toolkit"]
+    assert warnings == []
 
 
 def test_extract_toolkit_info() -> None:

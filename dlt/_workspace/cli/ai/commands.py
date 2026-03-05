@@ -558,7 +558,9 @@ def ai_toolkit_install_command(
     if base is None:
         return
 
-    toolkits = fetch_workbench_toolkits(base, strict=strict)
+    toolkits, warnings = fetch_workbench_toolkits(base, strict=strict)
+    for w in warnings:
+        fmt.warning(w)
     _install_dependencies(name, toolkits, base, var, project_root)
     _install_toolkit(name, base, var, project_root, overwrite=overwrite, strict=strict)
 
@@ -572,7 +574,9 @@ def ai_toolkit_list_command(
     base = _fetch_workbench_base_cli(location, branch)
     if base is None:
         return
-    toolkits = fetch_workbench_toolkits(base, listed_only=True)
+    toolkits, warnings = fetch_workbench_toolkits(base, listed_only=True)
+    for w in warnings:
+        fmt.warning(w)
     if not toolkits:
         fmt.echo("No toolkits found.")
         return

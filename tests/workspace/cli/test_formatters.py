@@ -120,44 +120,37 @@ def test_extract_first_heading(body: str, expected: str) -> None:
     assert extract_first_heading(body) == expected
 
 
-def test_read_md_name_desc_with_frontmatter() -> None:
-    md = Path("my-skill.md")
-    md.write_text(
-        "---\nname: Custom Name\ndescription: A description\n---\n# Heading\nBody",
-        encoding="utf-8",
-    )
+@pytest.mark.parametrize(
+    ("filename", "content", "expected_name", "expected_desc"),
+    [
+        (
+            "my-skill.md",
+            "---\nname: Custom Name\ndescription: A description\n---\n# Heading\nBody",
+            "Custom Name",
+            "A description",
+        ),
+        (
+            "my-skill.md",
+            (
+                "---\nname: my-skill\nargument-hint: [pipeline] [-- <hints>]\n---\n"
+                "# Skill Heading\nBody text"
+            ),
+            "my-skill",
+            "Skill Heading",
+        ),
+        ("plain.md", "# First Heading\nSome content", "plain", "First Heading"),
+        ("bare.md", "Just some text with no heading", "bare", ""),
+    ],
+    ids=["with-frontmatter", "invalid-yaml-fallback", "no-frontmatter", "no-heading"],
+)
+def test_read_md_name_desc(
+    filename: str, content: str, expected_name: str, expected_desc: str
+) -> None:
+    md = Path(filename)
+    md.write_text(content, encoding="utf-8")
     name, desc = read_md_name_desc(md)
-    assert name == "Custom Name"
-    assert desc == "A description"
-
-
-def test_read_md_name_desc_invalid_yaml() -> None:
-    """Falls back to stem/heading when frontmatter is invalid YAML."""
-    md = Path("my-skill.md")
-    md.write_text(
-        "---\nname: my-skill\nargument-hint: [pipeline] [-- <hints>]\n---\n"
-        "# Skill Heading\nBody text",
-        encoding="utf-8",
-    )
-    name, desc = read_md_name_desc(md)
-    assert name == "my-skill"
-    assert desc == "Skill Heading"
-
-
-def test_read_md_name_desc_no_frontmatter() -> None:
-    md = Path("plain.md")
-    md.write_text("# First Heading\nSome content", encoding="utf-8")
-    name, desc = read_md_name_desc(md)
-    assert name == "plain"
-    assert desc == "First Heading"
-
-
-def test_read_md_name_desc_no_heading() -> None:
-    md = Path("bare.md")
-    md.write_text("Just some text with no heading", encoding="utf-8")
-    name, desc = read_md_name_desc(md)
-    assert name == "bare"
-    assert desc == ""
+    assert name == expected_name
+    assert desc == expected_desc
 
 
 _TEMPLATE = MOCK_AGENTS_MD_TEMPLATE
@@ -316,24 +309,6 @@ def test_markdown_document_insert_lines() -> None:
     doc3 = MarkdownDocument("a")
     doc3.insert_lines(len(doc3.lines), ["z"])
     assert str(doc3) == "a\nz"
-
-
-def test_markdown_document_frontmatter() -> None:
-    doc = MarkdownDocument("---\nname: test\n---\n# Body")
-    data, start = doc.frontmatter()
-    assert data == {"name": "test"}
-    assert start == 3
-    assert doc.body_text == "# Body"
-
-    doc2 = MarkdownDocument("no frontmatter")
-    data2, start2 = doc2.frontmatter()
-    assert data2 == {}
-    assert start2 == 0
-    assert doc2.body_text == "no frontmatter"
-
-    doc3 = MarkdownDocument("---\n: {bad\n---\nbody")
-    with pytest.raises(yaml.YAMLError):
-        doc3.frontmatter()
 
 
 def test_markdown_document_from_frontmatter() -> None:

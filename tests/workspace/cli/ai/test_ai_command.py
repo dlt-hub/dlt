@@ -291,7 +291,7 @@ def test_user_session_e2e(
 
         # 4. install all installable toolkits
         base = Path(workbench_repo) / AI_WORKBENCH_BASE_DIR
-        available = fetch_workbench_toolkits(base, listed_only=True)
+        available, _ = fetch_workbench_toolkits(base, listed_only=True)
         installable = [name for name in available if name != "init"]
 
         for toolkit_name in installable:
@@ -423,7 +423,7 @@ def test_dependency_map_workbench(workbench_repo: str) -> None:
     """build_dependency_map reads workbench dependencies and license links."""
     repo_root = Path(workbench_repo)
     base = repo_root / AI_WORKBENCH_BASE_DIR
-    toolkits = fetch_workbench_toolkits(base)
+    toolkits, _ = fetch_workbench_toolkits(base)
     dep_map = build_toolkits_dependency_map(toolkits)
     for name in KNOWN_TOOLKITS:
         if name == "init":
@@ -464,7 +464,7 @@ def test_toolkit_install_all_together_workbench(
     project_root = Path.cwd()
 
     # get available toolkits from the workbench (same source as list command)
-    available = fetch_workbench_toolkits(
+    available, _ = fetch_workbench_toolkits(
         Path(workbench_repo) / AI_WORKBENCH_BASE_DIR, listed_only=True
     )
     installable = [name for name in available if name != "init"]

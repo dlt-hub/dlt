@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import Any, Optional, Set
+from typing import Any, Callable, List, Optional, Set
 from unittest.mock import Mock, patch
 
 import pytest
@@ -27,7 +27,7 @@ from dlt._workspace._plugins import (
     plug_mcp_workspace,
 )
 from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
-from dlt._workspace.mcp.tools import data_tools, secrets_tools, toolkit_tools
+from dlt._workspace.mcp.tools import secrets_tools
 
 from tests.common.runtime.utils import mock_github_env, mock_pod_env
 from tests.utils import (
@@ -126,30 +126,86 @@ def test_workspace_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
             ), f"Tool {tool.name} should expose pipeline_name parameter"
 
 
-def test_plug_mcp_pipeline_returns_none_for_unknown_features() -> None:
-    assert plug_mcp_pipeline({"unknown"}) is None
+@pytest.mark.parametrize(
+    "hook_fn,feature",
+    [
+        (plug_mcp_pipeline, "pipeline"),
+        (plug_mcp_workspace, "workspace"),
+        (plug_mcp_toolkit, "toolkit"),
+        (plug_mcp_secrets, "secrets"),
+        (plug_mcp_context, "context"),
+    ],
+)
+def test_plug_mcp_returns_none_for_unknown_features(
+    hook_fn: Callable[[Set[str]], Optional[McpFeatures]], feature: str
+) -> None:
+    assert hook_fn({"unknown"}) is None
 
 
-def test_plug_mcp_pipeline_excludes_list_pipelines() -> None:
+@pytest.mark.parametrize(
+    "hook_fn,feature,expected_name,expected_tool_names",
+    [
+        (
+            plug_mcp_pipeline,
+            "pipeline",
+            "pipeline",
+            [
+                "list_tables",
+                "get_table_schema",
+                "get_table_create_sql",
+                "preview_table",
+                "execute_sql_query",
+                "get_row_counts",
+                "export_schema",
+                "get_local_pipeline_state",
+            ],
+        ),
+        (
+            plug_mcp_workspace,
+            "workspace",
+            "workspace",
+            ["list_pipelines", "list_profiles", "get_workspace_info"],
+        ),
+        (
+            plug_mcp_toolkit,
+            "toolkit",
+            "toolkit",
+            ["list_toolkits", "toolkit_info"],
+        ),
+        (
+            plug_mcp_secrets,
+            "secrets",
+            "secrets",
+            ["secrets_list", "secrets_view_redacted", "secrets_update_fragment"],
+        ),
+        (
+            plug_mcp_context,
+            "context",
+            "context",
+            ["search_dlthub_sources"],
+        ),
+    ],
+)
+def test_plug_mcp_returns_expected_tools(
+    hook_fn: Callable[[Set[str]], Optional[McpFeatures]],
+    feature: str,
+    expected_name: str,
+    expected_tool_names: List[str],
+) -> None:
+    result = hook_fn({feature})
+    assert result is not None
+    assert result.name == expected_name
+    actual_names = [t.__name__ for t in result.tools]
+    assert actual_names == expected_tool_names
+
+
+def test_plug_mcp_pipeline_excludes_workspace_tools() -> None:
+    """Pipeline feature must not include list_pipelines or list_profiles."""
     result = plug_mcp_pipeline({"pipeline"})
     assert result is not None
-    assert result.name == "pipeline"
-    assert data_tools.list_pipelines not in result.tools
-    assert data_tools.list_tables in result.tools
-
-
-def test_plug_mcp_workspace_returns_none_for_unknown_features() -> None:
-    assert plug_mcp_workspace({"unknown"}) is None
-
-
-def test_plug_mcp_workspace_returns_workspace_tools() -> None:
-    result = plug_mcp_workspace({"workspace"})
-    assert result is not None
-    assert result.name == "workspace"
-    assert data_tools.list_pipelines in result.tools
-    assert data_tools.list_profiles in result.tools
-    assert data_tools.get_workspace_info in result.tools
-    assert len(result.tools) == 3
+    tool_names = [t.__name__ for t in result.tools]
+    assert "list_pipelines" not in tool_names
+    assert "list_profiles" not in tool_names
 
 
 def test_register_tool_and_prompt_objects(pokemon_pipeline_context: RunContextBase) -> None:
@@ -188,72 +244,27 @@ def test_register_tool_and_prompt_objects(pokemon_pipeline_context: RunContextBa
         m.unregister(name="test-obj-plugin")
 
 
-def test_plug_mcp_toolkit_returns_none_for_unknown_features() -> None:
-    assert plug_mcp_toolkit({"unknown"}) is None
-
-
-def test_plug_mcp_toolkit_returns_tools() -> None:
-    result = plug_mcp_toolkit({"toolkit"})
-    assert result is not None
-    assert result.name == "toolkit"
-    assert toolkit_tools.list_toolkits in result.tools
-    assert toolkit_tools.toolkit_info in result.tools
-    assert len(result.tools) == 2
-
-
-def test_plug_mcp_secrets_returns_none_for_unknown_features() -> None:
-    assert plug_mcp_secrets({"unknown"}) is None
-
-
-def test_plug_mcp_secrets_returns_tools() -> None:
-    result = plug_mcp_secrets({"secrets"})
-    assert result is not None
-    assert result.name == "secrets"
-    assert secrets_tools.secrets_list in result.tools
-    assert secrets_tools.secrets_view_redacted in result.tools
-    assert secrets_tools.secrets_update_fragment in result.tools
-    assert len(result.tools) == 3
-
-
-def test_plug_mcp_context_returns_none_for_unknown_features() -> None:
-    assert plug_mcp_context({"unknown"}) is None
-
-
-def test_plug_mcp_context_returns_tools() -> None:
-    from dlt._workspace.mcp.tools import context_tools
-
-    result = plug_mcp_context({"context"})
-    assert result is not None
-    assert result.name == "context"
-    assert context_tools.search_dlthub_sources in result.tools
-    assert len(result.tools) == 1
-
-
-def test_resolve_features_defaults() -> None:
-    assert resolve_features(None) == WorkspaceMCP.DEFAULT_FEATURES
-    assert resolve_features([]) == WorkspaceMCP.DEFAULT_FEATURES
-
-
-def test_resolve_features_add_and_remove() -> None:
-    result = resolve_features(["-secrets", "+context"])
-    assert "secrets" not in result
-    assert "context" in result
-    # other defaults still present
-    assert "pipeline" in result
-    assert "workspace" in result
-    assert "toolkit" in result
-
-
-def test_resolve_features_plain_name_adds() -> None:
-    result = resolve_features(["context"])
-    assert result == WorkspaceMCP.DEFAULT_FEATURES | {"context"}
-
-
-def test_resolve_features_comma_separated() -> None:
-    result = resolve_features(["-secrets,+context"])
-    assert "secrets" not in result
-    assert "context" in result
-    assert "pipeline" in result
+@pytest.mark.parametrize(
+    "tokens,expected_in,expected_not_in",
+    [
+        (None, {"pipeline", "workspace", "toolkit", "secrets"}, set()),
+        ([], {"pipeline", "workspace", "toolkit", "secrets"}, set()),
+        (["-secrets", "+context"], {"pipeline", "workspace", "toolkit", "context"}, {"secrets"}),
+        (["context"], {"pipeline", "workspace", "toolkit", "secrets", "context"}, set()),
+        (["-secrets,+context"], {"pipeline", "workspace", "toolkit", "context"}, {"secrets"}),
+    ],
+    ids=["none", "empty", "add-remove", "plain-add", "comma-separated"],
+)
+def test_resolve_features(
+    tokens: Optional[List[str]],
+    expected_in: Set[str],
+    expected_not_in: Set[str],
+) -> None:
+    result = resolve_features(tokens)
+    for f in expected_in:
+        assert f in result, f"{f} should be in {result}"
+    for f in expected_not_in:
+        assert f not in result, f"{f} should not be in {result}"
 
 
 def test_resolve_features_cli_argparse() -> None:

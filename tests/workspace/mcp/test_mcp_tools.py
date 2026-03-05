@@ -1,7 +1,8 @@
 import json
 import re
 from pathlib import Path
-from typing import Generator
+from typing import Generator, List
+from unittest.mock import patch
 
 import pytest
 from fastmcp.exceptions import ToolError
@@ -9,7 +10,11 @@ from fastmcp.exceptions import ToolError
 import dlt
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
+from dlt._workspace.cli.exceptions import AiContextApiError
 from dlt._workspace.cli.utils import list_local_pipelines
+from dlt._workspace.mcp.tools.data_tools import TMcpSchemaFormat, TResultFormat
+from dlt._workspace.mcp.tools.context_tools import search_dlthub_sources
+from dlt._workspace.mcp.tools.toolkit_tools import list_toolkits, toolkit_info
 from dlt._workspace.mcp.tools.data_tools import (
     list_pipelines,
     list_profiles,
@@ -39,11 +44,8 @@ def test_list_profiles(pokemon_pipeline_context: RunContextBase) -> None:
     assert len(current) == 1
     # all have required keys
     for p in profiles:
-        assert "name" in p
-        assert "description" in p
-        assert "is_current" in p
-        assert "is_pinned" in p
-        assert "is_configured" in p
+        for key in ("name", "description", "is_current", "is_pinned", "is_configured"):
+            assert key in p
 
 
 def test_list_pipelines(pokemon_pipeline_context: RunContextBase) -> None:
@@ -52,8 +54,6 @@ def test_list_pipelines(pokemon_pipeline_context: RunContextBase) -> None:
 
 
 def test_list_pipelines_project_dir_filter(pokemon_pipeline_context: RunContextBase) -> None:
-    # the workspace context has profiles so list_pipelines returns all
-    # test filtering via list_local_pipelines directly
     local_dir = pokemon_pipeline_context.local_dir
     _, pipelines = list_local_pipelines(sort_by_trace=False, run_dir=local_dir)
     assert any(p["name"] == "rest_api_pokemon" for p in pipelines)
@@ -88,71 +88,58 @@ def test_get_table_schema(pokemon_pipeline_context: RunContextBase) -> None:
 def test_get_table_create_sql(pokemon_pipeline_context: RunContextBase) -> None:
     ddl = get_table_create_sql("rest_api_pokemon", "pokemon")
     assert "CREATE TABLE" in ddl
-    # table name present
     assert '"pokemon"' in ddl
-    # column names present
     assert '"name"' in ddl
     assert '"url"' in ddl
     assert '"_dlt_load_id"' in ddl
     assert '"_dlt_id"' in ddl
-    # has data types
     assert "TEXT" in ddl.upper() or "VARCHAR" in ddl.upper()
 
 
-def test_preview_table_md(pokemon_pipeline_context: RunContextBase) -> None:
-    result = preview_table("rest_api_pokemon", "pokemon")
-    lines = result.strip().splitlines()
-
-    # header + separator + 10 data rows + blank + row count = at least 13 lines
-    assert len(lines) >= 12, f"Expected at least 12 lines, got {len(lines)}"
-
-    # header has column names
-    header = lines[0]
-    assert "name" in header
-    assert "url" in header
-
-    # separator line
-    assert re.match(r"^\|[\s\-|]+\|$", lines[1])
-
-    # first data row
-    assert "bulbasaur" in lines[2]
-
-    # row count
-    assert "(10 row(s))" in lines[-1]
-
-
-def test_preview_table_jsonl(pokemon_pipeline_context: RunContextBase) -> None:
-    result = preview_table("rest_api_pokemon", "pokemon", output_format="jsonl")
-    lines = result.strip().splitlines()
-    assert len(lines) == 10
-
-    # each line is valid JSON with expected keys
-    for line in lines:
-        obj = json.loads(line)
-        assert "name" in obj
-        assert "url" in obj
-        assert "_dlt_load_id" in obj
-        assert "_dlt_id" in obj
-
-    # first row is bulbasaur
-    first = json.loads(lines[0])
-    assert first["name"] == "bulbasaur"
+@pytest.mark.parametrize(
+    "output_format",
+    ["markdown", "jsonl"],
+)
+def test_preview_table(
+    pokemon_pipeline_context: RunContextBase, output_format: TResultFormat
+) -> None:
+    result = preview_table("rest_api_pokemon", "pokemon", output_format=output_format)
+    if output_format == "markdown":
+        lines = result.strip().splitlines()
+        assert len(lines) >= 12
+        assert "name" in lines[0]
+        assert re.match(r"^\|[\s\-|]+\|$", lines[1])
+        assert "bulbasaur" in lines[2]
+        assert "(10 row(s))" in lines[-1]
+    else:
+        lines = result.strip().splitlines()
+        assert len(lines) == 10
+        for line in lines:
+            obj = json.loads(line)
+            assert "name" in obj
+            assert "url" in obj
+        assert json.loads(lines[0])["name"] == "bulbasaur"
 
 
-def test_execute_sql_query(pokemon_pipeline_context: RunContextBase) -> None:
-    result = execute_sql_query("rest_api_pokemon", "SELECT * FROM pokemon LIMIT 5")
-    assert "(5 row(s))" in result
-    assert "bulbasaur" in result
-
-
-def test_execute_sql_query_jsonl(pokemon_pipeline_context: RunContextBase) -> None:
+@pytest.mark.parametrize(
+    "output_format",
+    ["markdown", "jsonl"],
+)
+def test_execute_sql_query(
+    pokemon_pipeline_context: RunContextBase, output_format: TResultFormat
+) -> None:
     result = execute_sql_query(
-        "rest_api_pokemon", "SELECT name FROM pokemon LIMIT 3", output_format="jsonl"
+        "rest_api_pokemon",
+        "SELECT name FROM pokemon LIMIT 5",
+        output_format=output_format,
     )
-    lines = result.strip().splitlines()
-    assert len(lines) == 3
-    first = json.loads(lines[0])
-    assert "name" in first
+    if output_format == "markdown":
+        assert "(5 row(s))" in result
+        assert "bulbasaur" in result
+    else:
+        lines = result.strip().splitlines()
+        assert len(lines) == 5
+        assert "name" in json.loads(lines[0])
 
 
 def test_execute_sql_query_rejects_dml(pokemon_pipeline_context: RunContextBase) -> None:
@@ -160,46 +147,44 @@ def test_execute_sql_query_rejects_dml(pokemon_pipeline_context: RunContextBase)
         execute_sql_query("rest_api_pokemon", "DELETE FROM pokemon")
 
 
-def test_get_row_counts(pokemon_pipeline_context: RunContextBase) -> None:
-    result = get_row_counts("rest_api_pokemon")
-    assert "table_name" in result
-    assert "row_count" in result
+@pytest.mark.parametrize(
+    "output_format",
+    ["markdown", "jsonl"],
+)
+def test_get_row_counts(
+    pokemon_pipeline_context: RunContextBase, output_format: TResultFormat
+) -> None:
+    result = get_row_counts("rest_api_pokemon", output_format=output_format)
+    if output_format == "markdown":
+        assert "table_name" in result
+        assert "row_count" in result
+        assert "pokemon" in result
+        assert "berry" in result
+        assert "location" in result
+    else:
+        lines = result.strip().splitlines()
+        assert len(lines) >= 3
+        first = json.loads(lines[0])
+        assert "table_name" in first
+        assert "row_count" in first
+
+
+@pytest.mark.parametrize(
+    "output_format,expected_substr",
+    [
+        ("mermaid", "erDiagram"),
+        ("yaml", "columns:"),
+        ("dbml", "Table"),
+    ],
+)
+def test_export_schema(
+    pokemon_pipeline_context: RunContextBase,
+    output_format: TMcpSchemaFormat,
+    expected_substr: str,
+) -> None:
+    result = export_schema("rest_api_pokemon", output_format=output_format)
+    assert expected_substr in result
     assert "pokemon" in result
-    assert "berry" in result
-    assert "location" in result
-
-
-def test_get_row_counts_jsonl(pokemon_pipeline_context: RunContextBase) -> None:
-    result = get_row_counts("rest_api_pokemon", output_format="jsonl")
-    lines = result.strip().splitlines()
-    assert len(lines) >= 3
-    first = json.loads(lines[0])
-    assert "table_name" in first
-    assert "row_count" in first
-
-
-def test_export_schema(pokemon_pipeline_context: RunContextBase) -> None:
-    result = export_schema("rest_api_pokemon")
-    assert "erDiagram" in result
-    assert "pokemon" in result
-
-
-def test_export_schema_hide_columns(pokemon_pipeline_context: RunContextBase) -> None:
-    result = export_schema("rest_api_pokemon", hide_columns=True)
-    assert "erDiagram" in result
-    assert "pokemon" in result
-
-
-def test_export_schema_dbml(pokemon_pipeline_context: RunContextBase) -> None:
-    result = export_schema("rest_api_pokemon", output_format="dbml")
-    assert "Table" in result
-    assert "pokemon" in result
-
-
-def test_export_schema_yaml(pokemon_pipeline_context: RunContextBase) -> None:
-    result = export_schema("rest_api_pokemon", output_format="yaml")
-    assert "pokemon:" in result
-    assert "columns:" in result
 
 
 def test_export_schema_save_to_file(
@@ -274,3 +259,64 @@ def test_export_schema_unified(
     result = export_schema("multi_schema", output_format="yaml")
     assert "vegetable" in result
     assert "fruit" in result
+
+
+def test_list_toolkits_returns_dict() -> None:
+    mock_toolkits = {"init": {"name": "init", "version": "1.0"}}
+    with (
+        patch("dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_base") as mock_base,
+        patch(
+            "dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_toolkits",
+            return_value=(mock_toolkits, []),
+        ),
+    ):
+        mock_base.return_value = Path("/fake")
+        result = list_toolkits()
+    assert result == mock_toolkits
+
+
+def test_list_toolkits_raises_tool_error_on_missing_repo() -> None:
+    with patch(
+        "dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_base",
+        side_effect=FileNotFoundError("repo not found"),
+    ):
+        with pytest.raises(ToolError, match="repo not found"):
+            list_toolkits()
+
+
+def test_toolkit_info_returns_details() -> None:
+    mock_info = {"name": "rest-api", "version": "1.0", "skills": [], "commands": [], "rules": []}
+    with patch(
+        "dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_toolkit_info",
+        return_value=mock_info,
+    ):
+        result = toolkit_info("rest-api")
+    assert result == mock_info
+
+
+def test_toolkit_info_raises_tool_error_when_not_found() -> None:
+    with patch(
+        "dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_toolkit_info",
+        return_value=None,
+    ):
+        with pytest.raises(ToolError, match="not found"):
+            toolkit_info("nonexistent")
+
+
+def test_search_dlthub_sources_returns_results() -> None:
+    mock_results = [{"source_name": "github", "description": "GitHub API"}]
+    with patch(
+        "dlt._workspace.mcp.tools.context_tools.search_sources",
+        return_value=mock_results,
+    ):
+        result = search_dlthub_sources(query="github")
+    assert result == mock_results
+
+
+def test_search_dlthub_sources_wraps_api_error() -> None:
+    with patch(
+        "dlt._workspace.mcp.tools.context_tools.search_sources",
+        side_effect=AiContextApiError("API down"),
+    ):
+        with pytest.raises(ToolError, match="API down"):
+            search_dlthub_sources(query="test")

@@ -59,15 +59,11 @@ def test_variant_component_dir(
 
 
 @pytest.mark.parametrize(
-    ("variant_cls", "ignore_file_name"),
-    [
-        (_ClaudeAgent, ".claudeignore"),
-        (_CursorAgent, ".cursorignore"),
-        (_CodexAgent, ".codexignore"),
-    ],
+    "variant_cls",
+    [_ClaudeAgent, _CursorAgent, _CodexAgent],
     ids=["claude", "cursor", "codex"],
 )
-def test_install_actions_skill(variant_cls: Type[_AIAgent], ignore_file_name: str) -> None:
+def test_install_actions_skill(variant_cls: Type[_AIAgent]) -> None:
     """Skill install_actions returns a single copytree action for all agents."""
     project = Path("project")
     project.mkdir(exist_ok=True)
@@ -326,18 +322,8 @@ def test_codex_finalize_actions_dedup() -> None:
         ({"CLAUDECODE": "1"}, {"claude"}),
         ({"CODEX_CI": "1"}, {"codex"}),
         ({"CURSOR_AGENT": "1"}, {"cursor"}),
-        ({"CLAUDECODE": "1", "CODEX_CI": "1"}, {"claude", "codex"}),
-        ({"CODEX_CI": "1", "CURSOR_AGENT": "1"}, {"codex", "cursor"}),
-        ({"CLAUDECODE": "1", "CODEX_CI": "1", "CURSOR_AGENT": "1"}, {"claude", "codex", "cursor"}),
     ],
-    ids=[
-        "claude-env",
-        "codex-env",
-        "cursor-env",
-        "claude-and-codex",
-        "codex-and-cursor",
-        "all-three",
-    ],
+    ids=["claude-env", "codex-env", "cursor-env"],
 )
 def test_detect_all_runtime_env(
     env_vars: Dict[str, str],

@@ -22,7 +22,8 @@ def list_toolkits() -> Dict[str, TToolkitInfo]:
         base = fetch_workbench_base(DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH)
     except FileNotFoundError as ex:
         raise ToolError(str(ex))
-    return fetch_workbench_toolkits(base, listed_only=True)
+    toolkits, _ = fetch_workbench_toolkits(base, listed_only=True)
+    return toolkits
 
 
 @with_mcp_tool_telemetry()

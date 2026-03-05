@@ -16,7 +16,6 @@ from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.version import __version__ as dlt_ver
 
 from dlt._workspace.typing import TWorkbenchComponentInfo
-from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli.formatters import (
     extract_first_heading,
     parse_frontmatter,
@@ -383,7 +382,7 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
 
 def fetch_workbench_toolkits(
     base: Path, listed_only: bool = False, strict: bool = False
-) -> Dict[str, TToolkitInfo]:
+) -> Tuple[Dict[str, TToolkitInfo], List[str]]:
     """Scan workbench directory and return mapping of toolkit name -> TToolkitInfo.
 
     Args:
@@ -391,10 +390,15 @@ def fetch_workbench_toolkits(
         listed_only: When True, skip toolkits with `listed: false` in metadata.
         strict: When True, raise on invalid toolkit metadata instead of warning.
 
+    Returns:
+        Tuple of (toolkits mapping, warnings). Warnings contain messages for
+        toolkits with invalid metadata that were skipped.
+
     Raises:
         ValueError: When `strict` is True and a toolkit has invalid metadata.
     """
     result: Dict[str, TToolkitInfo] = {}
+    warnings: List[str] = []
     for entry in sorted(base.iterdir()):
         if not entry.is_dir():
             continue
@@ -408,10 +412,10 @@ def fetch_workbench_toolkits(
         except ValueError as ex:
             if strict:
                 raise
-            fmt.warning(str(ex))
+            warnings.append(str(ex))
             continue
         result[info["name"]] = info
-    return result
+    return result, warnings
 
 
 def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitInfo:
