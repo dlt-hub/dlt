@@ -5,6 +5,7 @@ import json
 import orjson
 from unittest import mock
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import urlparse
 
 import pytest
@@ -20,11 +21,14 @@ from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.time import ensure_pendulum_datetime_utc
-from dlt.common.utils import digest128, uniq_id
+from dlt.common.utils import custom_environ, digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 from dlt.common.storages.exceptions import UnsupportedStorageVersionException
 
 from dlt.destinations import filesystem
+from dlt.destinations.impl.filesystem.configuration import (
+    HfFilesystemDestinationClientConfiguration,
+)
 from dlt.destinations.impl.filesystem.filesystem import (
     FilesystemClient,
     FilesystemDestinationClientConfiguration,
@@ -59,9 +63,14 @@ NORMALIZED_FILES = [
 
 
 def _client_factory(fs: filesystem) -> FilesystemClient:
+    config_class = (
+        HfFilesystemDestinationClientConfiguration
+        if fs.is_hf
+        else FilesystemDestinationClientConfiguration
+    )
     client = fs.client(
         Schema("test"),
-        initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
+        initial_config=config_class()._bind_dataset_name("test"),
     )
     return client
 
@@ -488,3 +497,61 @@ def test_verify_schema_table_format(with_gdrive_buckets_env: str) -> None:
             client.verify_schema(["delta_table"])
     else:
         client.verify_schema(["delta_table"])
+
+
+def test_hf_endpoint_env(default_buckets_env: str) -> None:
+    if not default_buckets_env.startswith("hf://"):
+        pytest.skip("only runs on hf:// protocol")
+
+    from dlt.destinations.impl.filesystem.filesystem import HfFilesystemClient
+
+    filesystem_ = filesystem(default_buckets_env)
+    client = _client_factory(filesystem_)
+    assert isinstance(client, HfFilesystemClient)
+
+    CREDS_ENDPOINT = "https://credentials-endpoint.com"
+    ENV_VAR_ENDPOINT = "https://env-var-endpoint.com"
+
+    # sanity check
+    assert client.config.credentials.hf_endpoint is None
+    assert os.environ.get("HF_ENDPOINT") is None
+
+    # case 1: no endpoint in credentials, HF_ENDPOINT not set
+    with client._hf_endpoint_env():
+        assert os.environ.get("HF_ENDPOINT") is None
+
+    # case 2: no endpoint in credentials, HF_ENDPOINT set
+    with custom_environ({"HF_ENDPOINT": ENV_VAR_ENDPOINT}):
+        with client._hf_endpoint_env():
+            assert os.environ.get("HF_ENDPOINT") == ENV_VAR_ENDPOINT  # env var endpoint retained
+        assert os.environ.get("HF_ENDPOINT") == ENV_VAR_ENDPOINT
+
+    # now set endpoint in credentials
+    client.config.credentials.hf_endpoint = CREDS_ENDPOINT
+    assert os.environ.get("HF_ENDPOINT") is None
+
+    # case 3: endpoint in credentials, HF_ENDPOINT not set
+    with client._hf_endpoint_env():
+        assert os.environ.get("HF_ENDPOINT") == CREDS_ENDPOINT  # creds endpoint set in env
+    assert os.environ.get("HF_ENDPOINT") is None  # env var endpoint restored
+
+    # case 4: endpoint in credentials, HF_ENDPOINT set
+    with custom_environ({"HF_ENDPOINT": ENV_VAR_ENDPOINT}):
+        with client._hf_endpoint_env():
+            assert (
+                os.environ.get("HF_ENDPOINT") == CREDS_ENDPOINT
+            )  # creds endpoint takes precedence
+        assert os.environ.get("HF_ENDPOINT") == ENV_VAR_ENDPOINT  # env var endpoint restored
+
+    # now test that Hugging Face methods without endpoint argument are wrapped with `_hf_endpoint_env`
+
+    assert client.config.credentials.hf_endpoint == CREDS_ENDPOINT  # sanity check
+
+    def assert_hf_endpoint_set(*args, **kwargs):
+        assert os.environ["HF_ENDPOINT"] == CREDS_ENDPOINT
+
+    with patch("huggingface_hub.DatasetCard.push_to_hub", side_effect=assert_hf_endpoint_set):
+        client.init_dataset_card()
+
+    with patch("huggingface_hub.metadata_update", side_effect=assert_hf_endpoint_set):
+        client.update_dataset_card_metadata(load_id="test")

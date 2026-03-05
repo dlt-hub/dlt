@@ -58,9 +58,6 @@ def test_filesystem_configuration() -> None:
         "client_kwargs": None,
         "config_kwargs": None,
         "kwargs": None,
-        "deltalake_storage_options": None,
-        "deltalake_configuration": None,
-        "deltalake_streamed_exec": True,
     }
 
 
@@ -230,7 +227,7 @@ def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> No
 
 
 def test_filesystem_configuration_with_additional_arguments() -> None:
-    config = FilesystemConfiguration(
+    config = FilesystemDestinationClientConfiguration(
         bucket_url="az://root",
         kwargs={"use_ssl": True},
         client_kwargs={"verify": "public.crt"},
@@ -240,21 +237,18 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
             "delta.enableChangeDataFeed": "true",
         },
         deltalake_streamed_exec=False,
+        iceberg_table_properties={"write.format.default": "parquet"},
+        iceberg_namespace_properties={"owner": "data-team"},
     )
-    assert dict(config) == {
-        "read_only": False,
-        "bucket_url": "az://root",
-        "credentials": None,
-        "kwargs": {"use_ssl": True},
-        "client_kwargs": {"verify": "public.crt"},
-        "config_kwargs": None,
-        "deltalake_storage_options": {"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
-        "deltalake_configuration": {
-            "delta.minWriterVersion": "7",
-            "delta.enableChangeDataFeed": "true",
-        },
-        "deltalake_streamed_exec": False,
+    config_dict = dict(config)
+    assert config_dict["deltalake_storage_options"] == {"AWS_S3_LOCKING_PROVIDER": "dynamodb"}
+    assert config_dict["deltalake_configuration"] == {
+        "delta.minWriterVersion": "7",
+        "delta.enableChangeDataFeed": "true",
     }
+    assert config_dict["deltalake_streamed_exec"] is False
+    assert config_dict["iceberg_table_properties"] == {"write.format.default": "parquet"}
+    assert config_dict["iceberg_namespace_properties"] == {"owner": "data-team"}
 
 
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")

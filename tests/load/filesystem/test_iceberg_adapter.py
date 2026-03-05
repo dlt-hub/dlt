@@ -5,6 +5,7 @@ import pyarrow as pa
 from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
 from dlt.destinations.impl.filesystem.iceberg_adapter import (
     PARTITION_HINT,
+    TABLE_PROPERTIES_HINT,
     PartitionSpec,
     parse_partition_hints,
     create_identity_specs,
@@ -134,13 +135,66 @@ def test_iceberg_adapter_custom_partition_field_name() -> None:
     ]
 
 
-def test_iceberg_adapter_no_partition_raises() -> None:
+def test_iceberg_adapter_no_args_raises() -> None:
     @dlt.resource
     def my_data():
         yield [{"id": 1}]
 
-    with pytest.raises(ValueError, match="A value for `partition` must be specified"):
-        iceberg_adapter(my_data, partition=None)
+    with pytest.raises(
+        ValueError, match="At least one of `partition` or `table_properties` must be specified"
+    ):
+        iceberg_adapter(my_data)
+
+
+def test_iceberg_adapter_table_properties() -> None:
+    @dlt.resource
+    def my_data():
+        yield [{"id": 1, "region": "US"}]
+
+    resource = iceberg_adapter(
+        my_data,
+        partition="region",
+        table_properties={"write.format.default": "parquet"},
+    )
+
+    table_schema = resource.compute_table_schema()
+    assert table_schema.get(PARTITION_HINT) == [
+        {"transform": "identity", "source_column": "region"}
+    ]
+    assert table_schema.get(TABLE_PROPERTIES_HINT) == {"write.format.default": "parquet"}
+
+
+def test_iceberg_adapter_table_properties_only() -> None:
+    @dlt.resource
+    def my_data():
+        yield [{"id": 1}]
+
+    resource = iceberg_adapter(
+        my_data,
+        table_properties={"write.target-file-size-bytes": "536870912"},
+    )
+
+    table_schema = resource.compute_table_schema()
+    assert table_schema.get(PARTITION_HINT) is None
+    assert table_schema.get(TABLE_PROPERTIES_HINT) == {"write.target-file-size-bytes": "536870912"}
+
+
+@pytest.mark.parametrize(
+    "bad_properties,match",
+    [
+        ("not_a_dict", "`table_properties` must be a dictionary"),
+        ({1: "val"}, "Table property keys must be strings"),
+        ({"key": 123}, "Table property values must be strings"),
+    ],
+    ids=["not_dict", "non_string_key", "non_string_value"],
+)
+def test_iceberg_adapter_invalid_table_properties(bad_properties, match) -> None:
+    @dlt.resource
+    def my_data():
+        yield [{"id": 1}]
+
+    with pytest.raises(ValueError, match=match):
+        iceberg_adapter(my_data, table_properties=bad_properties)
 
 
 def test_iceberg_adapter_with_raw_data() -> None:

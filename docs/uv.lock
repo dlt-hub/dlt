@@ -834,7 +834,11 @@ wheels = [
 
 [[package]]
 name = "dlt"
+<<<<<<< HEAD
 version = "1.23.0a2"
+=======
+version = "1.22.2"
+>>>>>>> origin/devel
 source = { editable = "../" }
 dependencies = [
     { name = "click" },

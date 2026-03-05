@@ -1539,6 +1539,71 @@ def test_restore_state_on_dummy() -> None:
     assert p.state["_state_version"] == 0
 
 
+def test_restore_state_on_destination_dataset_name_change(caplog: Any) -> None:
+    """The dataset_name set by the user is authoritative. When the pipeline restores state
+    from a destination dataset that was copied from another, the remote state contains
+    the old dataset_name. The pipeline must use the user's dataset_name
+    and update the state accordingly"""
+
+    @dlt.resource(write_disposition="merge", primary_key="id")
+    def items(data):
+        yield data
+
+    pipeline_name = "pipe_" + uniq_id()
+
+    # initial run to original_dataset
+    pipeline = dlt.pipeline(pipeline_name, destination="duckdb", dataset_name="original_dataset")
+
+    load_info = pipeline.run(items([{"id": 1, "name": "Bob"}]))
+    assert_load_info(load_info)
+    assert pipeline.dataset_name == "original_dataset"
+    assert pipeline.state["dataset_name"] == "original_dataset"
+
+    # copy all tables from original_dataset to new_dataset
+    # (simulates the user copying a dataset)
+    with pipeline.sql_client() as client:
+        client.execute_sql("CREATE SCHEMA IF NOT EXISTS new_dataset")
+        tables = client.execute_sql(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = 'original_dataset'"
+        )
+        for (table_name,) in tables:
+            client.execute_sql(
+                f"CREATE TABLE new_dataset.{table_name} AS SELECT * FROM"
+                f" original_dataset.{table_name}"
+            )
+
+    # wipe local state
+    # (simulates ephemeral envs)
+    pipeline._wipe_working_folder()
+
+    # pipeline pointing at new_dataset
+    pipeline = dlt.pipeline(pipeline_name, destination="duckdb", dataset_name="new_dataset")
+
+    # state restored from new_dataset must not revert dataset_name to original_dataset
+    dlt_logger = logging.getLogger("dlt")
+    dlt_logger.propagate = True
+    try:
+        with caplog.at_level(logging.WARNING, logger="dlt"):
+            load_info = pipeline.run(items([{"id": 1, "name": "Bob"}, {"id": 2, "name": "Alice"}]))
+    finally:
+        dlt_logger.propagate = False
+    assert_load_info(load_info)
+    assert pipeline.dataset_name == "new_dataset"
+    assert pipeline.state["dataset_name"] == "new_dataset"
+
+    # warning was emitted about dataset_name mismatch
+    warning_message = caplog.records[0].message
+    assert "the remote state contains a different dataset_name" in warning_message
+
+    # verify data landed in new_dataset, not original_dataset
+    with pipeline.sql_client() as client:
+        original_rows = client.execute_sql("SELECT id, name FROM original_dataset.items")
+        new_rows = client.execute_sql("SELECT id, name FROM new_dataset.items")
+        assert original_rows == [(1, "Bob")]
+        assert set(new_rows) == {(1, "Bob"), (2, "Alice")}
+
+
 def test_first_run_flag() -> None:
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
