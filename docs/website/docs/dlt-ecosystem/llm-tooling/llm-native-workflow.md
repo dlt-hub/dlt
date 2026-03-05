@@ -76,10 +76,29 @@ The Codex CLI picks up the MCP server automatically; in the Codex UI you need to
 ### Install toolkit
 
 ```sh
-dlt ai toolkit install rest-api-pipeline
+dlt ai toolkit rest-api-pipeline install
 ```
 
 This installs the **rest-api-pipeline** toolkit: a workflow rule that orchestrates the agent, an entry skill and step-by-step skills for each phase.
+
+:::info Zero-install bootstrap (Claude Code only)
+You don't need `uv`, Python, or `dlt` installed to get started. The workbench is available as a **Claude Code marketplace plugin** that bootstraps everything from scratch.
+
+In Claude Code, run:
+
+```text
+/plugin marketplace add dlt-hub/dlthub-ai-workbench
+/plugin install bootstrap@dlthub-ai-workbench --scope project
+```
+
+Restart Claude Code (`claude` in your terminal), then ask:
+
+```text
+/init-workspace
+```
+
+The bootstrap skill checks for `uv` and Python, installs what's missing, creates a virtual environment, installs `dlt[workspace]`, and runs `dlt ai init` — so you go from an empty directory to a fully configured workspace in one step.
+:::
 
 ## Build your first pipeline
 
@@ -233,7 +252,7 @@ The toolkit is composed of:
 
 The **workflow rule** is loaded into the agent's context automatically. When you invoke the entry skill, the rule tells the agent which skill to run next based on the current state.
 **Skills** are prompts with embedded instructions — they teach the agent how to use `dlt` APIs, REST API configuration, and MCP tools.
-The **MCP server** exposes tools like `list_pipelines`, `get_schema`, and `query_data` so the agent can inspect results without you copying output manually.
+The **MCP server** exposes tools like `list_pipelines`, `get_table_schema`, and `execute_sql_query` so the agent can inspect results without you copying output manually.
 
 ## Handover to other toolkits
 
@@ -243,8 +262,8 @@ Once your pipeline is validated, you can install additional toolkits:
 - **`dlthub-runtime`** — deploy, schedule, and monitor your pipeline in production
 
 ```sh
-dlt ai toolkit install data-exploration
-dlt ai toolkit install dlthub-runtime
+dlt ai toolkit data-exploration install
+dlt ai toolkit dlthub-runtime install
 ```
 
 ## Conclusion
