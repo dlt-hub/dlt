@@ -52,7 +52,7 @@ from dlt.common.versioned_state import (
     json_decode_state,
     json_encode_state,
 )
-from dlt.common.time import precise_time
+from dlt.common.time import precise_time, increasing_precise_time
 
 TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
@@ -138,7 +138,7 @@ def create_load_id() -> str:
     `dlt` executes packages in order of load ids
     `dlt` considers a state with the highest load id to be the most up to date when restoring state from destination
     """
-    return str(precise_time())
+    return str(increasing_precise_time())
 
 
 # folders to manage load jobs in a single load package

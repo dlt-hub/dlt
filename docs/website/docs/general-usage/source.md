@@ -134,11 +134,12 @@ from dlt.sources.sql_database import sql_database
 my_db = sql_database.clone(name="my_db", section="my_db")(table_names=["table_1"])
 print(my_db.name)
 ```
-Here we create a renamed version of the `sql_database` and then instantiate it. Such source will read credentials from:
+Here we create a renamed version of the `sql_database` and then instantiate it. You can configure it using a compact layout with just the source name:
 ```toml
-[sources.my_db.my_db.credentials]
+[sources.my_db.credentials]
 password="..."
 ```
+The full path `sources.my_db.my_db.credentials` is also supported and takes precedence if both are present. See [how dlt looks for values](credentials/setup.md#how-dlt-looks-for-values) for details.
 
 ### Add more resources to existing source
 

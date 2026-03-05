@@ -1,12 +1,20 @@
 from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
 
+from dlt.common.configuration import configspec
+from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.schema.typing import TLoaderMergeStrategy, TLoaderReplaceStrategy, TTableSchema
-from dlt.common.storages.configuration import FileSystemCredentials
-
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
+from dlt.destinations.impl.filesystem.configuration import (
+    FilesystemDestinationClientConfiguration,
+    HfFilesystemDestinationClientConfiguration,
+)
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, HfFilesystemClient
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
+from dlt.common.normalizers.naming import NamingConvention
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -50,8 +58,18 @@ def filesystem_replace_strategies_selector(
         return ["truncate-and-insert"]
 
 
-class filesystem(Destination[FilesystemDestinationClientConfiguration, "FilesystemClient"]):
-    spec = FilesystemDestinationClientConfiguration
+class filesystem(Destination[FilesystemDestinationClientConfiguration, FilesystemClient]):
+    @property
+    def spec(self) -> Type[FilesystemDestinationClientConfiguration]:
+        return (
+            HfFilesystemDestinationClientConfiguration
+            if self.is_hf
+            else FilesystemDestinationClientConfiguration
+        )
+
+    @property
+    def client_class(self) -> Type[FilesystemClient]:
+        return HfFilesystemClient if self.is_hf else FilesystemClient
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext.generic_capabilities(
@@ -74,11 +92,44 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
 
         return caps
 
-    @property
-    def client_class(self) -> Type["FilesystemClient"]:
-        from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: FilesystemDestinationClientConfiguration,
+        naming: Optional[NamingConvention],
+    ) -> DestinationCapabilitiesContext:
+        if config.protocol == "hf":
+            # HF dataset viewer requires parquet files (when using another format, HF will
+            # automatically create a copy of the dataset in parquet)
+            caps.preferred_loader_file_format = "parquet"
+            # https://github.com/dlt-hub/dlt/pull/3410#issue-3682192608 explains why below parquet
+            # settings are good for HF datasets
+            caps.parquet_format = ParquetFormatConfiguration(
+                write_page_index=True,
+                use_content_defined_chunking=True,
+            )
+            caps.supported_table_formats = []
+            caps.supported_merge_strategies = []
 
-        return FilesystemClient
+        return super().adjust_capabilities(caps, config, naming)
+
+    def _resolve_bucket_url(self, destination_name: Optional[str]) -> Optional[str]:
+        """Resolve bucket_url from config/env to determine the protocol before full init.
+
+        Uses a minimal configspec with only bucket_url to avoid resolving additional credentials.
+        """
+
+        @configspec
+        class _BucketUrlConfig(BaseConfiguration):
+            bucket_url: Optional[str] = None
+
+        sections = (
+            *FilesystemDestinationClientConfiguration.__recommended_sections__,
+            self.resolve_destination_name(destination_name),
+        )
+        resolved = resolve_configuration(_BucketUrlConfig(), sections=sections)
+        return resolved.bucket_url
 
     def __init__(
         self,
@@ -102,6 +153,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         - AWS S3 (and S3 compatible storages): `s3://bucket-name
         - Azure Blob Storage: `az://container-name
         - Google Cloud Storage: `gs://bucket-name
+        - Hugging Face Datasets: `hf://datasets/user-name
         - Memory fs: `memory://m`
 
         Args:
@@ -120,6 +172,12 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
         """
+        if bucket_url:
+            resolved_url = bucket_url
+        else:
+            resolved_url = self._resolve_bucket_url(destination_name)
+        protocol = FilesystemConfiguration.parse_protocol(resolved_url) if resolved_url else None
+        self.is_hf = protocol == "hf"
         super().__init__(
             bucket_url=bucket_url,
             credentials=credentials,

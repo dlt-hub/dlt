@@ -347,7 +347,7 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
         # dictates the "logical" type. We simply delegate to the underlying value_type.
         return get_column_type_from_py_arrow(dtype.value_type)
     elif pyarrow.types.is_null(dtype):
-        return {"x-normalizer": {"seen-null-first": True}}  # type: ignore[typeddict-unknown-key]
+        return {}  # incomplete column, no data_type
     else:
         raise UnsupportedArrowTypeException(arrow_type=dtype)
 
@@ -403,10 +403,14 @@ def deserialize_type(type_str: str) -> pyarrow.DataType:
 
 
 def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
-    """Remove all columns of datatype pyarrow.null() from the table or record batch"""
-    return remove_columns(
-        item, [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
-    )
+    """Remove all columns of datatype pyarrow.null() from the table or record batch.
+    Stores removed column names in arrow schema metadata under 'dlt.null_columns' key.
+    """
+    null_col_names = [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
+    if not null_col_names:
+        return item
+    item = remove_columns(item, null_col_names)
+    return add_arrow_metadata(item, {"dlt.null_columns": json.dumps(null_col_names)})
 
 
 def remove_null_columns_from_schema(schema: pyarrow.Schema) -> Tuple[pyarrow.Schema, bool]:
@@ -612,8 +616,10 @@ def normalize_py_arrow_item(
         new_fields.append(schema.field(idx).with_name(column_name))
         new_columns.append(item.column(idx))
 
-    # create desired type
-    return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
+    # preserve schema metadata (e.g. dlt.null_columns) through normalization rebuild
+    return item.__class__.from_arrays(
+        new_columns, schema=pyarrow.schema(new_fields, metadata=item.schema.metadata)
+    )
 
 
 def should_normalize_py_arrow_item_column(

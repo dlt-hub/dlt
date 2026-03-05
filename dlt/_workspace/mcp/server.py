@@ -8,7 +8,6 @@ from dlt._workspace.mcp.tools.mcp_tools import PipelineMCPTools
 
 from dlt._workspace.mcp import tools
 from dlt._workspace.mcp import prompts
-from dlt.pipeline.pipeline import Pipeline
 
 
 class DltMCP(FastMCP, ABC):
@@ -60,14 +59,14 @@ class PipelineMCP(DltMCP):
 
     # TODO: allow to  configure in a standard way
     # @with_config(PipelineMCPConfiguration)
-    def __init__(self, pipeline: Pipeline, port: int = 8000, path: str = "/mcp") -> None:
-        self.pipeline = pipeline
+    def __init__(self, pipeline_name: str, port: int = 8000, path: str = "/mcp") -> None:
+        self.pipeline_name = pipeline_name
         super().__init__(
-            name=f"dlt pipeline: {pipeline.pipeline_name}",
+            name=f"dlt pipeline: {pipeline_name}",
             port=port,
             path=path,
         )
 
     def _register_features(self) -> None:
-        pipeline_tools = PipelineMCPTools(self.pipeline)
+        pipeline_tools = PipelineMCPTools(self.pipeline_name)
         pipeline_tools.register_with(self)

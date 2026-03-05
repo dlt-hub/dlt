@@ -226,6 +226,7 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         credentials: Union[ClickHouseCredentials, str, Dict[str, Any], Type[Connection]] = None,
         destination_name: str = None,
         environment: str = None,
+        select_sequential_consistency: int = None,
         **kwargs: Any,
     ) -> None:
         """Configure the ClickHouse destination to use in a pipeline.
@@ -238,12 +239,14 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
                 a connection string in the format `clickhouse://user:password@host:port/database`
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
+            select_sequential_consistency (int, optional): Ensures read-after-write consistency on ClickHouse Cloud and clusters. Defaults to 1.
             **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,
             destination_name=destination_name,
             environment=environment,
+            select_sequential_consistency=select_sequential_consistency,
             **kwargs,
         )
 

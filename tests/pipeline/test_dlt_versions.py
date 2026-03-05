@@ -84,14 +84,16 @@ def test_simulate_default_naming_convention_change() -> None:
         assert pipeline.naming.name() == "snake_case"
 
 
-if sys.version_info >= (3, 12):
-    pytest.skip("Does not run on Python 3.12 and later", allow_module_level=True)
-
-
 GITHUB_PIPELINE_NAME = "dlt_github_pipeline"
+
+skip_on_312 = pytest.mark.skipif(
+    sys.version_info >= (3, 12),
+    reason="Old dlt versions (<1.0) do not run on Python 3.12+",
+)
 GITHUB_DATASET = "github_3"
 
 
+@skip_on_312
 def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
     shutil.copytree(
         "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
@@ -327,6 +329,7 @@ def test_filesystem_with_gzip_extension_update(
                 assert 1 == len(curr.df())
 
 
+@skip_on_312
 def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
     shutil.copytree(
         "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
@@ -398,6 +401,7 @@ def assert_github_pipeline_end_state(
     return pipeline
 
 
+@skip_on_312
 def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
     shutil.copytree(
         "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
@@ -461,6 +465,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
             assert len(rows[0]) == 6 + 2
 
 
+@skip_on_312
 def test_normalize_package_with_dlt_update(test_storage: FileStorage) -> None:
     shutil.copytree(
         "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
@@ -492,6 +497,7 @@ def test_normalize_package_with_dlt_update(test_storage: FileStorage) -> None:
         assert pipeline._get_normalize_storage().version == "1.0.1"
 
 
+@skip_on_312
 def test_scd2_pipeline_update(test_storage: FileStorage) -> None:
     shutil.copytree(
         "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
@@ -569,6 +575,7 @@ def test_scd2_pipeline_update(test_storage: FileStorage) -> None:
         # print(pipeline.default_schema.to_pretty_yaml())
 
 
+@skip_on_312
 def test_normalize_path_separator_legacy_behavior(test_storage: FileStorage) -> None:
     """Pre 1.4.1 normalized identifiers with path separators into single underscore,
     this behavior must be preserved if the schema is updated.
@@ -613,3 +620,51 @@ def test_normalize_path_separator_legacy_behavior(test_storage: FileStorage) -> 
             "_dlt_id",
             "_dlt_load_id",
         }
+
+
+def test_seen_null_first_columns_cleaned_on_upgrade(test_storage: FileStorage) -> None:
+    """Old dlt versions create incomplete columns with seen-null-first hint for null-only data.
+    When attaching the pipeline with current dlt, those columns must be removed from the schema.
+    Loading new data with null-only columns must produce the correct warning.
+    """
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_null_cols.duckdb"}):
+        # run with old dlt that creates seen-null-first columns
+        with Venv.create(tempfile.mkdtemp(), ["dlt[duckdb]==1.14.0", "setuptools<80"]) as venv:
+            venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
+            try:
+                venv.run_script("../tests/pipeline/cases/github_pipeline/null_columns_pipeline.py")
+            except CalledProcessError as cpe:
+                print(f"script stdout: {cpe.stdout}")
+                print(f"script stderr: {cpe.stderr}")
+                raise
+
+        # read raw schema dict — seen-null-first column should be present
+        raw_schema: TStoredSchema = json.loads(
+            test_storage.load(
+                ".dlt/pipelines/null_columns_test/schemas/null_columns_test.schema.json"
+            )
+        )
+        items_cols = raw_schema["tables"]["items"]["columns"]
+        assert "optional_field" in items_cols
+        assert items_cols["optional_field"].get("x-normalizer", {}).get("seen-null-first") is True
+        assert "data_type" not in items_cols["optional_field"]
+
+        # attach with current dlt — migration must remove the seen-null-first column
+        pipeline = dlt.attach("null_columns_test")
+        assert "optional_field" not in pipeline.default_schema.tables["items"]["columns"]
+
+        # run again with null-only data — should produce warning, not crash
+        @dlt.resource(table_name="items", write_disposition="append")
+        def more_items():
+            yield [
+                {"id": 3, "name": "Charlie", "optional_field": None},
+            ]
+
+        load_info = pipeline.run(more_items())
+        assert_load_info(load_info)
+        # optional_field still not in schema (it's null-only)
+        assert "optional_field" not in pipeline.default_schema.tables["items"]["columns"]

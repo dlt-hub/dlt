@@ -161,7 +161,7 @@ def pipeline_command(
             transport = "streamable-http"
         if transport != "stdio":
             fmt.echo("Starting dlt MCP server", err=True)
-        mcp = PipelineMCP(p, command_kwargs["port"])
+        mcp = PipelineMCP(p.pipeline_name, command_kwargs["port"])
         mcp.run(transport=transport)
 
         return

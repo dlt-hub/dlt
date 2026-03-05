@@ -27,6 +27,7 @@ from dlt.common.schema.utils import (
     get_data_and_dlt_tables,
     get_first_column_name_with_prop,
     group_tables_by_resource,
+    is_complete_column,
     is_nested_table,
 )
 
@@ -91,7 +92,9 @@ def _to_table_html(table: TTableSchema) -> str:
     """
     table_header = _get_table_header(table["name"])
     dot_columns = ""
-    for idx, column in enumerate(table.get("columns", {}).values()):
+    for idx, column in enumerate(
+        c for c in table.get("columns", {}).values() if is_complete_column(c)
+    ):
         dot_columns += _to_column_html(column, idx + 1)
 
     # table header followed by columns
@@ -181,7 +184,8 @@ def _add_tables(schema: TStoredSchema, graphviz_dot: str, *, include_dlt_tables:
         tables = data_tables
 
     for table in tables:
-        if not table.get("columns"):
+        # skip tables with no complete columns
+        if not any(is_complete_column(c) for c in table.get("columns", {}).values()):
             continue
 
         dot_table = _to_dot_table(table)
@@ -217,7 +221,7 @@ def _add_table_clusters(
 
         graphviz_dot += _get_cluster_header(cluster_idx, resource_name=resource)
         for table in tables:
-            if not table.get("columns"):
+            if not any(is_complete_column(c) for c in table.get("columns", {}).values()):
                 continue
             graphviz_dot += INDENT + _to_dot_table(table)
 
@@ -226,7 +230,7 @@ def _add_table_clusters(
     if include_dlt_tables:
         graphviz_dot += _get_cluster_header(cluster_idx + 1, resource_name="_dlt")
         for table in dlt_tables:
-            if not table.get("columns"):
+            if not any(is_complete_column(c) for c in table.get("columns", {}).values()):
                 continue
 
             graphviz_dot += INDENT + _to_dot_table(table)

@@ -2,11 +2,12 @@ import pytest
 import dlt
 import pyarrow
 
-from dlt._workspace.helpers.dashboard.utils import (
+from dlt._workspace.helpers.dashboard.utils.queries import (
+    clear_query_cache,
     get_query_result,
-    get_query_result_cached,
     get_default_query_for_table,
     get_example_query_for_dataset,
+    update_query_history,
 )
 from tests.workspace.helpers.dashboard.example_pipelines import (
     PIPELINES_WITH_LOAD,
@@ -17,8 +18,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
 @pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
 def test_get_query_result(pipeline: dlt.Pipeline):
     """Test getting query result from real pipeline"""
-    # Clear cache first
-    get_query_result_cached.cache_clear()
+    clear_query_cache()
 
     result, error_message, traceback_string = get_query_result(
         pipeline, "SELECT COUNT(*) as count FROM purchases"
@@ -58,3 +58,21 @@ def test_get_example_query_for_dataset(pipeline: dlt.Pipeline):
     assert not error_message
     assert not traceback_string
     assert query
+
+
+def test_update_query_history_empty():
+    result = update_query_history({}, "SELECT 1", 5)
+    assert result == {"SELECT 1": 5}
+
+
+def test_update_query_history_reorders():
+    history = {"SELECT 1": 10, "SELECT 2": 20}
+    result = update_query_history(history, "SELECT 1", 15)
+    assert list(result.keys()) == ["SELECT 1", "SELECT 2"]
+    assert result["SELECT 1"] == 15
+
+
+def test_update_query_history_new_entry_first():
+    history = {"SELECT 1": 10, "SELECT 2": 20}
+    result = update_query_history(history, "SELECT 3", 30)
+    assert list(result.keys()) == ["SELECT 3", "SELECT 1", "SELECT 2"]

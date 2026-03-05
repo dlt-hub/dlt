@@ -8,6 +8,7 @@ import contextvars
 from threading import Thread
 from typing import Awaitable, Dict, Optional
 
+from dlt.common import logger
 from dlt.common.exceptions import PipelineException
 from dlt.common.configuration.container import Container
 from dlt.common.runners.pool_runner import TimeoutThreadPoolExecutor
@@ -229,10 +230,22 @@ class FuturesPool:
                 self._async_pool.shutdown_asyncgens(), self._ensure_async_pool()
             )
 
-            wait_for_futures([future])
+            _, not_done = wait_for_futures([future], timeout=60)
+            if not_done:
+                logger.warning(
+                    "Closing extract async pool: shutdown_asyncgens did not complete"
+                    " within 60s, abandoning remaining async generators"
+                )
             self._async_pool.call_soon_threadsafe(stop_background_loop, self._async_pool)
 
-            self._async_pool_thread.join()
+            self._async_pool_thread.join(timeout=10)
+            if self._async_pool_thread.is_alive():
+                logger.warning(
+                    "Closing extract async pool: event loop thread did not stop"
+                    " within 10s, abandoning"
+                )
+            else:
+                self._async_pool.close()
             self._async_pool = None
             self._async_pool_thread = None
 
