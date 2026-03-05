@@ -126,6 +126,34 @@ You can set additional connection options, pragmas and extensions - `ducklake` c
 ducklake_max_retry_count=100
 ```
 
+### Override data path
+DuckLake stores file paths in the catalog relative to a base `DATA_PATH` that is set at creation time. When `override_data_path` is set to `True`, the `DATA_PATH` provided in the current connection replaces the stored one for both reads and writes. The stored value in the catalog is not modified.
+
+Typical use cases:
+- Populating a ducklake locally and then uploading the catalog and data files to remote storage together
+- Accessing the same catalog from different environments where the storage is at a different path (e.g., data replicated to another bucket)
+
+```toml
+[destination.ducklake]
+override_data_path=true
+```
+
+Or via environment variable `DESTINATION__DUCKLAKE__OVERRIDE_DATA_PATH=true`, or in code:
+```py
+import dlt
+from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
+
+destination = dlt.destinations.ducklake(
+    credentials=DuckLakeCredentials(
+        catalog="sqlite:///catalog.sqlite",
+        storage="s3://new-bucket/data",
+    ),
+    override_data_path=True,
+)
+```
+
+See the [DuckLake docs on connecting](https://ducklake.select/docs/stable/duckdb/usage/connecting) for more details on `OVERRIDE_DATA_PATH`.
+
 ### Configure in code
 You can create ducklake destination instance and configure it in code. In most cases you will just set additional options while still using the configuration:
 ```py
@@ -237,5 +265,4 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 * open table interface for table maintenance like we have for iceberg and delta.
 * better partitioning support.
 * Motherduck as catalog if possible.
-* support additional `ATTACH` options like `OVERRIDE_DATA_PATH`
 * implement callbacks that will be called on creation of :memory: database and `ATTACH` command so those can be fully customized.
