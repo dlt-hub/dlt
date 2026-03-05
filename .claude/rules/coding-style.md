@@ -13,12 +13,6 @@ paths:
 - When in doubt look at the code around the changes you are making - not only style but coding patterns and code organization
 - When using a util function or any other function from the code base - look at existing usage if in doubt how it works
 
-# Imports
-Use the `auto-import-rules` skill for full conventions including optional dependency wrappers.
-
-# Docstrings
-Use the `auto-docstring-rules` skill for full conventions including public API, internal, and config field docstrings.
-
 ## Comments
 - Inline comments start with lowercase (`# resolve the schema`)
 - NEVER add comments that separate code blocks (`# -- sqlglot_dialect mapping --`)
