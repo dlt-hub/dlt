@@ -1,8 +1,18 @@
 from __future__ import annotations
-from collections.abc import Collection
-
-from functools import partial
-from typing import overload, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass
+from functools import reduce, partial
+from typing import (
+    overload,
+    Union,
+    Any,
+    Generator,
+    Optional,
+    Type,
+    TYPE_CHECKING,
+    Literal,
+    TypeVar,
+)
 from textwrap import indent
 from contextlib import contextmanager
 from dlt.common.utils import simple_repr, without_none
@@ -20,11 +30,8 @@ from dlt.common.libs.utils import is_instance_lib
 from dlt.common.schema.typing import (
     TTableSchema,
     TTableSchemaColumns,
-    LOADS_TABLE_NAME,
-    C_DLT_LOADS_TABLE_LOAD_ID,
     C_DLT_LOAD_ID,
     TTableReference,
-    TTableReferenceStandalone,
 )
 from dlt.common.schema import utils as schema_utils, TSchemaTables
 from dlt.common.typing import Self, TSortOrder
@@ -53,6 +60,10 @@ _FILTER_OP_MAP = {
     "in": sge.In,
     "not_in": sge.Not,
 }
+
+
+TJoinType = Literal["left", "right", "inner", "full"]
+TJoinDirection = Literal["left", "right"]
 
 
 class Relation(WithSqlClient):
@@ -95,6 +106,17 @@ class Relation(WithSqlClient):
         self._query_dialect = query_dialect
         self._table_name = table_name
         self._execute_raw_query: bool = _execute_raw_query
+
+        # Track the original base table for chained join validation
+        self._origin_table_name: Optional[str] = table_name
+        # NOTE for future complex graph and lineage resolution, this information should be tracked
+        # in a centralized object instead of on directly on the `dlt.Relation`
+        # necessary to allow for chained joins while keeping correct cardinality
+        self._joined_table_aliases: Optional[dict[str, str]] = (
+            {table_name: "t0"} if table_name else None
+        )
+        self._next_join_alias_index: Optional[int] = 1 if table_name else None
+        self._is_joinable_graph = True if table_name else False
 
         self._opened_sql_client: SqlClientBase[Any] = None
         self._sqlglot_expression: sge.Query = None
@@ -168,6 +190,11 @@ class Relation(WithSqlClient):
     def columns(self) -> list[str]:
         """List of column names found on the table."""
         return list(self.columns_schema.keys())
+
+    @property
+    def origin_table_name(self) -> Optional[str]:
+        """Original base table name for chained joins, if available."""
+        return self._origin_table_name
 
     def _ipython_key_completions_(self) -> list[str]:
         """Provide column names as completion suggestion in interactive environments."""
@@ -349,6 +376,21 @@ class Relation(WithSqlClient):
         rel = self.__copy__()
         rel._sqlglot_expression = rel.sqlglot_expression.order_by(order_expr)
         return rel
+
+    def join(
+        self,
+        other: str | Self,
+    ) -> Self:
+        """Join this relation to another table.
+        Joins are discovered from schema reference chain automatically.
+
+        Args:
+            other: Table name or relation to join.
+        Returns:
+            A new relation with the join(s) applied.
+        """
+        join_plan = _discover_join_params(self, other)
+        return _apply_join(self, join_plan)
 
     # NOTE we currently force to have one column selected; we could be more flexible
     # and rewrite the query to compute the AGG of all selected columns
@@ -607,7 +649,71 @@ class Relation(WithSqlClient):
         return simple_repr("dlt.Relation", **without_none(kwargs))
 
     def __copy__(self) -> Self:
-        return self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
+        rel = self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
+        rel._origin_table_name = self._origin_table_name
+        rel._joined_table_aliases = (
+            self._joined_table_aliases.copy() if self._joined_table_aliases else None
+        )
+        rel._next_join_alias_index = self._next_join_alias_index
+        # by default relations are not joinable after transforms
+        rel._is_joinable_graph = False
+        return rel
+
+
+_TRelation = TypeVar("_TRelation", bound=Relation)
+"""_TRelation is used for internal typing only.
+
+It allows methods on `dlt.Relation` to return `Self`, but extract
+the logic to utility functions that return `_TRelation`.
+Returning the concrete type `Relation` would fail type checking.
+"""
+
+
+@dataclass(frozen=True)
+class _JoinRef:
+    """A resolved table reference annotated with join direction."""
+
+    table: str
+    referenced_table: str
+    columns: tuple[str, ...]
+    referenced_columns: tuple[str, ...]
+    direction: TJoinDirection
+
+    @property
+    def target_table(self) -> str:
+        """The table being added to the query by this join step."""
+        return self.table if self.direction == "left" else self.referenced_table
+
+    @property
+    def on_pairs(self) -> list[tuple[str, str]]:
+        """(existing_side_col, new_side_col) pairs for the ON clause."""
+        if self.direction == "left":
+            return list(zip(self.referenced_columns, self.columns))
+        return list(zip(self.columns, self.referenced_columns))
+
+    @property
+    def join_type(self) -> TJoinType:
+        """The SQL join type: 'left' or 'right'."""
+        return "left" if self.direction == "left" else "right"
+
+
+@dataclass
+class _JoinParams:
+    target: sge.Expression
+    on: list[tuple[str, str]]
+    how: TJoinType
+    left_alias: str
+    right_alias: str
+
+
+@dataclass
+class _JoinPlan:
+    query: sge.Select
+    joins: list[_JoinParams]
+    joined_table_aliases: dict[str, str]
+    next_alias_index: int
+    origin_table_name: str
+    is_joinable_graph: bool
 
 
 def _get_relation_output_columns_schema(
@@ -777,4 +883,245 @@ def _add_load_id_via_parent_key(relation: dlt.Relation) -> dlt.Relation:
 
     rel = relation.__copy__()
     rel._sqlglot_expression = query
+    return rel
+
+
+def _to_join_ref(ref: TTableReference, direction: TJoinDirection) -> _JoinRef:
+    if "table" not in ref or ref["table"] is None or "referenced_table" not in ref:
+        raise ValueError(
+            f"Malformed table reference for join: {ref} - missing 'table' or 'referenced_table'"
+        )
+    columns = ref.get("columns", [])
+    referenced_columns = ref.get("referenced_columns", [])
+    if not columns or not referenced_columns or len(columns) != len(referenced_columns):
+        raise ValueError(
+            f"Malformed table reference for join: {ref} - 'columns' or 'referenced_columns' are"
+            " empty"
+        )
+    return _JoinRef(
+        table=ref["table"],
+        referenced_table=ref["referenced_table"],
+        columns=tuple(columns),
+        referenced_columns=tuple(referenced_columns),
+        direction=direction,
+    )
+
+
+def _resolve_parent_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
+    """Resolve the reference chain between two tables.
+
+    References always point child -> parent (child has foreign key to parent).
+    By using LEFT/RIGHT joins appropriately, we avoid reversing references:
+    - Child -> Parent: Use RIGHT JOIN (all rows from parent/right side)
+    - Parent -> Child: Use LEFT JOIN (all rows from parent/left side)
+
+    Returns:
+        List of (reference, join_type) tuples where join_type is:
+        - "RIGHT" when left is child and right is parent (natural ref direction)
+        - "LEFT" when left is parent and right is child (opposite ref direction)
+    """
+    upward_chain_from_left = schema_utils.get_all_parent_references_to_root(schema.tables, left)
+    upward_chain_from_right = schema_utils.get_all_parent_references_to_root(schema.tables, right)
+
+    for idx, left_ref in enumerate(upward_chain_from_left):
+        if "referenced_table" not in left_ref or "table" not in left_ref:
+            break
+        if left_ref["referenced_table"] == right:
+            # right is a parent of left: natural direction (for references), use RIGHT JOIN
+            return [_to_join_ref(ref, "right") for ref in upward_chain_from_left[: idx + 1]]
+
+    for idx, right_ref in enumerate(upward_chain_from_right):
+        if "referenced_table" not in right_ref or "table" not in right_ref:
+            break
+        if right_ref["referenced_table"] == left:
+            # left is a parent of right: reverse chain, use LEFT JOIN
+            return [
+                _to_join_ref(ref, "left") for ref in reversed(upward_chain_from_right[: idx + 1])
+            ]
+
+    raise ValueError(f"Unable to resolve reference chain between {left} and {right}")
+
+
+def _resolve_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
+    """Resolve references between two tables and determine join type per reference.
+
+    Returns:
+        List of _JoinRef where directions is:
+        - "RIGHT" when joining from child to parent (natural ref direction)
+        - "LEFT" when joining from parent to child
+    """
+    if left == right:
+        raise ValueError(f"Cannot join a table to itself: {left}")
+    # Check direct references first
+    for ref in schema.references:
+        if ref.get("table") == left and ref.get("referenced_table") == right:
+            # Natural direction: left (child) -> right (parent), use RIGHT JOIN
+            return [_to_join_ref(TTableReference(**ref), "right")]
+        if ref.get("table") == right and ref.get("referenced_table") == left:
+            # Opposite direction: left (parent) <- right (child), use LEFT JOIN
+            return [_to_join_ref(TTableReference(**ref), "left")]
+
+    # Fall back to parent-child reference chain
+    return _resolve_parent_reference_chain(schema, left, right)
+
+
+def _build_join_condition_from_pairs(
+    column_pairs: Sequence[tuple[str, str]],
+    *,
+    left_alias: str,
+    right_alias: str,
+) -> sge.Expression:
+    """Build join ON condition from explicit column pairs."""
+    if not column_pairs:
+        raise ValueError("Cannot build join condition from empty column pairs")
+
+    conditions: list[sge.Expression] = []
+
+    for left_col, right_col in column_pairs:
+        condition = sge.EQ(
+            this=sge.Column(
+                this=sge.to_identifier(left_col, quoted=True),
+                table=sge.to_identifier(left_alias, quoted=False),
+            ),
+            expression=sge.Column(
+                this=sge.to_identifier(right_col, quoted=True),
+                table=sge.to_identifier(right_alias, quoted=False),
+            ),
+        )
+        conditions.append(condition)
+    if len(conditions) == 1:
+        return conditions[0]
+    return reduce(lambda x, y: sge.And(this=x, expression=y), conditions)
+
+
+def _resolve_magic_join_target(left: Relation, right: Union[str, Relation]) -> str:
+    """Resolve magic-join target table name from input."""
+    if isinstance(right, Relation):
+        # TODO: remove once we allow cross-dataset joins
+        if right._dataset is not left._dataset:
+            raise ValueError(
+                "Cannot join relations from different datasets: "
+                f"'{right._dataset.dataset_name}' vs '{left._dataset.dataset_name}'"
+            )
+        if not right._is_joinable_graph:
+            raise ValueError(f"Relation `{right}` is not a join-graph relation.")
+        other_table = right._origin_table_name
+        if not other_table:
+            raise ValueError(f"Relation `{right}` has no base table to resolve references.")
+    else:
+        other_table = right
+    if not other_table or not isinstance(other_table, str):
+        raise ValueError("`other` must be a table name or a base table relation.")
+    if other_table not in left._dataset.schema.tables:
+        raise ValueError(f"Table `{other_table}` not found in dataset schema")
+
+    return other_table
+
+
+def _discover_join_params(left: Relation, right: Union[str, Relation]) -> _JoinPlan:
+    """Discover join plan from schema reference chain.
+
+    Validates preconditions, resolves the reference chain, filters out
+    already-joined tables, and builds join parameters for the remaining refs.
+    """
+    if not left._origin_table_name:
+        raise ValueError("This relation has no base table to resolve references.")
+    if not left._is_joinable_graph:
+        raise ValueError("This relation has been transformed and is not a join-graph relation.")
+
+    other_table = _resolve_magic_join_target(left, right)
+    # refs is the entire reference chain from origin to target(`other`) table
+    refs = _resolve_reference_chain(left._dataset.schema, left._origin_table_name, other_table)
+
+    alias_map = (
+        left._joined_table_aliases.copy()
+        if left._joined_table_aliases
+        else {left._origin_table_name: "t0"}
+    )
+    next_index = (
+        left._next_join_alias_index if left._next_join_alias_index is not None else len(alias_map)
+    )
+    attach_alias = alias_map[left._origin_table_name]
+
+    # some tables might already be joined (skip them)
+    pending = [ref for ref in refs if ref.target_table not in alias_map]
+
+    # find "last" alias to attach new join to
+    for ref in refs:
+        if ref.target_table in alias_map:
+            attach_alias = alias_map[ref.target_table]
+
+    query = _get_or_create_join_base_query(left)
+    existing_join_count = len(query.args.get("joins", []))
+    start_index = max(existing_join_count + 1, next_index)
+
+    joins: list[_JoinParams] = []
+    for ref in pending:
+        alias = f"t{start_index}"
+        joins.append(
+            _JoinParams(
+                target=sge.Table(
+                    this=sge.to_identifier(ref.target_table, quoted=True),
+                    alias=sge.TableAlias(this=sge.to_identifier(alias, quoted=False)),
+                ),
+                on=ref.on_pairs,
+                how=ref.join_type,
+                left_alias=attach_alias,
+                right_alias=alias,
+            )
+        )
+        alias_map[ref.target_table] = alias
+        attach_alias = alias
+        start_index += 1
+
+    return _JoinPlan(
+        query=query,
+        joins=joins,
+        joined_table_aliases=alias_map,
+        next_alias_index=start_index if pending else next_index,
+        origin_table_name=left._origin_table_name,
+        is_joinable_graph=True,
+    )
+
+
+def _get_or_create_join_base_query(relation: Relation) -> sge.Select:
+    """Return the base SELECT for joining: copy existing join query or create fresh."""
+    if isinstance(
+        relation._sqlglot_expression, sge.Select
+    ) and relation._sqlglot_expression.args.get("joins"):
+        return relation._sqlglot_expression.copy()
+    assert relation._origin_table_name is not None
+    return sge.Select(expressions=[sge.Star()]).from_(
+        sge.Table(
+            this=sge.to_identifier(relation._origin_table_name, quoted=True),
+            alias=sge.TableAlias(this=sge.to_identifier("t0", quoted=False)),
+        )
+    )
+
+
+def _apply_join(relation: _TRelation, plan: _JoinPlan) -> _TRelation:
+    """Apply join plan to produce the next relation."""
+    query = plan.query
+    for join_param in plan.joins:
+        join_expr = sge.Join(
+            this=join_param.target,
+            kind=join_param.how.upper(),
+        ).on(
+            _build_join_condition_from_pairs(
+                join_param.on,
+                left_alias=join_param.left_alias,
+                right_alias=join_param.right_alias,
+            )
+        )
+        query = query.join(join_expr)
+
+    rel = relation.__copy__()
+    # setup to allow further joins
+    rel._sqlglot_expression = query
+    rel._joined_table_aliases = (
+        plan.joined_table_aliases.copy() if plan.joined_table_aliases else None
+    )
+    rel._next_join_alias_index = plan.next_alias_index
+    rel._origin_table_name = plan.origin_table_name
+    rel._is_joinable_graph = plan.is_joinable_graph
     return rel
