@@ -505,8 +505,6 @@ class CsvWriter(DataWriter):
 
 
 class ArrowToParquetWriter(ParquetDataWriter):
-    _arrow_concat_promote_options: str = "none"
-
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         # Schema will be written as-is from the arrow table
         self._column_schema = columns_schema
@@ -521,7 +519,7 @@ class ArrowToParquetWriter(ParquetDataWriter):
         # it also converts batches into tables internally. by creating a single table
         # we allow the user rudimentary control over row group size via max buffered items
         table = concat_batches_and_tables_in_order(
-            items, promote_options=self._arrow_concat_promote_options
+            items, promote_options=self.parquet_format.arrow_concat_promote_options
         )
         # release batch references - concat is zero-copy so table shares the
         # underlying buffers via Arrow refcounting. clearing the input list

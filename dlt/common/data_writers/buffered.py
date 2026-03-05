@@ -31,7 +31,6 @@ class BufferedDataWriter(Generic[TWriter]):
         file_max_items: Optional[int] = None
         file_max_bytes: Optional[int] = None
         disable_compression: bool = False
-        arrow_concat_promote_options: str = "none"
         _caps: Optional[DestinationCapabilitiesContext] = None
 
         __section__: ClassVar[str] = known_sections.DATA_WRITER
@@ -46,7 +45,6 @@ class BufferedDataWriter(Generic[TWriter]):
         file_max_items: int = None,
         file_max_bytes: int = None,
         disable_compression: bool = False,
-        arrow_concat_promote_options: str = "none",
         _caps: DestinationCapabilitiesContext = None,
     ):
         self.writer_spec = writer_spec
@@ -66,7 +64,6 @@ class BufferedDataWriter(Generic[TWriter]):
             self.file_max_bytes = _caps.recommended_file_size
         self.file_max_items = file_max_items
         self.should_compress = self.writer_spec.supports_compression and not disable_compression
-        self._arrow_concat_promote_options = arrow_concat_promote_options
         # the open function is either gzip.open or open
         self.open = gzip.open if self.should_compress else open
 
@@ -248,8 +245,6 @@ class BufferedDataWriter(Generic[TWriter]):
                 else:
                     self._file = self.open(self._file_name, "wt", encoding="utf-8", newline="")
                 self._writer = self.writer_cls(self._file, caps=self._caps)  # type: ignore[assignment]
-                if hasattr(self._writer, "_arrow_concat_promote_options"):
-                    self._writer._arrow_concat_promote_options = self._arrow_concat_promote_options
                 self._writer.write_header(self._current_columns)
             # swap out buffer before writing so batch references are released
             # as soon as write_data returns, without waiting for the next
