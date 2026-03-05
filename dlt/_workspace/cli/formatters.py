@@ -1,7 +1,6 @@
 import re
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Set, Tuple
-
 import yaml
 
 from dlt.common.json import custom_encode, json
@@ -52,33 +51,33 @@ class MarkdownDocument:
         return None
 
     def find_line(self, text: str) -> Optional[int]:
-        """Return index of first line whose stripped content equals *text*, or None."""
+        """Return index of first line whose stripped content equals `text`, or None."""
         for i, line in enumerate(self._lines):
             if line.strip() == text:
                 return i
         return None
 
     def search(self, pattern: str) -> List[Tuple[int, "re.Match[str]"]]:
-        """Return ``(index, match)`` for every line matching *pattern*."""
+        """Return `(index, match)` for every line matching `pattern`."""
         compiled = re.compile(pattern)
         return [(i, m) for i, line in enumerate(self._lines) if (m := compiled.search(line))]
 
     def insert_lines(self, index: int, new_lines: List[str]) -> None:
-        """Insert *new_lines* before *index*, mutating the document."""
+        """Insert `new_lines` before `index`, mutating the document."""
         for j, entry in enumerate(new_lines):
             self._lines.insert(index + j, entry)
 
     def insert_md(self, index: Optional[int], other: "MarkdownDocument") -> None:
-        """Insert all lines of *other* before *index*. ``None`` appends at end."""
+        """Insert all lines of `other` before `index`. `None` appends at end."""
         if index is None:
             index = len(self._lines)
         self.insert_lines(index, other.lines)
 
     def frontmatter(self) -> Tuple[Dict[str, Any], int]:
-        """Parse ``---`` delimited YAML frontmatter.
+        """Parse `---` delimited YAML frontmatter.
 
-        Returns ``(data_dict, body_start_index)``. When there is no valid
-        frontmatter, returns ``({}, 0)``.
+        Returns `(data_dict, body_start_index)`. When there is no valid
+        frontmatter, returns `({}, 0)`.
         """
         if not self._lines or self._lines[0].rstrip("\r") != "---":
             return {}, 0
@@ -228,15 +227,15 @@ def render_jsonl(
 def merge_agents_md_skills(existing: str, skill_names: List[str], template: str) -> str:
     """Merge always-activate skill entries into an AGENTS.md file.
 
-    *template* is the AGENTS.md snippet from the init toolkit whose first
+    `template` is the AGENTS.md snippet from the init toolkit whose first
     heading defines the section to merge into.  When the heading already
-    exists in *existing*, new entries are inserted right after it (and its
+    exists in `existing`, new entries are inserted right after it (and its
     first non-heading line).  Otherwise the whole template plus entries are
     appended.
 
-    Raises ``ValueError`` when *template* has no markdown heading.
+    Raises `ValueError` when `template` has no markdown heading.
 
-    For each skill, checks if it's already listed (`` `skill_name` `` present).
+    For each skill, checks if it's already listed (`skill_name` present).
     Preserves all user content.
     """
     # deduplicate while preserving order, skip already-present skills

@@ -8,11 +8,18 @@ from pydantic import Field
 from fastmcp.exceptions import ToolError
 
 import dlt
+from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
+from dlt.common.runtime.run_context import active as active_run_context
 from dlt.common.schema.exceptions import IncompatibleSchemaException
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import Annotated
 from dlt._workspace.cli import formatters
-from dlt._workspace.cli.utils import fetch_profiles_list, fetch_schema_export, fetch_workspace_info
+from dlt._workspace.cli.utils import (
+    fetch_profiles_list,
+    fetch_schema_export,
+    fetch_workspace_info,
+    list_local_pipelines,
+)
 from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 
 TResultFormat = Literal["markdown", "jsonl"]
@@ -48,10 +55,6 @@ def _get_dataset(pipeline_name: str) -> dlt.Dataset:
 @with_mcp_tool_telemetry()
 def list_pipelines() -> List[str]:
     """List all dlt pipelines available in this workspace"""
-    from dlt.common.runtime.run_context import active as active_run_context
-    from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
-    from dlt._workspace.cli.utils import list_local_pipelines
-
     ctx = active_run_context()
     # in OSS context (no profiles), filter to pipelines created in this project
     project_dir = None if isinstance(ctx, ProfilesRunContext) else ctx.local_dir

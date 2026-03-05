@@ -31,7 +31,7 @@ from dlt._workspace.cli.ai.utils import (
     resolve_toolkit_dependencies,
     safe_write_text,
     save_toolkit_entry,
-    scan_workbench_toolkits,
+    fetch_workbench_toolkits,
     _INIT_TOOLKIT,
 )
 
@@ -50,11 +50,7 @@ def ai_secrets_list_command() -> None:
 
 @utils.track_command("ai", False, operation="secrets_view_redacted")
 def ai_secrets_view_redacted_command(path: Optional[str] = None) -> None:
-    """Prints a redacted secrets TOML.
-
-    Without --path, shows the unified view from the project SecretsTomlProvider
-    (merged from all project and global secret files). With --path, shows that exact file.
-    """
+    """Prints a redacted secrets TOML."""
     result = fetch_secrets_view_redacted(path)
     if result is None:
         if path:
@@ -111,11 +107,9 @@ def ai_mcp_install_command(
     overwrite: bool = False,
 ) -> None:
     """Install dlt MCP server config into the agent's config file."""
-    from dlt.common.runtime.run_context import active as active_run_context
-
     from dlt._workspace.mcp.server import resolve_features
 
-    project_root = Path(active_run_context().run_dir)
+    project_root = Path(run_context.active().run_dir)
     variant = _resolve_agent(agent, project_root)
 
     resolved = resolve_features(features)
@@ -411,11 +405,7 @@ def _install_toolkit(
         )
         return
 
-    try:
-        toolkit_meta = extract_toolkit_info(meta, name)
-    except ValueError as ex:
-        fmt.error(str(ex))
-        raise CliCommandException()
+    toolkit_meta = extract_toolkit_info(meta, name)
     toolkit_name = toolkit_meta["name"]
     toolkit_version = toolkit_meta["version"]
 
@@ -568,7 +558,7 @@ def ai_toolkit_install_command(
     if base is None:
         return
 
-    toolkits = scan_workbench_toolkits(base)
+    toolkits = fetch_workbench_toolkits(base, strict=strict)
     _install_dependencies(name, toolkits, base, var, project_root)
     _install_toolkit(name, base, var, project_root, overwrite=overwrite, strict=strict)
 
@@ -582,7 +572,7 @@ def ai_toolkit_list_command(
     base = _fetch_workbench_base_cli(location, branch)
     if base is None:
         return
-    toolkits = scan_workbench_toolkits(base, listed_only=True)
+    toolkits = fetch_workbench_toolkits(base, listed_only=True)
     if not toolkits:
         fmt.echo("No toolkits found.")
         return
@@ -630,11 +620,7 @@ def ai_toolkit_info_command(
     branch: Optional[str] = None,
 ) -> None:
     """Show what's inside a toolkit."""
-    try:
-        info = fetch_workbench_toolkit_info(name, location, branch)
-    except (ValueError, FileNotFoundError) as ex:
-        fmt.error(str(ex))
-        raise CliCommandException()
+    info = fetch_workbench_toolkit_info(name, location, branch)
     if info is None:
         fmt.warning(
             "Toolkit %s not found (missing %s)" % (fmt.bold(name), ".claude-plugin/plugin.json")

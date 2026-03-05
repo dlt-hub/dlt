@@ -3,6 +3,8 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Literal, NamedTuple, Optional, Tuple, Type, Union
 
+from dlt.common.runtime.exec_info import is_claude_code, is_codex, is_cursor
+
 from dlt._workspace.cli.ai.utils import (
     ensure_cursor_rule_frontmatter,
     home_dir,
@@ -38,7 +40,7 @@ class InstallAction(NamedTuple):
 
 
 class _AIAgent(ABC):
-    """Maps toolkit component types to agent-specific paths and formats."""
+    """AI coding agent adapter for toolkit installation, detection, and MCP configuration."""
 
     @property
     @abstractmethod
@@ -53,25 +55,19 @@ class _AIAgent(ABC):
     _LOCAL_PROBES: ClassVar[Tuple[str, ...]]
     """project-root paths that indicate usage of this agent"""
 
+    _RULE_EXT: ClassVar[str] = ".md"
+    """file extension for rule files"""
+
     @property
     @abstractmethod
     def ignore_file_name(self) -> str:
         """Platform-specific ignore file name (e.g. .claudeignore)."""
 
     def component_dir(self, component_type: TComponentType, project_root: Path) -> Path:
-        """Root directory for the given component type.
-
-        Raises NotImplementedError for types the agent does not support
-        natively (e.g. codex has no command/rule dirs -- install_actions
-        converts them to skills first).
-        """
+        """Root directory for the given component type."""
         if component_type == "ignore":
             return project_root
-        if component_type not in self._DIRS:
-            raise NotImplementedError(
-                "%s not supported by %s (install_actions converts to skill)"
-                % (component_type, self.name)
-            )
+        assert component_type in self._DIRS, "%s not in _DIRS for %s" % (component_type, self.name)
         return project_root / self._DIRS[component_type]
 
     def install_actions(
@@ -130,9 +126,6 @@ class _AIAgent(ABC):
             component_type, content_or_path, source_name, toolkit_name, project_root, overwrite
         )
 
-    _RULE_EXT: ClassVar[str] = ".md"
-    """file extension for rule files"""
-
     def _transform_rule(self, content: str) -> str:
         """Transform rule content before writing. Override for agent-specific formatting."""
         return content
@@ -148,9 +141,9 @@ class _AIAgent(ABC):
     ) -> List["InstallAction"]:
         """Install actions for commands and rules.
 
-        Commands are saved as ``source_name.md`` under the command dir.
-        Rules are transformed via ``_transform_rule`` and saved as
-        ``toolkit_name-source_name{_RULE_EXT}`` under the rule dir.
+        Commands are saved as `source_name.md` under the command dir.
+        Rules are transformed via `_transform_rule` and saved as
+        `toolkit_name-source_name{_RULE_EXT}` under the rule dir.
         """
         if component_type == "command":
             dest = self.component_dir("command", project_root) / (source_name + ".md")
@@ -252,8 +245,6 @@ class _ClaudeAgent(_AIAgent):
 
     @classmethod
     def _is_env(cls) -> bool:
-        from dlt.common.runtime.exec_info import is_claude_code
-
         return is_claude_code()
 
     @property
@@ -288,8 +279,6 @@ class _CursorAgent(_AIAgent):
 
     @classmethod
     def _is_env(cls) -> bool:
-        from dlt.common.runtime.exec_info import is_cursor
-
         return is_cursor()
 
     _RULE_EXT: ClassVar[str] = ".mdc"
@@ -324,8 +313,6 @@ class _CodexAgent(_AIAgent):
 
     @classmethod
     def _is_env(cls) -> bool:
-        from dlt.common.runtime.exec_info import is_codex
-
         return is_codex()
 
     @property

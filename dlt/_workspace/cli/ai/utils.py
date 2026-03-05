@@ -1,6 +1,5 @@
 import hashlib
 import os
-import shutil
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -13,8 +12,10 @@ from dlt.common.pendulum import pendulum
 from dlt.common.utils import uniq_id, update_dict_nested
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, SettingsTomlProvider
+from dlt.common.pipeline import get_dlt_repos_dir
+from dlt.version import __version__ as dlt_ver
 
-from dlt._workspace.typing import TWorkbenchComponentInfo, TWorkbenchMcpServerInfo
+from dlt._workspace.typing import TWorkbenchComponentInfo
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli.formatters import (
     extract_first_heading,
@@ -22,7 +23,7 @@ from dlt._workspace.cli.formatters import (
     render_frontmatter,
     read_md_name_desc,
 )
-from dlt._workspace.cli.utils import get_provider_locations
+from dlt._workspace.cli.utils import get_provider_locations, make_dlt_settings_path
 from dlt._workspace.typing import (
     TAiStatusInfo,
     TAiStatusWarning,
@@ -31,8 +32,6 @@ from dlt._workspace.typing import (
     TToolkitInfo,
     TWorkbenchToolkitInfo,
 )
-
-
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_BRANCH  # noqa: F401
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_REPO  # noqa: F401
 
@@ -297,11 +296,8 @@ def read_workbench_toolkit_combined_info(toolkit_dir: Path) -> Optional[Dict[str
     # merge dlt-specific toolkit.json when present
     toolkit_json = plugin_dir / "toolkit.json"
     if toolkit_json.is_file():
-        try:
-            extra = json.loads(toolkit_json.read_text(encoding="utf-8"))
-            meta.update(extra)
-        except (ValueError, OSError):
-            pass
+        extra = json.loads(toolkit_json.read_text(encoding="utf-8"))
+        meta.update(extra)
     return meta
 
 
@@ -315,14 +311,11 @@ def read_workbench_toolkit_mcp_servers(toolkit_dir: Path) -> Dict[str, Any]:
     for name in (".mcp.json", "mcp.json"):
         mcp_file = toolkit_dir / name
         if mcp_file.is_file():
-            try:
-                data = json.loads(mcp_file.read_text(encoding="utf-8"))
-                # .mcp.json uses {"mcpServers": {...}} wrapper
-                if "mcpServers" in data:
-                    return data["mcpServers"]  # type: ignore[no-any-return]
-                return data  # type: ignore[no-any-return]
-            except (ValueError, OSError):
-                pass
+            data = json.loads(mcp_file.read_text(encoding="utf-8"))
+            # .mcp.json uses {"mcpServers": {...}} wrapper
+            if "mcpServers" in data:
+                return data["mcpServers"]  # type: ignore[no-any-return]
+            return data  # type: ignore[no-any-return]
     return {}
 
 
@@ -334,7 +327,14 @@ def build_toolkits_dependency_map(
 
 
 def resolve_toolkit_dependencies(name: str, dep_map: Dict[str, List[str]]) -> List[str]:
-    """Return install-order list of dependencies for `name` (excluding `name` itself).
+    """Return install-order list of dependencies for a toolkit.
+
+    Args:
+        name: Toolkit to resolve dependencies for.
+        dep_map: Mapping of toolkit name to its direct dependencies.
+
+    Returns:
+        Topologically sorted dependency names, excluding the toolkit itself.
 
     Raises:
         ValueError: On circular dependencies.
@@ -370,7 +370,6 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
         FileNotFoundError: When the workbench directory is missing from the repo.
     """
     from dlt.common.libs import git
-    from dlt.common.pipeline import get_dlt_repos_dir
 
     branch = branch or DEFAULT_AI_WORKBENCH_BRANCH
     with _workbench_lock:
@@ -382,11 +381,18 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
     return Path(src_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
 
 
-def scan_workbench_toolkits(base: Path, listed_only: bool = False) -> Dict[str, TToolkitInfo]:
+def fetch_workbench_toolkits(
+    base: Path, listed_only: bool = False, strict: bool = False
+) -> Dict[str, TToolkitInfo]:
     """Scan workbench directory and return mapping of toolkit name -> TToolkitInfo.
 
-    Reads and validates plugin.json for every toolkit subdirectory.
-    Toolkits with invalid metadata are skipped with a warning.
+    Args:
+        base: Root directory of the workbench repo.
+        listed_only: When True, skip toolkits with `listed: false` in metadata.
+        strict: When True, raise on invalid toolkit metadata instead of warning.
+
+    Raises:
+        ValueError: When `strict` is True and a toolkit has invalid metadata.
     """
     result: Dict[str, TToolkitInfo] = {}
     for entry in sorted(base.iterdir()):
@@ -400,6 +406,8 @@ def scan_workbench_toolkits(base: Path, listed_only: bool = False) -> Dict[str, 
         try:
             info = extract_toolkit_info(meta, entry.name)
         except ValueError as ex:
+            if strict:
+                raise
             fmt.warning(str(ex))
             continue
         result[info["name"]] = info
@@ -407,10 +415,17 @@ def scan_workbench_toolkits(base: Path, listed_only: bool = False) -> Dict[str, 
 
 
 def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitInfo:
-    """Build a `TToolkitInfo` from raw plugin.json / toolkit.json dict.
+    """Build a TToolkitInfo from a raw metadata dict.
 
-    Raises `ValueError` when `name`, `description`, or `version` is
-    missing or empty.
+    Args:
+        meta: Raw metadata dictionary with toolkit fields.
+        fallback_name: Name used in error messages when validation fails.
+
+    Returns:
+        Validated toolkit info.
+
+    Raises:
+        ValueError: When name, description, or version is missing or empty.
     """
     missing = [k for k in ("name", "description", "version") if not meta.get(k)]
     if missing:
@@ -433,7 +448,16 @@ def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitIn
 def fetch_workbench_toolkit_info(
     name: str, location: str, branch: Optional[str] = None
 ) -> Optional[TWorkbenchToolkitInfo]:
-    """Return detailed toolkit info, or None if not found."""
+    """Return detailed toolkit info from the workbench repo.
+
+    Args:
+        name: Toolkit name to look up.
+        location: Workbench git repo URL or local path.
+        branch: Git branch to fetch. Uses default workbench branch when None.
+
+    Returns:
+        Toolkit info with skills, commands, and rules, or None if not found.
+    """
     base = fetch_workbench_base(location, branch)
     toolkit_dir = base / name
     meta = read_workbench_toolkit_combined_info(toolkit_dir)
@@ -479,53 +503,16 @@ def fetch_workbench_toolkit_info(
         has_ignore=(toolkit_dir / ".claudeignore").is_file(),
     )
     if servers:
-        info["mcp_servers"] = {
-            srv: TWorkbenchMcpServerInfo(command=cfg.get("command", ""), args=cfg.get("args", []))
-            for srv, cfg in sorted(servers.items())
-        }
+        info["mcp_servers"] = servers
     return info
 
 
-def copy_repo_files(
-    src_dir: Path, dest_dir: Path, warn_on_overwrite: bool = True
-) -> Tuple[List[str], int]:
-    """Copy files from src_dir into dest_dir, skipping existing files.
-
-    `.message` files are echoed instead of copied.  Returns (copied_names, total_count).
-    """
-    copied_files: List[str] = []
-    count_files = 0
-
-    for src_sub_path in src_dir.rglob("*"):
-        if src_sub_path.is_dir():
-            continue
-
-        if src_sub_path.name == ".message":
-            fmt.echo(src_sub_path.read_text(encoding="utf-8"))
-            continue
-
-        count_files += 1
-        dest_file_path = dest_dir / src_sub_path.relative_to(src_dir)
-        if dest_file_path.exists():
-            if warn_on_overwrite:
-                fmt.warning(f"Existing rules file found at {dest_file_path.absolute()}; Skipping.")
-            continue
-
-        dest_file_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_sub_path, dest_file_path)
-        copied_files.append(src_sub_path.name)
-
-    return copied_files, count_files
-
-
 def _toolkits_index_path() -> str:
-    from dlt._workspace.cli.utils import make_dlt_settings_path
-
     return make_dlt_settings_path(TOOLKITS_INDEX_FILE)
 
 
 def load_toolkits_index() -> Dict[str, TToolkitIndexEntry]:
-    """Load the installed toolkits index from .dlt/.toolkits."""
+    """Load the installed toolkits index from the workspace settings directory."""
     path = _toolkits_index_path()
     if not os.path.isfile(path):
         return {}
@@ -553,7 +540,14 @@ def save_toolkit_entry(
     files: Optional[Dict[str, Any]] = None,
     mcp_servers: Optional[List[str]] = None,
 ) -> None:
-    """Record that a toolkit was installed (or updated)."""
+    """Record that a toolkit was installed or updated in the toolkits index.
+
+    Args:
+        toolkit_meta: Core toolkit metadata to persist.
+        agent: Name of the AI agent that triggered the install.
+        files: Mapping of installed file paths to their content hashes.
+        mcp_servers: Names of MCP servers provided by the toolkit.
+    """
 
     index = load_toolkits_index()
     entry: Dict[str, Any] = dict(toolkit_meta)
@@ -578,7 +572,7 @@ _INIT_TOOLKIT = "init"
 def read_agents_md_template(workbench_base: Optional[Path]) -> str:
     """Read AGENTS.md template from init toolkit in workbench.
 
-    Raises ``FileNotFoundError`` when *workbench_base* is ``None``
+    Raises `FileNotFoundError` when `workbench_base` is `None`
     or the template file is missing.
     """
     if workbench_base is None:
@@ -588,10 +582,16 @@ def read_agents_md_template(workbench_base: Optional[Path]) -> str:
 
 
 def fetch_ai_status(project_root: Path) -> TAiStatusInfo:
-    """Collect AI setup status: version, agent, toolkits, and readiness warnings."""
-    from dlt._workspace.cli.ai.agents import _AIAgent
-    from dlt._workspace.cli.utils import make_dlt_settings_path
-    from dlt.version import __version__ as dlt_ver
+    """Collect AI setup status for the current workspace.
+
+    Args:
+        project_root: Path to the project root for agent detection.
+
+    Returns:
+        Status info including dlt version, detected agent, installed toolkits,
+        and any readiness warnings.
+    """
+    from dlt._workspace.cli.ai.agents import _AIAgent  # circular
 
     index = load_toolkits_index()
     warnings: List[TAiStatusWarning] = []

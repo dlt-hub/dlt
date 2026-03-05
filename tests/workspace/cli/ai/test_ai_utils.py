@@ -1,7 +1,8 @@
+import contextlib
 import json
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Iterator
 from unittest.mock import patch
 
 import pytest
@@ -20,7 +21,7 @@ from dlt._workspace.cli.ai.utils import (
     redact_toml_document,
     redact_value,
     safe_write_text,
-    scan_workbench_toolkits,
+    fetch_workbench_toolkits,
     strip_rule_frontmatter,
     wrap_as_skill,
     MIN_REDACT_STARS,
@@ -260,11 +261,11 @@ def test_scan_workbench_toolkits() -> None:
     (base / "no-meta").mkdir()
 
     # default: returns all valid toolkits including unlisted
-    all_names = sorted(scan_workbench_toolkits(base).keys())
+    all_names = sorted(fetch_workbench_toolkits(base).keys())
     assert all_names == ["also-visible", "hidden", "my-toolkit"]
 
     # listed_only=True filters out unlisted
-    names = sorted(scan_workbench_toolkits(base, listed_only=True).keys())
+    names = sorted(fetch_workbench_toolkits(base, listed_only=True).keys())
     assert names == ["also-visible", "my-toolkit"]
 
 
@@ -332,6 +333,22 @@ def _make_settings(project_root: Path, with_config: bool = False) -> str:
     return settings_dir
 
 
+@contextlib.contextmanager
+def _patch_settings_paths(project_root: Path) -> Iterator[None]:
+    """Redirect toolkits index and settings path lookups to project_root/.dlt/."""
+    with (
+        patch(
+            "dlt._workspace.cli.ai.utils._toolkits_index_path",
+            return_value=str(project_root / ".dlt" / ".toolkits"),
+        ),
+        patch(
+            "dlt._workspace.cli.ai.utils.make_dlt_settings_path",
+            return_value=str(project_root / ".dlt" / "config.toml"),
+        ),
+    ):
+        yield
+
+
 def _write_toolkits_index(project_root: Path, data: Dict[str, Any]) -> None:
     index_path = project_root / ".dlt" / ".toolkits"
     os.makedirs(index_path.parent, exist_ok=True)
@@ -346,14 +363,7 @@ def test_fetch_ai_status_empty_workspace(environment: Any) -> None:
     _make_settings(project_root)
 
     with (
-        patch(
-            "dlt._workspace.cli.ai.utils._toolkits_index_path",
-            return_value=str(project_root / ".dlt" / ".toolkits"),
-        ),
-        patch(
-            "dlt._workspace.cli.utils.make_dlt_settings_path",
-            return_value=str(project_root / ".dlt" / "config.toml"),
-        ),
+        _patch_settings_paths(project_root),
         patch("dlt._workspace.cli.ai.agents.home_dir", return_value=None),
     ):
         status = fetch_ai_status(project_root)
@@ -378,16 +388,7 @@ def test_fetch_ai_status_initialized_with_init_toolkit() -> None:
         {"init": {"version": "1.0.0", "agent": "claude", "description": "Init"}},
     )
 
-    with (
-        patch(
-            "dlt._workspace.cli.ai.utils._toolkits_index_path",
-            return_value=str(project_root / ".dlt" / ".toolkits"),
-        ),
-        patch(
-            "dlt._workspace.cli.utils.make_dlt_settings_path",
-            return_value=str(project_root / ".dlt" / "config.toml"),
-        ),
-    ):
+    with _patch_settings_paths(project_root):
         status = fetch_ai_status(project_root)
 
     assert status["initialized"] is True
@@ -411,16 +412,7 @@ def test_fetch_ai_status_with_toolkits() -> None:
         },
     )
 
-    with (
-        patch(
-            "dlt._workspace.cli.ai.utils._toolkits_index_path",
-            return_value=str(project_root / ".dlt" / ".toolkits"),
-        ),
-        patch(
-            "dlt._workspace.cli.utils.make_dlt_settings_path",
-            return_value=str(project_root / ".dlt" / "config.toml"),
-        ),
-    ):
+    with _patch_settings_paths(project_root):
         status = fetch_ai_status(project_root)
 
     assert status["agent_name"] == "cursor"

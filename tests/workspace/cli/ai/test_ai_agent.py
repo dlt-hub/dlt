@@ -17,11 +17,8 @@ from tests.workspace.cli.ai.utils import _ensure_init_agents_template
 
 @pytest.fixture()
 def no_home_dir(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Suppress global home-directory detection so only env probes fire.
+    """Suppress global home-directory detection so only env probes fire."""
 
-    Note: LOCAL detection also requires the tool's global marker to exist,
-    so with no home dir only ENV detection works.
-    """
     monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: None)
 
 
@@ -48,13 +45,13 @@ def test_variant_component_dir(
     if expected_command is not None:
         assert variant.component_dir("command", project) == project / expected_command
     else:
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(AssertionError):
             variant.component_dir("command", project)
 
     if expected_rule is not None:
         assert variant.component_dir("rule", project) == project / expected_rule
     else:
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(AssertionError):
             variant.component_dir("rule", project)
 
     # ignore always resolves to project root

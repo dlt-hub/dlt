@@ -1,3 +1,4 @@
+import functools
 import hashlib
 import json
 import os
@@ -15,6 +16,11 @@ from dlt._workspace.cli.ai.commands import (
     _plan_toolkit_install,
     _report_and_execute,
     _resolve_agent,
+    ai_secrets_update_fragment_command,
+    ai_secrets_view_redacted_command,
+    ai_toolkit_info_command,
+    ai_toolkit_install_command,
+    ai_toolkit_list_command,
 )
 from dlt._workspace.cli.ai.agents import (
     _AIAgent,
@@ -26,7 +32,7 @@ from dlt._workspace.cli.ai.utils import (
     build_toolkits_dependency_map,
     load_toolkits_index,
     resolve_toolkit_dependencies,
-    scan_workbench_toolkits,
+    fetch_workbench_toolkits,
 )
 from dlt._workspace.cli.exceptions import CliCommandException
 
@@ -34,6 +40,7 @@ from tests.workspace.cli.ai.utils import (
     make_mock_toolkit,
     make_mock_toolkit_info,
     make_mock_workbench,
+    make_versioned_workbench,
 )
 
 
@@ -280,7 +287,7 @@ def test_toolkit_install_mcp_merge_existing() -> None:
 def test_build_dependency_map() -> None:
     """build_dependency_map reads dependencies from plugin.json."""
     base = make_mock_workbench()
-    toolkits = scan_workbench_toolkits(base)
+    toolkits = fetch_workbench_toolkits(base)
     dep_map = build_toolkits_dependency_map(toolkits)
     assert dep_map["rest-api-pipeline"] == ["init"]
     assert dep_map["sql-database"] == ["init"]
@@ -314,7 +321,7 @@ def test_install_dependencies(capsys: pytest.CaptureFixture[str]) -> None:
     project_root = Path("project")
     project_root.mkdir()
     agent = _ClaudeAgent()
-    toolkits = scan_workbench_toolkits(base)
+    toolkits = fetch_workbench_toolkits(base)
 
     with patch(
         "dlt._workspace.cli.ai.utils._toolkits_index_path",
@@ -334,7 +341,7 @@ def test_install_dependencies_already_installed(capsys: pytest.CaptureFixture[st
     project_root = Path("project")
     project_root.mkdir()
     agent = _ClaudeAgent()
-    toolkits = scan_workbench_toolkits(base)
+    toolkits = fetch_workbench_toolkits(base)
 
     with patch(
         "dlt._workspace.cli.ai.utils._toolkits_index_path",
@@ -355,7 +362,7 @@ def test_install_dependencies_no_deps(capsys: pytest.CaptureFixture[str]) -> Non
     project_root = Path("project")
     project_root.mkdir()
     agent = _ClaudeAgent()
-    toolkits = scan_workbench_toolkits(base)
+    toolkits = fetch_workbench_toolkits(base)
 
     _install_dependencies("init", toolkits, base, agent, project_root)
     output = capsys.readouterr().out
@@ -651,3 +658,274 @@ def test_resolve_agent_from_init_index(capsys: pytest.CaptureFixture[str]) -> No
         pytest.raises(CliCommandException),
     ):
         _resolve_agent(None, project_root)
+
+
+# ---------------------------------------------------------------------------
+# Secrets update-fragment helpers (moved from test_ai_command)
+# ---------------------------------------------------------------------------
+
+
+def test_ai_secrets_update_fragment_creates_new(capsys: pytest.CaptureFixture[str]) -> None:
+    secrets_file = Path("secrets.toml")
+    fragment = '[destination.bigquery]\nproject_id = "my-project"\n'
+    ai_secrets_update_fragment_command(fragment=fragment, path=str(secrets_file))
+    output = capsys.readouterr().out
+    assert "**********" in output
+    assert "my-project" not in output
+    content = secrets_file.read_text(encoding="utf-8")
+    assert "my-project" in content
+
+
+def test_ai_secrets_update_fragment_merges_existing(capsys: pytest.CaptureFixture[str]) -> None:
+    secrets_file = Path("secrets.toml")
+    secrets_file.write_text('[sources.my_source]\napi_key = "existing-key"\n', encoding="utf-8")
+    fragment = '[destination.postgres]\npassword = "pg-pass"\n'
+    ai_secrets_update_fragment_command(fragment=fragment, path=str(secrets_file))
+    content = secrets_file.read_text(encoding="utf-8")
+    assert "existing-key" in content
+    assert "pg-pass" in content
+
+
+def test_ai_secrets_update_fragment_invalid_toml() -> None:
+    secrets_file = Path("secrets.toml")
+    with pytest.raises(CliCommandException):
+        ai_secrets_update_fragment_command(
+            fragment="this is [not valid toml", path=str(secrets_file)
+        )
+
+
+def test_ai_secrets_update_fragment_multiline(capsys: pytest.CaptureFixture[str]) -> None:
+    """Multiline TOML fragment with real newlines (bash heredoc style)."""
+    secrets_file = Path("secrets.toml")
+    fragment = (
+        "[destination.postgres.credentials]\n"
+        'host = "localhost"\n'
+        "port = 5432\n"
+        'database = "analytics"\n'
+        'username = "loader"\n'
+        'password = "secret-pw"\n'
+    )
+    ai_secrets_update_fragment_command(fragment=fragment, path=str(secrets_file))
+    content = secrets_file.read_text(encoding="utf-8")
+    assert "localhost" in content
+    assert "5432" in content or "port" in content
+    assert "analytics" in content
+    assert "loader" in content
+    assert "secret-pw" in content
+    output = capsys.readouterr().out
+    assert "secret-pw" not in output
+
+
+def test_ai_secrets_update_fragment_escaped_newlines(capsys: pytest.CaptureFixture[str]) -> None:
+    """Fragment with literal \\n characters (PowerShell backtick-n produces this)."""
+    secrets_file = Path("secrets.toml")
+    fragment = '[sources.stripe]\napi_key = "sk-test-xxxxxxxxxxxx"\n'
+    ai_secrets_update_fragment_command(fragment=fragment, path=str(secrets_file))
+    content = secrets_file.read_text(encoding="utf-8")
+    assert "sk-test-xxxxxxxxxxxx" in content
+    assert "[sources.stripe]" in content
+
+
+def test_ai_secrets_update_fragment_single_line(capsys: pytest.CaptureFixture[str]) -> None:
+    """Single-line fragment with section and key on one TOML inline."""
+    secrets_file = Path("secrets.toml")
+    fragment = '[sources.github]\napi_key = "ghp_xxxxxxxxxxxx"\n'
+    ai_secrets_update_fragment_command(fragment=fragment, path=str(secrets_file))
+    content = secrets_file.read_text(encoding="utf-8")
+    assert "ghp_xxxxxxxxxxxx" in content
+
+
+def test_ai_secrets_update_fragment_escaped_newlines_single_line(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    r"""Literal \n (two chars) is converted to real newlines for cross-platform compat."""
+    secrets_file = Path("secrets.toml")
+    fragment = r'[sources.stripe]\napi_key = "sk-test-xxxxxxxxxxxx"'
+    ai_secrets_update_fragment_command(fragment=fragment, path=str(secrets_file))
+    content = secrets_file.read_text(encoding="utf-8")
+    assert "sk-test-xxxxxxxxxxxx" in content
+    assert "[sources.stripe]" in content
+
+
+def test_ai_secrets_update_fragment_with_path(capsys: pytest.CaptureFixture[str]) -> None:
+    """update-fragment writes to the exact file specified by --path."""
+    target = Path(".dlt/prod.secrets.toml")
+    fragment = '[sources.my_api]\ntoken = "secret-prod-token"\n'
+    ai_secrets_update_fragment_command(fragment=fragment, path=str(target))
+    assert target.is_file()
+    content = target.read_text(encoding="utf-8")
+    assert "secret-prod-token" in content
+
+
+def test_ai_secrets_roundtrip(capsys: pytest.CaptureFixture[str]) -> None:
+    """Write via update-fragment, then read back via view-redacted."""
+    custom = Path(".dlt/staging.secrets.toml")
+    fragment = '[destination.postgres]\npassword = "staging-pw"\n'
+    ai_secrets_update_fragment_command(fragment=fragment, path=str(custom))
+    capsys.readouterr()
+
+    ai_secrets_view_redacted_command(path=str(custom))
+    output = capsys.readouterr().out
+    assert "staging-pw" not in output
+    assert "[destination.postgres]" in output
+    assert "***" in output
+
+
+# ---------------------------------------------------------------------------
+# Toolkit list / info / install helpers (moved from test_ai_command)
+# ---------------------------------------------------------------------------
+
+
+def test_toolkit_list(capsys: pytest.CaptureFixture[str]) -> None:
+    """ai_toolkit_list_command lists toolkits with descriptions."""
+    base = make_mock_workbench()
+    with patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base):
+        ai_toolkit_list_command(location="mock://repo", branch=None)
+    output = capsys.readouterr().out
+    assert "Available toolkits:" in output
+    assert "Installed toolkits:" not in output
+    assert "rest-api-pipeline" in output
+    assert "REST API source pipeline toolkit" in output
+    assert "sql-database" in output
+    assert "SQL database source toolkit" in output
+    assert "init" in output
+    assert "Init toolkit" in output
+    assert "bootstrap" not in output
+
+
+def test_toolkit_info(capsys: pytest.CaptureFixture[str]) -> None:
+    """ai_toolkit_info_command shows toolkit components."""
+    base = make_mock_workbench()
+    with patch("dlt._workspace.cli.ai.utils.fetch_workbench_base", return_value=base):
+        ai_toolkit_info_command(name="rest-api-pipeline", location="mock://repo", branch=None)
+    output = capsys.readouterr().out
+    assert "rest-api-pipeline" in output
+    assert "REST API source pipeline toolkit" in output
+    assert "Use find-source skill to start!" in output
+    assert "Dependencies:" not in output
+    assert "Skills:" in output
+    assert "find-source" in output
+    assert "Commands:" in output
+    assert "bootstrap" in output
+    assert "Rules:" in output
+    assert "coding" in output
+    assert "MCP servers:" in output
+    assert "dlt-workspace-mcp" in output
+    assert ".claudeignore" in output
+
+
+def test_toolkit_info_not_found(capsys: pytest.CaptureFixture[str]) -> None:
+    """ai_toolkit_info_command warns on missing toolkit."""
+    base = make_mock_workbench()
+    with patch("dlt._workspace.cli.ai.utils.fetch_workbench_base", return_value=base):
+        ai_toolkit_info_command(name="nonexistent", location="mock://repo", branch=None)
+    output = capsys.readouterr().out
+    assert "not found" in output.lower()
+
+
+def test_toolkit_index_lifecycle(capsys: pytest.CaptureFixture[str]) -> None:
+    """Full lifecycle: install, same-version skip, version-mismatch hint, overwrite,
+    zero-file install keeps old date, and dependency tracking."""
+    project_root = Path("project")
+    project_root.mkdir()
+    base = make_versioned_workbench(version="1.0.0")
+
+    with (
+        patch("dlt.common.runtime.run_context.active") as mock_ctx,
+        patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base),
+    ):
+        settings_dir = str(project_root / ".dlt")
+        mock_ctx.return_value.run_dir = str(project_root)
+        mock_ctx.return_value.settings_dir = settings_dir
+        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
+
+        # 1. First install
+        ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
+        out = capsys.readouterr().out
+        assert "item(s) installed" in out
+        idx = load_toolkits_index()
+        assert "my-toolkit" in idx
+        assert idx["my-toolkit"]["version"] == "1.0.0"
+        assert "installed_at" in idx["my-toolkit"]
+        assert idx["my-toolkit"]["agent"] == "claude"
+        assert idx["my-toolkit"]["description"] == "Test toolkit"
+        assert idx["my-toolkit"]["tags"] == ["testing", "dlt"]
+        assert "files" in idx["my-toolkit"]
+        assert isinstance(idx["my-toolkit"]["files"], dict)
+        assert len(idx["my-toolkit"]["files"]) > 0
+        first_date = idx["my-toolkit"]["installed_at"]
+        assert "init" in idx
+        assert "files" in idx["init"]
+        assert idx["init"]["version"] == "1.0.0"
+        assert idx["init"]["agent"] == "claude"
+        assert idx["init"]["description"] == "Init toolkit"
+
+        # 2. Reinstall same version — early return "already installed"
+        ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
+        out = capsys.readouterr().out
+        assert "already installed" in out
+        idx = load_toolkits_index()
+        assert idx["my-toolkit"]["installed_at"] == first_date
+
+        # 3. Bump remote version — reinstall without overwrite
+        base2 = make_versioned_workbench(version="2.0.0")
+        with patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base2):
+            ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
+        out = capsys.readouterr().out
+        assert "Use --overwrite to update" in out
+        idx = load_toolkits_index()
+        assert idx["my-toolkit"]["version"] == "1.0.0"
+        assert idx["my-toolkit"]["installed_at"] == first_date
+
+        # 4. Overwrite install with new version
+        with patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base2):
+            ai_toolkit_install_command(
+                name="my-toolkit", agent="claude", location="mock://repo", overwrite=True
+            )
+        out = capsys.readouterr().out
+        assert "item(s) installed" in out
+        idx = load_toolkits_index()
+        assert idx["my-toolkit"]["version"] == "2.0.0"
+        assert idx["my-toolkit"]["installed_at"] != first_date
+        assert idx["my-toolkit"]["agent"] == "claude"
+
+        # 5. Install where all files conflict (0 written) — index NOT updated
+        overwrite_date = idx["my-toolkit"]["installed_at"]
+        variant = _ClaudeAgent()
+        actions, _ = _plan_toolkit_install(
+            base2 / "my-toolkit", variant, project_root, "my-toolkit"
+        )
+        assert all(a.conflict for a in actions)
+        installed = _execute_install(
+            actions, toolkit_meta=make_mock_toolkit_info("my-toolkit", "3.0.0")
+        )
+        assert installed == 0
+        idx = load_toolkits_index()
+        assert idx["my-toolkit"]["version"] == "2.0.0"
+        assert idx["my-toolkit"]["installed_at"] == overwrite_date
+
+
+def test_install_stores_workflow_entry_skill(capsys: pytest.CaptureFixture[str]) -> None:
+    """workflow_entry_skill from toolkit.json is stored in the index after install."""
+    base = make_mock_workbench()
+    project_root = Path("project")
+    project_root.mkdir()
+
+    with (
+        patch("dlt.common.runtime.run_context.active") as mock_ctx,
+        patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base),
+    ):
+        settings_dir = str(project_root / ".dlt")
+        mock_ctx.return_value.run_dir = str(project_root)
+        mock_ctx.return_value.settings_dir = settings_dir
+        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
+
+        ai_toolkit_install_command(name="rest-api-pipeline", agent="claude", location="mock://repo")
+
+        out = capsys.readouterr().out
+        assert "Use find-source skill to start!" in out
+
+        idx = load_toolkits_index()
+        assert "rest-api-pipeline" in idx
+        assert idx["rest-api-pipeline"]["workflow_entry_skill"] == "find-source"
+        assert not idx["init"].get("workflow_entry_skill")

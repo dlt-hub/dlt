@@ -156,8 +156,8 @@ def display_run_context_info() -> None:
 def make_mcp_run_flags(default_port: int = 8000) -> argparse.ArgumentParser:
     """Build a parent parser with the shared MCP run flags (--stdio, --sse, --port, --features).
 
-    Returns an ArgumentParser with ``add_help=False`` suitable for use as a
-    ``parents=[...]`` entry.  Does **not** require ``fastmcp`` to be installed.
+    Returns an ArgumentParser with `add_help=False` suitable for use as a
+    `parents=[...]` entry.  Does **not** require `fastmcp` to be installed.
     """
     flags = argparse.ArgumentParser(add_help=False)
     flags.add_argument("--stdio", action="store_true", help="Use stdio transport mode")

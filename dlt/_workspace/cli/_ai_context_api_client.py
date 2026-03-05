@@ -7,7 +7,7 @@ import requests
 from dlt.common.configuration import with_config
 from dlt.common.storages.file_storage import FileStorage
 
-from dlt._workspace.cli.exceptions import ScaffoldSourceNotFound, ScaffoldApiError
+from dlt._workspace.cli.exceptions import AiContextSourceNotFound, AiContextApiError
 from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
 from dlt._workspace.typing import TSourceItem
 
@@ -29,17 +29,17 @@ def search_sources(query: str = "", ai_context_api_url: str = None) -> List[TSou
         description_verbose and sample_urls fields.
 
     Raises:
-        ScaffoldApiError: If there's an error connecting to the API
+        AiContextApiError: If there's an error connecting to the API
     """
     url = f"{ai_context_api_url}/api/v1/scaffolds/sources"
     params = {"q": query} if query else {}
     try:
         response = requests.get(url, params=params, timeout=AI_CONTEXT_API_TIMEOUT)
     except requests.RequestException as e:
-        raise ScaffoldApiError(f"There was an error connecting to the AI context API: {str(e)}")
+        raise AiContextApiError(f"There was an error connecting to the AI context API: {str(e)}")
 
     if response.status_code != 200:
-        raise ScaffoldApiError(f"API returned status {response.status_code}: {response.text}")
+        raise AiContextApiError(f"API returned status {response.status_code}: {response.text}")
 
     data: Dict[str, Any] = response.json()
     results: List[TSourceItem] = data.get("results", [])
@@ -62,23 +62,23 @@ def get_ai_context_files_storage(
         FileStorage containing the source files
 
     Raises:
-        ScaffoldSourceNotFound: If the source doesn't exist (404)
-        ScaffoldApiError: If there's an error connecting to the API or extracting the ZIP
+        AiContextSourceNotFound: If the source doesn't exist (404)
+        AiContextApiError: If there's an error connecting to the API or extracting the ZIP
     """
     url = f"{ai_context_api_url}/api/v1/scaffolds/{source_name}/files"
     headers = {"Accept": "application/zip"}
     try:
         response = requests.get(url, headers=headers, timeout=AI_CONTEXT_API_TIMEOUT)
     except requests.RequestException as e:
-        raise ScaffoldApiError(
+        raise AiContextApiError(
             f"There was an error connecting to the AI context API: {str(e)}", source_name
         )
 
     if response.status_code == 404:
-        raise ScaffoldSourceNotFound(f"Source '{source_name}' not found", source_name)
+        raise AiContextSourceNotFound(f"Source '{source_name}' not found", source_name)
 
     if response.status_code != 200:
-        raise ScaffoldApiError(
+        raise AiContextApiError(
             f"API returned status {response.status_code}: {response.text}", source_name
         )
 
@@ -87,6 +87,6 @@ def get_ai_context_files_storage(
         with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
             zip_file.extractall(temp_dir)
     except zipfile.BadZipFile as e:
-        raise ScaffoldApiError(f"Invalid ZIP response from AI context API: {str(e)}", source_name)
+        raise AiContextApiError(f"Invalid ZIP response from AI context API: {str(e)}", source_name)
 
     return FileStorage(temp_dir, makedirs=False)

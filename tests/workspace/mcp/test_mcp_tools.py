@@ -219,9 +219,6 @@ def test_get_local_pipeline_state(pokemon_pipeline_context: RunContextBase) -> N
     assert "_state_version" in state
 
 
-# -- multi-schema tests --
-
-
 @dlt.source(name="fruits")
 def _fruits_source():
     @dlt.resource

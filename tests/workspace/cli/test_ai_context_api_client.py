@@ -8,7 +8,7 @@ from typing import Dict
 import requests_mock as rm
 
 from dlt._workspace.cli._ai_context_api_client import get_ai_context_files_storage, search_sources
-from dlt._workspace.cli.exceptions import ScaffoldSourceNotFound, ScaffoldApiError
+from dlt._workspace.cli.exceptions import AiContextSourceNotFound, AiContextApiError
 from dlt.common.storages.file_storage import FileStorage
 
 
@@ -62,14 +62,14 @@ def test_search_sources_empty_query(requests_mock: rm.Mocker) -> None:
 
 
 def test_search_sources_server_error(requests_mock: rm.Mocker) -> None:
-    """Test search_sources raises ScaffoldApiError on server error"""
+    """Test search_sources raises AiContextApiError on server error"""
     requests_mock.get(
         re.compile(r".*/api/v1/scaffolds/sources"),
         status_code=500,
         text="Internal Server Error",
     )
 
-    with pytest.raises(ScaffoldApiError) as exc_info:
+    with pytest.raises(AiContextApiError) as exc_info:
         search_sources(query="test", ai_context_api_url="https://api.example.com")
 
     assert "500" in str(exc_info.value)
@@ -102,7 +102,7 @@ def test_get_ai_context_files_storage_success(requests_mock: rm.Mocker) -> None:
 
 
 def test_get_ai_context_files_storage_not_found(requests_mock: rm.Mocker) -> None:
-    """Test non-existing source raises ScaffoldSourceNotFound"""
+    """Test non-existing source raises AiContextSourceNotFound"""
 
     source_name = "non_existing_source"
     requests_mock.get(
@@ -110,7 +110,7 @@ def test_get_ai_context_files_storage_not_found(requests_mock: rm.Mocker) -> Non
         status_code=404,
     )
 
-    with pytest.raises(ScaffoldSourceNotFound) as exc_info:
+    with pytest.raises(AiContextSourceNotFound) as exc_info:
         get_ai_context_files_storage(source_name, ai_context_api_url="https://api.example.com")
 
     assert exc_info.value.source_name == source_name
@@ -119,7 +119,7 @@ def test_get_ai_context_files_storage_not_found(requests_mock: rm.Mocker) -> Non
 
 
 def test_get_ai_context_files_storage_invalid_zip(requests_mock: rm.Mocker) -> None:
-    """Test invalid ZIP response raises ScaffoldApiError"""
+    """Test invalid ZIP response raises AiContextApiError"""
 
     source_name = "some_source"
     requests_mock.get(
@@ -128,7 +128,7 @@ def test_get_ai_context_files_storage_invalid_zip(requests_mock: rm.Mocker) -> N
         status_code=200,
     )
 
-    with pytest.raises(ScaffoldApiError) as exc_info:
+    with pytest.raises(AiContextApiError) as exc_info:
         get_ai_context_files_storage(source_name, ai_context_api_url="https://api.example.com")
 
     assert exc_info.value.source_name == source_name
@@ -137,7 +137,7 @@ def test_get_ai_context_files_storage_invalid_zip(requests_mock: rm.Mocker) -> N
 
 
 def test_get_ai_context_files_storage_server_error(requests_mock: rm.Mocker) -> None:
-    """Test server error raises ScaffoldApiError"""
+    """Test server error raises AiContextApiError"""
 
     source_name = "some_source"
     requests_mock.get(
@@ -146,7 +146,7 @@ def test_get_ai_context_files_storage_server_error(requests_mock: rm.Mocker) -> 
         text="Internal Server Error",
     )
 
-    with pytest.raises(ScaffoldApiError) as exc_info:
+    with pytest.raises(AiContextApiError) as exc_info:
         get_ai_context_files_storage(source_name, ai_context_api_url="https://api.example.com")
 
     assert exc_info.value.source_name == source_name

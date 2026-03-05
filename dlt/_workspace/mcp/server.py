@@ -26,8 +26,8 @@ _ALL_FEATURE_NAMES = frozenset(
 def discover_features() -> Tuple[Set[str], Set[str]]:
     """Probe plugin hooks and return (all_available, extra_only) feature names.
 
-    *all_available* is every feature that at least one hook responds to.
-    *extra_only* is `all_available - WorkspaceMCP.DEFAULT_FEATURES`.
+    `all_available` is every feature that at least one hook responds to.
+    `extra_only` is `all_available - WorkspaceMCP.DEFAULT_FEATURES`.
     """
     available: Set[str] = set()
     for name in _ALL_FEATURE_NAMES:
@@ -38,28 +38,17 @@ def discover_features() -> Tuple[Set[str], Set[str]]:
     return available, extra
 
 
-def resolve_features(raw: Optional[List[str]], defaults: Set[str] = None) -> Set[str]:
-    """Build a feature set from CLI ``--features`` values.
-
-    Accepts a list of tokens (from ``nargs="*"``) that may themselves be
-    comma-separated.  Each individual token supports three forms:
-
-      * ``name``    — adds the feature  (same as ``+name``)
-      * ``+name``   — adds the feature
-      * ``-name``   — removes the feature from defaults
-
-    Because argparse treats leading ``-`` as a flag, callers must use the
-    ``=`` form for removals: ``--features=-secrets,+context``.
-
-    Returns the final resolved set.
-    """
+def resolve_features(feature_tokens: Optional[List[str]], defaults: Set[str] = None) -> Set[str]:
+    """Resolve `+name`, `-name`, `name` tokens against defaults into a feature set."""
     if defaults is None:
         defaults = WorkspaceMCP.DEFAULT_FEATURES
-    if not raw:
+    if not feature_tokens:
         return set(defaults)
 
     result = set(defaults)
-    for item in raw:
+    for item in feature_tokens:
+        # tokens may be comma-separated: "--features=-secrets,+context"
+        # because argparse treats leading "-" as a flag, use "=" form for removals
         for token in item.split(","):
             token = token.strip()
             if not token:
@@ -103,11 +92,13 @@ class DltMCP(FastMCP):
         super().run(transport=transport, **run_kwargs)
 
     def _register_features(self) -> None:
+        # each plugin hook returns McpFeatures (tools, prompts, providers) or None
         features_list = manager().hook.plug_mcp(features=self._features)
         for mcp_features in features_list:
             if mcp_features is None:
                 continue
             self._register_tools(mcp_features.tools)
+            # prompts can be raw functions or pre-built Prompt objects
             for prompt_fn in mcp_features.prompts:
                 if isinstance(prompt_fn, Prompt):
                     self.add_prompt(prompt_fn)

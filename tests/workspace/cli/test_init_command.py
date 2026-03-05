@@ -386,7 +386,7 @@ def test_init_writes_example_config_placeholders(
     assert access_key_value == TYPE_EXAMPLES["text"]
 
 
-@pytest.mark.parametrize("destination_name", IMPLEMENTED_DESTINATIONS)
+@pytest.mark.parametrize("destination_name", sorted(IMPLEMENTED_DESTINATIONS))
 def test_init_all_destinations(
     destination_name: str, workspace_files: FileStorage, repo_dir: str
 ) -> None:

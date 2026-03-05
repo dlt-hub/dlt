@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 from typing import Optional
 
 from dlt._workspace.cli import echo as fmt, utils
@@ -930,8 +931,6 @@ class AiCommand(SupportsCliCommand):
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        import sys
-
         from dlt._workspace.cli._urls import (
             DEFAULT_AI_WORKBENCH_BRANCH,
             DEFAULT_AI_WORKBENCH_REPO,

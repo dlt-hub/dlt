@@ -9,7 +9,7 @@ from dlt._workspace.cli.ai.utils import (
     DEFAULT_AI_WORKBENCH_REPO,
     fetch_workbench_base,
     fetch_workbench_toolkit_info,
-    scan_workbench_toolkits,
+    fetch_workbench_toolkits,
 )
 from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 from dlt._workspace.typing import TToolkitInfo, TWorkbenchToolkitInfo
@@ -22,7 +22,7 @@ def list_toolkits() -> Dict[str, TToolkitInfo]:
         base = fetch_workbench_base(DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH)
     except FileNotFoundError as ex:
         raise ToolError(str(ex))
-    return scan_workbench_toolkits(base, listed_only=True)
+    return fetch_workbench_toolkits(base, listed_only=True)
 
 
 @with_mcp_tool_telemetry()

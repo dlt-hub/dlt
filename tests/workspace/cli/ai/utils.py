@@ -1,7 +1,10 @@
 import json
+import os
 import shutil
 from pathlib import Path
 from typing import List, Optional
+
+AI_CASES_DIR = os.path.join(os.path.dirname(__file__), "cases")
 
 import pytest
 import yaml
@@ -112,216 +115,36 @@ def _ensure_init_agents_template(base: Path) -> None:
 
 
 def make_mock_toolkit(toolkit_name: str = "test-toolkit", with_mcp: bool = False) -> Path:
-    """Create a mock toolkit directory with skills, commands, and rules."""
+    """Copy mock_toolkit case into repo/<toolkit_name>, patch name in plugin.json."""
     toolkit_dir = Path("repo") / toolkit_name
     _ensure_init_agents_template(toolkit_dir.parent)
-    meta_dir = toolkit_dir / ".claude-plugin"
-    meta_dir.mkdir(parents=True)
-    (meta_dir / "plugin.json").write_text(
-        json.dumps({"name": toolkit_name, "version": "0.1.0", "description": "Test toolkit"}),
-        encoding="utf-8",
-    )
-
-    skill_dir = toolkit_dir / "skills" / "find-source"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: find-source\n---\nFind a source.", encoding="utf-8"
-    )
-    (skill_dir / "helper.py").write_text("# helper code\n", encoding="utf-8")
-
-    cmd_dir = toolkit_dir / "commands"
-    cmd_dir.mkdir(parents=True)
-    (cmd_dir / "bootstrap.md").write_text(
-        "---\nname: Bootstrap\ndescription: Set up project\n---\n# Bootstrap\nDo stuff",
-        encoding="utf-8",
-    )
-
-    rules_dir = toolkit_dir / "rules"
-    rules_dir.mkdir(parents=True)
-    (rules_dir / "coding.md").write_text(
-        "---\nalwaysApply: true\ndescription: Coding rule\n---\n# Coding Style\nFollow these.",
-        encoding="utf-8",
-    )
-
-    (toolkit_dir / ".claudeignore").write_text("secrets.toml\n*.secrets.toml\n", encoding="utf-8")
-
-    if with_mcp:
-        (toolkit_dir / "mcp.json").write_text(
-            json.dumps(
-                {
-                    "dlt-workspace-mcp": {
-                        "type": "stdio",
-                        "command": "uv",
-                        "args": ["run", "dlt", "workspace", "mcp", "--stdio"],
-                    }
-                }
-            ),
-            encoding="utf-8",
-        )
-
+    shutil.copytree(os.path.join(AI_CASES_DIR, "mock_toolkit"), toolkit_dir)
+    # patch toolkit name
+    plugin_json = toolkit_dir / ".claude-plugin" / "plugin.json"
+    meta = json.loads(plugin_json.read_text(encoding="utf-8"))
+    meta["name"] = toolkit_name
+    plugin_json.write_text(json.dumps(meta), encoding="utf-8")
+    if not with_mcp:
+        (toolkit_dir / "mcp.json").unlink()
     return toolkit_dir
 
 
 def make_mock_workbench() -> Path:
-    """Create a mock workbench base dir with 2 toolkits and init."""
+    """Copy the mock_workbench case into cwd and return the base path."""
     base = Path("workbench")
-    base.mkdir()
-
-    # init toolkit
-    init_dir = base / "init"
-    init_meta = init_dir / ".claude-plugin"
-    init_meta.mkdir(parents=True)
-    (init_meta / "plugin.json").write_text(
-        json.dumps({"name": "init", "version": "1.0.0", "description": "Init toolkit"}),
-        encoding="utf-8",
-    )
-    init_rules = init_dir / "rules"
-    init_rules.mkdir()
-    (init_rules / "base.md").write_text(
-        "---\ndescription: Base rules\n---\n# Base\nAlways follow these.", encoding="utf-8"
-    )
-    (init_dir / "AGENTS.md").write_text(MOCK_AGENTS_MD_TEMPLATE, encoding="utf-8")
-    (init_dir / ".claudeignore").write_text("_storage\n", encoding="utf-8")
-
-    # rest-api toolkit
-    rest_dir = base / "rest-api-pipeline"
-    rest_meta = rest_dir / ".claude-plugin"
-    rest_meta.mkdir(parents=True)
-    (rest_meta / "plugin.json").write_text(
-        json.dumps(
-            {
-                "name": "rest-api-pipeline",
-                "version": "0.1.0",
-                "description": "REST API source pipeline toolkit",
-            }
-        ),
-        encoding="utf-8",
-    )
-    (rest_meta / "toolkit.json").write_text(
-        json.dumps({"dependencies": ["init"], "workflow_entry_skill": "find-source"}),
-        encoding="utf-8",
-    )
-    # skill
-    skill_dir = rest_dir / "skills" / "find-source"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: find-source\ndescription: Find and configure a REST API source\n---\n"
-        "# Find Source\nInstructions here.",
-        encoding="utf-8",
-    )
-    # command
-    cmd_dir = rest_dir / "commands"
-    cmd_dir.mkdir(parents=True)
-    (cmd_dir / "bootstrap.md").write_text(
-        "---\nname: bootstrap\ndescription: Set up a new REST API pipeline project\n---\n"
-        "# Bootstrap\nSteps.",
-        encoding="utf-8",
-    )
-    # rule
-    rules_dir = rest_dir / "rules"
-    rules_dir.mkdir(parents=True)
-    (rules_dir / "coding.md").write_text(
-        "---\nname: coding\ndescription: Coding style guidelines\n---\n# Coding\nFollow these.",
-        encoding="utf-8",
-    )
-    # mcp
-    (rest_dir / "mcp.json").write_text(
-        json.dumps(
-            {
-                "dlt-workspace-mcp": {
-                    "type": "stdio",
-                    "command": "uv",
-                    "args": ["run", "dlt", "workspace", "mcp", "--stdio"],
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
-    # ignore
-    (rest_dir / ".claudeignore").write_text("*.secrets.toml\n", encoding="utf-8")
-
-    # sql-database toolkit (minimal)
-    sql_dir = base / "sql-database"
-    sql_meta = sql_dir / ".claude-plugin"
-    sql_meta.mkdir(parents=True)
-    (sql_meta / "plugin.json").write_text(
-        json.dumps(
-            {
-                "name": "sql-database",
-                "version": "0.1.0",
-                "description": "SQL database source toolkit",
-            }
-        ),
-        encoding="utf-8",
-    )
-    (sql_meta / "toolkit.json").write_text(
-        json.dumps({"dependencies": ["init"]}),
-        encoding="utf-8",
-    )
-
-    # unlisted toolkit (listed: false)
-    unlisted_dir = base / "bootstrap"
-    unlisted_meta = unlisted_dir / ".claude-plugin"
-    unlisted_meta.mkdir(parents=True)
-    (unlisted_meta / "plugin.json").write_text(
-        json.dumps(
-            {
-                "name": "bootstrap",
-                "version": "0.1.0",
-                "description": "Bootstrap toolkit",
-            }
-        ),
-        encoding="utf-8",
-    )
-    (unlisted_meta / "toolkit.json").write_text(
-        json.dumps({"dependencies": ["init"], "listed": False}),
-        encoding="utf-8",
-    )
-
+    shutil.copytree(os.path.join(AI_CASES_DIR, "mock_workbench"), base)
     return base
 
 
 def make_versioned_workbench(version: str = "1.0.0") -> Path:
-    """Create a mock workbench with init and a versioned toolkit."""
+    """Copy the versioned_workbench case into cwd, patch my-toolkit version."""
     base = Path("workbench")
-    base.mkdir(exist_ok=True)
-
-    # init toolkit
-    init_dir = base / "init"
-    init_meta = init_dir / ".claude-plugin"
-    init_meta.mkdir(parents=True, exist_ok=True)
-    (init_meta / "plugin.json").write_text(
-        json.dumps({"name": "init", "version": "1.0.0", "description": "Init toolkit"}),
-        encoding="utf-8",
-    )
-    init_rules = init_dir / "rules"
-    init_rules.mkdir(exist_ok=True)
-    (init_rules / "base.md").write_text(
-        "---\ndescription: Base rules\n---\n# Base\nAlways follow these.", encoding="utf-8"
-    )
-
-    # versioned toolkit
-    tk_dir = base / "my-toolkit"
-    tk_meta = tk_dir / ".claude-plugin"
-    tk_meta.mkdir(parents=True, exist_ok=True)
-    (tk_meta / "plugin.json").write_text(
-        json.dumps(
-            {
-                "name": "my-toolkit",
-                "version": version,
-                "description": "Test toolkit",
-                "keywords": ["testing", "dlt"],
-                "dependencies": ["init"],
-            }
-        ),
-        encoding="utf-8",
-    )
-    rules_dir = tk_dir / "rules"
-    rules_dir.mkdir(exist_ok=True)
-    (rules_dir / "coding.md").write_text(
-        "---\ndescription: Coding rule\n---\n# Coding\nFollow these.", encoding="utf-8"
-    )
-
+    shutil.copytree(os.path.join(AI_CASES_DIR, "versioned_workbench"), base, dirs_exist_ok=True)
+    # patch the version in plugin.json
+    plugin_json = base / "my-toolkit" / ".claude-plugin" / "plugin.json"
+    meta = json.loads(plugin_json.read_text(encoding="utf-8"))
+    meta["version"] = version
+    plugin_json.write_text(json.dumps(meta), encoding="utf-8")
     return base
 
 

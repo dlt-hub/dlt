@@ -170,14 +170,6 @@ def get_remote_source_index(
 def get_sources_names(sources_storage: FileStorage, source_type: TSourceType) -> List[str]:
     candidates: List[str] = []
 
-    # for vibe sources, we just find all directories, except for hidden ones (.git)
-    # if source_type == "vibe":
-    #     candidates = [
-    #         name
-    #         for name in sources_storage.list_folder_dirs(".", to_root=False)
-    #         if not name.startswith(".")
-    #     ]
-    # for the templates we just find all the filenames
     if source_type == "template":
         for name in sources_storage.list_folder_files(".", to_root=False):
             if name.endswith(PIPELINE_FILE_SUFFIX):

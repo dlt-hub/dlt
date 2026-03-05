@@ -2,6 +2,7 @@ import os
 import ast
 import shutil
 import warnings
+from importlib.metadata import Distribution
 from typing import Dict, Optional, Sequence, Tuple
 
 from dlt.common.libs import git
@@ -97,7 +98,7 @@ def init_command(
         display_source_name = source_name[7:]
         fmt.warning(
             "The `dlthub:<source>` syntax is deprecated. User dltHub AI Workbench instead:\n"
-            "1. dlt ai init\n"
+            "dlt ai init\n"
             "will get you started. See %s for more details."
             % fmt.bold(DLT_AI_DOCS_URL)
         )
@@ -257,8 +258,6 @@ def init_pipeline_at_destination(
             source_configuration = files_ops.get_core_source_configuration(
                 core_sources_storage, source_name, eject_source
             )
-            from importlib.metadata import Distribution
-
             dist = Distribution.from_name(DLT_PKG_NAME)
             extras = dist.metadata.get_all("Provides-Extra") or []
 
