@@ -561,6 +561,10 @@ def test_empty_dataset_allowed() -> None:
     assert client.sentinel_table == "dltSentinelTable"  # type: ignore
     assert_table(pipe, "content", expected_items_count=3)
 
+    dataset = pipe.dataset()
+    rows = dataset.content.select("value").fetchall()
+    assert len(rows) == 3
+
 
 def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:
     @dlt.resource(
