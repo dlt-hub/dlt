@@ -1,4 +1,4 @@
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import os
 import shutil
 from typing import Generator, Iterator
@@ -69,8 +69,6 @@ def restore_clean_workspace(name: str) -> str:
         is_within_target = False
 
     # use a single code path, switching cwd only when needed
-    from contextlib import nullcontext
-
     cm = set_working_dir(test_storage_root_abs) if is_within_target else nullcontext()
     with cm:
         if os.path.isdir(new_run_dir):

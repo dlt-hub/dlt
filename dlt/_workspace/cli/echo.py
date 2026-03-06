@@ -10,7 +10,12 @@ ALWAYS_CHOOSE_VALUE: Any = None
 
 @contextlib.contextmanager
 def always_choose(always_choose_default: bool, always_choose_value: Any) -> Iterator[None]:
-    """Temporarily answer all confirmations and prompts with the values specified in arguments"""
+    """Temporarily answer all confirmations and prompts with preset values.
+
+    Args:
+        always_choose_default: When True, confirm/prompt calls return their default.
+        always_choose_value: When set, confirm/prompt calls return this value instead.
+    """
     global ALWAYS_CHOOSE_DEFAULT, ALWAYS_CHOOSE_VALUE
     _always_choose_default = ALWAYS_CHOOSE_DEFAULT
     _always_choose_value = ALWAYS_CHOOSE_VALUE
