@@ -1,5 +1,6 @@
 import dataclasses
 from typing import ClassVar, Final, Optional, Any, Dict, List, List, Dict, cast, Callable
+from urllib.parse import urlparse
 
 from dlt.common import logger
 from dlt.common.typing import TSecretStrValue
@@ -37,30 +38,32 @@ class DatabricksCredentials(CredentialsConfiguration):
     ]
 
     def on_resolved(self) -> None:
+        try:
+            from databricks.sdk import WorkspaceClient
+
+            w = WorkspaceClient()
+        except Exception:
+            w = None
+
         if not ((self.client_id and self.client_secret) or self.access_token):
-            try:
-                # attempt context authentication
-                from databricks.sdk import WorkspaceClient
+            if w is not None:
+                try:
+                    # attempt context authentication via notebook token
+                    self.access_token = (
+                        w.dbutils.notebook.entry_point.getDbutils()
+                        .notebook()
+                        .getContext()
+                        .apiToken()
+                        .getOrElse(None)
+                    )
+                except Exception:
+                    self.access_token = None
 
-                w = WorkspaceClient()
-                self.access_token = (
-                    w.dbutils.notebook.entry_point.getDbutils()
-                    .notebook()
-                    .getContext()
-                    .apiToken()
-                    .getOrElse(None)
-                )
-            except Exception:
-                self.access_token = None
-
-            try:
-                from databricks.sdk import WorkspaceClient
-
-                w = WorkspaceClient()
-                self.access_token = w.config.authenticate
-                logger.info(f"Will attempt to use default auth of type {w.config.auth_type}")
-            except Exception:
-                pass
+                try:
+                    self.access_token = w.config.authenticate
+                    logger.info(f"Will attempt to use default auth of type {w.config.auth_type}")
+                except Exception:
+                    pass
 
             if not self.access_token:
                 raise ConfigurationValueError(
@@ -70,24 +73,52 @@ class DatabricksCredentials(CredentialsConfiguration):
                 )
 
         if not self.server_hostname or not self.http_path:
-            try:
-                # attempt to fetch warehouse details
-                from databricks.sdk import WorkspaceClient
+            if w is not None:
+                # try to get server_hostname from workspace URL
+                if not self.server_hostname:
+                    try:
+                        workspace_url = w.config.host
+                        if workspace_url:
+                            self.server_hostname = urlparse(workspace_url).hostname
+                            logger.info(
+                                f"Using server_hostname from workspace: {self.server_hostname}"
+                            )
+                    except Exception:
+                        pass
 
-                w = WorkspaceClient()
-                # warehouse ID may be present in an env variable
-                if w.config.warehouse_id:
-                    warehouse = w.warehouses.get(w.config.warehouse_id)
-                else:
-                    # for some reason list of warehouses has different type than a single one 🤯
-                    warehouse = list(w.warehouses.list())[0]
-                logger.info(
-                    f"Will attempt to use warehouse {warehouse.id} to get sql connection params"
-                )
-                self.server_hostname = self.server_hostname or warehouse.odbc_params.hostname
-                self.http_path = self.http_path or warehouse.odbc_params.path
-            except Exception:
-                pass
+                # try to get http_path from notebook cluster context
+                if not self.http_path:
+                    try:
+                        notebook_context = (
+                            w.dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+                        )
+                        cluster_id = notebook_context.clusterId().get()
+                        workspace_id = notebook_context.workspaceId().get()
+                        if cluster_id and workspace_id:
+                            self.http_path = f"/sql/protocolv1/o/{workspace_id}/{cluster_id}"
+                            logger.info(f"Using http_path from cluster context: {self.http_path}")
+                    except Exception:
+                        pass
+
+                # fallback: try to fetch warehouse details
+                if not self.server_hostname or not self.http_path:
+                    try:
+                        if w.config.warehouse_id:
+                            warehouse = w.warehouses.get(w.config.warehouse_id)
+                        else:
+                            # for some reason list of warehouses has different type
+                            # than a single one
+                            warehouse = list(w.warehouses.list())[0]
+                        logger.info(
+                            "Will attempt to use warehouse"
+                            f" {warehouse.id} to get sql connection params"
+                        )
+                        self.server_hostname = (
+                            self.server_hostname or warehouse.odbc_params.hostname
+                        )
+                        self.http_path = self.http_path or warehouse.odbc_params.path
+                    except Exception:
+                        pass
 
         for param in ("catalog", "server_hostname", "http_path"):
             if not getattr(self, param):
