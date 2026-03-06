@@ -1872,3 +1872,255 @@ def test_replacing_merge_key(destination_config: DestinationTestConfiguration) -
     assert sorted(observed, key=lambda d: (d["email"], d["month_key"])) == sorted(
         expected, key=lambda d: (d["email"], d["month_key"])
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_row_filter(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+    table_name = "test_row_filter"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition={
+            "disposition": "merge",
+            "strategy": merge_strategy,
+        },
+        primary_key="id",
+    )
+    def data_resource(data):
+        yield data
+
+    p = destination_config.setup_pipeline("row_filter_test", dev_mode=True)
+
+    # insert records in two partitions, with id=1 appearing in both
+    initial_data = [
+        {"id": 1, "val": "a", "partition_date": "2024-01-15"},
+        {"id": 2, "val": "b", "partition_date": "2024-01-15"},
+        {"id": 3, "val": "c", "partition_date": "2024-01-16"},
+    ]
+    info = p.run(data_resource(initial_data), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 3
+
+    # merge with row_filter scoped to partition 2024-01-15
+    # staging contains id=1 (update) and id=3 (same key as other partition)
+    data_resource.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": merge_strategy,
+            "row_filter": "partition_date = '2024-01-15'",
+        },
+    )
+    update_data = [
+        {"id": 1, "val": "updated_a", "partition_date": "2024-01-15"},
+        {"id": 3, "val": "should_not_touch_other_partition", "partition_date": "2024-01-15"},
+    ]
+    info = p.run(data_resource(update_data), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    observed = [
+        {"id": row[0], "val": row[1], "partition_date": row[2]}
+        for row in select_data(p, f"SELECT id, val, partition_date FROM {table_name}")
+    ]
+    observed = sorted(observed, key=lambda d: (d["partition_date"], d["id"]))
+
+    # row_filter ensures only partition 2024-01-15 rows are affected
+    # id=3 in partition 2024-01-16 is NOT deleted/updated despite matching staging key
+    expected = [
+        {"id": 1, "val": "updated_a", "partition_date": "2024-01-15"},
+        {"id": 2, "val": "b", "partition_date": "2024-01-15"},
+        {"id": 3, "val": "should_not_touch_other_partition", "partition_date": "2024-01-15"},
+        {"id": 3, "val": "c", "partition_date": "2024-01-16"},
+    ]
+    assert observed == expected
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_row_filter_apply_hints(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test that row_filter can be set dynamically via apply_hints."""
+    table_name = "test_row_filter_dynamic"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition="merge",
+        primary_key="id",
+    )
+    def data_resource(data):
+        yield data
+
+    p = destination_config.setup_pipeline("row_filter_dynamic", dev_mode=True)
+
+    # initial load with two partitions
+    initial_data = [
+        {"id": 1, "val": "a", "part": "A"},
+        {"id": 2, "val": "b", "part": "A"},
+        {"id": 3, "val": "c", "part": "B"},
+    ]
+    info = p.run(data_resource(initial_data), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 3
+
+    # dynamically apply row_filter for partition B only
+    data_resource.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "row_filter": "part = 'B'",
+        },
+    )
+    update_data = [
+        {"id": 3, "val": "updated_c", "part": "B"},
+        {"id": 4, "val": "d", "part": "B"},
+    ]
+    info = p.run(data_resource(update_data), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    observed = [
+        {"id": row[0], "val": row[1]} for row in select_data(p, f"SELECT id, val FROM {table_name}")
+    ]
+    observed = sorted(observed, key=lambda d: d["id"])
+    # partition A untouched (ids 1,2), partition B replaced (id 3 updated, id 4 added)
+    expected = [
+        {"id": 1, "val": "a"},
+        {"id": 2, "val": "b"},
+        {"id": 3, "val": "updated_c"},
+        {"id": 4, "val": "d"},
+    ]
+    assert observed == expected
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_row_filter_nested_tables(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test row_filter with nested child tables (exercises the temp table code path)."""
+    p = destination_config.setup_pipeline("row_filter_nested", dev_mode=True)
+
+    @dlt.resource(
+        table_name="parent",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    def r(data):
+        yield data
+
+    # initial load: two partitions with child records
+    initial = [
+        {"id": 1, "part": "A", "child": [{"val": "c1"}]},
+        {"id": 2, "part": "A", "child": [{"val": "c2"}]},
+        {"id": 3, "part": "B", "child": [{"val": "c3"}, {"val": "c4"}]},
+    ]
+    info = p.run(r(initial), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent")["parent"] == 3
+    assert load_table_counts(p, "parent__child")["parent__child"] == 4
+
+    # merge scoped to partition A only
+    r.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "row_filter": "part = 'A'",
+        },
+    )
+    update = [
+        {"id": 1, "part": "A", "child": [{"val": "c1_updated"}]},
+    ]
+    info = p.run(r(update), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # partition B (id=3) must be untouched: parent + 2 child rows
+    assert load_table_counts(p, "parent")["parent"] == 3
+    parent_rows = load_tables_to_dicts(p, "parent", exclude_system_cols=True)["parent"]
+    assert_records_as_set(
+        parent_rows,
+        [
+            {"id": 1, "part": "A"},
+            {"id": 2, "part": "A"},
+            {"id": 3, "part": "B"},
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_row_filter_with_hard_delete(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test row_filter + hard_delete with upsert strategy (exercises hard_delete branches
+    in _gen_upsert_update_insert_sql)."""
+    table_name = "test_row_filter_hard_del"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "upsert",
+            "row_filter": "part = 'A'",
+        },
+        primary_key="id",
+        columns={"deleted": {"hard_delete": True}},
+    )
+    def data_resource(data):
+        yield data
+
+    p = destination_config.setup_pipeline("row_filter_hard_del", dev_mode=True)
+
+    # initial load: no row_filter for first load (so both partitions load)
+    data_resource.apply_hints(
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+    )
+    initial = [
+        {"id": 1, "val": "a", "part": "A", "deleted": False},
+        {"id": 2, "val": "b", "part": "A", "deleted": False},
+        {"id": 3, "val": "c", "part": "B", "deleted": False},
+    ]
+    info = p.run(data_resource(initial), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 3
+
+    # apply row_filter, hard-delete id=1 and update id=2, partition B untouched
+    data_resource.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "upsert",
+            "row_filter": "part = 'A'",
+        },
+    )
+    update = [
+        {"id": 1, "val": "a", "part": "A", "deleted": True},
+        {"id": 2, "val": "b_updated", "part": "A", "deleted": False},
+    ]
+    info = p.run(data_resource(update), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    observed = [
+        {"id": row[0], "val": row[1], "part": row[2]}
+        for row in select_data(p, f"SELECT id, val, part FROM {table_name}")
+    ]
+    observed = sorted(observed, key=lambda d: d["id"])
+    # id=1 hard-deleted, id=2 updated, id=3 (partition B) untouched
+    expected = [
+        {"id": 2, "val": "b_updated", "part": "A"},
+        {"id": 3, "val": "c", "part": "B"},
+    ]
+    assert observed == expected

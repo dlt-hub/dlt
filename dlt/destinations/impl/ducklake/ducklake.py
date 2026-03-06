@@ -85,6 +85,7 @@ class DuckLakeMergeFollowupJob(SqlMergeFollowupJob):
         root_table_column_names: Sequence[str],
         hard_delete_col: Optional[str],
         deleted_cond: Optional[str],
+        row_filter: Optional[str] = None,
     ) -> List[str]:
         """Generate MERGE statement without DELETE clause + separate DELETE for hard deletes."""
         # Get MERGE statement from base class without DELETE clause (pass hard_delete_col=None)
