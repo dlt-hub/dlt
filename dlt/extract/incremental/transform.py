@@ -328,7 +328,7 @@ class JsonIncremental(IncrementalTransform):
 
             if self.range_start == "open" and processed_row_value == self.start_value:
                 # We only want greater than start_value
-                return None, False, False
+                return None, True, False
 
             # skip the record that is not a start_value or new_value: that record was already processed
             if self.start_value is None:

@@ -1,0 +1,1 @@
+{"dlt-workspace-mcp": {"type": "stdio", "command": "uv", "args": ["run", "dlt", "workspace", "mcp", "--stdio"]}}

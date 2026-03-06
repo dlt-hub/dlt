@@ -18,7 +18,6 @@ You can create one in three CLI-based ways:
 | Method          | Command | Best for |
 |-----------------|----------|----------|
 | Manual          | `dlt init <source> <destination>` | Developers who prefer manual setup |
-| LLM-native      | `dlt init dlthub:<source> <destination>` | AI-assisted development with editors like Cursor |
 | Verified source | `dlt init <verified_source> <destination>` | Prebuilt, tested connectors from the community and dltHub team |
 
 
@@ -62,10 +61,10 @@ Learn how to build you own dlt pipeline with [dlt Fundamentals course.](https://
 ### LLM-native setup
 
 A collaborative AI-human workflow that integrates `dlt` with AI editors and agents like:
-- **Cursor**,
-- **Continue**,
-- **Copilot**,
-- [the full list](../../dlt-ecosystem/llm-tooling/llm-native-workflow#configure-ide)
+- **Claude**
+- **Cursor**
+- **Codex**
+- [the full list](../../dlt-ecosystem/llm-tooling/llm-native-workflow#setup)
 
 
 **Initialize your first workspace pipeline**
@@ -78,13 +77,13 @@ To get started, search for your API and follow the tailored instructions.
 To initialize a dltHub workspace, execute the following:
 
 ```sh
-dlt init dlthub:{source_name} duckdb
+dlt init {source_name} duckdb
 ```
 
 For example:
 
 ```sh
-dlt init dlthub:github duckdb
+dlt init github duckdb
 ```
 
 The command scaffolds a **workspace-ready REST API pipeline project** with AI-assisted development support.

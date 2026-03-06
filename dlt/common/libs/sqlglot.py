@@ -960,11 +960,11 @@ def bind_query(
 
     Binding steps performed:
     1. **Table name expansion**: Resolves table references to fully qualified physical paths
-       (e.g., for ClickHouse: `dataset.table` → `dataset___table`)
+       (e.g., for ClickHouse: `dataset.table` -> `dataset___table`)
     2. **Identifier case-folding**: Applies destination-specific case transformation
        (`str.upper` for Snowflake, `str.lower` for most databases, `str` for case-sensitive)
     3. **Identifier quoting**: Quotes all identifiers for safe execution and to preserve
-       exact casing (e.g., `column_name` → `"column_name"`)
+       exact casing (e.g., `column_name` -> `"column_name"`)
     4. **Alias preservation**: For case-folding destinations, adds aliases to SELECT columns
        to maintain compatibility with dlt schema naming (e.g., `SELECT "VALUE" AS "value"`)
 

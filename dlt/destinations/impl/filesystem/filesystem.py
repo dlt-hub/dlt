@@ -215,7 +215,10 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
             f" buffer: {pa.total_allocated_bytes()}]"
         )
         source_ds = self.arrow_dataset
-        storage_options = deltalake_storage_options(self._job_client.config)
+        storage_options = deltalake_storage_options(
+            self._job_client.config.credentials,
+            self._job_client.config.deltalake_storage_options,
+        )
         try:
             delta_table: DeltaTable = self._job_client.load_open_table(
                 "delta", self.load_table_name
@@ -269,10 +272,21 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 schema=self.arrow_dataset.schema,
             )
         except DestinationUndefinedEntity:
+            from dlt.destinations.impl.filesystem.iceberg_adapter import TABLE_PROPERTIES_HINT
+
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
 
             spec_list = self._get_partition_spec_list()
+            # merge config-level defaults with per-table adapter overrides
+            config_properties = self._job_client.config.iceberg_table_properties
+            adapter_properties: Optional[Dict[str, str]] = self._load_table.get(
+                TABLE_PROPERTIES_HINT
+            )  # type: ignore[assignment]
+            if config_properties or adapter_properties:
+                properties = {**(config_properties or {}), **(adapter_properties or {})}
+            else:
+                properties = None
 
             if spec_list:
                 partition_spec, iceberg_schema = build_iceberg_partition_spec(
@@ -284,6 +298,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table_location=location,
                     schema=iceberg_schema,
                     partition_spec=partition_spec,
+                    properties=properties,
                 )
             else:
                 create_table(
@@ -291,6 +306,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table_id,
                     table_location=location,
                     schema=self.arrow_dataset.schema,
+                    properties=properties,
                 )
             # run again with created table
             self.run()
@@ -1259,7 +1275,8 @@ class FilesystemClient(
             try:
                 return evolve_table(
                     catalog=catalog,
-                    client=self,
+                    fs_client=self.fs_client,
+                    config=self.config,
                     table_id=table_id,
                     table_location=table_location,
                     **kwargs,
@@ -1269,7 +1286,9 @@ class FilesystemClient(
         elif table_format == "delta":
             from dlt.common.libs.deltalake import deltalake_storage_options, DeltaTable
 
-            storage_options = deltalake_storage_options(self.config)
+            storage_options = deltalake_storage_options(
+                self.config.credentials, self.config.deltalake_storage_options
+            )
 
             if not DeltaTable.is_deltatable(table_location, storage_options):
                 raise DestinationUndefinedEntity(table_name)
@@ -1307,7 +1326,10 @@ class FilesystemClient(
 
         # Create namespace
         try:
-            catalog.create_namespace(self.dataset_name)
+            catalog.create_namespace(
+                self.dataset_name,
+                properties=self.config.iceberg_namespace_properties or {},
+            )
             logger.info(f"Created Iceberg namespace: {self.dataset_name}")
         except NamespaceAlreadyExistsError as e:
             logger.debug(f"Namespace {self.dataset_name} already exists or error: {e}")
@@ -1466,16 +1488,42 @@ class HfFilesystemClient(FilesystemClient):
                 f" skipping: {type(ex).__name__}: {ex}"
             )
 
+    @contextmanager
+    def _hf_endpoint_env(self) -> Iterator[None]:
+        """Temporarily sets HF_ENDPOINT env var as specified in credentials.
+
+        Useful for methods that do not allow passing endpoint as argument.
+
+        Behavior in all four cases:
+        1. no endpoint in credentials, HF_ENDPOINT not set: no-op
+        2. no endpoint in credentials, HF_ENDPOINT set: no-op
+        3. endpoint in credentials, HF_ENDPOINT not set: sets HF_ENDPOINT to credentials endpoint temporarily
+        4. endpoint in credentials, HF_ENDPOINT set: overrides HF_ENDPOINT with credentials endpoint temporarily
+        """
+        if endpoint := self.config.credentials.hf_endpoint:
+            old = os.environ.get("HF_ENDPOINT")
+            os.environ["HF_ENDPOINT"] = endpoint
+            try:
+                yield
+            finally:
+                if old is None:
+                    del os.environ["HF_ENDPOINT"]
+                else:
+                    os.environ["HF_ENDPOINT"] = old
+        else:
+            yield
+
     def init_dataset_card(self) -> None:
         from huggingface_hub import DatasetCard
 
-        # TODO: make dataset card content configurable
-        DatasetCard(content="").push_to_hub(
-            repo_id=self.repo_id,
-            token=self.config.credentials.hf_token,
-            repo_type="dataset",
-            commit_message="Initialize dataset card",
-        )
+        with self._hf_endpoint_env():
+            # TODO: make dataset card content configurable
+            DatasetCard(content="").push_to_hub(
+                repo_id=self.repo_id,
+                token=self.config.credentials.hf_token,
+                repo_type="dataset",
+                commit_message="Initialize dataset card",
+            )
 
     @staticmethod
     def create_dataset_card_metadata_config(
@@ -1501,13 +1549,14 @@ class HfFilesystemClient(FilesystemClient):
         from huggingface_hub import metadata_update
 
         table_names = list(self.schema.data_table_names(seen_data_only=True))
-        metadata_update(
-            repo_id=self.repo_id,
-            metadata=self.create_dataset_card_metadata(),
-            repo_type="dataset",
-            overwrite=True,
-            token=self.config.credentials.hf_token,
-            commit_message=(
-                f"Load {load_id}: update dataset card metadata for {', '.join(table_names)}"
-            ),
-        )
+        with self._hf_endpoint_env():
+            metadata_update(
+                repo_id=self.repo_id,
+                metadata=self.create_dataset_card_metadata(),
+                repo_type="dataset",
+                overwrite=True,
+                token=self.config.credentials.hf_token,
+                commit_message=(
+                    f"Load {load_id}: update dataset card metadata for {', '.join(table_names)}"
+                ),
+            )
