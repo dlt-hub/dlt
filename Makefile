@@ -89,6 +89,7 @@ PYTHONHASHSEED := $(shell shuf -i 0-50 -n 1 2>/dev/null || echo $$((RANDOM % 51)
 PYTEST_ARGS        ?=
 PYTEST_MARKERS     ?=
 PYTEST_XDIST_N     ?=
+PYTEST_XDIST_DIST  ?= worksteal
 PYTEST_TARGET_ARGS :=
 
 # Internal marker model
