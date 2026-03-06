@@ -415,6 +415,7 @@ norecursedirs = [".direnv", ".eggs", "build", "dist"]
 addopts = "-p no:xdist --showlocals --durations 10 -m 'not rfam'"
 xfail_strict = true
 timeout = 1800
+faulthandler_timeout = 1500
 log_cli_level = "INFO"
 console_output_style = "count"
 python_files = ["test_*.py", "*_test.py"]
