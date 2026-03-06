@@ -799,6 +799,22 @@ print(f"Custom metrics: {resource_metrics.custom_metrics}")
 
 As shown above, custom metrics are included in pipeline traces. Refer to [pipeline trace loading](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) for more details.
 
+#### Trace table layout for custom metrics
+
+When a pipeline trace is [loaded into a destination](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace),
+custom metrics are stored in the `resource_metrics` table. Scalar and dict-valued metrics become
+columns prefixed with `custom_metrics__` (e.g. `custom_metrics__page_count`). List-valued metrics
+become separate child tables, giving each resource a deterministic schema for its metrics. For example:
+
+```py
+custom_metrics = dlt.current.resource_metrics()
+custom_metrics["page_count"] = 0          # becomes column: custom_metrics__page_count
+custom_metrics["errors"] = []             # becomes child table: resource_metrics__errors
+```
+
+This lets you query per-resource metrics tables directly at the destination, rather than
+parsing a single JSON column.
+
 ### Using `add_metrics` as a transformation step
 
 Alternatively, you can collect metrics using `add_metrics`, which works as a transformation step in the pipeline.

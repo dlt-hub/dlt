@@ -42,9 +42,17 @@ class DataWriterAndCustomMetrics(DataWriterMetrics):
         return self
 
     def _asdict(self) -> Dict[str, Any]:
-        """Override _asdict to include custom_metrics in serialization"""
+        """Includes custom_metrics in serialization, promoting list-valued
+        metrics to top-level keys for cleaner child table names."""
         result = super()._asdict()
-        result["custom_metrics"] = self.custom_metrics
+        nested: Dict[str, Any] = {}
+        for key, value in self.custom_metrics.items():
+            if isinstance(value, list):
+                result[key] = value
+            else:
+                nested[key] = value
+        if nested:
+            result["custom_metrics"] = nested
         return result
 
 
