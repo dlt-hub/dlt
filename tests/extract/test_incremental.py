@@ -1370,7 +1370,7 @@ def test_start_value_set_to_last_value() -> None:
         p.run(r, destination="duckdb")
 
 
-@pytest.mark.parametrize("item_type", set(ALL_TEST_DATA_ITEM_FORMATS) - {"object"})
+@pytest.mark.parametrize("item_type", sorted(set(ALL_TEST_DATA_ITEM_FORMATS) - {"object"}))
 def test_start_value_set_to_last_value_arrow(item_type: TestDataItemFormat) -> None:
     p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination="duckdb")
     now = pendulum.now()
@@ -1397,7 +1397,7 @@ def test_start_value_set_to_last_value_arrow(item_type: TestDataItemFormat) -> N
     p.run(some_data(False))
 
 
-@pytest.mark.parametrize("item_type", set(ALL_TEST_DATA_ITEM_FORMATS) - {"pandas"})
+@pytest.mark.parametrize("item_type", sorted(set(ALL_TEST_DATA_ITEM_FORMATS) - {"pandas"}))
 @pytest.mark.parametrize(
     "id_value",
     ("1231231231231271872", b"1231231231231271872", pendulum.now(), 1271.78, Decimal("1231.87")),
@@ -1560,6 +1560,129 @@ def test_incremental_explicit_disable_unique_check(item_type: TestDataItemFormat
         assert s.state["incremental"]["ts"]["unique_hashes"] == []
 
 
+def test_incremental_merge_preserves_dedup_key_flag() -> None:
+    """Merge must preserve _dedup_key_from_hints from the explicit (other) incremental."""
+    # explicit pk=() must survive merge — flag stays False
+    default_inc: Incremental[int] = Incremental("cursor")
+    explicit_inc: Incremental[int] = Incremental("cursor", primary_key=())
+    merged = default_inc.merge(explicit_inc)
+    assert merged.primary_key == ()
+    assert merged._dedup_key_from_hints is False
+    # resource pk cannot override
+    merged.set_deduplication_key("id", from_hints=True)
+    assert merged.primary_key == ()
+
+    # explicit without pk — flag stays False from default's pk
+    default_inc2: Incremental[int] = Incremental("cursor", primary_key="alt_id")
+    explicit_inc2: Incremental[int] = Incremental("cursor", initial_value=0)
+    merged2 = default_inc2.merge(explicit_inc2)
+    assert merged2.primary_key == "alt_id"
+    assert merged2._dedup_key_from_hints is False
+    # resource pk cannot override — default's pk was explicitly set
+    merged2.set_deduplication_key("id", from_hints=True)
+    assert merged2.primary_key == "alt_id"
+
+    # copy preserves flag
+    original_inc: Incremental[int] = Incremental("cursor", primary_key=())
+    copied = original_inc.copy()
+    assert copied.primary_key == ()
+    assert copied._dedup_key_from_hints is False
+    copied.set_deduplication_key("id", from_hints=True)
+    assert copied.primary_key == ()
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("dedup_key", [(), "alt_id"])
+def test_incremental_dedup_key_survives_resource_pk(
+    item_type: TestDataItemFormat,
+    dedup_key: Any,
+) -> None:
+    """Explicit dedup key on incremental default must not be overridden by resource pk."""
+    data = [
+        {"created_at": 1, "id": 1, "alt_id": 10},
+        {"created_at": 1, "id": 1, "alt_id": 20},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource(primary_key="id")
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", primary_key=dedup_key),
+    ):
+        yield from source_items
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(some_data)
+    assert some_data.incremental._incremental.primary_key == dedup_key
+    assert some_data.incremental.primary_key == some_data.incremental._incremental.primary_key
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_decorator_incremental_pk_not_overridden(
+    item_type: TestDataItemFormat,
+) -> None:
+    """When incremental with primary_key=() is set via @dlt.resource decorator,
+    the resource pk must not override it."""
+    data = [{"created_at": 1, "id": 1}, {"created_at": 1, "id": 2}]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource(
+        primary_key="id",
+        incremental=dlt.sources.incremental("created_at", primary_key=()),
+    )
+    def some_data(created_at: Optional[dlt.sources.incremental[int]] = None):
+        yield from source_items
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(some_data())
+    assert some_data.state["incremental"]["created_at"]["unique_hashes"] == []
+    assert some_data.incremental.primary_key == some_data.incremental._incremental.primary_key
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_non_aware_resource_incremental_pk_not_overridden(
+    item_type: TestDataItemFormat,
+) -> None:
+    """When incremental with primary_key=() is set on a resource that has no
+    incremental parameter (non-aware), the resource pk must not override it."""
+    data = [{"created_at": 1, "id": 1}, {"created_at": 1, "id": 2}]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource(primary_key="id")
+    def some_data():
+        yield from source_items
+
+    r = some_data()
+    r.apply_hints(incremental=dlt.sources.incremental("created_at", primary_key=()))
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(r)
+    assert r.state["incremental"]["created_at"]["unique_hashes"] == []
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_apply_hints_primary_key_does_not_override_incremental_empty_tuple(
+    item_type: TestDataItemFormat,
+) -> None:
+    """Regression for #3657: apply_hints(primary_key=...) after
+    apply_hints(incremental=incremental(primary_key=())) must not override the
+    empty-tuple primary key that disables deduplication."""
+
+    @dlt.resource
+    def some_data(last_timestamp=dlt.sources.incremental("ts")):
+        data = [{"delta": i, "ts": pendulum.now().timestamp()} for i in range(-10, 10)]
+        source_items = data_to_item_format(item_type, data)
+        yield from source_items
+
+    r = some_data()
+    r.apply_hints(incremental=dlt.sources.incremental("ts", primary_key=()))
+    r.apply_hints(primary_key=["delta"])
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(r)
+    assert r.state["incremental"]["ts"]["unique_hashes"] == []
+    assert r.incremental.primary_key == r.incremental._incremental.primary_key
+
+
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
@@ -1680,6 +1803,59 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
     # remove incremental
     r.apply_hints(incremental=dlt.sources.incremental.EMPTY)
     assert r.incremental is None
+
+
+def test_set_hints_does_not_desync_wrapper_from_inner() -> None:
+    """Simulates deferred reflect: generator emits hints with primary_key via
+    dlt.mark.with_hints after inner incremental is already set. The wrapper
+    must stay in sync with inner after _set_hints processes the late hints."""
+
+    @dlt.resource
+    def some_data(created_at=dlt.sources.incremental("created_at", primary_key=())):
+        # emit late hints with primary_key, like sql_database deferred reflect
+        yield dlt.mark.with_hints(
+            [],
+            dlt.mark.make_hints(primary_key=["id"]),
+        )
+        yield [{"created_at": 1, "id": 1}, {"created_at": 1, "id": 2}]
+
+    r = some_data()
+
+    def _check_sync(item):
+        _r = dlt.current.resource()
+        if _r.incremental._incremental is not None:
+            assert _r.incremental.primary_key == _r.incremental._incremental.primary_key
+        return item
+
+    r.add_step(_check_sync)  # type: ignore[arg-type]
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(r)
+    assert r.incremental.primary_key == r.incremental._incremental.primary_key
+
+
+def test_set_hints_syncs_wrapper_primary_key() -> None:
+    """Verify that _set_hints updates the IncrementalResourceWrapper's primary_key
+    when apply_hints changes the resource primary_key, so that wrapper.__call__
+    does not overwrite the incremental's primary_key with a stale value."""
+
+    @dlt.resource(primary_key="id")
+    def some_data(created_at=dlt.sources.incremental("created_at")):
+        yield [{"created_at": 1, "id": 1, "alt_id": 10}]
+
+    r = some_data()
+    # wrapper starts with primary_key="id" from the decorator
+    assert r.incremental.primary_key == "id"
+    # apply_hints changes the resource primary_key
+    r.apply_hints(primary_key=["id", "alt_id"])
+    # wrapper's primary_key must be updated so __call__ stays in sync
+    assert r.incremental.primary_key == ["id", "alt_id"]
+
+    # after extraction, inner incremental should also have the updated pk
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(r)
+    assert r.incremental._incremental.primary_key == ["id", "alt_id"]
+    assert r.incremental.primary_key == r.incremental._incremental.primary_key
 
 
 def test_incremental_wrapper_on_clone_standalone_incremental() -> None:
@@ -4224,7 +4400,7 @@ def test_primary_key_disables_deduplication() -> None:
     incremental = dlt.sources.incremental[int]("updated_at")
     incremental._cached_state = {"unique_hashes": [], "initial_value": None, "last_value": None}
     assert incremental._get_transform({}).boundary_deduplication is True
-    incremental.primary_key = ()
+    incremental.set_deduplication_key((), False)
     assert incremental._get_transform({}).boundary_deduplication is False
 
 
