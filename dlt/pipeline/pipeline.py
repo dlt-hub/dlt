@@ -824,6 +824,15 @@ class Pipeline(SupportsPipeline):
                                 "destination state contains state for pipeline with name"
                                 f" {remote_state['pipeline_name']}",
                             )
+                        # warn if remote state has a different dataset_name
+                        if state["dataset_name"] != remote_state["dataset_name"]:
+                            logger.warning(
+                                f"Pipeline {self.pipeline_name} got restored from destination"
+                                " but the remote state contains a different dataset_name"
+                                f" '{remote_state['dataset_name']}'. The current dataset_name"
+                                f" '{self.dataset_name}' will be used and the pipeline state"
+                                " will be updated accordingly."
+                            )
                         # if state was modified force get all schemas
                         restored_schemas = self._get_schemas_from_destination(
                             remote_state["schema_names"], always_download=True
@@ -847,6 +856,8 @@ class Pipeline(SupportsPipeline):
                     # use remote state as state
                     remote_state["_local"] = state["_local"]
                     state = remote_state
+                    # preserve the user's dataset_name over the remote state value
+                    state["dataset_name"] = self.dataset_name
                     # set the pipeline props from merged state
                     self._state_to_props(state)
                     # add that the state is already extracted

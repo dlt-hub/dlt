@@ -1228,7 +1228,7 @@ def test_cache_cleared_after_extend_table(norm: RelationalNormalizer) -> None:
     with Container().injectable_context(
         DestinationCapabilitiesContext(supported_merge_strategies=["delete-insert"])
     ):
-        # -- phase 1: normalize to populate all caches ----------------------------
+        # phase 1: normalize to populate all caches
         row = {
             "_dlt_id": "u1",
             "custom_field": "val",
@@ -1250,7 +1250,7 @@ def test_cache_cleared_after_extend_table(norm: RelationalNormalizer) -> None:
         # should_be_nested: orders is a nested table (no _dlt_load_id)
         assert "_dlt_load_id" not in nested[0][1]
 
-        # -- phase 2: extend_table to change schema, must invalidate caches ------
+        # phase 2: extend_table to change schema, must invalidate caches
 
         # 2a. add table-level propagation for "users"
         users_table = new_table("users", write_disposition="merge")
@@ -1269,7 +1269,7 @@ def test_cache_cleared_after_extend_table(norm: RelationalNormalizer) -> None:
         # 2c. register "users__orders" as a root-level (non-nested) table
         norm.schema.update_table(new_table("users__orders"))
 
-        # -- phase 3: normalize again and verify caches were invalidated ----------
+        # phase 3: normalize again and verify caches were invalidated
         row2 = {
             "_dlt_id": "u2",
             "custom_field": "val2",

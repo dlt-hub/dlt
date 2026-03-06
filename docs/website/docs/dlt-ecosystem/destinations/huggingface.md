@@ -59,15 +59,14 @@ Authentication is attempted in that order of priority: `hf_token` config → `HF
 
 ### Private Hub endpoint
 
-By default, `https://huggingface.co` is used as the API endpoint. To use a [Private Hub](https://huggingface.co/docs/hub/enterprise-hub) or a self-hosted endpoint, set the `HF_ENDPOINT` [environment variable](#hugging-face-environment-variables):
+By default, `https://huggingface.co` is used as the API endpoint. To use a [Private Hub](https://huggingface.co/docs/hub/enterprise-hub) or a self-hosted endpoint, set `hf_endpoint`:
 
-```sh
-export HF_ENDPOINT="https://your-private-hub.example.com"
+```toml
+[destination.filesystem.credentials]
+hf_endpoint = "https://your-private-hub.example.com"    # replace with your Hugging Face endpoint
 ```
 
-:::note
-dlt also supports `hf_endpoint` in the configuration, but this only configures the filesystem and API clients — not the [dataset card](#dataset-card) operations. Use `HF_ENDPOINT` to ensure all operations target the correct endpoint.
-:::
+Alternatively, you can set the `HF_ENDPOINT` [environment variable](#hugging-face-environment-variables). When both are set, the `hf_endpoint` config takes precedence over the `HF_ENDPOINT` env var.
 
 ### Full example configuration
 
@@ -225,5 +224,5 @@ If you see authentication errors, verify that:
 
 1. Your token has **write** access to the target namespace.
 2. The token is correctly set in `hf_token`, `HF_TOKEN`, or via `huggingface-cli login`.
-3. If using a Private Hub, `HF_ENDPOINT` is set to the correct URL.
+3. If using a Private Hub, `hf_endpoint` (or `HF_ENDPOINT`) is set to the correct URL.
 4. Dataset `dataset_name` exists.

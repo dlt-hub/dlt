@@ -10,8 +10,7 @@ from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.cli.utils import get_telemetry_status
 from dlt._workspace.cli.config_toml_writer import WritableConfigValue, write_values
-
-DLT_TELEMETRY_DOCS_URL = "https://dlthub.com/docs/reference/telemetry"
+from dlt._workspace.cli._urls import DLT_TELEMETRY_DOCS_URL
 
 
 def telemetry_status_command() -> None:

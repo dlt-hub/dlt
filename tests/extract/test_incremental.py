@@ -2302,6 +2302,29 @@ def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_start_out_of_range_open_equals_start_value(item_type: TestDataItemFormat) -> None:
+    """start_out_of_range is set when row equals start_value with range_start='open'"""
+
+    @dlt.resource
+    def descending(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at", initial_value=10, row_order="desc", range_start="open"
+        )
+    ) -> Any:
+        # descending from 12 down to 8, with value 10 == start_value
+        for i in [12, 11, 10, 9, 8]:
+            yield data_to_item_format(item_type, [{"updated_at": i}])
+            # 10 equals start_value and range_start="open" so it's out of range
+            if i <= 10:
+                assert updated_at.start_out_of_range is True
+
+    # early stopping should close the generator when row_order="desc"
+    data = list(descending)
+    # only 12 and 11 are > 10 (open range excludes 10)
+    assert data_item_length(data) == 2
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_async_row_order_out_of_range(item_type: TestDataItemFormat) -> None:
     @dlt.resource
     async def descending(

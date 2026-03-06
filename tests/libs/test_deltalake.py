@@ -43,26 +43,20 @@ def filesystem_client() -> Iterator[Tuple[FilesystemClient, str]]:
 
 
 def test_deltalake_storage_options() -> None:
-    config = FilesystemDestinationClientConfiguration()
+    # no credentials, no storage options
+    assert deltalake_storage_options() == dict()
 
-    # no credentials, no deltalake_storage_options
-    config.bucket_url = "_storage://foo"
-    assert deltalake_storage_options(config) == dict()
+    # no credentials, yes storage options
+    assert deltalake_storage_options(storage_options={"foo": "bar"}) == {"foo": "bar"}
 
-    # no credentials, yes deltalake_storage_options
-    config.deltalake_storage_options = {"foo": "bar"}
-    assert deltalake_storage_options(config) == {"foo": "bar"}
-
-    # yes credentials, yes deltalake_storage_options: no shared keys
+    # yes credentials, yes storage options: no shared keys
     creds = AwsCredentials(
         aws_access_key_id="dummy_key_id",
         aws_secret_access_key="dummy_acces_key",
         aws_session_token="dummy_session_token",
         region_name="dummy_region_name",
     )
-    config.credentials = creds
-    config.bucket_url = "s3://foo"
-    assert deltalake_storage_options(config).keys() == {
+    assert deltalake_storage_options(creds, {"foo": "bar"}).keys() == {
         "aws_access_key_id",
         "aws_secret_access_key",
         "aws_session_token",
@@ -70,15 +64,15 @@ def test_deltalake_storage_options() -> None:
         "foo",
     }
 
-    # yes credentials, yes deltalake_storage_options: yes shared keys
-    config.deltalake_storage_options = {"aws_access_key_id": "i_will_overwrite"}
-    assert deltalake_storage_options(config).keys() == {
+    # yes credentials, yes storage options: yes shared keys
+    opts = deltalake_storage_options(creds, {"aws_access_key_id": "i_will_overwrite"})
+    assert opts.keys() == {
         "aws_access_key_id",
         "aws_secret_access_key",
         "aws_session_token",
         "region",
     }
-    assert deltalake_storage_options(config)["aws_access_key_id"] == "i_will_overwrite"
+    assert opts["aws_access_key_id"] == "i_will_overwrite"
 
 
 @pytest.mark.parametrize("arrow_data_type", (pa.Table, pa.RecordBatchReader))
@@ -97,7 +91,9 @@ def test_write_delta_table(
 
     client, remote_dir = filesystem_client
     client = cast(FilesystemClient, client)
-    storage_options = deltalake_storage_options(client.config)
+    storage_options = deltalake_storage_options(
+        client.config.credentials, client.config.deltalake_storage_options
+    )
 
     arrow_table = arrow_table_all_data_types(
         "arrow-table",
