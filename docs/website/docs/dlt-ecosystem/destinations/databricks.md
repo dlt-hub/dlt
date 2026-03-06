@@ -255,8 +255,10 @@ See [Staging support](#staging-support) for authentication options when `dlt` co
 If none of auth methods above is configured, `dlt` attempts to get authorization from the Databricks workspace context. The context may
 come, for example, from a Notebook (runtime) or via standard set of env variables that Databricks Python sdk recognizes (ie. **DATABRICKS_TOKEN** or **DATABRICKS_HOST**)
 
-`dlt` is able to set `server_hostname` and `http_path` from available warehouses. We use default warehouse id (**DATABRICKS_WAREHOUSE_ID**)
-if set (via env variable), or a first one on warehouse's list.
+When `server_hostname` or `http_path` are not provided, `dlt` attempts to derive them automatically:
+
+1. **Notebook cluster context** (tried first): when running inside a Databricks Notebook, `dlt` reads `server_hostname` from the workspace URL and constructs `http_path` from the workspace ID and cluster ID of the compute attached to the notebook. This allows dlt to use the notebook's own cluster without requiring a SQL warehouse.
+2. **SQL warehouse discovery** (fallback): if the cluster context is not available (e.g., running outside a notebook, or on a Shared Access Mode cluster), `dlt` looks for an available SQL warehouse. We use default warehouse id (**DATABRICKS_WAREHOUSE_ID**) if set (via env variable), or the first one on the warehouse's list.
 
 ## Write disposition
 All write dispositions are supported.
