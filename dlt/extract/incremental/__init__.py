@@ -4,6 +4,7 @@ from typing import (
     Generic,
     ClassVar,
     Any,
+    List,
     Optional,
     Type,
     Dict,
@@ -75,11 +76,15 @@ except MissingDependencyException:
     pandas = None
 
 
-class IncrementalCustomMetrics(TypedDict, total=False):
+class IncrementalMetricsRow(TypedDict, total=False):
     unfiltered_items_count: int
     unfiltered_batches_count: int
     initial_unique_hashes_count: int
     final_unique_hashes_count: int
+
+
+class IncrementalCustomMetrics(TypedDict, total=False):
+    incremental: List[IncrementalMetricsRow]
 
 
 @configspec
@@ -212,11 +217,14 @@ class Incremental(
         """Bound pipe"""
         self.range_start = range_start
         self.range_end = range_end
-        self._custom_metrics: IncrementalCustomMetrics = {
+        self._incremental_metrics: IncrementalMetricsRow = {
             "unfiltered_items_count": 0,
             "unfiltered_batches_count": 0,
             "initial_unique_hashes_count": 0,
             "final_unique_hashes_count": 0,
+        }
+        self._custom_metrics: IncrementalCustomMetrics = {
+            "incremental": [self._incremental_metrics],
         }
 
     @property
@@ -595,8 +603,8 @@ class Incremental(
             return rows
 
         # collect metrics
-        self.custom_metrics["unfiltered_items_count"] += count_rows_in_items(rows)
-        self.custom_metrics["unfiltered_batches_count"] += 1
+        self._incremental_metrics["unfiltered_items_count"] += count_rows_in_items(rows)
+        self._incremental_metrics["unfiltered_batches_count"] += 1
 
         transformer = self._get_transform(rows)
         if isinstance(rows, list):
@@ -629,13 +637,13 @@ class Incremental(
             )
             initial_hash_list = self._cached_state.get("unique_hashes")
             initial_hash_count = len(initial_hash_list) if initial_hash_list else 0
-            self.custom_metrics["initial_unique_hashes_count"] = initial_hash_count
+            self._incremental_metrics["initial_unique_hashes_count"] = initial_hash_count
 
             # add directly computed hashes
             unique_hashes.update(transformer.unique_hashes)
             self._cached_state["unique_hashes"] = list(unique_hashes)
             final_hash_count = len(self._cached_state["unique_hashes"])
-            self.custom_metrics["final_unique_hashes_count"] = final_hash_count
+            self._incremental_metrics["final_unique_hashes_count"] = final_hash_count
 
             self._check_duplicate_cursor_threshold(initial_hash_count, final_hash_count)
         else:

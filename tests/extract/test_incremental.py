@@ -4432,20 +4432,13 @@ def test_custom_metrics_in_incremental() -> None:
             "resource_with_metrics"
         ]
         assert resource_metrics.custom_metrics["from_resource"] == "hey"
-        assert resource_metrics.custom_metrics["unfiltered_items_count"] == unfiltered_items_count
-        assert (
-            resource_metrics.custom_metrics["unfiltered_batches_count"] == unfiltered_batches_count
-        )
+        inc = resource_metrics.custom_metrics["incremental"][0]
+        assert inc["unfiltered_items_count"] == unfiltered_items_count
+        assert inc["unfiltered_batches_count"] == unfiltered_batches_count
         # NOTE: initial_unique_hashes_count is always last value in pipeline state,
         # so it persists across different incremental instances
-        assert (
-            resource_metrics.custom_metrics["initial_unique_hashes_count"]
-            == initial_unique_hashes_count
-        )
-        assert (
-            resource_metrics.custom_metrics["final_unique_hashes_count"]
-            == final_unique_hashes_count
-        )
+        assert inc["initial_unique_hashes_count"] == initial_unique_hashes_count
+        assert inc["final_unique_hashes_count"] == final_unique_hashes_count
         assert p.last_trace.last_normalize_info.row_counts.get("items") == last_normalized_count
 
     def _run_with_items(items: TDataItems, as_batch: bool) -> str:
@@ -4503,3 +4496,89 @@ def test_custom_metrics_in_incremental() -> None:
     # None items should increment unfiltered_items_count
     load_id = _run_with_items([None, None, {"id": 9, "value": "9"}], True)
     _assert_custom_metrics(load_id, 12, 6, 1, 1, 1)
+
+
+def test_incremental_hints_in_extract_trace() -> None:
+    """Verify that incremental configuration is correctly stored in extract
+    trace hints for first run, subsequent run, run with end_value, and
+    resource refresh run."""
+    call_no = 0
+
+    @dlt.resource(table_name="items", primary_key="id")
+    def some_data(
+        updated_at=dlt.sources.incremental("updated_at", initial_value=1),
+    ):
+        nonlocal call_no
+        call_no += 1
+        yield [
+            {"id": call_no * 10 + 1, "updated_at": call_no * 10 + 2},
+            {"id": call_no * 10 + 2, "updated_at": call_no * 10 + 3},
+        ]
+
+    # yields static data so all items get filtered on second run
+    @dlt.resource(table_name="items", primary_key="id")
+    def static_data(
+        updated_at=dlt.sources.incremental("updated_at", initial_value=1),
+    ):
+        yield [{"id": 1, "updated_at": 2}, {"id": 2, "updated_at": 3}]
+
+    p = dlt.pipeline(pipeline_name="p_hints_" + uniq_id(), destination="duckdb")
+
+    def _get_incremental_hint(resource_name: str = "some_data") -> Dict[str, Any]:
+        extract_info = p.last_trace.last_extract_info
+        load_id = list(extract_info.metrics.keys())[0]
+        return extract_info.metrics[load_id][0]["hints"][resource_name]["incremental"]
+
+    # 1. first run: initial_value=1, no end_value, no prior state
+    p.run(some_data)
+    inc_hint = _get_incremental_hint()
+    assert inc_hint["cursor_path"] == "updated_at"
+    assert inc_hint["initial_value"] == 1
+    assert inc_hint["end_value"] is None
+    assert inc_hint["range_start"] == "closed"
+    assert inc_hint["range_end"] == "open"
+    assert inc_hint["lag"] is None
+    assert inc_hint["allow_external_schedulers"] is False
+
+    # 2. subsequent run: initial_value stays as configured (state is separate)
+    p.run(some_data)
+    inc_hint = _get_incremental_hint()
+    assert inc_hint["cursor_path"] == "updated_at"
+    assert inc_hint["initial_value"] == 1
+    assert inc_hint["end_value"] is None
+
+    # 3. run with end_value set
+    some_data_with_end = some_data()
+    some_data_with_end.apply_hints(
+        incremental=dlt.sources.incremental("updated_at", initial_value=1, end_value=100)
+    )
+    p.run(some_data_with_end)
+    inc_hint = _get_incremental_hint()
+    assert inc_hint["cursor_path"] == "updated_at"
+    assert inc_hint["initial_value"] == 1
+    assert inc_hint["end_value"] == 100
+    assert inc_hint["range_start"] == "closed"
+    assert inc_hint["range_end"] == "open"
+
+    # 4. resource refresh run (drop_resources resets state)
+    p.run(some_data, refresh="drop_resources")
+    inc_hint = _get_incremental_hint()
+    assert inc_hint["cursor_path"] == "updated_at"
+    assert inc_hint["initial_value"] == 1
+    assert inc_hint["end_value"] is None
+
+    # 5. no new data: all items filtered by incremental, nothing loaded
+    #    but hints are still present in extract metrics
+    p.run(static_data)
+    assert p.last_trace.last_extract_info.metrics
+    # second run yields same items — all filtered out
+    load_info = p.run(static_data)
+    assert load_info.loads_ids == []
+    inc_hint = _get_incremental_hint("static_data")
+    assert inc_hint["cursor_path"] == "updated_at"
+    assert inc_hint["initial_value"] == 1
+    assert inc_hint["end_value"] is None
+    # resource_metrics should be empty when no items pass the filter
+    extract_info = p.last_trace.last_extract_info
+    load_id = list(extract_info.metrics.keys())[0]
+    assert extract_info.metrics[load_id][0]["resource_metrics"] == {}
