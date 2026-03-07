@@ -350,7 +350,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         result = sa.cast(result, sa.String)
         for col in columns[1:]:
             result = operator.add(result, sa.cast(col, sa.String))
-        return result
+        return result  # type: ignore[no-any-return]
 
     @classmethod
     def gen_scd2_sql(

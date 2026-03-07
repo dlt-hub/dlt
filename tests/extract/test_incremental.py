@@ -983,7 +983,7 @@ def test_cursor_path_none_can_raise_on_none_2(item_type: TestDataItemFormat) -> 
         assert isinstance(e.value.__context__, IncrementalCursorPathMissing)
     else:
         assert isinstance(e.value.__context__, IncrementalCursorPathHasValueNone)
-    assert e.value.__context__.json_path == "created_at"  # type: ignore[attr-defined]
+    assert e.value.__context__.json_path == "created_at"
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch", "pandas"])

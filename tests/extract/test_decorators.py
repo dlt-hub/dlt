@@ -995,10 +995,10 @@ def test_source_factory_clone(cloner: str) -> None:
     assert with_shorthand_registry.section == "shorthand"
 
     # creates clones
-    source_f_1: DltSourceFactoryWrapper[Any, DltSource] = factory(  # type: ignore
+    source_f_1: DltSourceFactoryWrapper[Any, DltSource] = factory(
         max_table_nesting=1, root_key=True
     )
-    source_f_2: DltSourceFactoryWrapper[Any, DltSource] = factory(  # type: ignore
+    source_f_2: DltSourceFactoryWrapper[Any, DltSource] = factory(
         max_table_nesting=1, root_key=False, schema_contract="discard_value"
     )
     assert source_f_1 is not source_f_2
@@ -1712,7 +1712,7 @@ def test_parallelized_resource_decorator() -> None:
     # Same but wrapping generator directly
     resource = dlt.resource(some_gen(), parallelized=True)
 
-    result = next(resource._pipe.gen)  # type: ignore
+    result = next(resource._pipe.gen)
     assert result() == 1
     # get remaining items
     assert list(resource) == [2, 3]
@@ -1760,8 +1760,8 @@ def test_parallelized_resource_decorator() -> None:
     resource = dlt.resource(gen_orig, parallelized=True)
     gen = resource._pipe.gen
 
-    next(gen)  # type: ignore
-    gen.close()  # type: ignore
+    next(gen)
+    gen.close()
 
     with pytest.raises(StopIteration):
         # Inner generator is also closed
