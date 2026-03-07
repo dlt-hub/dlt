@@ -1616,6 +1616,30 @@ def test_incremental_dedup_key_survives_resource_pk(
     assert some_data.incremental.primary_key == some_data.incremental._incremental.primary_key
 
 
+def test_dynamic_dedup_key() -> None:
+    """Callable dedup key selects primary key based on item content."""
+
+    def dedup_key_fn(item: Any) -> str:
+        return "alt_id" if item.get("type") == "a" else "id"
+
+    @dlt.resource(primary_key="id", table_name=lambda i_: f"table_{i_['type']}")
+    def some_data(created_at=dlt.sources.incremental("created_at", primary_key=dedup_key_fn)):
+        yield [
+            {"created_at": 1, "id": 1, "alt_id": 10, "type": "a"},
+            {"created_at": 1, "id": 2, "alt_id": 10, "type": "a"},
+            {"created_at": 1, "id": 3, "alt_id": 10, "type": "b"},
+        ]
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(some_data)
+    # dedup_key_fn is preserved, not overridden by resource pk
+    assert some_data.incremental._incremental.primary_key is dedup_key_fn
+    # row 1,2: type=a → key=alt_id → value=10 (duplicate)
+    # row 3: type=b → key=id → value=3
+    hashes = some_data.state["incremental"]["created_at"]["unique_hashes"]
+    assert set(hashes) == {digest128(json.dumps(10)), digest128(json.dumps(3))}
+
+
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_decorator_incremental_pk_not_overridden(
     item_type: TestDataItemFormat,
