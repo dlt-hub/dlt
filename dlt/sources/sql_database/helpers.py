@@ -487,13 +487,6 @@ def table_rows(
             resolve_foreign_keys=resolve_foreign_keys,
         )
 
-        # set the primary_key in the incremental
-        # TODO: check for primary key in resource._hints
-        if incremental and incremental.primary_key is None:
-            primary_key = hints["primary_key"]
-            if primary_key is not None:
-                incremental.primary_key = primary_key
-
         # Merge resource hints with reflection hints before yielding
         if resource and hints.get("columns") and not callable(resource.columns):
             hints["columns"] = merge_columns(hints["columns"], resource.columns)

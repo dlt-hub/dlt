@@ -180,7 +180,7 @@ def deltalake_storage_options(
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
     creds = {}
     extra_options = {}
-    if isinstance(credentials, WithObjectStoreRsCredentials):
+    if credentials is not None and isinstance(credentials, WithObjectStoreRsCredentials):
         creds = credentials.to_object_store_rs_credentials()
     if storage_options is not None:
         extra_options = storage_options

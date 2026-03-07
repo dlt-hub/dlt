@@ -122,7 +122,7 @@ def _from_dbml_column(column: Column) -> TColumnSchema:
             **_destringify_dict(column.properties),
         },
     )
-    return cast(TColumnSchema, remove_column_defaults(hints))
+    return remove_column_defaults(hints)
 
 
 def _to_dbml_table(table_hints: TTableSchema) -> Table:

@@ -44,13 +44,13 @@ def test_response_action_raises_type_error(mocker):
     response.status_code = 200
 
     with pytest.raises(TypeErrorWithKnownTypes) as e_1:
-        _handle_response_action(response, {"status_code": 200, "action": C()})  # type: ignore[typeddict-item]
+        _handle_response_action(response, {"status_code": 200, "action": C()})  # type: ignore[arg-type]
     assert e_1.match(
         r"Received invalid value `action\['action'\]=.*` of type `C`\. Valid types are:"
     )
 
     with pytest.raises(TypeErrorWithKnownTypes) as e_2:
-        _handle_response_action(response, {"status_code": 200, "action": 123})  # type: ignore[typeddict-item]
+        _handle_response_action(response, {"status_code": 200, "action": 123})  # type: ignore[arg-type]
     assert e_2.match(
         r"Received invalid value `action\['action'\]=.*` of type `int`\. Valid types are:"
     )

@@ -234,8 +234,8 @@ def test_toolkit_install_mcp_all_variants(
     else:
         doc = tomlkit.parse(content)
         srv = doc[top_key]["dlt-workspace-mcp"]  # type: ignore[index]
-        assert srv["command"] == "uv"
-        assert "type" not in srv
+        assert srv["command"] == "uv"  # type: ignore[index]
+        assert "type" not in srv  # type: ignore[operator]
 
 
 def test_toolkit_install_mcp_conflict() -> None:

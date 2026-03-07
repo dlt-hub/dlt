@@ -582,7 +582,7 @@ def _handle_response_action(
     if callable(action):
         custom_hooks = [action]
     else:
-        action = cast(ResponseActionDict, action)
+        action = action
         status_code = action.get("status_code")
         content_substr = action.get("content")
         response_action = action.get("action")
