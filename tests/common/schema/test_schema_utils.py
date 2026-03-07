@@ -5,7 +5,12 @@ import pytest
 
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TTableSchema, TTableSchemaColumns
-from dlt.common.schema.utils import exclude_dlt_entities
+from dlt.common.schema.utils import (
+    exclude_dlt_entities,
+    version_table,
+    loads_table,
+    pipeline_state_table,
+)
 from tests.common.utils import load_yml_case
 
 NAME_NORMALIZER_REFS = (
@@ -151,3 +156,110 @@ def _apply_name_normalizer(schema: Schema, name_normalizer_ref: str) -> None:
     schema._normalizers_config["names"] = name_normalizer_ref
     schema._normalizers_config["allow_identifier_change_on_table_with_data"] = True
     schema.update_normalizers()
+
+
+# Tests for internal table column descriptions
+def test_version_table_has_column_descriptions() -> None:
+    """Test that _dlt_version table has descriptions for all columns"""
+    table = version_table()
+
+    # Verify table has description
+    assert "description" in table
+    assert table["description"] == "Created by DLT. Tracks schema updates"
+
+    # Verify all columns have descriptions
+    expected_columns = [
+        "version",
+        "engine_version",
+        "inserted_at",
+        "schema_name",
+        "version_hash",
+        "schema"
+    ]
+    for col_name in expected_columns:
+        assert col_name in table["columns"], f"Column {col_name} missing from version_table"
+        col = table["columns"][col_name]
+        assert "description" in col, f"Column {col_name} missing description"
+        assert isinstance(col["description"], str), f"Column {col_name} description should be a string"
+        assert len(col["description"]) > 0, f"Column {col_name} description should not be empty"
+
+
+def test_loads_table_has_column_descriptions() -> None:
+    """Test that _dlt_loads table has descriptions for all columns"""
+    table = loads_table()
+
+    # Verify table has description
+    assert "description" in table
+    assert table["description"] == "Created by DLT. Tracks completed loads"
+
+    # Verify all columns have descriptions
+    expected_columns = [
+        "load_id",
+        "schema_name",
+        "status",
+        "inserted_at",
+        "schema_version_hash"
+    ]
+    for col_name in expected_columns:
+        assert col_name in table["columns"], f"Column {col_name} missing from loads_table"
+        col = table["columns"][col_name]
+        assert "description" in col, f"Column {col_name} missing description"
+        assert isinstance(col["description"], str), f"Column {col_name} description should be a string"
+        assert len(col["description"]) > 0, f"Column {col_name} description should not be empty"
+
+
+def test_pipeline_state_table_has_column_descriptions() -> None:
+    """Test that _dlt_pipeline_state table has descriptions for all columns"""
+    table = pipeline_state_table(add_dlt_id=True)
+
+    # Verify table has description
+    assert "description" in table
+    assert table["description"] == "Created by DLT. Tracks pipeline state"
+
+    # Verify all columns have descriptions
+    expected_columns = [
+        "version",
+        "engine_version",
+        "pipeline_name",
+        "state",
+        "created_at",
+        "version_hash",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+    for col_name in expected_columns:
+        assert col_name in table["columns"], f"Column {col_name} missing from pipeline_state_table"
+        col = table["columns"][col_name]
+        assert "description" in col, f"Column {col_name} missing description"
+        assert isinstance(col["description"], str), f"Column {col_name} description should be a string"
+        assert len(col["description"]) > 0, f"Column {col_name} description should not be empty"
+
+
+def test_pipeline_state_table_without_dlt_id() -> None:
+    """Test that _dlt_pipeline_state table without dlt_id has correct columns"""
+    table = pipeline_state_table(add_dlt_id=False)
+
+    # Verify _dlt_id is not present when add_dlt_id=False
+    assert "_dlt_id" not in table["columns"]
+
+    # Verify _dlt_load_id is still present and has description
+    assert "_dlt_load_id" in table["columns"]
+    assert "description" in table["columns"]["_dlt_load_id"]
+
+
+def test_internal_tables_column_descriptions_are_not_empty() -> None:
+    """Test that all internal table columns have non-empty descriptions"""
+    tables = [
+        ("_dlt_version", version_table()),
+        ("_dlt_loads", loads_table()),
+        ("_dlt_pipeline_state", pipeline_state_table(add_dlt_id=True)),
+    ]
+
+    for table_name, table in tables:
+        for col_name, col in table["columns"].items():
+            assert "description" in col, (
+                f"Table {table_name}, column {col_name} missing description"
+            )
+            assert col["description"] is not None and col["description"].strip() != "", (
+                f"Table {table_name}, column {col_name} has empty description"
+            )
