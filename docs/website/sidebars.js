@@ -67,7 +67,6 @@ const sidebars = {
         keywords: ['release notes, release highlights'],
       },
       items: [
-        'release-notes/1.22',
         'release-notes/1.21.2',
         'release-notes/1.19',
         'release-notes/1.18',
