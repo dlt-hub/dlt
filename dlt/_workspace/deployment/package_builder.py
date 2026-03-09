@@ -10,7 +10,7 @@ from dlt.common.utils import digest256_tar_stream
 from dlt._workspace.deployment.file_selector import BaseFileSelector
 from dlt._workspace.deployment.manifest import (
     TDeploymentFileItem,
-    TDeploymentManifest,
+    TFilesManifest,
     DEPLOYMENT_ENGINE_VERSION,
 )
 
@@ -53,7 +53,7 @@ class PackageBuilder:
             # Create and add manifest with file metadata at the end
             # NOTE: Sort files in manifest because os.scandir(), which the file selector's pathspec.util.iter_tree_files() relies on,
             # yields files in a system-dependent order (https://peps.python.org/pep-0471/#os-scandir).
-            manifest: TDeploymentManifest = {
+            manifest: TFilesManifest = {
                 "engine_version": DEPLOYMENT_ENGINE_VERSION,
                 "files": sorted(manifest_files, key=lambda x: x["relative_path"]),
             }
