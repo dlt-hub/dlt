@@ -199,6 +199,8 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
                 resource.apply_hints(schema_contract=self.schema_contract)
         else:
             source = self._deco_f(*args, **kwargs)
+        # store back-reference to the factory on the source instance
+        source._factory = self
         return self._apply_postprocessors(source)
 
     def bind(self, f: AnyFun) -> Self:
