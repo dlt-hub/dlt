@@ -57,7 +57,7 @@ def load_setuptools_entrypoints(m: pluggy.PluginManager) -> List[str]:
 
     for dist in distributions:
         # skip named dists that do not start with dlt-
-        package_name = dist.metadata.get("Name")
+        package_name = dist.metadata["Name"]
 
         if not package_name or not package_name.startswith("dlt"):
             continue
