@@ -366,15 +366,39 @@ class Relation(WithSqlClient):
         kind: TJoinType = "inner",
         alias: Optional[str] = None,
     ) -> Self:
-        """Join this relation to another table.
-        Joins are discovered from schema reference chain automatically.
+        """Join this relation to another table using dlt schema references.
+
+        Join conditions are discovered automatically from the schema's reference
+        chain (parent/child/root relationships created by dlt during loading).
+        Both the current relation and ``other`` must be base-table relations
+        (i.e., created via ``dataset[table_name]``, not transformed with
+        ``.select()``/``.where()`` etc.).
+
+        This method is designed for the common case of navigating dlt's
+        built-in table hierarchy. For more complex join scenarios — such as
+        custom join predicates, joining on non-reference columns, self-joins,
+        or multi-way joins with mixed conditions — use ``Relation.to_ibis()``
+        to obtain an ibis table expression and construct the join manually::
+
+            t1 = dataset["orders"].to_ibis()
+            t2 = dataset["products"].to_ibis()
+            joined = t1.join(t2, t1.product_id == t2.id, how="left")
 
         Args:
-            other: Table name or relation to join.
-            kind: Join kind parameter reserved for explicit join semantics.
-            alias: Optional projection prefix for explicitly joined target table columns.
+            other: Table name or base-table relation to join.
+            kind: Type of SQL join: ``"inner"``, ``"left"``, ``"right"``,
+                or ``"full"``.
+            alias: Projection prefix for the joined table's columns. Columns
+                from ``other`` appear as ``{alias}__{column}``. Defaults to
+                the target table name.
+
         Returns:
-            A new relation with the join(s) applied.
+            A new relation with the join(s) applied and the target table's
+            columns appended to the projection.
+
+        Raises:
+            ValueError: If schema references between the two tables cannot be
+                resolved, or if either relation is not join-eligible.
         """
         if alias == "":
             raise ValueError("`alias` must be a non-empty string when provided.")
