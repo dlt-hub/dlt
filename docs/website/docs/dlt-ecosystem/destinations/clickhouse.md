@@ -74,7 +74,7 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
     The default non-secure HTTP port for ClickHouse is `8123`.
     This is different from the default port `9000`, which is used for the native TCP protocol.
 
-    You must additionaly set `http_port` if you are not using external staging (i.e., you don't set the `staging` destination parameter in your pipeline). This is because dlt's built-in ClickHouse local storage staging uses the [clickhouse-connect](https://github.com/ClickHouse/clickhouse-connect) library, which communicates with ClickHouse over HTTP.
+    You must additionally set `http_port` if you are not using external staging (i.e., you don't set the `staging` destination parameter in your pipeline). This is because dlt's built-in ClickHouse local storage staging uses the [clickhouse-connect](https://github.com/ClickHouse/clickhouse-connect) library, which communicates with ClickHouse over HTTP.
 
     Make sure your ClickHouse server is configured to accept HTTP connections on the port specified by `http_port`. For example:
 
@@ -104,7 +104,7 @@ You can set the following configuration options in the `.dlt/secrets.toml` file:
 dataset_table_separator = "___"                         # The default separator for dataset table names from the dataset.
 table_engine_type = "merge_tree"                        # The default table engine to use.
 dataset_sentinel_table_name = "dlt_sentinel_table"      # The default name for sentinel tables.
-staging_use_https = true                                # Wether to connecto to the staging bucket via https (defaults to True)
+staging_use_https = true                                # Whether to connect to the staging bucket via https (defaults to True)
 select_sequential_consistency = 1                       # Ensures read-after-write consistency on ClickHouse Cloud (defaults to 1)
 ```
 

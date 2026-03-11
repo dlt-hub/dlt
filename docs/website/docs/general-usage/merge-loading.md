@@ -287,7 +287,7 @@ In this example, enabling `my_facebook_ads.root_key = True` and running the pipe
 If you have defined your own source with the `@dlt.source` decorator, you can also enable `root key` propagation by adding `@dlt.source(root_key=True)`.
 
 #### Disable root key propagation
-If your source generates single level of nested table (nested tables do not have nested tables) ie. with `max_table_nesting=1` you can disable root key propagation
+If your source generates single level of nested table (nested tables do not have nested tables) i.e. with `max_table_nesting=1` you can disable root key propagation
 by setting `root_key` to `False` on the source level. In that case `dlt` will use `parent_key` which is identical to `root_key` for level 1 nested tables. Note that currently you cannot disable propagation on the resource level.
 
 :::tip

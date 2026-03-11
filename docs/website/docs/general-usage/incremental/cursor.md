@@ -143,10 +143,10 @@ Note that dlt's incremental filtering considers the ranges half-closed. `initial
 
 ### Partition large backfills
 You can execute a backfill on large amount of data by partitioning it into ranges. In best case you are able to
-create partitions ie. by day or week without additionally querying your data source [as we do in sql database example](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#split-or-partition-long-incremental-loads). Ranges will be loaded using `initial_value` and `end_value`, each in separate pipeline run.
+create partitions i.e. by day or week without additionally querying your data source [as we do in sql database example](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#split-or-partition-long-incremental-loads). Ranges will be loaded using `initial_value` and `end_value`, each in separate pipeline run.
 1. As mentioned above, each run of this kind is stateless and may be run in parallel.
 2. However, we recommend that you load a single partition first (pick a small one) so `dlt` creates dataset and schema without risk of races and a need to retry
-ie. when two runs created new dataset at the same time.
+i.e. when two runs created new dataset at the same time.
 3. Such first load is also a good opportunity to begin a [full refresh](../../general-usage/pipeline.md#refresh-pipeline-data-and-state)
 4. After a backfill you can resume regular incremental loading with a state. You'll need to use `end_value` of final range as `initial_value` of incremental loading.
 
