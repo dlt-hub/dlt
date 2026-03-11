@@ -6,6 +6,10 @@ keywords: [cursor, claude, codex, llm, restapi, ai, workbench, toolkit]
 
 # REST API Source with dltHub AI Workbench
 
+:::info
+The dltHub AI Workbench is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE). Sign up [here](https://dlthub.com/solutions/for-small-data-teams) for early access to dltHub.
+:::
+
 ## Overview
 
 Build a custom REST API connector for any of the 8k+ available sources — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices. 
@@ -291,7 +295,7 @@ Once your pipeline is validated, you can continue to the next phase of the data 
 - **`data-exploration`** — query loaded data and create marimo notebooks, charts, and dashboards
 - **`dlthub-runtime`** — deploy, schedule, and monitor your pipeline in production 
 
-[Sign up for dltHub Early Access](https://info.dlthub.com/waiting-list)
+[Sign up for dltHub Early Access](https://dlthub.com/solutions/for-small-data-teams)
 
 ```sh
 uv run dlt ai toolkit data-exploration install
