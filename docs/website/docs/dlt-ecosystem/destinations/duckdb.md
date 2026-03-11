@@ -227,7 +227,7 @@ destination.duckdb.credentials="_storage/test_quack.duckdb"
 ```
 
 You can also place the database in the working directory of the pipeline by passing **:pipeline:** as path. The
-database will be name `<pipeline_name>.duckdb`.
+database will be named `<pipeline_name>.duckdb`.
 
 1. Via `config.toml`
 ```toml

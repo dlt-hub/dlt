@@ -313,12 +313,12 @@ Due to the way `dlt` works, there are a few general pitfalls to be aware of:
 
     If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
 
-3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unqiue staging datasetname for each pipeline, otherwise similar problems as noted above may occur. You can do this with the
+3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unique staging dataset name for each pipeline, otherwise similar problems as noted above may occur. You can do this with the
 [`staging_dataset_name_layout` setting.](../dlt-ecosystem/staging#staging-dataset)
 
 ## Keep pipeline working folder in a bucket on constrained environments.
-`dlt` stores extracted data in load packages in order to load them atomically. In case you extract a lot of data at once (ie. backfill) or
-your runtime env has constrained local storage (ie. cloud functions) you can keep your data on a bucket by using [FUSE](https://github.com/libfuse/libfuse) or
+`dlt` stores extracted data in load packages in order to load them atomically. In case you extract a lot of data at once (i.e. backfill) or
+your runtime env has constrained local storage (i.e. cloud functions) you can keep your data on a bucket by using [FUSE](https://github.com/libfuse/libfuse) or
 any other option which your cloud provider supplies.
 
 `dlt` users rename when saving files and  "committing" packages (folder rename). Those may be not supported on bucket filesystems. Often

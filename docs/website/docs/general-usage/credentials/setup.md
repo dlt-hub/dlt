@@ -6,7 +6,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 `dlt` retrieves configuration and secrets from several [locations](#choose-where-to-store-configuration) like environment variables, dedicated
 files or secure vaults. It understands both simple and verbose layouts of [configuration sections](#select-a-configuration-layout). You can use one of
-[built-in](#use-built-in-credential-types) credentials for popular external systems. Functions decorated with`@dlt.source`, `@dlt.resource`, or `@dlt.destination` can be configured without writing additional code - `dlt` will automatically [inject](advanced/#injection-rules) missing arguments (like passwords or API keys) when you call them.
+[built-in](#use-built-in-credential-types) credentials for popular external systems. Functions decorated with `@dlt.source`, `@dlt.resource`, or `@dlt.destination` can be configured without writing additional code - `dlt` will automatically [inject](advanced/#injection-rules) missing arguments (like passwords or API keys) when you call them.
 
 ## Choose where to store configuration
 
@@ -203,7 +203,7 @@ project_id = "<project_id_2>"
 ### Use built-in credential types
 
 Credentials are groups of configs and secrets that are defined together in order to access external systems.
-`dlt` implements several [built-in credential types](./complex_types)) to access AWS, Azure, Google Cloud and other common systems
+`dlt` implements several [built-in credential types](./complex_types) to access AWS, Azure, Google Cloud and other common systems
 
 Some of the credential types give you options how you specify them:
 For example, to connect to a `sql_database` source, you can either use a connection string:
@@ -228,7 +228,7 @@ role="role"
 
 :::tip
 `dlt` can discover **default credentials** of all major cloud providers: it is able to use what is already present in
-the runtime environment: ie. when running in Colab or Google VM it has access to cloud credentials and if
+the runtime environment: i.e. when running in Colab or Google VM it has access to cloud credentials and if
 nothing is specified in the configuration it will use them instead.
 :::
 
