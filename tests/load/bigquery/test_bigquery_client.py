@@ -2,6 +2,7 @@ import os
 import base64
 from copy import copy
 from typing import Any, Iterator, Tuple, cast, Dict
+from unittest.mock import MagicMock, patch
 import pytest
 
 from dlt.common import json, pendulum, Decimal
@@ -20,7 +21,11 @@ from dlt.common.schema.utils import new_table
 from dlt.common.storages import FileStorage
 from dlt.common.utils import digest128, uniq_id, custom_environ
 from dlt.common.destination.client import RunnableLoadJob
-from dlt.destinations.impl.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
+from dlt.destinations.impl.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration, BigQueryLoadJob
+from dlt.destinations.exceptions import (
+    DatabaseTransientException,
+    DatabaseTerminalException,
+)
 
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,
@@ -39,7 +44,7 @@ from tests.load.utils import (
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
-
+TEST_FILE_PATH = "/tmp/test_table.abc123.0.jsonl"
 
 @pytest.fixture(scope="module")
 def client() -> Iterator[BigQueryClient]:
@@ -504,3 +509,104 @@ def test_bigquery_configuration_accepts_base_gcp_credentials() -> None:
     assert config.credentials == wrapper_creds
     assert config.credentials.project_id == "test-project"
     assert config.credentials.has_default_credentials()
+
+@pytest.mark.parametrize(
+    "error_reason,message,expected_exception",
+    [
+        ("internalError", "Internal error occurred", DatabaseTransientException),
+        ("backendError", "Backend error", DatabaseTransientException),
+        ("rateLimitExceeded", "Rate limit exceeded", DatabaseTransientException),
+        ("invalidQuery", "Invalid query", DatabaseTransientException),
+        ("notFound", "Table not found", DatabaseTerminalException),
+        ("invalid", "Invalid request", DatabaseTerminalException),
+    ],
+)
+def test_error_raises_appropriate_exception(
+    error_reason: str, message: str, expected_exception: type
+) -> None:
+    """Test that different BigQuery error reasons raise the appropriate exception type."""
+    job = BigQueryLoadJob(
+        file_path=TEST_FILE_PATH,
+        http_timeout=15.0,
+        retry_deadline=60.0,
+    )
+
+    mock_bq_job = MagicMock()
+    mock_bq_job.done.return_value = True
+    mock_bq_job.output_rows = None
+    mock_bq_job.error_result = {"reason": error_reason, "message": message}
+
+    job._bq_load_job = mock_bq_job
+    mock_client = MagicMock()
+    mock_client._create_load_job.return_value = mock_bq_job
+    job._job_client = mock_client
+    job._load_table = {"name": "test_table"}
+
+    with pytest.raises(expected_exception) as exc_info:
+        job.run()
+    assert error_reason in str(exc_info.value)
+
+def test_successful_job_completes_without_exception() -> None:
+    """When BigQuery job succeeds, no exception should be raised."""
+    job = BigQueryLoadJob(
+        file_path=TEST_FILE_PATH,
+        http_timeout=15.0,
+        retry_deadline=60.0,
+    )
+
+    mock_bq_job = MagicMock()
+    # First call returns False (not done), second call returns True (done)
+    mock_bq_job.done.side_effect = [False, True]
+    mock_bq_job.output_rows = 100  # Indicates successful completion
+    mock_bq_job.error_result = None
+
+    job._bq_load_job = mock_bq_job
+
+    mock_client = MagicMock()
+    mock_client._create_load_job.return_value = mock_bq_job
+    job._job_client = mock_client
+    job._load_table = {"name": "test_table"}
+
+    # Patch sleep to avoid actual waiting
+    with patch("dlt.common.runtime.signals.sleep"):
+        # Should complete without exception
+        job.run()
+
+    # Verify the job was marked as created
+    assert job._created_job is True
+
+def test_internal_error_exception_contains_error_details() -> None:
+    """Verify that the DatabaseTransientException for internalError contains full error details."""
+    job = BigQueryLoadJob(
+        file_path=TEST_FILE_PATH,
+        http_timeout=15.0,
+        retry_deadline=60.0,
+    )
+
+    error_details = {
+        "reason": "internalError",
+        "message": "An internal error occurred during processing",
+        "location": "us-central1",
+    }
+    mock_bq_job = MagicMock()
+    mock_bq_job.done.return_value = True
+    mock_bq_job.output_rows = None
+    mock_bq_job.error_result = error_details
+
+    job._bq_load_job = mock_bq_job
+
+    mock_client = MagicMock()
+    mock_client._create_load_job.return_value = mock_bq_job
+    job._job_client = mock_client
+    job._load_table = {"name": "test_table"}
+
+    with pytest.raises(DatabaseTransientException) as exc_info:
+            job.run()
+
+    # The exception should contain the error details
+    exception_str = str(exc_info.value)
+    assert "internalError" in exception_str
+
+    # Verify error_result dict is included in the message
+    assert "reason" in exception_str or "Error details" in exception_str
+

@@ -115,18 +115,12 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                         f"Bigquery Load Job failed, reason reported from bigquery: `{reason}`"
                     )
                 )
-            elif reason in ["internalError"]:
-                raise DatabaseTransientException(
-                    Exception(
-                        f"Bigquery Job failed with internal error, reason: `{reason}`. "
-                        f"Error details: {self._bq_load_job.error_result}"
-                    )
-                )
             else:
                 raise DatabaseTransientException(
                     Exception(
                         "Bigquery Job needs to be retried, reason reported from bigquery"
-                        f" `{reason}`"
+                        f" `{reason}`, for job `{self._file_name}`."
+                        f"Error details: {self._bq_load_job.error_result}"
                     )
                 )
 
