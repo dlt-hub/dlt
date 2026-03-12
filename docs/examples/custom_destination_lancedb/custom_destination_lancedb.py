@@ -8,10 +8,10 @@ keywords: [destination, credentials, example, lancedb, custom destination, vecto
 This example showcases a Python script that demonstrates the integration of LanceDB, an open-source vector database,
 as a custom destination within the dlt ecosystem.
 The script illustrates the implementation of a custom destination as well as the population of the LanceDB vector
-store with data from various sources.
+store with podcast episode data from Podcast Index.
 This highlights the seamless interoperability between dlt and LanceDB.
 
-You can get a Spotify client ID and secret from https://developer.spotify.com/.
+You can get a Podcast Index API key and secret from https://api.podcastindex.org/developer_home.
 
 We'll learn how to:
 - Use the [custom destination](../dlt-ecosystem/destinations/destination.md)
@@ -19,12 +19,13 @@ We'll learn how to:
 - Use Pydantic for unified dlt and lancedb schema validation
 """
 
-__source_name__ = "spotify"
+__source_name__ = "podcastindex"
 
-import datetime  # noqa: I251
 from dataclasses import dataclass, fields
+import hashlib
 import os
 from pathlib import Path
+import time
 from typing import Any
 
 import lancedb
@@ -32,11 +33,10 @@ from lancedb.embeddings import get_registry
 from lancedb.pydantic import LanceModel, Vector
 
 import dlt
+from dlt.common.configuration import configspec
 from dlt.common.schema import TTableSchema
 from dlt.common.typing import TDataItems, TSecretStrValue
-from dlt.sources.helpers import requests
-from dlt.common.configuration import configspec
-from dlt.sources.helpers.rest_client import RESTClient, AuthConfigBase
+from dlt.sources.helpers.rest_client import AuthConfigBase, RESTClient
 
 # access secrets to get openai key
 openai_api_key: str = dlt.secrets.get(
@@ -62,14 +62,12 @@ os.environ["OPENAI_API_KEY"] = openai_api_key
 class EpisodeSchema(LanceModel):
     """Used for dlt and lance schema validation"""
 
-    id: str  # noqa: A003
-    name: str
+    id: int  # noqa: A003
+    title: str
     description: str = func.SourceField()
-    release_date: datetime.date
-    audio_preview_url: str
-    duration_ms: int
-    href: str
-    uri: str
+    datePublished: int
+    link: str
+    duration: int
     # there is more data but we are not using it ...
 
 
@@ -81,67 +79,61 @@ class EpisodeSchemaVector(EpisodeSchema):
 
 @dataclass(frozen=True)
 class Shows:
-    monday_morning_data_chat: str = "3Km3lBNzJpc1nOTJUtbtMh"
-    superdatascience_podcast: str = "1n8P7ZSgfVLVJ3GegxPat1"
-    lex_fridman: str = "2MAi0BvDc6GTFvKFPXnkCL"
+    latent_space: str = "6058902"
+    superdatascience_podcast: str = "4299005"
+    lex_fridman: str = "745287"
 
 
 @configspec
-class SpotifyAuth(AuthConfigBase):
-    client_id: str = None
-    client_secret: TSecretStrValue = None
+class PodcastIndexAuth(AuthConfigBase):
+    api_key: str = None
+    api_secret: TSecretStrValue = None
 
     def __call__(self, request) -> Any:
-        if not hasattr(self, "access_token"):
-            self.access_token = self._get_access_token()
-        request.headers["Authorization"] = f"Bearer {self.access_token}"
+        epoch_time = int(time.time())
+        signature = hashlib.sha1(
+            f"{self.api_key}{self.api_secret}{str(epoch_time)}".encode()
+        ).hexdigest()
+        headers = {
+            "X-Auth-Date": str(epoch_time),
+            "X-Auth-Key": self.api_key,
+            "Authorization": signature,
+            "User-Agent": "DltPipeline/1.0",
+        }
+        request.headers.update(headers)
         return request
-
-    def _get_access_token(self) -> Any:
-        auth_url = "https://accounts.spotify.com/api/token"
-        auth_response = requests.post(
-            auth_url,
-            {
-                "grant_type": "client_credentials",
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-            },
-        )
-        return auth_response.json()["access_token"]
 
 
 @dlt.source
-def spotify_shows(
-    client_id: str = dlt.secrets.value,
-    client_secret: str = dlt.secrets.value,
+def podcast_episodes(
+    api_key: str = dlt.secrets.value,
+    api_secret: str = dlt.secrets.value,
 ):
-    spotify_base_api_url = "https://api.spotify.com/v1"
+    podcast_index_base_api_url = "https://api.podcastindex.org/api/1.0"
     client = RESTClient(
-        base_url=spotify_base_api_url,
-        auth=SpotifyAuth(client_id=client_id, client_secret=client_secret),
+        base_url=podcast_index_base_api_url,
+        auth=PodcastIndexAuth(api_key=api_key, api_secret=api_secret),
     )
 
     for show in fields(Shows):
         show_name = show.name
         show_id = show.default
-        url = f"/shows/{show_id}/episodes"
+        url = f"/episodes/byfeedid?id={show_id}"
         yield dlt.resource(
-            client.paginate(url, params={"limit": 50}),
+            client.get(url, params={"limit": 50}).json()["items"] or [],
             name=show_name,
             primary_key="id",
-            parallelized=True,
             max_table_nesting=0,
-            # reuse lance model to filter out all non-matching items and extra columns from spotify api
+            # reuse lance model to filter out all non-matching items and extra columns from the Podcast Index API
             # 1. unknown columns are removed ("columns": "discard_value")
-            # 2. non validating items (ie. without id or url) are removed ("data_type": "discard_row")
-            # 3. for some reason None values are returned as well 🤯, add_filter takes care of that
+            # 2. non-validating items (for example missing `id` or `link`) are removed ("data_type": "discard_row")
             columns=EpisodeSchema,
             schema_contract={
                 "tables": "evolve",
                 "columns": "discard_value",
                 "data_type": "discard_row",
             },
-        ).add_filter(lambda i: i is not None)
+        ).add_filter(lambda i: i["description"] != "")
 
 
 @dlt.destination(batch_size=250, name="lancedb")
@@ -169,13 +161,13 @@ if __name__ == "__main__":
             pass
 
     pipeline = dlt.pipeline(
-        pipeline_name="spotify",
+        pipeline_name="podcastindex",
         destination=lancedb_destination,
-        dataset_name="spotify_podcast_data",
+        dataset_name="podcastindex_data",
         progress="log",
     )
 
-    load_info = pipeline.run(spotify_shows())
+    load_info = pipeline.run(podcast_episodes())
     print(load_info)
 
     row_counts = pipeline.last_trace.last_normalize_info

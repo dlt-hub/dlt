@@ -290,7 +290,7 @@ class Dataset:
                 if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
             ]
 
-        union_all_expr = None
+        union_all_expr: Optional[sge.Query] = None
 
         for table_name in selected_tables:
             counts_expr = build_row_counts_expr(

@@ -148,7 +148,7 @@ dlt workspace mcp [-h] [--stdio] [--port PORT]
 
 **Description**
 
-This MCP allows to attach to any pipeline that was previously ran in this workspace and then facilitates schema and data exploration in the pipeline's dataset.
+This MCP allows you to attach to any pipeline that was previously run in this workspace and then facilitates schema and data exploration in the pipeline's dataset.
 
 <details>
 

@@ -16,11 +16,11 @@
     "verify-llms": "node scripts/verify-llms-txt.js"
   },
   "dependencies": {
-    "@docusaurus/core": "^3.7.0",
-    "@docusaurus/faster": "^3.8.1",
-    "@docusaurus/preset-classic": "^3.7.0",
-    "@docusaurus/theme-common": "^3.7.0",
-    "@docusaurus/theme-mermaid": "^3.8.1",
+    "@docusaurus/core": "^3.9.2",
+    "@docusaurus/faster": "^3.9.2",
+    "@docusaurus/preset-classic": "^3.9.2",
+    "@docusaurus/theme-common": "^3.9.2",
+    "@docusaurus/theme-mermaid": "^3.9.2",
     "@mdx-js/react": "^3.1.0",
     "@microlabs/otel-cf-workers": "1.0.0-rc.49",
     "clsx": "^1.2.1",
@@ -38,7 +38,7 @@
     "toml": "^3.0.0"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "3.7.0",
+    "@docusaurus/module-type-aliases": "^3.9.2",
     "concurrently": "^8.2.2",
     "wrangler": "^4.38.0"
   },
@@ -56,5 +56,8 @@
   },
   "engines": {
     "node": ">=20.10"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.0.4"
   }
 }

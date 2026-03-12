@@ -137,9 +137,9 @@ class Pipe(SupportsPipe):
         """Finds all steps with object of type `step_type`"""
         return [i for i, v in enumerate(self._steps) if isinstance(v, step_type)]
 
-    def get_by_type(self, *step_type: AnyType) -> TPipeStep:
+    def get_by_type(self, *step_type: AnyType) -> Optional[TPipeStep]:
         """Gets first step found with object of type `step_type`"""
-        return next((v for v in self._steps if isinstance(v, step_type)), None)
+        return next((v for v in self._steps if isinstance(v, step_type)), None)  # type: ignore[no-any-return]
 
     def remove_by_type(self, *step_type: AnyType) -> int:
         """Deletes first step found with object of type `step_type`, returns previous index"""

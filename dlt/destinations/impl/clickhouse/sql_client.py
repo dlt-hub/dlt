@@ -142,7 +142,7 @@ class ClickHouseSqlClient(
         sentinel_table_name = self.make_qualified_table_name(
             self.config.dataset_sentinel_table_name
         )
-        sentinel_table_type = cast(TTableEngineType, self.config.table_engine_type)
+        sentinel_table_type = self.config.table_engine_type
         self.execute_sql(f"""
             CREATE TABLE {sentinel_table_name}
             (_dlt_id String NOT NULL)

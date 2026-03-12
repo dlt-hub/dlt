@@ -96,9 +96,7 @@ You can find examples for various use cases in the [examples](docs/examples) fol
 * `minor` new features, sometimes automatic migrations
 * `patch` bug fixes
 
-We suggest that you allow only `patch` level updates automatically:
-* Using the [Compatible Release Specifier](https://packaging.python.org/en/latest/specifications/version-specifiers/#compatible-release). For example **dlt~=1.0** allows only versions **>=1.0** and less than **<1.1**
-* Poetry [caret requirements](https://python-poetry.org/docs/dependency-specification/). For example **^1.0** allows only versions **>=1.0** to **<1.0**
+We suggest that you allow only `patch` level updates automatically using the [Compatible Release Specifier](https://packaging.python.org/en/latest/specifications/version-specifiers/#compatible-release). For example **dlt~=1.23.0** allows only versions **>=1.23.0** and less than **<1.24.0**
 
 Please also see our [release notes](https://github.com/dlt-hub/dlt/releases) for notable changes between versions.
 

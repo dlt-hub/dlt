@@ -102,9 +102,9 @@ def is_credentials_inner_hint(inner_hint: Type[Any]) -> bool:
     return is_subclass(inner_hint, CredentialsConfiguration)
 
 
-def get_config_if_union_hint(hint: Type[Any]) -> Type[Any]:
+def get_config_if_union_hint(hint: Type[Any]) -> Optional[Type[Any]]:
     if is_union_type(hint):
-        return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
+        return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)  # type: ignore[no-any-return]
     return None
 
 
@@ -286,7 +286,7 @@ def configspec(
         # this is not visible in derived classes that must be always decorated with configspec
         cls.__configspec__ = classlocal(True, cls)  # type: ignore[attr-defined]
         # do not generate repr as it may contain secret values
-        return dataclasses.dataclass(cls, init=synth_init, eq=False, repr=False)  # type: ignore
+        return dataclasses.dataclass(cls, init=synth_init, eq=False, repr=False)
 
     # called with parenthesis
     if cls is None:

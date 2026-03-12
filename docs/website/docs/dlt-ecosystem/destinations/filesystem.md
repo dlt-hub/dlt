@@ -7,10 +7,6 @@ keywords: [filesystem, s3, gcs, azure, cloud storage, data lake, staging]
 # Cloud storage and filesystem
 The filesystem destination stores data in remote file systems and cloud storage services like **AWS S3**, **Google Cloud Storage**, or **Azure Blob Storage**. Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging area for other destinations, but you can also quickly build a data lake with it.
 
-:::tip
-Please read the notes on the layout of the data files. Currently, we are receiving feedback on it. Please join our Slack (icon at the top of the page) and help us find the optimal layout.
-:::
-
 ## Install dlt with filesystem
 
 Install the dlt library with filesystem dependencies:
@@ -208,7 +204,7 @@ If you need to use a custom host for your storage account, you can set it up lik
 # The storage account name is always required
 azure_account_host = "<storage_account_name>.<host_base>"
 ```
-Remember to include `storage_account_name` with your base host ie. `dlt_ci.blob.core.usgovcloudapi.net`.
+Remember to include `storage_account_name` with your base host i.e. `dlt_ci.blob.core.usgovcloudapi.net`.
 
 `dlt` will use this host to connect to Azure Blob Storage without any modifications:
 
@@ -686,8 +682,8 @@ When a load generates a new state, for example when using incremental loads, a n
 `filesystem` implements [`sql_client`](../../general-usage/dataset-access/sql-client#the-filesystem-sql-client) which provides read only
 SQL access to files and iceberg/delta tables with duckdb dialect. This also enables [`pipeline.dataset()`](../../general-usage/dataset-access/dataset), giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
 
-By default views that are created are "frozen" to minimize reading form bucket.
-You can enable views autorefesh:
+By default views that are created are "frozen" to minimize reading from bucket.
+You can enable views autorefresh:
 
 ```toml
 [destination.filesystem]

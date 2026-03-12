@@ -69,7 +69,7 @@ version if run again with an existing `source` name. You will be warned if files
             ),
         )
         parser.add_argument(
-            "destination", nargs="?", help="Name of a destination ie. bigquery or redshift"
+            "destination", nargs="?", help="Name of a destination i.e. bigquery or redshift"
         )
         parser.add_argument(
             "--location",

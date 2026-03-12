@@ -57,7 +57,7 @@ Use the pipeline name you defined in your Python code with the `pipeline_name` a
 
 `dlt` will resolve your destination credentials from:
 * `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD), which is the directory you started the dashboard from 
-* `secrets.toml` and `config.toml` in the the global `dlt` folder at `~/.dlt`. 
+* `secrets.toml` and `config.toml` in the global `dlt` folder at `~/.dlt`. 
 * Environment variables
 
 It is best to run the dashboard from the same folder where you ran your pipeline, or to keep your credentials in the global folder.

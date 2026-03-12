@@ -6,7 +6,7 @@ from typing import TypedDict
 
 try:
     # backport from inspect
-    from typing_extensions import get_annotations  # type: ignore
+    from typing_extensions import get_annotations
 except ImportError:
     from inspect import get_annotations  # type: ignore
 
