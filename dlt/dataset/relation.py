@@ -104,7 +104,6 @@ class Relation(WithSqlClient):
         self._query_dialect = query_dialect
         self._table_name = table_name
         self._execute_raw_query: bool = _execute_raw_query
-        self._is_join_eligible = True if table_name else False
 
         self._opened_sql_client: SqlClientBase[Any] = None
         self._sqlglot_expression: sge.Query = None
@@ -673,7 +672,6 @@ class Relation(WithSqlClient):
     def __copy__(self) -> Self:
         rel = self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
         rel._table_name = self._table_name
-        rel._is_join_eligible = False
         return rel
 
 
@@ -1057,8 +1055,6 @@ def _resolve_magic_join_target(left: Relation, right: Union[str, Relation]) -> s
                 "Cannot join relations from different datasets: "
                 f"'{right._dataset.dataset_name}' vs '{left._dataset.dataset_name}'"
             )
-        if not right._is_join_eligible:
-            raise ValueError(f"Relation `{right}` is not a join-graph relation.")
         other_table = right._table_name
         if not other_table:
             raise ValueError(f"Relation `{right}` has no base table to resolve references.")
@@ -1079,9 +1075,6 @@ def _discover_join_params(
     origin_table_name = left._table_name
     if not origin_table_name:
         raise ValueError("This relation has no base table to resolve references.")
-    if not left._is_join_eligible:
-        raise ValueError("This relation has been transformed and is not a join-graph relation.")
-
     other_table = _resolve_magic_join_target(left, right)
     # refs is the entire reference chain from origin to target(`other`) table
     refs = _resolve_reference_chain(left._dataset.schema, origin_table_name, other_table)
@@ -1248,5 +1241,4 @@ def _apply_join(
 
     rel = relation.__copy__()
     rel._sqlglot_expression = query
-    rel._is_join_eligible = True
     return rel

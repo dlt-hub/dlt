@@ -248,42 +248,6 @@ def test_resolve_reference_chain_rejects_unrelated_tables(
             id="unrelated-tables",
         ),
         pytest.param(
-            lambda ds: ds.table("users__orders").select("order_id"),
-            "users",
-            "not a join-graph relation",
-            id="self-not-joinable-select",
-        ),
-        pytest.param(
-            lambda ds: ds.table("users__orders").where("order_id", "gt", 0),
-            "users",
-            "not a join-graph relation",
-            id="self-not-joinable-where",
-        ),
-        pytest.param(
-            lambda ds: ds.table("users__orders").order_by("order_id"),
-            "users",
-            "not a join-graph relation",
-            id="self-not-joinable-order-by",
-        ),
-        pytest.param(
-            lambda ds: ds.table("users__orders").limit(1),
-            "users",
-            "not a join-graph relation",
-            id="self-not-joinable-limit",
-        ),
-        pytest.param(
-            lambda ds: ds.table("users__orders").select("order_id").max(),
-            "users",
-            "not a join-graph relation",
-            id="self-not-joinable-agg",
-        ),
-        pytest.param(
-            lambda ds: ds.table("users__orders"),
-            lambda ds: ds.table("users").select("id"),
-            "not a join-graph relation",
-            id="other-not-joinable",
-        ),
-        pytest.param(
             lambda ds: ds.table("users"),
             123,
             "`other` must be a table name or a base table relation",
@@ -300,6 +264,12 @@ def test_resolve_reference_chain_rejects_unrelated_tables(
             "users__orders",
             "no base table",
             id="query-relation-not-joinable",
+        ),
+        pytest.param(
+            lambda ds: ds.table("users__orders").limit(5).select("order_id"),
+            "users",
+            "no base table to resolve references",
+            id="subquery-hides-base-table",
         ),
     ],
     ids=lambda v: v if isinstance(v, str) else None,
@@ -631,3 +601,114 @@ def test_e2e_join_chain_row_count(dataset_with_loads: TLoadsFixture) -> None:
 
     assert df is not None
     assert len(df) == _total_rows(load_stats, "users__orders__items")
+
+
+def test_where_then_join_produces_correct_data(dataset_with_loads: TLoadsFixture) -> None:
+    """Filtering rows before joining should preserve join correctness."""
+    dataset, _, _ = dataset_with_loads
+
+    # join without filter as baseline
+    baseline_df = dataset.table("users__orders").join("users").df()
+    assert baseline_df is not None
+
+    # filter to a single order, then join
+    rel = dataset.table("users__orders").where("order_id", "eq", 101)
+    joined = rel.join("users")
+    df = joined.df()
+
+    assert df is not None
+    assert len(df) == 1
+    # verify the joined user column is present and correct
+    assert "users__name" in df.columns
+    assert df["users__name"].iloc[0] == "Alice"
+    assert df["order_id"].iloc[0] == 101
+
+
+def test_order_by_then_join_produces_correct_data(dataset_with_loads: TLoadsFixture) -> None:
+    """order_by before join should preserve join correctness and ordering."""
+    dataset, _, _ = dataset_with_loads
+
+    # baseline: unordered join
+    baseline_df = dataset.table("users__orders").join("users").df()
+    assert baseline_df is not None
+
+    # order then join
+    rel = dataset.table("users__orders").order_by("order_id", "asc")
+    joined = rel.join("users")
+    df = joined.df()
+
+    assert df is not None
+    assert len(df) == len(baseline_df)
+    # verify user data is attached correctly: each order has a matching user name
+    for _, row in df.iterrows():
+        assert row["users__name"] in ("Alice", "Bob", "Charlie")
+
+
+def test_select_then_join_preserves_narrow_projection(dataset_with_loads: TLoadsFixture) -> None:
+    """select() narrows the left projection but join columns resolve from the base table."""
+    dataset, _, _ = dataset_with_loads
+    rel = dataset.table("users__orders").select("order_id")
+    joined = rel.join("users")
+    df = joined.df()
+
+    assert df is not None
+    assert len(df) > 0
+    # left side: only the selected column
+    assert "order_id" in df.columns
+    # join columns like _dlt_parent_id are NOT in the output (not selected)
+    assert "_dlt_parent_id" not in df.columns
+    # right side columns are present
+    assert "users__name" in df.columns
+
+
+@pytest.mark.parametrize(
+    "build_joined",
+    [
+        pytest.param(
+            lambda ds: ds.table("users__orders").join("users"),
+            id="plain-join",
+        ),
+        pytest.param(
+            lambda ds: ds.table("users__orders").where("order_id", "gt", 0).join("users"),
+            id="where-then-join",
+        ),
+        pytest.param(
+            lambda ds: ds.table("users__orders").order_by("order_id").join("users"),
+            id="order-by-then-join",
+        ),
+        pytest.param(
+            lambda ds: ds.table("users__orders").select("order_id").join("users"),
+            id="select-then-join",
+        ),
+        pytest.param(
+            lambda ds: ds.table("users__orders").limit(10).join("users"),
+            id="limit-then-join",
+        ),
+        pytest.param(
+            lambda ds: ds.table("users__orders").join("users").join("users__orders__items"),
+            id="chain-join",
+        ),
+    ],
+)
+def test_columns_schema_matches_query_output(
+    dataset_with_loads: TLoadsFixture,
+    build_joined: Callable[[dlt.Dataset], dlt.Relation],
+) -> None:
+    """columns_schema must match the actual columns returned by executing the query."""
+    dataset, _, _ = dataset_with_loads
+    joined = build_joined(dataset)
+
+    # columns_schema triggers compute_columns_schema -> qualify -> star expansion
+    schema_cols = set(joined.columns_schema.keys())
+    assert schema_cols, "columns_schema must not be empty"
+
+    # execute and compare
+    df = joined.df()
+    assert df is not None
+    df_cols = set(df.columns)
+
+    assert schema_cols == df_cols, (
+        "columns_schema keys don't match df columns.\n"
+        f"  schema_only: {schema_cols - df_cols}\n"
+        f"  df_only:     {df_cols - schema_cols}"
+    )
