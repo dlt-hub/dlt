@@ -218,7 +218,7 @@ class Incremental(
             "initial_unique_hashes_count": 0,
             "final_unique_hashes_count": 0,
         }
-        self._dedup_key_from_hints: bool = False if primary_key is not None else None
+        self._dedup_key_from_hints: Optional[bool] = False if primary_key is not None else None
         """Tells if dedup key was set from resource hints, to prevent overrides of directly set values"""
 
     @property
@@ -234,7 +234,7 @@ class Incremental(
         self, value: Optional[TTableHintTemplate[TColumnNames]], from_hints: bool
     ) -> None:
         """Set deduplication key. Manage priority with `from_hints` flag so values coming
-        from hints never ovewrite values set directly"""
+        from hints never overwrite values set directly"""
         # do not allow to set primary key is it is being set from resource hints
         # but was already set directly on incremental
         if from_hints and self._dedup_key_from_hints is False:
