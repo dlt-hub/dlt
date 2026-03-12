@@ -292,8 +292,22 @@ The **MCP server** exposes tools like `list_pipelines`, `get_table_schema`, and 
 
 Once your pipeline is validated, you can continue to the next phase of the data engineering lifecycle by installing additional toolkits:
 
-- **`data-exploration`** — query loaded data and create marimo notebooks, charts, and dashboards
-- **`dlthub-runtime`** — deploy, schedule, and monitor your pipeline in production 
+- **`data-exploration`** — connects to your loaded pipeline data and builds an interactive marimo dashboard with Altair charts as the final output.
+  The assistant adapts to your intent:
+  - **High-intent**  (e.g. "show revenue by month"): scans the schema, plans the chart, and renders it directly to the dashboard.
+  - **Low-intent** (e.g. "explore my github data"): profiles the data, suggests 5–10 business questions, and builds a dashboard from your selection.
+
+  Two skills drive the workflow: `/explore-data` connects to your data, profiles it, and plans charts one at a time, while `/build-notebook` assembles the charts into a marimo dashboard and launches it in your browser.
+  Build and launch the notebook early, then iterate — add or refine charts and regenerate as you go.
+
+- **`dlthub-runtime`** — deploys your pipeline to dltHub Runtime so it runs in the cloud with production credentials.
+  The assistant walks you through four steps:
+  - **Setup** (`/setup-runtime`): verify your workspace, install dependencies, and log in via GitHub OAuth.
+  - **Prepare** (`/prepare-deployment`): split dev and prod secrets into profile-scoped files and configure a production destination (e.g. Motherduck instead of local DuckDB).
+  - **Deploy** (`/deploy-workspace`): review scripts for production readiness, sync the workspace, and launch jobs.
+  - **Debug** (`/debug-deployment`): check job status, view logs, and diagnose failures — all from your assistant.
+
+  You can also serve marimo notebooks as interactive apps and share them via public links.
 
 [Sign up for dltHub Early Access](https://dlthub.com/solutions/for-small-data-teams)
 
