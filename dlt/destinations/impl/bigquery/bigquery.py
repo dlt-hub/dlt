@@ -120,7 +120,7 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                     Exception(
                         "Bigquery Job needs to be retried, reason reported from bigquery"
                         f" `{reason}`, for job `{self._file_name}`."
-                        f"Error details: {self._bq_load_job.error_result}"
+                        f" Error details: {self._bq_load_job.error_result}"
                     )
                 )
 
