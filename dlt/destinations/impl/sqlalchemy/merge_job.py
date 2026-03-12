@@ -417,15 +417,26 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         sqla_statements.append(update_statement)
 
+        # Build SELECT columns in the same order as the destination table columns
+        # to ensure the INSERT ... SELECT column positions match.
+        select_cols = []
+        for col in root_table_obj.columns:
+            if col.name == from_:
+                select_cols.append(sa.literal(boundary_literal.strip("'")).label(from_))
+            elif col.name == to:
+                select_cols.append(
+                    sa.literal(
+                        active_record_literal.strip("'")
+                        if active_record_literal is not None
+                        else None
+                    ).label(to)
+                )
+            else:
+                select_cols.append(staging_root_table_obj.c[col.name])
+
         insert_statement = root_table_obj.insert().from_select(
             [col.name for col in root_table_obj.columns],
-            sa.select(
-                sa.literal(boundary_literal.strip("'")).label(from_),
-                sa.literal(
-                    active_record_literal.strip("'") if active_record_literal is not None else None
-                ).label(to),
-                *[c for c in staging_root_table_obj.columns if c.name not in [from_, to]],
-            ).where(
+            sa.select(*select_cols).where(
                 staging_root_table_obj.c[hash_].notin_(
                     sa.select(root_table_obj.c[hash_]).where(root_is_active_clause)
                 )
