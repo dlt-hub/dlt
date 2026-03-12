@@ -106,9 +106,9 @@ class ClickHouseTypeMapper(TypeMapperImpl):
         if decimal_match := re.match(
             r"Decimal\((?P<precision>\d+)\s*(?:,\s*(?P<scale>\d+))?\)", db_type
         ):
-            precision, scale = decimal_match.groups()
-            precision = int(precision)
-            scale = int(scale) if scale else 0
+            precision_str, scale_str = decimal_match.groups()
+            precision = int(precision_str)
+            scale = int(scale_str) if scale_str else 0
             db_type = "Decimal"
 
         if db_type == "Decimal" and (precision, scale) == self.capabilities.wei_precision:

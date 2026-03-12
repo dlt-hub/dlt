@@ -320,7 +320,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         )
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config
-        self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment, unused-ignore]
+        self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[override, unused-ignore]
         self.type_mapper = self.capabilities.get_type_mapper()
         # PK and FK are created in SQL fragments, not inline
 

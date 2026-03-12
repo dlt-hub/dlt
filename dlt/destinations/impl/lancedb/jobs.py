@@ -44,9 +44,7 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
     def run(self) -> None:
         db_client: DBConnection = self._job_client.db_client
         fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
-        write_disposition: TWriteDisposition = cast(
-            TWriteDisposition, self._load_table.get("write_disposition", "append")
-        )
+        write_disposition: TWriteDisposition = self._load_table.get("write_disposition", "append")
 
         merge_key: str = None
         if write_disposition == "merge":

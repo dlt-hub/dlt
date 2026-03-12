@@ -197,7 +197,7 @@ class _ExtractInfo(NamedTuple):
     first_run: bool
 
 
-class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
+class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):
     """A tuple holding information on extracted data items. Returned by pipeline `extract` method."""
 
     def asdict(self) -> DictStrAny:
@@ -259,7 +259,7 @@ class _NormalizeInfo(NamedTuple):
     first_run: bool
 
 
-class NormalizeInfo(StepInfo[NormalizeMetrics], _NormalizeInfo):  # type: ignore[misc]
+class NormalizeInfo(StepInfo[NormalizeMetrics], _NormalizeInfo):
     """A tuple holding information on normalized data items. Returned by pipeline `normalize` method."""
 
     @property
@@ -327,7 +327,7 @@ class _LoadInfo(NamedTuple):
     first_run: bool
 
 
-class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):  # type: ignore[misc]
+class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):
     """A tuple holding the information on recently loaded packages. Returned by pipeline `run` and `load` methods"""
 
     def asdict(self) -> DictStrAny:
