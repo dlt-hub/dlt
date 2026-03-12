@@ -1,2 +1,2 @@
 [lancedb]
-db_path = "spotify.db"
+db_path = "podcast.db"

@@ -105,8 +105,8 @@ class LanceDBSQLClient(DuckDbSqlClient):
 
     @contextmanager
     @raise_database_error
-    def execute_query(
-        self, query: str, *args: Any, **kwargs: Any  # type: ignore[override]
+    def execute_query(  # type: ignore[override]
+        self, query: str, *args: Any, **kwargs: Any
     ) -> Iterator[DBApiCursor]:
         # replace generic string placeholder by DuckDB placeholders
         if args or kwargs:

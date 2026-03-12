@@ -76,7 +76,7 @@ def get_workspace_info() -> Dict[str, Any]:
 @with_mcp_tool_telemetry()
 def list_profiles() -> List[Dict[str, Any]]:
     """List all available workspace profiles with status flags (current, pinned, configured)."""
-    return fetch_profiles_list()  # type: ignore[return-value]
+    return fetch_profiles_list()
 
 
 @with_mcp_tool_telemetry()
@@ -312,7 +312,7 @@ def get_local_pipeline_state(
     """Get pipeline state: incremental cursors, resource state, and source state."""
     try:
         pipeline = _attach(pipeline_name)
-        return pipeline.state  # type: ignore[return-value]
+        return pipeline.state
     except Exception as e:
         raise ToolError(
             "Tool `get_local_pipeline_state` failed. Verify `pipeline_name`. "

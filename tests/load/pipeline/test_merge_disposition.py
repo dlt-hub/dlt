@@ -92,7 +92,7 @@ def test_merge_on_keys_in_schema_nested_hints(
 
     hints: TResourceHints = {
         "write_disposition": {"disposition": "merge", "strategy": merge_strategy},
-        "table_format": cast(TTableFormat, destination_config.table_format),
+        "table_format": destination_config.table_format,
     }
     # NOTE: setting primary key will break nesting chain
     nested_hints = {

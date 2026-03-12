@@ -1207,8 +1207,8 @@ def add_dlt_root_id_propagation(norm: RelationalNormalizer) -> None:
     RelationalNormalizer.update_normalizer_config(
         norm.schema,
         {
-            "propagation": {
-                "root": {"_dlt_id": "_dlt_root_id"},  # type: ignore[dict-item]
+            "propagation": {  # type: ignore[typeddict-item]
+                "root": {"_dlt_id": "_dlt_root_id"},
                 "tables": {},
             }
         },

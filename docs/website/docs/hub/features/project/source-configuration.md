@@ -108,7 +108,7 @@ sources:
 
 ## Filesystem
 
-Filesystem sources can be set via the `readers` type and the filesystem specific resources can be called via the CLI `run pipline` command.
+Filesystem sources can be set via the `readers` type and the filesystem specific resources can be called via the CLI `run pipeline` command.
 
 
 ```yaml

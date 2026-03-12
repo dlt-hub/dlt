@@ -270,7 +270,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
             schema, config
         )
-        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(
+        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(  # type: ignore[override]
             dataset_name,
             staging_dataset_name,
             list(schema.tables.keys()),

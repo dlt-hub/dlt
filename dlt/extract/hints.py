@@ -780,14 +780,12 @@ class DltResourceHints:
                     ):
                         continue  # None is allowed for active_record_timestamp
                     if ts in wd:
-                        if wd[ts] is None:  # type: ignore[literal-required]
+                        if wd[ts] is None:
                             continue
                         try:
-                            ensure_pendulum_datetime_utc(wd[ts])  # type: ignore[literal-required]
+                            ensure_pendulum_datetime_utc(wd[ts])
                         except Exception:
-                            raise ValueError(
-                                f"could not parse `{ts}` value `{wd[ts]}`"  # type: ignore[literal-required]
-                            )
+                            raise ValueError(f"could not parse `{ts}` value `{wd[ts]}`")
 
     @staticmethod
     def validate_reference_hint(template: TResourceHints) -> None:

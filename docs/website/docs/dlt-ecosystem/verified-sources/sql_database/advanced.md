@@ -22,7 +22,7 @@ If you have a large table with incremental loading set up, you can partition you
 or less similar sizes.
 3. For each range find min and max cursor value and
 use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill. 
-4. You can load each partition in a loop or in parallel (ie. in separate process). Incremental resources with `end_value` set
+4. You can load each partition in a loop or in parallel (i.e. in separate process). Incremental resources with `end_value` set
 do not use the state.
 5. Continue regular incremental loading with `initial_value` set to the value at the end of the range
 and make the start range open to avoid duplicates.
@@ -170,7 +170,7 @@ The `reflection_level` argument controls how much information is reflected:
 
 If the SQL type is unknown or not supported by `dlt`, then we'll try to infer it from the data.
 * `sqlalchemy` follows standard `dlt` inference rules from Python objects. This often means that some types are coerced to strings and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
-* `pyarrow` backend will try to infer types from the data using rules built-in in arrow (we just past an array of Python objects and ask for a type). Variant columns are not created by this backend so columns with inconsistent types cannot be loaded by this backend.
+* `pyarrow` backend will try to infer types from the data using rules built into arrow (we just pass an array of Python objects and ask for a type). Variant columns are not created by this backend so columns with inconsistent types cannot be loaded by this backend.
 
 
 :::tip
@@ -216,7 +216,7 @@ dlt.pipeline("demo").run(source)
 
 ### Remove nullability information
 `dlt` adds `NULL`/`NOT NULL` information to reflected schemas in **all reflection levels**. There are cases where you do not want this information to be present
-ie.
+i.e.
 * if you plan to use replication source that will (soft) delete rows.
 * if you expect that columns will be dropped from the source table.
 

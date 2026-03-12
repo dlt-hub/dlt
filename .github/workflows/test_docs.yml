@@ -79,6 +79,12 @@ jobs:
         run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 
 
+      - name: Install root project for CLI docs check
+        run: uv sync --extra cli
+
+      - name: Check that CLI docs are up to date
+        run: make check-cli-docs
+
       - name: Install dependencies
         run: cd docs && make dev
 

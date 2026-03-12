@@ -552,7 +552,7 @@ Inherits arguments from [`dlt`](#dlt).
 
 **Positional arguments**
 * `source` - Name of data source for which to create a pipeline. adds existing verified source or creates a new pipeline template if verified source for your data source is not yet implemented.
-* `destination` - Name of a destination ie. bigquery or redshift
+* `destination` - Name of a destination i.e. bigquery or redshift
 
 **Options**
 * `-h, --help` - Show this help message and exit
