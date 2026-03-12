@@ -5,7 +5,6 @@ from typing import (
     Callable,
     Any,
     Dict,
-    Iterable,
     List,
     Literal,
     Optional,
@@ -325,11 +324,20 @@ class TableLoader(BaseTableLoader):
                 )
                 yield df
             elif self.backend == "pyarrow":
-                yield row_tuples_to_arrow(
+                # add columns present in cursor but missing from schema hints
+                for col_name in columns:
+                    if col_name not in self.columns:
+                        self.columns[col_name] = {"name": col_name}
+                # build arrow table using cursor column order for correct
+                # positional mapping (self.columns may be in schema order
+                # after merge_columns reordering)
+                cursor_columns = {c: self.columns[c] for c in columns}
+                table = row_tuples_to_arrow(
                     partition,
-                    columns=_add_missing_columns(self.columns, columns),
+                    columns=cursor_columns,
                     tz=backend_kwargs.get("tz", "UTC"),
                 )
+                yield table
 
 
 class ConnectorXTableLoader(BaseTableLoader):
@@ -518,6 +526,21 @@ def table_rows(
             # Handle callable columns hint (can't resolve without data item)
             columns_hints = resource.columns
 
+    # warn about and remove columns_hints entries that don't match any
+    # reflected source column.
+    source_columns = {c.name for c in table.columns}
+    unmatched = [c for c in columns_hints if c not in source_columns]
+    if unmatched:
+        logger.warning(
+            "Resource columns %s for table '%s' do not match any reflected"
+            " source columns and will be ignored. Note: source column names"
+            " are not normalized at this stage. Use the original database"
+            " column names in apply_hints.",
+            unmatched,
+            table.name,
+        )
+        columns_hints = {c: columns_hints[c] for c in columns_hints if c not in unmatched}
+
     # determine loader class from registry
     if table_loader_class is None:
         table_loader_class = get_table_loader_class(backend)
@@ -584,16 +607,6 @@ def remove_nullability_adapter(table: Table) -> Table:
         if hasattr(col, "nullable"):
             col.nullable = None
     return table
-
-
-def _add_missing_columns(
-    schema_columns: TTableSchemaColumns, result_columns: Iterable[str]
-) -> TTableSchemaColumns:
-    """Adds columns present in cursor but not present in schema"""
-    for column_name in result_columns:
-        if column_name not in schema_columns:
-            schema_columns[column_name] = {"name": column_name}
-    return schema_columns
 
 
 def _execute_table_adapter(

@@ -93,6 +93,7 @@ R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
 SFTP_BUCKET = dlt.config.get("tests.bucket_url_sftp", str)
 HTTP_BUCKET = dlt.config.get("tests.bucket_url_http", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
+HF_BUCKET = dlt.config.get("tests.bucket_url_hf", str)
 
 # S3 tables
 S3_TABLE_BUCKET_ARN = dlt.config.get("tests.s3_table_bucket_arn", str)
@@ -109,6 +110,7 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "https",
     "r2",
     "sftp",
+    "hf",
 ]
 
 # Filter out buckets not in all filesystem drivers
@@ -121,6 +123,7 @@ WITH_GDRIVE_BUCKETS = [
     AZ_BUCKET,
     GDRIVE_BUCKET,
     SFTP_BUCKET,
+    HF_BUCKET,
 ]
 WITH_GDRIVE_BUCKETS = [
     bucket
@@ -354,7 +357,7 @@ def destinations_configs(
         all_buckets_filesystem_configs: Include filesystem configs for all default buckets
             (s3, gcs, az, abfss, file, memory, sftp).
         table_format_filesystem_configs: Include delta and iceberg table format configs
-            for all buckets (except sftp, memory for delta; az for iceberg).
+            for all buckets (except sftp, memory, hf; az excluded for both delta and iceberg).
         table_format_local_configs: Include delta and iceberg configs for local file bucket only.
         read_only_sqlclient_configs: Include all configs that support read-only SQL client
             (filesystem with all buckets, table formats, and lancedb).
@@ -543,7 +546,7 @@ def destinations_configs(
         destination_configs += [
             # DestinationTestConfiguration(destination_type="mssql", supports_dbt=False),
             DestinationTestConfiguration(destination_type="synapse", supports_dbt=False),
-            DestinationTestConfiguration(destination_type="fabric", supports_dbt=False),
+            DestinationTestConfiguration(destination_type="fabric", supports_dbt=True),
         ]
 
         # sanity check that when selecting default destinations, one of each sql destination is actually
@@ -778,7 +781,7 @@ def destinations_configs(
 
     # all filesystem configs also implement read-only sql client
     if all_buckets_filesystem_configs or read_only_sqlclient_configs:
-        for bucket in DEFAULT_BUCKETS:
+        for bucket in set(DEFAULT_BUCKETS) - {HF_BUCKET}:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
@@ -788,16 +791,30 @@ def destinations_configs(
                     file_format="jsonl",  # keep jsonl as default, test utils are setup for this
                 )
             ]
+        if "hf" in ALL_FILESYSTEM_DRIVERS:
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="filesystem",
+                    bucket_url=HF_BUCKET,
+                    extra_info=HF_BUCKET,
+                    supports_merge=False,
+                    file_format="parquet",
+                    # increase timeout to avoid flakes (default is 10s)
+                    env_vars={"HF_HUB_DOWNLOAD_TIMEOUT": "30"},
+                )
+            ]
 
     # table format configs also implement read-only sqlclient configs
     if table_format_filesystem_configs or table_format_local_configs or read_only_sqlclient_configs:
         if table_format_filesystem_configs:
-            table_buckets = set(DEFAULT_BUCKETS) - {SFTP_BUCKET, MEMORY_BUCKET}
+            table_buckets = set(DEFAULT_BUCKETS) - {SFTP_BUCKET, MEMORY_BUCKET, HF_BUCKET}
         else:
             table_buckets = {FILE_BUCKET}
 
-        # NOTE: delta does not work on memory buckets
-        for bucket in table_buckets:
+        # NOTE: delta-rs kernel fails on az:// scheme (empty log segment error),
+        # Azure is tested via abfss://
+        delta_buckets = table_buckets - {AZ_BUCKET}
+        for bucket in delta_buckets:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
@@ -825,9 +842,9 @@ def destinations_configs(
                     destination_name="filesystem_s3_gcs_comp" if bucket == GCS_BUCKET else None,
                 )
             ]
-            if bucket in [AZ_BUCKET]:
-                # `pyiceberg` does not support `az` scheme
-                continue
+        # pyiceberg does not support az:// scheme
+        iceberg_buckets = table_buckets - {AZ_BUCKET}
+        for bucket in iceberg_buckets:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",

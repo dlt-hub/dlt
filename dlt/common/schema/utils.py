@@ -661,27 +661,6 @@ def merge_table(
     return partial_table
 
 
-def merge_diff(
-    table: TTableSchema, table_diff: TPartialTableSchema, merge_compound_props: bool = True
-) -> TPartialTableSchema:
-    """Merges a table diff `table_diff` into `table` in place. Returns the diff.
-
-    * new columns are added, updated columns are replaced from diff
-    * incomplete columns in `table` that got completed in `partial_table` are removed to preserve order
-    * table hints are added or replaced from diff
-    * nothing gets deleted
-
-    Args:
-        merge_compound_props: If False, compound properties (see `is_compound_prop()`)
-            in partial_table replace rather than merge with those in table.
-    """
-    updated_columns = merge_columns(table["columns"], table_diff["columns"], merge_compound_props)
-    table.update(table_diff)
-    table["columns"] = updated_columns
-
-    return table_diff
-
-
 def normalize_table_identifiers(table: TTableSchema, naming: NamingConvention) -> TTableSchema:
     """Normalizes all table and column names in `table` schema according to current schema naming convention and returns
     new instance with modified table schema.

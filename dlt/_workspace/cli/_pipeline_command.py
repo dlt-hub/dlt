@@ -9,26 +9,20 @@ from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
 from dlt.common.destination.reference import TDestinationReferenceArg
-from dlt.common.runners import Venv
-from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import (
     group_tables_by_resource,
     has_table_seen_data,
     is_complete_column,
     remove_defaults,
 )
-from dlt.common.storages import FileStorage, PackageStorage
+from dlt.common.storages import PackageStorage
 
 from dlt.extract.state import resource_state
 from dlt.pipeline.helpers import pipeline_drop
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
-
-
-DLT_PIPELINE_COMMAND_DOCS_URL = (
-    "https://dlthub.com/docs/reference/command-line-interface#dlt-pipeline"
-)
+from dlt._workspace.cli._urls import DLT_PIPELINE_COMMAND_DOCS_URL  # noqa: F401
 
 
 def list_pipelines(pipelines_dir: str = None, verbosity: int = 1) -> None:
@@ -80,11 +74,10 @@ def pipeline_command(
         return
 
     # we may open the dashboard for a pipeline without checking if it exists
-    if operation == "show" and not command_kwargs.get("streamlit"):
+    if operation == "show":
         from dlt._workspace.helpers.dashboard.runner import run_dashboard
 
         run_dashboard(pipeline_name, edit=command_kwargs.get("edit"), pipelines_dir=pipelines_dir)
-        # return so streamlit does not run
         return
 
     try:
@@ -153,43 +146,20 @@ def pipeline_command(
     if operation == "mcp":
         from dlt._workspace.mcp import PipelineMCP
 
-        transport = "stdio" if command_kwargs["stdio"] else "sse"
-        if transport:
-            # write to stderr. stdin is the comm channel
+        if command_kwargs["stdio"]:
+            transport = "stdio"
+        elif command_kwargs.get("sse"):
+            transport = "sse"
+        else:
+            transport = "streamable-http"
+        if transport != "stdio":
             fmt.echo("Starting dlt MCP server", err=True)
-        mcp = PipelineMCP(p, command_kwargs["port"])
+        mcp = PipelineMCP(p.pipeline_name, command_kwargs["port"])
         mcp.run(transport=transport)
 
         return
 
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
-
-    if operation == "show":
-        from dlt.common.runtime import signals
-
-        with signals.intercepted_signals():
-            streamlit_cmd = [
-                "streamlit",
-                "run",
-                os.path.join(
-                    os.path.dirname(dlt.__file__),
-                    "_workspace",
-                    "helpers",
-                    "streamlit_app",
-                    "index.py",
-                ),
-                "--client.showSidebarNavigation",
-                "false",
-            ]
-
-            streamlit_cmd.append("--")
-            streamlit_cmd.append(pipeline_name)
-            streamlit_cmd.append("--pipelines-dir")
-            streamlit_cmd.append(p.pipelines_dir)
-
-            venv = Venv.restore_current()
-            for line in iter_stdout(venv, *streamlit_cmd):
-                fmt.echo(line)
 
     if operation == "info":
         state: TSourceState = p.state  # type: ignore
@@ -396,20 +366,8 @@ def pipeline_command(
         format_ = command_kwargs.get("format")
         remove_defaults_ = command_kwargs.get("remove_defaults")
         s = p.default_schema
-        if format_ == "json":
-            schema_str = s.to_pretty_json(remove_defaults=remove_defaults_)
-        elif format_ == "yaml":
-            schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
-        elif format_ == "dbml":
-            schema_str = s.to_dbml()
-        elif format_ == "dot":
-            schema_str = s.to_dot()
-        elif format_ == "mermaid":
-            schema_str = s.to_mermaid()
-        else:
-            schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
-
-        fmt.echo(schema_str)
+        export = utils.fetch_schema_export(s, format_=format_, remove_defaults=remove_defaults_)
+        fmt.echo(export["content"])
 
     if operation == "drop":
         drop = pipeline_drop(

@@ -190,7 +190,7 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         self.gen = pipe.gen
         self.count = 0
         self.exhausted = False
-        self.start_time = time.time()
+        self.start_time = time.monotonic()
 
         return self
 
@@ -223,7 +223,7 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         # detect when the limit is reached, max time or yield count
         if (
             (self.count >= self.max_items and self.max_items >= 0)
-            or (self.max_time and time.time() - self.start_time > self.max_time)
+            or (self.max_time and time.monotonic() - self.start_time > self.max_time)
             or self.max_items == 0
         ):
             self.exhausted = True

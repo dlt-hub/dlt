@@ -176,6 +176,7 @@ def test_parquet_writer_config() -> None:
     os.environ["NORMALIZE__DATA_WRITER__VERSION"] = "1.0"
     os.environ["NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE"] = str(1024 * 512)
     os.environ["NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE"] = "America/New York"
+    os.environ["NORMALIZE__DATA_WRITER__WRITE_PAGE_INDEX"] = "true"
 
     with inject_section(ConfigSectionContext(pipeline_name=None, sections=("normalize",))):
         with get_writer(ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
@@ -191,6 +192,7 @@ def test_parquet_writer_config() -> None:
             assert writer._writer.parquet_format.version == "1.0"
             assert writer._writer.parquet_format.data_page_size == 1024 * 512
             assert writer._writer.parquet_format.timestamp_timezone == "America/New York"
+            assert writer._writer.parquet_format.write_page_index is True
 
             # tz can
             column_type = writer._writer.schema.field("col2").type
@@ -202,6 +204,9 @@ def test_parquet_writer_config() -> None:
             assert col2_info["isAdjustedToUTC"] is True
             assert col2_info["timeUnit"] == "microseconds"
             assert reader.schema_arrow.field(1).type.tz == "America/New York"
+            # page index is written (https://github.com/apache/parquet-format/blob/master/PageIndex.md)
+            assert reader.metadata.row_group(0).column(0).has_column_index is True
+            assert reader.metadata.row_group(0).column(0).has_offset_index is True
 
 
 def test_parquet_writer_config_spark() -> None:

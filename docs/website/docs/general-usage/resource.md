@@ -101,7 +101,7 @@ of columns in it. We use convenience function `dlt.mark.make_nested_hints` to ge
 free to use it directly.
 
 Mind that `purchases` list will be stored as table with name `customers__purchases`. When declaring nested hints you just need
-to specify nested field(s) name(s). In case of deeper nesting ie. let's say each `purchase` has a list of `coupons` applied,
+to specify nested field(s) name(s). In case of deeper nesting i.e. let's say each `purchase` has a list of `coupons` applied,
 you can apply hints to coupons and define `customers__purchases__coupons` table schema:
 ```py
 import dlt
@@ -124,10 +124,10 @@ are empty. Currently we are not adding missing path elements automatically**.
 
 You can use `nested_hints` primarily to set column hints and schema contract, those work exactly as in case of root tables.
 * `file_format` has no effect (not implemented yet)
-* `write_disposition` works as expected but leads to unintended consequences (ie. you can set nested table to `replace`) while root table is `append`.
+* `write_disposition` works as expected but leads to unintended consequences (i.e. you can set nested table to `replace`) while root table is `append`.
 * `references` will create [table references](schema.md#table-references-1) (annotations) as expected.
 * `primary_key` and `merge_key`: **setting those will convert nested table into a regular table, with a separate write disposition, file format etc.**
-[It allows you to create custom table relationships ie. using natural primary and foreign keys present in the data.](schema.md#generate-custom-linking-for-nested-tables)
+[It allows you to create custom table relationships i.e. using natural primary and foreign keys present in the data.](schema.md#generate-custom-linking-for-nested-tables)
 
 :::tip
 [REST API Source](../dlt-ecosystem/verified-sources/rest_api/basic.md) accepts `nested_hints` argument as well.

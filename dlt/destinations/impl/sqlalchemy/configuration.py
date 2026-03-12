@@ -44,7 +44,7 @@ class ManagedEngine:
     @property
     def engine(self) -> "Engine":
         """Lazily creates the engine for owned instances, returns external engine otherwise."""
-        import sqlalchemy as sa
+        from dlt.common.libs.sql_alchemy import sa
 
         if self._engine is None:
             engine_kwargs = self._credentials._resolve_engine_kwargs()

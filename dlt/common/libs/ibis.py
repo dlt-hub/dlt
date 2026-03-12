@@ -14,12 +14,13 @@ from dlt.common.exceptions import MissingDependencyException
 if TYPE_CHECKING:
     import pandas as pd
     import pyarrow as pa
-    from ibis import BaseBackend
+    from ibis import BaseBackend  # noqa: I251
 
 try:
     # ibis imports follow the convention used in the ibis source code
-    import ibis
-    from ibis import util as ibis_util, options as ibis_options
+    import ibis  # noqa: I251
+    from ibis import util as ibis_util, options as ibis_options  # noqa: I251
+    from ibis.expr.types import Expr, Table  # noqa: I251
     import ibis.expr.datatypes as dt
     import ibis.expr.operations as ops
     import ibis.expr.schema as sch

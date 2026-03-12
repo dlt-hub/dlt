@@ -38,18 +38,22 @@ Here's a screenshot of the interface you should see:
 
 ### Use custom dlt widgets
 
-Inside your marimo notebook, you can use widgets built and maintained by the dlt team.
+Inside your marimo notebook, you can use composable widgets built and maintained by the dlt team. This requires the `mowidgets` package (Python 3.11+).
 
-Simply import them from `dlt.helpers.marimo` and pass them to the `render()` function. Note that `render()` is asynchronous and must be awaited with `await`.
+Import them from `dlt.helpers.marimo` and pass them to the `render()` function:
 
 ```py
 #%% cell 1
-import marimo as mo
-from dlt.helpers.marimo import render, load_package_viewer
+from dlt.helpers.marimo import render, load_package_viewer, pipeline_selector
 
 #%% cell 2
-await render(load_package_viewer)
+render(pipeline_selector)
+
+#%% cell 3
+render(load_package_viewer, pipeline_path="/path/to/pipeline")
 ```
+
+Available widgets: `pipeline_selector`, `load_package_viewer`, `schema_viewer`.
 
 ![Example marimo widget](https://storage.googleapis.com/dlt-blog-images/marimo-widget-screenshot.png)
 

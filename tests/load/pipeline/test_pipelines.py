@@ -413,15 +413,39 @@ def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
     # print(p.default_schema.to_pretty_yaml())
     # print(info)
 
-    # restore the pipeline
+    # attach the pipeline
     p = dlt.attach()
     # restored pipeline should be never put in full refresh
-    assert p.dev_mode is False
+    assert p.dev_mode is True
     # assert parent table (easy), None First (db order)
     assert_table_column(p, "lists", [None, None, "a"], info=info)
     # child tables contain nested lists
     data_list = cast(List[str], data[1]) + cast(List[str], data[2])
     assert_table_column(p, "lists__value", sorted(data_list))
+
+    # now restore the pipeline via attach
+    p._wipe_working_folder()
+    p = dlt.attach(
+        dataset_name=info.dataset_name,
+        destination=destination_config.destination_factory(),
+        staging=destination_config.staging,
+    )
+    # now dev mode is false
+    assert p.dev_mode is False
+    # but you can read data
+    assert_table_column(p, "lists", [None, None, "a"], info=info)
+
+    # now restore via pipeline
+    p._wipe_working_folder()
+    p = dlt.pipeline(
+        dataset_name=info.dataset_name,
+        destination=destination_config.destination_factory(),
+        staging=destination_config.staging,
+    )
+    # now dev mode is false
+    assert p.dev_mode is False
+    # but you can read data
+    assert_table_column(p, "lists", [None, None, "a"], info=info)
 
 
 @pytest.mark.essential

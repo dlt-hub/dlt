@@ -117,8 +117,8 @@ def run_dbt_command(
             raise dbt_exc
         return parsed_results or results
     except SystemExit as sys_ex:
-        # oftentimes dbt tries to exit on error
-        # NOTE: current implementation handles BaseExceptions so in theory SystemExit will not come here
+        # dbt >= 1.7 uses dbtRunner which handles BaseExceptions internally,
+        # so SystemExit should not reach here, but we handle it defensively
 
         raise DBTProcessingError(command, None, sys_ex)
     finally:

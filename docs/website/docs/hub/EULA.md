@@ -185,3 +185,7 @@ If it turns out that a section of this EULA isn’t enforceable, then that secti
 You and we agree that no joint venture, partnership, employment, or agency relationship exists between us.
 
 The EULA, along with any Specific Terms, make up the entire agreement between us in relation to its subject matter and supersede all prior agreements, representations, and understandings.
+
+# EULA for dltHub AI Workbench
+
+The dltHub AI Workbench has a separate license which can be accessed [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).

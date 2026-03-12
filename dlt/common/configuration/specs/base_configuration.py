@@ -557,6 +557,8 @@ class ContainerInjectableContext(BaseConfiguration):
     """If True, `Container` is allowed to create default context instance, if none exists"""
     global_affinity: ClassVar[bool] = False
     """If True, `Container` will create context that will be visible in any thread. If False, per thread context is created"""
+    worker_affinity: ClassVar[bool] = False
+    """If True, context will be passed to worker processes (e.g., in process pools)."""
     in_container: Annotated[bool, NotResolved()] = dataclasses.field(
         default=False, init=False, repr=False, compare=False
     )

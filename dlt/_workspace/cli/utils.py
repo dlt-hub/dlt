@@ -1,32 +1,62 @@
+import argparse
 import ast
 import os
 import shutil
-from typing import Any, Callable, Dict, List, Tuple, cast
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Set, Tuple
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.schema import Schema
+from dlt.common.storages.configuration import TSchemaFileFormat
 from dlt.common.time import ensure_pendulum_datetime_non_utc
 from dlt.common.typing import TAnyDateTime, TFun
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.pluggable_run_context import (
+    PluggableRunContext,
     RunContextBase,
     ProfilesRunContext,
 )
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.runtime import run_context
+from dlt.common.runtime.exec_info import get_plus_version
 from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.versioned_state import json_decode_state
+
+from dlt.pipeline.pipeline import Pipeline
+from dlt.pipeline.trace import get_trace_file_path
+from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli import echo as fmt
+from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
+from dlt._workspace.profile import BUILT_IN_PROFILES, read_profile_pin
+from dlt._workspace.typing import (
+    ProviderInfo,
+    ProviderLocationInfo,
+    TCurrentProfileInfo,
+    TLocationInfo,
+    TLocationScope,
+    TProfileInfo,
+    TProviderInfo,
+    TSchemaExport,
+    TToolkitIndexEntry,
+    TWorkspaceInfo,
+)
 
-from dlt.pipeline.trace import get_trace_file_path
-from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 REQUIREMENTS_TXT = "requirements.txt"
 PYPROJECT_TOML = "pyproject.toml"
 GITHUB_WORKFLOWS_DIR = os.path.join(".github", "workflows")
+
+DEFAULT_MCP_FEATURES: FrozenSet[str] = frozenset(
+    {"workspace", "pipeline", "toolkit", "secrets", "context"}
+)
+"""Default MCP feature set. Defined here (not in server.py) so argparsers can
+reference it without importing fastmcp."""
 AIRFLOW_DAGS_FOLDER = os.path.join("dags")
 AIRFLOW_BUILD_FOLDER = os.path.join("build")
 MODULE_INIT = "__init__.py"
@@ -41,16 +71,31 @@ def get_pipeline_trace_mtime(pipelines_dir: str, pipeline_name: str) -> float:
     return 0
 
 
+def _get_pipeline_initial_cwd(pipelines_dir: str, pipeline_name: str) -> Optional[str]:
+    """Read initial_cwd from a pipeline's local state without attaching."""
+    state_path = os.path.join(pipelines_dir, pipeline_name, Pipeline.STATE_FILE)
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            state = json_decode_state(f.read())
+        local: Dict[str, Any] = state.get("_local", {})
+        return local.get("initial_cwd")  # type: ignore[no-any-return]
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 def list_local_pipelines(
-    pipelines_dir: str = None, sort_by_trace: bool = True, additional_pipelines: List[str] = None
-) -> Tuple[str, List[Dict[str, Any]]]:
+    pipelines_dir: str = None,
+    sort_by_trace: bool = True,
+    additional_pipelines: List[str] = None,
+    run_dir: Optional[str] = None,
+) -> Tuple[str, List[TPipelineListItem]]:
     """Get the local pipelines directory and the list of pipeline names in it.
 
     Args:
-        pipelines_dir (str, optional): The local pipelines directory. Defaults to get_dlt_pipelines_dir().
-        sort_by_trace (bool, optional): Whether to sort the pipelines by the latest timestamp of trace. Defaults to True.
-    Returns:
-        Tuple[str, List[str]]: The local pipelines directory and the list of pipeline names in it.
+        pipelines_dir: The local pipelines directory. Defaults to get_dlt_pipelines_dir().
+        sort_by_trace: Whether to sort the pipelines by the latest timestamp of trace.
+        additional_pipelines: Extra pipeline names to include in the list.
+        run_dir: When set, only return pipelines whose initial_cwd matches this path.
     """
     pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
     storage = FileStorage(pipelines_dir)
@@ -65,15 +110,21 @@ def list_local_pipelines(
             if pipeline and pipeline not in pipelines:
                 pipelines.append(pipeline)
 
+    if run_dir:
+        abs_project_dir = os.path.abspath(run_dir)
+        pipelines = [
+            p for p in pipelines if _get_pipeline_initial_cwd(pipelines_dir, p) == abs_project_dir
+        ]
+
     # check last trace timestamp and create dict
-    pipelines_with_timestamps = []
+    pipelines_with_timestamps: List[TPipelineListItem] = []
     for pipeline in pipelines:
         pipelines_with_timestamps.append(
             {"name": pipeline, "timestamp": get_pipeline_trace_mtime(pipelines_dir, pipeline)}
         )
 
     if sort_by_trace:
-        pipelines_with_timestamps.sort(key=lambda x: cast(float, x["timestamp"]), reverse=True)
+        pipelines_with_timestamps.sort(key=lambda x: x["timestamp"], reverse=True)
 
     return pipelines_dir, pipelines_with_timestamps
 
@@ -102,20 +153,52 @@ def display_run_context_info() -> None:
             )
 
 
-def add_mcp_arg_parser(
-    subparsers: Any, description: str, help_str: str, default_sse_port: int
-) -> None:
-    command_parser = subparsers.add_parser(
+def make_mcp_run_flags(default_port: int = 8000) -> argparse.ArgumentParser:
+    """Build a parent parser with the shared MCP run flags (--stdio, --sse, --port, --features).
+
+    Returns an ArgumentParser with `add_help=False` suitable for use as a
+    `parents=[...]` entry.  Does **not** require `fastmcp` to be installed.
+    """
+    flags = argparse.ArgumentParser(add_help=False)
+    flags.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
+    flags.add_argument(
+        "--sse",
+        action="store_true",
+        help="Use legacy SSE transport instead of streamable-http",
+    )
+    flags.add_argument(
+        "--port",
+        type=int,
+        default=default_port,
+        help="Port for the MCP server (default: %d)" % default_port,
+    )
+    defaults = sorted(DEFAULT_MCP_FEATURES)
+    flags.add_argument(
+        "--features",
+        nargs="*",
+        default=None,
+        help=(
+            "MCP features to enable/disable. Default: %s. "
+            "Use +name to add, -name to remove "
+            "(e.g. --features=-secrets,+context)"
+            % ", ".join(defaults)
+        ),
+    )
+    return flags
+
+
+def add_mcp_arg_parser(subparsers: Any, description: str, help_str: str, default_port: int) -> None:
+    try:
+        from dlt._workspace.mcp.server import WorkspaceMCP  # noqa: F401
+    except ImportError:
+        return
+
+    flags = make_mcp_run_flags(default_port)
+    subparsers.add_parser(
         "mcp",
         description=description,
         help=help_str,
-    )
-    command_parser.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
-    command_parser.add_argument(
-        "--port",
-        type=int,
-        default=default_sse_port,
-        help=f"SSE port to use (default: {default_sse_port})",
+        parents=[flags],
     )
 
 
@@ -286,8 +369,8 @@ def track_command(
 ) -> Callable[[TFun], TFun]:
     """Return a telemetry decorator for CLI commands.
 
-    Wraps a function with anonymous telemetry tracking using ``with_telemetry``. Depending on
-    ``track_before``, emits an event either before execution or after execution with success
+    Wraps a function with anonymous telemetry tracking using `with_telemetry`. Depending on
+    `track_before`, emits an event either before execution or after execution with success
     information.
 
     Success semantics:
@@ -319,3 +402,170 @@ def make_dlt_settings_path(path: str = None) -> str:
     if not path:
         return ctx.settings_dir
     return ctx.get_setting(path)
+
+
+def get_provider_locations() -> List[ProviderInfo]:
+    """Return structured info about all config providers and their locations.
+
+    Works with both RunContext (OSS, no profiles) and WorkspaceRunContext
+    (profile-aware). Always reflects the currently active profile.
+    """
+    ctx_plug = Container()[PluggableRunContext]
+    ctx = ctx_plug.context
+    providers = ctx_plug.providers.providers
+
+    settings_dir = os.path.abspath(ctx.settings_dir)
+    global_dir = os.path.abspath(ctx.global_dir)
+
+    result: List[ProviderInfo] = []
+    for provider in providers:
+        profile: Optional[str] = getattr(provider, "_profile", None)
+        present_set = set(os.path.abspath(p) for p in provider.present_locations)
+
+        loc_infos: List[ProviderLocationInfo] = []
+        for path in provider.locations:
+            abs_path = os.path.abspath(path)
+            is_present = abs_path in present_set
+
+            # determine scope: project if under settings_dir, global otherwise
+            if abs_path.startswith(settings_dir + os.sep) or abs_path == settings_dir:
+                scope: TLocationScope = "project"
+            elif abs_path.startswith(global_dir + os.sep) or abs_path == global_dir:
+                scope = "global"
+            else:
+                scope = "global"
+
+            # determine if this specific location is profile-scoped
+            profile_name: Optional[str] = None
+            if profile and os.path.basename(path).startswith(f"{profile}."):
+                profile_name = profile
+
+            loc_infos.append(ProviderLocationInfo(path, is_present, scope, profile_name))
+
+        result.append(ProviderInfo(provider, loc_infos))
+    return result
+
+
+def fetch_profiles_list() -> List[TProfileInfo]:
+    """Return all available profiles with their status flags.
+
+    Works with ProfilesRunContext (workspace). Returns an empty list for OSS RunContext.
+    """
+    ctx = Container()[PluggableRunContext].context
+    if not isinstance(ctx, ProfilesRunContext):
+        return []
+
+    pinned = read_profile_pin(ctx)
+    current = ctx.profile
+    configured = set(ctx.configured_profiles())
+
+    return [
+        TProfileInfo(
+            name=name,
+            description=BUILT_IN_PROFILES.get(name, "custom profile"),
+            is_current=name == current,
+            is_pinned=name == pinned,
+            is_configured=name in configured,
+        )
+        for name in ctx.available_profiles()
+    ]
+
+
+def fetch_workspace_info() -> TWorkspaceInfo:
+    """Return workspace information as a structured dict.
+
+    Works with both OSS RunContext (no profiles) and WorkspaceRunContext.
+    Always includes all provider locations (verbose mode).
+    """
+    from dlt._workspace.cli.ai.utils import load_toolkits_index
+
+    ctx = Container()[PluggableRunContext].context
+
+    # profile info — only when profiles are available
+    profile_info: Optional[TCurrentProfileInfo] = None
+    configured_profiles: List[str] = []
+    if isinstance(ctx, ProfilesRunContext):
+        configured_profiles = ctx.configured_profiles()
+        profile_info = TCurrentProfileInfo(
+            name=ctx.profile,
+            description="",
+            is_current=True,
+            is_pinned=ctx.profile == read_profile_pin(ctx),
+            is_configured=ctx.profile in configured_profiles,
+            data_dir=ctx.data_dir,
+            local_dir=ctx.local_dir,
+        )
+
+    # workspace name — only meaningful for WorkspaceRunContext
+    name: Optional[str] = None
+    if isinstance(ctx, ProfilesRunContext):
+        name = ctx.name
+
+    # provider locations — always verbose (all locations)
+    providers: List[TProviderInfo] = []
+    for info in get_provider_locations():
+        providers.append(
+            TProviderInfo(
+                name=info.provider.name,
+                is_empty=info.provider.is_empty,
+                locations=[
+                    TLocationInfo(
+                        path=loc.path,
+                        present=loc.present,
+                        scope=loc.scope,
+                        profile_name=loc.profile_name,
+                    )
+                    for loc in info.locations
+                ],
+            )
+        )
+
+    # dlt and dlthub versions
+    plus_version = get_plus_version()
+    dlthub_version: Optional[str] = plus_version["version"] if plus_version else None
+
+    # initialized: config.toml exists in settings dir
+    initialized = os.path.isfile(make_dlt_settings_path("config.toml"))
+
+    # installed toolkits from local index
+    installed_toolkits: Dict[str, TToolkitIndexEntry] = load_toolkits_index()
+
+    return TWorkspaceInfo(
+        name=name,
+        run_dir=ctx.run_dir,
+        settings_dir=ctx.settings_dir,
+        global_dir=ctx.global_dir,
+        profile=profile_info,
+        configured_profiles=configured_profiles,
+        providers=providers,
+        dlt_version=dlt.__version__,
+        dlthub_version=dlthub_version,
+        initialized=initialized,
+        installed_toolkits=installed_toolkits,
+    )
+
+
+def fetch_schema_export(
+    schema: Schema,
+    format_: TSchemaFileFormat = "yaml",
+    remove_defaults: bool = True,
+    hide_columns: bool = False,
+) -> TSchemaExport:
+    """Export a schema object in the requested format."""
+    if format_ == "json":
+        content = schema.to_pretty_json(remove_defaults=remove_defaults)
+    elif format_ == "yaml":
+        content = schema.to_pretty_yaml(remove_defaults=remove_defaults)
+    elif format_ == "dbml":
+        content = schema.to_dbml()
+    elif format_ == "dot":
+        content = schema.to_dot()
+    elif format_ == "mermaid":
+        content = schema.to_mermaid(hide_columns=hide_columns)
+    else:
+        content = schema.to_pretty_yaml(remove_defaults=remove_defaults)
+    return TSchemaExport(
+        schema_name=schema.name,
+        format_=format_,
+        content=content,
+    )
