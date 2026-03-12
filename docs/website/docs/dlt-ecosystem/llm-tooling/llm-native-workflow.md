@@ -293,12 +293,12 @@ The **MCP server** exposes tools like `list_pipelines`, `get_table_schema`, and 
 Once your pipeline is validated, you can continue to the next phase of the data engineering lifecycle by installing additional toolkits:
 
 - **`data-exploration`** — connects to your loaded pipeline data and builds an interactive marimo dashboard with Altair charts as the final output.
-  The assistant adapts to your intent:
-  - **High-intent** (e.g. "show revenue by month"): scans the schema, plans the chart, and renders it directly to the dashboard.
+  The assistant adapts to how explicitly the user specifies their intent:
+  - **High-intent** (user has a specific question to be answered by the data, e.g. "show revenue by month"): scans the schema, plans the chart, and renders it directly to the dashboard.
   - **Low-intent** (e.g. "explore my github data"): profiles the data, suggests 5–10 business questions, and builds a dashboard from your selection.
 
-  Two skills drive the workflow: `/explore-data` connects to your data, profiles it, and plans charts one at a time, while `/build-notebook` assembles the charts into a marimo dashboard and launches it in your browser.
-  Build and launch the notebook early, then iterate — add or refine charts and regenerate as you go.
+  Two skills drive the workflow: `/explore-data` (entry point skill) connects to your data, profiles it by mapping the intent to the available data and identifying potential gaps, while `/build-notebook` assembles the charts into a marimo dashboard and launches it in your browser.
+  The toolkit is designed for iterative development: create one chart and launch the notebook, then iterate — add or refine charts and re-launch.
 
 - **`dlthub-runtime`** — deploy, schedule, and monitor your pipeline in production
 
