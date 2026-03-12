@@ -1,7 +1,7 @@
 ---
 title: Arrow Table / Pandas
 description: dlt source for Arrow tables and Pandas dataframes
-keywords: [arrow, pandas, parquet, source]
+keywords: [arrow, pandas, parquet, source, schema mismatch]
 ---
 import Header from './_source-info-header.md';
 
@@ -76,6 +76,31 @@ The output file format is chosen automatically based on the destination's capabi
 * dremio
 * synapse
 
+
+## Handling schema mismatches across batches
+
+When a resource yields multiple Arrow tables or DataFrames, `dlt` concatenates them before writing to disk. By default, all batches must have **identical schemas** — any type difference (e.g., `int64` vs `float64`) raises an `ArrowInvalid` error. This is common when reading multiple source files where pandas infers slightly different types per file.
+
+The `arrow_concat_promote_options` setting controls how type differences are resolved:
+
+| Value | Behavior |
+|-------|----------|
+| `"none"` (default) | Requires identical schemas. Zero-copy concatenation. |
+| `"default"` | Fills missing columns with nulls. Promotes `null`-typed columns to concrete types. Rejects cross-family type differences. |
+| `"permissive"` | Full type promotion (e.g., `int64` → `float64`). Fills missing columns with nulls. |
+
+```toml
+[sources.data_writer]
+arrow_concat_promote_options = "permissive"
+```
+
+```sh
+DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS=permissive
+```
+
+:::note
+Setting this to anything other than `"none"` disables zero-copy concatenation, which may increase memory usage for large batches. This maps directly to the `promote_options` parameter of [`pyarrow.concat_tables`](https://arrow.apache.org/docs/python/generated/pyarrow.concat_tables.html).
+:::
 
 ## Add `_dlt_load_id` and `_dlt_id` to your tables
 

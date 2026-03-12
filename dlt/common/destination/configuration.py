@@ -37,6 +37,10 @@ class ParquetFormatConfiguration(BaseConfiguration):
     """When False, constant columns (like _dlt_load_id) will use regular arrays instead of
     dictionary-encoded arrays. Set to False for destinations using ADBC drivers that don't
     support dictionary types (e.g., MSSQL)."""
+    arrow_concat_promote_options: Literal["none", "default", "permissive"] = "none"
+    """PyArrow concat_tables promote_options for Arrow table concatenation. "none" (default)
+    requires identical schemas and enables zero-copy concat. "default" promotes within type
+    families (e.g. int32 to int64). "permissive" promotes across families (e.g. int64 to double)."""
 
     def max_timestamp_precision(self) -> int:
         if (self.flavor or "").lower() == "spark":
