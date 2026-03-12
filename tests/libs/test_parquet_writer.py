@@ -391,7 +391,7 @@ def test_arrow_parquet_row_group_size() -> None:
 
 def _caps_with_promote(promote_options: str) -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext.generic_capabilities()
-    caps.parquet_format = ParquetFormatConfiguration(arrow_concat_promote_options=promote_options)
+    caps.parquet_format = ParquetFormatConfiguration(arrow_concat_promote_options=promote_options)  # type: ignore[arg-type]
     return caps
 
 
