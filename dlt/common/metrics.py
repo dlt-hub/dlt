@@ -45,9 +45,11 @@ class DataWriterAndCustomMetrics(DataWriterMetrics):
         """Includes custom_metrics in serialization, promoting list-valued
         metrics to top-level keys for cleaner child table names."""
         result = super()._asdict()
+        standard_keys = set(result)
         nested: Dict[str, Any] = {}
         for key, value in self.custom_metrics.items():
-            if isinstance(value, list):
+            # skip list metrics that collide with standard NamedTuple fields
+            if isinstance(value, list) and key not in standard_keys:
                 result[key] = value
             else:
                 nested[key] = value

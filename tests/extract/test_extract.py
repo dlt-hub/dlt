@@ -693,6 +693,51 @@ def test_resource_custom_metrics(extract_step: Extract, with_custom_metrics: boo
         assert d["custom_metrics"]["custom_count"] == 42
 
 
+def test_asdict_all_list_metrics(extract_step: Extract) -> None:
+    """When all custom metrics are list-valued, no custom_metrics key appears in _asdict()."""
+
+    @dlt.resource
+    def only_lists():
+        m = dlt.current.resource_metrics()
+        m["rows"] = [{"a": 1}]
+        m["errors"] = [{"msg": "oops"}]
+        yield [{"id": 1}]
+
+    source = DltSource(dlt.Schema("all_list"), "module", [only_lists()])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    d = step_info.metrics[load_id][0]["resource_metrics"]["only_lists"]._asdict()
+    assert "custom_metrics" not in d
+    assert d["rows"] == [{"a": 1}]
+    assert d["errors"] == [{"msg": "oops"}]
+
+
+def test_asdict_list_metric_collision_with_standard_field(extract_step: Extract) -> None:
+    """List-valued custom metric whose key collides with a standard NamedTuple field
+    stays nested under custom_metrics so it cannot overwrite standard metrics."""
+
+    @dlt.resource
+    def collision():
+        m = dlt.current.resource_metrics()
+        # items_count is a standard DataWriterMetrics field
+        m["items_count"] = [{"v": 99}]
+        m["safe_list"] = [{"v": 1}]
+        yield [{"id": 1}]
+
+    source = DltSource(dlt.Schema("collision"), "module", [collision()])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    metrics = step_info.metrics[load_id][0]["resource_metrics"]["collision"]
+    d = metrics._asdict()
+    # standard field preserved
+    assert isinstance(d["items_count"], int)
+    # colliding list metric stays in custom_metrics
+    assert d["custom_metrics"]["items_count"] == [{"v": 99}]
+    # non-colliding list metric promoted
+    assert d["safe_list"] == [{"v": 1}]
+    assert "safe_list" not in d.get("custom_metrics", {})
+
+
 @pytest.mark.parametrize(
     "with_custom_metrics", [True, False], ids=["with_custom_metrics", "without_custom_metrics"]
 )
