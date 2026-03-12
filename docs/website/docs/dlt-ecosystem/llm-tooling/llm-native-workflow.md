@@ -294,13 +294,13 @@ Once your pipeline is validated, you can continue to the next phase of the data 
 
 - **`data-exploration`** — connects to your loaded pipeline data and builds an interactive marimo dashboard with Altair charts as the final output.
   The assistant adapts to your intent:
-  - **High-intent**  (e.g. "show revenue by month"): scans the schema, plans the chart, and renders it directly to the dashboard.
+  - **High-intent** (e.g. "show revenue by month"): scans the schema, plans the chart, and renders it directly to the dashboard.
   - **Low-intent** (e.g. "explore my github data"): profiles the data, suggests 5–10 business questions, and builds a dashboard from your selection.
 
   Two skills drive the workflow: `/explore-data` connects to your data, profiles it, and plans charts one at a time, while `/build-notebook` assembles the charts into a marimo dashboard and launches it in your browser.
   Build and launch the notebook early, then iterate — add or refine charts and regenerate as you go.
 
-- **`dlthub-runtime`** — deploy, schedule, and monitor your pipeline in production 
+- **`dlthub-runtime`** — deploy, schedule, and monitor your pipeline in production
 
 [Sign up for dltHub Early Access](https://dlthub.com/solutions/for-small-data-teams)
 
