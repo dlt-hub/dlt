@@ -13,24 +13,24 @@ Pseudonymization is a deterministic way to hide personally identifiable informat
 In real-world scenarios, you typically want to mask specific columns dynamically rather than hardcoding column names. The example below shows a realistic approach using a closure that works with all backends supported by the `sql_database` source (PyArrow, ConnectorX, Pandas, and SQLAlchemy).
 
 ```py
-from enum import StrEnum
-from typing import Any
+from enum import Enum
+from typing import Any, Callable, Optional
 
 import pyarrow as pa
 import pandas as pd
 import dlt
 
 
-class MaskingMethod(StrEnum):
+class MaskingMethod(str, Enum):
     MASK = "mask"
     NULLIFY = "nullify"
 
 
 def mask_columns(
     columns: list[str],
-    method: MaskingMethod | None = None,
+    method: Optional[MaskingMethod] = None,
     mask: str = "******",
-) -> callable:
+) -> Callable[..., Any]:
     """Mask specified columns in a table or row.
 
     All backends supported by the sql_database source, as of version 1.4.1, are
@@ -38,27 +38,26 @@ def mask_columns(
 
     Args:
         columns (list[str]): The list of columns to mask.
-        method (MaskingMethod | None): The masking method to use (MASK or NULLIFY).
+        method (Optional[MaskingMethod]): The masking method to use (MASK or NULLIFY).
         mask (str): The mask string to use when method is MASK.
 
     Returns:
-        callable: A function that masks the specified columns in a table or row.
+        Callable: A function that masks the specified columns in a table or row.
 
     """
-    if method is None:
-        method = MaskingMethod.MASK
+    resolved_method: MaskingMethod = method if method is not None else MaskingMethod.MASK
 
     def apply_masking(
-        table_or_row: pa.Table | pd.DataFrame | dict[str, Any],
-    ) -> pa.Table | pd.DataFrame | dict[str, Any]:
+        table_or_row: Any,
+    ) -> Any:
         # Handle `pyarrow` and `connectorx` backends.
         if isinstance(table_or_row, pa.Table):
             table = table_or_row
             for col in table.schema.names:
                 if col in columns:
-                    if method == MaskingMethod.MASK:
+                    if resolved_method == MaskingMethod.MASK:
                         replace_with = pa.array([mask] * table.num_rows)
-                    elif method == MaskingMethod.NULLIFY:
+                    elif resolved_method == MaskingMethod.NULLIFY:
                         replace_with = pa.nulls(
                             table.num_rows, type=table.schema.field(col).type
                         )
@@ -75,9 +74,9 @@ def mask_columns(
 
             for col in table.columns:
                 if col in columns:
-                    if method == MaskingMethod.MASK:
+                    if resolved_method == MaskingMethod.MASK:
                         table[col] = mask
-                    elif method == MaskingMethod.NULLIFY:
+                    elif resolved_method == MaskingMethod.NULLIFY:
                         table[col] = None
             return table
 
@@ -86,9 +85,9 @@ def mask_columns(
             row = table_or_row
             for col in row:
                 if col in columns:
-                    if method == MaskingMethod.MASK:
+                    if resolved_method == MaskingMethod.MASK:
                         row[col] = mask
-                    elif method == MaskingMethod.NULLIFY:
+                    elif resolved_method == MaskingMethod.NULLIFY:
                         row[col] = None
             return row
 
@@ -118,4 +117,3 @@ load_info = pipeline.run(table)
 ```
 
 This approach uses a closure to capture the `columns`, `method`, and `mask` parameters, allowing you to reuse the same masking logic across different resources with different column configurations. The function automatically handles different data formats (PyArrow tables, Pandas DataFrames, and dictionaries) depending on the backend used by your source.
-
