@@ -458,76 +458,76 @@ name = "apache-airflow"
 version = "2.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "alembic", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-common-compat", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-common-io", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-common-sql", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-fab", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-ftp", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-http", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-imap", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-smtp", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-sqlite", marker = "python_full_version < '3.14'" },
-    { name = "argcomplete", marker = "python_full_version < '3.14'" },
-    { name = "asgiref", marker = "python_full_version < '3.14'" },
+    { name = "alembic", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-common-compat", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-common-io", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-common-sql", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-fab", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-ftp", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-http", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-imap", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-smtp", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-sqlite", marker = "python_full_version < '3.13'" },
+    { name = "argcomplete", marker = "python_full_version < '3.13'" },
+    { name = "asgiref", marker = "python_full_version < '3.13'" },
     { name = "attrs", version = "25.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
-    { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.14'" },
-    { name = "blinker", marker = "python_full_version < '3.14'" },
-    { name = "colorlog", marker = "python_full_version < '3.14'" },
-    { name = "configupdater", marker = "python_full_version < '3.14'" },
-    { name = "connexion", extra = ["flask"], marker = "python_full_version < '3.14'" },
-    { name = "cron-descriptor", marker = "python_full_version < '3.14'" },
-    { name = "croniter", marker = "python_full_version < '3.14'" },
-    { name = "cryptography", marker = "python_full_version < '3.14'" },
-    { name = "deprecated", marker = "python_full_version < '3.14'" },
-    { name = "dill", marker = "python_full_version < '3.14'" },
+    { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
+    { name = "blinker", marker = "python_full_version < '3.13'" },
+    { name = "colorlog", marker = "python_full_version < '3.13'" },
+    { name = "configupdater", marker = "python_full_version < '3.13'" },
+    { name = "connexion", extra = ["flask"], marker = "python_full_version < '3.13'" },
+    { name = "cron-descriptor", marker = "python_full_version < '3.13'" },
+    { name = "croniter", marker = "python_full_version < '3.13'" },
+    { name = "cryptography", marker = "python_full_version < '3.13'" },
+    { name = "deprecated", marker = "python_full_version < '3.13'" },
+    { name = "dill", marker = "python_full_version < '3.13'" },
     { name = "eval-type-backport", marker = "python_full_version < '3.10'" },
-    { name = "flask", marker = "python_full_version < '3.14'" },
-    { name = "flask-caching", marker = "python_full_version < '3.14'" },
-    { name = "flask-session", marker = "python_full_version < '3.14'" },
-    { name = "flask-wtf", marker = "python_full_version < '3.14'" },
-    { name = "fsspec", marker = "python_full_version < '3.14'" },
-    { name = "google-re2", marker = "python_full_version < '3.14'" },
-    { name = "gunicorn", marker = "python_full_version < '3.14'" },
-    { name = "httpx", marker = "python_full_version < '3.14'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
+    { name = "flask-caching", marker = "python_full_version < '3.13'" },
+    { name = "flask-session", marker = "python_full_version < '3.13'" },
+    { name = "flask-wtf", marker = "python_full_version < '3.13'" },
+    { name = "fsspec", marker = "python_full_version < '3.13'" },
+    { name = "google-re2", marker = "python_full_version < '3.13'" },
+    { name = "gunicorn", marker = "python_full_version < '3.13'" },
+    { name = "httpx", marker = "python_full_version < '3.13'" },
     { name = "importlib-metadata", marker = "python_full_version < '3.12'" },
-    { name = "itsdangerous", marker = "python_full_version < '3.14'" },
-    { name = "jinja2", marker = "python_full_version < '3.14'" },
-    { name = "jsonschema", marker = "python_full_version < '3.14'" },
-    { name = "lazy-object-proxy", marker = "python_full_version < '3.14'" },
-    { name = "linkify-it-py", marker = "python_full_version < '3.14'" },
-    { name = "lockfile", marker = "python_full_version < '3.14'" },
-    { name = "markdown-it-py", marker = "python_full_version < '3.14'" },
-    { name = "markupsafe", marker = "python_full_version < '3.14'" },
-    { name = "marshmallow-oneofschema", marker = "python_full_version < '3.14'" },
-    { name = "mdit-py-plugins", marker = "python_full_version < '3.14'" },
-    { name = "methodtools", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-api", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-exporter-otlp", marker = "python_full_version < '3.14'" },
-    { name = "packaging", marker = "python_full_version < '3.14'" },
-    { name = "pathspec", marker = "python_full_version < '3.14'" },
-    { name = "pendulum", marker = "python_full_version < '3.14'" },
-    { name = "pluggy", marker = "python_full_version < '3.14'" },
-    { name = "psutil", marker = "python_full_version < '3.14'" },
-    { name = "pygments", marker = "python_full_version < '3.14'" },
-    { name = "pyjwt", marker = "python_full_version < '3.14'" },
-    { name = "python-daemon", marker = "python_full_version < '3.14'" },
-    { name = "python-dateutil", marker = "python_full_version < '3.14'" },
-    { name = "python-nvd3", marker = "python_full_version < '3.14'" },
-    { name = "python-slugify", marker = "python_full_version < '3.14'" },
-    { name = "requests", marker = "python_full_version < '3.14'" },
-    { name = "requests-toolbelt", marker = "python_full_version < '3.14'" },
-    { name = "rfc3339-validator", marker = "python_full_version < '3.14'" },
-    { name = "rich", marker = "python_full_version < '3.14'" },
-    { name = "rich-argparse", marker = "python_full_version < '3.14'" },
-    { name = "setproctitle", marker = "python_full_version < '3.14'" },
-    { name = "sqlalchemy", marker = "python_full_version < '3.14'" },
-    { name = "sqlalchemy-jsonfield", marker = "python_full_version < '3.14'" },
-    { name = "tabulate", marker = "python_full_version < '3.14'" },
-    { name = "tenacity", marker = "python_full_version < '3.14'" },
-    { name = "termcolor", marker = "python_full_version < '3.14'" },
-    { name = "universal-pathlib", marker = "python_full_version < '3.14'" },
-    { name = "werkzeug", marker = "python_full_version < '3.14'" },
+    { name = "itsdangerous", marker = "python_full_version < '3.13'" },
+    { name = "jinja2", marker = "python_full_version < '3.13'" },
+    { name = "jsonschema", marker = "python_full_version < '3.13'" },
+    { name = "lazy-object-proxy", marker = "python_full_version < '3.13'" },
+    { name = "linkify-it-py", marker = "python_full_version < '3.13'" },
+    { name = "lockfile", marker = "python_full_version < '3.13'" },
+    { name = "markdown-it-py", marker = "python_full_version < '3.13'" },
+    { name = "markupsafe", marker = "python_full_version < '3.13'" },
+    { name = "marshmallow-oneofschema", marker = "python_full_version < '3.13'" },
+    { name = "mdit-py-plugins", marker = "python_full_version < '3.13'" },
+    { name = "methodtools", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-api", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-exporter-otlp", marker = "python_full_version < '3.13'" },
+    { name = "packaging", marker = "python_full_version < '3.13'" },
+    { name = "pathspec", marker = "python_full_version < '3.13'" },
+    { name = "pendulum", marker = "python_full_version < '3.13'" },
+    { name = "pluggy", marker = "python_full_version < '3.13'" },
+    { name = "psutil", marker = "python_full_version < '3.13'" },
+    { name = "pygments", marker = "python_full_version < '3.13'" },
+    { name = "pyjwt", marker = "python_full_version < '3.13'" },
+    { name = "python-daemon", marker = "python_full_version < '3.13'" },
+    { name = "python-dateutil", marker = "python_full_version < '3.13'" },
+    { name = "python-nvd3", marker = "python_full_version < '3.13'" },
+    { name = "python-slugify", marker = "python_full_version < '3.13'" },
+    { name = "requests", marker = "python_full_version < '3.13'" },
+    { name = "requests-toolbelt", marker = "python_full_version < '3.13'" },
+    { name = "rfc3339-validator", marker = "python_full_version < '3.13'" },
+    { name = "rich", marker = "python_full_version < '3.13'" },
+    { name = "rich-argparse", marker = "python_full_version < '3.13'" },
+    { name = "setproctitle", marker = "python_full_version < '3.13'" },
+    { name = "sqlalchemy", marker = "python_full_version < '3.13'" },
+    { name = "sqlalchemy-jsonfield", marker = "python_full_version < '3.13'" },
+    { name = "tabulate", marker = "python_full_version < '3.13'" },
+    { name = "tenacity", marker = "python_full_version < '3.13'" },
+    { name = "termcolor", marker = "python_full_version < '3.13'" },
+    { name = "universal-pathlib", marker = "python_full_version < '3.13'" },
+    { name = "werkzeug", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0b/e6/fe73a65cff795e93fd82256a10c7e19010f09bc30445afdd288acce41862/apache_airflow-2.11.0.tar.gz", hash = "sha256:252ae1a2f3d75547bb35907ac6abe6a105d02eaab265434ca587b5757940ce08", size = 12502139, upload-time = "2025-05-20T08:13:21.428Z" }
 wheels = [
@@ -539,7 +539,7 @@ name = "apache-airflow-providers-common-compat"
 version = "1.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "apache-airflow", marker = "python_full_version < '3.14'" },
+    { name = "apache-airflow", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d3/18/6083b268c690236b3285b02fd1a4559facc04efc6df22d063eeacc31a962/apache_airflow_providers_common_compat-1.7.0.tar.gz", hash = "sha256:b7eddd9acb39e42641916ab570252c9a30ae23fe4b78c128639afdcae8df6eca", size = 20879, upload-time = "2025-05-18T10:42:03.413Z" }
 wheels = [
@@ -551,7 +551,7 @@ name = "apache-airflow-providers-common-io"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "apache-airflow", marker = "python_full_version < '3.14'" },
+    { name = "apache-airflow", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/64/c0/895c209702979f9fa1eb90073ec3d04eb59f76bddb51b72b9fc5e8ab80f9/apache_airflow_providers_common_io-1.6.0.tar.gz", hash = "sha256:b9dabc08f0c7b27ec13cc9d222c096b520b64d2ee331fa6d7ccddfcf06158236", size = 22858, upload-time = "2025-05-18T10:42:04.229Z" }
 wheels = [
@@ -563,10 +563,10 @@ name = "apache-airflow-providers-common-sql"
 version = "1.27.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "apache-airflow", marker = "python_full_version < '3.14'" },
-    { name = "methodtools", marker = "python_full_version < '3.14'" },
-    { name = "more-itertools", marker = "python_full_version < '3.14'" },
-    { name = "sqlparse", marker = "python_full_version < '3.14'" },
+    { name = "apache-airflow", marker = "python_full_version < '3.13'" },
+    { name = "methodtools", marker = "python_full_version < '3.13'" },
+    { name = "more-itertools", marker = "python_full_version < '3.13'" },
+    { name = "sqlparse", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/35/a0/974f67323ba80aa55db842b4904457d3dbf97d7541b236eab445305a5f96/apache_airflow_providers_common_sql-1.27.1.tar.gz", hash = "sha256:72b25267c8b2969ba676b12bf74c49372150bc1b4ffef5e4093dd7ecc10311b7", size = 100001, upload-time = "2025-05-18T10:42:06.121Z" }
 wheels = [
@@ -578,13 +578,13 @@ name = "apache-airflow-providers-fab"
 version = "1.5.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "apache-airflow", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-common-compat", marker = "python_full_version < '3.14'" },
-    { name = "flask", marker = "python_full_version < '3.14'" },
-    { name = "flask-appbuilder", marker = "python_full_version < '3.14'" },
-    { name = "flask-login", marker = "python_full_version < '3.14'" },
-    { name = "google-re2", marker = "python_full_version < '3.14'" },
-    { name = "jmespath", marker = "python_full_version < '3.14'" },
+    { name = "apache-airflow", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-common-compat", marker = "python_full_version < '3.13'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
+    { name = "flask-appbuilder", marker = "python_full_version < '3.13'" },
+    { name = "flask-login", marker = "python_full_version < '3.13'" },
+    { name = "google-re2", marker = "python_full_version < '3.13'" },
+    { name = "jmespath", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cf/5f/e3428cba776c3a55dfb365a6c8000c36d35665496cc6bd1fbfacef6ffb17/apache_airflow_providers_fab-1.5.3.tar.gz", hash = "sha256:bb4d879fb9bf9bca7c0f103e1dc9d1fa25efe02e2c4536f4d60c789786fb1f89", size = 62751, upload-time = "2025-02-08T12:14:03.244Z" }
 wheels = [
@@ -596,7 +596,7 @@ name = "apache-airflow-providers-ftp"
 version = "3.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "apache-airflow", marker = "python_full_version < '3.14'" },
+    { name = "apache-airflow", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/32/bb/ffbee1b060f680bb03b01c29582c00e16ec6dd6b23c2a0c7a683b20d6651/apache_airflow_providers_ftp-3.13.0.tar.gz", hash = "sha256:da2fbca27f593e1b51397b9c545001c4f212a42af371d41c5f66269f7d173720", size = 66861, upload-time = "2025-05-18T10:42:24.5Z" }
 wheels = [
@@ -608,11 +608,11 @@ name = "apache-airflow-providers-http"
 version = "5.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "aiohttp", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow", marker = "python_full_version < '3.14'" },
-    { name = "asgiref", marker = "python_full_version < '3.14'" },
-    { name = "requests", marker = "python_full_version < '3.14'" },
-    { name = "requests-toolbelt", marker = "python_full_version < '3.14'" },
+    { name = "aiohttp", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow", marker = "python_full_version < '3.13'" },
+    { name = "asgiref", marker = "python_full_version < '3.13'" },
+    { name = "requests", marker = "python_full_version < '3.13'" },
+    { name = "requests-toolbelt", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b6/fe/a673bab5936d96719660b80cdd84c2f2d69f9d1e40157a183a3f19734391/apache_airflow_providers_http-5.3.0.tar.gz", hash = "sha256:729a2ddcbf6ab9927b5a524be8e7979a9a96359dd6aece6af76fa9808e5256ca", size = 61486, upload-time = "2025-05-18T10:42:29.879Z" }
 wheels = [
@@ -624,7 +624,7 @@ name = "apache-airflow-providers-imap"
 version = "3.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "apache-airflow", marker = "python_full_version < '3.14'" },
+    { name = "apache-airflow", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e5/1c/2c1867360edd73f75f234ef5e38addfa9067f8d6da4023f006a91ecc6749/apache_airflow_providers_imap-3.9.0.tar.gz", hash = "sha256:4f1df2110aed4ea827cbff869edd2ea54cfd7e34923e5900893aa0ac0ac5ae00", size = 23808, upload-time = "2025-05-18T10:42:31.285Z" }
 wheels = [
@@ -636,8 +636,8 @@ name = "apache-airflow-providers-smtp"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "apache-airflow", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-common-compat", marker = "python_full_version < '3.14'" },
+    { name = "apache-airflow", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-common-compat", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c2/12/220f2f921abccf2bc1bb58f5d22cf73d4f41014d6810c60d7411b39b615d/apache_airflow_providers_smtp-2.1.0.tar.gz", hash = "sha256:758b66da0336d2e1165f7050a06d215865e4b553c770a5c82bc7fac5508fe727", size = 36692, upload-time = "2025-05-18T10:43:07.759Z" }
 wheels = [
@@ -649,8 +649,8 @@ name = "apache-airflow-providers-sqlite"
 version = "4.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "apache-airflow", marker = "python_full_version < '3.14'" },
-    { name = "apache-airflow-providers-common-sql", marker = "python_full_version < '3.14'" },
+    { name = "apache-airflow", marker = "python_full_version < '3.13'" },
+    { name = "apache-airflow-providers-common-sql", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/79/0c/46342326da843b5346524ec0ac937ad583f9b833fb5f6f96097dc6f18b0e/apache_airflow_providers_sqlite-4.1.0.tar.gz", hash = "sha256:433e294df80cfd4afa4346dfe83b6f0638107592fcb0d933202958d31dd72a4e", size = 31135, upload-time = "2025-05-18T10:43:10.291Z" }
 wheels = [
@@ -662,7 +662,7 @@ name = "apispec"
 version = "6.8.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "packaging", marker = "python_full_version < '3.14'" },
+    { name = "packaging", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c0/21/2b86a14a01c800308226c018fa489991cc40ffc227954d4f59d8a4090477/apispec-6.8.2.tar.gz", hash = "sha256:ce5b69b9fcf0250cb56ba0c1a52a75ff22c2f7c586654e57884399018c519f26", size = 77148, upload-time = "2025-05-12T14:57:52.649Z" }
 wheels = [
@@ -671,7 +671,7 @@ wheels = [
 
 [package.optional-dependencies]
 yaml = [
-    { name = "pyyaml", marker = "python_full_version < '3.14'" },
+    { name = "pyyaml", marker = "python_full_version < '3.13'" },
 ]
 
 [[package]]
@@ -1505,8 +1505,8 @@ name = "clickclick"
 version = "20.10.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click", marker = "python_full_version < '3.14'" },
-    { name = "pyyaml", marker = "python_full_version < '3.14'" },
+    { name = "click", marker = "python_full_version < '3.13'" },
+    { name = "pyyaml", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c6/19/f91d85941b79964d569a3729bf9f8b7f85ab47240248e77b7c0c8ed6ecc3/clickclick-20.10.2.tar.gz", hash = "sha256:4efb13e62353e34c5eef7ed6582c4920b418d7dedc86d819e22ee089ba01802c", size = 9914, upload-time = "2020-10-03T13:36:47.966Z" }
 wheels = [
@@ -1707,7 +1707,7 @@ name = "colorlog"
 version = "6.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "python_full_version < '3.14' and sys_platform == 'win32'" },
+    { name = "colorama", marker = "python_full_version < '3.13' and sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d3/7a/359f4d5df2353f26172b3cc39ea32daa39af8de522205f512f458923e677/colorlog-6.9.0.tar.gz", hash = "sha256:bfba54a1b93b94f54e1f4fe48395725a3d92fd2a4af702f6bd70946bdc0c6ac2", size = 16624, upload-time = "2024-10-29T18:34:51.011Z" }
 wheels = [
@@ -1818,15 +1818,15 @@ name = "connexion"
 version = "2.14.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "clickclick", marker = "python_full_version < '3.14'" },
-    { name = "flask", marker = "python_full_version < '3.14'" },
-    { name = "inflection", marker = "python_full_version < '3.14'" },
-    { name = "itsdangerous", marker = "python_full_version < '3.14'" },
-    { name = "jsonschema", marker = "python_full_version < '3.14'" },
-    { name = "packaging", marker = "python_full_version < '3.14'" },
-    { name = "pyyaml", marker = "python_full_version < '3.14'" },
-    { name = "requests", marker = "python_full_version < '3.14'" },
-    { name = "werkzeug", marker = "python_full_version < '3.14'" },
+    { name = "clickclick", marker = "python_full_version < '3.13'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
+    { name = "inflection", marker = "python_full_version < '3.13'" },
+    { name = "itsdangerous", marker = "python_full_version < '3.13'" },
+    { name = "jsonschema", marker = "python_full_version < '3.13'" },
+    { name = "packaging", marker = "python_full_version < '3.13'" },
+    { name = "pyyaml", marker = "python_full_version < '3.13'" },
+    { name = "requests", marker = "python_full_version < '3.13'" },
+    { name = "werkzeug", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/8f/8b/c1d8a2e9327787354e936184f424b1ae96e526a0dad031bbc218c9dcaf35/connexion-2.14.2.tar.gz", hash = "sha256:dbc06f52ebeebcf045c9904d570f24377e8bbd5a6521caef15a06f634cf85646", size = 82819, upload-time = "2023-01-25T10:05:14.261Z" }
 wheels = [
@@ -1835,8 +1835,8 @@ wheels = [
 
 [package.optional-dependencies]
 flask = [
-    { name = "flask", marker = "python_full_version < '3.14'" },
-    { name = "itsdangerous", marker = "python_full_version < '3.14'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
+    { name = "itsdangerous", marker = "python_full_version < '3.13'" },
 ]
 
 [[package]]
@@ -1853,8 +1853,8 @@ name = "croniter"
 version = "6.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "python-dateutil", marker = "python_full_version < '3.14'" },
-    { name = "pytz", marker = "python_full_version < '3.14'" },
+    { name = "python-dateutil", marker = "python_full_version < '3.13'" },
+    { name = "pytz", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ad/2f/44d1ae153a0e27be56be43465e5cb39b9650c781e001e7864389deb25090/croniter-6.0.0.tar.gz", hash = "sha256:37c504b313956114a983ece2c2b07790b1f1094fe9d81cc94739214748255577", size = 64481, upload-time = "2024-12-17T17:17:47.32Z" }
 wheels = [
@@ -2625,7 +2625,7 @@ adbc = [
     { name = "dbc" },
 ]
 airflow = [
-    { name = "apache-airflow", marker = "python_full_version < '3.14'" },
+    { name = "apache-airflow", marker = "python_full_version < '3.13'" },
 ]
 dashboard-tests = [
     { name = "playwright" },
@@ -2848,7 +2848,7 @@ adbc = [
     { name = "adbc-driver-manager", specifier = ">=1.8.0" },
     { name = "dbc", specifier = ">=0.1.0" },
 ]
-airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.14'", specifier = ">=2.8.0,<4" }]
+airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.13'", specifier = ">=2.8.0,<3" }]
 dashboard-tests = [
     { name = "playwright", specifier = ">=1.58.0,<2" },
     { name = "pytest-playwright", specifier = ">=0.7.1,<1" },
@@ -3313,11 +3313,11 @@ name = "flask"
 version = "2.2.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click", marker = "python_full_version < '3.14'" },
+    { name = "click", marker = "python_full_version < '3.13'" },
     { name = "importlib-metadata", marker = "python_full_version < '3.10'" },
-    { name = "itsdangerous", marker = "python_full_version < '3.14'" },
-    { name = "jinja2", marker = "python_full_version < '3.14'" },
-    { name = "werkzeug", marker = "python_full_version < '3.14'" },
+    { name = "itsdangerous", marker = "python_full_version < '3.13'" },
+    { name = "jinja2", marker = "python_full_version < '3.13'" },
+    { name = "werkzeug", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5f/76/a4d2c4436dda4b0a12c71e075c508ea7988a1066b06a575f6afe4fecc023/Flask-2.2.5.tar.gz", hash = "sha256:edee9b0a7ff26621bd5a8c10ff484ae28737a2410d99b0bb9a6850c7fb977aa0", size = 697814, upload-time = "2023-05-02T14:42:36.742Z" }
 wheels = [
@@ -3329,28 +3329,28 @@ name = "flask-appbuilder"
 version = "4.5.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "apispec", extra = ["yaml"], marker = "python_full_version < '3.14'" },
-    { name = "click", marker = "python_full_version < '3.14'" },
-    { name = "colorama", marker = "python_full_version < '3.14'" },
-    { name = "email-validator", marker = "python_full_version < '3.14'" },
-    { name = "flask", marker = "python_full_version < '3.14'" },
-    { name = "flask-babel", marker = "python_full_version < '3.14'" },
-    { name = "flask-jwt-extended", marker = "python_full_version < '3.14'" },
+    { name = "apispec", extra = ["yaml"], marker = "python_full_version < '3.13'" },
+    { name = "click", marker = "python_full_version < '3.13'" },
+    { name = "colorama", marker = "python_full_version < '3.13'" },
+    { name = "email-validator", marker = "python_full_version < '3.13'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
+    { name = "flask-babel", marker = "python_full_version < '3.13'" },
+    { name = "flask-jwt-extended", marker = "python_full_version < '3.13'" },
     { name = "flask-limiter", version = "3.11.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
-    { name = "flask-limiter", version = "3.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.14'" },
-    { name = "flask-login", marker = "python_full_version < '3.14'" },
-    { name = "flask-sqlalchemy", marker = "python_full_version < '3.14'" },
-    { name = "flask-wtf", marker = "python_full_version < '3.14'" },
-    { name = "jsonschema", marker = "python_full_version < '3.14'" },
-    { name = "marshmallow", marker = "python_full_version < '3.14'" },
-    { name = "marshmallow-sqlalchemy", marker = "python_full_version < '3.14'" },
-    { name = "prison", marker = "python_full_version < '3.14'" },
-    { name = "pyjwt", marker = "python_full_version < '3.14'" },
-    { name = "python-dateutil", marker = "python_full_version < '3.14'" },
-    { name = "sqlalchemy", marker = "python_full_version < '3.14'" },
-    { name = "sqlalchemy-utils", marker = "python_full_version < '3.14'" },
-    { name = "werkzeug", marker = "python_full_version < '3.14'" },
-    { name = "wtforms", marker = "python_full_version < '3.14'" },
+    { name = "flask-limiter", version = "3.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
+    { name = "flask-login", marker = "python_full_version < '3.13'" },
+    { name = "flask-sqlalchemy", marker = "python_full_version < '3.13'" },
+    { name = "flask-wtf", marker = "python_full_version < '3.13'" },
+    { name = "jsonschema", marker = "python_full_version < '3.13'" },
+    { name = "marshmallow", marker = "python_full_version < '3.13'" },
+    { name = "marshmallow-sqlalchemy", marker = "python_full_version < '3.13'" },
+    { name = "prison", marker = "python_full_version < '3.13'" },
+    { name = "pyjwt", marker = "python_full_version < '3.13'" },
+    { name = "python-dateutil", marker = "python_full_version < '3.13'" },
+    { name = "sqlalchemy", marker = "python_full_version < '3.13'" },
+    { name = "sqlalchemy-utils", marker = "python_full_version < '3.13'" },
+    { name = "werkzeug", marker = "python_full_version < '3.13'" },
+    { name = "wtforms", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d6/9c/b6920650c21879f1e27afafba57af2985120d6e7896b625e7f671abd1834/Flask-AppBuilder-4.5.3.tar.gz", hash = "sha256:2f3f953b8134bed02ed0236ab7e85e6c354b1b3680069d76dfadc017eb05c561", size = 7355555, upload-time = "2025-01-21T16:14:58.318Z" }
 wheels = [
@@ -3362,10 +3362,10 @@ name = "flask-babel"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "babel", marker = "python_full_version < '3.14'" },
-    { name = "flask", marker = "python_full_version < '3.14'" },
-    { name = "jinja2", marker = "python_full_version < '3.14'" },
-    { name = "pytz", marker = "python_full_version < '3.14'" },
+    { name = "babel", marker = "python_full_version < '3.13'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
+    { name = "jinja2", marker = "python_full_version < '3.13'" },
+    { name = "pytz", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d7/fe/655e6a5a99ceb815fe839f0698956a9d6c7d5bcc06ca1ee7c6eb6dac154b/Flask-Babel-2.0.0.tar.gz", hash = "sha256:f9faf45cdb2e1a32ea2ec14403587d4295108f35017a7821a2b1acb8cfd9257d", size = 19588, upload-time = "2020-08-27T03:14:13.932Z" }
 wheels = [
@@ -3377,8 +3377,8 @@ name = "flask-caching"
 version = "2.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cachelib", marker = "python_full_version < '3.14'" },
-    { name = "flask", marker = "python_full_version < '3.14'" },
+    { name = "cachelib", marker = "python_full_version < '3.13'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e2/80/74846c8af58ed60972d64f23a6cd0c3ac0175677d7555dff9f51bf82c294/flask_caching-2.3.1.tar.gz", hash = "sha256:65d7fd1b4eebf810f844de7de6258254b3248296ee429bdcb3f741bcbf7b98c9", size = 67560, upload-time = "2025-02-23T01:34:40.207Z" }
 wheels = [
@@ -3390,9 +3390,9 @@ name = "flask-jwt-extended"
 version = "4.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "flask", marker = "python_full_version < '3.14'" },
-    { name = "pyjwt", marker = "python_full_version < '3.14'" },
-    { name = "werkzeug", marker = "python_full_version < '3.14'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
+    { name = "pyjwt", marker = "python_full_version < '3.13'" },
+    { name = "werkzeug", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/51/16/96b101f18cba17ecce3225ab07bc4c8f23e6befd8552dbbed87482e7c7fb/flask_jwt_extended-4.7.1.tar.gz", hash = "sha256:8085d6757505b6f3291a2638c84d207e8f0ad0de662d1f46aa2f77e658a0c976", size = 34411, upload-time = "2024-11-20T23:44:41.044Z" }
 wheels = [
@@ -3428,24 +3428,18 @@ name = "flask-limiter"
 version = "3.12"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name == 'nt' and sys_platform == 'emscripten'",
-    "python_full_version == '3.13.*' and os_name != 'nt' and sys_platform == 'emscripten'",
     "python_full_version == '3.12.*' and os_name == 'nt' and sys_platform == 'emscripten'",
     "python_full_version == '3.11.*' and os_name == 'nt' and sys_platform == 'emscripten'",
     "python_full_version == '3.10.*' and os_name == 'nt' and sys_platform == 'emscripten'",
@@ -3454,10 +3448,10 @@ resolution-markers = [
     "python_full_version == '3.10.*' and os_name != 'nt' and sys_platform == 'emscripten'",
 ]
 dependencies = [
-    { name = "flask", marker = "python_full_version >= '3.10' and python_full_version < '3.14'" },
-    { name = "limits", version = "5.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.14'" },
-    { name = "ordered-set", marker = "python_full_version >= '3.10' and python_full_version < '3.14'" },
-    { name = "rich", marker = "python_full_version >= '3.10' and python_full_version < '3.14'" },
+    { name = "flask", marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
+    { name = "limits", version = "5.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
+    { name = "ordered-set", marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
+    { name = "rich", marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/70/75/92b237dd4f6e19196bc73007fff288ab1d4c64242603f3c401ff8fc58a42/flask_limiter-3.12.tar.gz", hash = "sha256:f9e3e3d0c4acd0d1ffbfa729e17198dd1042f4d23c130ae160044fc930e21300", size = 303162, upload-time = "2025-03-15T02:23:10.734Z" }
 wheels = [
@@ -3469,8 +3463,8 @@ name = "flask-login"
 version = "0.6.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "flask", marker = "python_full_version < '3.14'" },
-    { name = "werkzeug", marker = "python_full_version < '3.14'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
+    { name = "werkzeug", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c3/6e/2f4e13e373bb49e68c02c51ceadd22d172715a06716f9299d9df01b6ddb2/Flask-Login-0.6.3.tar.gz", hash = "sha256:5e23d14a607ef12806c699590b89d0f0e0d67baeec599d75947bf9c147330333", size = 48834, upload-time = "2023-10-30T14:53:21.151Z" }
 wheels = [
@@ -3482,8 +3476,8 @@ name = "flask-session"
 version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cachelib", marker = "python_full_version < '3.14'" },
-    { name = "flask", marker = "python_full_version < '3.14'" },
+    { name = "cachelib", marker = "python_full_version < '3.13'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/19/bf/b8b3e20cf03d3938ef7e94970e43491a49386c65e07aca7e6a4e583be28f/Flask-Session-0.5.0.tar.gz", hash = "sha256:190875e6aebf2953c6803d42379ef3b934bc209ef8ef006f97aecb08f5aaeb86", size = 11319, upload-time = "2023-05-11T18:43:16.041Z" }
 wheels = [
@@ -3495,8 +3489,8 @@ name = "flask-sqlalchemy"
 version = "2.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "flask", marker = "python_full_version < '3.14'" },
-    { name = "sqlalchemy", marker = "python_full_version < '3.14'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
+    { name = "sqlalchemy", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/35/f0/39dd2d8e7e5223f78a5206d7020dc0e16718a964acfb3564d89e9798ab9b/Flask-SQLAlchemy-2.5.1.tar.gz", hash = "sha256:2bda44b43e7cacb15d4e05ff3cc1f8bc97936cc464623424102bfc2c35e95912", size = 132750, upload-time = "2021-03-18T19:03:02.733Z" }
 wheels = [
@@ -3508,9 +3502,9 @@ name = "flask-wtf"
 version = "1.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "flask", marker = "python_full_version < '3.14'" },
-    { name = "itsdangerous", marker = "python_full_version < '3.14'" },
-    { name = "wtforms", marker = "python_full_version < '3.14'" },
+    { name = "flask", marker = "python_full_version < '3.13'" },
+    { name = "itsdangerous", marker = "python_full_version < '3.13'" },
+    { name = "wtforms", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/80/9b/f1cd6e41bbf874f3436368f2c7ee3216c1e82d666ff90d1d800e20eb1317/flask_wtf-1.2.2.tar.gz", hash = "sha256:79d2ee1e436cf570bccb7d916533fa18757a2f18c290accffab1b9a0b684666b", size = 42641, upload-time = "2024-10-24T07:18:58.555Z" }
 wheels = [
@@ -4208,7 +4202,7 @@ name = "gunicorn"
 version = "23.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "packaging", marker = "python_full_version < '3.14'" },
+    { name = "packaging", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/34/72/9614c465dc206155d93eff0ca20d42e1e35afc533971379482de953521a4/gunicorn-23.0.0.tar.gz", hash = "sha256:f014447a0101dc57e294f6c18ca6b40227a4c90e9bdb586042628030cba004ec", size = 375031, upload-time = "2024-08-10T20:25:27.378Z" }
 wheels = [
@@ -5047,24 +5041,18 @@ name = "limits"
 version = "5.2.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
     "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name == 'nt' and sys_platform == 'emscripten'",
-    "python_full_version == '3.13.*' and os_name != 'nt' and sys_platform == 'emscripten'",
     "python_full_version == '3.12.*' and os_name == 'nt' and sys_platform == 'emscripten'",
     "python_full_version == '3.11.*' and os_name == 'nt' and sys_platform == 'emscripten'",
     "python_full_version == '3.10.*' and os_name == 'nt' and sys_platform == 'emscripten'",
@@ -5073,9 +5061,9 @@ resolution-markers = [
     "python_full_version == '3.10.*' and os_name != 'nt' and sys_platform == 'emscripten'",
 ]
 dependencies = [
-    { name = "deprecated", marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "packaging", marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
+    { name = "deprecated", marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
+    { name = "packaging", marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
+    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f3/93/1d0d9feedbf58220be4160f5f3fbe51f52449d0699f896b32ce731756e30/limits-5.2.0.tar.gz", hash = "sha256:b6b659774f17befef2dd30a76dcd2bdecf3852e73b6627143d44ab4deda94b48", size = 95048, upload-time = "2025-05-16T19:40:20.741Z" }
 wheels = [
@@ -5087,7 +5075,7 @@ name = "linkify-it-py"
 version = "2.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "uc-micro-py", marker = "python_full_version < '3.14'" },
+    { name = "uc-micro-py", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/2a/ae/bb56c6828e4797ba5a4821eec7c43b8bf40f69cda4d4f5f8c8a2810ec96a/linkify-it-py-2.0.3.tar.gz", hash = "sha256:68cda27e162e9215c17d786649d1da0021a451bdc436ef9e0fa0ba5234b9b048", size = 27946, upload-time = "2024-02-04T14:48:04.179Z" }
 wheels = [
@@ -5618,7 +5606,7 @@ name = "marshmallow"
 version = "3.26.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "packaging", marker = "python_full_version < '3.14'" },
+    { name = "packaging", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ab/5e/5e53d26b42ab75491cda89b871dab9e97c840bf12c63ec58a1919710cd06/marshmallow-3.26.1.tar.gz", hash = "sha256:e6d8affb6cb61d39d26402096dc0aee12d5a26d490a121f118d2e81dc0719dc6", size = 221825, upload-time = "2025-02-03T15:32:25.093Z" }
 wheels = [
@@ -5630,7 +5618,7 @@ name = "marshmallow-oneofschema"
 version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "marshmallow", marker = "python_full_version < '3.14'" },
+    { name = "marshmallow", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/bb/42/a0e00dea6a831acfe9d3fe664d695b7cefc02c27dd69d9ccb4bdc3c3d1a7/marshmallow_oneofschema-3.2.0.tar.gz", hash = "sha256:c06c8d9f14d51ffff152d66d85bd5f27d55cff10752a3b1f8c1f948bf5f597a0", size = 9096, upload-time = "2025-05-08T13:49:34.798Z" }
 wheels = [
@@ -5642,9 +5630,9 @@ name = "marshmallow-sqlalchemy"
 version = "0.28.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "marshmallow", marker = "python_full_version < '3.14'" },
-    { name = "packaging", marker = "python_full_version < '3.14'" },
-    { name = "sqlalchemy", marker = "python_full_version < '3.14'" },
+    { name = "marshmallow", marker = "python_full_version < '3.13'" },
+    { name = "packaging", marker = "python_full_version < '3.13'" },
+    { name = "sqlalchemy", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/07/84/9cced63c2e1bbd4f243f5aed0a4eaf018ef97475e4eecf388bed4d5033b8/marshmallow-sqlalchemy-0.28.2.tar.gz", hash = "sha256:2ab0f1280c793e5aec81deab3e63ec23688ddfe05e5f38ac960368a1079520a1", size = 52156, upload-time = "2023-02-23T22:39:08.931Z" }
 wheels = [
@@ -5720,7 +5708,7 @@ name = "mdit-py-plugins"
 version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markdown-it-py", marker = "python_full_version < '3.14'" },
+    { name = "markdown-it-py", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/19/03/a2ecab526543b152300717cf232bb4bb8605b6edb946c845016fa9c9c9fd/mdit_py_plugins-0.4.2.tar.gz", hash = "sha256:5f2cd1fdb606ddf152d37ec30e46101a60512bc0e5fa1a7002c36647b09e26b5", size = 43542, upload-time = "2024-09-09T20:27:49.564Z" }
 wheels = [
@@ -5741,7 +5729,7 @@ name = "methodtools"
 version = "0.4.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "wirerope", marker = "python_full_version < '3.14'" },
+    { name = "wirerope", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/13/3b/c21b74ac17befdf17b286494b02221b7a84affb1d410ff86e38ba0e14b13/methodtools-0.4.7.tar.gz", hash = "sha256:e213439dd64cfe60213f7015da6efe5dd4003fd89376db3baa09fe13ec2bb0ba", size = 3586, upload-time = "2023-02-05T13:17:54.473Z" }
 wheels = [
@@ -6826,8 +6814,8 @@ name = "opentelemetry-exporter-otlp"
 version = "1.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-exporter-otlp-proto-http", marker = "python_full_version < '3.14'" },
+    { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-exporter-otlp-proto-http", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fc/d3/8156cc14e8f4573a3572ee7f30badc7aabd02961a09acc72ab5f2c789ef1/opentelemetry_exporter_otlp-1.27.0.tar.gz", hash = "sha256:4a599459e623868cc95d933c301199c2367e530f089750e115599fccd67cb2a1", size = 6166, upload-time = "2024-08-28T21:35:33.746Z" }
 wheels = [
@@ -6839,7 +6827,7 @@ name = "opentelemetry-exporter-otlp-proto-common"
 version = "1.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "opentelemetry-proto", marker = "python_full_version < '3.14'" },
+    { name = "opentelemetry-proto", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cd/2e/7eaf4ba595fb5213cf639c9158dfb64aacb2e4c7d74bfa664af89fa111f4/opentelemetry_exporter_otlp_proto_common-1.27.0.tar.gz", hash = "sha256:159d27cf49f359e3798c4c3eb8da6ef4020e292571bd8c5604a2a573231dd5c8", size = 17860, upload-time = "2024-08-28T21:35:34.896Z" }
 wheels = [
@@ -6851,13 +6839,13 @@ name = "opentelemetry-exporter-otlp-proto-grpc"
 version = "1.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "deprecated", marker = "python_full_version < '3.14'" },
-    { name = "googleapis-common-protos", marker = "python_full_version < '3.14'" },
-    { name = "grpcio", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-api", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-exporter-otlp-proto-common", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-proto", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-sdk", marker = "python_full_version < '3.14'" },
+    { name = "deprecated", marker = "python_full_version < '3.13'" },
+    { name = "googleapis-common-protos", marker = "python_full_version < '3.13'" },
+    { name = "grpcio", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-api", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-exporter-otlp-proto-common", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-proto", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-sdk", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a1/d0/c1e375b292df26e0ffebf194e82cd197e4c26cc298582bda626ce3ce74c5/opentelemetry_exporter_otlp_proto_grpc-1.27.0.tar.gz", hash = "sha256:af6f72f76bcf425dfb5ad11c1a6d6eca2863b91e63575f89bb7b4b55099d968f", size = 26244, upload-time = "2024-08-28T21:35:36.314Z" }
 wheels = [
@@ -6869,13 +6857,13 @@ name = "opentelemetry-exporter-otlp-proto-http"
 version = "1.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "deprecated", marker = "python_full_version < '3.14'" },
-    { name = "googleapis-common-protos", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-api", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-exporter-otlp-proto-common", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-proto", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-sdk", marker = "python_full_version < '3.14'" },
-    { name = "requests", marker = "python_full_version < '3.14'" },
+    { name = "deprecated", marker = "python_full_version < '3.13'" },
+    { name = "googleapis-common-protos", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-api", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-exporter-otlp-proto-common", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-proto", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-sdk", marker = "python_full_version < '3.13'" },
+    { name = "requests", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/31/0a/f05c55e8913bf58a033583f2580a0ec31a5f4cf2beacc9e286dcb74d6979/opentelemetry_exporter_otlp_proto_http-1.27.0.tar.gz", hash = "sha256:2103479092d8eb18f61f3fbff084f67cc7f2d4a7d37e75304b8b56c1d09ebef5", size = 15059, upload-time = "2024-08-28T21:35:37.079Z" }
 wheels = [
@@ -6887,7 +6875,7 @@ name = "opentelemetry-proto"
 version = "1.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "protobuf", marker = "python_full_version < '3.14'" },
+    { name = "protobuf", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9a/59/959f0beea798ae0ee9c979b90f220736fbec924eedbefc60ca581232e659/opentelemetry_proto-1.27.0.tar.gz", hash = "sha256:33c9345d91dafd8a74fc3d7576c5a38f18b7fdf8d02983ac67485386132aedd6", size = 34749, upload-time = "2024-08-28T21:35:45.839Z" }
 wheels = [
@@ -6899,10 +6887,10 @@ name = "opentelemetry-sdk"
 version = "1.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "opentelemetry-api", marker = "python_full_version < '3.12'" },
-    { name = "opentelemetry-semantic-conventions", marker = "python_full_version < '3.12'" },
+    { name = "opentelemetry-api", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-semantic-conventions", marker = "python_full_version < '3.13'" },
     { name = "typing-extensions", version = "4.14.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
-    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
+    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0d/9a/82a6ac0f06590f3d72241a587cb8b0b751bd98728e896cc4cbd4847248e6/opentelemetry_sdk-1.27.0.tar.gz", hash = "sha256:d525017dea0ccce9ba4e0245100ec46ecdc043f2d7b8315d56b19aff0904fa6f", size = 145019, upload-time = "2024-08-28T21:35:46.708Z" }
 wheels = [
@@ -6914,8 +6902,8 @@ name = "opentelemetry-semantic-conventions"
 version = "0.48b0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "deprecated", marker = "python_full_version < '3.14'" },
-    { name = "opentelemetry-api", marker = "python_full_version < '3.14'" },
+    { name = "deprecated", marker = "python_full_version < '3.13'" },
+    { name = "opentelemetry-api", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0a/89/1724ad69f7411772446067cdfa73b598694c8c91f7f8c922e344d96d81f9/opentelemetry_semantic_conventions-0.48b0.tar.gz", hash = "sha256:12d74983783b6878162208be57c9effcb89dc88691c64992d70bb89dc00daa1a", size = 89445, upload-time = "2024-08-28T21:35:47.673Z" }
 wheels = [
@@ -7713,7 +7701,7 @@ name = "prison"
 version = "0.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "six", marker = "python_full_version < '3.14'" },
+    { name = "six", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/65/4456caa4e9bbd1d4d4b5eecaea41bb2cd31efe0e7e423c7a9ad8e2be75ea/prison-0.2.1.tar.gz", hash = "sha256:e6cd724044afcb1a8a69340cad2f1e3151a5839fd3a8027fd1357571e797c599", size = 12040, upload-time = "2021-08-26T18:58:48.128Z" }
 wheels = [
@@ -9199,7 +9187,7 @@ name = "python-daemon"
 version = "3.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "lockfile", marker = "python_full_version < '3.14'" },
+    { name = "lockfile", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/3d/37/4f10e37bdabc058a32989da2daf29e57dc59dbc5395497f3d36d5f5e2694/python_daemon-3.1.2.tar.gz", hash = "sha256:f7b04335adc473de877f5117e26d5f1142f4c9f7cd765408f0877757be5afbf4", size = 71576, upload-time = "2024-12-03T08:41:07.843Z" }
 wheels = [
@@ -9255,8 +9243,8 @@ name = "python-nvd3"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "jinja2", marker = "python_full_version < '3.14'" },
-    { name = "python-slugify", marker = "python_full_version < '3.14'" },
+    { name = "jinja2", marker = "python_full_version < '3.13'" },
+    { name = "python-slugify", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/54/e7/2a0bf4d9209d23a9121ab3f84e2689695d1ceba417f279f480af2948abef/python-nvd3-0.16.0.tar.gz", hash = "sha256:0115887289b3f751716ddd05c7b53ac5f05e71201e52496decdac453a50dcf7e", size = 34060, upload-time = "2024-04-22T07:55:15.856Z" }
 
@@ -9564,7 +9552,7 @@ name = "requests-toolbelt"
 version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "requests", marker = "python_full_version < '3.14'" },
+    { name = "requests", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f3/61/d7545dafb7ac2230c70d38d31cbfe4cc64f7144dc41f6e4e4b78ecd9f5bb/requests-toolbelt-1.0.0.tar.gz", hash = "sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6", size = 206888, upload-time = "2023-05-01T04:11:33.229Z" }
 wheels = [
@@ -9588,7 +9576,7 @@ name = "rfc3339-validator"
 version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "six", marker = "python_full_version < '3.14'" },
+    { name = "six", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/28/ea/a9387748e2d111c3c2b275ba970b735e04e15cdb1eb30693b6b5708c4dbd/rfc3339_validator-0.1.4.tar.gz", hash = "sha256:138a2abdf93304ad60530167e51d2dfb9549521a836871b88d7f4695d0022f6b", size = 5513, upload-time = "2021-05-12T16:37:54.178Z" }
 wheels = [
@@ -10380,7 +10368,7 @@ name = "sqlalchemy-jsonfield"
 version = "1.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "sqlalchemy", marker = "python_full_version < '3.14'" },
+    { name = "sqlalchemy", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d0/77/88de5c9ac1a44db1abb493d9d0995681b200ad625d80a4a289c7be438d80/SQLAlchemy-JSONField-1.0.2.tar.gz", hash = "sha256:dab3abc9d75a1640e7f3d4875564a4199f665d27863da8d5a089e4eaca5e67f2", size = 15879, upload-time = "2023-11-22T09:31:22.468Z" }
 wheels = [
@@ -10392,7 +10380,7 @@ name = "sqlalchemy-utils"
 version = "0.41.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "sqlalchemy", marker = "python_full_version < '3.14'" },
+    { name = "sqlalchemy", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/4d/bf/abfd5474cdd89ddd36dbbde9c6efba16bfa7f5448913eba946fed14729da/SQLAlchemy-Utils-0.41.2.tar.gz", hash = "sha256:bc599c8c3b3319e53ce6c5c3c471120bd325d0071fb6f38a10e924e3d07b9990", size = 138017, upload-time = "2024-03-24T15:17:28.196Z" }
 wheels = [
@@ -11085,7 +11073,7 @@ name = "universal-pathlib"
 version = "0.2.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "fsspec", marker = "python_full_version < '3.14'" },
+    { name = "fsspec", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/21/dd871495af3933e585261adce42678dcdf1168c9d6fa0a8f7b6565e54472/universal_pathlib-0.2.6.tar.gz", hash = "sha256:50817aaeaa9f4163cb1e76f5bdf84207fa05ce728b23fd779479b3462e5430ac", size = 175427, upload-time = "2024-12-13T00:58:27.514Z" }
 wheels = [
@@ -11416,7 +11404,7 @@ name = "werkzeug"
 version = "2.2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markupsafe", marker = "python_full_version < '3.14'" },
+    { name = "markupsafe", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/02/3c/baaebf3235c87d61d6593467056d5a8fba7c75ac838b8d100a5e64eba7a0/Werkzeug-2.2.3.tar.gz", hash = "sha256:2e1ccc9417d4da358b9de6f174e3ac094391ea1d4fbef2d667865d819dfd0afe", size = 845884, upload-time = "2023-02-14T17:18:44.177Z" }
 wheels = [
@@ -11453,7 +11441,7 @@ name = "wirerope"
 version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "six", marker = "python_full_version < '3.14'" },
+    { name = "six", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/8e/f1/d0a4c936ba77eb1050da6ea5e7cd80aa36add343d9e5f7f9cf79a206c5b8/wirerope-1.0.0.tar.gz", hash = "sha256:7da8bb6feeff9dd939bd7141ef0dc392674e43ba662e20909d6729db81a7c8d0", size = 10930, upload-time = "2025-01-16T11:01:25.427Z" }
 wheels = [
@@ -11540,7 +11528,7 @@ name = "wtforms"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markupsafe", marker = "python_full_version < '3.14'" },
+    { name = "markupsafe", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/01/e4/633d080897e769ed5712dcfad626e55dbd6cf45db0ff4d9884315c6a82da/wtforms-3.2.1.tar.gz", hash = "sha256:df3e6b70f3192e92623128123ec8dca3067df9cfadd43d59681e210cfb8d4682", size = 137801, upload-time = "2024-10-21T11:34:00.108Z" }
 wheels = [
