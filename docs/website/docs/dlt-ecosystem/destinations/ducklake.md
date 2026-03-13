@@ -244,7 +244,7 @@ with pipeline.sql_client() as client:
 ```
 
 ## Write disposition
-All write dispositions are supported. `upsert` is supported on **duckdb 1.4.x** (without hard deletes for now)
+All write dispositions are supported. `upsert` and `insert-only` are supported on **duckdb 1.4.x** (without hard deletes for now)
 
 ## Data loading
 By default, Parquet files and the `COPY` command are used to move local files to the remote storage,

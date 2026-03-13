@@ -7,6 +7,7 @@ from dlt.common.destination.client import (
     RunnableLoadJob,
     HasFollowupJobs,
 )
+from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.schema.typing import (
     TWriteDisposition,
     TTableSchema,
@@ -47,14 +48,16 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         write_disposition: TWriteDisposition = self._load_table.get("write_disposition", "append")
 
         merge_key: str = None
+        merge_strategy = None
         if write_disposition == "merge":
-            # use deterministic and unique id as a merge column (to perform classical upsert)
-            # NOTE: upsert strategy generates deterministic row_key both for root and nested tables
             merge_key = SqlMergeFollowupJob.get_row_key_col(
                 [self._load_table],
                 self._load_table,
                 self._job_client.dataset_name,
                 self._job_client.dataset_name,
+            )
+            merge_strategy = resolve_merge_strategy(
+                {self._load_table["name"]: self._load_table}, self._load_table
             )
 
         with open(self._file_path, mode="rb") as f:
@@ -67,6 +70,7 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
             table_name=fq_table_name,
             write_disposition=write_disposition,
             merge_key=merge_key,
+            merge_strategy=merge_strategy,
         )
 
 

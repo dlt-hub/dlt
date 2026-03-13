@@ -1386,6 +1386,118 @@ def test_iceberg_adapter_merge_write_disposition(
     "destination_config",
     destinations_configs(
         table_format_local_configs=True,
+        with_table_format="delta",
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_delta_insert_only_merge(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    from dlt.common.libs.deltalake import get_delta_tables
+
+    pipeline = destination_config.setup_pipeline("delta_insert_only", dev_mode=True)
+
+    @dlt.resource(
+        table_format="delta",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        primary_key="id",
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+        ]
+
+    info = pipeline.run(items())
+    assert_load_info(info)
+
+    dt = get_delta_tables(pipeline, "items")["items"]
+    assert dt.to_pyarrow_table().num_rows == 2
+
+    # second load: existing records should NOT be updated, new record inserted
+    @dlt.resource(
+        table_format="delta",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        primary_key="id",
+    )
+    def items_update():
+        yield [
+            {"id": 1, "name": "Alice Updated", "value": 999},
+            {"id": 3, "name": "Charlie", "value": 300},
+        ]
+
+    info = pipeline.run(items_update.with_name("items")())
+    assert_load_info(info)
+
+    dt = get_delta_tables(pipeline, "items")["items"]
+    data = dt.to_pyarrow_table()
+    assert data.num_rows == 3
+    alice = next(row for row in data.to_pylist() if row["id"] == 1)
+    assert alice["name"] == "Alice"
+    assert alice["value"] == 100
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg_insert_only_merge(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+    pipeline = destination_config.setup_pipeline("iceberg_insert_only", dev_mode=True)
+
+    @dlt.resource(
+        table_format="iceberg",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        primary_key="id",
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+        ]
+
+    info = pipeline.run(items())
+    assert_load_info(info)
+
+    it = get_iceberg_tables(pipeline, "items")["items"]
+    assert it.scan().to_arrow().num_rows == 2
+
+    # second load: existing records should NOT be updated, new record inserted
+    @dlt.resource(
+        table_format="iceberg",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        primary_key="id",
+    )
+    def items_update():
+        yield [
+            {"id": 1, "name": "Alice Updated", "value": 999},
+            {"id": 3, "name": "Charlie", "value": 300},
+        ]
+
+    info = pipeline.run(items_update.with_name("items")())
+    assert_load_info(info)
+
+    it = get_iceberg_tables(pipeline, "items")["items"]
+    data = it.scan().to_arrow()
+    assert data.num_rows == 3
+    alice = next(row for row in data.to_pylist() if row["id"] == 1)
+    assert alice["name"] == "Alice"
+    assert alice["value"] == 100
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
         with_table_format="iceberg",
     ),
     ids=lambda x: x.name,
