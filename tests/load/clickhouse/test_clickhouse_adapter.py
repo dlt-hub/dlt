@@ -1,6 +1,6 @@
 import pytest
 
-from typing import Generator, Dict, Literal, cast
+from typing import Generator, Dict, List, Literal, cast
 
 import dlt
 from dlt.common.schema.exceptions import UnboundColumnException
@@ -567,3 +567,86 @@ def test_set_column_hints_from_table_hint(table_hint: TSQLExprOrColumnSeq) -> No
     assert c1.get("nullable") is True  # retained (rule 4)
     assert c2.get("nullable") is False  # set (rule 2)
     assert c3.get("nullable") is True  # retained, despite being part of table hint (rule 4)
+
+
+def test_clickhouse_replacing_merge_tree() -> None:
+    """Test that ReplacingMergeTree is created with dedup_sort and hard_delete params
+    and that ClickHouse deduplicates rows on append."""
+
+    @dlt.resource(
+        write_disposition="append",
+        primary_key="id",
+        columns={
+            "version": {"dedup_sort": "desc", "nullable": False},
+            "is_deleted": {"hard_delete": True, "nullable": False},
+        },
+    )
+    def rmt_resource(data: List[Dict[str, object]]) -> Generator[Dict[str, object], None, None]:
+        yield from data
+
+    clickhouse_adapter(rmt_resource, table_engine_type="replacing_merge_tree")
+
+    pipe = dlt.pipeline(
+        pipeline_name="rmt_test",
+        destination="clickhouse",
+        dev_mode=True,
+        dataset_name="rmt_test_ds",
+    )
+
+    # first load: initial data
+    info = pipe.run(
+        rmt_resource(
+            [
+                {"id": 1, "name": "Alice", "version": 1, "is_deleted": False},
+                {"id": 2, "name": "Bob", "version": 1, "is_deleted": False},
+                {"id": 3, "name": "Charlie", "version": 1, "is_deleted": False},
+            ]
+        )
+    )
+    assert_load_info(info)
+
+    # verify engine type contains ReplacingMergeTree with version and is_deleted params
+    with pipe.sql_client() as client:
+        qualified = client.make_qualified_table_name("rmt_resource")
+        table_parts = qualified.replace("`", "").split(".")
+        with client.execute_query(
+            "SELECT engine, engine_full FROM system.tables "
+            f"WHERE database = '{table_parts[0]}' AND name = '{table_parts[1]}';"
+        ) as cursor:
+            row = cursor.fetchone()
+            engine_full = str(row[1])
+            # CH Cloud may remap to SharedMergeTree, but engine_full should
+            # contain the version column reference
+            assert "ReplacingMergeTree" in engine_full or "SharedMergeTree" in str(row[0])
+
+    # use dataset() to verify initial data via FINAL query
+    ds = pipe.dataset()
+    rows = ds(
+        f"SELECT id, name, version FROM {qualified} FINAL ORDER BY id",
+        _execute_raw_query=True,
+    ).fetchall()
+    assert len(rows) == 3
+    assert rows[0] == (1, "Alice", 1)
+    assert rows[1] == (2, "Bob", 1)
+    assert rows[2] == (3, "Charlie", 1)
+
+    # second load: update id=1 (higher version), delete id=3 via hard_delete
+    info = pipe.run(
+        rmt_resource(
+            [
+                {"id": 1, "name": "Alice Updated", "version": 2, "is_deleted": False},
+                {"id": 3, "name": "Charlie", "version": 2, "is_deleted": True},
+            ]
+        )
+    )
+    assert_load_info(info)
+
+    # verify dedup and hard delete via FINAL query
+    rows = ds(
+        f"SELECT id, name, version FROM {qualified} FINAL ORDER BY id",
+        _execute_raw_query=True,
+    ).fetchall()
+    # id=1 updated to version 2, id=2 unchanged, id=3 hard-deleted
+    assert len(rows) == 2
+    assert rows[0] == (1, "Alice Updated", 2)
+    assert rows[1] == (2, "Bob", 1)

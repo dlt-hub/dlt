@@ -10,6 +10,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
     ClickHouseClientConfiguration,
 )
+from dlt.common.schema.utils import new_table
 from tests.load.clickhouse.utils import clickhouse_client
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
@@ -190,3 +191,72 @@ def test_clickhouse_table_engine_configuration() -> None:
             ClickHouseClientConfiguration(), sections=("destination", "clickhouse")
         )
         assert config.table_engine_type == "replicated_merge_tree"
+
+
+def test_clickhouse_replacing_merge_tree_with_dedup_sort(
+    clickhouse_client: ClickHouseClient,
+) -> None:
+    columns = deepcopy(TABLE_UPDATE[:3])
+    columns[0]["primary_key"] = True
+    columns[1]["dedup_sort"] = "desc"
+
+    clickhouse_client.schema.update_table(
+        new_table(
+            "rmt_table",
+            write_disposition="append",
+            columns=columns,
+        )
+    )
+    clickhouse_client.schema.tables["rmt_table"]["x-table-engine-type"] = (  # type: ignore[typeddict-unknown-key]
+        "replacing_merge_tree"
+    )
+
+    sql = clickhouse_client._get_table_update_sql("rmt_table", columns, False)[0]
+    assert "ENGINE = ReplacingMergeTree(`col2`)" in sql
+    assert "PRIMARY KEY (`col1`)" in sql
+
+
+def test_clickhouse_replacing_merge_tree_with_hard_delete(
+    clickhouse_client: ClickHouseClient,
+) -> None:
+    columns = deepcopy(TABLE_UPDATE[:3])
+    columns[0]["primary_key"] = True
+    columns[1]["dedup_sort"] = "desc"
+    columns[2]["hard_delete"] = True
+
+    clickhouse_client.schema.update_table(
+        new_table(
+            "rmt_hd_table",
+            write_disposition="append",
+            columns=columns,
+        )
+    )
+    clickhouse_client.schema.tables["rmt_hd_table"]["x-table-engine-type"] = (  # type: ignore[typeddict-unknown-key]
+        "replacing_merge_tree"
+    )
+
+    sql = clickhouse_client._get_table_update_sql("rmt_hd_table", columns, False)[0]
+    assert "ENGINE = ReplacingMergeTree(`col2`, `col3`)" in sql
+    assert "PRIMARY KEY (`col1`)" in sql
+
+
+def test_clickhouse_replacing_merge_tree_fallback_no_dedup_sort(
+    clickhouse_client: ClickHouseClient,
+) -> None:
+    columns = deepcopy(TABLE_UPDATE[:3])
+    columns[0]["primary_key"] = True
+
+    clickhouse_client.schema.update_table(
+        new_table(
+            "rmt_fallback_table",
+            write_disposition="append",
+            columns=columns,
+        )
+    )
+    clickhouse_client.schema.tables["rmt_fallback_table"]["x-table-engine-type"] = (  # type: ignore[typeddict-unknown-key]
+        "replacing_merge_tree"
+    )
+
+    sql = clickhouse_client._get_table_update_sql("rmt_fallback_table", columns, False)[0]
+    assert "ENGINE = MergeTree" in sql
+    assert "ReplacingMergeTree" not in sql

@@ -201,9 +201,66 @@ Supported values for `table_engine_type` are:
 - `merge_tree` (default) - creates tables using the `MergeTree` engine, suitable for most use cases. [Learn more about MergeTree](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree).
 - `shared_merge_tree` - creates tables using the `SharedMergeTree` engine, optimized for cloud-native environments with shared storage. This table is **only** available on ClickHouse Cloud, and it is the default selection if `merge_tree` is selected. [Learn more about SharedMergeTree](https://clickhouse.com/docs/en/cloud/reference/shared-merge-tree).
 - `replicated_merge_tree` - creates tables using the `ReplicatedMergeTree` engine, which supports data replication across multiple nodes for high availability. [Learn more about ReplicatedMergeTree](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replication). This defaults to `shared_merge_tree` on ClickHouse Cloud.
+- `replacing_merge_tree` - creates tables using the `ReplacingMergeTree` engine, which deduplicates rows with the same sorting key during background merges. See [native deduplication with ReplacingMergeTree](#native-deduplication-with-replacingmergetree) below. [Learn more about ReplacingMergeTree](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replacingmergetree).
 - Experimental support for the `Log` engine family with `stripe_log` and `tiny_log`.
 
 For local development and testing with ClickHouse running locally, the `MergeTree` engine is recommended.
+
+### Native deduplication with ReplacingMergeTree
+
+When loading data with `append` write disposition, you can use ClickHouse's `ReplacingMergeTree` engine to handle deduplication and deletes at the storage engine level — without using dlt's `merge` write disposition. This is useful when you want ClickHouse to manage upserts natively, for example when appending CDC events or syncing data from an external source where rows may repeat.
+
+To enable this, combine `replacing_merge_tree` with dlt column hints:
+
+- **`primary_key`** — defines the sorting key. Rows with the same primary key are deduplicated.
+- **`dedup_sort`** (required) — specifies the version column. ClickHouse keeps the row with the **highest** value in this column. Must be a non-nullable integer, `Date`, or `DateTime` type.
+- **`hard_delete`** (optional) — specifies a boolean deletion marker column. Rows where this column is `True` are removed during merges.
+
+dlt automatically wires these hints into the `ReplacingMergeTree` engine parameters. If `dedup_sort` is not set, dlt falls back to `MergeTree` with a warning.
+
+```py
+import dlt
+from dlt.destinations.adapters import clickhouse_adapter
+
+@dlt.resource(
+    write_disposition="append",
+    primary_key="id",
+    columns={
+        "version": {"dedup_sort": "desc", "nullable": False},
+        "is_deleted": {"hard_delete": True, "nullable": False},
+    },
+)
+def events(data):
+    yield from data
+
+clickhouse_adapter(events, table_engine_type="replacing_merge_tree")
+
+pipeline = dlt.pipeline("my_pipeline", destination="clickhouse")
+
+# first load
+pipeline.run(events([
+    {"id": 1, "name": "Alice", "version": 1, "is_deleted": False},
+    {"id": 2, "name": "Bob", "version": 1, "is_deleted": False},
+]))
+
+# second load: update Alice, delete Bob
+pipeline.run(events([
+    {"id": 1, "name": "Alice Updated", "version": 2, "is_deleted": False},
+    {"id": 2, "name": "Bob", "version": 2, "is_deleted": True},
+]))
+```
+
+This generates `ENGINE = ReplacingMergeTree(version, is_deleted)`, so ClickHouse keeps only the row with the highest `version` per `id` and removes rows marked as deleted.
+
+:::caution Data consistency
+`ReplacingMergeTree` deduplicates during **background merges**, which happen asynchronously. Until a merge runs, duplicate rows may be visible in queries. To get consistent (deduplicated) results, use the `FINAL` modifier:
+
+```sql
+SELECT * FROM my_table FINAL
+```
+
+This is different from dlt's `merge` write disposition, which deduplicates immediately during loading via explicit SQL statements. Choose `ReplacingMergeTree` when eventual consistency is acceptable and you want ClickHouse to manage deduplication natively.
+:::
 
 ## Sorting and partitioning
 You can use the `clickhouse_adapter` to specify a [sorting](https://clickhouse.com/docs/engines/table-engines/mergetree-family/mergetree#order_by) and/or [partition](https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partitioning-key) key:
