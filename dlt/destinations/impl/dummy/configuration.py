@@ -1,3 +1,4 @@
+from typing import Optional, List
 import dataclasses
 from typing import Final
 
@@ -36,6 +37,8 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     """raise transient exception in job init"""
     truncate_tables_on_staging_destination_before_load: bool = True
     """truncate tables on staging destination"""
+    fail_table_names: Optional[List[str]] = None
+    """List of table names to fail"""
 
     # new jobs workflows
     create_followup_jobs: bool = False
