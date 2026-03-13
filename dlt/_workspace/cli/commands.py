@@ -723,10 +723,21 @@ If you are reading this on the docs website, you are looking at the rendered ver
 
         if args.compare:
             with open(args.file_name[0], "r", encoding="utf-8") as f:
-                if result != f.read():
+                existing = f.read()
+                if result != existing:
+                    import difflib
+
+                    diff = difflib.unified_diff(
+                        existing.splitlines(keepends=True),
+                        result.splitlines(keepends=True),
+                        fromfile=args.file_name[0],
+                        tofile=args.file_name[0] + " (generated)",
+                    )
                     fmt.error(
-                        "Cli Docs out of date, please update, please run "
-                        "update-cli-docs from the main Makefile and commit your changes. "
+                        "Cli Docs out of date, please run "
+                        "update-cli-docs from the main Makefile and commit your changes.\n"
+                        "Diff:\n"
+                        + "".join(diff)
                     )
                     raise CliCommandException()
 
