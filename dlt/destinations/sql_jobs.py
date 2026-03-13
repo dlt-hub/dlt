@@ -719,22 +719,22 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         hard_delete_col: Optional[str],
         deleted_cond: Optional[str],
         insert_only: bool = False,
+        not_deleted_cond: Optional[str] = None,
     ) -> List[str]:
         """Generate MERGE statement for upsert/insert-only on root table.
 
         Override for backends that don't support DELETE in MERGE (e.g., DuckLake).
+        When `insert_only`, uses `not_deleted_cond` to pre-filter staging.
         """
         sql: List[str] = []
         on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
         col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
 
         if insert_only:
-            # filter hard-deleted records from staging, skip all WHEN MATCHED clauses
             staging_source = staging_root_table_name
-            if hard_delete_col is not None and deleted_cond is not None:
+            if hard_delete_col is not None and not_deleted_cond is not None:
                 staging_source = (
-                    f"(SELECT * FROM {staging_root_table_name}"
-                    f" WHERE NOT COALESCE({deleted_cond}, FALSE))"
+                    f"(SELECT * FROM {staging_root_table_name} WHERE {not_deleted_cond})"
                 )
             sql.append(f"""
                 MERGE INTO {root_table_name} d USING {staging_source} s
@@ -788,6 +788,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # generate merge statement for root table
         root_table_column_names = list(map(escape_column_id, root_table["columns"]))
+        # we need not_deleted_cond to filter out hard deleted rows before insert
+        not_deleted_cond = None
+        if insert_only and hard_delete_col is not None:
+            _, not_deleted_cond = cls._get_hard_delete_col_and_cond(
+                root_table, escape_column_id, escape_lit, invert=True
+            )
         sql.extend(
             cls.gen_upsert_merge_sql(
                 root_table_name,
@@ -797,6 +803,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 hard_delete_col,
                 deleted_cond,
                 insert_only=insert_only,
+                not_deleted_cond=not_deleted_cond,
             )
         )
 

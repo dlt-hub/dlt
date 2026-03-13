@@ -1944,7 +1944,6 @@ def test_insert_only_strategy(destination_config: DestinationTestConfiguration) 
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        table_format_local_configs=True,
         supports_merge=True,
     ),
     ids=lambda x: x.name,
