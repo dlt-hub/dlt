@@ -1,13 +1,28 @@
 from typing import Optional, Tuple, TypeVar, Generic, Type, Union, Any, List
+
+from dlt.common import logger
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.schema import Schema
+from dlt.common.typing import TDataItems
+from dlt.common.schema.exceptions import DataValidationError
+from dlt.common.schema.typing import (
+    TAnySchemaColumns,
+    TSchemaContract,
+    TSchemaEvolutionMode,
+    TTableSchema,
+)
 
 try:
     from pydantic import BaseModel as PydanticBaseModel
-except ModuleNotFoundError:
+    from dlt.common.libs.pydantic import (
+        ValidationError,
+        validate_and_filter_item,
+        validate_and_filter_items,
+    )
+except (ModuleNotFoundError, MissingDependencyException):
     PydanticBaseModel = Any  # type: ignore[misc, assignment]
 
-from dlt.common.typing import TDataItems
-from dlt.common.schema.typing import TAnySchemaColumns, TSchemaContract, TSchemaEvolutionMode
+from dlt.extract.utils import get_data_item_format
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.items_transform import BaseItemTransform, ValidateItem
 
@@ -24,20 +39,24 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         column_mode: TSchemaEvolutionMode,
         data_mode: TSchemaEvolutionMode,
     ) -> None:
-        from dlt.common.libs.pydantic import apply_schema_contract_to_model, create_list_model
+        from dlt.common.libs.pydantic import (
+            _build_discriminator_map,
+            apply_schema_contract_to_model,
+            create_list_model,
+        )
 
         BaseItemTransform.__init__(self)
         self.column_mode: TSchemaEvolutionMode = column_mode
         self.data_mode: TSchemaEvolutionMode = data_mode
+        self.original_model = model
+        self._discriminator_map = _build_discriminator_map(model)
         self.model = apply_schema_contract_to_model(model, column_mode, data_mode)
-        self.list_model = create_list_model(self.model, data_mode)
+        self.list_model = create_list_model(self.model, column_mode, data_mode)
 
     def __call__(self, item: TDataItems, meta: Any = None) -> TDataItems:
         """Validate a data item against the pydantic model"""
         if item is None:
             return None
-
-        from dlt.common.libs.pydantic import validate_and_filter_item, validate_and_filter_items
 
         cfg = getattr(self.model, "dlt_config", {}) or {}
         return_models = cfg.get("return_validated_models", False)
@@ -48,18 +67,47 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
             )
             if return_models:
                 return validated_list
-            return [m.dict(by_alias=True) for m in validated_list]
+            return [m.model_dump(by_alias=True) for m in validated_list]
 
-        validated = validate_and_filter_item(
-            self.table_name, self.model, item, self.column_mode, self.data_mode
-        )
+        try:
+            validated = validate_and_filter_item(
+                self.table_name, self.model, item, self.column_mode, self.data_mode
+            )
+        except (ValidationError, DataValidationError):
+            # pass through arrow, pandas and model items that pydantic cannot validate
+            if get_data_item_format(item) != "object":
+                return item
+            raise
         if validated is None:
             return None
 
         if return_models:
             return validated
 
-        return validated.dict(by_alias=True)
+        return validated.model_dump(by_alias=True)
+
+    def compute_table_schema(self, item: Any = None, meta: Any = None) -> Optional[TTableSchema]:
+        """Computes authoritative table schema from the original Pydantic model.
+
+        Only returns a schema when is_authoritative_model is set in DltConfig.
+        """
+        cfg = getattr(self.original_model, "dlt_config", None) or {}
+        if not cfg.get("is_authoritative_model", False):
+            return None
+
+        from dlt.common.libs.pydantic import (
+            pydantic_to_table_schema_columns,
+            resolve_variant_model,
+        )
+
+        model = self.original_model
+        if item is not None:
+            model = resolve_variant_model(model, item, self._discriminator_map)  # type: ignore[assignment]
+            if model is None:
+                return None
+
+        columns = pydantic_to_table_schema_columns(model)
+        return {"name": self.table_name, "columns": columns}
 
     def __str__(self, *args: Any, **kwargs: Any) -> str:
         return f"PydanticValidator(model={self.model.__qualname__})"
@@ -83,7 +131,33 @@ def create_item_validator(
             schema_contract
         ), "schema_contract cannot be dynamic for Pydantic item validator"
 
-        from dlt.common.libs.pydantic import extra_to_column_mode, get_extra_from_model
+        from dlt.common.libs.pydantic import (
+            column_mode_to_extra,
+            extra_to_column_mode,
+            get_extra_from_model,
+        )
+
+        model_extra = get_extra_from_model(columns)
+        model_column_mode = extra_to_column_mode(model_extra or "ignore")
+
+        # warn when model explicitly sets extra and schema_contract contradicts it.
+        # schema_contract can be a string (applies to all entities) or a dict
+        if model_extra and schema_contract:
+            if isinstance(schema_contract, str):
+                explicit_columns = schema_contract
+            elif isinstance(schema_contract, dict):
+                explicit_columns = schema_contract.get("columns")
+            if explicit_columns != model_column_mode:
+                new_extra = column_mode_to_extra(explicit_columns)
+                logger.warning(
+                    f"Pydantic model {columns.__name__} has extra='{model_extra}' but the"
+                    f" explicit schema_contract sets columns='{explicit_columns}'."
+                    " The model's extra setting will be overridden to"
+                    f" extra='{new_extra}' for data validation."
+                    " Note that it is sufficient to just set the extra on the model "
+                    "or columns on schema contract. dlt translates one setting into "
+                    "another, refer to schema contract documentation."
+                )
 
         # freeze the columns if we have a fully defined table and no other explicit contract
         expanded_schema_contract = Schema.expand_schema_contract_settings(
@@ -91,7 +165,7 @@ def create_item_validator(
             # corresponds to default Pydantic behavior
             default={
                 "tables": "evolve",
-                "columns": extra_to_column_mode(get_extra_from_model(columns)),
+                "columns": model_column_mode,
                 "data_type": "freeze",
             },
         )

@@ -1,5 +1,6 @@
 import re
 import inspect
+import sys
 from typing import Dict, Tuple, Type, Any, Optional
 from inspect import Signature, Parameter
 
@@ -124,4 +125,5 @@ def spec_from_signature(
     SPEC = configspec()(T)
     # add to the module
     setattr(module, name, SPEC)
+
     return SPEC, signature_fields

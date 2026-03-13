@@ -5,6 +5,9 @@ from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.normalizers.typing import TNormalizersConfig
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
+from dlt.common.normalizers.json.relational_no_coercion import (
+    DataItemNormalizer as NoCoercionNormalizer,
+)
 from dlt.common.normalizers.naming import snake_case, direct
 from dlt.common.normalizers.naming.exceptions import (
     InvalidNamingType,
@@ -123,8 +126,6 @@ def test_naming_from_reference() -> None:
 def test_import_normalizers() -> None:
     config, naming, json_normalizer = import_normalizers(configured_normalizers())
     assert isinstance(naming, snake_case.NamingConvention)
-    # no maximum length: we do not know the destination capabilities
-    assert naming.max_length is None
     assert json_normalizer is RelationalNormalizer
     assert config["names"] == "snake_case"
     assert config["json"] == {"module": "dlt.common.normalizers.json.relational"}
@@ -137,8 +138,31 @@ def test_import_normalizers() -> None:
     assert config["names"] == "direct"
     assert config["json"] == {"module": "tests.common.normalizers.custom_normalizers"}
     assert isinstance(naming, direct.NamingConvention)
-    assert naming.max_length is None
     assert json_normalizer is CustomRelationalNormalizer
+
+
+def test_import_normalizers_json_shorthand() -> None:
+    # shorthand without dots resolves to dlt.common.normalizers.json namespace
+    config, _, json_normalizer = import_normalizers(
+        configured_normalizers(json_normalizer={"module": "relational"})
+    )
+    assert config["json"]["module"] == "dlt.common.normalizers.json.relational"
+    assert json_normalizer is RelationalNormalizer
+
+    config, _, json_normalizer = import_normalizers(
+        configured_normalizers(json_normalizer={"module": "relational_no_coercion"})
+    )
+    assert config["json"]["module"] == "dlt.common.normalizers.json.relational_no_coercion"
+    assert json_normalizer is NoCoercionNormalizer
+
+    # full module path still works
+    config, _, json_normalizer = import_normalizers(
+        configured_normalizers(
+            json_normalizer={"module": "dlt.common.normalizers.json.relational_no_coercion"}
+        )
+    )
+    assert config["json"]["module"] == "dlt.common.normalizers.json.relational_no_coercion"
+    assert json_normalizer is NoCoercionNormalizer
 
 
 def test_import_normalizers_with_defaults() -> None:

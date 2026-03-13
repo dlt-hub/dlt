@@ -4,6 +4,7 @@ from types import ModuleType
 from functools import update_wrapper, wraps
 from typing import (
     Any,
+    Awaitable,
     Callable,
     Dict,
     Iterator,
@@ -18,12 +19,12 @@ from typing import (
 from typing_extensions import TypeVar, Self
 
 from dlt.common import logger
-from dlt.common.configuration import with_config, get_fun_spec, known_sections, configspec
+from dlt.common.configuration import with_config, get_fun_spec, known_sections
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.inject import set_fun_spec
 from dlt.common.configuration.resolve import inject_section
-from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
+from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
@@ -108,6 +109,20 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         self.spec: Type[BaseConfiguration] = None
         self.parallelized: bool = None
         self._impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
+        self._postprocessors: List[
+            Callable[[TDltSourceImpl], Union[TDltSourceImpl, Awaitable[TDltSourceImpl]]]
+        ] = []
+
+    def add_postprocessor(
+        self, func: Callable[[TDltSourceImpl], Union[TDltSourceImpl, Awaitable[TDltSourceImpl]]]
+    ) -> None:
+        """Adds a callback that receives and returns a DltSource after it is created."""
+        self._postprocessors.append(func)
+
+    def _apply_postprocessors(self, source: TDltSourceImpl) -> TDltSourceImpl:
+        for func in self._postprocessors:
+            source = func(source)  # type: ignore[assignment]
+        return source
 
     def clone(
         self,
@@ -159,6 +174,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         # also remember original source function
         ovr._f = self._f
         ovr.ref = self.ref
+        ovr._postprocessors = list(self._postprocessors)
         ovr._update_wrapper()
         # try to bind _f
         ovr.wrap()
@@ -183,7 +199,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
                 resource.apply_hints(schema_contract=self.schema_contract)
         else:
             source = self._deco_f(*args, **kwargs)
-        return source
+        return self._apply_postprocessors(source)
 
     def bind(self, f: AnyFun) -> Self:
         """Binds wrapper to the original source function and registers the source reference. This method is called only once by the decorator"""

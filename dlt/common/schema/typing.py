@@ -131,6 +131,7 @@ _ColumnPropInfos = [
     TColumnPropInfo("root_key", (False, None)),
     TColumnPropInfo("hard_delete", (False, None)),
     TColumnPropInfo("dedup_sort", (False, None)),
+    TColumnPropInfo("incremental", (False, None), False, True),
     # any x- hint with special settings ie. defaults
     TColumnPropInfo("x-active-record-timestamp", (), is_hint=True),  # no default values
 ]
@@ -251,9 +252,9 @@ TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert"]
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 
-WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
-MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy))
-REPLACE_STRATEGIES: Set[TLoaderReplaceStrategy] = set(get_args(TLoaderReplaceStrategy))
+WRITE_DISPOSITIONS: Sequence[TWriteDisposition] = sorted(get_args(TWriteDisposition))
+MERGE_STRATEGIES: Sequence[TLoaderMergeStrategy] = sorted(get_args(TLoaderMergeStrategy))
+REPLACE_STRATEGIES: Sequence[TLoaderReplaceStrategy] = sorted(get_args(TLoaderReplaceStrategy))
 
 DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
 """Default values for validity column names used in `scd2` merge strategy."""

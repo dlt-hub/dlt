@@ -1,0 +1,8 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.8.4
+    container_name: dlt_test_qdrant
+    restart: on-failure
+    ports:
+    - 6333:6333      # REST API
+    - 6334:6334      # gRPC API

@@ -162,6 +162,66 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     assert "ADD COLUMN `col2` FLOAT64  NOT NULL" in sql
 
 
+@pytest.mark.parametrize(
+    "partition_col_index,partition_col_name",
+    [
+        (9, "col10"),  # date
+        (3, "col4"),  # timestamp
+        (0, "col1"),  # bigint
+    ],
+    ids=["date", "timestamp", "bigint"],
+)
+def test_alter_table_with_partition_skips_partition_clause(
+    gcp_client: BigQueryClient, partition_col_index: int, partition_col_name: str
+) -> None:
+    mod_update = deepcopy(TABLE_UPDATE)
+    mod_update[partition_col_index]["partition"] = True
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_update, True)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
+    assert sql.startswith("ALTER TABLE")
+    assert "PARTITION BY" not in sql
+    assert f"ADD COLUMN `{partition_col_name}`" in sql
+
+
+def test_alter_table_with_adapter_partition_skips_partition_clause() -> None:
+    @dlt.resource
+    def partitioned_table():
+        yield {
+            "user_id": 10000,
+            "name": "user 1",
+        }
+
+    bigquery_adapter(
+        partitioned_table,
+        partition=bigquery_partition.range_bucket(
+            column_name="user_id",
+            start=0,
+            end=1000000,
+            interval=10000,
+        ),
+    )
+
+    pipeline = dlt.pipeline(
+        "bigquery_test",
+        destination="bigquery",
+        dev_mode=True,
+    )
+
+    pipeline.extract(partitioned_table)
+    pipeline.normalize()
+
+    with pipeline.destination_client() as client:
+        sql = client._get_table_update_sql(  # type: ignore[attr-defined]
+            "partitioned_table",
+            list(pipeline.default_schema.tables["partitioned_table"]["columns"].values()),
+            True,
+        )[0]
+
+    assert sql.startswith("ALTER TABLE")
+    assert "PARTITION BY" not in sql
+    assert "RANGE_BUCKET" not in sql
+
+
 def test_create_table_case_insensitive(ci_gcp_client: BigQueryClient) -> None:
     # in case insensitive mode
     assert ci_gcp_client.capabilities.has_case_sensitive_identifiers is False

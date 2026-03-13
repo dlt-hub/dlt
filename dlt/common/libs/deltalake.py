@@ -11,8 +11,9 @@ from dlt.common.libs.utils import load_open_tables
 from dlt.common.schema.typing import TWriteDisposition, TTableSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
-from dlt.common.storages import FilesystemConfiguration
+from dlt.common.typing import DictStrAny
 from dlt.common.utils import assert_min_pkg_version
+from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 
 try:
@@ -172,14 +173,17 @@ def get_delta_tables(
     )
 
 
-def deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:
+def deltalake_storage_options(
+    credentials: Optional[CredentialsConfiguration] = None,
+    storage_options: Optional[DictStrAny] = None,
+) -> Dict[str, str]:
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
     creds = {}
     extra_options = {}
-    if isinstance(config.credentials, WithObjectStoreRsCredentials):
-        creds = config.credentials.to_object_store_rs_credentials()
-    if config.deltalake_storage_options is not None:
-        extra_options = config.deltalake_storage_options
+    if credentials is not None and isinstance(credentials, WithObjectStoreRsCredentials):
+        creds = credentials.to_object_store_rs_credentials()
+    if storage_options is not None:
+        extra_options = storage_options
     shared_keys = creds.keys() & extra_options.keys()
     if len(shared_keys) > 0:
         logger.warning(
@@ -203,16 +207,16 @@ def evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) 
 
     if deltalake_semver.major == 0:
         new_fields = [
-            deltalake.Field.from_pyarrow(field)
+            deltalake.Field.from_pyarrow(field)  # type: ignore[attr-defined]
             for field in ensure_delta_compatible_arrow_schema(arrow_schema)
-            if field.name not in delta_table.schema().to_pyarrow().names
+            if field.name not in delta_table.schema().to_pyarrow().names  # type: ignore[attr-defined]
         ]
     else:
         # deltalake 1.x changed pyarrow to arrow
         new_fields = [
-            deltalake.Field.from_arrow(field)  # type: ignore[attr-defined]
+            deltalake.Field.from_arrow(field)
             for field in ensure_delta_compatible_arrow_schema(arrow_schema)
-            if field.name not in delta_table.schema().to_arrow().names  # type: ignore[attr-defined]
+            if field.name not in delta_table.schema().to_arrow().names
         ]
     if new_fields:
         delta_table.alter.add_columns(new_fields)

@@ -22,11 +22,10 @@ def _make_pipeline(destination_name: str):
     )
 
 
-@pytest.mark.skip("Reenable after #3343 is resolved")
 def test_rest_api_config_provider(toml_providers: ConfigProvidersContainer) -> None:
     # mock dicts in toml provider
     dlt.config["client"] = {
-        "base_url": "https://pokeapi.co/api/v2/",
+        "base_url": "https://pokeapi.apps.dlthub.com/api/v2/",
     }
     dlt.config["resources"] = [
         {
@@ -36,7 +35,7 @@ def test_rest_api_config_provider(toml_providers: ConfigProvidersContainer) -> N
                 "paginator": SinglePagePaginator(),
                 "data_selector": "results",
                 "params": {
-                    "limit": 10,
+                    "limit": 1000,
                 },
             },
         }
@@ -44,15 +43,15 @@ def test_rest_api_config_provider(toml_providers: ConfigProvidersContainer) -> N
     pipeline = _make_pipeline("duckdb")
     load_info = pipeline.run(rest_api())
     print(load_info)
+    print(pipeline.last_trace.last_normalize_info)
 
 
-@pytest.mark.skip("Reenable after #3343 is resolved")
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
 @pytest.mark.parametrize("invocation_type", ("deco", "factory"))
 def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
     config: RESTAPIConfig = {
         "client": {
-            "base_url": "https://pokeapi.co/api/v2/",
+            "base_url": "https://pokeapi.apps.dlthub.com/api/v2/",
         },
         "resource_defaults": {
             "endpoint": {
@@ -84,13 +83,12 @@ def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
     assert table_counts.items() >= POKEMON_EXPECTED_TABLE_COUNTS.items()
 
 
-@pytest.mark.skip("Reenable after #3343 is resolved")
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
 @pytest.mark.parametrize("invocation_type", ("deco", "factory"))
 def test_dependent_resource(destination_name: str, invocation_type: str) -> None:
     config: RESTAPIConfig = {
         "client": {
-            "base_url": "https://pokeapi.co/api/v2/",
+            "base_url": "https://pokeapi.apps.dlthub.com/api/v2/",
         },
         "resource_defaults": {
             "endpoint": {

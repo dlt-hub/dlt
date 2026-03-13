@@ -23,7 +23,7 @@ from dlt.common.json import (
     JsonSerializable,
 )
 
-from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT, preserve_environ
+from tests.utils import autouse_test_storage, get_test_storage_root, preserve_environ
 from tests.cases import (
     JSON_TYPED_DICT,
     JSON_TYPED_DICT_DECODED,
@@ -57,7 +57,7 @@ def test_load_save_binary(json_impl: SupportsJson) -> None:
     with open(json_case_path("weird_rows"), "rb") as f:
         doc = json_impl.load(f)
     assert doc[1]["str"] == "イロハニホヘト チリヌルヲ 'ワカヨタレソ ツネナラム"
-    test_path = os.path.join(TEST_STORAGE_ROOT, "weird_rows_b.json")
+    test_path = os.path.join(get_test_storage_root(), "weird_rows_b.json")
     with open(test_path, "wb") as f:
         json_impl.dump(doc, f)
     saved_doc = load_json_case("weird_rows")
@@ -97,7 +97,7 @@ def test_pretty_print(json_impl: SupportsJson) -> None:
     # do pretty dump and read
     with open(json_case_path("weird_rows"), "rb") as f:
         doc = json_impl.load(f)
-    test_path = os.path.join(TEST_STORAGE_ROOT, "weird_rows_b.json")
+    test_path = os.path.join(get_test_storage_root(), "weird_rows_b.json")
     with open(test_path, "wb") as f:
         json_impl.dump(doc, f, pretty=True)
     with open(test_path, "r", encoding="utf-8") as f:
@@ -121,7 +121,7 @@ def test_order_keys(json_impl: SupportsJson) -> None:
     doc_keys = list(doc.keys())
     doc__data_keys = list(doc["data"].keys())
 
-    test_path = os.path.join(TEST_STORAGE_ROOT, "mod_bot_case_b.json")
+    test_path = os.path.join(get_test_storage_root(), "mod_bot_case_b.json")
     with open(test_path, "wb") as f:
         json_impl.dump(doc, f, pretty=True, sort_keys=True)
     with open(test_path, "r", encoding="utf-8") as f:

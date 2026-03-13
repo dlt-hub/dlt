@@ -74,7 +74,7 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
     The default non-secure HTTP port for ClickHouse is `8123`.
     This is different from the default port `9000`, which is used for the native TCP protocol.
 
-    You must additionaly set `http_port` if you are not using external staging (i.e., you don't set the `staging` destination parameter in your pipeline). This is because dlt's built-in ClickHouse local storage staging uses the [clickhouse-connect](https://github.com/ClickHouse/clickhouse-connect) library, which communicates with ClickHouse over HTTP.
+    You must additionally set `http_port` if you are not using external staging (i.e., you don't set the `staging` destination parameter in your pipeline). This is because dlt's built-in ClickHouse local storage staging uses the [clickhouse-connect](https://github.com/ClickHouse/clickhouse-connect) library, which communicates with ClickHouse over HTTP.
 
     Make sure your ClickHouse server is configured to accept HTTP connections on the port specified by `http_port`. For example:
 
@@ -104,7 +104,8 @@ You can set the following configuration options in the `.dlt/secrets.toml` file:
 dataset_table_separator = "___"                         # The default separator for dataset table names from the dataset.
 table_engine_type = "merge_tree"                        # The default table engine to use.
 dataset_sentinel_table_name = "dlt_sentinel_table"      # The default name for sentinel tables.
-staging_use_https = true                                # Wether to connecto to the staging bucket via https (defaults to True)
+staging_use_https = true                                # Whether to connect to the staging bucket via https (defaults to True)
+select_sequential_consistency = 1                       # Ensures read-after-write consistency on ClickHouse Cloud (defaults to 1)
 ```
 
 ## Write disposition
@@ -117,6 +118,19 @@ Data is loaded into ClickHouse using the most efficient method depending on the 
 
 - For local files, the `clickhouse-connect` library is used to directly load files into ClickHouse tables using the `INSERT` command.
 - For files in remote storage like S3, Google Cloud Storage, or Azure Blob Storage, ClickHouse table functions like `s3`, `gcs`, and `azureBlobStorage` are used to read the files and insert the data into tables.
+
+### Read-after-write consistency
+
+By default, dlt sets `select_sequential_consistency=1` on all ClickHouse connections. This ensures
+that `SELECT` queries always see the results of preceding writes, even on ClickHouse Cloud
+(SharedMergeTree) or self-hosted clusters where queries may be routed to different nodes. If you are
+running read-only workloads and want to avoid the small metadata check overhead, set it to `0` in
+your configuration:
+
+```toml
+[destination.clickhouse]
+select_sequential_consistency = 0
+```
 
 ## Datasets
 
@@ -410,6 +424,29 @@ because the ClickHouse GCS table function requires the use of HMAC credentials, 
 dlt's staging mechanisms for ClickHouse.
 :::
 
+When using S3 for a staging area you can alternatively have ClickHouse authenticate using Role-based access with the
+[supported](https://clickhouse.com/docs/sql-reference/table-functions/s3#using-s3-credentials-clickhouse-cloud) `extra_credentials` argument by setting this with the destination credentials:
+```py
+import dlt
+from dlt.destinations import clickhouse
+
+destination = clickhouse(
+  credentials={
+    # Other credentials you need
+    "s3_extra_credentials": {
+      'role_arn': 'arn:your:role' # The AWS Role assumed by ClickHouse
+    }
+  }
+)
+
+pipeline = dlt.pipeline(
+  pipeline_name='chess_pipeline',
+  destination=destination,
+  staging='filesystem',  # add this to activate staging
+  dataset_name='chess_data'
+)
+```
+
 ### dbt support
 
 Integration with [dbt](../transformations/dbt/dbt.md) is generally supported via dbt-clickhouse but not tested by us. Note how
@@ -420,4 +457,3 @@ we support datasets by prefixing the table names. You should take it into accoun
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA clickhouse-->
-

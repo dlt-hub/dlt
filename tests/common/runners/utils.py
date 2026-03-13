@@ -16,8 +16,10 @@ ALL_METHODS = set(multiprocessing.get_all_start_methods()).intersection(["fork",
 @pytest.fixture(autouse=True)
 def mp_method_auto() -> Iterator[None]:
     method = multiprocessing.get_start_method()
-    yield
-    multiprocessing.set_start_method(method, force=True)
+    try:
+        yield
+    finally:
+        multiprocessing.set_start_method(method, force=True)
 
 
 class _TestRunnableWorkerMethod(Runnable[Executor]):

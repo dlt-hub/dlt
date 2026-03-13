@@ -152,44 +152,65 @@ def test_explicit_append() -> None:
 
 
 def test_pipeline_replace() -> None:
-    generator_instance1 = sequence_generator()
-    generator_instance2 = sequence_generator()
+    batch_1 = [{"content": "alpha"}, {"content": "beta"}, {"content": "gamma"}]
+    batch_2 = [{"content": "delta"}, {"content": "epsilon"}]
 
     @dlt.resource
     def some_data():
-        yield from next(generator_instance1)
+        yield data
 
-    weaviate_adapter(
-        some_data,
-        vectorize=["content"],
-    )
-
-    uid = uniq_id()
+    weaviate_adapter(some_data, vectorize=["content"])
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_replace",
         destination="weaviate",
-        dataset_name="test_pipeline_replace_dataset" + uid,  # normalized internally
+        dataset_name="test_pipeline_replace_dataset" + uniq_id(),
     )
 
-    info = pipeline.run(
-        some_data(),
-        write_disposition="replace",
-    )
+    data = batch_1
+    info = pipeline.run(some_data(), write_disposition="replace")
     assert_load_info(info)
-    assert info.dataset_name == "TestPipelineReplaceDataset" + uid  # normalized internally
+    assert_class(pipeline, "SomeData", expected_items_count=3, items=batch_1)
 
-    data = next(generator_instance2)
-    assert_class(pipeline, "SomeData", items=data)
-
-    info = pipeline.run(
-        some_data(),
-        write_disposition="replace",
-    )
+    # replace with a different batch — old data must be gone
+    data = batch_2
+    info = pipeline.run(some_data(), write_disposition="replace")
     assert_load_info(info)
+    assert_class(pipeline, "SomeData", expected_items_count=2, items=batch_2)
 
-    data = next(generator_instance2)
-    assert_class(pipeline, "SomeData", items=data)
+
+def test_pipeline_replace_nested() -> None:
+    """Replace should truncate both root and child collections."""
+
+    @dlt.resource
+    def issues():
+        yield data
+
+    weaviate_adapter(issues, vectorize=["title"])
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_pipeline_replace_nested",
+        destination="weaviate",
+        dataset_name="test_replace_nested_" + uniq_id(),
+    )
+
+    data = [
+        {"id": 1, "title": "first", "labels": [{"name": "bug"}, {"name": "fix"}]},
+        {"id": 2, "title": "second", "labels": [{"name": "feature"}]},
+    ]
+    info = pipeline.run(issues(), write_disposition="replace")
+    assert_load_info(info)
+    assert_class(pipeline, "Issues", expected_items_count=2)
+    assert_class(pipeline, "Issues__Labels", expected_items_count=3)
+
+    # replace with fewer items — old root and child data must be gone
+    data = [
+        {"id": 3, "title": "third", "labels": [{"name": "docs"}]},
+    ]
+    info = pipeline.run(issues(), write_disposition="replace")
+    assert_load_info(info)
+    assert_class(pipeline, "Issues", expected_items_count=1)
+    assert_class(pipeline, "Issues__Labels", expected_items_count=1)
 
 
 def test_pipeline_merge() -> None:
@@ -361,6 +382,38 @@ def test_merge_github_nested() -> None:
     assert VECTORIZE_HINT not in issues["columns"]["url"]
     assert issues["columns"]["user__login"][TOKENIZATION_HINT] == "lowercase"  # type: ignore[literal-required]
     assert_class(p, "Issues", expected_items_count=17)
+    assert_class(p, "Issues__Labels", expected_items_count=7)
+    assert_class(p, "Issues__Assignees", expected_items_count=10)
+
+    # second load: update issue 388089021 (drop one label, keep one) and add a new issue
+    updated_issue = data[0].copy()
+    updated_issue["labels"] = [data[0]["labels"][0]]  # keep only first label (was 2)
+    updated_issue["assignees"] = []
+    new_issue = {
+        "id": 999999999,
+        "title": "New issue",
+        "body": "New body",
+        "url": "https://example.com",
+        "labels": [{"id": 1, "node_id": "x", "url": "x", "name": "bug", "color": "f00"}],
+        "assignees": [],
+    }
+    info = p.run(
+        weaviate_adapter(
+            [updated_issue, new_issue],
+            vectorize=["title", "body"],
+            tokenization={"user__login": "lowercase"},
+        ),
+        table_name="issues",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    assert_load_info(info)
+    # 17 original + 1 new = 18 (updated issue deduped)
+    assert_class(p, "Issues", expected_items_count=18)
+    # labels: 7 original + 1 new issue label = 8
+    # kept label (index 0) dedupes via deterministic _dlt_id
+    # removed label (index 1) stays — upsert does not delete orphaned children
+    assert_class(p, "Issues__Labels", expected_items_count=8)
 
 
 def test_empty_dataset_allowed() -> None:

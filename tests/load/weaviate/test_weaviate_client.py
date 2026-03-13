@@ -20,7 +20,7 @@ from tests.load.utils import (
     write_dataset,
 )
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 from .utils import drop_active_pipeline_data
 
@@ -65,7 +65,7 @@ def make_client(naming_convention: str) -> Iterator[WeaviateClient]:
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.mark.parametrize("write_disposition", ["append", "replace", "merge"])

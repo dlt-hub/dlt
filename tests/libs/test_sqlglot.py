@@ -1,10 +1,25 @@
-from typing import Optional
-
+from typing import List, Optional, Set, cast
+import importlib
 import pytest
+import sqlglot
 import sqlglot.expressions as sge
 
-from dlt.common.libs.sqlglot import from_sqlglot_type, to_sqlglot_type
-from dlt.common.schema.typing import TDataType, TColumnType
+from dlt.common.libs.sqlglot import (
+    DLT_SUBQUERY_NAME,
+    TSqlGlotDialect,
+    filter_select_column_names,
+    from_sqlglot_type,
+    get_select_column_names,
+    to_sqlglot_type,
+    uuid_expr_for_dialect,
+    validate_no_star_select,
+    build_outer_select_statement,
+    reorder_or_adjust_outer_select,
+    normalize_query_identifiers,
+)
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNaming
+from dlt.common.schema.typing import TDataType, TColumnType, TTableSchemaColumns
+from dlt.common.schema.exceptions import CannotCoerceNullException
 
 
 @pytest.mark.parametrize(
@@ -355,3 +370,297 @@ def test_from_and_to_sqlglot_parameterized_types(
     # retrieve hints from DataType object; hints are not passed to `from_sqlglot_type()`
     inferred_dlt_type = from_sqlglot_type(annotated_sqlglot_type)
     assert inferred_dlt_type == {"data_type": dlt_type, **hints}
+
+
+NORMALIZE_DIALECTS = [
+    "duckdb",
+    "bigquery",
+    "clickhouse",
+    "redshift",
+    "sqlite",
+    "athena",
+    "snowflake",
+    "postgres",
+    "tsql",
+    "databricks",
+    "presto",
+    "fabric",
+]
+
+
+def _make_columns(
+    names: list[str], data_type: TDataType = "text", nullable: bool = True
+) -> TTableSchemaColumns:
+    return {n: {"name": n, "data_type": data_type, "nullable": nullable} for n in names}
+
+
+@pytest.mark.parametrize("dialect", NORMALIZE_DIALECTS)
+def test_uuid_expr_for_dialect(dialect: TSqlGlotDialect) -> None:
+    """Test that uuid_expr_for_dialect returns a valid expression for each dialect."""
+    expr = uuid_expr_for_dialect(dialect, "test_load_id_123")
+    assert isinstance(expr, sge.Expression)
+    sql = expr.sql(dialect)
+    assert len(sql) > 0
+
+    if dialect == "redshift":
+        assert "test_load_id_123" in sql
+    elif dialect == "clickhouse":
+        assert "generateuuidv4" in sql.lower()
+    elif dialect == "athena":
+        assert "CAST" in sql.upper()
+
+
+@pytest.mark.parametrize(
+    "sql, dialect, expected",
+    [
+        ("SELECT a, b, c FROM t", "duckdb", ["a", "b", "c"]),
+        ("SELECT col1 AS a, col2 AS b FROM t", "duckdb", ["a", "b"]),
+        ("SELECT t.a, t.b FROM t", "duckdb", ["a", "b"]),
+        ("SELECT a, t.b, col AS c FROM t", "duckdb", ["a", "b", "c"]),
+        ("SELECT `t`.`col_a`, `t`.`col_b` FROM t", "bigquery", ["col_a", "col_b"]),
+    ],
+    ids=["simple", "aliased", "qualified", "mixed", "bigquery_dot"],
+)
+def test_get_select_column_names(sql: str, dialect: str, expected: List[str]) -> None:
+    parsed: sge.Select = sqlglot.parse_one(sql, read=dialect)  # type: ignore[assignment]
+    assert get_select_column_names(parsed.selects, dialect) == expected  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "sql",
+    ["SELECT * FROM t", "SELECT t.* FROM t"],
+    ids=["bare_star", "qualified_star"],
+)
+def test_get_select_column_names_star_raises(sql: str) -> None:
+    parsed: sge.Select = sqlglot.parse_one(sql, read="duckdb")  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="Star"):
+        get_select_column_names(parsed.selects)
+
+
+@pytest.mark.parametrize(
+    "sql, discard, expected",
+    [
+        ("SELECT a, b, c, d FROM t", {"b", "d"}, ["a", "c"]),
+        ("SELECT a, b, c, d FROM t", {"d", "b"}, ["a", "c"]),
+        ("SELECT d, c, b, a FROM t", {"b", "d"}, ["c", "a"]),
+        ("SELECT col AS a, t.b, c FROM t", {"b"}, ["a", "c"]),
+        ("SELECT a, b, c FROM t", set(), ["a", "b", "c"]),
+        ("SELECT a, b, c FROM t", {"x"}, ["a", "b", "c"]),
+        ("SELECT a, b, c FROM t", {"a", "b", "c"}, []),
+    ],
+    ids=[
+        "middle_columns",
+        "discard_set_order_irrelevant",
+        "preserves_select_order",
+        "mixed_expr_types",
+        "empty_discard",
+        "no_match",
+        "discard_all",
+    ],
+)
+def test_filter_select_column_names(sql: str, discard: Set[str], expected: List[str]) -> None:
+    parsed: sge.Select = sqlglot.parse_one(sql, read="duckdb")  # type: ignore[assignment]
+    result = filter_select_column_names(parsed.selects, discard, str.lower)
+    assert result == expected
+
+
+def test_validate_no_star_select() -> None:
+    """Test that star selects are rejected and explicit column selects pass."""
+    star_select: sge.Select = sqlglot.parse_one("SELECT * FROM t", read="duckdb")  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="SELECT \\*"):
+        validate_no_star_select(star_select, "duckdb")
+
+    qualified_star: sge.Select = sqlglot.parse_one("SELECT t.* FROM t", read="duckdb")  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="SELECT \\*"):
+        validate_no_star_select(qualified_star, "duckdb")
+
+    explicit_select: sge.Select = sqlglot.parse_one("SELECT a, b FROM t", read="duckdb")  # type: ignore[assignment]
+    validate_no_star_select(explicit_select, "duckdb")
+
+
+@pytest.mark.parametrize("dialect", NORMALIZE_DIALECTS)
+def test_build_outer_select_statement(dialect: TSqlGlotDialect) -> None:
+    """Test that build_outer_select_statement wraps query in subquery correctly."""
+    casefold = str.lower
+
+    # simple case: columns match select order -> no reordering
+    parsed: sge.Select = sqlglot.parse_one("SELECT a, b FROM t", read=dialect)  # type: ignore[assignment]
+    columns = _make_columns(["a", "b"])
+    outer, needs_reorder = build_outer_select_statement(dialect, parsed, columns, casefold)
+    assert isinstance(outer, sge.Select)
+    assert not needs_reorder
+    sql = outer.sql(dialect)
+    assert DLT_SUBQUERY_NAME in sql
+
+    # reorder case: columns in different order -> needs reordering
+    columns_reordered = _make_columns(["b", "a"])
+    outer2, needs_reorder2 = build_outer_select_statement(
+        dialect, parsed, columns_reordered, casefold
+    )
+    assert needs_reorder2
+
+    # aliased input
+    parsed_aliased: sge.Select = sqlglot.parse_one("SELECT col AS a FROM t", read=dialect)  # type: ignore[assignment]
+    columns_alias = _make_columns(["a"])
+    outer3, needs_reorder3 = build_outer_select_statement(
+        dialect, parsed_aliased, columns_alias, casefold
+    )
+    assert not needs_reorder3
+    aliases = [sel.alias for sel in outer3.selects]
+    assert "a" in aliases
+
+
+@pytest.mark.parametrize("dialect", NORMALIZE_DIALECTS)
+def test_reorder_or_adjust_outer_select(dialect: TSqlGlotDialect) -> None:
+    """Test reordering, NULL insertion for missing nullable, and error for non-nullable."""
+    casefold = str.lower
+
+    # reorders to schema order
+    parsed: sge.Select = sqlglot.parse_one("SELECT a, b FROM t", read=dialect)  # type: ignore[assignment]
+    columns_ab = _make_columns(["a", "b"])
+    outer, _ = build_outer_select_statement(dialect, parsed, columns_ab, casefold)
+    columns_ba = _make_columns(["b", "a"])
+    reorder_or_adjust_outer_select(outer, columns_ba, casefold, "test_schema", "test_table")
+    aliases = [sel.alias for sel in outer.selects]
+    assert aliases == ["b", "a"]
+
+    # missing nullable column -> NULL alias added
+    parsed2: sge.Select = sqlglot.parse_one("SELECT a FROM t", read=dialect)  # type: ignore[assignment]
+    columns_with_extra = _make_columns(["a", "c"])
+    outer2, _ = build_outer_select_statement(dialect, parsed2, columns_with_extra, casefold)
+    reorder_or_adjust_outer_select(
+        outer2, columns_with_extra, casefold, "test_schema", "test_table"
+    )
+    aliases2 = [sel.alias for sel in outer2.selects]
+    assert "c" in aliases2
+    c_expr = outer2.selects[1]
+    assert isinstance(c_expr.this, sge.Null)
+
+    # missing non-nullable column -> CannotCoerceNullException
+    parsed3: sge.Select = sqlglot.parse_one("SELECT a FROM t", read=dialect)  # type: ignore[assignment]
+    columns_non_nullable: TTableSchemaColumns = {
+        "a": {"name": "a", "data_type": "text", "nullable": True},
+        "required": {"name": "required", "data_type": "text", "nullable": False},
+    }
+    outer3, _ = build_outer_select_statement(dialect, parsed3, columns_non_nullable, casefold)
+    with pytest.raises(CannotCoerceNullException):
+        reorder_or_adjust_outer_select(
+            outer3, columns_non_nullable, casefold, "test_schema", "test_table"
+        )
+
+    # extra column in select but not in schema -> dropped
+    parsed4: sge.Select = sqlglot.parse_one("SELECT a, b, extra FROM t", read=dialect)  # type: ignore[assignment]
+    columns_only_ab = _make_columns(["a", "b"])
+    outer4, needs_reorder4 = build_outer_select_statement(
+        dialect, parsed4, columns_only_ab, casefold
+    )
+    assert needs_reorder4
+    reorder_or_adjust_outer_select(outer4, columns_only_ab, casefold, "test_schema", "test_table")
+    aliases4 = [sel.alias for sel in outer4.selects]
+    assert aliases4 == ["a", "b"]
+
+
+@pytest.mark.parametrize(
+    "naming_convention",
+    [
+        "snake_case",
+        "tests.common.cases.normalizers.sql_upper",
+        "tests.common.cases.normalizers.title_case",
+    ],
+)
+def test_normalize_query_identifiers(naming_convention: str) -> None:
+    # import the naming convention module
+    if naming_convention == "snake_case":
+        naming_module_path = "dlt.common.normalizers.naming.snake_case"
+    else:
+        naming_module_path = naming_convention
+    naming_module = importlib.import_module(naming_module_path)
+    naming = naming_module.NamingConvention()
+
+    # test query with mixed case, paths, and aliases (including __ in table/alias names)
+    query = cast(
+        sge.Query,
+        sqlglot.parse_one("""
+            SELECT
+                MyColumn AS MyAlias,
+                nested__column,
+                user__comments__id AS User__Comments__Id,
+                value__v_double AS value__v__alias,
+                t.col1
+            FROM my_schema.MyTable
+            JOIN my_schema.User__Comments AS User__Table__Alias ON MyTable.id = User__Table__Alias.user_id
+            WHERE AnotherColumn > 10
+        """),
+    )
+
+    normalized = normalize_query_identifiers(query, naming)
+    normalized_sql = normalized.sql()
+
+    # verify table name normalized but schema name unchanged
+    assert "my_schema" in normalized_sql  # schema name should be unchanged
+    expected_table = naming.normalize_table_identifier("MyTable")
+    assert expected_table in normalized_sql
+
+    # verify simple column names normalized
+    expected_col1 = naming.normalize_identifier("MyColumn")
+    expected_col2 = naming.normalize_identifier("AnotherColumn")
+    assert expected_col1 in normalized_sql
+    assert expected_col2 in normalized_sql
+
+    # verify aliases normalized
+    expected_alias = naming.normalize_identifier("MyAlias")
+    assert expected_alias in normalized_sql
+
+    # verify paths preserved (using normalize_path, not normalize_identifier)
+    expected_nested = naming.normalize_path("nested__column")
+    expected_user_path = naming.normalize_path("user__comments__id")
+    expected_variant = naming.normalize_path("value__v_double")
+    assert expected_nested in normalized_sql
+    assert expected_user_path in normalized_sql
+    assert expected_variant in normalized_sql
+
+    # verify nested table name preserved
+    expected_nested_table = naming.normalize_tables_path("User__Comments")
+    assert expected_nested_table in normalized_sql
+
+    # verify aliases with __ preserved (using normalize_path for aliases)
+    expected_col_alias_with_path = naming.normalize_path("User__Comments__Id")
+    expected_variant_alias = naming.normalize_path("value__v__alias")
+    expected_table_alias_with_path = naming.normalize_path("User__Table__Alias")
+    assert expected_col_alias_with_path in normalized_sql
+    assert expected_variant_alias in normalized_sql
+    assert expected_table_alias_with_path in normalized_sql
+
+
+def test_normalize_query_identifiers_table_qualified_columns() -> None:
+    """Table qualifiers in column references must use normalize_tables_path,
+    consistent with the FROM clause table name normalization."""
+
+    class _TablePrefixNaming(SnakeCaseNaming):
+        """Naming convention where normalize_table_identifier diverges from
+        normalize_identifier — table names get a 'tbl_' prefix."""
+
+        def normalize_table_identifier(self, identifier: str) -> str:
+            return "tbl_" + super().normalize_table_identifier(identifier)
+
+    naming = _TablePrefixNaming()
+
+    query = cast(
+        sge.Query,
+        sqlglot.parse_one(
+            "SELECT MyTable.my_col, MyTable.other_col FROM MyTable WHERE MyTable.id > 10"
+        ),
+    )
+
+    normalized = normalize_query_identifiers(query, naming)
+    normalized_sql = normalized.sql()
+
+    # table name in FROM and table qualifiers in column references must both
+    # go through normalize_tables_path → "tbl_my_table"
+    expected_table = naming.normalize_tables_path("MyTable")
+    assert expected_table == "tbl_my_table"
+
+    assert f"FROM {expected_table}" in normalized_sql
+    assert f"{expected_table}.my_col" in normalized_sql
+    assert f"{expected_table}.other_col" in normalized_sql
+    assert f"{expected_table}.id" in normalized_sql

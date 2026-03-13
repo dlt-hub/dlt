@@ -24,7 +24,7 @@ MAX_CHUNK_SIZE = 4000  # make sure that this is below the context window size of
 SYSTEM_PROMPT = """\
 You are a grammar checker. Every message you get will be a document that is to be grammarchecked and returned as such.
 You will not change the markdown syntax. You will only fix the grammar. You will not change the code snippets except for the comments therein.
-You will not modify the header section which is enclosed by two occurences of "---".
+You will not modify the header section which is enclosed by two occurrences of "---".
 Make sure all headings use the Sentence case.
 Never insert any codeblock start or end statements such as "```"
 Do not change the spelling or casing of these words: dlt, sdf, dbt

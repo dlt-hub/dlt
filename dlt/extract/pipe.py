@@ -16,7 +16,13 @@ from typing import (
 )
 
 from dlt.common.reflection.inspect import isasyncgenfunction, isgeneratorfunction
-from dlt.common.typing import AnyFun, AnyType, TDataItems, resolve_single_annotation
+from dlt.common.typing import (
+    AnyFun,
+    AnyType,
+    TDataItems,
+    is_subclass,
+    resolve_single_annotation,
+)
 from dlt.common.utils import get_callable_name, uniq_id
 
 from dlt.extract.exceptions import (
@@ -131,9 +137,9 @@ class Pipe(SupportsPipe):
         """Finds all steps with object of type `step_type`"""
         return [i for i, v in enumerate(self._steps) if isinstance(v, step_type)]
 
-    def get_by_type(self, *step_type: AnyType) -> TPipeStep:
+    def get_by_type(self, *step_type: AnyType) -> Optional[TPipeStep]:
         """Gets first step found with object of type `step_type`"""
-        return next((v for v in self._steps if isinstance(v, step_type)), None)
+        return next((v for v in self._steps if isinstance(v, step_type)), None)  # type: ignore[no-any-return]
 
     def remove_by_type(self, *step_type: AnyType) -> int:
         """Deletes first step found with object of type `step_type`, returns previous index"""
@@ -353,8 +359,7 @@ class Pipe(SupportsPipe):
                 return_annotation = resolve_single_annotation(
                     sig.return_annotation, globalns=globals()
                 )
-                if inspect.isclass(return_annotation):
-                    return issubclass(return_annotation, DltResource)
+                return is_subclass(return_annotation, DltResource)
 
         return False
 

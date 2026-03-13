@@ -3,14 +3,15 @@ import time
 from typing import Any, Literal
 import asyncio
 import sys
-import pathlib
+from pathlib import Path
 
 import dlt
 
 from dlt._workspace.helpers.dashboard.runner import start_dashboard
 from dlt._workspace.run_context import switch_profile
-from tests.e2e.helpers.dashboard.conftest import fruitshop_source, _normpath
+from tests.e2e.helpers.dashboard.conftest import fruitshop_source, pipeline_path_text
 from tests.workspace.utils import isolated_workspace
+from tests.utils import get_test_storage_root
 from playwright.sync_api import Page, expect
 
 from tests.utils import (
@@ -41,13 +42,12 @@ known_sections = [
     "state",
     "trace",
     "loads",
-    "ibis",
 ]
 
 
 def _open_section(
     page: Page,
-    section: Literal["overview", "schema", "data", "state", "trace", "loads", "ibis"],
+    section: Literal["overview", "schema", "data", "state", "trace", "loads"],
     close_other_sections: bool = True,
 ) -> None:
     if close_other_sections:
@@ -79,14 +79,18 @@ def test_page_overview(page: Page):
     #
 
 
-def test_exception_pipeline(page: Page, failed_pipeline: Any):
+def test_exception_pipeline(
+    page: Page,
+    failed_pipeline: Any,
+    pipelines_dir: Path,
+):
     _go_home(page)
     page.get_by_role("link", name="failed_pipeline").click()
     expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # overview page
     _open_section(page, "overview")
-    expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/failed_pipeline"))).to_be_visible()
+    expect(page.get_by_text(pipeline_path_text(pipelines_dir, "failed_pipeline"))).to_be_visible()
 
     _open_section(page, "schema")
     expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
@@ -99,15 +103,12 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
     expect(page.get_by_text("_local")).to_be_visible()
 
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
     expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
-
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
@@ -117,7 +118,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
 
-    expect(page.get_by_text("name: fruitshop_customers").nth(1)).to_be_attached()
+    expect(page.locator(".cm-line", has_text="name: fruitshop_customers").first).to_be_attached()
 
     def _select_schema_and_verify(
         schema_selector: Any,
@@ -170,7 +171,11 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
         expect(schema_selector).not_to_be_attached()
 
 
-def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: Any):
+def test_simple_incremental_pipeline(
+    page: Page,
+    simple_incremental_pipeline: Any,
+    pipelines_dir: Path,
+):
     #
     # One two three pipeline
     #
@@ -181,16 +186,16 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
 
     # overview page
     _open_section(page, "overview")
-    expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/one_two_three"))).to_be_visible()
+    expect(page.get_by_text(pipeline_path_text(pipelines_dir, "one_two_three"))).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    expect(page.get_by_text("name: one_two_three").nth(1)).to_be_attached()
+    expect(page.locator(".cm-line", has_text="name: one_two_three").first).to_be_attached()
 
     # check first table and columns
     page.get_by_role("checkbox").nth(0).check()
-    expect(page.get_by_text("id", exact=True)).to_be_visible()
+    expect(page.get_by_role("table").get_by_text("id", exact=True)).to_be_visible()
 
     # browse data
     _open_section(page, "data")
@@ -218,7 +223,7 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text("execution_context").nth(0)
@@ -233,24 +238,20 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     # since we are not waiting for the result but clicking ahead, pause to avoid locked duckdb
     time.sleep(2.0)
 
-    # ibis page
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
-
-def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
+def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
     # check fruit pipeline
     _go_home(page)
     page.get_by_role("link", name="fruit_pipeline").click()
 
     # overview page
     _open_section(page, "overview")
-    expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/fruit_pipeline"))).to_be_visible()
+    expect(page.get_by_text(pipeline_path_text(pipelines_dir, "fruit_pipeline"))).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    expect(page.get_by_text("name: fruitshop").nth(1)).to_be_attached()
+    expect(page.locator(".cm-line", has_text="name: fruitshop").first).to_be_attached()
 
     # browse data
     _open_section(page, "data")
@@ -261,7 +262,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text("execution_context").nth(0)
@@ -273,19 +274,15 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
         page.get_by_role("row", name="fruitshop").nth(0)
     ).to_be_visible()  #  this is in the loads table
 
-    # ibis page
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
-
-def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
+def test_never_run_pipeline(page: Page, never_run_pipeline: Any, pipelines_dir: Path):
     _go_home(page)
     page.get_by_role("link", name="never_run_pipeline").click()
 
     # info closed by default
     _open_section(page, "overview")
     expect(
-        page.get_by_text(_normpath("_storage/.dlt/pipelines/never_run_pipeline"))
+        page.get_by_text(pipeline_path_text(pipelines_dir, "never_run_pipeline"))
     ).to_be_visible()
 
     # check schema info (this is the yaml part)
@@ -300,18 +297,15 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
     expect(page.get_by_text("_local")).to_be_visible()
 
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     expect(page.get_by_text(app_strings.trace_no_trace_text.strip()).nth(0)).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
     expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
 
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
-
-def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
+def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipelines_dir: Path):
     # check no destination pipeline
     _go_home(page)
     page.get_by_role("link", name="no_destination_pipeline").click()
@@ -319,13 +313,13 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     # info closed by default
     _open_section(page, "overview")
     expect(
-        page.get_by_text(_normpath("_storage/.dlt/pipelines/no_destination_pipeline"))
+        page.get_by_text(pipeline_path_text(pipelines_dir, "no_destination_pipeline"))
     ).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-    expect(page.get_by_text("name: fruitshop").nth(1)).to_be_attached()
+    expect(page.locator(".cm-line", has_text="name: fruitshop").first).to_be_attached()
 
     # browse data
     _open_section(page, "data")
@@ -340,14 +334,11 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is only shown in trace yaml
-
-    # _open_section(page, "ibis")
-    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_workspace_profile_prod(page: Page):
@@ -389,7 +380,7 @@ def test_workspace_profile_dev(page: Page):
             expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
 
 
-def test_broken_trace_pipeline(page: Page, broken_trace_pipeline: Any):
+def test_broken_trace_pipeline(page: Page, broken_trace_pipeline: Any, pipelines_dir: Path):
     """Dashboard should still render overview even if the last trace file is corrupted."""
     _go_home(page)
     page.get_by_role("link", name="broken_trace_pipeline").click()
@@ -397,8 +388,9 @@ def test_broken_trace_pipeline(page: Page, broken_trace_pipeline: Any):
     # overview page should still be accessible and show the working dir path
     _open_section(page, "overview")
     expect(
-        page.get_by_text(_normpath("_storage/.dlt/pipelines/broken_trace_pipeline"))
+        page.get_by_text(pipeline_path_text(pipelines_dir, "broken_trace_pipeline"))
     ).to_be_visible()
+
     # should also render the trace section, but there should be an error message
     _open_section(page, "trace")
     expect(page.get_by_text("Error while building trace section:")).to_be_visible()

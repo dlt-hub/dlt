@@ -1,17 +1,17 @@
 from abc import ABC, abstractmethod
-from importlib import import_module
 from typing import (
+    Awaitable,
     Callable,
     Dict,
     List,
     Any,
     Generic,
     Tuple,
+    Union,
     overload,
     ClassVar,
     Type,
 )
-from typing_extensions import Self, TypeVar
 
 from dlt.common import logger
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
@@ -20,7 +20,7 @@ from dlt.common.reflection.ref import object_from_ref
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TSchemaContract
-from dlt.common.typing import ParamSpec
+from dlt.common.typing import ParamSpec, Self, TypeVar
 from dlt.common.warnings import Dlt04DeprecationWarning, deprecated
 
 from dlt.extract.source import DltSource
@@ -31,14 +31,36 @@ TSourceFunParams = ParamSpec("TSourceFunParams")
 
 
 class SourceFactory(ABC, Generic[TSourceFunParams, TDltSourceImpl]):
+    name: str
+    """Name of the source which is also the name of the associated schema."""
+    section: str
+    """Configuration section right after 'sources' in default layout."""
+    max_table_nesting: int
+    """Maximum depth of nested table above which remaining nodes are loaded as structs or JSON."""
+    root_key: bool
+    """Enables merging on all resources by propagating root foreign key to nested tables."""
+    schema: Schema
+    """An explicit `Schema` instance to be associated with the source."""
+    schema_contract: TSchemaContract
+    """Schema contract settings that will be applied to this source."""
+    spec: Type[BaseConfiguration]
+    """A specification of configuration and secret values required by the source."""
+    parallelized: bool
+    """If `True`, resource generators will be extracted in parallel with other resources."""
+
+    # TODO: model after Destination, which also needs to be broken down into reference and factory
+    ref: "SourceReference"
+
     def __call__(
         self, *args: TSourceFunParams.args, **kwargs: TSourceFunParams.kwargs
     ) -> TDltSourceImpl:
         pass
 
-    # TODO: make factory to expose SourceReference with actual spec, name and section
-    # model after Destination, which also needs to be broken down into reference and factory
-    ref: "SourceReference"
+    @abstractmethod
+    def add_postprocessor(
+        self, func: Callable[[TDltSourceImpl], Union[TDltSourceImpl, Awaitable[TDltSourceImpl]]]
+    ) -> None:
+        """Adds a callback that receives and returns a DltSource after it is created."""
 
     @abstractmethod
     def clone(

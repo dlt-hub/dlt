@@ -2,11 +2,14 @@ import os
 import sys
 import logging
 import time
+import warnings
+
 from collections import defaultdict
 from typing import (
     Any,
     ContextManager,
     Dict,
+    Literal,
     TYPE_CHECKING,
     DefaultDict,
     NamedTuple,
@@ -24,8 +27,10 @@ else:
     tqdm = EnlCounter = EnlStatusBar = EnlManager = Any
 
 from dlt.common import logger as dlt_logger
+from dlt.common.time import MonotonicPreciseTime
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.runtime.collector_base import Collector, TCollector
+from dlt.common.runtime.collector_base import Collector
+from dlt.common.warnings import DltDeprecationWarning
 
 
 class NullCollector(Collector):
@@ -78,7 +83,7 @@ class DictCollector(Collector):
 class LogCollector(Collector):
     """A Collector that shows progress by writing to a Python logger or a console"""
 
-    logger: Union[logging.Logger, TextIO]
+    logger: Union[logging.Logger, TextIO, Literal["stdout", "dlt_logger"]]
     log_level: int
 
     class CounterInfo(NamedTuple):
@@ -89,21 +94,33 @@ class LogCollector(Collector):
     def __init__(
         self,
         log_period: float = 1.0,
-        logger: Union[logging.Logger, TextIO] = sys.stdout,
+        logger: Union[logging.Logger, TextIO, Literal["stdout", "dlt_logger"]] = "stdout",
         log_level: int = logging.INFO,
         dump_system_stats: bool = True,
     ) -> None:
         """
-        Collector writing to a `logger` every `log_period` seconds. The logger can be a Python logger instance, text stream, or None that will attach `dlt` logger
+        Collector writing to a `logger` every `log_period` seconds.
 
         Args:
             log_period (float, optional): Time period in seconds between log updates. Defaults to 1.0.
-            logger (logging.Logger | TextIO, optional): Logger or text stream to write log messages to. Defaults to stdio.
+            logger: Logger or text stream to write log messages to. Use ``"stdout"`` (default) to
+                write to the current ``sys.stdout`` at call time, ``"dlt_logger"`` to use the
+                internal dlt logger, a ``logging.Logger`` instance, or any ``TextIO`` stream.
             log_level (str, optional): Log level for the logger. Defaults to INFO level
             dump_system_stats (bool, optional): Log memory and cpu usage. Defaults to True
         """
         self.step = None
         self.log_period = log_period
+        if logger is None:
+            warnings.warn(
+                DltDeprecationWarning(
+                    "Passing logger=None to LogCollector is deprecated."
+                    " Use logger='dlt_logger' instead",
+                    since="1.22.0",
+                ),
+                stacklevel=2,
+            )
+            logger = "dlt_logger"
         self.logger = logger
         self.log_level = log_level
         self.counters: DefaultDict[str, int] = None
@@ -111,16 +128,17 @@ class LogCollector(Collector):
         self.messages: Dict[str, Optional[str]] = None
         if dump_system_stats:
             try:
-                import psutil
+                import psutil  # noqa: F401
             except ImportError:
-                self._log(
-                    logging.WARNING,
-                    "psutil dependency is not installed and mem stats will not be available. add"
-                    " psutil to your environment or pass dump_system_stats argument as False to"
-                    " disable warning.",
+                warnings.warn(
+                    "psutil dependency is not installed and memory stats will not be available."
+                    " Add psutil to your environment or pass dump_system_stats=False to disable"
+                    " this warning.",
+                    stacklevel=2,
                 )
                 dump_system_stats = False
         self.dump_system_stats = dump_system_stats
+        self._clock = MonotonicPreciseTime()
         self.last_log_time: float = None
 
     def update(
@@ -138,7 +156,7 @@ class LogCollector(Collector):
             self.counters[counter_key] = 0
             self.counter_info[counter_key] = LogCollector.CounterInfo(
                 description=f"{name} ({label})" if label else name,
-                start_time=time.time(),
+                start_time=self._clock(),
                 total=total,
             )
             self.messages[counter_key] = None
@@ -159,10 +177,10 @@ class LogCollector(Collector):
 
     def maybe_log(self) -> None:
         """Check if should report and if so, call self.on_log"""
-        current_time = time.time()
+        current_time = self._clock()
         if self.last_log_time is None or current_time - self.last_log_time >= self.log_period:
             self.on_log()
-            self.last_log_time = time.time()
+            self.last_log_time = self._clock()
 
     def _counter_to_log_line(
         self, counter_key: str, count: int, info: CounterInfo, current_time: float
@@ -207,7 +225,7 @@ class LogCollector(Collector):
 
     def dump_counters(self) -> None:
         """Dump all counters to log using the shared formatting methods."""
-        current_time = time.time()
+        current_time = self._clock()
         log_lines = []
 
         step_header = f" {self.step} ".center(80, "-")
@@ -222,22 +240,22 @@ class LogCollector(Collector):
 
         log_lines.append("")
         log_message = "\n".join(log_lines)
-        if not self.logger:
-            # try to attach dlt logger
-            self.logger = dlt_logger.LOGGER
+        if self.logger == "dlt_logger":
+            self.logger = dlt_logger.LOGGER or "stdout"
         self._log(self.log_level, log_message)
 
     def _log(self, log_level: int, log_message: str) -> None:
         if isinstance(self.logger, (logging.Logger, logging.LoggerAdapter)):
             self.logger.log(log_level, log_message)
         else:
-            print(log_message, file=self.logger or sys.stdout)  # noqa
+            dest = sys.stdout if isinstance(self.logger, str) else self.logger
+            dest.write(log_message + "\n")
 
     def _start(self, step: str) -> None:
         self.counters = defaultdict(int)
         self.counter_info = {}
         self.messages = {}
-        self.last_log_time = time.time()
+        self.last_log_time = self._clock()
 
     def _stop(self) -> None:
         self.on_log()

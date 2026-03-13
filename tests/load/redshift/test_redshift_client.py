@@ -12,7 +12,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.exceptions import DatabaseTerminalException
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseUndefinedRelation
 from dlt.destinations import redshift
 from dlt.destinations.impl.redshift.configuration import (
     RedshiftCredentials,
@@ -21,7 +21,7 @@ from dlt.destinations.impl.redshift.configuration import (
 from dlt.destinations.impl.redshift.redshift import RedshiftClient, psycopg2
 
 from tests.common.utils import COMMON_TEST_CASES_PATH
-from tests.utils import TEST_STORAGE_ROOT, skipifpypy
+from tests.utils import get_test_storage_root, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
 # mark all tests as essential, do not remove
@@ -30,7 +30,7 @@ pytestmark = pytest.mark.essential
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.fixture(scope="function")
@@ -175,3 +175,32 @@ def test_public_schema_has_dataset_override() -> None:
     )._bind_dataset_name("public")
     client_public = RedshiftClient(schema, config_public, redshift().capabilities())
     assert client_public.sql_client.has_dataset() is True
+
+
+def test_has_dataset_falls_back_on_svv_failure() -> None:
+    """Test that has_dataset falls back to INFORMATION_SCHEMA when svv_redshift_schemas
+    query raises a DatabaseException (e.g. view does not exist)."""
+    from dlt.destinations.sql_client import SqlClientBase
+    from dlt.destinations.impl.redshift.redshift import RedshiftSqlClient
+
+    schema = Schema("test_schema")
+    config = RedshiftClientConfiguration(credentials=RedshiftCredentials())._bind_dataset_name(
+        "test_dataset"
+    )
+    client = RedshiftClient(schema, config, redshift().capabilities())
+    sql_client = client.sql_client
+
+    # simulate svv_redshift_schemas not available: execute_sql raises
+    # DatabaseUndefinedRelation (which is what @raise_database_error produces
+    # for a missing relation). The fallback calls SqlClientBase.has_dataset
+    # which we patch to return a known value.
+    with (
+        patch.object(
+            RedshiftSqlClient,
+            "execute_sql",
+            side_effect=DatabaseUndefinedRelation(Exception("relation does not exist")),
+        ),
+        patch.object(SqlClientBase, "has_dataset", return_value=True) as fallback_mock,
+    ):
+        assert sql_client.has_dataset() is True
+        fallback_mock.assert_called_once()

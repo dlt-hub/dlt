@@ -2,6 +2,7 @@ from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming.naming import NamingConvention
@@ -157,6 +158,8 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
             "staging-optimized",
         ]
         caps.sqlglot_dialect = "tsql"
+        # ADBC driver for MSSQL does not support dictionary-encoded Arrow arrays
+        caps.parquet_format = ParquetFormatConfiguration(supports_dictionary_encoding=False)
 
         return caps
 

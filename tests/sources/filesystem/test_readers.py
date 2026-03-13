@@ -152,6 +152,16 @@ def test_read_csv_duckdb(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> 
     assert read_data == [data]
 
 
+def test_read_csv_duckdb_filename(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
+    file_ = _create_csv_file(data=data, tmp_path=tmp_path)
+
+    for record in _read_csv_duckdb([file_], filename=True):
+        assert record[0]["filename"] == file_["file_name"]
+
+    for record in _read_csv_duckdb([file_]):
+        assert "filename" not in record[0].keys()
+
+
 def test_read_csv_duckdb_use_pyarrow(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
     file_ = _create_csv_file(data=data, tmp_path=tmp_path)
     iterator = _read_csv_duckdb([file_], use_pyarrow=True)

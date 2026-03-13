@@ -101,7 +101,7 @@ of columns in it. We use convenience function `dlt.mark.make_nested_hints` to ge
 free to use it directly.
 
 Mind that `purchases` list will be stored as table with name `customers__purchases`. When declaring nested hints you just need
-to specify nested field(s) name(s). In case of deeper nesting ie. let's say each `purchase` has a list of `coupons` applied,
+to specify nested field(s) name(s). In case of deeper nesting i.e. let's say each `purchase` has a list of `coupons` applied,
 you can apply hints to coupons and define `customers__purchases__coupons` table schema:
 ```py
 import dlt
@@ -124,10 +124,10 @@ are empty. Currently we are not adding missing path elements automatically**.
 
 You can use `nested_hints` primarily to set column hints and schema contract, those work exactly as in case of root tables.
 * `file_format` has no effect (not implemented yet)
-* `write_disposition` works as expected but leads to unintended consequences (ie. you can set nested table to `replace`) while root table is `append`.
+* `write_disposition` works as expected but leads to unintended consequences (i.e. you can set nested table to `replace`) while root table is `append`.
 * `references` will create [table references](schema.md#table-references-1) (annotations) as expected.
 * `primary_key` and `merge_key`: **setting those will convert nested table into a regular table, with a separate write disposition, file format etc.**
-[It allows you to create custom table relationships ie. using natural primary and foreign keys present in the data.](schema.md#generate-custom-linking-for-nested-tables)
+[It allows you to create custom table relationships i.e. using natural primary and foreign keys present in the data.](schema.md#generate-custom-linking-for-nested-tables)
 
 :::tip
 [REST API Source](../dlt-ecosystem/verified-sources/rest_api/basic.md) accepts `nested_hints` argument as well.
@@ -223,7 +223,7 @@ pipeline = dlt.pipeline(destination="duckdb")
 pipeline.run(process_users)
 ```
 
-We do not support `RootModel` that validate simple types. You can add such a validator yourself, see [data filtering section](#filter-transform-and-pivot-data).
+`RootModel` is supported for [discriminated unions](schema-contracts.md#validating-event-streams-with-pydantic), where a single resource dispatches items of different types to separate tables. We do not support `RootModel` that validates simple types. You can add such a validator yourself, see [data filtering section](#filter-transform-and-pivot-data).
 
 ### Dispatch data to many tables
 
@@ -798,6 +798,22 @@ print(f"Custom metrics: {resource_metrics.custom_metrics}")
 ```
 
 As shown above, custom metrics are included in pipeline traces. Refer to [pipeline trace loading](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) for more details.
+
+#### Trace table layout for custom metrics
+
+When a pipeline trace is [loaded into a destination](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace),
+custom metrics are stored in the `resource_metrics` table. Scalar and dict-valued metrics become
+columns prefixed with `custom_metrics__` (e.g. `custom_metrics__page_count`). List-valued metrics
+become separate child tables, giving each resource a deterministic schema for its metrics. For example:
+
+```py
+custom_metrics = dlt.current.resource_metrics()
+custom_metrics["page_count"] = 0          # becomes column: custom_metrics__page_count
+custom_metrics["errors"] = []             # becomes child table: resource_metrics__errors
+```
+
+This lets you query per-resource metrics tables directly at the destination, rather than
+parsing a single JSON column.
 
 ### Using `add_metrics` as a transformation step
 

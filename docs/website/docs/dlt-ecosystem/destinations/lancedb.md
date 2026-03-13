@@ -91,7 +91,7 @@ read_consistency_interval=2.5
 `read_consistency_interval` is None by default (no read consistency, `dlt` assumes that it is a single writer to particular table.)
 
 :::tip
-You can pass `storage_options` in the credentials collection that allows to [store lancedb data on a bucket](https://docs.lancedb.com/storage). You can try this out but we didn't test that.
+You can pass `storage_options` in the credentials collection that allows you to [store lancedb data on a bucket](https://docs.lancedb.com/storage). You can try this out but we didn't test that.
 :::
 
 ### Define your data source

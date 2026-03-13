@@ -652,6 +652,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # get dedup sort information
         dedup_sort = get_dedup_sort_tuple(root_table)
+        if dedup_sort is not None:
+            dedup_sort = (escape_column_id(dedup_sort[0]), dedup_sort[1])
         skip_dedup: bool = root_table.get("x-stage-data-deduplicated", False)  # type: ignore[assignment]
 
         insert_temp_table_name: str = None

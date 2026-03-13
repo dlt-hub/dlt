@@ -21,14 +21,14 @@ from tests.pipeline.utils import (
     load_table_counts,
     assert_query_column,
 )
-from tests.utils import TEST_STORAGE_ROOT, public_http_server
+from tests.utils import get_test_storage_root, public_http_server
 from tests.load.sources.filesystem.cases import GLOB_RESULTS, TESTS_BUCKET_URLS
 
 
 @pytest.fixture(autouse=True)
 def glob_test_setup() -> None:
     file_fs, _ = fsspec_filesystem("file")
-    file_path = os.path.join(TEST_STORAGE_ROOT, "data", "standard_source")
+    file_path = os.path.join(get_test_storage_root(), "data", "standard_source")
     if not file_fs.isdir(file_path):
         file_fs.mkdirs(file_path)
         file_fs.upload(TEST_SAMPLE_FILES, file_path, recursive=True)
@@ -202,7 +202,7 @@ def test_standard_readers(
     # a step that copies files into test storage
     def _copy(item: FileItemDict):
         # instantiate fsspec and copy file
-        dest_file = os.path.join(TEST_STORAGE_ROOT, item["relative_path"])
+        dest_file = os.path.join(get_test_storage_root(), item["relative_path"])
         # create dest folder
         os.makedirs(os.path.dirname(dest_file), exist_ok=True)
         # download file

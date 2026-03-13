@@ -14,9 +14,10 @@ from dlt.common.typing import is_subclass
 from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
 
 from tests.common.configuration.utils import environment
-from tests.utils import IMPLEMENTED_DESTINATIONS
+from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root, skipifworktree
 
 
+@skipifworktree
 def test_import_unknown_destination() -> None:
     # standard destination
     with pytest.raises(UnknownDestinationModule) as unk_ex:
@@ -138,11 +139,12 @@ def test_factory_config_injection(environment: Dict[str, str]) -> None:
     )
 
     filesystem_ = filesystem(destination_name="local")
-    abs_path = os.path.abspath("_storage")
+    test_root_storage = get_test_storage_root()
+    abs_path = os.path.abspath(test_root_storage)
     environment["DESTINATION__LOCAL__BUCKET_URL"] = abs_path
     init_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(dataset_name="test")
     configured_bucket_url = filesystem_.client(Schema("test"), init_config).config.bucket_url
-    assert configured_bucket_url.endswith("_storage")
+    assert configured_bucket_url.endswith(test_root_storage)
 
 
 def test_import_module_by_path() -> None:

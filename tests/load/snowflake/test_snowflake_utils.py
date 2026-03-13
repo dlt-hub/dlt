@@ -21,10 +21,6 @@ from dlt.destinations.impl.snowflake.utils import (
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
 
-# ----------------------------------
-# Helper Functions
-# ----------------------------------
-
 
 def assert_sql_contains(sql: str, *phrases):
     """Assert that SQL contains all the given phrases."""
@@ -36,11 +32,6 @@ def assert_sql_not_contains(sql: str, *phrases):
     """Assert that SQL does not contain any of the given phrases."""
     for phrase in phrases:
         assert phrase not in sql, f"Found unexpected '{phrase}' in SQL:\n{sql}"
-
-
-# ----------------------------------
-# Unit Tests for File Format Handling
-# ----------------------------------
 
 
 def test_file_format_jsonl(test_table: str, local_file_path: str, local_stage_path: str):
@@ -159,11 +150,6 @@ def test_file_format_csv(
         assert_sql_contains(sql, "ON_ERROR = CONTINUE")
     else:
         assert_sql_not_contains(sql, "ON_ERROR = CONTINUE")
-
-
-# ----------------------------------
-# Unit Tests for gen_copy_sql
-# ----------------------------------
 
 
 def test_gen_copy_sql_local_file(test_table: str, local_file_path: str, local_stage_path: str):

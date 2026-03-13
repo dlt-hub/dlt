@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(secrets.toml)",
+      "Read(*.secrets.toml)",
+      "Read(**/_secrets/**)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Bash(cat *secrets.toml*)",
+      "Bash(cat *.env*)",
+      "Bash(cp *secrets.toml*)",
+      "Bash(cp *.env*)",
+      "Bash(head *secrets.toml*)",
+      "Bash(tail *secrets.toml*)",
+      "Bash(less *secrets.toml*)",
+      "Bash(more *secrets.toml*)"
+    ]
+  }
+}
