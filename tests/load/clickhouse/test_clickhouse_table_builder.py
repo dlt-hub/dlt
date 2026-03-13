@@ -193,70 +193,62 @@ def test_clickhouse_table_engine_configuration() -> None:
         assert config.table_engine_type == "replicated_merge_tree"
 
 
-def test_clickhouse_replacing_merge_tree_with_dedup_sort(
+@pytest.mark.parametrize(
+    "has_dedup_sort,hard_delete,expected_engine",
+    [
+        (False, False, "ENGINE = ReplacingMergeTree"),
+        (False, True, "ENGINE = ReplacingMergeTree"),
+        (True, False, "ENGINE = ReplacingMergeTree(`col2`)"),
+        (True, True, "ENGINE = ReplacingMergeTree(`col2`, `col3`)"),
+    ],
+    ids=[
+        "no_version",
+        "hard_delete_without_version",
+        "dedup_sort_only",
+        "dedup_sort_and_hard_delete",
+    ],
+)
+def test_clickhouse_replacing_merge_tree(
+    clickhouse_client: ClickHouseClient,
+    has_dedup_sort: bool,
+    hard_delete: bool,
+    expected_engine: str,
+) -> None:
+    columns = deepcopy(TABLE_UPDATE[:3])
+    columns[0]["primary_key"] = True
+    if has_dedup_sort:
+        columns[1]["dedup_sort"] = "desc"
+    if hard_delete:
+        columns[2]["hard_delete"] = True
+
+    table_name = "rmt_table"
+    clickhouse_client.schema.update_table(
+        new_table(table_name, write_disposition="append", columns=columns)
+    )
+    clickhouse_client.schema.tables[table_name]["x-table-engine-type"] = (  # type: ignore[typeddict-unknown-key]
+        "replacing_merge_tree"
+    )
+
+    sql = clickhouse_client._get_table_update_sql(table_name, columns, False)[0]
+    assert expected_engine in sql
+    assert "PRIMARY KEY (`col1`)" in sql
+
+
+def test_clickhouse_replacing_merge_tree_fallback_non_append(
     clickhouse_client: ClickHouseClient,
 ) -> None:
     columns = deepcopy(TABLE_UPDATE[:3])
     columns[0]["primary_key"] = True
     columns[1]["dedup_sort"] = "desc"
 
+    table_name = "rmt_fallback_table"
     clickhouse_client.schema.update_table(
-        new_table(
-            "rmt_table",
-            write_disposition="append",
-            columns=columns,
-        )
+        new_table(table_name, write_disposition="replace", columns=columns)
     )
-    clickhouse_client.schema.tables["rmt_table"]["x-table-engine-type"] = (  # type: ignore[typeddict-unknown-key]
+    clickhouse_client.schema.tables[table_name]["x-table-engine-type"] = (  # type: ignore[typeddict-unknown-key]
         "replacing_merge_tree"
     )
 
-    sql = clickhouse_client._get_table_update_sql("rmt_table", columns, False)[0]
-    assert "ENGINE = ReplacingMergeTree(`col2`)" in sql
-    assert "PRIMARY KEY (`col1`)" in sql
-
-
-def test_clickhouse_replacing_merge_tree_with_hard_delete(
-    clickhouse_client: ClickHouseClient,
-) -> None:
-    columns = deepcopy(TABLE_UPDATE[:3])
-    columns[0]["primary_key"] = True
-    columns[1]["dedup_sort"] = "desc"
-    columns[2]["hard_delete"] = True
-
-    clickhouse_client.schema.update_table(
-        new_table(
-            "rmt_hd_table",
-            write_disposition="append",
-            columns=columns,
-        )
-    )
-    clickhouse_client.schema.tables["rmt_hd_table"]["x-table-engine-type"] = (  # type: ignore[typeddict-unknown-key]
-        "replacing_merge_tree"
-    )
-
-    sql = clickhouse_client._get_table_update_sql("rmt_hd_table", columns, False)[0]
-    assert "ENGINE = ReplacingMergeTree(`col2`, `col3`)" in sql
-    assert "PRIMARY KEY (`col1`)" in sql
-
-
-def test_clickhouse_replacing_merge_tree_fallback_no_dedup_sort(
-    clickhouse_client: ClickHouseClient,
-) -> None:
-    columns = deepcopy(TABLE_UPDATE[:3])
-    columns[0]["primary_key"] = True
-
-    clickhouse_client.schema.update_table(
-        new_table(
-            "rmt_fallback_table",
-            write_disposition="append",
-            columns=columns,
-        )
-    )
-    clickhouse_client.schema.tables["rmt_fallback_table"]["x-table-engine-type"] = (  # type: ignore[typeddict-unknown-key]
-        "replacing_merge_tree"
-    )
-
-    sql = clickhouse_client._get_table_update_sql("rmt_fallback_table", columns, False)[0]
+    sql = clickhouse_client._get_table_update_sql(table_name, columns, False)[0]
     assert "ENGINE = MergeTree" in sql
     assert "ReplacingMergeTree" not in sql

@@ -584,7 +584,11 @@ def test_clickhouse_replacing_merge_tree() -> None:
     def rmt_resource(data: List[Dict[str, object]]) -> Generator[Dict[str, object], None, None]:
         yield from data
 
-    clickhouse_adapter(rmt_resource, table_engine_type="replacing_merge_tree")
+    clickhouse_adapter(
+        rmt_resource,
+        table_engine_type="replacing_merge_tree",
+        settings={"clean_deleted_rows": "Always"},
+    )
 
     pipe = dlt.pipeline(
         pipeline_name="rmt_test",
@@ -605,19 +609,22 @@ def test_clickhouse_replacing_merge_tree() -> None:
     )
     assert_load_info(info)
 
-    # verify engine type contains ReplacingMergeTree with version and is_deleted params
+    # verify engine type and clean_deleted_rows setting
     with pipe.sql_client() as client:
         qualified = client.make_qualified_table_name("rmt_resource")
         table_parts = qualified.replace("`", "").split(".")
         with client.execute_query(
-            "SELECT engine, engine_full FROM system.tables "
+            "SELECT engine, engine_full, create_table_query FROM system.tables "
             f"WHERE database = '{table_parts[0]}' AND name = '{table_parts[1]}';"
         ) as cursor:
             row = cursor.fetchone()
             engine_full = str(row[1])
+            create_query = str(row[2])
             # CH Cloud may remap to SharedMergeTree, but engine_full should
             # contain the version column reference
             assert "ReplacingMergeTree" in engine_full or "SharedMergeTree" in str(row[0])
+            # verify clean_deleted_rows setting propagated
+            assert "clean_deleted_rows" in create_query.lower()
 
     # use dataset() to verify initial data via FINAL query
     ds = pipe.dataset()

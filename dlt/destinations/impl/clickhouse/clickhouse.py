@@ -399,21 +399,22 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         if table_type == "replacing_merge_tree":
             if table.get("write_disposition") == "append":
                 dedup_sort = get_dedup_sort_tuple(table)
+                hard_delete_col = get_first_column_name_with_prop(table, "hard_delete")
                 if dedup_sort is not None:
                     ver_col = self.sql_client.escape_column_name(dedup_sort[0])
-                    hard_delete_col = get_first_column_name_with_prop(table, "hard_delete")
                     if hard_delete_col is not None:
                         is_deleted = self.sql_client.escape_column_name(hard_delete_col)
                         engine_params = f"({ver_col}, {is_deleted})"
                     else:
                         engine_params = f"({ver_col})"
-                else:
+                elif hard_delete_col is not None:
                     logger.warning(
-                        "Table '%s' uses replacing_merge_tree but no dedup_sort"
-                        " column hint found. Falling back to MergeTree engine.",
+                        "Table '%s' has hard_delete hint but no dedup_sort column."
+                        " hard_delete requires dedup_sort (ClickHouse requires a"
+                        " version column when is_deleted is used). hard_delete"
+                        " hint will be ignored.",
                         table_name,
                     )
-                    table_type = "merge_tree"
             else:
                 logger.warning(
                     "Table '%s' uses replacing_merge_tree with '%s' write"

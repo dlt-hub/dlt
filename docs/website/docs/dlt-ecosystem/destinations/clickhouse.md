@@ -212,11 +212,15 @@ When loading data with `append` write disposition, you can use ClickHouse's `Rep
 
 To enable this, combine `replacing_merge_tree` with dlt column hints:
 
-- **`primary_key`** — defines the sorting key. Rows with the same primary key are deduplicated.
-- **`dedup_sort`** (required) — specifies the version column. ClickHouse keeps the row with the **highest** value in this column. Must be a non-nullable integer, `Date`, or `DateTime` type.
-- **`hard_delete`** (optional) — specifies a boolean deletion marker column. Rows where this column is `True` are removed during merges.
+- **`primary_key`** — defines the dedup key. Rows with the same key are considered duplicates.
+- **`dedup_sort`** (optional) — specifies the version column. ClickHouse keeps the row with the **highest** value in this column. Must be a non-nullable `UInt*`, `Date`, or `DateTime` type. If omitted, ClickHouse uses last-write-wins semantics (the most recently inserted row survives).
+- **`hard_delete`** (optional) — specifies a `UInt8` deletion marker column. Rows where this column is `1` are filtered out when querying with `FINAL`. To physically remove deleted rows during background merges, set the `clean_deleted_rows` table setting (see example below). Requires `dedup_sort` to be set (ClickHouse constraint: `is_deleted` requires a version column).
 
-dlt automatically wires these hints into the `ReplacingMergeTree` engine parameters. If `dedup_sort` is not set, dlt falls back to `MergeTree` with a warning.
+dlt automatically wires these hints into the `ReplacingMergeTree` engine parameters.
+
+:::note Dedup key and sorting key
+In ClickHouse, `ReplacingMergeTree` deduplicates based on the `ORDER BY` columns, not `PRIMARY KEY`. When no explicit sorting key is set via `clickhouse_adapter(sort=...)`, ClickHouse defaults `ORDER BY` to `PRIMARY KEY`, so `primary_key` effectively controls deduplication. However, if you set a custom sorting key with `clickhouse_adapter(sort=...)`, that sorting key becomes the dedup key and may override your `primary_key` intent. Avoid combining `sort` with `replacing_merge_tree` unless you want the sorting key to define which rows are duplicates.
+:::
 
 ```py
 import dlt
@@ -233,7 +237,11 @@ from dlt.destinations.adapters import clickhouse_adapter
 def events(data):
     yield from data
 
-clickhouse_adapter(events, table_engine_type="replacing_merge_tree")
+clickhouse_adapter(
+    events,
+    table_engine_type="replacing_merge_tree",
+    settings={"clean_deleted_rows": "Always"},
+)
 
 pipeline = dlt.pipeline("my_pipeline", destination="clickhouse")
 
@@ -250,7 +258,7 @@ pipeline.run(events([
 ]))
 ```
 
-This generates `ENGINE = ReplacingMergeTree(version, is_deleted)`, so ClickHouse keeps only the row with the highest `version` per `id` and removes rows marked as deleted.
+This generates `ENGINE = ReplacingMergeTree(version, is_deleted)`, so ClickHouse keeps only the row with the highest `version` per `id`. The `clean_deleted_rows` setting tells ClickHouse to physically remove rows marked as deleted during background merges.
 
 :::caution Data consistency
 `ReplacingMergeTree` deduplicates during **background merges**, which happen asynchronously. Until a merge runs, duplicate rows may be visible in queries. To get consistent (deduplicated) results, use the `FINAL` modifier:
@@ -258,6 +266,8 @@ This generates `ENGINE = ReplacingMergeTree(version, is_deleted)`, so ClickHouse
 ```sql
 SELECT * FROM my_table FINAL
 ```
+
+Without `clean_deleted_rows`, rows with `is_deleted=1` are only filtered out by `FINAL` queries but remain physically stored. With `clean_deleted_rows='Always'`, ClickHouse removes them during merges.
 
 This is different from dlt's `merge` write disposition, which deduplicates immediately during loading via explicit SQL statements. Choose `ReplacingMergeTree` when eventual consistency is acceptable and you want ClickHouse to manage deduplication natively.
 :::
