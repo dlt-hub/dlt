@@ -1,6 +1,6 @@
-version: 5
-version_hash: zsNXwXS2tlD1Or0sGgLOMI7clOz978WoyDuzVx+KU1s=
-engine_version: 10
+version: 9
+version_hash: P8E7cjYovKZVIFpXOcuizgzCVXmUriPYEZ1FxBt63Tc=
+engine_version: 11
 name: trace
 tables:
   _dlt_version:
@@ -47,7 +47,8 @@ tables:
     description: Created by DLT. Tracks completed loads
     resource: _dlt_loads
   trace:
-    description: Top-level pipeline run trace with execution context, timing and environment info
+    description: Top-level pipeline run trace with execution context, timing and environment
+      info
     columns:
       transaction_id:
         description: Unique identifier for this pipeline run
@@ -73,23 +74,23 @@ tables:
         data_type: text
         nullable: true
       execution_context__library__name:
-        description: "dlt library name"
+        description: dlt library name
         data_type: text
         nullable: true
       execution_context__library__version:
-        description: "dlt library version"
+        description: dlt library version
         data_type: text
         nullable: true
       execution_context__plus__name:
-        description: "dlthub plus library name (if installed)"
+        description: dlthub plus library name (if installed)
         data_type: text
         nullable: true
       execution_context__plus__version:
-        description: "dlthub plus library version (if installed)"
+        description: dlthub plus library version (if installed)
         data_type: text
         nullable: true
       execution_context__run_context:
-        description: "Run context class name (e.g. PluggableRunContext)"
+        description: Run context class name (e.g. PluggableRunContext)
         data_type: text
         nullable: true
       started_at:
@@ -132,14 +133,15 @@ tables:
         nullable: false
     parent: trace
   trace__steps:
-    description: Individual pipeline steps (extract, normalize, load) with timing and outcome info
+    description: Individual pipeline steps (extract, normalize, load) with timing
+      and outcome info
     columns:
       span_id:
         description: Unique span identifier for this step
         data_type: text
         nullable: true
       step:
-        description: "Step type: extract, normalize, or load"
+        description: 'Step type: extract, normalize, or load'
         data_type: text
         nullable: true
       started_at:
@@ -202,7 +204,8 @@ tables:
         data_type: text
         nullable: true
       exception_traces:
-        description: JSON-serialized exception chain (compact form, see child table for structured)
+        description: JSON-serialized exception chain (compact form, see child table
+          for structured)
         data_type: text
         nullable: true
       load_info__environment:
@@ -214,7 +217,8 @@ tables:
         nullable: true
     parent: trace
   trace__steps__extract_info__job_metrics:
-    description: Per-job file metrics from the extract step (file path, item count, size)
+    description: Per-job file metrics from the extract step (file path, item count,
+      size)
     columns:
       file_path:
         data_type: text
@@ -303,7 +307,8 @@ tables:
         row_key: true
     parent: trace__steps
   trace__steps__extract_info__resource_metrics:
-    description: Extract job metrics aggregated by resource name, including custom resource metrics
+    description: Extract job metrics aggregated by resource name, including custom
+      resource metrics
     columns:
       file_path:
         data_type: text
@@ -350,7 +355,8 @@ tables:
         row_key: true
     parent: trace__steps
   trace__steps__extract_info__dag:
-    description: Resource dependency graph edges (parent_name -> resource_name) from extract step
+    description: Resource dependency graph edges (parent_name -> resource_name) from
+      extract step
     columns:
       load_id:
         data_type: text
@@ -381,7 +387,8 @@ tables:
         row_key: true
     parent: trace__steps
   trace__steps__extract_info__hints:
-    description: Resource hints applied during extract (write_disposition, schema_contract, columns, etc.)
+    description: Resource hints applied during extract (write_disposition, schema_contract,
+      columns, etc.)
     columns:
       load_id:
         data_type: text
@@ -428,6 +435,21 @@ tables:
         nullable: false
         unique: true
         row_key: true
+      incremental__cursor_path:
+        data_type: text
+        nullable: true
+      incremental__allow_external_schedulers:
+        data_type: bool
+        nullable: true
+      incremental__on_cursor_value_missing:
+        data_type: text
+        nullable: true
+      incremental__range_start:
+        data_type: text
+        nullable: true
+      incremental__range_end:
+        data_type: text
+        nullable: true
     parent: trace__steps
   trace__steps__step_info__loads_ids:
     description: List of load package IDs processed in a pipeline step
@@ -449,7 +471,8 @@ tables:
         nullable: false
     parent: trace__steps
   trace__steps__step_info__load_packages:
-    description: Load package metadata (state, schema, completion time) for each processed package
+    description: Load package metadata (state, schema, completion time) for each processed
+      package
     columns:
       load_id:
         data_type: text
@@ -459,7 +482,7 @@ tables:
         data_type: text
         nullable: true
       state:
-        description: "Package state: new, extracted, normalized, loaded"
+        description: 'Package state: new, extracted, normalized, loaded'
         data_type: text
         nullable: true
       schema_hash:
@@ -485,10 +508,11 @@ tables:
         nullable: true
     parent: trace__steps
   trace__steps__step_info__load_packages__jobs:
-    description: Individual load jobs within a package (file path, state, size, retry count, errors)
+    description: Individual load jobs within a package (file path, state, size, retry
+      count, errors)
     columns:
       state:
-        description: "Job state: new_jobs, started_jobs, failed_jobs, completed_jobs"
+        description: 'Job state: new_jobs, started_jobs, failed_jobs, completed_jobs'
         data_type: text
         nullable: true
       file_path:
@@ -540,7 +564,8 @@ tables:
         nullable: true
     parent: trace__steps__step_info__load_packages
   trace__steps__normalize_info__job_metrics:
-    description: Per-job file metrics from the normalize step (file path, item count, size)
+    description: Per-job file metrics from the normalize step (file path, item count,
+      size)
     columns:
       file_path:
         data_type: text
@@ -629,7 +654,8 @@ tables:
         row_key: true
     parent: trace__steps
   trace__steps__load_info__job_metrics:
-    description: Per-job metrics from the load step (timing, state, remote URL, retry count)
+    description: Per-job metrics from the load step (timing, state, remote URL, retry
+      count)
     columns:
       load_id:
         data_type: text
@@ -673,7 +699,8 @@ tables:
         nullable: true
     parent: trace__steps
   trace__steps__step_info__load_packages__tables:
-    description: Schema update tables within a load package (write disposition, format, contract)
+    description: Schema update tables within a load package (write disposition, format,
+      contract)
     columns:
       write_disposition:
         data_type: text
@@ -721,7 +748,8 @@ tables:
         nullable: true
     parent: trace__steps__step_info__load_packages
   trace__steps__step_info__load_packages__tables__columns:
-    description: Column definitions from schema update tables (data type, constraints, hints)
+    description: Column definitions from schema update tables (data type, constraints,
+      hints)
     columns:
       name:
         data_type: text
@@ -797,9 +825,13 @@ tables:
         description: Whether the normalizer first saw a null value for this column
         data_type: bool
         nullable: true
+      incremental:
+        data_type: bool
+        nullable: true
     parent: trace__steps__step_info__load_packages__tables
   trace__resolved_config_values:
-    description: Config and secret values resolved during the pipeline run (key, provider, type)
+    description: Config and secret values resolved during the pipeline run (key, provider,
+      type)
     columns:
       key:
         data_type: text
@@ -849,7 +881,8 @@ tables:
         nullable: false
     parent: trace__resolved_config_values
   trace__steps__exception_traces:
-    description: Structured exception chain for failed steps (type, message, terminality, source)
+    description: Structured exception chain for failed steps (type, message, terminality,
+      source)
     columns:
       message:
         data_type: text
@@ -913,6 +946,33 @@ tables:
         data_type: bigint
         nullable: false
     parent: trace__steps__exception_traces
+  trace__steps__extract_info__resource_metrics__incremental:
+    columns:
+      unfiltered_items_count:
+        data_type: bigint
+        nullable: true
+      unfiltered_batches_count:
+        data_type: bigint
+        nullable: true
+      initial_unique_hashes_count:
+        data_type: bigint
+        nullable: true
+      final_unique_hashes_count:
+        data_type: bigint
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__extract_info__resource_metrics
 settings:
   detections:
   - iso_timestamp
@@ -935,9 +995,13 @@ normalizers:
   names: snake_case
   json:
     module: dlt.common.normalizers.json.relational
+  use_break_path_on_normalize: false
 previous_hashes:
+- lZ/04BwFLOm7fouDWZwxKImlCEdyHBO+SUUgIVLGm1k=
+- nNzjL9RAoVnFRkAEXVSu6FPXKDHlW1gQ5pJN0o12msk=
+- z//eAZyEIH4IFhc95OmWN6Uv4QBb8o4o9puK23yw9Ww=
+- zsNXwXS2tlD1Or0sGgLOMI7clOz978WoyDuzVx+KU1s=
 - JE62zVwqT2T/qHTi2Qdnn2d1A/JzCzyGtDwc+qUmbTs=
 - 9Ysjq/W0xpxkI/vBiYm8Qbr2nDP3JMt6KvGKUS/FCyI=
 - NYeAxJ2r+T+dKFnXFhBEPzBP6SO+ORdhOfgQRo/XqBU=
 - RV9jvZSD5dM+ZGjEL3HqokLvtf22K4zMNc3zWRahEw4=
-
