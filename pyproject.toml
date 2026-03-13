@@ -287,7 +287,7 @@ pipeline = [
     # this pandas and above has functional numpy dependency
     "pandas>=2.1.4",
 ]
-airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
+airflow = ["apache-airflow>=2.8.0,<4 ; python_version < '3.14'"]
 ibis = [
     "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=12.0.0 ; python_version >= '3.10' and python_version < '3.13'",
     "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=12.0.0 ; python_version >= '3.13'"

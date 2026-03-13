@@ -473,7 +473,10 @@ class Incremental(
 
         try:
             # we can move it to separate module when we have more of those
-            from airflow.operators.python import get_current_context  # noqa
+            try:
+                from airflow.operators.python import get_current_context  # noqa
+            except ImportError:
+                from airflow.sdk import get_current_context  # type: ignore[no-redef,unused-ignore]
 
             context = get_current_context()
             start_date = context["data_interval_start"]
