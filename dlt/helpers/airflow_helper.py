@@ -15,11 +15,22 @@ from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR, DLT_LOCAL_DIR
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 
 try:
+    import airflow as _airflow
+
+    _AIRFLOW_VERSION = int(_airflow.__version__.split(".")[0])
+
     from airflow.configuration import conf
     from airflow.models import TaskInstance, BaseOperator
-    from airflow.utils.task_group import TaskGroup
-    from airflow.operators.empty import EmptyOperator
-    from airflow.operators.python import PythonOperator, get_current_context
+
+    if _AIRFLOW_VERSION < 3:
+        from airflow.utils.task_group import TaskGroup
+        from airflow.operators.empty import EmptyOperator
+        from airflow.operators.python import PythonOperator, get_current_context
+    else:
+        from airflow.sdk import TaskGroup  # type: ignore[no-redef,unused-ignore]
+        from airflow.sdk import get_current_context  # type: ignore[no-redef,unused-ignore]
+        from airflow.providers.standard.operators.empty import EmptyOperator  # type: ignore[no-redef,unused-ignore]
+        from airflow.providers.standard.operators.python import PythonOperator  # type: ignore[no-redef,unused-ignore]
 except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["apache-airflow>=2.5"])
 
@@ -88,7 +99,7 @@ class PipelineTasksGroup(TaskGroup):
         Args:
             pipeline_name (str): Name of the task group
             use_data_folder (bool, optional): If well defined 'data' folder is present it will be used. Currently only data folder on Composer is supported. Defaults to False.
-            local_data_folder (str, optional): Path to a local folder on worker machine to where to store data. Used if local_data_folder is False or there's not well defined data folder. Defaults to gettempdir.
+            local_data_folder (str, optional): Path to a local folder on worker machine to where to store data. Used if use_data_folder is False or there's not well defined data folder. Defaults to gettempdir.
             use_task_logger (bool, optional): Will redirect dlt logger into task logger. Defaults to True.
             log_progress_period (float, optional): If progress is not configured for a pipeline, the `log` progress is used with a given period. Set 0 to disable. Defaults to 30.0.
             buffer_max_items (int, optional): Maximum number of buffered items. Use 0 to keep dlt built-in limit. Defaults to 1000.
@@ -258,8 +269,11 @@ class PipelineTasksGroup(TaskGroup):
 
         # use task logger
         if self.use_task_logger:
-            ti: TaskInstance = get_current_context()["ti"]  # type: ignore[assignment,unused-ignore]
-            logger.LOGGER = ti.log
+            ti = get_current_context()["ti"]
+            # AF3 RuntimeTaskInstance has no .log — task output is captured
+            # by the supervisor via stdout/stderr so no redirect needed
+            if hasattr(ti, "log"):
+                logger.LOGGER = ti.log
 
         # set global number of buffered items
         if dlt.config.get("data_writer.buffer_max_items") is None and self.buffer_max_items > 0:
@@ -340,6 +354,7 @@ class PipelineTasksGroup(TaskGroup):
         data: Any,
         *,
         decompose: Literal["none", "serialize", "parallel", "parallel-isolated"] = "none",
+        serialize_first_task: bool = True,
         table_name: str = None,
         write_disposition: TWriteDispositionConfig = None,
         loader_file_format: TLoaderFileFormat = None,
@@ -379,6 +394,11 @@ class PipelineTasksGroup(TaskGroup):
 
                 Parallel tasks are executed in different pipelines, all derived from the original
                 one, but with the state isolated from each other.
+            serialize_first_task (bool): When `True` (default), the first decomposed source
+                component runs before the rest to safely create the initial schema in the
+                destination. Set to `False` to fan out all components concurrently from a
+                shared EmptyOperator start node. Only affects `parallel` and
+                `parallel-isolated` modes.
             table_name: (str): The name of the table to which the data should be loaded within the `dataset`
             write_disposition (TWriteDispositionConfig, optional): Same as in `run` command. Defaults to None.
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package.
@@ -448,10 +468,16 @@ class PipelineTasksGroup(TaskGroup):
                 tasks = []
                 sources = data.decompose("scc")
                 t_name = self._task_name(pipeline, data)
-                start = EmptyOperator(task_id=f"{t_name}_start")
+
+                if serialize_first_task:
+                    start = make_task(pipeline, sources[0])
+                    parallel_sources = sources[1:]
+                else:
+                    start = EmptyOperator(task_id=f"{t_name}_start")
+                    parallel_sources = sources
 
                 # parallel tasks
-                for source in sources:
+                for source in parallel_sources:
                     for resource in source.resources.values():
                         if resource.incremental:
                             logger.warn(
@@ -481,15 +507,24 @@ class PipelineTasksGroup(TaskGroup):
                 if pipeline.dev_mode:
                     raise ValueError("Cannot decompose pipelines with `dev_mode=True`")
 
-                # parallel tasks
                 tasks = []
                 naming = SnakeCaseNamingConvention()
                 sources = data.decompose("scc")
                 t_name = self._task_name(pipeline, data)
-                start = EmptyOperator(task_id=f"{t_name}_start")
+
+                if serialize_first_task:
+                    start = make_task(
+                        pipeline,
+                        sources[0],
+                        naming.normalize_identifier(self._task_name(pipeline, sources[0])),
+                    )
+                    parallel_sources = sources[1:]
+                else:
+                    start = EmptyOperator(task_id=f"{t_name}_start")
+                    parallel_sources = sources
 
                 # parallel tasks
-                for source in sources:
+                for source in parallel_sources:
                     # name pipeline the same as task
                     new_pipeline_name = naming.normalize_identifier(
                         self._task_name(pipeline, source)
@@ -513,8 +548,6 @@ class PipelineTasksGroup(TaskGroup):
 def airflow_get_execution_dates() -> Tuple[pendulum.DateTime, Optional[pendulum.DateTime]]:
     # prefer logging to task logger
     try:
-        from airflow.operators.python import get_current_context  # noqa
-
         context = get_current_context()
         return context["data_interval_start"], context["data_interval_end"]
     except Exception:

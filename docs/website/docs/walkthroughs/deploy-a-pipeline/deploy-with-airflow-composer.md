@@ -172,13 +172,16 @@ def load_data():
     )
 
     # The "parallel" decompose option will convert dlt
-    # resources into parallel Airflow tasks, except the
-    # first one, which will be executed before any other tasks.
+    # resources into parallel Airflow tasks. By default the
+    # first source component runs before the rest to safely
+    # create the initial schema. Set serialize_first_task=False
+    # to fan out all components concurrently.
     # All the tasks will be executed in the same pipeline state.
     # tasks.add_run(
     #   pipeline,
     #   source(),
     #   decompose="parallel",
+    #   serialize_first_task=False,  # True by default
     #   trigger_rule="all_done",
     #   retries=0,
     #   provide_context=True
@@ -192,6 +195,7 @@ def load_data():
     #   pipeline,
     #   source(),
     #   decompose="parallel-isolated",
+    #   serialize_first_task=False,  # True by default
     #   trigger_rule="all_done",
     #   retries=0,
     #   provide_context=True
