@@ -110,7 +110,8 @@ def test_get_module_name() -> None:
 
     # use exec to get __main__ exception
     mod_name = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
-    assert mod_name.strip() == "uniq_mod_121"
+    # take last non-empty line: dep warnings may appear on stderr (merged into stdout)
+    assert mod_name.strip().splitlines()[-1] == "uniq_mod_121"
 
 
 def test_concat_strings_with_limit() -> None:

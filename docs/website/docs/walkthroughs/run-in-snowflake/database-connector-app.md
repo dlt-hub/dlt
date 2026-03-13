@@ -163,7 +163,7 @@ If you choose **Subset**, add the tables you want to ingest. If you choose **All
     ```
 ### Destination Settings
 Destination settings define where in Snowflake the data is loaded and allow advanced destination tuning.
-- **Destination databse**:
+- **Destination database**:
     Name of the Snowflake database to load into.
 - **Check privileges**:
     Validates that the app has access to the destination database. If permissions are missing, the app will request/grant the required access.
@@ -237,7 +237,7 @@ Statuses typically move through:
 Click the **view logs** tab to see the logs of the job:
 - When each pipeline stage (extract, normalize, load) starts and finishes
 - Progress information for each stage 
-- Performance metrics (processing time, memoray usage, CPU, ...)
+- Performance metrics (processing time, memory usage, CPU, ...)
 
 ![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_runs_button.png)
 

@@ -4,7 +4,7 @@ from typing import IO, Any, Dict, Iterator, List, Sequence, TYPE_CHECKING, Optio
 import math
 from urllib.parse import quote_plus, urlencode
 
-import sqlalchemy as sa
+from dlt.common.libs.sql_alchemy import sa
 
 from dlt.common import logger
 from dlt.common.destination.client import (

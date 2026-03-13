@@ -250,6 +250,73 @@ def multi_partition_data():
 ```
 
 
+## Table properties
+
+You can set [Iceberg table properties](https://iceberg.apache.org/docs/latest/configuration/) at two levels. Properties are applied when the table is first created and are not updated on subsequent loads.
+
+### Destination-level defaults
+Set default properties for all Iceberg tables via configuration:
+
+```toml
+[destination.filesystem]
+iceberg_table_properties = '{"write.format.default": "parquet", "write.target-file-size-bytes": "536870912"}'
+```
+
+### Per-table properties with `iceberg_adapter`
+Use `iceberg_adapter` to set or override properties on individual resources:
+
+```py
+import dlt
+from dlt.destinations.adapters import iceberg_adapter
+
+@dlt.resource(table_format="iceberg")
+def my_data():
+    yield [{"id": 1, "value": "a"}]
+
+iceberg_adapter(
+    my_data,
+    table_properties={
+        "write.format.default": "parquet",
+        "write.target-file-size-bytes": "536870912",
+    },
+)
+
+pipeline = dlt.pipeline("iceberg_props", destination="filesystem")
+pipeline.run(my_data)
+```
+
+You can combine table properties with partitioning:
+
+```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
+iceberg_adapter(
+    my_data,
+    partition=[iceberg_partition.month("created_at")],
+    table_properties={"write.format.default": "parquet"},
+)
+```
+
+### Merge behavior
+When both destination-level and per-table properties are set, they are merged. Per-table adapter properties take precedence over destination-level defaults on any conflicting keys.
+
+:::note
+Table properties are only applied at table creation time. If the table already exists, the properties are ignored.
+:::
+
+## Namespace properties
+
+You can set properties on the Iceberg namespace (schema) via configuration. These are passed to the catalog when the namespace is first created.
+
+```toml
+[destination.filesystem]
+iceberg_namespace_properties = '{"owner": "data-team", "description": "Production tables"}'
+```
+
+:::note
+Namespace properties are only applied at namespace creation time. If the namespace already exists, the properties are ignored.
+:::
+
 ## Table access helper functions
 You can use the `get_iceberg_tables` helper function to access native table objects. These are `pyiceberg` [Table](https://py.iceberg.apache.org/reference/pyiceberg/table/#pyiceberg.table.Table) objects.
 

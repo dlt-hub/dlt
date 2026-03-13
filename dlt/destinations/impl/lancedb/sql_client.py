@@ -105,8 +105,8 @@ class LanceDBSQLClient(DuckDbSqlClient):
 
     @contextmanager
     @raise_database_error
-    def execute_query(
-        self, query: str, *args: Any, **kwargs: Any  # type: ignore[override]
+    def execute_query(  # type: ignore[override]
+        self, query: str, *args: Any, **kwargs: Any
     ) -> Iterator[DBApiCursor]:
         # replace generic string placeholder by DuckDB placeholders
         if args or kwargs:
@@ -124,9 +124,19 @@ class LanceDBSQLClient(DuckDbSqlClient):
 
     def create_view(self, table_name: str) -> None:
         lance_table_uri = get_lance_table_uri(self.lancedb_client, table_name)
+
+        # lancedb allows omitting the dataset_name, calling `make_qualified_table_name` will
+        # prepend the dataset_name even if it is None
+        if self.dataset_name:
+            view_name = self.make_qualified_table_name(table_name)
+        else:
+            view_name = self.capabilities.escape_identifier(
+                self.capabilities.casefold_identifier(table_name)
+            )
+
         create_view_sql = _prepare_create_view_statement(
             lance_table_uri=lance_table_uri,
-            view_name=self.make_qualified_table_name(table_name),
+            view_name=view_name,
         )
         try:
             self.open_connection().execute(create_view_sql)

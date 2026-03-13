@@ -37,7 +37,7 @@ from dlt.common.destination.dataset import SupportsDataAccess
 
 
 if TYPE_CHECKING:
-    from ibis import ir
+    from dlt.common.libs.ibis import ir
     from dlt.common.libs.pandas import pandas as pd
     from dlt.common.libs.pyarrow import pyarrow as pa
     from dlt.helpers.ibis import Expr as IbisExpr

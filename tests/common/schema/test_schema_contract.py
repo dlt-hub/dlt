@@ -27,16 +27,29 @@ def get_schema() -> Schema:
     }
 
     # add some tables
-    s.update_table(cast(TTableSchema, {"name": "tables", "columns": columns}))
+    s.update_table(cast(TTableSchema, {"name": "tables", "columns": copy.deepcopy(columns)}))
 
     s.update_table(
-        cast(TTableSchema, {"name": "child_table", "parent": "tables", "columns": columns})
+        cast(
+            TTableSchema,
+            {"name": "child_table", "parent": "tables", "columns": copy.deepcopy(columns)},
+        )
     )
 
-    s.update_table(cast(TTableSchema, {"name": "incomplete_table", "columns": incomplete_columns}))
+    s.update_table(
+        cast(
+            TTableSchema, {"name": "incomplete_table", "columns": copy.deepcopy(incomplete_columns)}
+        )
+    )
 
     s.update_table(
-        cast(TTableSchema, {"name": "mixed_table", "columns": {**incomplete_columns, **columns}})
+        cast(
+            TTableSchema,
+            {
+                "name": "mixed_table",
+                "columns": {**copy.deepcopy(incomplete_columns), **copy.deepcopy(columns)},
+            },
+        )
     )
 
     s.update_table(
@@ -45,7 +58,7 @@ def get_schema() -> Schema:
             {
                 "name": "evolve_once_table",
                 "x-normalizer": {"evolve-columns-once": True},
-                "columns": {**incomplete_columns, **columns},
+                "columns": {**copy.deepcopy(incomplete_columns), **copy.deepcopy(columns)},
             },
         )
     )

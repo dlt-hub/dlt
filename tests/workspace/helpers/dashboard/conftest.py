@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import pytest
 import tempfile
 
@@ -73,8 +76,6 @@ def load_exception_pipeline():
 def temp_pipelines_dir():
     """Create a temporary directory structure for testing pipelines"""
     with tempfile.TemporaryDirectory() as temp_dir:
-        from pathlib import Path
-        import os
         from dlt.pipeline.trace import TRACE_FILE_NAME
 
         pipelines_dir = Path(temp_dir) / "pipelines"

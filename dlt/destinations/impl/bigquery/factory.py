@@ -179,7 +179,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         environment: str = None,
         **kwargs: Any,
     ) -> None:
-        """Configure the MsSql destination to use in a pipeline.
+        """Configure the BigQuery destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 

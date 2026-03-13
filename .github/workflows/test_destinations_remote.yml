@@ -91,6 +91,13 @@ jobs:
               extras: "--extra gs --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
               post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
+            - name: filesystem_hf
+              destinations: "[\"filesystem\"]"
+              filesystem_drivers: "[\"memory\", \"hf\"]"
+              # although, `hf` does not support delta/iceberg, we include `deltalake`/`pyiceberg` extras to prevent missing imports in tests
+              extras: "--extra hf --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
+              post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+
             # LanceDB
             - name: lancedb
               destinations: "[\"lancedb\"]"

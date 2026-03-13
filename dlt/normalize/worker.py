@@ -39,6 +39,7 @@ from dlt.normalize.items_normalizers import (
 class TWorkerRV(NamedTuple):
     schema_updates: List[TSchemaUpdate]
     file_metrics: List[DataWriterMetrics]
+    null_only_columns: Dict[str, Set[str]]
 
 
 def group_worker_files(files: Sequence[str], no_groups: int) -> List[Sequence[str]]:
@@ -117,7 +118,8 @@ def w_normalize_files(
             if item_format == "file":
                 # if we want to import file, create a spec that may be used only for importing
                 best_writer_spec = create_import_spec(
-                    parsed_file_name.file_format, items_supported_file_formats  # type: ignore[arg-type]
+                    parsed_file_name.file_format,  # type: ignore[arg-type]
+                    items_supported_file_formats,
                 )
 
             config_loader_file_format: TLoaderFileFormat = None
@@ -260,6 +262,15 @@ def w_normalize_files(
             raise NormalizeJobFailed(load_id, job_id, str(exc), writer_metrics) from exc
         else:
             writer_metrics = _gather_metrics_and_close(parsed_file_name, in_exception=False)
+        finally:
+            for normalizer in item_normalizers.values():
+                normalizer.close()
+
+        # gather null-only columns from all normalizers
+        all_null_only: Dict[str, Set[str]] = {}
+        for normalizer in item_normalizers.values():
+            for table_name, cols in normalizer.null_only_columns.items():
+                all_null_only.setdefault(table_name, set()).update(cols)
 
         logger.info(f"Processed all items in {len(extracted_items_files)} files")
-        return TWorkerRV(schema_updates, writer_metrics)
+        return TWorkerRV(schema_updates, writer_metrics, all_null_only)

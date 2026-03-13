@@ -36,8 +36,8 @@ You instantiate a pipeline by calling the `dlt.pipeline` function with the follo
   group of tables, i.e., `schema` in relational databases or a folder grouping many files. It may also be
   provided later to the `run` or `load` methods of the pipeline. If not provided, then
   it defaults to the `{pipeline_name}_dataset` on destinations that require datasets (most of the warehouses).
-  It will stay empty on destinations that do not separate tables into datasets (or database schemas) ie.
-  on vector databases or Clikchouse.
+  It will stay empty on destinations that do not separate tables into datasets (or database schemas) i.e.
+  on vector databases or ClickHouse.
 
 To load the data, you call the `run` method and pass your data in the `data` argument.
 

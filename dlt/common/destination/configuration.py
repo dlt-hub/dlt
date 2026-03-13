@@ -31,14 +31,20 @@ class ParquetFormatConfiguration(BaseConfiguration):
     coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
     allow_truncated_timestamps: bool = False
     use_compliant_nested_type: bool = True
+    write_page_index: bool = False
+    use_content_defined_chunking: bool = False  # requires pyarrow>=21.0.0, ignored otherwise
     supports_dictionary_encoding: bool = True
     """When False, constant columns (like _dlt_load_id) will use regular arrays instead of
     dictionary-encoded arrays. Set to False for destinations using ADBC drivers that don't
     support dictionary types (e.g., MSSQL)."""
+    arrow_concat_promote_options: Literal["none", "default", "permissive"] = "none"
+    """PyArrow concat_tables promote_options for Arrow table concatenation. "none" (default)
+    requires identical schemas and enables zero-copy concat. "default" promotes within type
+    families (e.g. int32 to int64). "permissive" promotes across families (e.g. int64 to double)."""
 
     def max_timestamp_precision(self) -> int:
         if (self.flavor or "").lower() == "spark":
-            base = get_precision_from_datetime_unit("ns")  # INT96 → treat as ns-capable
+            base = get_precision_from_datetime_unit("ns")  # INT96 -> treat as ns-capable
         else:
             v = float(self.version or "0.0")
             base = (

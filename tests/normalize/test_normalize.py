@@ -1021,3 +1021,46 @@ def test_warning_from_json_normalizer_on_null_column(
         assert expected_warning in logger_spy.call_args_list[0][0][0]
     else:
         logger_spy.assert_not_called()
+
+
+def test_warning_null_column_vs_user_defined_incomplete(
+    raw_normalize: Normalize,
+    mocker: MockerFixture,
+) -> None:
+    """Test that two distinct warnings are emitted:
+    - UnboundColumnWithoutTypeException for columns that only received null values
+    - UnboundColumnException for user-defined incomplete columns that never appeared in data
+    """
+    schema = load_or_create_schema(raw_normalize, "test_schema")
+    # pre-define an incomplete column that will receive nulls
+    table = new_table("my_table", columns=[{"name": "predefined_null_col"}])
+    schema.update_table(table)
+    # pre-define an incomplete column that never appears in data
+    table2 = new_table("my_table", columns=[{"name": "predefined_absent_col"}])
+    schema.update_table(table2)
+
+    # data: "new_null_col" and "predefined_null_col" have only None,
+    # "predefined_absent_col" never appears
+    items = [
+        {"id": 1, "new_null_col": None, "predefined_null_col": None},
+        {"id": 2, "new_null_col": None, "predefined_null_col": None},
+    ]
+
+    logger_spy = mocker.spy(logger, "warning")
+    extract_items(raw_normalize.normalize_storage, items, schema, "my_table")
+    with create_pool(PoolRunnerConfiguration(pool_type="thread", workers=1)) as pool:
+        raw_normalize.run(pool)
+
+    warning_messages = [call[0][0] for call in logger_spy.call_args_list]
+
+    # UnboundColumnWithoutTypeException for null-only columns (contains "types inferred")
+    null_warnings = [w for w in warning_messages if "types inferred" in w]
+    assert len(null_warnings) == 1
+    assert "new_null_col" in null_warnings[0]
+    assert "predefined_null_col" in null_warnings[0]
+
+    # UnboundColumnException for user-defined incomplete column absent from data
+    unbound_warnings = [w for w in warning_messages if "predefined_absent_col" in w]
+    assert len(unbound_warnings) == 1
+    # must be a different warning than the null-only one
+    assert "types inferred" not in unbound_warnings[0]

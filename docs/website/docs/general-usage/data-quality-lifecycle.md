@@ -12,7 +12,7 @@ traditional ETL vendors.
 
 ## One library, end-to-end ingestion, transformation, with data quality and lineage
 
-dlt is an open source pythonic ingestion library while dlthub is a commercial addition to dlt spanning into tranformation and other areas of the data stack.
+dlt is an open source pythonic ingestion library while dlthub is a commercial addition to dlt spanning into transformation and other areas of the data stack.
 
 Because `dlt` together with `dltHub` span the entire pipeline, starting from ingestion, passing through a portable staging layer, and extending into the transformation, it uniquely bridges these gaps.
 
