@@ -50,12 +50,14 @@ def _create_parquet_file(data: list[dict[str, Any]], tmp_path: pathlib.Path) -> 
     return FileItemDict(mapping=file_item, fsspec=_fsspec_client(tmp_path))
 
 
-def _create_csv_file(data: list[dict[str, Any]], tmp_path: pathlib.Path) -> FileItemDict:
+def _create_csv_file(
+    data: list[dict[str, Any]], tmp_path: pathlib.Path, encoding: str = "utf-8"
+) -> FileItemDict:
     file_name = "data.csv"
     full_file_path = tmp_path / file_name
 
     df = pd.DataFrame(data)
-    df.to_csv(full_file_path, index=False)
+    df.to_csv(full_file_path, index=False, encoding=encoding)
 
     file_item = FileItem(
         file_name=file_name,
@@ -125,6 +127,16 @@ def test_read_csv(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
     assert isinstance(read_data, list)  # list of batches
     assert isinstance(read_data[0], list)  # batch of records
     assert isinstance(read_data[0][0], dict)  # record
+    assert read_data == [data]
+
+
+def test_read_csv_non_utf8_encoding(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
+    file_ = _create_csv_file(data=data, tmp_path=tmp_path, encoding="utf-16")
+    iterator = _read_csv([file_], encoding="utf-16")
+    read_data = list(iterator)
+
+    assert isinstance(iterator, Iterator)
+    assert isinstance(read_data, list)
     assert read_data == [data]
 
 
