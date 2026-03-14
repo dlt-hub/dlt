@@ -188,34 +188,15 @@ def pytest_configure(config):
     # disable pyiceberg logging
     logging.getLogger("pyiceberg").setLevel("WARNING")
 
-    # reset and init airflow db
-    import warnings
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-        try:
-            from airflow.utils import db
-            import contextlib
-            import io
-
-            for log in [
-                "airflow.models.crypto",
-                "airflow.models.variable",
-                "airflow",
-                "alembic",
-                "alembic.runtime.migration",
-            ]:
-                logging.getLogger(log).setLevel("ERROR")
-
-            with (
-                contextlib.redirect_stdout(io.StringIO()),
-                contextlib.redirect_stderr(io.StringIO()),
-            ):
-                db.resetdb()
-
-        except Exception:
-            pass
+    # silence airflow loggers if airflow is installed
+    for log_name in [
+        "airflow.models.crypto",
+        "airflow.models.variable",
+        "airflow",
+        "alembic",
+        "alembic.runtime.migration",
+    ]:
+        logging.getLogger(log_name).setLevel("ERROR")
 
 
 # import faulthandler, atexit, sys

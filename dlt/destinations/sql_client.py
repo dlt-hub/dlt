@@ -358,6 +358,9 @@ class DBApiCursorImpl(DBApiCursor):
         self._set_default_schema_columns()
 
     def __getattr__(self, name: str) -> Any:
+        # do not intercept dunder attributes (needed for copy/pickle/deepcopy)
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
         return getattr(self.native_cursor, name)
 
     def _get_columns(self) -> List[str]:
