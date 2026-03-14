@@ -330,6 +330,9 @@ class Dataset:
 
         This proxies `Dataset.table()`.
         """
+        # do not intercept dunder attributes (needed for copy/pickle/deepcopy)
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
         try:
             return self.table(name)
         # TODO: expect TableNotFound in the future
