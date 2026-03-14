@@ -507,69 +507,59 @@ const sidebars = {
       items: [
         'hub/intro',
         'hub/getting-started/installation',
-        { type: 'ref', id: 'dlt-ecosystem/llm-tooling/llm-native-workflow' },
         'hub/getting-started/runtime-tutorial',
       ]
     },
-    {
+        {
       type: 'category',
-      label: 'Workspace',
-       link: {
-         type: 'doc',
-         id: 'hub/workspace/overview',
-       },
+      label: 'AI Workbench',
       items: [
-         'hub/workspace/overview',
-        {
-          type: 'category',
-          label: 'Create pipeline',
-          items: [
-          'hub/workspace/init',
-          'hub/ecosystem/ms-sql',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Ensure data quality',
-          items: [
-            { type: 'ref', id: 'general-usage/dashboard' },
-            'hub/features/mcp-server',
-            'hub/features/quality/data-quality',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Create reports and transformations',
-          items: [
-            { type: 'ref', id: 'general-usage/dataset-access/marimo' },
-            { type: 'ref', id: 'general-usage/dataset-access/dataset' },
-            'hub/features/transformations/index',
-            'hub/features/transformations/dbt-transformations',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Deploy workspace',
-          items: [
-            'hub/core-concepts/profiles-dlthub',
-          ]
-        },
+        'dlt-ecosystem/llm-tooling/llm-native-workflow',
       ]
     },
     {
       type: 'category',
-      label: 'Runtime',
+      label: 'Ingestion',
       items: [
-        'hub/runtime/overview',
-      ]
-    },
-    {
-      type: 'category',
-      label: 'Storage',
-      items: [
+        'hub/workspace/init',
+        'hub/ecosystem/ms-sql',
         'hub/ecosystem/delta',
         'hub/ecosystem/iceberg',
         'hub/ecosystem/snowflake_plus',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Transformations',
+      items: [
+        'hub/features/transformations/index',
+        'hub/features/transformations/dbt-transformations',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Pipeline operations',
+      items: [
+        'hub/runtime/overview',
+        'hub/core-concepts/profiles-dlthub',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Data quality & governance',
+      items: [
+        { type: 'ref', id: 'general-usage/dashboard' },
+        'hub/features/quality/data-quality',
+        'hub/features/quality/advanced',
+        'hub/features/quality/tests',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Data discovery & serving',
+      items: [
+        'hub/core-concepts/datasets',
+        { type: 'ref', id: 'general-usage/dataset-access/marimo' },
       ]
     },
     'hub/command-line-interface',
