@@ -979,29 +979,34 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
         # Test with different merge strategies when root_key_propagation is None
         ("delete-insert", None, False, True),
         ("upsert", None, False, True),
+        ("insert-only", None, False, True),
         ("scd2", None, False, False),
         ("append", None, False, False),
         ("replace", None, False, False),
         # Test with root_key_propagation explicitly True (should always be True)
         ("delete-insert", True, False, True),
         ("upsert", True, False, True),
+        ("insert-only", True, False, True),
         ("scd2", True, False, True),
         ("append", True, False, True),
         ("replace", True, False, True),
         # Test with root_key_propagation explicitly False (should always be False)
         ("delete-insert", False, False, False),
         ("upsert", False, False, False),
+        ("insert-only", False, False, False),
         ("scd2", False, False, False),
         ("append", False, False, False),
         ("replace", False, False, False),
         # Test with nested table having root_key (should always be True regardless of other settings)
         ("delete-insert", None, True, True),
         ("upsert", None, True, True),
+        ("insert-only", None, True, True),
         ("scd2", None, True, True),
         ("append", None, True, True),
         ("replace", None, True, True),
         ("delete-insert", False, True, True),
         ("upsert", False, True, True),
+        ("insert-only", False, True, True),
         ("scd2", False, True, True),
         ("append", False, True, True),
         ("replace", False, True, True),
@@ -1010,30 +1015,35 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
         # Names for default behavior tests (root_key_propagation=None)
         "delete-insert_default_no-nested_requires-key",
         "upsert_default_no-nested_requires-key",
+        "insert-only_default_no-nested_requires-key",
         "scd2_default_no-nested_no-key-required",
         "append_default_no-nested_no-key-required",
         "replace_default_no-nested_no-key-required",
         # Names for explicit True tests
         "delete-insert_explicit-true_no-nested_requires-key",
         "upsert_explicit-true_no-nested_requires-key",
+        "insert-only_explicit-true_no-nested_requires-key",
         "scd2_explicit-true_no-nested_requires-key",
         "append_explicit-true_no-nested_requires-key",
         "replace_explicit-true_no-nested_requires-key",
         # Names for explicit False tests
         "delete-insert_explicit-false_no-nested_no-key-required",
         "upsert_explicit-false_no-nested_no-key-required",
+        "insert-only_explicit-false_no-nested_no-key-required",
         "scd2_explicit-false_no-nested_no-key-required",
         "append_explicit-false_no-nested_no-key-required",
         "replace_explicit-false_no-nested_no-key-required",
         # Names for nested table with root_key tests (default behavior)
         "delete-insert_default_with-nested_requires-key",
         "upsert_default_with-nested_requires-key",
+        "insert-only_default_with-nested_requires-key",
         "scd2_default_with-nested_requires-key",
         "append_default_with-nested_requires-key",
         "replace_default_with-nested_requires-key",
         # Names for nested table with root_key tests (explicit False - should still require key)
         "delete-insert_explicit-false_with-nested_requires-key",
         "upsert_explicit-false_with-nested_requires-key",
+        "insert-only_explicit-false_with-nested_requires-key",
         "scd2_explicit-false_with-nested_requires-key",
         "append_explicit-false_with-nested_requires-key",
         "replace_explicit-false_with-nested_requires-key",
@@ -1092,6 +1102,31 @@ def test_dlt_table_no_root_key(norm: RelationalNormalizer) -> None:
     # always enabled if root key is nested table
     result = normalize_helpers.requires_root_key(norm.schema, table_1, root_key_propagation=False)
     assert result is True
+
+
+@pytest.mark.parametrize(
+    "merge_strategy, expected_row_id_type",
+    [
+        ("upsert", "key_hash"),
+        ("insert-only", "key_hash"),
+        ("delete-insert", "random"),
+        ("scd2", "random"),
+    ],
+    ids=["upsert-key_hash", "insert-only-key_hash", "delete-insert-random", "scd2-random"],
+)
+def test_get_root_row_id_type(
+    norm: RelationalNormalizer,
+    merge_strategy: TLoaderMergeStrategy,
+    expected_row_id_type: str,
+) -> None:
+    table_1 = new_table("table_1", write_disposition="merge")
+    norm.schema.tables["table_1"] = table_1
+
+    with Container().injectable_context(
+        DestinationCapabilitiesContext(supported_merge_strategies=[merge_strategy])
+    ):
+        result = normalize_helpers.get_root_row_id_type(norm.schema, "table_1")
+        assert result == expected_row_id_type
 
 
 @pytest.mark.parametrize(

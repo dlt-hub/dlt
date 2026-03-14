@@ -22,6 +22,7 @@ from pyarrow import Array, ChunkedArray
 from dlt.common import json, pendulum, logger
 from dlt.common.libs.numpy import numpy
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
     DestinationTerminalException,
@@ -626,11 +627,16 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs  # type: ignore[arg-type]
         )
-        # Orphan removal is only supported for upsert strategy because we need a deterministic key hash.
+        # orphan removal replaces old versions of docs, skip for insert-only
         first_table_in_chain = table_chain[0]
-        if first_table_in_chain.get(
-            "write_disposition"
-        ) == "merge" and not first_table_in_chain.get(NO_REMOVE_ORPHANS_HINT):
+        merge_strategy = resolve_merge_strategy(
+            {first_table_in_chain["name"]: first_table_in_chain}, first_table_in_chain
+        )
+        if (
+            first_table_in_chain.get("write_disposition") == "merge"
+            and merge_strategy != "insert-only"
+            and not first_table_in_chain.get(NO_REMOVE_ORPHANS_HINT)
+        ):
             all_job_paths_ordered = [
                 job.file_path
                 for table in table_chain
