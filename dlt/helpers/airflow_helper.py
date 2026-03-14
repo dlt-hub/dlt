@@ -15,14 +15,16 @@ from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR, DLT_LOCAL_DIR
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 
 try:
-    import airflow as _airflow
+    from importlib.metadata import version as pkg_version
 
-    _AIRFLOW_VERSION = int(_airflow.__version__.split(".")[0])
+    from packaging.version import Version
+
+    _AIRFLOW_VERSION = Version(pkg_version("apache-airflow"))
 
     from airflow.configuration import conf
     from airflow.models import TaskInstance, BaseOperator
 
-    if _AIRFLOW_VERSION < 3:
+    if _AIRFLOW_VERSION.major < 3:
         from airflow.utils.task_group import TaskGroup
         from airflow.operators.empty import EmptyOperator
         from airflow.operators.python import PythonOperator, get_current_context

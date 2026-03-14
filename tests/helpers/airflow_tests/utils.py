@@ -1,6 +1,8 @@
 from configparser import DuplicateSectionError
 import os
-from typing import Any, TYPE_CHECKING, Optional, Tuple
+from typing import Any, TYPE_CHECKING, Optional
+from packaging.version import Version
+from importlib.metadata import version as pkg_version
 
 import pytest
 
@@ -11,7 +13,6 @@ from dlt.common.configuration.providers.vault import SECRETS_TOML_KEY
 if TYPE_CHECKING:
     from airflow import DAG
     from airflow.models import TaskInstance
-    from packaging.version import Version
 
 AIRFLOW_VERSION: "Optional[Version]" = None
 
@@ -19,9 +20,6 @@ AIRFLOW_VERSION: "Optional[Version]" = None
 def _get_airflow_version() -> "Version":
     global AIRFLOW_VERSION
     if AIRFLOW_VERSION is None:
-        from importlib.metadata import version as pkg_version
-        from packaging.version import Version
-
         AIRFLOW_VERSION = Version(pkg_version("apache-airflow"))
     return AIRFLOW_VERSION
 

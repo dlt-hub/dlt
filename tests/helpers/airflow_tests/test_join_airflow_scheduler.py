@@ -265,6 +265,10 @@ def test_no_next_execution_date() -> None:
         scheduled()
 
     dag_def = dag_daily_schedule()
+    # manually run a scheduled DAG (AF2)
+    # WARNING: explicit data interval must be specified! the code that infers intervals in create_dagrun produces different results than in docs
+    # https://airflow.apache.org/docs/apache-airflow/stable/faq.html#why-next-ds-or-prev-ds-might-not-contain-expected-values
+    # "When manually triggering DAG, the schedule will be ignored, and prev_ds == next_ds == ds"
     run_task(dag_def, "scheduled", execution_date=now, data_interval=(now, now))
 
 

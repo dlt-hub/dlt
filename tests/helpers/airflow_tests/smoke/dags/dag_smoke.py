@@ -74,5 +74,6 @@ with DAG(
         serialize_first_task=False,
     )
 
-    # serialize runs after none, parallel runs independently
+    # make parallel to run after serialized - otherwise we have conflict on schema creation
+    # exactly the races we warn with serialize_first_task=False
     none_tasks[-1] >> ser_tasks[0] >> par_tasks[0]

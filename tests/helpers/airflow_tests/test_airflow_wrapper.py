@@ -10,6 +10,7 @@ pytest.importorskip("airflow")
 from airflow import DAG
 from airflow.decorators import dag
 from airflow.models import BaseOperator, TaskInstance
+from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator, get_current_context
 from airflow.utils.state import DagRunState
 from airflow.utils.types import DagRunType
@@ -296,8 +297,6 @@ def test_run() -> None:
 
 @pytest.mark.parametrize("serialize_first_task", [True, False])
 def test_parallel_run(serialize_first_task: bool):
-    from airflow.operators.empty import EmptyOperator
-
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
         dataset_name="mock_data_" + uniq_id(),
@@ -408,8 +407,6 @@ def test_parallel_incremental():
 
 @pytest.mark.parametrize("serialize_first_task", [True, False])
 def test_parallel_isolated_run(serialize_first_task: bool):
-    from airflow.operators.empty import EmptyOperator
-
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
         dataset_name="mock_data_" + uniq_id(),
@@ -474,7 +471,8 @@ def test_parallel_isolated_run(serialize_first_task: bool):
         assert task.upstream_task_ids == set([dag_def.tasks[0].task_id])
 
 
-def test_parallel_run_single_resource():
+@pytest.mark.parametrize("serialize_first_task", [True, False])
+def test_parallel_run_single_resource(serialize_first_task: bool):
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
         dataset_name="mock_data_" + uniq_id(),
@@ -494,7 +492,6 @@ def test_parallel_run_single_resource():
             wipe_local_data=False,
         )
 
-        # set duckdb to be outside of pipeline folder which is dropped on each task
         pipeline_dag_parallel = dlt.pipeline(
             pipeline_name="pipeline_dag_parallel",
             dataset_name="mock_data_" + uniq_id(),
@@ -504,12 +501,18 @@ def test_parallel_run_single_resource():
             pipeline_dag_parallel,
             mock_data_single_resource(),
             decompose="parallel",
+            serialize_first_task=serialize_first_task,
             trigger_rule="all_done",
             retries=0,
         )
 
     dag_def = dag_parallel()
-    assert len(tasks_list) == 2
+    if serialize_first_task:
+        assert len(tasks_list) == 2
+    else:
+        assert len(tasks_list) == 3
+        assert isinstance(tasks_list[0], EmptyOperator)
+        assert isinstance(tasks_list[-1], EmptyOperator)
     dag_def.test()
     pipeline_dag_parallel = dlt.attach(
         pipeline_name="pipeline_dag_parallel",
