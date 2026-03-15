@@ -1,8 +1,6 @@
-"""Job decorators for marking functions as deployable jobs."""
-
 import inspect
 from functools import update_wrapper, wraps
-from typing import Any, Callable, Dict, List, Optional, Type, Union, overload
+from typing import Any, Callable, List, Optional, Type, Union, overload
 
 from typing_extensions import TypeVar
 
@@ -13,19 +11,21 @@ from dlt.common.typing import AnyFun, Generic, ParamSpec
 from dlt.common.utils import get_callable_name, get_module_name
 
 from dlt._workspace import known_sections as ws_known_sections
-from dlt._workspace.deployment.triggers import normalize_triggers
+from dlt._workspace.deployment import triggers as _triggers
+from dlt._workspace.deployment._trigger_helpers import normalize_triggers
 from dlt.extract.reference import SourceFactory as AnySourceFactory, SourceReference
 from dlt.extract.resource import DltResource
 from dlt.extract.source import DltSource
 
+from dlt._workspace.deployment._job_ref import make_job_ref, short_name as job_short_name
 from dlt._workspace.deployment.typing import (
-    DEFAULT_HTTP_PORT,
     TDeliveryRef,
     TEntryPoint,
     TExecutionSpec,
     TExposeSpec,
     TInterfaceType,
     TJobDefinition,
+    TJobRef,
     TJobType,
     TTimeoutSpec,
     TTrigger,
@@ -94,24 +94,25 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         self.section: str = None
         self.job_type: TJobType = "batch"
         self.trigger: List[TTrigger] = []
+        self.manual: bool = True
         self.timeout: Union[None, float, str, TTimeoutSpec] = None
-        self.concurrency: int = 1
+        self.concurrency: Optional[int] = None
         self.starred: bool = False
         self.tags: List[str] = None
         self.deliver: Optional[TDeliverTarget] = None
         self.expose: Optional[TExposeSpec] = None
 
     @property
-    def job_ref(self) -> str:
-        return f"jobs.{self.section}.{self.name}"
+    def job_ref(self) -> TJobRef:
+        return make_job_ref(self.section, self.name)
 
     @property
     def success(self) -> TTrigger:
-        return TTrigger(f"job.success:{self.job_ref}")
+        return _triggers.job_success(self.job_ref)
 
     @property
     def fail(self) -> TTrigger:
-        return TTrigger(f"job.fail:{self.job_ref}")
+        return _triggers.job_fail(self.job_ref)
 
     @property
     def completed(self) -> tuple[TTrigger, TTrigger]:
@@ -119,7 +120,8 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         return (self.success, self.fail)
 
     def __call__(self, *args: TJobFunParams.args, **kwargs: TJobFunParams.kwargs) -> TJobResult:
-        return self._deco_f(*args, **kwargs)  # type: ignore[no-any-return]
+        rv: TJobResult = self._deco_f(*args, **kwargs)
+        return rv
 
     def bind(self, f: AnyFun) -> "JobFactory[TJobFunParams, TJobResult]":
         """Binds wrapper to the original function. Called once by the decorator."""
@@ -161,12 +163,17 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
             "function": get_callable_name(self._f),
             "job_type": self.job_type,
         }
-        if self.expose is not None:
-            entry_point["expose"] = self.expose
 
-        execution: TExecutionSpec = {"concurrency": self.concurrency}
+        execution: TExecutionSpec = {}
+        if self.concurrency is not None:
+            execution["concurrency"] = self.concurrency
         if self.timeout is not None:
             execution["timeout"] = _normalize_timeout(self.timeout)
+        if self.job_type == "interactive":
+            timeout = execution.get("timeout", {})
+            if "grace_period" not in timeout:
+                timeout["grace_period"] = 5.0
+                execution["timeout"] = timeout
 
         job_def: TJobDefinition = {
             "job_ref": self.job_ref,
@@ -175,6 +182,12 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
             "execution": execution,
             "starred": self.starred,
         }
+
+        if not self.manual:
+            job_def["manual_disabled"] = True
+
+        if self.expose is not None:
+            job_def["expose"] = self.expose
 
         description = (self._f.__doc__ or "").strip()
         if description:
@@ -201,8 +214,9 @@ def _job(
     section: str = None,
     job_type: TJobType = "batch",
     trigger: Union[str, TTrigger, List[Union[str, TTrigger]]] = None,
+    manual: bool = True,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: int = 1,
+    concurrency: Optional[int] = None,
     starred: bool = False,
     tags: List[str] = None,
     deliver: Optional[TDeliverTarget] = None,
@@ -215,6 +229,7 @@ def _job(
     wrapper.section = section
     wrapper.job_type = job_type
     wrapper.trigger = normalize_triggers(trigger)
+    wrapper.manual = manual
     wrapper.timeout = timeout
     wrapper.concurrency = concurrency
     wrapper.starred = starred
@@ -235,8 +250,9 @@ def job(
     name: str = None,
     section: str = None,
     trigger: Union[str, TTrigger, List[Union[str, TTrigger]]] = None,
+    manual: bool = True,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: int = 1,
+    concurrency: Optional[int] = None,
     starred: bool = False,
     tags: List[str] = None,
     deliver: Optional[TDeliverTarget] = None,
@@ -251,8 +267,9 @@ def job(
     name: str = None,
     section: str = None,
     trigger: Union[str, TTrigger, List[Union[str, TTrigger]]] = None,
+    manual: bool = True,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: int = 1,
+    concurrency: Optional[int] = None,
     starred: bool = False,
     tags: List[str] = None,
     deliver: Optional[TDeliverTarget] = None,
@@ -266,8 +283,9 @@ def job(
     name: str = None,
     section: str = None,
     trigger: Union[str, TTrigger, List[Union[str, TTrigger]]] = None,
+    manual: bool = True,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: int = 1,
+    concurrency: Optional[int] = None,
     starred: bool = False,
     tags: List[str] = None,
     deliver: Optional[TDeliverTarget] = None,
@@ -280,9 +298,11 @@ def job(
         name (str): Job name. Defaults to the function name.
         section (str): Config section. Defaults to the module name.
         trigger: One or more trigger strings or TTrigger values.
+        manual (bool): Whether the job can be triggered manually.
+            Defaults to `True`. Set to `False` to prevent ad-hoc runs.
         timeout: Max wall-clock duration as seconds, human string (e.g. `"4h"`),
             or `TTimeoutSpec` dict.
-        concurrency (int): Max concurrent runs. Defaults to 1.
+        concurrency (Optional[int]): Max concurrent runs. None = no limit.
         starred (bool): Whether this job is starred in the UI.
         tags (List[str]): Optional list of tags.
         deliver (TDeliverTarget): A `@dlt.source`, standalone `@dlt.resource`, or
@@ -298,6 +318,7 @@ def job(
         section=section,
         job_type="batch",
         trigger=trigger,
+        manual=manual,
         timeout=timeout,
         concurrency=concurrency,
         starred=starred,
@@ -313,11 +334,9 @@ def interactive(
     /,
     name: str = None,
     section: str = None,
-    port: int = DEFAULT_HTTP_PORT,
     interface: TInterfaceType = "gui",
-    run_params: Dict[str, Any] = None,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: int = 1,
+    concurrency: Optional[int] = 1,
     starred: bool = False,
     tags: List[str] = None,
     spec: Type[BaseConfiguration] = None,
@@ -330,11 +349,9 @@ def interactive(
     /,
     name: str = None,
     section: str = None,
-    port: int = DEFAULT_HTTP_PORT,
     interface: TInterfaceType = "gui",
-    run_params: Dict[str, Any] = None,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: int = 1,
+    concurrency: Optional[int] = 1,
     starred: bool = False,
     tags: List[str] = None,
     spec: Type[BaseConfiguration] = None,
@@ -346,11 +363,9 @@ def interactive(
     /,
     name: str = None,
     section: str = None,
-    port: int = DEFAULT_HTTP_PORT,
     interface: TInterfaceType = "gui",
-    run_params: Dict[str, Any] = None,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: int = 1,
+    concurrency: Optional[int] = 1,
     starred: bool = False,
     tags: List[str] = None,
     spec: Type[BaseConfiguration] = None,
@@ -358,19 +373,17 @@ def interactive(
     """Marks a function as a deployable interactive job.
 
     Interactive jobs are long-running processes that expose an HTTP endpoint.
-    The runtime starts the job and proxies traffic to its port.
+    The runtime assigns a port and proxies traffic to the job.
 
     Args:
         func (Optional[AnyFun]): The function to decorate.
         name (str): Job name. Defaults to the function name.
         section (str): Config section. Defaults to the module name.
-        port (int): HTTP port the job listens on. Defaults to 5000.
         interface (TInterfaceType): What the job exposes: `"gui"`, `"rest_api"`,
             or `"mcp"`. Defaults to `"gui"`.
-        run_params (Dict[str, Any]): Framework-specific parameters for the runtime.
         timeout: Max wall-clock duration as seconds, human string (e.g. `"24h"`),
             or `TTimeoutSpec` dict.
-        concurrency (int): Max concurrent runs. Defaults to 1.
+        concurrency (Optional[int]): Max concurrent runs. Defaults to 1.
         starred (bool): Whether this job is starred in the UI.
         tags (List[str]): Optional list of tags (e.g. `"notebook"`, `"dashboard"`).
         spec (Type[BaseConfiguration]): Optional configuration spec class.
@@ -378,16 +391,14 @@ def interactive(
     Returns:
         JobFactory: Preserves the original function's signature and return type.
     """
-    expose: TExposeSpec = {"interface": interface, "port": port}
-    if run_params:
-        expose["run_params"] = run_params
+    expose: TExposeSpec = {"interface": interface}
 
     return _job(
         func,
         name=name,
         section=section,
         job_type="interactive",
-        trigger=f"http:{port}",
+        trigger=_triggers.http(),
         timeout=timeout,
         concurrency=concurrency,
         starred=starred,

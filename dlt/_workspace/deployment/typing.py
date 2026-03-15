@@ -1,25 +1,41 @@
-"""Deployment manifest types: the contract between workspace and runtime.
+from typing import List, Literal, NamedTuple, NewType, Optional, Union
 
-The manifest is produced by `dlt workspace deploy` (which imports __deployment__.py,
-discovers jobs, and serializes them) and consumed by the runtime API (which upserts
-jobs, reconciles triggers, and soft-deletes removed jobs).
-
-Reference scheme:
-    rel_ref := jobs|sources.<section>.<name>
-    abs_ref := <workspace>.jobs|sources.<section>.<name>
-"""
-
-from typing import Any, Dict, List, Literal, NewType, Optional
-
-from typing_extensions import NotRequired, TypedDict
+from dlt.common.pendulum import pendulum
+from dlt.common.typing import NotRequired, TypedDict
 
 
 MANIFEST_ENGINE_VERSION = 2
 
-DEFAULT_HTTP_PORT = 5000
+TJobRef = NewType("TJobRef", str)
+"""Resolved job reference in `jobs.<section>.<name>` or `jobs.<name>` form."""
 
 TTrigger = NewType("TTrigger", str)
 """Normalized trigger string in `type:expr` form, e.g. `"schedule:0 8 * * *"`."""
+
+TTriggerType = Literal[
+    "schedule",
+    "every",
+    "once",
+    "job.success",
+    "job.fail",
+    "http",
+    "deployment",
+    "webhook",
+    "tag",
+    "manual",
+]
+
+
+class HttpTriggerInfo(NamedTuple):
+    port: Optional[int]
+    path: str
+
+
+class TParsedTrigger(NamedTuple):
+    type: TTriggerType  # noqa: A003
+    expr: Union[None, str, float, pendulum.DateTime, HttpTriggerInfo]
+    raw: TTrigger
+
 
 TJobType = Literal["batch", "interactive", "stream"]
 """Execution model: batch (run to completion), interactive (long-running HTTP), stream (consumer loop)."""
@@ -29,13 +45,9 @@ TInterfaceType = Literal["gui", "rest_api", "mcp"]
 
 
 class TExposeSpec(TypedDict, total=False):
-    """How the runtime reaches and presents a running interactive job."""
+    """How the runtime presents a running interactive job."""
 
     interface: TInterfaceType
-    port: int
-    """HTTP port the job listens on."""
-    run_params: Dict[str, Any]
-    """Framework-specific parameters for the runtime (e.g. WebSocket port)."""
 
 
 class TEntryPoint(TypedDict):
@@ -48,25 +60,47 @@ class TEntryPoint(TypedDict):
     job_type: TJobType
     launcher: NotRequired[Optional[str]]
     """Fully qualified launcher module path, or `None` for system default."""
-    expose: NotRequired[TExposeSpec]
-    """Exposure configuration for interactive jobs."""
+
+
+class TRunArgs(TypedDict, total=False):
+    """Runtime-supplied arguments for launching a job.
+
+    Provided by the runtime when invoking a launcher. Not part of the
+    deployment manifest — filled in at launch time.
+    """
+
+    port: int
+    """HTTP port assigned by the runtime for interactive jobs."""
+    base_path: str
+    """Reverse proxy subpath prefix (e.g. `"/workspace/123/notebook"`)."""
+
+
+class TRuntimeEntryPoint(TEntryPoint):
+    """Entry point enriched with runtime-assigned launch arguments.
+
+    Extends TEntryPoint with `run_args` that the runtime provides when
+    invoking the launcher. This is what launchers receive — not stored
+    in the deployment manifest.
+    """
+
+    run_args: NotRequired[TRunArgs]
 
 
 class TTimeoutSpec(TypedDict):
     """Expanded timeout specification stored in the manifest."""
 
-    timeout: float
+    timeout: NotRequired[float]
     """Max wall-clock duration in seconds."""
     grace_period: NotRequired[float]
-    """Seconds for graceful shutdown before hard kill. Default: 30."""
+    """Seconds for graceful shutdown before hard kill. Default: 30 (batch), 5 (interactive)."""
 
 
 class TExecutionSpec(TypedDict):
     """Runtime execution constraints for a job."""
 
     timeout: NotRequired[Optional[TTimeoutSpec]]
-    concurrency: NotRequired[int]
-    """Max concurrent runs of this job. Default: 1."""
+    concurrency: NotRequired[Optional[int]]
+    """Max concurrent runs. None = no limit (batch default), 1 = single instance (interactive default)."""
 
 
 class TDeliveryRef(TypedDict):
@@ -78,32 +112,32 @@ class TDeliveryRef(TypedDict):
     """Human-readable delivery deadline, e.g. `"8am on Mondays"`."""
 
 
-class TDeliverySpec(TypedDict):
+class TDeliverySpec(TDeliveryRef):
     """Links a data source to its delivery deadline and responsible jobs."""
 
-    source_ref: str
-    """Source rel_ref, e.g. `"sources.job_runs.chat_analytics"`."""
-    deadline: str
-    """Human-readable delivery deadline."""
-    job_refs: List[str]
+    job_refs: List[TJobRef]
     """Job rel_refs that deliver this source."""
 
 
 class TJobDefinition(TypedDict):
     """A single job in the deployment manifest."""
 
-    job_ref: str
-    """Unique job identity: `"jobs.<section>.<name>"`."""
+    job_ref: TJobRef
+    """Unique job identity: `"jobs.<section>.<name>"` or `"jobs.<name>"` for module-level jobs."""
     display_name: NotRequired[str]
     """Inferred by launcher when possible (e.g. notebook title from marimo)."""
     description: NotRequired[str]
     entry_point: TEntryPoint
+    expose: NotRequired[TExposeSpec]
+    """Exposure configuration for interactive jobs."""
     triggers: List[TTrigger]
     """When to run: 0, 1, or many trigger strings."""
     execution: TExecutionSpec
     config_keys: NotRequired[List[str]]
     """Config keys discovered from function signature (`dlt.config.value` defaults)."""
     deliver: NotRequired[TDeliveryRef]
+    manual_disabled: NotRequired[bool]
+    """When `True`, manifest generation skips adding the automatic `manual:` trigger."""
     starred: bool
     """Show in top-level runtime UI."""
     tags: NotRequired[List[str]]
@@ -132,6 +166,12 @@ class TDeploymentManifest(TFilesManifest):
     launcher detectors. The runtime reconciles jobs from this manifest.
     """
 
+    version: NotRequired[int]
+    """Auto-incremented on content change."""
+    version_hash: NotRequired[str]
+    """SHA3-256 content hash, excluding version metadata."""
+    previous_hashes: NotRequired[List[str]]
+    """Last 10 version hashes for history."""
     created_at: str
     """ISO 8601 timestamp of manifest creation."""
     deployment_module: str

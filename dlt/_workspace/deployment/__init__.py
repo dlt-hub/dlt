@@ -1,12 +1,41 @@
 from dlt._workspace.deployment.decorators import job, interactive, JobFactory
+from dlt._workspace.deployment.manifest import (
+    generate_manifest,
+    validate_manifest,
+    ManifestValidation,
+    generate_manifest_hash,
+    bump_manifest_version,
+    migrate_manifest,
+    save_manifest,
+    load_manifest,
+)
+from dlt._workspace.deployment._trigger_helpers import (
+    parse_trigger,
+    normalize_trigger,
+    normalize_triggers,
+    matches_selector,
+    filter_jobs_by_selectors,
+)
+from dlt._workspace.deployment._job_ref import (
+    make_job_ref,
+    parse_job_ref,
+    resolve_job_ref,
+    short_name as job_short_name,
+)
+from dlt._workspace.deployment import triggers
 from dlt._workspace.deployment.typing import (
     MANIFEST_ENGINE_VERSION,
-    DEFAULT_HTTP_PORT,
+    TJobRef,
     TTrigger,
+    TTriggerType,
+    TParsedTrigger,
+    HttpTriggerInfo,
     TJobType,
     TInterfaceType,
     TExposeSpec,
     TEntryPoint,
+    TRunArgs,
+    TRuntimeEntryPoint,
     TTimeoutSpec,
     TExecutionSpec,
     TDeliveryRef,

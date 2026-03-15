@@ -7,7 +7,7 @@ import pytest
 
 import dlt
 from dlt._workspace.deployment.decorators import JobFactory, interactive, job
-from dlt._workspace.deployment.typing import DEFAULT_HTTP_PORT, TTrigger
+from dlt._workspace.deployment.typing import TTrigger
 
 
 # module-level sources and resources for deliver tests
@@ -42,13 +42,12 @@ def test_job_decorator() -> None:
     assert no_parens() == "done"
 
     # with parens and args
-    @job(trigger="0 8 * * *", timeout="4h", concurrency=3)
+    @job(trigger="0 8 * * *", timeout="4h")
     def with_parens():
         return "scheduled"
 
     assert with_parens.timeout == "4h"
-    assert with_parens.concurrency == 3
-    assert with_parens.trigger == [TTrigger("0 8 * * *")]
+    assert with_parens.trigger == [TTrigger("schedule:0 8 * * *")]
     assert with_parens() == "scheduled"
 
     # custom name and section
@@ -95,16 +94,16 @@ def test_interactive_decorator() -> None:
 
     assert isinstance(default_app, JobFactory)
     assert default_app.job_type == "interactive"
-    assert default_app.expose == {"interface": "gui", "port": DEFAULT_HTTP_PORT}
-    assert default_app.trigger == [TTrigger(f"http:{DEFAULT_HTTP_PORT}")]
+    assert default_app.expose == {"interface": "gui"}
+    assert default_app.trigger == [TTrigger("http:")]
 
-    # custom port and interface
-    @interactive(port=9090, interface="rest_api")
+    # custom interface
+    @interactive(interface="rest_api")
     def custom_api():
         pass
 
-    assert custom_api.expose == {"interface": "rest_api", "port": 9090}
-    assert custom_api.trigger == [TTrigger("http:9090")]
+    assert custom_api.expose == {"interface": "rest_api"}
+    assert custom_api.trigger == [TTrigger("http:")]
 
     # mcp interface
     @interactive(interface="mcp")
@@ -113,25 +112,19 @@ def test_interactive_decorator() -> None:
         pass
 
     job_def = mcp_server.to_job_definition()
-    assert job_def["entry_point"]["expose"]["interface"] == "mcp"
+    assert job_def["expose"]["interface"] == "mcp"
     assert job_def["description"] == "MCP tool server."
 
-    # run_params
-    @interactive(port=8080, run_params={"ws_port": 8081})
-    def with_ws():
-        pass
-
-    assert with_ws.expose["run_params"] == {"ws_port": 8081}
-    job_def = with_ws.to_job_definition()
-    assert job_def["entry_point"]["expose"]["run_params"] == {"ws_port": 8081}
-
     # async
-    @interactive(port=3000)
+    @interactive
     async def async_app():
         return "async_interactive"
 
     assert asyncio.run(async_app()) == "async_interactive"
     assert async_app.job_type == "interactive"
+
+    # concurrency defaults to 1 for interactive
+    assert default_app.concurrency == 1
 
 
 def test_trigger_properties_and_chaining() -> None:
@@ -177,10 +170,10 @@ def test_job_definition_batch() -> None:
     assert job_def["entry_point"]["job_type"] == "batch"
     assert job_def["entry_point"]["function"] == "etl"
     assert "launcher" not in job_def["entry_point"]
-    assert "expose" not in job_def["entry_point"]
-    assert job_def["triggers"] == [TTrigger("0 8 * * *")]
+    assert "expose" not in job_def
+    assert job_def["triggers"] == [TTrigger("schedule:0 8 * * *")]
     assert job_def["execution"]["timeout"] == {"timeout": 14400.0}
-    assert job_def["execution"]["concurrency"] == 1
+    assert "concurrency" not in job_def["execution"]
     assert job_def["starred"] is True
     assert job_def["tags"] == ["etl"]
     assert job_def["description"] == "Daily ETL."
@@ -189,15 +182,15 @@ def test_job_definition_batch() -> None:
 def test_job_definition_interactive() -> None:
     """to_job_definition produces correct TJobDefinition for interactive jobs."""
 
-    @interactive(port=9090, interface="rest_api")
+    @interactive(interface="rest_api")
     def api():
         pass
 
     job_def = api.to_job_definition()
     assert job_def["entry_point"]["job_type"] == "interactive"
-    assert job_def["entry_point"]["expose"] == {"interface": "rest_api", "port": 9090}
-    assert "launcher" not in job_def["entry_point"]
-    assert job_def["triggers"] == [TTrigger("http:9090")]
+    assert job_def["expose"] == {"interface": "rest_api"}
+    assert "expose" not in job_def["entry_point"]
+    assert job_def["triggers"] == [TTrigger("http:")]
 
 
 def test_job_definition_omits_unset_fields() -> None:
@@ -212,6 +205,7 @@ def test_job_definition_omits_unset_fields() -> None:
     assert "timeout" not in job_def["execution"]
     assert "tags" not in job_def
     assert "deliver" not in job_def
+    assert "expose" not in job_def
     assert job_def["triggers"] == []
 
 

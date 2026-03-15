@@ -8,10 +8,10 @@ from dlt.common.storages.load_package import create_load_id
 from dlt.common.utils import digest256_tar_stream
 
 from dlt._workspace.deployment.file_selector import BaseFileSelector
-from dlt._workspace.deployment.manifest import (
+from dlt._workspace.deployment.manifest import DEPLOYMENT_ENGINE_VERSION
+from dlt._workspace.deployment.typing import (
     TDeploymentFileItem,
     TFilesManifest,
-    DEPLOYMENT_ENGINE_VERSION,
 )
 
 from dlt._workspace._workspace_context import WorkspaceRunContext

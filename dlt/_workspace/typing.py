@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Literal, NamedTuple, Optional
-from typing_extensions import NotRequired
+from dlt.common.typing import NotRequired
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.storages.configuration import TSchemaFileFormat
