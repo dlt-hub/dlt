@@ -5,7 +5,7 @@ from typing import Optional
 
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
-from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli.utils import add_mcp_arg_parser, make_mcp_run_flags
 from dlt._workspace.cli._urls import (
     DLT_INIT_DOCS_URL,
@@ -1087,6 +1087,60 @@ workspace info.
             default=None,
         )
 
+        run_parser = subparsers.add_parser(
+            "run",
+            help="Run workspace jobs locally",
+            description=(
+                "Run jobs from a deployment module locally. Discovers jobs via"
+                " __deployment__.py (or a specified file/module), matches them against"
+                " trigger selectors, and executes them as subprocesses."
+            ),
+        )
+        run_parser.add_argument(
+            "deployment_module",
+            nargs="?",
+            default="__deployment__",
+            help=(
+                "File path (e.g. my_jobs.py) or module name (default: __deployment__)."
+                " File paths are resolved relative to the current directory."
+            ),
+        )
+        run_parser.add_argument(
+            "--select",
+            action="append",
+            default=[],
+            metavar="SELECTOR",
+            help=(
+                "Job selector (repeatable). Accepts job refs (backfill, batch.backfill)"
+                " or trigger patterns (tag:backfill, http, schedule:*)"
+            ),
+        )
+        run_parser.add_argument(
+            "--run-manual",
+            action="store_true",
+            help="Trigger all jobs with manual trigger",
+        )
+        run_parser.add_argument(
+            "--with-future",
+            action="store_true",
+            help="Schedule future jobs (cron, every, once)",
+        )
+        run_parser.add_argument(
+            "--with-future-once",
+            action="store_true",
+            help="Schedule future jobs but fire each only once",
+        )
+        run_parser.add_argument(
+            "--no-use-all",
+            action="store_true",
+            help="Scan module __dict__ instead of __all__",
+        )
+        run_parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Display execution plan without launching jobs",
+        )
+
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace._workspace_context import active
         from dlt._workspace.cli._workspace_command import (
@@ -1106,8 +1160,37 @@ workspace info.
             show_workspace(workspace_context, args.edit)
         elif args.workspace_command == "mcp":
             start_mcp(workspace_context, port=args.port, stdio=args.stdio, sse=args.sse)
+        elif args.workspace_command == "run":
+            self._execute_run(args)
         else:
             self.parser.print_usage()
+
+    def _execute_run(self, args: argparse.Namespace) -> None:
+        from dlt._workspace._runner.runner import run_from_module
+
+        try:
+            exit_code = run_from_module(
+                module_name=args.deployment_module,
+                trigger_selectors=args.select,
+                run_manual=args.run_manual,
+                use_all=not args.no_use_all,
+                with_future=args.with_future,
+                with_future_once=args.with_future_once,
+                dry_run=args.dry_run,
+                warn=fmt.warning,
+            )
+        except ModuleNotFoundError as exc:
+            raise CliCommandInnerException(
+                cmd="workspace run",
+                msg=(
+                    f"Module {args.deployment_module!r} not found. Make sure it is"
+                    " importable from the current directory."
+                ),
+                inner_exc=exc,
+            )
+
+        if exit_code != 0:
+            raise SystemExit(exit_code)
 
 
 class ProfileCommand(SupportsCliCommand):
