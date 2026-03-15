@@ -1,27 +1,23 @@
-"""System launcher for function-based jobs.
+"""System launcher for function-based jobs."""
 
-Invocable as:
-    python -m dlt._workspace.deployment.launchers.job \\
-        --run-id ... --trigger ... --entry-point ...
-
-Resolves a JobFactory via object_from_ref, injects config as env vars,
-and calls it. Supports sync and async jobs.
-"""
 
 import asyncio
-import os
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from dlt.common.reflection.ref import object_from_ref
 
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment.decorators import JobFactory
-from dlt._workspace.deployment.typing import TEntryPoint
-from dlt._workspace.deployment.launchers._launcher import parse_launcher_args
+from dlt._workspace.deployment.typing import TRuntimeEntryPoint
+from dlt._workspace.deployment.launchers._launcher import (
+    get_run_args_port,
+    parse_launcher_args,
+    set_config_env_vars,
+)
 
 
-def _resolve_job(entry_point: TEntryPoint) -> JobFactory[Any, Any]:
+def _resolve_job(entry_point: TRuntimeEntryPoint) -> JobFactory[Any, Any]:
     """Import module and resolve the JobFactory from entry point."""
     function = entry_point.get("function")
     if not function:
@@ -44,36 +40,28 @@ def _resolve_job(entry_point: TEntryPoint) -> JobFactory[Any, Any]:
     return result  # type: ignore[no-any-return]
 
 
-def _set_config_env_vars(job: JobFactory[Any, Any], config: Dict[str, str]) -> None:
-    """Set config params as env vars using the job's section and name."""
-    if not config:
-        return
-    prefix = "__".join([ws_known_sections.JOBS, job.section, job.name]).upper()
-    for key, value in config.items():
-        os.environ[f"{prefix}__{key.upper()}"] = value
-
-
-def _check_return_value(result: Any) -> None:
-    """Detect framework objects that need specialized launchers.
-
-    Uses isinstance checks with lazy imports so optional dependencies
-    don't need to be installed. Falls back to duck typing for generic
-    WSGI (PEP 3333) and ASGI protocol detection.
-    """
+def _check_return_value(
+    result: Any, job: JobFactory[Any, Any], entry_point: TRuntimeEntryPoint
+) -> None:
+    """Detect framework objects and delegate or raise."""
     if result is None:
         return
 
+    # fastmcp — delegate to MCP launcher
     try:
         from fastmcp import FastMCP
 
         if isinstance(result, FastMCP):
-            raise NotImplementedError(
-                f"Job returned a FastMCP instance ({type(result).__name__}). "
-                "Use the mcp launcher instead."
-            )
+            from dlt._workspace.deployment.launchers.mcp import run_mcp_instance
+
+            port = get_run_args_port(entry_point)
+            sections = (ws_known_sections.JOBS, job.section, job.name)
+            run_mcp_instance(result, port, sections)
+            return
     except ImportError:
         pass
 
+    # starlette / fastapi
     try:
         from starlette.applications import Starlette
 
@@ -85,6 +73,7 @@ def _check_return_value(result: Any) -> None:
     except ImportError:
         pass
 
+    # flask
     try:
         from flask import Flask  # type: ignore[import-not-found]
 
@@ -96,12 +85,14 @@ def _check_return_value(result: Any) -> None:
     except ImportError:
         pass
 
+    # generic ASGI
     if _is_asgi_app(result):
         raise NotImplementedError(
             f"Job returned an ASGI callable ({type(result).__name__}). "
             "Use an interactive launcher with an ASGI server."
         )
 
+    # generic WSGI
     if _is_wsgi_app(result):
         raise NotImplementedError(
             f"Job returned a WSGI callable ({type(result).__name__}). "
@@ -111,23 +102,23 @@ def _check_return_value(result: Any) -> None:
 
 def _is_asgi_app(obj: Any) -> bool:
     """Detect ASGI apps by checking for async __call__(scope, receive, send)."""
-    call = getattr(obj, "__call__", None)
-    if call is None or not asyncio.iscoroutinefunction(call):
+    if not callable(obj):
         return False
-    params = _get_param_names(call)
+    if not asyncio.iscoroutinefunction(obj.__call__):
+        return False
+    params = _get_param_names(obj.__call__)
     return params is not None and len(params) == 3
 
 
 def _is_wsgi_app(obj: Any) -> bool:
     """Detect WSGI apps (PEP 3333) by checking for __call__(environ, start_response)."""
-    call = getattr(obj, "__call__", None)
-    if call is None:
+    if not callable(obj):
         return False
-    params = _get_param_names(call)
+    params = _get_param_names(obj.__call__)
     return params is not None and len(params) == 2
 
 
-def _get_param_names(func: Any) -> Optional[list[str]]:
+def _get_param_names(func: Any) -> Optional[List[str]]:
     """Get parameter names excluding self/cls. Returns None on failure."""
     import inspect as _inspect
 
@@ -143,7 +134,7 @@ def _get_param_names(func: Any) -> Optional[list[str]]:
 
 
 def run(
-    entry_point: TEntryPoint,
+    entry_point: TRuntimeEntryPoint,
     run_id: str,
     trigger: str,
     config: Optional[Dict[str, str]] = None,
@@ -151,7 +142,7 @@ def run(
     """Execute a function job from its entry point definition.
 
     Args:
-        entry_point (TEntryPoint): What to run (module + function).
+        entry_point (TRuntimeEntryPoint): What to run (module + function + run_args).
         run_id (str): Unique run identifier.
         trigger (str): Trigger string that fired this run.
         config (Dict[str, str]): Config key-value pairs to inject as env vars.
@@ -160,25 +151,23 @@ def run(
         Any: The return value of the job function.
     """
     job = _resolve_job(entry_point)
-    _set_config_env_vars(job, config or {})
+    sections = (ws_known_sections.JOBS, job.section, job.name)
+    set_config_env_vars(sections, config or {})
     result = job()
     if asyncio.iscoroutine(result):
         result = asyncio.run(result)
-    _check_return_value(result)
+    _check_return_value(result, job, entry_point)
     return result
 
 
 if __name__ == "__main__":
     args = parse_launcher_args()
-    try:
-        result = run(
-            entry_point=args.entry_point,
-            run_id=args.run_id,
-            trigger=args.trigger,
-            config=args.config,
-        )
-        if result is not None:
-            print(result)
-    except Exception as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        sys.exit(1)
+    # let the exception end the process
+    result = run(
+        entry_point=args.entry_point,
+        run_id=args.run_id,
+        trigger=args.trigger,
+        config=args.config,
+    )
+    if result is not None:
+        print(result)  # noqa: T201

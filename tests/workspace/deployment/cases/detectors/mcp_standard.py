@@ -1,4 +1,3 @@
-# Other libraries
 from fastmcp import FastMCP
 
 mcp = FastMCP("simple-mcp")
