@@ -208,6 +208,7 @@ workspace = [
     "mowidgets>=0.2.1 ; python_version >= '3.11'",
     "pathspec>=0.11.2",
     "pydbml>=1.2.0",
+    "croniter>=6.0.0",
 ]
 dbml = [
     "pydbml"
@@ -258,6 +259,7 @@ dev = [
     "pytest-asyncio>=0.23.5,<0.24",
     "types-sqlalchemy>=1.4.53.38,<2",
     "types-pytz>=2024.1.0.20240203",
+    "types-croniter>=6.0.0",
     "ruff>=0.3.2,<0.4",
     "pyjwt>=2.8.0,<3",
     "pytest-mock>=3.14.0,<4",
