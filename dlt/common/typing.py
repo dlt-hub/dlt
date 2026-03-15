@@ -33,6 +33,7 @@ from typing_extensions import (
     ForwardRef,
     Annotated,
     Never,
+    NotRequired,
     ParamSpec,
     TypeAlias,
     Concatenate,
