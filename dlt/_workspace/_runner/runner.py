@@ -6,16 +6,13 @@ import signal
 import sys
 import time
 import zlib
-from importlib import import_module
 from typing import Callable, Dict, List, Optional, Set, Tuple
 from uuid import uuid4
 
 from dlt.common import json
-from dlt.reflection.script_inspector import no_pipeline_execution
-
 from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name as job_short_name
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
-from dlt._workspace.deployment.manifest import generate_manifest
+from dlt._workspace.deployment.manifest import generate_manifest, import_deployment_module
 from dlt._workspace.deployment.typing import (
     TJobDefinition,
     TRuntimeEntryPoint,
@@ -513,8 +510,7 @@ def run_from_module(
     if cwd not in sys.path:
         sys.path.insert(0, cwd)
 
-    with no_pipeline_execution():
-        mod = import_module(module_name)
+    mod = import_deployment_module(module_name)
 
     manifest, warnings = generate_manifest(mod, use_all=use_all)
     for w in warnings:

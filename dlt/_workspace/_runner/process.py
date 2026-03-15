@@ -2,11 +2,9 @@
 
 import os
 import queue
-import signal
 import subprocess
-import sys
 from threading import Thread
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 class JobProcess:

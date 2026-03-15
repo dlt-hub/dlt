@@ -1,14 +1,19 @@
 import base64
+import contextlib
 import hashlib
+import io
+from contextlib import contextmanager
 from copy import copy
+from importlib import import_module
+from typing import Any, BinaryIO, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple
 from types import ModuleType
-from typing import Any, BinaryIO, Dict, List, NamedTuple, Optional, Set, Tuple
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import DictStrAny
 from dlt.common.validation import validate_dict
+from dlt.reflection.script_inspector import no_pipeline_execution
 
 from dlt._workspace.deployment.decorators import JobFactory
 from dlt._workspace.deployment.detectors import (
@@ -218,6 +223,20 @@ def validate_manifest(manifest: TDeploymentManifest) -> ManifestValidation:
         warnings=warnings,
         unresolved_triggers=unresolved,
     )
+
+
+@contextmanager
+def _suppress_framework_noise() -> Iterator[None]:
+    """Suppress noisy output from frameworks during module import."""
+
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        yield
+
+
+def import_deployment_module(module_name: str) -> ModuleType:
+    """Import a deployment module with pipeline execution and framework noise suppressed."""
+    with no_pipeline_execution(), _suppress_framework_noise():
+        return import_module(module_name)
 
 
 def generate_manifest(

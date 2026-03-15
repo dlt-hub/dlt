@@ -8,6 +8,7 @@ from dlt._workspace.deployment.manifest import (
     migrate_manifest,
     save_manifest,
     load_manifest,
+    import_deployment_module,
 )
 from dlt._workspace.deployment._trigger_helpers import (
     parse_trigger,
