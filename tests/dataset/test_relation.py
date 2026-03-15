@@ -215,6 +215,128 @@ def test_transformed_relation_to_ibis_(purchases: dlt.Relation) -> None:
     table.execute()
 
 
+def test_select_merge_subqueries_strips_alias_quoting() -> None:
+    """#3588: merge_subqueries strips quoted=True from alias identifiers.
+
+    Unquoted aliases can break on case-folding destinations (e.g. Postgres uppercases
+    unquoted identifiers).
+    """
+    from sqlglot.optimizer.merge_subqueries import merge_subqueries
+
+    # inner query with a quoted alias on a literal and a column rename
+    inner = sge.select(
+        sge.Alias(
+            this=sge.convert("hello"),
+            alias=sge.to_identifier("Greeting", quoted=True),
+        ),
+        sge.Alias(
+            this=sge.column("name", quoted=True),
+            alias=sge.to_identifier("Full_Name", quoted=True),
+        ),
+    ).from_(sge.Table(this=sge.to_identifier("t", quoted=True)))
+
+    # outer: what Relation.select() builds
+    outer = sge.select(
+        sge.column("Greeting", quoted=True),
+        sge.column("Full_Name", quoted=True),
+    ).from_(inner.subquery())
+
+    merged = merge_subqueries(outer)
+
+    # after merge the inner aliases are inlined — check they kept quoted=True
+    alias_nodes = [
+        expr.args["alias"] for expr in merged.selects if expr.args.get("alias") is not None
+    ]
+    assert len(alias_nodes) > 0, "Expected Alias nodes in merged expression"
+    for alias_node in alias_nodes:
+        assert alias_node.args.get("quoted", False), (
+            f"Alias '{alias_node.name}' lost quoting after merge_subqueries. "
+            "This can break case-folding destinations."
+        )
+
+
+def test_select_merge_subqueries_drops_aggregation_boundary() -> None:
+    """#3588: merge_subqueries flattens through aggregation boundaries when the inner
+    query uses Anonymous function nodes instead of proper AggFunc nodes.
+
+    This produces invalid SQL: column references to aggregated aliases that no longer
+    exist because the aggregation subquery was removed.
+    """
+    from sqlglot.optimizer.merge_subqueries import merge_subqueries
+
+    # inner: aggregation using Anonymous (not sge.Max) — some code paths produce this
+    inner = sge.select(
+        sge.Alias(
+            this=sge.Anonymous(this="MAX", expressions=[sge.column("name")]),
+            alias=sge.to_identifier("maximum"),
+        ),
+    ).from_(sge.Table(this=sge.to_identifier("t")))
+
+    # middle: adds a literal column and references the aggregated result
+    middle = sge.select(
+        sge.Alias(this=sge.convert("hello"), alias=sge.to_identifier("greeting")),
+        sge.column("maximum"),
+    ).from_(inner.subquery(alias="s"))
+
+    # outer: what Relation.select() wraps
+    outer = sge.select(
+        sge.column("greeting", quoted=True),
+        sge.column("maximum", quoted=True),
+    ).from_(middle.subquery())
+
+    merged = merge_subqueries(outer)
+
+    # merge_subqueries should NOT flatten through the aggregation boundary.
+    # If it does, the query becomes `SELECT ... maximum FROM t` which is invalid
+    # because "maximum" is not a column in table "t".
+    has_subquery = any(isinstance(n, sge.Subquery) for n in merged.walk())
+    assert has_subquery, (
+        "merge_subqueries incorrectly flattened through aggregation boundary. "
+        f"Merged SQL: {merged.sql()}"
+    )
+
+
+def test_select_merge_subqueries_preserves_aliases_on_literals(
+    dataset: dlt.Dataset,
+) -> None:
+    """#3588: merge_subqueries must preserve alias names and quoting on literal expressions.
+
+    The profiling pattern uses literal strings aliased to column names
+    (e.g. 'purchases' AS table_name). After select() + merge, the raw expression
+    must keep the alias name and its quoting.
+    """
+    # no aggregation so merge_subqueries will fully flatten and produce Alias nodes
+    rel = dataset.query(
+        "SELECT 'purchases' AS table_name, 'name' AS column_name,"
+        " name AS original_name FROM purchases"
+    )
+
+    selected = rel.select(*rel.columns)
+    raw_expr = selected.sqlglot_expression
+
+    # check raw expression (before normalization) preserves alias names
+    output_names = [col.output_name for col in raw_expr.selects]
+    assert (
+        "table_name" in output_names
+    ), f"Alias 'table_name' lost after merge_subqueries. Got output names: {output_names}"
+    assert (
+        "column_name" in output_names
+    ), f"Alias 'column_name' lost after merge_subqueries. Got output names: {output_names}"
+    # the literal value must NOT appear as an output name
+    assert "purchases" not in output_names, (
+        "Literal value 'purchases' appeared as output name instead of alias 'table_name'. "
+        f"Got output names: {output_names}"
+    )
+    # aliases must stay quoted — Relation.select() builds projections with quoted=True
+    for col_expr in raw_expr.selects:
+        alias_node = col_expr.args.get("alias")
+        if alias_node is not None:
+            assert alias_node.args.get("quoted", False), (
+                f"Alias '{alias_node.name}' lost quoting after merge_subqueries. "
+                "This can break case-folding destinations."
+            )
+
+
 def test_dataset_load_ids(dataset_with_loads: TLoadsFixture):
     dataset, load_ids, _ = dataset_with_loads
 
