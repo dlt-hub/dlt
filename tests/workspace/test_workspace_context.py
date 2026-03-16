@@ -203,10 +203,6 @@ def test_fetch_profiles_list_configured() -> None:
         assert by_name["access"]["is_configured"] is False
 
 
-@pytest.mark.skipif(
-    "dev" in __import__("duckdb").__version__,
-    reason="ducklake extension not available for duckdb dev builds",
-)
 def test_workspace_pipeline() -> None:
     with isolated_workspace("pipelines", profile="tests") as ctx:
         # prod and test have explicit config for profiles
@@ -261,10 +257,6 @@ def test_workspace_pipeline() -> None:
         assert set(ctx.configured_profiles()) == {"dev", "prod", "tests"}
 
 
-@pytest.mark.skipif(
-    "dev" in __import__("duckdb").__version__,
-    reason="ducklake extension not available for duckdb dev builds",
-)
 def test_workspace_send_artifacts() -> None:
     # create a random temp directory for the test bucket
     with tempfile.TemporaryDirectory() as temp_bucket_dir:

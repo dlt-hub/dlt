@@ -92,7 +92,7 @@ duckdb = [
     "duckdb>=1.5.0"
     ]
 ducklake = [
-    "duckdb>=1.5.0",
+    "duckdb>=1.2.0",
     "pyarrow>=16.0.0",
     ]
 filesystem = [
@@ -121,7 +121,7 @@ http = [
 ]
 snowflake = ["snowflake-connector-python>=3.5.0"]
 motherduck = [
-    "duckdb>=1.5.0",
+    "duckdb>=0.9",
     "pyarrow>=16.0.0",
 ]
 cli = [
@@ -176,7 +176,7 @@ dremio = [
 lancedb = [
     "lancedb>=0.22.0",
     "pyarrow>=16.0.0",
-    "duckdb>=1.5.0",
+    "duckdb>=1.4.3",
     # duckdb >= 1.4.0 doesn't work with ibis < 11.0.0
     "ibis-framework>=12.0.0 ; python_version >= '3.10'"
 ]
@@ -199,7 +199,7 @@ postgis = [
     "psycopg2-binary>=2.9.1"
 ]
 workspace = [
-    "duckdb>=1.5.0",
+    "duckdb>=0.9",
     "ibis-framework>=12.0.0 ; python_version >= '3.10'",
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
@@ -331,8 +331,6 @@ dlt = "dlt.__plugins__"
 # cyclopts (via fastmcp) pulls in docstring-parser which conflicts with
 # docstring-parser-fork (same Python module). The fork is a superset used by pydoclint.
 override-dependencies = ["docstring-parser ; sys_platform == 'never'"]
-# Allow duckdb pre-release for 1.5.0 compatibility testing
-prerelease = "if-necessary-or-explicit"
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
