@@ -1,7 +1,7 @@
 /**
  * Creating a sidebar enables you to:
  - create an ordered group of docs
- - render a sidebar for each doc of that group
+ - render a sidebar for each doc of this group
  - provide next/previous navigation
 
  The sidebars can be generated from the filesystem, or explicitly defined here.
@@ -38,11 +38,25 @@ const sidebars = {
       items: [
         'reference/installation',
         "dlt-ecosystem/llm-tooling/llm-native-workflow",
+        'tutorial/playground',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Tutorials',
+      link: {
+        type: 'generated-index',
+        title: 'Tutorials',
+        description: 'Step-by-step tutorials to learn dlt from scratch.',
+        slug: '/tutorials',
+        keywords: ['tutorials', 'learning', 'getting-started'],
+      },
+      items: [
         'tutorial/rest-api',
         'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
-        'tutorial/playground',
+        'build-a-pipeline-tutorial',
         {
           type: 'category',
           label: 'Education',
@@ -59,27 +73,146 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Release highlights',
+      label: 'How-to guides',
       link: {
         type: 'generated-index',
-        title: 'Release highlights',
-        slug: '/release-highlights',
-        keywords: ['release notes, release highlights'],
+        title: 'How-to guides',
+        description: 'Task-oriented guides for specific use cases.',
+        slug: '/how-to-guides',
+        keywords: ['how-to', 'guides', 'walkthroughs'],
       },
       items: [
-        'release-notes/1.21.2',
-        'release-notes/1.19',
-        'release-notes/1.18',
-        'release-notes/1.17',
-        'release-notes/1.16',
-        'release-notes/1.15',
-        'release-notes/1.13-1.14',
-        'release-notes/1.12.1',
+        'walkthroughs/create-a-pipeline',
+        'walkthroughs/run-a-pipeline',
+        'walkthroughs/adjust-a-schema',
+        {
+          type: 'category',
+          label: 'Configure pipelines and credentials',
+           link: {
+            type: 'doc',
+            id: 'general-usage/credentials/index',
+          },
+          items: [
+            'general-usage/credentials/setup',
+            'general-usage/credentials/advanced',
+            'general-usage/credentials/vaults',
+            'general-usage/credentials/complex_types',
+            'walkthroughs/add_credentials'
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Load data incrementally',
+          items: [
+            'general-usage/full-loading',
+            'general-usage/merge-loading',
+            'general-usage/incremental-loading',
+            'general-usage/incremental/cursor',
+            'general-usage/incremental/lag',
+            'general-usage/incremental/advanced-state',
+            'general-usage/incremental/troubleshooting',
+            'walkthroughs/add-incremental-configuration',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Transform data',
+          link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/transformations/index',
+          },
+          items: [
+            {
+              type: 'category',
+              label: 'Transform data with dbt',
+              items: [
+                'dlt-ecosystem/transformations/dbt/dbt',
+                'dlt-ecosystem/transformations/dbt/dbt_cloud',
+              ]
+            },
+            'dlt-ecosystem/transformations/python',
+            'dlt-ecosystem/transformations/sql',
+            {
+              type: 'category',
+              label: 'Transform before load',
+              items: [
+                'dlt-ecosystem/transformations/add-map',
+                'general-usage/customising-pipelines/renaming_columns',
+                'general-usage/customising-pipelines/pseudonymizing_columns',
+                'general-usage/customising-pipelines/removing_columns',
+              ]
+            }
+          ]
+        },
+        'walkthroughs/share-a-dataset',
+        'walkthroughs/dispatch-to-multiple-tables',
+        {
+          type: 'category',
+          label: 'Deploy a pipeline',
+          link: {
+            type: 'generated-index',
+            title: 'Deploy a pipeline',
+            description: 'Deploy dlt pipelines with different methods.',
+            slug: 'walkthroughs/deploy-a-pipeline',
+          },
+          items: [
+            'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
+            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
+            'reference/explainers/airflow-gcp-cloud-composer',
+            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
+            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run',
+            'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
+            'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
+            'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
+            'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
+            'walkthroughs/deploy-a-pipeline/deploy-with-modal',
+            'walkthroughs/deploy-a-pipeline/deploy-with-orchestra',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Run in production',
+          link: {
+            type: 'generated-index',
+            title: 'Run in production',
+            description: 'How to run dlt in production.',
+            slug: 'running-in-production',
+            keywords: ['production'],
+          },
+          items: [
+            'running-in-production/running',
+            'running-in-production/monitoring',
+            'running-in-production/alerting',
+            'running-in-production/tracing',
+          ],
+        },
+        {
+          type: "category",
+          label: "Run in Snowflake",
+          link: {
+            type: 'generated-index',
+            title: 'Run in Snowflake',
+            description: 'How to run dlt in Snowflake.',
+            slug: 'run-in-snowflake',
+            keywords: ['Snowflake'],
+          },
+          items: [
+            "walkthroughs/run-in-snowflake/run-in-snowflake",
+            "walkthroughs/run-in-snowflake/database-connector-app"
+          ]
+        }
       ]
     },
     {
       type: 'category',
       label: 'Core concepts',
+      link: {
+        type: 'generated-index',
+        title: 'Core concepts',
+        description: 'Understand the fundamental concepts of dlt.',
+        slug: '/core-concepts',
+        keywords: ['concepts', 'architecture'],
+      },
       items: [
         'reference/explainers/how-dlt-works',
         'general-usage/source',
@@ -156,7 +289,6 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/sql_database/usage',
             'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
             'dlt-ecosystem/verified-sources/sql_database/advanced',
-            'walkthroughs/add-incremental-configuration',
           ]
         },
         {
@@ -251,51 +383,6 @@ const sidebars = {
         keywords: ['concepts', 'usage'],
       },
       items: [
-        'walkthroughs/create-a-pipeline',
-        'walkthroughs/run-a-pipeline',
-        /*{
-          type: "category",
-          label: "Build with LLMs",
-          link: {
-            type: 'generated-index',
-            title: 'Build with LLMs',
-            description: 'Learn to build dlt pipelines with LLMs',
-            slug: 'dlt-ecosystem/llm-tooling',
-          },
-          items: [
-            "dlt-ecosystem/llm-tooling/llm-native-workflow",
-          ]
-        },*/
-        {
-          type: 'category',
-          label: 'Load data incrementally',
-          items: [
-            'general-usage/full-loading',
-            'general-usage/merge-loading',
-            'general-usage/incremental-loading',
-            'general-usage/incremental/cursor',
-            'general-usage/incremental/lag',
-            'general-usage/incremental/advanced-state',
-            'general-usage/incremental/troubleshooting',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Configure pipelines and credentials',
-           link: {
-            type: 'doc',
-            id: 'general-usage/credentials/index',
-          },
-          items: [
-            'general-usage/credentials/setup',
-            'general-usage/credentials/advanced',
-            'general-usage/credentials/vaults',
-            'general-usage/credentials/complex_types',
-            // Unsure item
-            'walkthroughs/add_credentials'
-          ]
-        },
-        'walkthroughs/adjust-a-schema',
         'general-usage/dashboard',
         {
           type: 'category',
@@ -313,107 +400,8 @@ const sidebars = {
             'general-usage/destination-tables',
           ]
         },
-        {
-          type: 'category',
-          label: 'Transform data',
-          link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/transformations/index',
-          },
-          items: [
-            {
-              type: 'category',
-              label: 'Transform data with dbt',
-              items: [
-                'dlt-ecosystem/transformations/dbt/dbt',
-                'dlt-ecosystem/transformations/dbt/dbt_cloud',
-              ]
-            },
-            'dlt-ecosystem/transformations/python',
-            'dlt-ecosystem/transformations/sql',
-            {
-              type: 'category',
-              label: 'Transform before load',
-              items: [
-                'dlt-ecosystem/transformations/add-map',
-                'general-usage/customising-pipelines/renaming_columns',
-                'general-usage/customising-pipelines/pseudonymizing_columns',
-                'general-usage/customising-pipelines/removing_columns',
-              ]
-            }
-          ]
-        },
         'general-usage/data-quality-lifecycle',
       ]
-    },
-    {
-      type: 'category',
-      label: 'Deploying dlt',
-      items: [
-        'walkthroughs/share-a-dataset',
-        {
-          type: 'category',
-          label: 'Deploy a pipeline',
-          link: {
-            type: 'generated-index',
-            title: 'Deploy a pipeline',
-            description: 'Deploy dlt pipelines with different methods.',
-            slug: 'walkthroughs/deploy-a-pipeline',
-          },
-          items: [
-            'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
-            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
-            'reference/explainers/airflow-gcp-cloud-composer',
-            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
-            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run',
-            'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
-            'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
-            'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
-            'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
-            'walkthroughs/deploy-a-pipeline/deploy-with-modal',
-            'walkthroughs/deploy-a-pipeline/deploy-with-orchestra',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Run in production',
-          link: {
-            type: 'generated-index',
-            title: 'Run in production',
-            description: 'How to run dlt in production.',
-            slug: 'running-in-production',
-            keywords: ['production'],
-          },
-          items: [
-            'running-in-production/running',
-            'running-in-production/monitoring',
-            'running-in-production/alerting',
-            'running-in-production/tracing',
-          ],
-        },
-        {
-          type: "category",
-          label: "Run in Snowflake",
-          link: {
-            type: 'generated-index',
-            title: 'Run in Snowflake',
-            description: 'How to run dlt in Snowflake.',
-            slug: 'run-in-snowflake',
-            keywords: ['Snowflake'],
-          },
-          items: [
-            "walkthroughs/run-in-snowflake/run-in-snowflake",
-            "walkthroughs/run-in-snowflake/database-connector-app"
-          ]
-        }
-      ]
-    },
-    {
-      type: 'category',
-      label: 'Optimizing dlt',
-      items: [
-        'reference/performance',
-      ],
     },
     {
       type: 'category',
@@ -423,7 +411,6 @@ const sidebars = {
         id: 'examples/index',
       },
       items: [
-        'walkthroughs/dispatch-to-multiple-tables',
       ],
     },
     {
@@ -432,13 +419,15 @@ const sidebars = {
       link: {
         type: 'generated-index',
         title: 'Reference',
-        description: 'Learn more about the dlt, CLI, and the telemetry.',
+        description: 'Technical reference for dlt commands, configuration, and API.',
         slug: 'reference',
         keywords: ['reference'],
       },
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
+        'reference/performance',
+        'reference/frequently-asked-questions',
         'dlt-ecosystem/staging',
         {
           type: 'category',
@@ -472,33 +461,28 @@ const sidebars = {
           ]
         },
         'general-usage/dataset-access/data-quality-dashboard',
-        'reference/frequently-asked-questions',
       ],
     },
-    /*
     {
       type: 'category',
-      label: 'How-to guides',
+      label: 'Release highlights',
       link: {
         type: 'generated-index',
-        title: 'How-to guides',
-        description: 'In this section you will find step-by-step instructions for the common tasks.',
-        slug: 'walkthroughs',
-        keywords: ['how-to'],
+        title: 'Release highlights',
+        slug: '/release-highlights',
+        keywords: ['release notes, release highlights'],
       },
       items: [
-        {
-          type: 'category',
-          label: 'Data enrichments',
-          items: [
-            'general-usage/data-enrichments/user_agent_device_data_enrichment',
-            'general-usage/data-enrichments/currency_conversion_data_enrichment',
-            'general-usage/data-enrichments/url-parser-data-enrichment'
-          ]
-        }
+        'release-notes/1.21.2',
+        'release-notes/1.19',
+        'release-notes/1.18',
+        'release-notes/1.17',
+        'release-notes/1.16',
+        'release-notes/1.15',
+        'release-notes/1.13-1.14',
+        'release-notes/1.12.1',
       ]
-    }
-    */
+    },
   ],
   hubSidebar: [
     {
