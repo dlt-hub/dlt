@@ -1,5 +1,7 @@
 from typing import List, Tuple, Dict
 
+import contextlib
+import io
 import dlt
 import pytest
 import os
@@ -17,6 +19,7 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 
+from dlt._workspace.cli import _pipeline_command
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
 from dlt.destinations.impl.destination.factory import UnknownCustomDestinationCallable, destination
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -311,6 +314,75 @@ def test_instantiation() -> None:
     p = dlt.pipeline("sink_test", destination=simple_decorator_sink, dev_mode=True)
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
+
+
+def test_destination_type_main_module_fallback() -> None:
+    """destination_type falls back to __orig_base__ for @dlt.destination classes
+    defined in __main__, but keeps the original module path for importable modules."""
+
+    @dlt.destination
+    def my_sink(items, table):
+        pass
+
+    dest = my_sink()
+    cls = dest.__class__
+
+    # test module is importable — keeps synthesized class path
+    assert hasattr(cls, "__orig_base__")
+    assert "test_custom_destination" in dest.destination_type
+
+    # simulate __main__ module — falls back to base factory path
+    original_module = cls.__module__
+    try:
+        cls.__module__ = "__main__"
+        assert dest.destination_type == "dlt.destinations.destination"
+    finally:
+        cls.__module__ = original_module
+
+    # built-in destinations are unaffected
+    builtin = Destination.from_reference("duckdb")
+    assert getattr(builtin.__class__, "__orig_base__", None) is None
+    assert builtin.destination_type == "dlt.destinations.duckdb"
+
+
+def test_custom_destination_cli_info() -> None:
+    """Test that `dlt pipeline <name> info` works for all custom destination patterns."""
+    # pattern 1: @dlt.destination decorator
+    @dlt.destination
+    def my_sink(items, table):
+        pass
+
+    p = dlt.pipeline("cli_info_decorator", destination=my_sink, dev_mode=True)
+    p.run([1, 2, 3], table_name="items")
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command("info", "cli_info_decorator", p.pipelines_dir, 0)
+        info_output = buf.getvalue()
+    assert "Found pipeline cli_info_decorator" in info_output
+
+    # pattern 2: plain callable via destination_callable=func
+    dest_func = dlt.destination("func_sink", destination_callable=global_sink_func)
+    p2 = dlt.pipeline("cli_info_func", destination=dest_func, dev_mode=True)
+    global global_calls
+    global_calls = []
+    p2.run([1, 2, 3], table_name="items")
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command("info", "cli_info_func", p2.pipelines_dir, 0)
+        info_output = buf.getvalue()
+    assert "Found pipeline cli_info_func" in info_output
+
+    # pattern 3: string ref via destination_callable="mod.func"
+    ref = "tests.destinations.test_custom_destination.global_sink_func"
+    dest_str = dlt.destination("str_sink", destination_callable=ref)
+    p3 = dlt.pipeline("cli_info_str", destination=dest_str, dev_mode=True)
+    global_calls = []
+    p3.run([1, 2, 3], table_name="items")
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command("info", "cli_info_str", p3.pipelines_dir, 0)
+        info_output = buf.getvalue()
+    assert "Found pipeline cli_info_str" in info_output
 
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)
