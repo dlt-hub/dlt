@@ -113,8 +113,9 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
     elif pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
         assert details_dict["destination"] == "dummy (dlt.destinations.dummy)"
     elif pipeline.pipeline_name == CUSTOM_DESTINATION_PIPELINE:
-        assert details_dict["destination"] == (
-            "_dashboard_decorator_sink (tests.workspace.helpers.dashboard"
+        assert (
+            details_dict["destination"]
+            == "_dashboard_decorator_sink (tests.workspace.helpers.dashboard"
             ".example_pipelines.DashboardDecoratorSinkDestination)"
         )
     elif pipeline.pipeline_name == CUSTOM_DEST_CALLABLE_PIPELINE:
