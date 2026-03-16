@@ -3,73 +3,74 @@ import dlt
 import os
 import shutil
 from dlt.common.schema import Schema
+from dlt.dataset.dataset import Dataset
 
 import time
 
+def test_refresh_returns_new_instance_with_updated_schema() -> None:
+    """refresh() returns a new Dataset that picks up destination changes without mutating the original."""
+    pipeline_name = "test_refresh_new_instance"
+    dataset_name = "test_data_refresh_new"
 
-def test_sync_schema() -> None:
-    pipeline_name = "test_sync_schema_unit_test"
-    dataset_name = "test_data_sync_schema"
-
-    # Use unique dir to avoid windows locking issues
-    pipelines_dir = os.path.abspath(f"temp_pipelines_dir_{int(time.time())}")
+    pipelines_dir = os.path.abspath(f"temp_pipelines_refresh_{int(time.time())}")
 
     try:
-        # Setup primary pipeline
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,
             destination="duckdb",
             dataset_name=dataset_name,
             pipelines_dir=pipelines_dir,
         )
+        pipeline.run([{"id": 1, "name": "Alice"}], table_name="users")
 
-        # Run with first resource
-        pipeline.run([{"id": 1, "name": "Sharma"}], table_name="users")
-
-        # Create dataset
         dataset = pipeline.dataset()
         assert "users" in dataset.tables
 
-        # Use a SECOND pipeline instance to modify the destination of the first dataset
+        # Second pipeline run adds a new table
         pipeline_b = dlt.pipeline(
             pipeline_name=pipeline_name,
             destination="duckdb",
             dataset_name=dataset_name,
             pipelines_dir=pipelines_dir,
         )
-        pipeline_b.run([{"id": 1, "amount": 100}], table_name="orders")
+        time.sleep(2)  # allow Windows to release file handles from first run
+        pipeline_b.run([{"id": 1, "amount": 99}], table_name="orders")
 
-        # Check if the FIRST dataset sees the change (Should be stale initially)
-        _ = dataset.tables
-
-        # Sync schema
-        dataset.sync_schema()
-        tables_after = dataset.tables
-        assert "orders" in tables_after
-
-        # Test Behavior: Local only
-        dataset.sync_schema(local_only=True)
-        # CURRENT BEHAVIOR: local_only=True creates a NEW dlt.Schema(name) which is empty (except dlt tables).
-        # It does NOT load from file because Dataset doesn't know where the pipeline file is.
-        # So 'orders' will vanish.
+        # Original dataset is stale – orders not visible yet
         assert "orders" not in dataset.tables
 
-        # Test Behavior: Explicit schema
-        dummy_schema = Schema("dummy")
-        dummy_schema.update_table(
-            {"name": "fake_table", "columns": {"col1": {"name": "col1", "data_type": "text"}}}
-        )
+        # refresh() returns a *new* Dataset instance
+        refreshed = dataset.refresh()
+        assert refreshed is not dataset
+        assert isinstance(refreshed, Dataset)
 
-        dataset.sync_schema(schema=dummy_schema)
-        assert dataset.schema.name == "dummy"
-        assert "fake_table" in dataset.tables
-        assert "users" not in dataset.tables
+        # New instance sees the updated schema
+        assert "orders" in refreshed.tables
+        assert "users" in refreshed.tables
+
+        # Original instance is still stale (it was NOT mutated)
+        assert "orders" not in dataset.tables
 
     finally:
-        time.sleep(1)  # else it might give error on windows ¯\_(ツ)_/¯
+        time.sleep(1)
         if os.path.exists(pipelines_dir):
             shutil.rmtree(pipelines_dir, ignore_errors=True)
 
 
+def test_refresh_raises_when_schema_instance_provided() -> None:
+    """refresh() raises TypeError if the Dataset was created with a Schema instance."""
+    schema = Schema("my_schema")
+
+    dataset = Dataset(
+        destination="duckdb",
+        dataset_name="dummy_ds",
+        schema=schema,
+    )
+
+    with pytest.raises(TypeError, match="refresh\\(\\) is not supported"):
+        dataset.refresh()
+
+
 if __name__ == "__main__":
-    test_sync_schema()
+    test_refresh_returns_new_instance_with_updated_schema()
+    test_refresh_raises_when_schema_instance_provided()
