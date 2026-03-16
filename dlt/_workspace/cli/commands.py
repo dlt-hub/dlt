@@ -1092,7 +1092,7 @@ workspace info.
             help="Run workspace jobs locally",
             description=(
                 "Run jobs from a deployment module locally. Discovers jobs via"
-                " __deployment__.py (or a specified file/module), matches them against"
+                " `__deployment__.py` (or a specified file/module), matches them against"
                 " trigger selectors, and executes them as subprocesses."
             ),
         )
