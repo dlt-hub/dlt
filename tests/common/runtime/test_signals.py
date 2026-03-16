@@ -15,9 +15,11 @@ pytestmark = pytest.mark.serial
 
 @pytest.fixture(autouse=True)
 def clear_signal() -> Iterator[None]:
-    yield
-    signals.exit_event.clear()
-    signals._clear_signals()
+    try:
+        yield
+    finally:
+        signals.exit_event.clear()
+        signals._clear_signals()
 
 
 def test_sleep() -> None:

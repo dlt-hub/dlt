@@ -369,12 +369,18 @@ class MockableRunContext(RunContext):
 
 @pytest.fixture(autouse=True)
 def auto_unload_modules() -> Iterator[None]:
-    """Unload all modules inspected in this tests"""
+    """Restore sys.modules to pre-test state: unload added modules, re-add removed ones."""
     prev_modules = dict(sys.modules)
-    yield
-    mod_diff = set(sys.modules.keys()) - set(prev_modules.keys())
-    for mod in mod_diff:
-        del sys.modules[mod]
+    try:
+        yield
+    finally:
+        # remove modules added during the test
+        for mod in set(sys.modules.keys()) - set(prev_modules.keys()):
+            del sys.modules[mod]
+        # restore modules removed during the test
+        for mod, module in prev_modules.items():
+            if mod not in sys.modules:
+                sys.modules[mod] = module
 
 
 @pytest.fixture(autouse=True)
@@ -383,14 +389,16 @@ def deactivate_pipeline(preserve_environ) -> Iterator[None]:
     container = Container()
     if container[PipelineContext].is_active():
         container[PipelineContext].deactivate()
-    yield
-    if container[PipelineContext].is_active():
-        # take existing pipeline
-        # NOTE: no more needed. test storage is wiped fully when test starts
-        # p = dlt.pipeline()
-        # p._wipe_working_folder()
-        # deactivate context
-        container[PipelineContext].deactivate()
+    try:
+        yield
+    finally:
+        if container[PipelineContext].is_active():
+            # take existing pipeline
+            # NOTE: no more needed. test storage is wiped fully when test starts
+            # p = dlt.pipeline()
+            # p._wipe_working_folder()
+            # deactivate context
+            container[PipelineContext].deactivate()
 
 
 @pytest.fixture(autouse=True)
@@ -604,6 +612,11 @@ skipifgithubfork = pytest.mark.skipif(
 
 skipifgithubci = pytest.mark.skipif(
     is_running_in_github_ci(), reason="This test does not work on github CI"
+)
+
+skipifworktree = pytest.mark.skipif(
+    os.path.basename(os.path.abspath(".")) != "dlt",
+    reason="Test requires run dir to be 'dlt' (skipped in worktrees)",
 )
 
 

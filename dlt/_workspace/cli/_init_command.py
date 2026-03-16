@@ -1,11 +1,10 @@
 import os
 import ast
 import shutil
-from typing import Dict, Sequence, Tuple, Optional
-from pathlib import Path
+import warnings
+from importlib.metadata import Distribution
+from typing import Dict, Optional, Sequence, Tuple
 
-
-import dlt.destinations
 from dlt.common.libs import git
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import (
@@ -22,8 +21,8 @@ from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
 
+import dlt.destinations
 from dlt.sources import SourceReference
-
 import dlt.reflection.names as n
 from dlt.reflection.script_inspector import import_pipeline_script
 
@@ -37,11 +36,8 @@ from dlt._workspace.cli._pipeline_files import (
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
 )
-from dlt._workspace.cli.exceptions import CliCommandInnerException
-from dlt._workspace.cli._ai_command import SUPPORTED_IDES, TSupportedIde
-
-
-DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
+from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
+from dlt._workspace.cli._urls import DLT_INIT_DOCS_URL, DLT_AI_DOCS_URL  # noqa: F401
 
 
 def list_sources_command(repo_location: str, branch: str = None) -> None:
@@ -96,13 +92,24 @@ def init_command(
     dry_run: bool = False,
     add_example_pipeline_script: bool = True,
 ) -> Tuple[Dict[str, str], files_ops.TSourceType]:
+    # detect and warn on deprecated dlthub: pattern
+    display_source_name: Optional[str] = None
+    if source_name.startswith("dlthub:"):
+        display_source_name = source_name[7:]
+        fmt.warning(
+            "The `dlthub:<source>` syntax is deprecated. User dltHub AI Workbench instead:\n"
+            "dlt ai init\n"
+            "will get you started. See %s for more details."
+            % fmt.bold(DLT_AI_DOCS_URL)
+        )
+        source_name = "context_rest_api"
+
     run_ctx = run_context.active()
     destination_storage_path = run_ctx.run_dir
     settings_dir = run_ctx.settings_dir
     sources_dir = run_ctx.get_run_entity("sources")
 
-    is_dlthub_source, display_source_name, _ = _get_source_display_name(source_name)
-    copied_files, source_type, selected_ide = init_pipeline_at_destination(
+    return init_pipeline_at_destination(
         source_name,
         destination_type,
         repo_location,
@@ -113,24 +120,8 @@ def init_command(
         destination_storage_path,
         settings_dir,
         sources_dir,
+        display_source_name=display_source_name,
     )
-    if is_dlthub_source and copied_files is not None and selected_ide:
-        from dlt._workspace.cli import DEFAULT_VERIFIED_SOURCES_REPO
-        from dlt._workspace.cli._ai_command import ai_setup_command, vibe_source_setup
-
-        fmt.echo()
-        fmt.echo()
-        ai_setup_command(
-            selected_ide,
-            DEFAULT_VERIFIED_SOURCES_REPO,
-            branch=branch,
-            hide_warnings=True,
-        )
-        fmt.echo()
-        fmt.echo()
-        vibe_source_setup(display_source_name)
-
-    return copied_files, source_type
 
 
 def init_pipeline_at_destination(
@@ -145,7 +136,8 @@ def init_pipeline_at_destination(
     settings_dir: str = None,
     sources_dir: str = None,
     target_dependency_system: str = None,
-) -> Tuple[Dict[str, str], files_ops.TSourceType, Optional[TSupportedIde]]:
+    display_source_name: str = None,
+) -> Tuple[Optional[Dict[str, str]], files_ops.TSourceType]:
     """
     Initializes a pipeline at the specified destination by setting up the required files, configurations, and dependencies.
 
@@ -175,6 +167,17 @@ def init_pipeline_at_destination(
             - The type of the source (e.g., "template", "core", "verified").
             - Name of the selected ide for dlthub sources (defaults to "cursor")
     """
+    # validate the user-facing name (display_source_name for dlthub: sources)
+    name_to_validate = display_source_name or source_name
+    # source and destination names are used as Python identifiers in generated code
+    if not is_valid_schema_name(name_to_validate):
+        fmt.error(
+            "Source name %s is not a valid Python identifier. Use snake_case names"
+            " containing only lowercase letters, numbers and underscores (max %d"
+            " characters)."
+            % (fmt.bold(name_to_validate), InvalidSchemaName.MAXIMUM_SCHEMA_NAME_LENGTH)
+        )
+        raise CliCommandException()
     # try to import the destination and get config spec
     if destination_type:
         destination_reference = Destination.from_reference(destination_type)
@@ -186,13 +189,10 @@ def init_pipeline_at_destination(
 
     # discover type of source
     source_type: files_ops.TSourceType = "template"
-    # extract source name from dlthub source name: dlthub:<name>
-    # TODO: add new source type
-    is_dlthub_source, display_source_name, source_name = _get_source_display_name(source_name)
     if source_name in files_ops.get_sources_names(core_sources_storage, source_type="core"):
         source_type = "core"
-    # do not look into verified sources when setting up dlthub source
-    elif not is_dlthub_source:
+    # skip verified sources lookup for dlthub: sources (always use template)
+    elif not display_source_name:
         verified_sources_storage = _clone_and_get_verified_sources_storage(repo_location, branch)
         if source_name in files_ops.get_sources_names(
             verified_sources_storage, source_type="verified"
@@ -245,11 +245,11 @@ def init_pipeline_at_destination(
             )
         if not remote_deleted and not remote_modified:
             fmt.echo("No files to update, exiting")
-            return None, source_type, None
+            return None, source_type
 
         if remote_index["is_dirty"]:
             fmt.warning(
-                f"The verified sources repository is dirty. {display_source_name} source files may"
+                f"The verified sources repository is dirty. {source_name} source files may"
                 " not update correctly in the future."
             )
 
@@ -258,8 +258,6 @@ def init_pipeline_at_destination(
             source_configuration = files_ops.get_core_source_configuration(
                 core_sources_storage, source_name, eject_source
             )
-            from importlib.metadata import Distribution
-
             dist = Distribution.from_name(DLT_PKG_NAME)
             extras = dist.metadata.get_all("Provides-Extra") or []
 
@@ -273,10 +271,8 @@ def init_pipeline_at_destination(
             remote_modified = {file_name: None for file_name in source_configuration.files}
         else:
             # is single file template source
-            if not is_valid_schema_name(source_name):
-                raise InvalidSchemaName(source_name)
             source_configuration = files_ops.get_template_configuration(
-                templates_storage, source_name, display_source_name
+                templates_storage, source_name, display_source_name or source_name
             )
 
         if dest_storage.has_file(source_configuration.dest_pipeline_script):
@@ -284,7 +280,7 @@ def init_pipeline_at_destination(
                 "Pipeline script %s already exists, exiting"
                 % source_configuration.dest_pipeline_script
             )
-            return None, source_type, None
+            return None, source_type
 
     # add .dlt/*.toml files to be copied
     # source_configuration.files.extend(
@@ -310,7 +306,7 @@ def init_pipeline_at_destination(
                 "You can update dlt with: pip3 install -U"
                 f' "{source_configuration.requirements.dlt_requirement_base}"'
             )
-            return None, source_type, None
+            return None, source_type
 
     # read module source and parse it
     visitor = utils.parse_init_script(
@@ -343,19 +339,25 @@ def init_pipeline_at_destination(
     )
 
     # inspect the script to populate source references
-    if source_configuration.source_type != "core":
-        import_pipeline_script(
-            source_configuration.storage.storage_path,
-            source_configuration.storage.to_relative_path(source_configuration.src_pipeline_script),
-            ignore_missing_imports=True,
-        )
-    else:
-        # core sources are imported directly from the pipeline script which is in the _workspace module
-        import_pipeline_script(
-            os.path.dirname(source_configuration.src_pipeline_script),
-            os.path.basename(source_configuration.src_pipeline_script),
-            ignore_missing_imports=True,
-        )
+    # suppress warnings emitted during import (e.g. psutil missing from LogCollector)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        if source_configuration.source_type != "core":
+            import_pipeline_script(
+                source_configuration.storage.storage_path,
+                source_configuration.storage.to_relative_path(
+                    source_configuration.src_pipeline_script
+                ),
+                ignore_missing_imports=True,
+            )
+        else:
+            # core sources are imported directly from the pipeline script
+            # which is in the _workspace module
+            import_pipeline_script(
+                os.path.dirname(source_configuration.src_pipeline_script),
+                os.path.basename(source_configuration.src_pipeline_script),
+                ignore_missing_imports=True,
+            )
 
     # detect all the required secrets and configs that should go into tomls files
     if source_configuration.source_type == "template":
@@ -365,32 +367,34 @@ def init_pipeline_at_destination(
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
             SourceReference.SOURCES, source_configuration.source_module_prefix, ()
         )
-        if is_dlthub_source:
+        # dlthub: sources get extra AST transforms: rename pipeline, dataset, sources
+        if display_source_name:
             transformed_nodes = source_detection.find_call_arguments_to_replace(
                 visitor,
                 [
-                    ("destination", destination_type, True),
+                    ("destination", destination_type or "duckdb", True),
                     ("pipeline_name", display_source_name + "_pipeline", True),
                     ("dataset_name", display_source_name + "_data", False),
                 ],
                 source_configuration.src_pipeline_script,
             )
-            # template has a strict rules where sources are placed
             for source_q_name, source_config in checked_sources.items():
                 if source_q_name not in visitor.known_sources_resources:
                     raise CliCommandInnerException(
                         "init",
-                        f"The pipeline script {source_configuration.src_pipeline_script} imports a"
-                        f" source/resource {source_config.name} from section"
-                        f" {source_config.section}. In init scripts you must declare all sources"
-                        " and resources in single file. Known names are"
-                        f" {list(visitor.known_sources_resources.keys())}.",
+                        "The pipeline script %s imports a source/resource %s from"
+                        " section %s. In init scripts you must declare all sources"
+                        " and resources in single file. Known names are %s."
+                        % (
+                            source_configuration.src_pipeline_script,
+                            source_config.name,
+                            source_config.section,
+                            list(visitor.known_sources_resources.keys()),
+                        ),
                     )
-            # rename sources and resources
             transformed_nodes.extend(
                 source_detection.find_source_calls_to_replace(visitor, display_source_name)
             )
-
     else:
         # pipeline sources are in module with name starting from {pipeline_name}
         # for verified pipelines place in the specific source section
@@ -422,76 +426,54 @@ def init_pipeline_at_destination(
     # validate by parsing
     ast.parse(source=dest_script_source)
 
-    selected_ide: TSupportedIde = None
-
     # ask for confirmation
     if is_new_source:
         if source_configuration.source_type == "core":
             fmt.echo(
                 "Creating a new pipeline with the dlt core source %s (%s)"
-                % (fmt.bold(display_source_name), source_configuration.doc)
+                % (fmt.bold(source_name), source_configuration.doc)
             )
             if eject_source:
                 fmt.echo(
                     "NOTE: Source code of %s will be ejected. Remember to modify the pipeline "
-                    "example script to import the ejected source." % (fmt.bold(display_source_name))
+                    "example script to import the ejected source." % (fmt.bold(source_name))
                 )
             else:
                 fmt.echo(
                     "NOTE: Beginning with dlt 1.0.0, the source %s will no longer be copied from"
                     " the verified sources repo but imported from dlt.sources. You can provide the"
-                    " --eject flag to revert to the old behavior." % (fmt.bold(display_source_name))
+                    " --eject flag to revert to the old behavior." % (fmt.bold(source_name))
                 )
         elif source_configuration.source_type == "verified":
             new_entity_type = "a new pipeline with" if destination_type else ""
             fmt.echo(
                 "Creating and configuring %s the verified source %s (%s)"
-                % (new_entity_type, fmt.bold(display_source_name), source_configuration.doc)
+                % (new_entity_type, fmt.bold(source_name), source_configuration.doc)
             )
         else:
             if source_configuration.is_default_template:
                 fmt.echo(
                     "NOTE: Could not find a dlt source or template wih the name %s. Selecting the"
-                    " default template." % (fmt.bold(display_source_name))
+                    " default template." % (fmt.bold(source_name))
                 )
                 fmt.echo(
                     "NOTE: In case you did not want to use the default template, run 'dlt init -l'"
                     " to see all available sources and templates."
                 )
-            if is_dlthub_source:
-                fmt.echo("dlt will generate useful project rules tailored to your assistant/IDE.")
-                selected_ide = fmt.prompt(
-                    "Press Enter to accept the default (cursor), or type a name",
-                    choices=SUPPORTED_IDES,
-                    default="cursor",
-                    show_choices=False,
-                    show_default=False,
+            fmt.echo(
+                "Creating and configuring a new pipeline with the dlt core template %s (%s)"
+                % (
+                    fmt.bold(source_configuration.dest_pipeline_script),
+                    source_configuration.doc,
                 )
-
-                fmt.echo(
-                    "Initializing pipeline %s, adding %s rules, code snippets and docs for %s"
-                    " source."
-                    % (
-                        fmt.bold(source_configuration.dest_pipeline_script),
-                        fmt.bold(selected_ide),
-                        fmt.bold(display_source_name),
-                    )
-                )
-            else:
-                fmt.echo(
-                    "Creating and configuring a new pipeline with the dlt core template %s (%s)"
-                    % (
-                        fmt.bold(source_configuration.dest_pipeline_script),
-                        source_configuration.doc,
-                    )
-                )
+            )
 
         if not fmt.confirm("Do you want to proceed?", default=True):
             raise CliCommandInnerException("init", "Aborted")
 
     dependency_system = target_dependency_system or _get_dependency_system(dest_storage)
     _welcome_message(
-        display_source_name,
+        source_name,
         destination_type,
         source_configuration,
         dependency_system,
@@ -536,7 +518,7 @@ def init_pipeline_at_destination(
         if add_example_pipeline_script:
             files_to_create[pipeline_script_target_path] = dest_script_source
         # todo: handle remote index changes?
-        return files_to_create, source_type, None
+        return files_to_create, source_type
 
     # modify storage
     else:
@@ -575,19 +557,7 @@ def init_pipeline_at_destination(
             dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
 
         copied_files: Dict[str, str] = {dest_path: src_path for src_path, dest_path in copy_files}
-        return copied_files, source_type, selected_ide
-
-
-def _get_source_display_name(source_name: str) -> Tuple[bool, str, str]:
-    """Parses dlthub source name and splits it into template and display names"""
-    if is_vibe_source := source_name.startswith("dlthub:"):
-        # skip prefix and setup display source name
-        display_source_name = source_name[7:]
-        # use special template for vibe coding
-        source_name = "vibe_rest_api"
-    else:
-        display_source_name = source_name
-    return is_vibe_source, display_source_name, source_name
+        return copied_files, source_type
 
 
 def _clone_and_get_verified_sources_storage(repo_location: str, branch: str = None) -> FileStorage:

@@ -68,6 +68,8 @@ class PageNumberPaginatorConfig(PaginatorTypeConfig, total=False):
     total_path: Optional[jsonpath.TJsonPath]
     maximum_page: Optional[int]
     stop_after_empty_page: Optional[bool]
+    has_more_path: Optional[jsonpath.TJsonPath]
+    page_body_path: Optional[str]
 
 
 class OffsetPaginatorConfig(PaginatorTypeConfig, total=False):
@@ -82,6 +84,7 @@ class OffsetPaginatorConfig(PaginatorTypeConfig, total=False):
     total_path: Optional[jsonpath.TJsonPath]
     maximum_offset: Optional[int]
     stop_after_empty_page: Optional[bool]
+    has_more_path: Optional[jsonpath.TJsonPath]
 
 
 class HeaderLinkPaginatorConfig(PaginatorTypeConfig, total=False):
@@ -105,6 +108,8 @@ class JSONResponseCursorPaginatorConfig(PaginatorTypeConfig, total=False):
     cursor_path: Optional[jsonpath.TJsonPath]
     cursor_param: Optional[str]
     cursor_body_path: Optional[jsonpath.TJsonPath]
+    stop_after_empty_page: Optional[bool]
+    has_more_path: Optional[jsonpath.TJsonPath]
 
 
 class HeaderCursorPaginatorConfig(PaginatorTypeConfig, total=False):

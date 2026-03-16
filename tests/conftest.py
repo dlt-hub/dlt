@@ -72,7 +72,6 @@ def pytest_xdist_setupnodes(config, specs):
         "ducklake",
         "httpfs",
         "iceberg",
-        "lance",
         "motherduck",
         "parquet",
         "postgres_scanner",
@@ -80,10 +79,19 @@ def pytest_xdist_setupnodes(config, specs):
         "sqlite_scanner",
     ]
 
+    community_extensions = [
+        "lance",
+    ]
+
     with duckdb.connect() as conn:
         for ext in extensions:
             try:
                 conn.execute(f"INSTALL {ext}")
+            except Exception:
+                pass  # extension might not be available
+        for ext in community_extensions:
+            try:
+                conn.execute(f"INSTALL {ext} FROM community")
             except Exception:
                 pass  # extension might not be available
 
@@ -112,13 +120,13 @@ def pytest_configure(config):
     delattr(runtime_configuration.RuntimeConfiguration, "__init__")
     runtime_configuration.RuntimeConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         runtime_configuration.RuntimeConfiguration, init=True, repr=False
-    )  # type: ignore
+    )
 
     storage_configuration.LoadStorageConfiguration.load_volume_path = os.path.join(
         test_storage_root, "load"
     )
     delattr(storage_configuration.LoadStorageConfiguration, "__init__")
-    storage_configuration.LoadStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc,call-overload]
+    storage_configuration.LoadStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         storage_configuration.LoadStorageConfiguration, init=True, repr=False
     )
 
@@ -127,7 +135,7 @@ def pytest_configure(config):
     )
     # delete __init__, otherwise it will not be recreated by dataclass
     delattr(storage_configuration.NormalizeStorageConfiguration, "__init__")
-    storage_configuration.NormalizeStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc,call-overload]
+    storage_configuration.NormalizeStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         storage_configuration.NormalizeStorageConfiguration, init=True, repr=False
     )
 
@@ -135,7 +143,7 @@ def pytest_configure(config):
         test_storage_root, "schemas"
     )
     delattr(storage_configuration.SchemaStorageConfiguration, "__init__")
-    storage_configuration.SchemaStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc,call-overload]
+    storage_configuration.SchemaStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         storage_configuration.SchemaStorageConfiguration, init=True, repr=False
     )
 
@@ -180,34 +188,15 @@ def pytest_configure(config):
     # disable pyiceberg logging
     logging.getLogger("pyiceberg").setLevel("WARNING")
 
-    # reset and init airflow db
-    import warnings
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-        try:
-            from airflow.utils import db
-            import contextlib
-            import io
-
-            for log in [
-                "airflow.models.crypto",
-                "airflow.models.variable",
-                "airflow",
-                "alembic",
-                "alembic.runtime.migration",
-            ]:
-                logging.getLogger(log).setLevel("ERROR")
-
-            with (
-                contextlib.redirect_stdout(io.StringIO()),
-                contextlib.redirect_stderr(io.StringIO()),
-            ):
-                db.resetdb()
-
-        except Exception:
-            pass
+    # silence airflow loggers if airflow is installed
+    for log_name in [
+        "airflow.models.crypto",
+        "airflow.models.variable",
+        "airflow",
+        "alembic",
+        "alembic.runtime.migration",
+    ]:
+        logging.getLogger(log_name).setLevel("ERROR")
 
 
 # import faulthandler, atexit, sys

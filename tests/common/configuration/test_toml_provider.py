@@ -322,7 +322,7 @@ def test_write_value(toml_providers: ConfigProvidersContainer) -> None:
             continue
         # set single key
         provider.set_value("_new_key_bool", True, None)
-        TAny: Type[Any] = Any  # type: ignore[assignment]
+        TAny: Type[Any] = Any
         assert provider.get_value("_new_key_bool", TAny, None) == (True, "_new_key_bool")
         provider.set_value("_new_key_literal", TSecretValue("literal"), None)
         assert provider.get_value("_new_key_literal", TAny, None) == ("literal", "_new_key_literal")

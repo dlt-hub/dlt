@@ -347,7 +347,7 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
         # dictates the "logical" type. We simply delegate to the underlying value_type.
         return get_column_type_from_py_arrow(dtype.value_type)
     elif pyarrow.types.is_null(dtype):
-        return {"x-normalizer": {"seen-null-first": True}}  # type: ignore[typeddict-unknown-key]
+        return {}  # incomplete column, no data_type
     else:
         raise UnsupportedArrowTypeException(arrow_type=dtype)
 
@@ -403,10 +403,14 @@ def deserialize_type(type_str: str) -> pyarrow.DataType:
 
 
 def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
-    """Remove all columns of datatype pyarrow.null() from the table or record batch"""
-    return remove_columns(
-        item, [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
-    )
+    """Remove all columns of datatype pyarrow.null() from the table or record batch.
+    Stores removed column names in arrow schema metadata under 'dlt.null_columns' key.
+    """
+    null_col_names = [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
+    if not null_col_names:
+        return item
+    item = remove_columns(item, null_col_names)
+    return add_arrow_metadata(item, {"dlt.null_columns": json.dumps(null_col_names)})
 
 
 def remove_null_columns_from_schema(schema: pyarrow.Schema) -> Tuple[pyarrow.Schema, bool]:
@@ -612,8 +616,10 @@ def normalize_py_arrow_item(
         new_fields.append(schema.field(idx).with_name(column_name))
         new_columns.append(item.column(idx))
 
-    # create desired type
-    return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
+    # preserve schema metadata (e.g. dlt.null_columns) through normalization rebuild
+    return item.__class__.from_arrays(
+        new_columns, schema=pyarrow.schema(new_fields, metadata=item.schema.metadata)
+    )
 
 
 def should_normalize_py_arrow_item_column(
@@ -904,10 +910,15 @@ def cast_arrow_schema_types(
 
 
 def concat_batches_and_tables_in_order(
-    tables_or_batches: Iterable[Union[pyarrow.Table, pyarrow.RecordBatch]]
+    tables_or_batches: Iterable[Union[pyarrow.Table, pyarrow.RecordBatch]],
+    promote_options: str = "none",
 ) -> pyarrow.Table:
-    """Concatenate iterable of tables and batches into a single table, preserving row order. Zero copy is used during
-    concatenation so schemas must be identical.
+    """Concatenate iterable of tables and batches into a single table, preserving row order.
+
+    Args:
+        promote_options: PyArrow concat_tables promote_options. "none" (default) requires identical
+            schemas and enables zero-copy concat. "default" promotes within type families (e.g.
+            int32→int64). "permissive" promotes across families (e.g. int64→double).
     """
     batches = []
     tables = []
@@ -923,8 +934,8 @@ def concat_batches_and_tables_in_order(
             raise ValueError(f"Unsupported type: `{type(item)}`")
     if batches:
         tables.append(pyarrow.Table.from_batches(batches))
-    # "none" option ensures 0 copy concat
-    return pyarrow.concat_tables(tables, promote_options="none")
+    # "none" ensures 0 copy concat; "default"/"permissive" allow type promotion
+    return pyarrow.concat_tables(tables, promote_options=promote_options)
 
 
 def transpose_rows_to_columns(
@@ -1346,7 +1357,7 @@ def row_tuples_to_arrow(
         # TODO if converting to arrow fail, should we raise or skip column?
         except PyToArrowConversionException as e:
             e.field_name = column_name
-            raise e
+            raise
 
         field = pa.field(
             name=column_name, type=arrow_array.type, nullable=column_schema.get("nullable", True)

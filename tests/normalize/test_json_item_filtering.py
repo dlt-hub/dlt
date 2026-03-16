@@ -1,10 +1,14 @@
+import os
 from typing import Iterator
 import pytest
 from copy import deepcopy
+
 from dlt.common.configuration.container import Container
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.exceptions import ParentTableNotFoundException
 
+from dlt.common.storages.configuration import NormalizeStorageConfiguration
+from dlt.common.storages.normalize_storage import NormalizeStorage
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
@@ -13,7 +17,8 @@ from dlt.common.schema.typing import TSimpleRegex
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from dlt.normalize.normalize import Normalize
 from tests.common.utils import load_json_case
-from tests.normalize.utils import DEFAULT_CAPS, add_preferred_types
+from tests.normalize.utils import DEFAULT_CAPS
+from tests.utils import get_test_storage_root
 
 
 @pytest.fixture(autouse=True)
@@ -27,8 +32,14 @@ def default_caps() -> Iterator[DestinationCapabilitiesContext]:
 def item_normalizer() -> JsonLItemsNormalizer:
     n = Normalize()
     schema = Schema("event")
+    normalize_storage = NormalizeStorage(
+        True,
+        NormalizeStorageConfiguration(
+            os.path.join(get_test_storage_root(), "pipeline", "normalized")
+        ),
+    )
     _add_excludes(schema)
-    return JsonLItemsNormalizer(None, None, None, schema, "load_id", n.config)
+    return JsonLItemsNormalizer(None, None, normalize_storage, schema, "load_id", n.config)
 
 
 def test_row_field_filter(item_normalizer: JsonLItemsNormalizer) -> None:

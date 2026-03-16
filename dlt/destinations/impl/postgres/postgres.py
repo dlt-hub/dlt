@@ -169,7 +169,7 @@ class PostgresClient(InsertValuesJobClient):
         )
         super().__init__(schema, config, sql_client)
         self.config: PostgresClientConfiguration = config
-        self.sql_client: Psycopg2SqlClient = sql_client
+        self.sql_client: Psycopg2SqlClient = sql_client  # type: ignore[override]
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
         self.type_mapper = self.capabilities.get_type_mapper()
 

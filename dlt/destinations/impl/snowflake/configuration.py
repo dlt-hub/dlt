@@ -173,6 +173,9 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     use_vectorized_scanner: bool = False
     """Whether to use or not use the vectorized scanner in COPY INTO"""
 
+    enable_atomic_swap: bool = False
+    """When enabled and using the `staging-optimized` replace strategy, tables will be atomically swapped using `ALTER TABLE ... SWAP WITH ...` instead of being cloned. This preserves permissions and enables zero-downtime loading."""
+
     use_decfloat: bool = False
     """Whether to use DECFLOAT type for unbound decimals instead of DECIMAL"""
 

@@ -1,6 +1,6 @@
 from typing import Any
 import pytest
-from copy import copy, deepcopy
+from copy import deepcopy
 
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import (
@@ -109,11 +109,11 @@ def test_check_column_with_props(prop: str, value: Any, is_default: bool) -> Non
 
 
 def test_column_remove_defaults() -> None:
-    clean = utils.remove_column_defaults(copy(COL_1_HINTS))
+    clean = utils.remove_column_defaults(deepcopy(COL_1_HINTS))
     # mind that nullable default is False and Nones will be removed
     assert clean == COL_1_HINTS_NO_DEFAULTS
     # check nullable True
-    assert utils.remove_column_defaults(copy(COL_2_HINTS)) == {"name": "test_2"}
+    assert utils.remove_column_defaults(deepcopy(COL_2_HINTS)) == {"name": "test_2"}
 
 
 # def test_column_add_defaults() -> None:
@@ -139,7 +139,7 @@ def test_remove_defaults_stored_schema() -> None:
         "description": "description",
         "resource": "🦚Table",
         "x-special": 128,
-        "columns": {"test": COL_1_HINTS, "test_2": COL_2_HINTS},
+        "columns": {"test": deepcopy(COL_1_HINTS), "test_2": deepcopy(COL_2_HINTS)},
     }
     stored_schema: TStoredSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "schema",
@@ -194,7 +194,7 @@ def test_new_incomplete_column() -> None:
 
 def test_merge_column() -> None:
     # tab_b overrides non default
-    col_a = utils.merge_column(copy(COL_1_HINTS), copy(COL_2_HINTS), merge_defaults=False)
+    col_a = utils.merge_column(deepcopy(COL_1_HINTS), deepcopy(COL_2_HINTS), merge_defaults=False)
     # nullable is False - tab_b has it as default and those are not merged
     assert col_a == {
         "name": "test_2",
@@ -209,7 +209,7 @@ def test_merge_column() -> None:
         "prop": None,
     }
 
-    col_a = utils.merge_column(copy(COL_1_HINTS), copy(COL_2_HINTS), merge_defaults=True)
+    col_a = utils.merge_column(deepcopy(COL_1_HINTS), deepcopy(COL_2_HINTS), merge_defaults=True)
     # nullable is True and primary_key is present - default values are merged
     assert col_a == {
         "name": "test_2",
@@ -241,17 +241,21 @@ def test_none_resets_on_merge_column() -> None:
 
 
 def test_merge_columns() -> None:
-    columns = utils.merge_columns({"test": deepcopy(COL_1_HINTS)}, {"test_2": COL_2_HINTS})
+    columns = utils.merge_columns(
+        {"test": deepcopy(COL_1_HINTS)}, {"test_2": deepcopy(COL_2_HINTS)}
+    )
     # new columns added ad the end
     assert list(columns.keys()) == ["test", "test_2"]
     assert columns["test"] == COL_1_HINTS
     assert columns["test_2"] == COL_2_HINTS
 
     columns = utils.merge_columns(
-        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}
+        {"test": deepcopy(COL_1_HINTS)}, {"test": deepcopy(COL_1_HINTS_NO_DEFAULTS)}
     )
     assert list(columns.keys()) == ["test"]
-    assert columns["test"] == utils.merge_column(deepcopy(COL_1_HINTS), COL_1_HINTS_NO_DEFAULTS)
+    assert columns["test"] == utils.merge_column(
+        deepcopy(COL_1_HINTS), deepcopy(COL_1_HINTS_NO_DEFAULTS)
+    )
 
 
 @pytest.mark.parametrize(
@@ -365,7 +369,9 @@ def test_merge_incomplete_columns() -> None:
     complete_col_2["data_type"] = "text"
 
     # new incomplete added
-    columns = utils.merge_columns({"test": deepcopy(incomplete_col_1)}, {"test_2": COL_2_HINTS})
+    columns = utils.merge_columns(
+        {"test": deepcopy(incomplete_col_1)}, {"test_2": deepcopy(COL_2_HINTS)}
+    )
     # new columns added ad the end
     assert list(columns.keys()) == ["test", "test_2"]
     assert columns["test"] == incomplete_col_1
@@ -373,23 +379,26 @@ def test_merge_incomplete_columns() -> None:
 
     # incomplete merged with complete goes at the end
     columns = utils.merge_columns(
-        {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS},
-        {"test": COL_1_HINTS_NO_DEFAULTS},
+        {"test": deepcopy(incomplete_col_1), "test_2": deepcopy(COL_2_HINTS)},
+        {"test": deepcopy(COL_1_HINTS_NO_DEFAULTS)},
     )
     assert list(columns.keys()) == ["test_2", "test"]
     assert columns["test"] == COL_1_HINTS
     assert columns["test_2"] == COL_2_HINTS
 
     columns = utils.merge_columns(
-        {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS},
-        {"test": COL_1_HINTS_NO_DEFAULTS},
+        {"test": deepcopy(incomplete_col_1), "test_2": deepcopy(COL_2_HINTS)},
+        {"test": deepcopy(COL_1_HINTS_NO_DEFAULTS)},
     )
     assert list(columns.keys()) == ["test_2", "test"]
-    assert columns["test"] == utils.merge_column(deepcopy(COL_1_HINTS), COL_1_HINTS_NO_DEFAULTS)
+    assert columns["test"] == utils.merge_column(
+        deepcopy(COL_1_HINTS), deepcopy(COL_1_HINTS_NO_DEFAULTS)
+    )
 
     # incomplete with incomplete
     columns = utils.merge_columns(
-        {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS}, {"test": incomplete_col_1_nd}
+        {"test": deepcopy(incomplete_col_1), "test_2": deepcopy(COL_2_HINTS)},
+        {"test": incomplete_col_1_nd},
     )
     assert list(columns.keys()) == ["test", "test_2"]
     assert columns["test"] == incomplete_col_1
@@ -409,7 +418,7 @@ def test_merge_tables_all_cases(merge_compound_props: bool) -> None:
         "description": "description",
         "resource": "🦚Table",
         "x-special": 128,
-        "columns": {"test": COL_1_HINTS, "test_2": COL_2_HINTS},
+        "columns": {"test": deepcopy(COL_1_HINTS), "test_2": deepcopy(COL_2_HINTS)},
     }
 
     # merging full table into empty table adds all columns and properties
@@ -622,7 +631,7 @@ def test_tables_conflicts() -> None:
         "parent": "parent",
         "description": "description",
         "x-special": 128,
-        "columns": {"test": COL_1_HINTS, "test_2": COL_2_HINTS},
+        "columns": {"test": deepcopy(COL_1_HINTS), "test_2": deepcopy(COL_2_HINTS)},
     }
 
     other = utils.new_table("table")
@@ -659,7 +668,7 @@ def test_merge_tables() -> None:
         "description": "description",
         "resource": "🦚Table",
         "x-special": 128,
-        "columns": {"test": COL_1_HINTS, "test_2": COL_2_HINTS},
+        "columns": {"test": deepcopy(COL_1_HINTS), "test_2": deepcopy(COL_2_HINTS)},
     }
     print(table)
     changed = deepcopy(table)
@@ -692,7 +701,7 @@ def test_merge_tables() -> None:
 def test_merge_tables_incomplete_columns() -> None:
     table: TTableSchema = {
         "name": "table",
-        "columns": {"test_2": COL_2_HINTS, "test": COL_1_HINTS},
+        "columns": {"test_2": deepcopy(COL_2_HINTS), "test": deepcopy(COL_1_HINTS)},
     }
     changed = deepcopy(table)
     # reverse order, this order we want to have at the end
@@ -708,7 +717,7 @@ def test_merge_tables_incomplete_columns() -> None:
 
     table = {
         "name": "table",
-        "columns": {"test_2": COL_2_HINTS, "test": COL_1_HINTS},
+        "columns": {"test_2": deepcopy(COL_2_HINTS), "test": deepcopy(COL_1_HINTS)},
     }
 
     changed = deepcopy(table)

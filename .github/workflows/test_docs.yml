@@ -79,6 +79,12 @@ jobs:
         run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 
 
+      - name: Install root project for CLI docs check
+        run: uv sync --extra cli --extra workspace
+
+      - name: Check that CLI docs are up to date
+        run: make check-cli-docs
+
       - name: Install dependencies
         run: cd docs && make dev
 
@@ -87,9 +93,6 @@ jobs:
 
       - name: lint docs
         run: cd docs && make lint
-
-      - name: lint embedded snippets
-        run: cd docs && make lint-embedded-snippets
 
       - name: Create secrets.toml for snippets
         run: |

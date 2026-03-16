@@ -672,7 +672,7 @@ def test_boundary_timestamp(
     ]
     current_time: Dict[str, Optional[float]] = {"ts": None}
     with mock.patch(
-        "dlt.common.storages.load_package.precise_time",
+        "dlt.common.storages.load_package.increasing_precise_time",
         side_effect=lambda: current_time["ts"],
     ):
         # load 1 — initial load
@@ -1093,3 +1093,81 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
         {"value": 2},
         {"value": 3},
     ]
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_scd2_validity_column_position(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """SCD2 merge must work when validity columns are not first in the table.
+
+    Regression test for #3692: the merge INSERT...SELECT must align column
+    positions with the destination table. We use an append-then-scd2 switch
+    to produce a table where _dlt_valid_from/_dlt_valid_to are at the end.
+    """
+    p = destination_config.setup_pipeline("test_scd2_col_order", dev_mode=True)
+
+    # step 1: create table with append (no validity columns)
+    @dlt.resource(table_name="dim_test", write_disposition="append")
+    def r_append(data):
+        yield data
+
+    info = p.run(
+        r_append([{"nk": 1, "c1": "foo"}, {"nk": 2, "c1": "bar"}]),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+
+    # step 2: switch to scd2 (validity columns appended at end)
+    @dlt.resource(
+        table_name="dim_test",
+        merge_key="nk",
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+    )
+    def r_scd2(data):
+        yield data
+
+    info = p.run(
+        r_scd2([{"nk": 1, "c1": "foo"}, {"nk": 2, "c1": "bar"}]),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+
+    # step 3: load changed data (triggers the merge INSERT)
+    info = p.run(
+        r_scd2([{"nk": 1, "c1": "foo_updated"}, {"nk": 3, "c1": "baz"}]),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+
+    table = get_table(p, "dim_test", "nk")
+
+    def rows_for(nk: int):
+        return [r for r in table if r["nk"] == nk]
+
+    def active(rows):
+        return [r for r in rows if r[TO] is None]
+
+    def initial(rows):
+        """Rows from the append phase have FROM set to None."""
+        return [r for r in rows if r[FROM] is None]
+
+    # nk=1: initial (append) + retired (scd2 switch) + active (updated)
+    assert len(rows_for(1)) == 3
+    assert len(initial(rows_for(1))) == 1
+    assert len(active(rows_for(1))) == 1
+    assert active(rows_for(1))[0]["c1"] == "foo_updated"
+
+    # nk=2: initial (append) + active (scd2 switch, unchanged)
+    assert len(rows_for(2)) == 2
+    assert len(initial(rows_for(2))) == 1
+    assert len(active(rows_for(2))) == 1
+
+    # nk=3: new active only
+    assert len(rows_for(3)) == 1
+    assert len(active(rows_for(3))) == 1

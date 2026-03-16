@@ -355,6 +355,53 @@ def test_pipeline_merge() -> None:
     assert_table(pipeline, "movies_data", items=data)
 
 
+def test_pipeline_insert_only_merge() -> None:
+    data = [
+        {"doc_id": 1, "title": "The Shawshank Redemption"},
+        {"doc_id": 2, "title": "The Godfather"},
+    ]
+
+    @dlt.resource(
+        primary_key=["doc_id"],
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+    )
+    def movies_data() -> Any:
+        yield data
+
+    lancedb_adapter(movies_data, no_remove_orphans=True)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="movies_insert_only",
+        destination="lancedb",
+        dataset_name=f"TestInsertOnly{uniq_id()}",
+    )
+    info = pipeline.run(movies_data())
+    assert_load_info(info)
+    assert_table(pipeline, "movies_data", items=data)
+
+    # second load: existing records should NOT be updated, new record inserted
+    updated_data = [
+        {"doc_id": 1, "title": "Shawshank 2"},
+        {"doc_id": 3, "title": "The Matrix"},
+    ]
+
+    @dlt.resource(
+        primary_key=["doc_id"],
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+    )
+    def movies_update() -> Any:
+        yield updated_data
+
+    lancedb_adapter(movies_update, no_remove_orphans=True)
+
+    info = pipeline.run(movies_update.with_name("movies_data")())
+    assert_load_info(info)
+
+    # should have 3 records: original 2 + The Matrix, Shawshank NOT updated
+    expected = data + [updated_data[1]]
+    assert_table(pipeline, "movies_data", items=expected)
+
+
 def test_pipeline_with_schema_evolution() -> None:
     data = [
         {
@@ -560,6 +607,10 @@ def test_empty_dataset_allowed() -> None:
     assert client.dataset_name is None  # type: ignore
     assert client.sentinel_table == "dltSentinelTable"  # type: ignore
     assert_table(pipe, "content", expected_items_count=3)
+
+    dataset = pipe.dataset()
+    rows = dataset.content.select("value").fetchall()
+    assert len(rows) == 3
 
 
 def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:

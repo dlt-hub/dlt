@@ -31,7 +31,7 @@ def lancedb_error(f: TFun) -> TFun:
         except ValueError as e:
             if is_lancedb_not_found_error(str(e)):
                 raise DestinationUndefinedEntity(e) from e
-            raise e
+            raise
         except (
             MissingValueError,
             MissingColumnError,

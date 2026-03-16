@@ -223,6 +223,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_naive_datetime: bool = True
     """The destination can store datetime without timezone"""
 
+    dialect_capabilities: Optional[Any] = None
+    """Capabilities of selected dialect for multi-dialect destinations ie. SQLAlchemy"""
+
     def generates_case_sensitive_identifiers(self) -> bool:
         """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""
         # must have case sensitive support and folding function must preserve casing

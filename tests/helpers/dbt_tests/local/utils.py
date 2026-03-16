@@ -59,11 +59,13 @@ def setup_rasa_runner_client(
     with cm_yield_client(destination_name, FIXTURES_DATASET_NAME) as client:
         # emit environ so credentials are passed to dbt profile
         add_config_to_env(client.config, ("DLT",))
-        yield
-        # delete temp schemas
-        dataset_name = f"{destination_dataset_name}_views"
-        delete_dataset(client.sql_client, dataset_name)
-        dataset_name = f"{destination_dataset_name}_staging"
-        delete_dataset(client.sql_client, dataset_name)
-        dataset_name = f"{destination_dataset_name}_event"
-        delete_dataset(client.sql_client, dataset_name)
+        try:
+            yield
+        finally:
+            # delete temp schemas
+            dataset_name = f"{destination_dataset_name}_views"
+            delete_dataset(client.sql_client, dataset_name)
+            dataset_name = f"{destination_dataset_name}_staging"
+            delete_dataset(client.sql_client, dataset_name)
+            dataset_name = f"{destination_dataset_name}_event"
+            delete_dataset(client.sql_client, dataset_name)

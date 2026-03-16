@@ -27,6 +27,7 @@ from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V10, yml_case_path as c
 from tests.common.configuration.utils import environment
 from tests.pipeline.utils import assert_query_column
 from tests.load.utils import (
+    HF_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
     get_normalized_dataset_name,
@@ -754,6 +755,8 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
         all_buckets_filesystem_configs=True,
         table_format_filesystem_configs=True,
         exclude=("filesystem_s3_gcs_comp",),
+        # exclude `hf` because of bug: https://github.com/huggingface/huggingface_hub/issues/3829
+        bucket_exclude=(HF_BUCKET,),
     ),
     ids=lambda x: x.name,
 )

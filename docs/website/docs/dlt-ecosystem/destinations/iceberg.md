@@ -250,6 +250,73 @@ def multi_partition_data():
 ```
 
 
+## Table properties
+
+You can set [Iceberg table properties](https://iceberg.apache.org/docs/latest/configuration/) at two levels. Properties are applied when the table is first created and are not updated on subsequent loads.
+
+### Destination-level defaults
+Set default properties for all Iceberg tables via configuration:
+
+```toml
+[destination.filesystem]
+iceberg_table_properties = '{"write.format.default": "parquet", "write.target-file-size-bytes": "536870912"}'
+```
+
+### Per-table properties with `iceberg_adapter`
+Use `iceberg_adapter` to set or override properties on individual resources:
+
+```py
+import dlt
+from dlt.destinations.adapters import iceberg_adapter
+
+@dlt.resource(table_format="iceberg")
+def my_data():
+    yield [{"id": 1, "value": "a"}]
+
+iceberg_adapter(
+    my_data,
+    table_properties={
+        "write.format.default": "parquet",
+        "write.target-file-size-bytes": "536870912",
+    },
+)
+
+pipeline = dlt.pipeline("iceberg_props", destination="filesystem")
+pipeline.run(my_data)
+```
+
+You can combine table properties with partitioning:
+
+```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
+iceberg_adapter(
+    my_data,
+    partition=[iceberg_partition.month("created_at")],
+    table_properties={"write.format.default": "parquet"},
+)
+```
+
+### Merge behavior
+When both destination-level and per-table properties are set, they are merged. Per-table adapter properties take precedence over destination-level defaults on any conflicting keys.
+
+:::note
+Table properties are only applied at table creation time. If the table already exists, the properties are ignored.
+:::
+
+## Namespace properties
+
+You can set properties on the Iceberg namespace (schema) via configuration. These are passed to the catalog when the namespace is first created.
+
+```toml
+[destination.filesystem]
+iceberg_namespace_properties = '{"owner": "data-team", "description": "Production tables"}'
+```
+
+:::note
+Namespace properties are only applied at namespace creation time. If the namespace already exists, the properties are ignored.
+:::
+
 ## Table access helper functions
 You can use the `get_iceberg_tables` helper function to access native table objects. These are `pyiceberg` [Table](https://py.iceberg.apache.org/reference/pyiceberg/table/#pyiceberg.table.Table) objects.
 
@@ -279,7 +346,7 @@ The [S3-compatible](./filesystem.md#using-s3-compatible-storage) interface for G
 The `az` [scheme](./filesystem.md#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which dlt used under the hood, currently does not support `az`.
 
 ## Table format `merge` support
-The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strategy is supported for `iceberg`. This strategy requires that the input data contains no duplicate rows based on the key columns, and that the target table also does not contain duplicates on those keys.
+The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) and [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy) merge strategies are supported for `iceberg`. These strategies require that the input data contains no duplicate rows based on the key columns, and that the target table also does not contain duplicates on those keys.
 
 :::warning
 Until _pyiceberg_ > 0.9.1 is released, upsert is executed in chunks of **1000** rows.

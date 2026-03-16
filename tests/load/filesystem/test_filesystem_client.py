@@ -1,10 +1,11 @@
-from typing import Union, Dict
+from typing import List, Union, Dict
 import posixpath
 import os
 import json
 import orjson
 from unittest import mock
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import urlparse
 
 import pytest
@@ -14,15 +15,20 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     extract_inner_hint,
 )
+from dlt.common.destination.exceptions import TableFormatNotSupported
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.time import ensure_pendulum_datetime_utc
-from dlt.common.utils import digest128, uniq_id
+from dlt.common.utils import custom_environ, digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 from dlt.common.storages.exceptions import UnsupportedStorageVersionException
 
 from dlt.destinations import filesystem
+from dlt.destinations.impl.filesystem.configuration import (
+    HfFilesystemDestinationClientConfiguration,
+)
 from dlt.destinations.impl.filesystem.filesystem import (
     FilesystemClient,
     FilesystemDestinationClientConfiguration,
@@ -57,9 +63,14 @@ NORMALIZED_FILES = [
 
 
 def _client_factory(fs: filesystem) -> FilesystemClient:
+    config_class = (
+        HfFilesystemDestinationClientConfiguration
+        if fs.is_hf
+        else FilesystemDestinationClientConfiguration
+    )
     client = fs.client(
         Schema("test"),
-        initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
+        initial_config=config_class()._bind_dataset_name("test"),
     )
     return client
 
@@ -147,6 +158,9 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
     """Test load is successful with an empty destination dataset
     Note: removed gdrive because it is slow
     """
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
@@ -196,6 +210,9 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
 
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_replace_write_disposition(layout: str, default_buckets_env: str) -> None:
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
@@ -276,6 +293,9 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_append_write_disposition(layout: str, default_buckets_env: str) -> None:
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
@@ -447,3 +467,91 @@ def test_list_dlt_table_files_with_separator_in_pipeline_name(pipeline_name: str
     assert len(results) == 1
     assert results[0][0] == test_file
     assert results[0][1] == [pipeline_name, "load123", "hash123"]
+
+
+def test_verify_schema_table_format(with_gdrive_buckets_env: str) -> None:
+    filesystem_ = filesystem(with_gdrive_buckets_env)
+    client = _client_factory(filesystem_)
+    table_kwargs = {
+        "columns": {"c1": {"name": "c1", "data_type": "text"}},
+        "write_disposition": "append",
+    }
+    tables: List[PreparedTableSchema] = [
+        {"name": "delta_table", "table_format": "delta", **table_kwargs},  # type: ignore[typeddict-item]
+        {"name": "iceberg_table", "table_format": "iceberg", **table_kwargs},  # type: ignore[typeddict-item]
+        {"name": "other_table", **table_kwargs},  # type: ignore[typeddict-item]
+    ]
+
+    # test verify_schema_table_format
+    exceptions = client.verify_schema_table_format(tables)
+    if client.config.protocol == "hf":
+        assert len(exceptions) == 2
+        assert isinstance(exceptions[0], TableFormatNotSupported)
+    else:
+        assert len(exceptions) == 0
+
+    # test verify_schema
+    client.schema.update_table(tables[0])
+    if client.config.protocol == "hf":
+        with pytest.raises(TableFormatNotSupported):
+            client.verify_schema(["delta_table"])
+    else:
+        client.verify_schema(["delta_table"])
+
+
+def test_hf_endpoint_env(default_buckets_env: str) -> None:
+    if not default_buckets_env.startswith("hf://"):
+        pytest.skip("only runs on hf:// protocol")
+
+    from dlt.destinations.impl.filesystem.filesystem import HfFilesystemClient
+
+    filesystem_ = filesystem(default_buckets_env)
+    client = _client_factory(filesystem_)
+    assert isinstance(client, HfFilesystemClient)
+
+    CREDS_ENDPOINT = "https://credentials-endpoint.com"
+    ENV_VAR_ENDPOINT = "https://env-var-endpoint.com"
+
+    # sanity check
+    assert client.config.credentials.hf_endpoint is None
+    assert os.environ.get("HF_ENDPOINT") is None
+
+    # case 1: no endpoint in credentials, HF_ENDPOINT not set
+    with client._hf_endpoint_env():
+        assert os.environ.get("HF_ENDPOINT") is None
+
+    # case 2: no endpoint in credentials, HF_ENDPOINT set
+    with custom_environ({"HF_ENDPOINT": ENV_VAR_ENDPOINT}):
+        with client._hf_endpoint_env():
+            assert os.environ.get("HF_ENDPOINT") == ENV_VAR_ENDPOINT  # env var endpoint retained
+        assert os.environ.get("HF_ENDPOINT") == ENV_VAR_ENDPOINT
+
+    # now set endpoint in credentials
+    client.config.credentials.hf_endpoint = CREDS_ENDPOINT
+    assert os.environ.get("HF_ENDPOINT") is None
+
+    # case 3: endpoint in credentials, HF_ENDPOINT not set
+    with client._hf_endpoint_env():
+        assert os.environ.get("HF_ENDPOINT") == CREDS_ENDPOINT  # creds endpoint set in env
+    assert os.environ.get("HF_ENDPOINT") is None  # env var endpoint restored
+
+    # case 4: endpoint in credentials, HF_ENDPOINT set
+    with custom_environ({"HF_ENDPOINT": ENV_VAR_ENDPOINT}):
+        with client._hf_endpoint_env():
+            assert (
+                os.environ.get("HF_ENDPOINT") == CREDS_ENDPOINT
+            )  # creds endpoint takes precedence
+        assert os.environ.get("HF_ENDPOINT") == ENV_VAR_ENDPOINT  # env var endpoint restored
+
+    # now test that Hugging Face methods without endpoint argument are wrapped with `_hf_endpoint_env`
+
+    assert client.config.credentials.hf_endpoint == CREDS_ENDPOINT  # sanity check
+
+    def assert_hf_endpoint_set(*args, **kwargs):
+        assert os.environ["HF_ENDPOINT"] == CREDS_ENDPOINT
+
+    with patch("huggingface_hub.DatasetCard.push_to_hub", side_effect=assert_hf_endpoint_set):
+        client.init_dataset_card()
+
+    with patch("huggingface_hub.metadata_update", side_effect=assert_hf_endpoint_set):
+        client.update_dataset_card_metadata(load_id="test")

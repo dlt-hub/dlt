@@ -4,6 +4,7 @@ from typing import Type, Optional
 from dlt.common.data_writers.buffered import BufferedDataWriter
 from dlt.common.data_writers.writers import TWriter, ALL_WRITERS
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 
 from tests.utils import get_test_storage_root
 

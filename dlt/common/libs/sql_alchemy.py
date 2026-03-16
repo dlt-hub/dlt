@@ -2,15 +2,15 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt import version
 
 try:
-    from sqlalchemy import MetaData, Table, Column, create_engine
-    from sqlalchemy.engine import Engine, URL, make_url, Row
-    from sqlalchemy.sql import sqltypes, Select, Executable
-    from sqlalchemy.sql.elements import TextClause
-    from sqlalchemy.sql.sqltypes import TypeEngine
-    from sqlalchemy.exc import CompileError
-    from sqlalchemy.dialects.oracle import NUMBER as ORACLE_NUMBER
-    from sqlalchemy.dialects.oracle.base import OracleDialect
-    import sqlalchemy as sa
+    from sqlalchemy import MetaData, Table, Column, create_engine, TypeDecorator  # noqa: I251
+    from sqlalchemy.engine import Engine, URL, make_url, Row  # noqa: I251
+    from sqlalchemy.sql import sqltypes, Select, Executable  # noqa: I251
+    from sqlalchemy.sql.elements import TextClause  # noqa: I251
+    from sqlalchemy.sql.sqltypes import TypeEngine  # noqa: I251
+    from sqlalchemy.exc import CompileError  # noqa: I251
+    from sqlalchemy.dialects.oracle import NUMBER as ORACLE_NUMBER  # noqa: I251
+    from sqlalchemy.dialects.oracle.base import OracleDialect  # noqa: I251
+    import sqlalchemy as sa  # noqa: I251
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt sql_database helpers ",
@@ -28,6 +28,7 @@ __all__ = [
     "Table",
     "Column",
     "create_engine",
+    "TypeDecorator",
     "Engine",
     "URL",
     "make_url",

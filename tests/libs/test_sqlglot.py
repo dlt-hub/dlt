@@ -1,5 +1,5 @@
-from typing import List, Optional, Set
-
+from typing import List, Optional, Set, cast
+import importlib
 import pytest
 import sqlglot
 import sqlglot.expressions as sge
@@ -15,7 +15,9 @@ from dlt.common.libs.sqlglot import (
     validate_no_star_select,
     build_outer_select_statement,
     reorder_or_adjust_outer_select,
+    normalize_query_identifiers,
 )
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNaming
 from dlt.common.schema.typing import TDataType, TColumnType, TTableSchemaColumns
 from dlt.common.schema.exceptions import CannotCoerceNullException
 
@@ -556,3 +558,109 @@ def test_reorder_or_adjust_outer_select(dialect: TSqlGlotDialect) -> None:
     reorder_or_adjust_outer_select(outer4, columns_only_ab, casefold, "test_schema", "test_table")
     aliases4 = [sel.alias for sel in outer4.selects]
     assert aliases4 == ["a", "b"]
+
+
+@pytest.mark.parametrize(
+    "naming_convention",
+    [
+        "snake_case",
+        "tests.common.cases.normalizers.sql_upper",
+        "tests.common.cases.normalizers.title_case",
+    ],
+)
+def test_normalize_query_identifiers(naming_convention: str) -> None:
+    # import the naming convention module
+    if naming_convention == "snake_case":
+        naming_module_path = "dlt.common.normalizers.naming.snake_case"
+    else:
+        naming_module_path = naming_convention
+    naming_module = importlib.import_module(naming_module_path)
+    naming = naming_module.NamingConvention()
+
+    # test query with mixed case, paths, and aliases (including __ in table/alias names)
+    query = cast(
+        sge.Query,
+        sqlglot.parse_one("""
+            SELECT
+                MyColumn AS MyAlias,
+                nested__column,
+                user__comments__id AS User__Comments__Id,
+                value__v_double AS value__v__alias,
+                t.col1
+            FROM my_schema.MyTable
+            JOIN my_schema.User__Comments AS User__Table__Alias ON MyTable.id = User__Table__Alias.user_id
+            WHERE AnotherColumn > 10
+        """),
+    )
+
+    normalized = normalize_query_identifiers(query, naming)
+    normalized_sql = normalized.sql()
+
+    # verify table name normalized but schema name unchanged
+    assert "my_schema" in normalized_sql  # schema name should be unchanged
+    expected_table = naming.normalize_table_identifier("MyTable")
+    assert expected_table in normalized_sql
+
+    # verify simple column names normalized
+    expected_col1 = naming.normalize_identifier("MyColumn")
+    expected_col2 = naming.normalize_identifier("AnotherColumn")
+    assert expected_col1 in normalized_sql
+    assert expected_col2 in normalized_sql
+
+    # verify aliases normalized
+    expected_alias = naming.normalize_identifier("MyAlias")
+    assert expected_alias in normalized_sql
+
+    # verify paths preserved (using normalize_path, not normalize_identifier)
+    expected_nested = naming.normalize_path("nested__column")
+    expected_user_path = naming.normalize_path("user__comments__id")
+    expected_variant = naming.normalize_path("value__v_double")
+    assert expected_nested in normalized_sql
+    assert expected_user_path in normalized_sql
+    assert expected_variant in normalized_sql
+
+    # verify nested table name preserved
+    expected_nested_table = naming.normalize_tables_path("User__Comments")
+    assert expected_nested_table in normalized_sql
+
+    # verify aliases with __ preserved (using normalize_path for aliases)
+    expected_col_alias_with_path = naming.normalize_path("User__Comments__Id")
+    expected_variant_alias = naming.normalize_path("value__v__alias")
+    expected_table_alias_with_path = naming.normalize_path("User__Table__Alias")
+    assert expected_col_alias_with_path in normalized_sql
+    assert expected_variant_alias in normalized_sql
+    assert expected_table_alias_with_path in normalized_sql
+
+
+def test_normalize_query_identifiers_table_qualified_columns() -> None:
+    """Table qualifiers in column references must use normalize_tables_path,
+    consistent with the FROM clause table name normalization."""
+
+    class _TablePrefixNaming(SnakeCaseNaming):
+        """Naming convention where normalize_table_identifier diverges from
+        normalize_identifier — table names get a 'tbl_' prefix."""
+
+        def normalize_table_identifier(self, identifier: str) -> str:
+            return "tbl_" + super().normalize_table_identifier(identifier)
+
+    naming = _TablePrefixNaming()
+
+    query = cast(
+        sge.Query,
+        sqlglot.parse_one(
+            "SELECT MyTable.my_col, MyTable.other_col FROM MyTable WHERE MyTable.id > 10"
+        ),
+    )
+
+    normalized = normalize_query_identifiers(query, naming)
+    normalized_sql = normalized.sql()
+
+    # table name in FROM and table qualifiers in column references must both
+    # go through normalize_tables_path → "tbl_my_table"
+    expected_table = naming.normalize_tables_path("MyTable")
+    assert expected_table == "tbl_my_table"
+
+    assert f"FROM {expected_table}" in normalized_sql
+    assert f"{expected_table}.my_col" in normalized_sql
+    assert f"{expected_table}.other_col" in normalized_sql
+    assert f"{expected_table}.id" in normalized_sql
