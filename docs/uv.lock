@@ -1025,7 +1025,7 @@ adbc = [
     { name = "adbc-driver-manager", specifier = ">=1.8.0" },
     { name = "dbc", specifier = ">=0.1.0" },
 ]
-airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.12'", specifier = ">=2.8.0,<3" }]
+airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.13'", specifier = ">=2.8.0,<3" }]
 dashboard-tests = [
     { name = "playwright", specifier = ">=1.58.0,<2" },
     { name = "pytest-playwright", specifier = ">=0.7.1,<1" },
