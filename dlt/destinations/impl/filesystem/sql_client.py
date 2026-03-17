@@ -42,6 +42,7 @@ class FilesystemSqlClient(WithTableScanners):
         self.remote_client: FilesystemClient = remote_client
         self.is_abfss = self.remote_client.config.protocol == "abfss"
         self.iceberg_initialized = False
+        self._secrets_created = False
         if self.is_abfss:
             self._global_config["azure_transport_option_type"] = "curl"
 
@@ -95,10 +96,10 @@ class FilesystemSqlClient(WithTableScanners):
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         with self.credentials.conn_pool._conn_lock:
-            first_connection = self.credentials.conn_pool.never_borrowed
             super().open_connection()
+            needs_setup = not self._secrets_created
 
-        if first_connection:
+        if needs_setup:
             # TODO: we need to frontload the httpfs extension for abfss for some reason
             if self.is_abfss:
                 self._conn.sql("INSTALL httpfs; LOAD httpfs")
@@ -109,6 +110,7 @@ class FilesystemSqlClient(WithTableScanners):
                 self.remote_client.config.credentials,
                 persist_secrets=self.persist_secrets,
             )
+            self._secrets_created = True
         return self._conn
 
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:

@@ -119,7 +119,7 @@ def _read_csv_duckdb(
 
     for item in items:
         with item.open() as f:
-            file_data = duckdb.from_csv_auto(f, **duckdb_kwargs)  # type: ignore
+            file_data = duckdb.from_csv_auto(f, **duckdb_kwargs)
 
             for batch in helper(file_data, chunk_size):
                 if add_filename:

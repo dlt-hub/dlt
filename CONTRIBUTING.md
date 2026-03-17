@@ -261,7 +261,7 @@ When developing, you generally want to avoid catching test errors only in CI, as
 
 ## Local Development
 
-Use Python 3.9 for development, as it is the lowest supported version. You can select (and download if necessary) the version with:
+Use Python 3.10 for development, as it is the lowest supported version. You can select (and download if necessary) the version with:
 
 ```sh
 uv venv --python 3.11.6

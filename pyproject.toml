@@ -3,7 +3,7 @@ name = "dlt"
 version = "1.23.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
-requires-python = ">=3.9.2, <3.15"
+requires-python = ">=3.10, <3.15"
 readme = "README.md"
 license = "Apache-2.0"
 maintainers = [
@@ -19,7 +19,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Software Development :: Libraries",
     "Typing :: Typed",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -90,7 +89,7 @@ parquet = [
     "pyarrow>=16.0.0",
 ]
 duckdb = [
-    "duckdb>=0.9"
+    "duckdb>=1.5.0"
     ]
 ducklake = [
     "duckdb>=1.2.0",
@@ -359,7 +358,7 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 src = ["dlt"]
 include = [
     "dlt/**/*.py",
