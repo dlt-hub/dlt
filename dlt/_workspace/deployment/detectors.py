@@ -10,11 +10,12 @@ is local to the workspace (below or equal to the parent module).
 
 import os
 from types import ModuleType
-from typing import Any, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from dlt.common.utils import get_module_name
 
 from dlt._workspace.deployment._job_ref import make_job_ref
+from dlt._workspace.deployment._trigger_helpers import normalize_triggers
 from dlt._workspace.deployment.launchers import get_launcher_for_framework
 from dlt._workspace.deployment import triggers as _triggers
 from dlt._workspace.deployment.typing import (
@@ -23,6 +24,7 @@ from dlt._workspace.deployment.typing import (
     TExposeSpec,
     TJobDefinition,
     TJobRef,
+    TTrigger,
 )
 
 _HTTP_TRIGGER = _triggers.http()
@@ -71,6 +73,24 @@ def _module_description(module: ModuleType) -> Optional[str]:
     return None
 
 
+def _apply_module_dunders(module: ModuleType, job_def: TJobDefinition) -> None:
+    """Apply module-level dunders to a detected job definition.
+
+    Reads `__trigger__` and `__expose__` from the module and merges them
+    into the job definition produced by a detector.
+    """
+    # __trigger__: append to detector triggers
+    raw_trigger = getattr(module, "__trigger__", None)
+    if raw_trigger is not None:
+        extra: List[TTrigger] = normalize_triggers(raw_trigger)
+        job_def["triggers"].extend(extra)
+
+    # __expose__: override detector expose
+    expose = getattr(module, "__expose__", None)
+    if expose is not None:
+        job_def["expose"] = expose
+
+
 def _detect_marimo(module: ModuleType) -> Optional[TJobDefinition]:
     """Detect a marimo.App instance."""
     try:
@@ -110,6 +130,7 @@ def _detect_marimo(module: ModuleType) -> Optional[TJobDefinition]:
     if description:
         job_def["description"] = description
 
+    _apply_module_dunders(module, job_def)
     return job_def
 
 
@@ -148,6 +169,7 @@ def _detect_mcp(module: ModuleType) -> Optional[TJobDefinition]:
     if description:
         job_def["description"] = description
 
+    _apply_module_dunders(module, job_def)
     return job_def
 
 
@@ -178,11 +200,15 @@ def _detect_streamlit(module: ModuleType) -> Optional[TJobDefinition]:
     if description:
         job_def["description"] = description
 
+    _apply_module_dunders(module, job_def)
     return job_def
 
 
+_VENV_PATH_MARKERS = ("site-packages", ".venv", "venv", ".tox", ".nox")
+
+
 def is_local_module(module: ModuleType, parent_module: ModuleType) -> bool:
-    """Check if module's file is below or equal to parent_module's directory."""
+    """Check if module's file is below parent_module's directory and not in a venv."""
     module_file = getattr(module, "__file__", None)
     parent_file = getattr(parent_module, "__file__", None)
     if module_file is None or parent_file is None:
@@ -190,6 +216,12 @@ def is_local_module(module: ModuleType, parent_module: ModuleType) -> bool:
 
     parent_dir = os.path.dirname(os.path.realpath(parent_file))
     module_path = os.path.realpath(module_file)
+
+    # reject installed packages (venv, site-packages)
+    path_parts = module_path.split(os.sep)
+    if any(marker in path_parts for marker in _VENV_PATH_MARKERS):
+        return False
+
     try:
         common = os.path.commonpath([parent_dir, module_path])
     except ValueError:
@@ -226,4 +258,5 @@ def detect_local_module(module: ModuleType, parent_module: ModuleType) -> Option
     if description:
         job_def["description"] = description
 
+    _apply_module_dunders(module, job_def)
     return job_def

@@ -35,6 +35,7 @@ from dlt._workspace.deployment.typing import (
     TInterfaceType,
     TExposeSpec,
     TEntryPoint,
+    TJobRunContext,
     TRunArgs,
     TRuntimeEntryPoint,
     TTimeoutSpec,

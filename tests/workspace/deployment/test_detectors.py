@@ -165,3 +165,53 @@ def test_detect_local_module_rejects_external() -> None:
     import os
 
     assert detect_local_module(os, parent) is None
+
+
+def test_is_local_module_rejects_venv_packages() -> None:
+    """Installed packages in .venv/site-packages are not local."""
+    parent = import_module(f"{WORKSPACE}.deployment_full")
+    import marimo
+
+    assert not is_local_module(marimo, parent)
+
+
+def test_is_local_module_rejects_site_packages() -> None:
+    """Any module from site-packages is not local."""
+    parent = import_module(f"{WORKSPACE}.deployment_full")
+    import fastmcp
+
+    assert not is_local_module(fastmcp, parent)
+
+
+# ---- module dunders ----
+
+
+def test_module_trigger_appended() -> None:
+    """__trigger__ on module appends to detector triggers."""
+    mod = import_module(f"{CASES}.marimo_with_trigger")
+    job_def = detect_module_job(mod)
+
+    assert job_def is not None
+    assert HTTP_TRIGGER in job_def["triggers"]
+    assert "tag:refresh" in job_def["triggers"]
+    assert len(job_def["triggers"]) == 2
+
+
+def test_module_trigger_list() -> None:
+    """__trigger__ as list appends all triggers."""
+    mod = import_module(f"{CASES}.mcp_with_trigger")
+    job_def = detect_module_job(mod)
+
+    assert job_def is not None
+    assert HTTP_TRIGGER in job_def["triggers"]
+    assert "tag:tools" in job_def["triggers"]
+    assert "deployment:" in job_def["triggers"]
+
+
+def test_module_expose_overrides() -> None:
+    """__expose__ overrides detector expose."""
+    mod = import_module(f"{CASES}.marimo_with_expose")
+    job_def = detect_module_job(mod)
+
+    assert job_def is not None
+    assert job_def["expose"] == {"interface": "rest_api"}

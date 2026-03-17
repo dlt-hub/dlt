@@ -257,51 +257,54 @@ def generate_manifest(
         Tuple of (manifest, warnings). Warnings include non-discoverable names.
     """
     warnings: List[str] = []
-
-    if use_all and hasattr(deployment_module, "__all__"):
-        names = list(deployment_module.__all__)
-    else:
-        if use_all and not hasattr(deployment_module, "__all__"):
-            warnings.append(
-                f"module {deployment_module.__name__!r} has no __all__, scanning __dict__ instead"
-            )
-        names = list(deployment_module.__dict__.keys())
-
-    has_all = hasattr(deployment_module, "__all__")
     jobs: List[TJobDefinition] = []
 
-    for name in names:
-        obj = deployment_module.__dict__.get(name)
-        if obj is None:
-            warnings.append(f"name {name!r} listed in __all__ but not found in module")
-            continue
-
-        if isinstance(obj, JobFactory):
-            jobs.append(obj.to_job_definition())
-        elif isinstance(obj, ModuleType):
-            if not is_local_module(obj, deployment_module):
-                continue
-            framework_job = detect_module_job(obj)
-            if framework_job is not None:
-                jobs.append(framework_job)
-            else:
-                local_job = detect_local_module(obj, deployment_module)
-                if local_job is not None:
-                    jobs.append(local_job)
+    # first: check if the deployment module itself is a framework app
+    self_job = detect_module_job(deployment_module)
+    if self_job is not None:
+        jobs.append(self_job)
+    else:
+        # scan module contents for JobFactory instances and sub-modules
+        has_all = use_all and hasattr(deployment_module, "__all__")
+        if has_all:
+            names = list(deployment_module.__all__)
         else:
-            # only warn for names explicitly listed in __all__
-            if has_all and not name.startswith("_"):
-                warnings.append(f"name {name!r} is not a recognized job or framework module")
+            if use_all:
+                warnings.append(
+                    f"module {deployment_module.__name__!r} has no __all__,"
+                    " scanning __dict__ instead"
+                )
+            names = list(deployment_module.__dict__.keys())
 
-    if not jobs:
-        framework_job = detect_module_job(deployment_module)
-        if framework_job is not None:
-            jobs.append(framework_job)
+        for name in names:
+            obj = deployment_module.__dict__.get(name)
+            if obj is None:
+                warnings.append(f"name {name!r} listed in __all__ but not found in module")
+                continue
 
-    # add manual trigger to every job unless opted out
+            if isinstance(obj, JobFactory):
+                jobs.append(obj.to_job_definition())
+            elif isinstance(obj, ModuleType):
+                # __all__: trust the user; __dict__ scan: filter to local modules
+                if not has_all and not is_local_module(obj, deployment_module):
+                    continue
+                framework_job = detect_module_job(obj)
+                if framework_job is not None:
+                    jobs.append(framework_job)
+                else:
+                    local_job = detect_local_module(obj, deployment_module)
+                    if local_job is not None:
+                        jobs.append(local_job)
+            else:
+                if has_all and not name.startswith("_"):
+                    warnings.append(f"name {name!r} is not a recognized job or framework module")
+
+    # add implicit triggers from job metadata
     for job_def in jobs:
         if not job_def.get("manual_disabled"):
             job_def["triggers"].append(_triggers.manual(job_def["job_ref"]))
+        for t in job_def.get("tags", []):
+            job_def["triggers"].append(_triggers.tag(t))
 
     manifest: TDeploymentManifest = {
         "engine_version": MANIFEST_ENGINE_VERSION,

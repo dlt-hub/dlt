@@ -1,6 +1,6 @@
 import re
 from fnmatch import fnmatch
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 from urllib.parse import urlparse
 
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -146,14 +146,19 @@ def parse_trigger(trigger: TTrigger) -> TParsedTrigger:
     return parser(expr)
 
 
+_CRON_FIELD_RE = re.compile(r"^[\d*,/\-?LW#]+$")
+
+
 def _looks_like_cron(s: str) -> bool:
-    """Check if string is a valid cron expression using croniter."""
+    """Check if string is a valid cron expression."""
     try:
         from croniter import croniter
 
         return croniter.is_valid(s)
     except ImportError:
-        return False
+        # fallback: 5 or 6 fields with cron-like characters
+        parts = s.split()
+        return len(parts) in (5, 6) and all(_CRON_FIELD_RE.match(p) for p in parts)
 
 
 def normalize_trigger(trigger: Union[str, TTrigger]) -> TTrigger:
@@ -183,7 +188,7 @@ def normalize_trigger(trigger: Union[str, TTrigger]) -> TTrigger:
 
 def normalize_triggers(
     trigger: Union[
-        None, str, TTrigger, List[Union[str, TTrigger]], Tuple[Union[str, TTrigger], ...]
+        None, str, TTrigger, Sequence[Union[str, TTrigger]], Tuple[Union[str, TTrigger], ...]
     ],
 ) -> List[TTrigger]:
     """Normalize trigger input to a list of canonical TTrigger values."""

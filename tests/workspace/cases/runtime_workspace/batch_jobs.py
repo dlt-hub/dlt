@@ -2,6 +2,7 @@
 
 import dlt
 from dlt._workspace.deployment.decorators import job
+from dlt._workspace.deployment.typing import TJobRunContext
 
 
 @job(timeout="24h")
@@ -25,3 +26,17 @@ def transform():
 def maintenance(cleanup_days=dlt.config.value):
     """Run maintenance tasks."""
     pass
+
+
+@job
+def context_aware(run_context: TJobRunContext):
+    """Job that receives run context."""
+    return f"run_id={run_context['run_id']},trigger={run_context['trigger']}"
+
+
+@job
+def context_optional(run_context: TJobRunContext = None):
+    """Job with optional run context — works with and without injection."""
+    if run_context is not None:
+        return f"got_context:{run_context['run_id']}"
+    return "no_context"

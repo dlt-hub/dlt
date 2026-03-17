@@ -19,7 +19,7 @@ from dlt._workspace.deployment.typing import (
     TTrigger,
 )
 from dlt._workspace._runner.process import JobProcess
-from dlt._workspace._runner.scheduler import TriggerScheduler
+from dlt._workspace._runner.scheduler import EVENT_TYPES, TIMED_TYPES, TriggerScheduler
 from dlt._workspace.deployment._trigger_helpers import filter_jobs_by_selectors, parse_trigger
 
 INTERACTIVE_PORT_START = 5000
@@ -268,6 +268,29 @@ def select_jobs(
     return directly_selected, followup
 
 
+_TIMED_TRIGGER_TYPES = {"schedule", "every", "once"}
+
+
+def _collect_future_jobs(
+    all_jobs: List[TJobDefinition],
+    already_selected: Set[str],
+) -> List[TJobDefinition]:
+    """Collect jobs with timed triggers that aren't already selected."""
+    future: List[TJobDefinition] = []
+    for j in all_jobs:
+        if j["job_ref"] in already_selected:
+            continue
+        for trigger in j.get("triggers", []):
+            try:
+                parsed = parse_trigger(trigger)
+            except ValueError:
+                continue
+            if parsed.type in _TIMED_TRIGGER_TYPES:
+                future.append(j)
+                break
+    return future
+
+
 def _display_manifest(jobs: List[TJobDefinition], max_name_len: int) -> None:
     """Display manifest job summary to stderr."""
     for j in jobs:
@@ -291,6 +314,7 @@ def run(
     with_future: bool = False,
     with_future_once: bool = False,
     dry_run: bool = False,
+    verbose: bool = False,
 ) -> int:
     """Run jobs from a deployment manifest locally.
 
@@ -301,6 +325,7 @@ def run(
         with_future: Schedule future jobs (cron, every, once).
         with_future_once: Schedule future jobs but fire only once.
         dry_run: Display plan without launching jobs.
+        verbose: Show full manifest JSON before running.
 
     Returns:
         Exit code (0 = all jobs succeeded, 1 = any job failed).
@@ -312,11 +337,13 @@ def run(
     selectors = list(trigger_selectors or [])
     if run_manual:
         selectors.append("manual:*")
-    if with_future or with_future_once:
-        selectors.extend(["schedule:*", "every:*", "once:*"])
 
     # resolve job ref selectors into manual: selectors
     selectors = _resolve_selectors(selectors, jobs)
+
+    if verbose:
+        _log(json.dumps(jobs, pretty=True))
+        _log("")
 
     max_name_len = max((len(job_short_name(j["job_ref"])) for j in jobs), default=8)
 
@@ -325,16 +352,37 @@ def run(
     _display_manifest(jobs, max_name_len)
     _log("")
 
-    if not selectors:
+    if not selectors and not (with_future or with_future_once):
         _log("nothing to run (use --run-manual or --select to choose jobs)")
         return 0
 
-    directly_selected, followup = select_jobs(jobs, selectors)
-    if not directly_selected:
-        _log("no jobs matched the provided selectors")
+    directly_selected, followup = select_jobs(jobs, selectors) if selectors else ([], [])
+
+    # collect future-only jobs (timed triggers not already selected)
+    selected_refs: Set[str] = {j["job_ref"] for j in directly_selected + followup}
+    future_only: List[TJobDefinition] = []
+    if with_future or with_future_once:
+        future_only = _collect_future_jobs(jobs, selected_refs)
+        # future jobs may have event-triggered downstreams
+        if future_only:
+            _, future_followup = select_jobs(
+                [j for j in jobs if j["job_ref"] not in selected_refs],
+                ["every:*", "schedule:*", "once:*"],
+            )
+            # deduplicate
+            for j in future_followup:
+                if j["job_ref"] not in selected_refs:
+                    followup.append(j)
+                    selected_refs.add(j["job_ref"])
+
+    if not directly_selected and not future_only:
+        if selectors:
+            _log("no jobs matched the provided selectors")
+        else:
+            _log("nothing to run (use --run-manual or --select to choose jobs)")
         return 0
 
-    all_selected = directly_selected + followup
+    all_selected = directly_selected + future_only + followup
 
     scheduler = TriggerScheduler(
         with_future=with_future,
@@ -347,16 +395,19 @@ def run(
     # register directly selected jobs with all triggers
     immediate: List[Tuple[TJobDefinition, TTrigger]] = []
     for job_def in directly_selected:
-        job_immediate = scheduler.register_job(job_def)
-        immediate.extend(job_immediate)
+        immediate.extend(scheduler.register_job(job_def))
+
+    # register future-only jobs with timed triggers only
+    for job_def in future_only:
+        immediate.extend(scheduler.register_job(job_def, only=TIMED_TYPES))
 
     # register followup jobs with event triggers only
     for job_def in followup:
-        scheduler.register_followup(job_def)
+        scheduler.register_job(job_def, only=EVENT_TYPES)
 
     # display execution plan
     _log(f"selected {len(all_selected)} job(s):")
-    for job_def in directly_selected:
+    for job_def in directly_selected + future_only:
         short = job_short_name(job_def["job_ref"])
         job_triggers = [t for jd, t in immediate if jd["job_ref"] == job_def["job_ref"]]
         if job_triggers:
@@ -441,14 +492,12 @@ def run(
         for warning in scheduler.pop_warnings():
             _log(f"warning: {warning}")
 
-        # exit condition
+        # exit condition: no running processes and no timed items
         if not _processes and scheduler.is_empty():
-            break
-        if not _processes and scheduler.has_only_event_triggers():
-            orphaned = scheduler.pending_event_jobs()
-            for ref in orphaned:
-                short = job_short_name(ref)
-                _log_job(short, max_name_len, 2, "will not execute — upstream job not running")
+            if scheduler.has_only_event_triggers():
+                for ref in scheduler.pending_event_jobs():
+                    short = job_short_name(ref)
+                    _log_job(short, max_name_len, 2, "will not execute — upstream job not running")
             break
 
         next_time = scheduler.get_next_fire_time()
@@ -483,6 +532,7 @@ def run_from_module(
     with_future: bool = False,
     with_future_once: bool = False,
     dry_run: bool = False,
+    verbose: bool = False,
     warn: Callable[[str], None] = lambda msg: print(  # noqa: T201,T202
         f"warning: {msg}", file=sys.stderr
     ),
@@ -497,6 +547,7 @@ def run_from_module(
         with_future: Schedule future jobs.
         with_future_once: Schedule future jobs, fire once.
         dry_run: Display plan without launching jobs.
+        verbose: Show full manifest JSON before running.
         echo: Output function for messages.
         warn: Output function for warnings.
 
@@ -528,4 +579,5 @@ def run_from_module(
         with_future=with_future,
         with_future_once=with_future_once,
         dry_run=dry_run,
+        verbose=verbose,
     )

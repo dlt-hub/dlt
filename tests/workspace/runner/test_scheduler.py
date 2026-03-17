@@ -80,8 +80,10 @@ def test_job_event_triggers() -> None:
     assert len(triggered) == 1
     assert triggered[0][0]["job_ref"] == "jobs.mod.down"
 
-    # event consumed — firing again returns nothing
-    assert sched.fire_event("job.success:jobs.mod.up") == []
+    # event triggers are persistent — fires again on repeat
+    triggered2 = sched.fire_event("job.success:jobs.mod.up")
+    assert len(triggered2) == 1
+    assert triggered2[0][0]["job_ref"] == "jobs.mod.down"
 
 
 def test_pop_due_jobs() -> None:
@@ -97,6 +99,34 @@ def test_pop_due_jobs() -> None:
     time.sleep(0.05)
     due = sched.pop_due_jobs()
     assert len(due) >= 1
+
+
+def test_repeated_timed_job_fires_followup_each_time() -> None:
+    """Followup fires every time the timed upstream completes, not just once."""
+    sched = TriggerScheduler(with_future=True)
+    upstream = _job("jobs.mod.poll", ["every:0.01s"])
+    downstream = _job("jobs.mod.process", ["job.success:jobs.mod.poll"])
+
+    from dlt._workspace._runner.scheduler import EVENT_TYPES
+
+    sched.register_job(upstream)
+    sched.register_job(downstream, only=EVENT_TYPES)
+
+    # first cycle: every fires immediately
+    # simulate upstream completion
+    triggered = sched.fire_event("job.success:jobs.mod.poll")
+    assert len(triggered) == 1
+    assert triggered[0][0]["job_ref"] == "jobs.mod.process"
+
+    # wait for timed re-fire
+    time.sleep(0.05)
+    due = sched.pop_due_jobs()
+    assert len(due) >= 1
+
+    # second cycle: upstream completes again, followup fires again
+    triggered2 = sched.fire_event("job.success:jobs.mod.poll")
+    assert len(triggered2) == 1
+    assert triggered2[0][0]["job_ref"] == "jobs.mod.process"
 
 
 def test_with_future_once_no_repeat() -> None:

@@ -145,6 +145,39 @@ def test_with_future_flag_integration(capsys: pytest.CaptureFixture[str]) -> Non
     assert "run now" in captured.err
 
 
+def test_with_future_does_not_fire_manual(capsys: pytest.CaptureFixture[str]) -> None:
+    """--with-future selects timed jobs but does not fire their manual trigger."""
+    scheduled = _batch_job(
+        "jobs.mod.cron_job",
+        triggers=["schedule:0 8 * * *", "manual:jobs.mod.cron_job"],
+    )
+    manual_only = _batch_job("jobs.mod.manual_only")
+
+    exit_code = run([scheduled, manual_only], with_future=True, dry_run=True)
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    # scheduled job selected, but via schedule trigger not manual
+    assert "cron_job" in captured.err
+    assert "scheduled" in captured.err
+    # manual-only job NOT selected
+    assert "manual_only" not in captured.err or "run now" not in captured.err
+
+
+def test_with_future_alone_no_selectors(capsys: pytest.CaptureFixture[str]) -> None:
+    """--with-future without --select or --run-manual only runs timed jobs."""
+    scheduled = _batch_job(
+        "jobs.mod.cron_job",
+        triggers=["schedule:0 8 * * *", "manual:jobs.mod.cron_job"],
+    )
+    manual_only = _batch_job("jobs.mod.manual_only")
+
+    # no selectors, no --run-manual, only --with-future
+    exit_code = run([scheduled, manual_only], with_future=True, dry_run=True)
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "selected 1 job(s)" in captured.err
+
+
 # ---- _resolve_selectors ----
 
 

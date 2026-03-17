@@ -1,7 +1,7 @@
 """Trigger scheduler for local workspace runner."""
 
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
 from dlt.common.pendulum import pendulum
 
@@ -22,12 +22,14 @@ class ScheduledItem:
         self.repeating = repeating
 
 
-class TriggerScheduler:
-    """Manages trigger evaluation and future job scheduling.
+# trigger type groups for filtering
+IMMEDIATE_TYPES: FrozenSet[str] = frozenset({"http", "deployment", "manual", "tag", "every"})
+TIMED_TYPES: FrozenSet[str] = frozenset({"schedule", "every", "once"})
+EVENT_TYPES: FrozenSet[str] = frozenset({"job.success", "job.fail"})
 
-    Selection is done upstream by the runner. The scheduler only evaluates
-    which triggers fire immediately vs. are deferred, and manages timed items.
-    """
+
+class TriggerScheduler:
+    """Manages trigger evaluation and future job scheduling."""
 
     def __init__(
         self,
@@ -40,18 +42,28 @@ class TriggerScheduler:
         self._timed: List[ScheduledItem] = []
         self._warnings: List[str] = []
 
-    def register_job(self, job_def: TJobDefinition) -> List[Tuple[TJobDefinition, TTrigger]]:
-        """Register a job's triggers. Returns (job, trigger) pairs that fire immediately."""
-        immediate: List[Tuple[TJobDefinition, TTrigger]] = []
-        triggers = job_def.get("triggers", [])
+    def register_job(
+        self,
+        job_def: TJobDefinition,
+        only: Optional[FrozenSet[str]] = None,
+    ) -> List[Tuple[TJobDefinition, TTrigger]]:
+        """Register a job's triggers. Returns (job, trigger) pairs that fire immediately.
 
-        for trigger in triggers:
+        Args:
+            job_def: Job definition with triggers.
+            only: If set, only process trigger types in this set. Others are skipped.
+        """
+        immediate: List[Tuple[TJobDefinition, TTrigger]] = []
+
+        for trigger in job_def.get("triggers", []):
             try:
                 parsed = parse_trigger(trigger)
             except ValueError:
                 continue
 
             tt = parsed.type
+            if only is not None and tt not in only:
+                continue
 
             if tt in ("http", "deployment", "manual", "tag"):
                 immediate.append((job_def, trigger))
@@ -86,20 +98,13 @@ class TriggerScheduler:
 
         return immediate
 
-    def register_followup(self, job_def: TJobDefinition) -> None:
-        """Register only event triggers (job.success/job.fail) for a followup job."""
-        for trigger in job_def.get("triggers", []):
-            try:
-                parsed = parse_trigger(trigger)
-            except ValueError:
-                continue
-            if parsed.type in ("job.success", "job.fail"):
-                event_key = f"{parsed.type}:{parsed.expr}"
-                self._event_triggers.setdefault(event_key, []).append((job_def, trigger))
-
     def fire_event(self, event: str) -> List[Tuple[TJobDefinition, TTrigger]]:
-        """Fire a job event (e.g. 'job.success:jobs.mod.name'). Returns triggered jobs."""
-        return self._event_triggers.pop(event, [])
+        """Fire a job event (e.g. 'job.success:jobs.mod.name'). Returns triggered jobs.
+
+        Event triggers are persistent — they fire every time the event occurs,
+        not just once.
+        """
+        return list(self._event_triggers.get(event, []))
 
     def pop_due_jobs(self) -> List[Tuple[TJobDefinition, TTrigger]]:
         """Pop all jobs whose scheduled time has arrived."""
@@ -128,7 +133,6 @@ class TriggerScheduler:
                             item.job_def, item.trigger, str(parsed.expr), into=remaining
                         )
                 else:
-                    # one-shot item fired — warn it won't repeat
                     short = job_short_name(item.job_def["job_ref"])
                     self._warnings.append(
                         f"{short}: {item.trigger} fired — will not run again this session"
@@ -152,19 +156,23 @@ class TriggerScheduler:
         return max(0.0, earliest - time.time())
 
     def is_empty(self) -> bool:
-        """True if no pending events or scheduled items."""
-        return not self._event_triggers and not self._timed
+        """True if no timed items remain. Event triggers are passive (persistent)."""
+        return not self._timed
 
     def has_only_event_triggers(self) -> bool:
-        """True if only job event triggers remain (no timed items)."""
+        """True if event triggers exist but no timed items."""
         return bool(self._event_triggers) and not self._timed
 
     def pending_event_jobs(self) -> List[str]:
-        """Job refs that are waiting for events that will never fire."""
+        """Unique job refs that are waiting for events that will never fire."""
+        seen: Set[str] = set()
         refs: List[str] = []
         for pairs in self._event_triggers.values():
             for job_def, _ in pairs:
-                refs.append(job_def["job_ref"])
+                ref = job_def["job_ref"]
+                if ref not in seen:
+                    seen.add(ref)
+                    refs.append(ref)
         return refs
 
     def _schedule_cron(

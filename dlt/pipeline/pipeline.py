@@ -1884,9 +1884,6 @@ class Pipeline(SupportsPipeline):
             "working_dir": self.working_dir,
         }
 
-    # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
-    #  of overload and dataset_type
-
     def dataset(self, schema: Union[Schema, str, None] = None) -> dlt.Dataset:
         """Returns a dataset object for querying the destination data.
 

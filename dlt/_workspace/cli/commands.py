@@ -1140,6 +1140,12 @@ workspace info.
             action="store_true",
             help="Display execution plan without launching jobs",
         )
+        run_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="Show full manifest JSON before running",
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace._workspace_context import active
@@ -1177,6 +1183,7 @@ workspace info.
                 with_future=args.with_future,
                 with_future_once=args.with_future_once,
                 dry_run=args.dry_run,
+                verbose=args.verbose,
                 warn=fmt.warning,
             )
         except ModuleNotFoundError as exc:

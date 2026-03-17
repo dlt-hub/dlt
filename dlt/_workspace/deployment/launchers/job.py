@@ -2,6 +2,7 @@
 
 
 import asyncio
+import inspect
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -9,7 +10,7 @@ from dlt.common.reflection.ref import object_from_ref
 
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment.decorators import JobFactory
-from dlt._workspace.deployment.typing import TRuntimeEntryPoint
+from dlt._workspace.deployment.typing import TJobRunContext, TRuntimeEntryPoint, TTrigger
 from dlt._workspace.deployment.launchers._launcher import (
     get_run_args_port,
     parse_launcher_args,
@@ -133,6 +134,14 @@ def _get_param_names(func: Any) -> Optional[List[str]]:
     ]
 
 
+def _wants_run_context(f: Any) -> bool:
+    """Check if a function declares a `run_context` parameter."""
+    try:
+        return "run_context" in inspect.signature(f).parameters
+    except (ValueError, TypeError):
+        return False
+
+
 def run(
     entry_point: TRuntimeEntryPoint,
     run_id: str,
@@ -153,7 +162,17 @@ def run(
     job = _resolve_job(entry_point)
     sections = (ws_known_sections.JOBS, job.section, job.name)
     set_config_env_vars(sections, config or {})
-    result = job()
+
+    # inject run_context if the function signature declares it
+    kwargs: Dict[str, Any] = {}
+    if _wants_run_context(job._f):
+        ctx: TJobRunContext = {"run_id": run_id, "trigger": TTrigger(trigger)}
+        run_args = entry_point.get("run_args")
+        if run_args:
+            ctx["run_args"] = run_args
+        kwargs["run_context"] = ctx
+
+    result = job(**kwargs)
     if asyncio.iscoroutine(result):
         result = asyncio.run(result)
     _check_return_value(result, job, entry_point)

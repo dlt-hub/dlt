@@ -256,3 +256,52 @@ def test_all_framework_triggers_use_portless_http() -> None:
     for j in manifest["jobs"]:
         if j["job_ref"] in framework_refs:
             assert "http:" in j["triggers"], f"{j['job_ref']} should use http: trigger"
+
+
+def test_tags_generate_tag_triggers() -> None:
+    """Job tags produce corresponding tag: triggers in the manifest."""
+    mod = import_module(f"{WORKSPACE}.deployment_full")
+    manifest, _ = generate_manifest(mod)
+
+    jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
+
+    # maintenance has tags=["ops"]
+    maintenance = jobs_by_ref[TJobRef("jobs.batch_jobs.maintenance")]
+    assert "tag:ops" in maintenance["triggers"]
+
+    # marimo notebook has tags=["notebook"]
+    notebook = jobs_by_ref[TJobRef("jobs.marimo_notebook")]
+    assert "tag:notebook" in notebook["triggers"]
+
+    # streamlit has tags=["dashboard"]
+    st_app = jobs_by_ref[TJobRef("jobs.streamlit_app")]
+    assert "tag:dashboard" in st_app["triggers"]
+
+
+def test_self_detection_before_dict_scan() -> None:
+    """Framework module run ad-hoc is self-detected, not scanned for sub-modules."""
+    mod = import_module(f"{WORKSPACE}.marimo_notebook")
+    manifest, _ = generate_manifest(mod, use_all=False)
+
+    # single job from self-detection
+    assert len(manifest["jobs"]) == 1
+    job = manifest["jobs"][0]
+    assert job["job_ref"] == "jobs.marimo_notebook"
+    assert job["entry_point"]["job_type"] == "interactive"
+    assert job["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.marimo"
+
+    # no spurious batch job for the imported `marimo` package
+    refs = {j["job_ref"] for j in manifest["jobs"]}
+    assert "jobs.marimo" not in refs
+
+
+def test_ad_hoc_does_not_pick_up_venv_modules() -> None:
+    """Ad-hoc __dict__ scan skips installed packages even if venv is inside project."""
+    mod = import_module(f"{WORKSPACE}.batch_jobs")
+    manifest, _ = generate_manifest(mod, use_all=False)
+
+    refs = {j["job_ref"] for j in manifest["jobs"]}
+    # batch_jobs imports dlt — should not appear as a job
+    assert all(not ref.startswith("jobs.dlt") for ref in refs)
+    # only actual JobFactory jobs from this module
+    assert "jobs.batch_jobs.backfill" in refs

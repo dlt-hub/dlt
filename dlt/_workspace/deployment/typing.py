@@ -75,6 +75,20 @@ class TRunArgs(TypedDict, total=False):
     """Reverse proxy subpath prefix (e.g. `"/workspace/123/notebook"`)."""
 
 
+class TJobRunContext(TypedDict):
+    """Runtime context injected into job functions that declare a `run_context` parameter.
+
+    Built by the launcher at run time — never stored in the manifest.
+    """
+
+    run_id: str
+    """Unique identifier for this job run."""
+    trigger: TTrigger
+    """The trigger string that fired this run."""
+    run_args: NotRequired[TRunArgs]
+    """Runtime-provided launch arguments (port, base_path), if available."""
+
+
 class TRuntimeEntryPoint(TEntryPoint):
     """Entry point enriched with runtime-assigned launch arguments.
 

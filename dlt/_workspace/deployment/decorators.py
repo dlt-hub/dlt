@@ -1,6 +1,6 @@
 import inspect
 from functools import update_wrapper, wraps
-from typing import Any, Callable, List, Optional, Type, Union, overload
+from typing import Any, Callable, List, Optional, Sequence, Type, Union, overload
 
 from typing_extensions import TypeVar
 
@@ -98,7 +98,7 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         self.timeout: Union[None, float, str, TTimeoutSpec] = None
         self.concurrency: Optional[int] = None
         self.starred: bool = False
-        self.tags: List[str] = None
+        self.tags: Sequence[str] = None
         self.deliver: Optional[TDeliverTarget] = None
         self.expose: Optional[TExposeSpec] = None
 
@@ -213,12 +213,12 @@ def _job(
     name: str = None,
     section: str = None,
     job_type: TJobType = "batch",
-    trigger: Union[str, TTrigger, List[Union[str, TTrigger]]] = None,
+    trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     manual: bool = True,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
     concurrency: Optional[int] = None,
     starred: bool = False,
-    tags: List[str] = None,
+    tags: Sequence[str] = None,
     deliver: Optional[TDeliverTarget] = None,
     expose: Optional[TExposeSpec] = None,
     spec: Type[BaseConfiguration] = None,
@@ -249,12 +249,12 @@ def job(
     /,
     name: str = None,
     section: str = None,
-    trigger: Union[str, TTrigger, List[Union[str, TTrigger]]] = None,
+    trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     manual: bool = True,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
     concurrency: Optional[int] = None,
     starred: bool = False,
-    tags: List[str] = None,
+    tags: Sequence[str] = None,
     deliver: Optional[TDeliverTarget] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> JobFactory[TJobFunParams, TJobResult]: ...
@@ -266,12 +266,12 @@ def job(
     /,
     name: str = None,
     section: str = None,
-    trigger: Union[str, TTrigger, List[Union[str, TTrigger]]] = None,
+    trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     manual: bool = True,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
     concurrency: Optional[int] = None,
     starred: bool = False,
-    tags: List[str] = None,
+    tags: Sequence[str] = None,
     deliver: Optional[TDeliverTarget] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]: ...
@@ -282,12 +282,12 @@ def job(
     /,
     name: str = None,
     section: str = None,
-    trigger: Union[str, TTrigger, List[Union[str, TTrigger]]] = None,
+    trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     manual: bool = True,
     timeout: Union[None, float, str, TTimeoutSpec] = None,
     concurrency: Optional[int] = None,
     starred: bool = False,
-    tags: List[str] = None,
+    tags: Sequence[str] = None,
     deliver: Optional[TDeliverTarget] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> Any:
@@ -338,7 +338,7 @@ def interactive(
     timeout: Union[None, float, str, TTimeoutSpec] = None,
     concurrency: Optional[int] = 1,
     starred: bool = False,
-    tags: List[str] = None,
+    tags: Sequence[str] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> JobFactory[TJobFunParams, TJobResult]: ...
 
@@ -353,7 +353,7 @@ def interactive(
     timeout: Union[None, float, str, TTimeoutSpec] = None,
     concurrency: Optional[int] = 1,
     starred: bool = False,
-    tags: List[str] = None,
+    tags: Sequence[str] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]: ...
 
@@ -367,7 +367,7 @@ def interactive(
     timeout: Union[None, float, str, TTimeoutSpec] = None,
     concurrency: Optional[int] = 1,
     starred: bool = False,
-    tags: List[str] = None,
+    tags: Sequence[str] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> Any:
     """Marks a function as a deployable interactive job.

@@ -37,6 +37,37 @@ def test_job_launcher_sync() -> None:
     assert result == "backfill_done"
 
 
+def test_job_launcher_run_context_injection() -> None:
+    """Job with run_context parameter receives run_id and trigger."""
+    result = job_run(
+        _entry(f"{WORKSPACE}.batch_jobs", "context_aware"),
+        run_id="ctx-test-1",
+        trigger="manual:jobs.batch_jobs.context_aware",
+    )
+    assert "run_id=ctx-test-1" in result
+    assert "trigger=manual:jobs.batch_jobs.context_aware" in result
+
+
+def test_job_launcher_run_context_not_injected() -> None:
+    """Job without run_context parameter works normally."""
+    result = job_run(
+        _entry(f"{WORKSPACE}.batch_jobs", "backfill"),
+        run_id="ctx-test-2",
+        trigger="manual:",
+    )
+    assert result == "backfill_done"
+
+
+def test_job_launcher_run_context_with_default() -> None:
+    """Job with run_context=None default gets context injected by launcher."""
+    result = job_run(
+        _entry(f"{WORKSPACE}.batch_jobs", "context_optional"),
+        run_id="ctx-test-3",
+        trigger="manual:",
+    )
+    assert "got_context:ctx-test-3" in result
+
+
 def test_job_launcher_with_config() -> None:
     """Job launcher injects config via env vars."""
     result = job_run(
