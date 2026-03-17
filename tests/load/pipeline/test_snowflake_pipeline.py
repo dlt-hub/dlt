@@ -89,12 +89,26 @@ def test_snowflake_query_tagging(
     from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 
     os.environ["DESTINATION__SNOWFLAKE__QUERY_TAG"] = QUERY_TAG
-    tag_query_spy = mocker.spy(SnowflakeSqlClient, "_tag_session")
-    pipeline = destination_config.setup_pipeline("test_snowflake_case_sensitive_identifiers")
+    set_query_tags_spy = mocker.spy(SnowflakeSqlClient, "set_query_tags")
+    pipeline = destination_config.setup_pipeline("test_snowflake_query_tagging")
     info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert_load_info(info)
-    assert tag_query_spy.call_count == 2
 
+    operations = {call.args[1]["operation"] for call in set_query_tags_spy.call_args_list}
+    assert {"prepare_storage", "update_stored_schema", "load", "complete_load"} <= operations
+
+    set_query_tags_spy.reset_mock()
+    pipeline._schema_storage.clear_storage()
+    pipeline.sync_destination()
+
+    operations = {call.args[1]["operation"] for call in set_query_tags_spy.call_args_list}
+    assert {"get_stored_state", "get_stored_schema"} <= operations
+
+    set_query_tags_spy.reset_mock()
+    info = pipeline.run([1,2,3], table_name="digits", refresh="drop_sources", **destination_config.run_kwargs)
+    assert_load_info(info)
+    operations = {call.args[1]["operation"] for call in set_query_tags_spy.call_args_list}
+    assert {"drop_tables"} <= operations
 
 # do not remove - it allows us to filter tests by destination
 @pytest.mark.parametrize(
