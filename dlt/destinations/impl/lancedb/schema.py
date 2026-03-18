@@ -1,5 +1,4 @@
 """Utilities for creating arrow schemas from table schemas."""
-from collections import namedtuple
 from typing import (
     List,
     cast,
@@ -21,8 +20,6 @@ TArrowDataType: TypeAlias = pa.DataType
 TArrowField: TypeAlias = pa.Field
 NULL_SCHEMA: TArrowSchema = pa.schema([])
 """Empty pyarrow Schema with no fields."""
-TableJob = namedtuple("TableJob", ["table_schema", "table_name", "file_path"])
-TTableLineage: TypeAlias = List[TableJob]
 
 
 def arrow_schema_to_dict(schema: TArrowSchema) -> DictStrAny:
@@ -90,16 +87,3 @@ def make_arrow_table_schema(
         metadata["embedding_functions"] = json.dumps(embedding_functions).encode("utf-8")
 
     return pa.schema(arrow_schema, metadata=metadata)
-
-
-def add_vector_column(records: pa.table, table_schema: pa.schema, vector_column: str) -> pa.table:
-    # vector column already there
-    if vector_column in records.schema.names or vector_column not in table_schema.names:
-        return records
-
-    col = table_schema.field(vector_column)
-    idx = table_schema.get_field_index(vector_column)
-
-    nulls = pa.nulls(len(records), type=col.type)
-
-    return records.add_column(idx, col, nulls)

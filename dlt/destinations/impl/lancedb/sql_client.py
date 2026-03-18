@@ -56,19 +56,6 @@ def _create_and_use_duckdb_dataset(
     duckdb_con.execute(f"{create_schema_sql}; USE {dataset_qualified_name}")
 
 
-def get_lance_table_uri(lancedb_client: LanceDBClient, table_name: str) -> str:
-    """Create a URI for a Lance table
-
-    This should be equivalent to
-    ```python
-    lancedb_client.credentials.get_conn().open_table("foo").to_lance().uri
-    ```
-    """
-    dataset_lance_uri = lancedb_client.config.lance_uri
-    qualified_table_name = lancedb_client.make_qualified_table_name(table_name)
-    return f"{dataset_lance_uri}/{qualified_table_name}.lance"
-
-
 def _prepare_create_view_statement(lance_table_uri: str, view_name: str) -> str:
     return f'CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM "{lance_table_uri}"'
 
@@ -123,7 +110,7 @@ class LanceDBSQLClient(DuckDbSqlClient):
             yield cursor
 
     def create_view(self, table_name: str) -> None:
-        lance_table_uri = get_lance_table_uri(self.lancedb_client, table_name)
+        lance_table_uri = self.lancedb_client._get_lance_table_uri(table_name)
 
         # lancedb allows omitting the dataset_name, calling `make_qualified_table_name` will
         # prepend the dataset_name even if it is None

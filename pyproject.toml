@@ -175,6 +175,7 @@ dremio = [
     "pyarrow>=16.0.0",
 ]
 lancedb = [
+    "pylance>=2.0.0",
     "lancedb>=0.22.0",
     "pyarrow>=16.0.0",
     "duckdb>=1.4.3",

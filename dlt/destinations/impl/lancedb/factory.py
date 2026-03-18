@@ -21,7 +21,6 @@ except MissingDependencyException:
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-    from lancedb import DBConnection
 
 
 class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
@@ -65,7 +64,7 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
 
     def __init__(
         self,
-        credentials: Union["DBConnection", LanceDBCredentials, Dict[str, Any]] = None,
+        credentials: Union[LanceDBCredentials, Dict[str, Any]] = None,
         lance_uri: Optional[str] = None,
         embedding_model_provider: TEmbeddingProvider = None,
         embedding_model: str = None,
@@ -79,14 +78,9 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Union["DBConnection", LanceDBCredentials, Dict[str, Any]]): Credentials to connect to the LanceDB database. Can be
-                an instance of `LanceDBCredentials` or
-                an instance of native LanceDB client or
-                a dictionary with the credentials parameters.
-            lance_uri (Optional[str]): LanceDB database URI. Defaults to local, on-disk instance.
-                The available schemas are:
-                - `/path/to/database` - local database.
-                - `db://host:port` - remote database (LanceDB cloud).
+            credentials (Union[LanceDBCredentials, Dict[str, Any]]): Credentials for the LanceDB destination.
+                Can be an instance of `LanceDBCredentials` or a dictionary with the credentials parameters.
+            lance_uri (Optional[str]): Directory containing .lance datasets. Defaults to local `.lancedb` directory.
             embedding_model_provider (TEmbeddingProvider, optional): Embedding provider used for generating embeddings.
                 Default is "cohere". See LanceDB documentation for the full list of available providers.
             embedding_model (str, optional): The model used by the embedding provider for generating embeddings.

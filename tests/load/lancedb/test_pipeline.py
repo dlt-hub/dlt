@@ -1,13 +1,11 @@
 import multiprocessing
 import os
-from typing import Iterator, Generator, Any, List
+from typing import Iterator, Generator, Any, List, cast
 from typing import Mapping
 from typing import Union, Dict
 
 import pytest
-from lancedb import DBConnection
 from lancedb.embeddings import EmbeddingFunctionRegistry
-from lancedb.table import Table
 import pyarrow as pa
 import numpy as np
 
@@ -25,7 +23,6 @@ from dlt.extract import DltResource
 from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
 from tests.load.utils import sequence_generator
 from tests.pipeline.utils import assert_load_info
-from tests.utils import get_test_storage_root
 
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
@@ -411,15 +408,10 @@ def test_pipeline_with_schema_evolution() -> None:
     assert_table(pipeline, "some_data", items=aggregated_data)
 
 
-@pytest.mark.parametrize("lance_location", (":external:", ":pipeline:", "default"))
+@pytest.mark.parametrize("lance_location", (":pipeline:", "default"))
 def test_merge_github_nested(lance_location: str) -> None:
     if lance_location == ":pipeline:":
         destination_ = dlt.destinations.lancedb(lance_uri=lance_location)
-    elif lance_location == ":external:":
-        import lancedb
-
-        path = os.path.join(get_test_storage_root(), "test.lancedb")
-        destination_ = dlt.destinations.lancedb(credentials=lancedb.connect(path))
     else:
         destination_ = "lancedb"  # type: ignore[assignment]
 
@@ -526,9 +518,7 @@ def test_bring_your_own_vector() -> None:
     # Verify the data was loaded correctly
     client: LanceDBClient = None
     with pipeline.destination_client() as client:  # type: ignore[assignment]
-        db: DBConnection = client.db_client
-        table_name = client.make_qualified_table_name("vector_data")
-        tbl = db.open_table(table_name)
+        tbl = client.get_lancedb_table("vector_data")
         tbl.create_scalar_index("id")
 
         # Check that the vector column exists and has the right dimensions
@@ -558,7 +548,6 @@ def test_empty_dataset_allowed() -> None:
     assert info.dataset_name is None
     client = pipe.destination_client()
     assert client.dataset_name is None  # type: ignore
-    assert client.sentinel_table == "dltSentinelTable"  # type: ignore
     assert_table(pipe, "content", expected_items_count=3)
 
     dataset = pipe.dataset()
@@ -632,6 +621,7 @@ def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:
     assert_load_info(info)
 
     with pipeline.destination_client() as client:
+        client = cast(LanceDBClient, client)
         # Orphaned chunks/documents must have been discarded.
         # Shouldn't contain any text from `initial_docs' where doc_id=1.
         expected_text = {
@@ -658,9 +648,7 @@ def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:
             " set.",
         }
 
-        embeddings_table_name = client.make_qualified_table_name("document__embeddings")  # type: ignore[attr-defined]
-
-        tbl: Table = client.db_client.open_table(embeddings_table_name)  # type: ignore[attr-defined]
+        tbl = client.get_lancedb_table("document__embeddings")
         df = tbl.to_pandas()
         assert set(df["chunk_text"]) == expected_text
 
@@ -688,11 +676,7 @@ def test_fts_query() -> None:
 
     client: LanceDBClient
     with pipeline.destination_client() as client:  # type: ignore[assignment]
-        db_client: DBConnection = client.db_client
-
-        table_name = client.make_qualified_table_name("search_data_resource")
-        tbl = db_client[table_name]
-        tbl.checkout_latest()
+        tbl = client.get_lancedb_table("search_data_resource")
 
         tbl.create_fts_index("text")
         results = tbl.search("kittens", query_type="fts").select(["text"]).to_list()
@@ -721,11 +705,7 @@ def test_semantic_query() -> None:
 
     client: LanceDBClient
     with pipeline.destination_client() as client:  # type: ignore[assignment]
-        db_client: DBConnection = client.db_client
-
-        table_name = client.make_qualified_table_name("search_data_resource")
-        tbl = db_client[table_name]
-        tbl.checkout_latest()
+        tbl = client.get_lancedb_table("search_data_resource")
 
         results = (
             tbl.search("puppy", query_type="vector", ordering_field_name="_distance")
@@ -760,7 +740,7 @@ def test_semantic_query_custom_embedding_functions_registered() -> None:
 
     client: LanceDBClient
     with pipeline.destination_client() as client:  # type: ignore[assignment]
-        db_client_uri = client.db_client.uri
+        lance_uri = client.config.lance_uri
         table_name = client.make_qualified_table_name("search_data_resource")
 
     # A new python process doesn't seem to correctly deserialize the custom embedding
@@ -768,18 +748,18 @@ def test_semantic_query_custom_embedding_functions_registered() -> None:
     # We make sure to reset it as well to make sure no globals are propagated to the spawned process.
     EmbeddingFunctionRegistry().reset()
     with multiprocessing.get_context("spawn").Pool(1) as pool:
-        results = pool.apply(run_lance_search_in_separate_process, (db_client_uri, table_name))
+        results = pool.apply(run_lance_search_in_separate_process, (lance_uri, table_name))
 
     assert results[0]["text"] == "Frodo was a happy puppy"
 
 
-def run_lance_search_in_separate_process(db_client_uri: str, table_name: str) -> Any:
+def run_lance_search_in_separate_process(lance_uri: str, table_name: str) -> Any:
     import lancedb
+    from lancedb.table import LanceTable
 
     # Must read into __REGISTRY__ here.
-    db = lancedb.connect(db_client_uri)
-    tbl = db[table_name]
-    tbl.checkout_latest()
+    db = lancedb.connect(lance_uri)
+    tbl = LanceTable.open(db, table_name, location=f"{lance_uri}/{table_name}.lance")
 
     return (
         tbl.search("puppy", query_type="vector", ordering_field_name="_distance")

@@ -1,15 +1,14 @@
-import os
 import pytest
 import pyarrow as pa
 import pandas as pd
-from typing import List, Dict, Any, Generator
+from typing import List, Dict, Any, Generator, cast
 from datetime import datetime, date, time
 from decimal import Decimal
 
 import dlt
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
-from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 from tests.load.lancedb.utils import assert_table
 from tests.pipeline.utils import assert_load_info
 from tests.cases import arrow_table_all_data_types, remove_column_from_data
@@ -93,8 +92,8 @@ def test_add_columns_of_new_types_one_by_one() -> None:
         assert_load_info(info)
         # get data from destination
         with pipeline.destination_client() as client:
-            table_name = client.make_qualified_table_name("all_types_table")  # type: ignore[attr-defined]
-            tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+            client = cast(LanceDBClient, client)
+            tbl = client.get_lancedb_table("all_types_table")
             actual_columns = set(tbl.schema.names)
             if data_type == "json":
                 data_type = "json__a"
@@ -141,8 +140,8 @@ def test_new_column_in_second_load(object_format: TestDataItemFormat) -> None:
 
     # Verify that the extra column is in the actual destination table
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("all_types_table")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+        client = cast(LanceDBClient, client)
+        tbl = client.get_lancedb_table("all_types_table")
 
         # Get the actual table schema from the destination
         actual_columns = set(tbl.schema.names)
@@ -197,8 +196,8 @@ def test_arrow_precision_types():
 
     # check the types of the column in the destination table and in the pipeline schema
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("all_precision_types")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+        client = cast(LanceDBClient, client)
+        tbl = client.get_lancedb_table("all_precision_types")
 
         # Check that all original types are preserved in the destination
         expected_types = [
@@ -271,18 +270,7 @@ def test_missing_column_in_second_load(
     table = remove_column_from_data(object_format, table, "float_null")
 
     # do a first run to establish schema
-    info = None
-    if remove_orphans and object_format in ["arrow-table", "pandas"]:
-        with pytest.raises(PipelineStepFailed) as e:
-            info = pipeline.run(resource(table))
-        assert "_dlt_load_id` column is required" in str(e.value)
-        # with this setting it should work
-        os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "true"
-        os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "true"
-        pipeline.drop()
-        info = pipeline.run(resource(table))
-    else:
-        info = pipeline.run(resource(table))
+    info = pipeline.run(resource(table))
     assert_load_info(info)
 
     # Remove a column from the data
@@ -326,8 +314,8 @@ def test_json_nesting_evolution() -> None:
     assert "json__b__c" in schema_in_pipeline.tables["nesting_table"]["columns"]
 
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("nesting_table")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+        client = cast(LanceDBClient, client)
+        tbl = client.get_lancedb_table("nesting_table")
         assert "json__a" in tbl.schema.names
         assert "json__b__c" in tbl.schema.names
 
@@ -346,8 +334,8 @@ def test_json_nesting_evolution() -> None:
     # print("both schemas", schema_in_pipeline, pipeline.default_schema)
     # print("schema_in_pipeline.tables", schema_in_pipeline.tables["nesting_table"]["columns"].keys())
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("nesting_table")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+        client = cast(LanceDBClient, client)
+        tbl = client.get_lancedb_table("nesting_table")
         assert "json__b__c__c1" in tbl.schema.names
         assert "json__b__d" in tbl.schema.names
         assert "json__b__c" in tbl.schema.names

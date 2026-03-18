@@ -4,8 +4,6 @@ from typing import (
     Any,
 )
 
-from lancedb.exceptions import MissingValueError, MissingColumnError
-
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
     DestinationTransientException,
@@ -32,11 +30,6 @@ def lancedb_error(f: TFun) -> TFun:
             if is_lancedb_not_found_error(str(e)):
                 raise DestinationUndefinedEntity(e) from e
             raise
-        except (
-            MissingValueError,
-            MissingColumnError,
-        ) as status_ex:
-            raise DestinationUndefinedEntity(status_ex) from status_ex
         except Exception as e:
             raise DestinationTransientException(e) from e
 

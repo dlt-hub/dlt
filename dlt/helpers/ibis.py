@@ -219,10 +219,6 @@ def create_ibis_backend(
 
 def _create_ibis_backend_lancedb(client: JobClientBase) -> BaseBackend:
     from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-    from dlt.destinations.impl.lancedb.sql_client import (
-        get_lance_table_uri,
-        _prepare_create_view_statement,
-    )
 
     assert isinstance(client, LanceDBClient)
     # open connection but do not close it, ducklake always creates a separate connection

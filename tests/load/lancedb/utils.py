@@ -36,12 +36,10 @@ def assert_table(
     items: List[Any] = None,
 ) -> None:
     client: LanceDBClient = pipeline.destination_client()  # type: ignore[assignment]
-    qualified_table_name = client.make_qualified_table_name(table_name)
 
-    exists = client.table_exists(qualified_table_name)
-    assert exists
+    assert client.table_exists(table_name)
 
-    records = client.db_client.open_table(qualified_table_name).search().limit(0).to_list()
+    records = client.get_lancedb_table(table_name).to_arrow().to_pylist()
 
     if expected_items_count is not None:
         assert expected_items_count == len(records)

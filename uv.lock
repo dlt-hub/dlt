@@ -2542,6 +2542,7 @@ lancedb = [
     { name = "lancedb" },
     { name = "pyarrow", version = "21.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "pyarrow", version = "23.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "pylance" },
 ]
 motherduck = [
     { name = "duckdb" },
@@ -2812,6 +2813,7 @@ requires-dist = [
     { name = "pydbml", marker = "extra == 'workspace'", specifier = ">=1.2.0" },
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
     { name = "pyiceberg-core", marker = "extra == 'pyiceberg'", specifier = ">=0.6.0" },
+    { name = "pylance", marker = "extra == 'lancedb'", specifier = ">=2.0.0" },
     { name = "pyodbc", marker = "extra == 'fabric'", specifier = ">=4.0.39" },
     { name = "pyodbc", marker = "extra == 'mssql'", specifier = ">=4.0.39" },
     { name = "pyodbc", marker = "extra == 'synapse'", specifier = ">=4.0.39" },
@@ -8664,6 +8666,27 @@ wheels = [
 [package.optional-dependencies]
 crypto = [
     { name = "cryptography" },
+]
+
+[[package]]
+name = "pylance"
+version = "2.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lance-namespace" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10' or (python_full_version >= '3.11' and python_full_version < '3.13')" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.10.*' or python_full_version == '3.13.*'" },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
+    { name = "pyarrow", version = "21.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pyarrow", version = "23.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/08/d2/46da0b890b958d9cceec4485de85d69eceab4f8be0144090b18672a94304/pylance-2.0.1-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:bff6452cdb8c56e84102a52291b7a9b4c08c87248d620afef05793b97de32341", size = 51732078, upload-time = "2026-02-13T18:27:23.674Z" },
+    { url = "https://files.pythonhosted.org/packages/00/32/834d2abcff7b26c2acb8f401aa3c198e5b29dcde070af4eb791806de1a23/pylance-2.0.1-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:804fcfb351a97fd3aad532df1fedafbc0109088e7b0ac3051c3512c3100a4a45", size = 54201004, upload-time = "2026-02-13T18:35:08.91Z" },
+    { url = "https://files.pythonhosted.org/packages/10/97/127eb70f6c2eeac986812a889461b8b6627f05bb93021aa9cb77dd92c2c3/pylance-2.0.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:51d089429b40cd81c89d7993191e758059e580dd7239fd2748bedd2e1021b592", size = 57723179, upload-time = "2026-02-13T18:42:11.695Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/a4/e0928a866d45dd2eced31ba84db44ea80c05055c4ff105fc754262c1159d/pylance-2.0.1-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:7fc5ba370514e6ba3e67f49b51e75687534b37e2eefdb91755d4fb20b3f6fe0b", size = 54227900, upload-time = "2026-02-13T18:35:02.269Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/7b/0eb1f7522c8324c3248862d9de308f1f04cc787b53a6a70cb1687498b2c7/pylance-2.0.1-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:d740d7a7ff9905e358a70d2adae2178ab9d6798cf3ef47729371223463c442e6", size = 57675386, upload-time = "2026-02-13T18:41:27.773Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/2e/fff9905866ba91fad883727d482a10b4973a03aed31cb4c726236f6e5716/pylance-2.0.1-cp39-abi3-win_amd64.whl", hash = "sha256:a67f7a96d40a5012b04205879fe7ae50b6bf856fd79e97868582e449cfedbd1b", size = 61882118, upload-time = "2026-02-13T19:06:19.264Z" },
 ]
 
 [[package]]
