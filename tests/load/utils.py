@@ -357,7 +357,7 @@ def destinations_configs(
         all_buckets_filesystem_configs: Include filesystem configs for all default buckets
             (s3, gcs, az, abfss, file, memory, sftp).
         table_format_filesystem_configs: Include delta and iceberg table format configs
-            for all buckets (except sftp, memory for delta; az for iceberg).
+            for all buckets (except sftp, memory, hf; az excluded for both delta and iceberg).
         table_format_local_configs: Include delta and iceberg configs for local file bucket only.
         read_only_sqlclient_configs: Include all configs that support read-only SQL client
             (filesystem with all buckets, table formats, and lancedb).
@@ -811,8 +811,10 @@ def destinations_configs(
         else:
             table_buckets = {FILE_BUCKET}
 
-        # NOTE: delta does not work on memory buckets
-        for bucket in table_buckets:
+        # NOTE: delta-rs kernel fails on az:// scheme (empty log segment error),
+        # Azure is tested via abfss://
+        delta_buckets = table_buckets - {AZ_BUCKET}
+        for bucket in delta_buckets:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
@@ -840,9 +842,9 @@ def destinations_configs(
                     destination_name="filesystem_s3_gcs_comp" if bucket == GCS_BUCKET else None,
                 )
             ]
-            if bucket in [AZ_BUCKET]:
-                # `pyiceberg` does not support `az` scheme
-                continue
+        # pyiceberg does not support az:// scheme
+        iceberg_buckets = table_buckets - {AZ_BUCKET}
+        for bucket in iceberg_buckets:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",

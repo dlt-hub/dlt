@@ -10,7 +10,7 @@ from tests.pipeline.utils import assert_load_info
 
 @pytest.mark.essential
 def test_clickhouse_gcs_s3_compatibility() -> None:
-    if "localhost" in dlt.config.get("destination.clickhouse.credentials.host"):  # type: ignore
+    if "localhost" in dlt.config.get("destination.clickhouse.credentials.host"):
         pytest.skip("Skipping test for local ClickHouse instance")
 
     @dlt.resource

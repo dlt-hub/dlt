@@ -57,6 +57,7 @@ pipeline = dlt.pipeline(pipeline_name='example', destination='bigquery', dataset
 load_info = pipeline.run(source_instance)
 ```
 
+
 ## Masking columns in SQL database sources
 
 For more realistic use cases, especially when working with SQL database sources, you'll want a reusable function that can mask multiple columns and handle different backends. The example below shows a production-ready approach that:
@@ -196,4 +197,11 @@ customers_table.add_map(mask_pii)
 employees_table.add_map(mask_pii)
 contacts_table.add_map(nullify_optional)
 ```
+
+
+## Data masking for SQL database sources
+
+For production use cases with SQL database sources, you'll want a reusable masking function that takes column names as parameters, supports multiple masking methods (replace with asterisks or nullify), and works with all `sql_database` backends (PyArrow, Pandas, SQLAlchemy).
+
+See the full [data masking example](../../examples/data_masking.md) for a production-ready implementation using closures.
 

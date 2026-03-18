@@ -209,6 +209,7 @@ def test_yields_parent_relation(norm: RelationalNormalizer) -> None:
             "a": [{"id": "level4"}],
             "b": {
                 "a": [{"id": "level5"}],
+                "a_2": [{"id": "level5"}],
             },
             "c": "x",
         },
@@ -231,13 +232,14 @@ def test_yields_parent_relation(norm: RelationalNormalizer) -> None:
         ("table__f__o", ("table", "f"), ("o",)),
         # "table__f__b" is not yielded as it is fully flattened into table__f
         ("table__f__b__a", ("table", "f"), ("b", "a")),
-        # same for table__d -> fully flattened into table
-        ("table__d__a", ("table",), ("d", "a")),
-        ("table__d__b__a", ("table",), ("d", "b", "a")),
         # table__e is yielded it however only contains linking information
         ("table__e", ("table",), ("e",)),
         ("table__e__o", ("table", "e"), ("o",)),
         ("table__e__b__a", ("table", "e"), ("b", "a")),
+        # same for table__d -> fully flattened into table
+        ("table__d__a", ("table",), ("d", "a")),
+        ("table__d__b__a", ("table",), ("d", "b", "a")),
+        ("table__d__b__a_2", ("table",), ("d", "b", "a_2")),
     ]
     parents = list(r[0] for r in rows)
     assert parents == expected_parents
@@ -584,6 +586,43 @@ def test_propagates_table_context(
     )
 
 
+def test_propagation_does_not_leak_across_siblings(norm: RelationalNormalizer) -> None:
+    """Propagated values from one sibling must not leak to the next sibling in the same list.
+
+    Regression test: the old code mutated the shared `extend` dict in-place via
+    `.update()`, so table-level propagation from sibling #1 was visible in sibling #2.
+    """
+    add_dlt_root_id_propagation(norm)
+    prop_config: RelationalNormalizerConfigPropagation = norm.schema._normalizers_config["json"][
+        "config"
+    ]["propagation"]
+    # propagate "vx" from table__lvl1 rows into their children as "__vx"
+    prop_config["tables"]["table__lvl1"] = {
+        TColumnName("vx"): TColumnName("__vx"),
+    }
+
+    row = {
+        "_dlt_id": "root_id",
+        "lvl1": [
+            # sibling 1: has "vx" so its children should get __vx
+            {"vx": "from_first", "lvl2": [{"val": "child_a"}]},
+            # sibling 2: does NOT have "vx" so its children must NOT get __vx
+            {"lvl2": [{"val": "child_b"}]},
+        ],
+    }
+    normalized_rows = list(norm._normalize_row(row, {}, ("table",), _r_lvl=1000, is_root=True))
+    lvl2_rows = [r for r in normalized_rows if r[0][0] == "table__lvl1__lvl2"]
+    assert len(lvl2_rows) == 2
+
+    child_a = next(r[1] for r in lvl2_rows if r[1]["val"] == "child_a")
+    child_b = next(r[1] for r in lvl2_rows if r[1]["val"] == "child_b")
+
+    # sibling 1's child gets the propagated value
+    assert child_a["__vx"] == "from_first"
+    # sibling 2's child must NOT see it — this failed with the old mutating code
+    assert "__vx" not in child_b
+
+
 def test_propagates_table_context_to_lists(norm: RelationalNormalizer) -> None:
     add_dlt_root_id_propagation(norm)
     prop_config: RelationalNormalizerConfigPropagation = norm.schema._normalizers_config["json"][
@@ -826,12 +865,12 @@ def test_normalize_and_shorten_deterministically() -> None:
     tag = NamingConvention._compute_tag(
         "short_ident_1__short_ident_2__short_ident_3", NamingConvention._DEFAULT_COLLISION_PROB
     )
-    assert tag in root_data_keys[0]
+    assert tag in root_data_keys[1]
     # long:SO+LONG:_>16 shortened on normalized name
     tag = NamingConvention._compute_tag(
         "long+long:SO+LONG:_>16", NamingConvention._DEFAULT_COLLISION_PROB
     )
-    assert tag in root_data_keys[1]
+    assert tag in root_data_keys[0]
     # table name in second row
     table_name = rows[1][0][0]
     tag = NamingConvention._compute_tag(
@@ -940,29 +979,34 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
         # Test with different merge strategies when root_key_propagation is None
         ("delete-insert", None, False, True),
         ("upsert", None, False, True),
+        ("insert-only", None, False, True),
         ("scd2", None, False, False),
         ("append", None, False, False),
         ("replace", None, False, False),
         # Test with root_key_propagation explicitly True (should always be True)
         ("delete-insert", True, False, True),
         ("upsert", True, False, True),
+        ("insert-only", True, False, True),
         ("scd2", True, False, True),
         ("append", True, False, True),
         ("replace", True, False, True),
         # Test with root_key_propagation explicitly False (should always be False)
         ("delete-insert", False, False, False),
         ("upsert", False, False, False),
+        ("insert-only", False, False, False),
         ("scd2", False, False, False),
         ("append", False, False, False),
         ("replace", False, False, False),
         # Test with nested table having root_key (should always be True regardless of other settings)
         ("delete-insert", None, True, True),
         ("upsert", None, True, True),
+        ("insert-only", None, True, True),
         ("scd2", None, True, True),
         ("append", None, True, True),
         ("replace", None, True, True),
         ("delete-insert", False, True, True),
         ("upsert", False, True, True),
+        ("insert-only", False, True, True),
         ("scd2", False, True, True),
         ("append", False, True, True),
         ("replace", False, True, True),
@@ -971,30 +1015,35 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
         # Names for default behavior tests (root_key_propagation=None)
         "delete-insert_default_no-nested_requires-key",
         "upsert_default_no-nested_requires-key",
+        "insert-only_default_no-nested_requires-key",
         "scd2_default_no-nested_no-key-required",
         "append_default_no-nested_no-key-required",
         "replace_default_no-nested_no-key-required",
         # Names for explicit True tests
         "delete-insert_explicit-true_no-nested_requires-key",
         "upsert_explicit-true_no-nested_requires-key",
+        "insert-only_explicit-true_no-nested_requires-key",
         "scd2_explicit-true_no-nested_requires-key",
         "append_explicit-true_no-nested_requires-key",
         "replace_explicit-true_no-nested_requires-key",
         # Names for explicit False tests
         "delete-insert_explicit-false_no-nested_no-key-required",
         "upsert_explicit-false_no-nested_no-key-required",
+        "insert-only_explicit-false_no-nested_no-key-required",
         "scd2_explicit-false_no-nested_no-key-required",
         "append_explicit-false_no-nested_no-key-required",
         "replace_explicit-false_no-nested_no-key-required",
         # Names for nested table with root_key tests (default behavior)
         "delete-insert_default_with-nested_requires-key",
         "upsert_default_with-nested_requires-key",
+        "insert-only_default_with-nested_requires-key",
         "scd2_default_with-nested_requires-key",
         "append_default_with-nested_requires-key",
         "replace_default_with-nested_requires-key",
         # Names for nested table with root_key tests (explicit False - should still require key)
         "delete-insert_explicit-false_with-nested_requires-key",
         "upsert_explicit-false_with-nested_requires-key",
+        "insert-only_explicit-false_with-nested_requires-key",
         "scd2_explicit-false_with-nested_requires-key",
         "append_explicit-false_with-nested_requires-key",
         "replace_explicit-false_with-nested_requires-key",
@@ -1053,6 +1102,31 @@ def test_dlt_table_no_root_key(norm: RelationalNormalizer) -> None:
     # always enabled if root key is nested table
     result = normalize_helpers.requires_root_key(norm.schema, table_1, root_key_propagation=False)
     assert result is True
+
+
+@pytest.mark.parametrize(
+    "merge_strategy, expected_row_id_type",
+    [
+        ("upsert", "key_hash"),
+        ("insert-only", "key_hash"),
+        ("delete-insert", "random"),
+        ("scd2", "random"),
+    ],
+    ids=["upsert-key_hash", "insert-only-key_hash", "delete-insert-random", "scd2-random"],
+)
+def test_get_root_row_id_type(
+    norm: RelationalNormalizer,
+    merge_strategy: TLoaderMergeStrategy,
+    expected_row_id_type: str,
+) -> None:
+    table_1 = new_table("table_1", write_disposition="merge")
+    norm.schema.tables["table_1"] = table_1
+
+    with Container().injectable_context(
+        DestinationCapabilitiesContext(supported_merge_strategies=[merge_strategy])
+    ):
+        result = normalize_helpers.get_root_row_id_type(norm.schema, "table_1")
+        assert result == expected_row_id_type
 
 
 @pytest.mark.parametrize(
@@ -1168,10 +1242,130 @@ def add_dlt_root_id_propagation(norm: RelationalNormalizer) -> None:
     RelationalNormalizer.update_normalizer_config(
         norm.schema,
         {
-            "propagation": {
-                "root": {"_dlt_id": "_dlt_root_id"},  # type: ignore[dict-item]
+            "propagation": {  # type: ignore[typeddict-item]
+                "root": {"_dlt_id": "_dlt_root_id"},
                 "tables": {},
             }
         },
     )
     norm._reset()
+
+
+def test_cache_cleared_after_extend_table(norm: RelationalNormalizer) -> None:
+    """Verify that extend_table invalidates propagation, nested-type and should-be-nested caches.
+
+    1. Propagation: add table-level propagation via extend_table, new rows must see it.
+    2. Nested type: mark a column as json via extend_table, flattening must stop for it.
+    3. Should-be-nested: register a child as a non-nested (root) table, verify it gets _dlt_load_id.
+    """
+    add_dlt_root_id_propagation(norm)
+
+    with Container().injectable_context(
+        DestinationCapabilitiesContext(supported_merge_strategies=["delete-insert"])
+    ):
+        # phase 1: normalize to populate all caches
+        row = {
+            "_dlt_id": "u1",
+            "custom_field": "val",
+            "meta": {"nested_key": "deep"},
+            "orders": [{"item": "book"}],
+        }
+        rows_before = list(norm._normalize_row(row, {}, ("users",), _r_lvl=1000, is_root=True))
+
+        # propagation: only root _dlt_root_id exists, no table-specific
+        nested = [r for r in rows_before if r[0][0] == "users__orders"]
+        assert nested[0][1]["_dlt_root_id"] == "u1"
+        assert "propagated_custom" not in nested[0][1]
+
+        # nested type: "meta" is flattened, so "nested_key" appears as "meta__nested_key"
+        root = next(r[1] for r in rows_before if r[0][0] == "users")
+        assert "meta__nested_key" in root
+        assert "meta" not in root  # dict was flattened away
+
+        # should_be_nested: orders is a nested table (no _dlt_load_id)
+        assert "_dlt_load_id" not in nested[0][1]
+
+        # phase 2: extend_table to change schema, must invalidate caches
+
+        # 2a. add table-level propagation for "users"
+        users_table = new_table("users", write_disposition="merge")
+        norm.schema.update_table(users_table)
+        prop_config = norm.schema._normalizers_config["json"]["config"]["propagation"]
+        prop_config["tables"]["users"]["custom_field"] = "propagated_custom"
+
+        # 2b. mark "meta" column as json so it should stop being flattened
+        norm.schema.update_table(
+            new_table(
+                "users",
+                columns=[{"name": "meta", "data_type": "json", "nullable": True}],
+            )
+        )
+
+        # 2c. register "users__orders" as a root-level (non-nested) table
+        norm.schema.update_table(new_table("users__orders"))
+
+        # phase 3: normalize again and verify caches were invalidated
+        row2 = {
+            "_dlt_id": "u2",
+            "custom_field": "val2",
+            "meta": {"nested_key": "deep2"},
+            "orders": [{"item": "pen"}],
+        }
+        rows_after = list(norm._normalize_row(row2, {}, ("users",), _r_lvl=1000, is_root=True))
+
+        # propagation cache cleared: nested rows now get the table-level propagation
+        nested_after = [r for r in rows_after if r[0][0] == "users__orders"]
+        assert nested_after[0][1].get("propagated_custom") == "val2"
+
+        # is_nested_type cache cleared: "meta" is now json, kept as-is in root row
+        root_after = next(r[1] for r in rows_after if r[0][0] == "users")
+        assert root_after["meta"] == {"nested_key": "deep2"}
+        assert "meta__nested_key" not in root_after
+
+        # should_be_nested cache cleared: "users__orders" is now a root table
+        assert "_dlt_load_id" in nested_after[0][1]
+
+
+def test_py_type_to_sc_type(norm: RelationalNormalizer) -> None:
+    assert norm.py_type_to_sc_type(str) == "text"
+    assert norm.py_type_to_sc_type(int) == "bigint"
+    assert norm.py_type_to_sc_type(float) == "double"
+    assert norm.py_type_to_sc_type(bool) == "bool"
+    assert norm.py_type_to_sc_type(dict) == "json"
+    assert norm.py_type_to_sc_type(list) == "json"
+    assert norm.py_type_to_sc_type(bytes) == "binary"
+
+
+def test_py_type_to_sc_type_map(norm: RelationalNormalizer) -> None:
+    m = norm.py_type_to_sc_type_map
+    assert m[str] == "text"
+    assert m[int] == "bigint"
+    assert m[float] == "double"
+    assert m[bool] == "bool"
+    assert m[dict] == "json"
+    assert m[list] == "json"
+
+
+def test_can_coerce_type(norm: RelationalNormalizer) -> None:
+    # same type always coercible
+    assert norm.can_coerce_type("text", "text") is True
+    assert norm.can_coerce_type("bigint", "bigint") is True
+    # known cross-type pairs
+    assert norm.can_coerce_type("text", "bigint") is True
+    assert norm.can_coerce_type("bigint", "text") is True
+    assert norm.can_coerce_type("timestamp", "text") is True
+    # unknown pair
+    assert norm.can_coerce_type("binary", "bool") is False
+
+
+def test_coerce_type(norm: RelationalNormalizer) -> None:
+    # same type passthrough
+    assert norm.coerce_type("text", "text", "hello") == "hello"
+    assert norm.coerce_type("bigint", "bigint", 42) == 42
+    # cross-type coercion
+    assert norm.coerce_type("text", "bigint", 123) == "123"
+    assert norm.coerce_type("bigint", "text", "456") == 456
+    assert norm.coerce_type("double", "bigint", 7) == 7.0
+    # failure raises ValueError
+    with pytest.raises(ValueError):
+        norm.coerce_type("bigint", "text", "not_a_number")

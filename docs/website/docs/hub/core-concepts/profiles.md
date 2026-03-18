@@ -72,6 +72,25 @@ dlt profile prod pin
 will pin the `prod` profile and from now on all Python scripts and cli commands will see it as the default and switch to it automatically.
 The profile pin is kept in the `.dlt/profile-name` file. Remove this file to unpin. Note that our default `.gitignore` prevents this file from being added.
 
+## Switching profile with an environment variable
+You can override the active profile for a single command or script by setting the `WORKSPACE__PROFILE` environment variable. This takes precedence over the pinned profile but yields to a profile set explicitly in code (e.g. `--profile` flag).
+
+Run a CLI command with a different profile:
+```sh
+WORKSPACE__PROFILE=prod dlt pipeline my_pipeline info
+```
+
+Run a Python script with a different profile:
+```sh
+WORKSPACE__PROFILE=tests python my_pipeline.py
+```
+
+This is useful in CI/CD pipelines or when you want to quickly test against a different profile without changing the pin:
+```sh
+# run tests against the prod profile, then go back to normal
+WORKSPACE__PROFILE=prod pytest tests/
+```
+
 ### Settings in the `dlt.yml` file vs TOML files
 
 For dltHub Projects, it's best practice to keep all non-secret settings in `dlt.yml` and store secrets only in `.dlt/secrets.toml`. This ensures that sensitive data is only available in the necessary profiles or environments.

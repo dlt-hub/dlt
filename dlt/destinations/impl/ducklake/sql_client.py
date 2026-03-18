@@ -26,10 +26,12 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         staging_dataset_name: str,
         credentials: DuckLakeCredentials,
         capabilities: DestinationCapabilitiesContext,
+        override_data_path: bool = False,
     ) -> None:
         super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
         self.credentials: DuckLakeCredentials = credentials
         self._attach_statement: str = None
+        self.override_data_path = override_data_path
 
     def create_dataset(self) -> None:
         if self.has_dataset():
@@ -122,6 +124,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         ducklake_name: str,
         catalog: ConnectionStringCredentials,
         storage_url: str,
+        override_data_path: bool = False,
     ) -> str:
         attach_params = ""
         if isinstance(catalog, DuckDbCredentials):
@@ -147,7 +150,8 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         else:
             raise NotImplementedError(str(catalog))
         attach_statement += f" AS {ducklake_name}"
-        attach_statement += f" (DATA_PATH '{storage_url}'{attach_params})"
+        override_param = ", OVERRIDE_DATA_PATH true" if override_data_path else ""
+        attach_statement += f" (DATA_PATH '{storage_url}'{attach_params}{override_param})"
         return attach_statement
 
     @property
@@ -160,4 +164,5 @@ class DuckLakeSqlClient(DuckDbSqlClient):
                 ducklake_name=self.credentials.ducklake_name,
                 catalog=self.credentials.catalog,
                 storage_url=self.credentials.storage_url,
+                override_data_path=self.override_data_path,
             )

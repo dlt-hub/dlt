@@ -5,16 +5,15 @@ from pendulum.tz import UTC
 pytest.importorskip("airflow")
 from airflow import DAG
 from airflow.decorators import dag, task
-from airflow.models import DagRun
-from airflow.models.taskinstance import TaskInstance
 from airflow.operators.python import get_current_context  # noqa
-from airflow.utils.state import State, DagRunState
-from airflow.utils.types import DagRunType
 
 import dlt
 from dlt.common import pendulum
 from dlt.common.utils import uniq_id
 from dlt.common.time import ensure_pendulum_date
+
+from tests.helpers.airflow_tests import utils as airflow_utils
+from tests.helpers.airflow_tests.utils import run_task
 
 # flake8: noqa: B008
 
@@ -40,7 +39,7 @@ def existing_incremental(
 
 def test_date_coercion() -> None:
     @dag(
-        schedule_interval="@daily",
+        schedule="@daily",
         start_date=CATCHUP_BEGIN,
         catchup=False,
         max_active_runs=1,
@@ -165,7 +164,7 @@ def test_date_coercion() -> None:
 
     dag_def: DAG = dag_regular()
     # this will correctly simulate data inverval but only because execution_date is a scheduled one
-    dag_def.test(execution_date=CATCHUP_BEGIN)
+    airflow_utils.exec_dag_test(dag_def, execution_date=CATCHUP_BEGIN)
     # print(dag_def.get_run_dates(CATCHUP_BEGIN.add(minutes=10)))
 
 
@@ -227,18 +226,10 @@ def test_no_next_execution_date() -> None:
     now = pendulum.now()
 
     dag_def: DAG = dag_no_schedule()
-    dag_def.create_dagrun(
-        state=DagRunState.QUEUED,
-        execution_date=now.subtract(hours=1),
-        run_type=DagRunType.MANUAL,
-    )
-    task_def = dag_def.task_dict["unscheduled"]
-    ti = TaskInstance(task=task_def, execution_date=now.subtract(hours=1))
-    ti.run()
-    assert ti.state == State.SUCCESS
+    run_task(dag_def, "unscheduled", execution_date=now.subtract(hours=1))
 
     @dag(
-        schedule_interval="@daily",
+        schedule="@daily",
         start_date=CATCHUP_BEGIN,
         catchup=True,
         default_args=default_args,
@@ -274,21 +265,11 @@ def test_no_next_execution_date() -> None:
         scheduled()
 
     dag_def = dag_daily_schedule()
-    # manually run a scheduled DAG.
+    # manually run a scheduled DAG (AF2)
     # WARNING: explicit data interval must be specified! the code that infers intervals in create_dagrun produces different results than in docs
     # https://airflow.apache.org/docs/apache-airflow/stable/faq.html#why-next-ds-or-prev-ds-might-not-contain-expected-values
     # "When manually triggering DAG, the schedule will be ignored, and prev_ds == next_ds == ds"
-    dag_def.create_dagrun(
-        state=DagRunState.RUNNING,
-        execution_date=now,
-        run_type=DagRunType.MANUAL,
-        data_interval=(now, now),
-    )
-    dag_def.run(start_date=now, run_at_least_once=True)
-    task_def = dag_def.task_dict["scheduled"]
-    ti = TaskInstance(task=task_def, execution_date=now)
-    ti.run()
-    assert ti.state == State.SUCCESS
+    run_task(dag_def, "scheduled", execution_date=now, data_interval=(now, now))
 
 
 def test_scheduler_pipeline_state() -> None:
@@ -300,7 +281,7 @@ def test_scheduler_pipeline_state() -> None:
     now = pendulum.now()
 
     @dag(
-        schedule_interval="@daily",
+        schedule="@daily",
         start_date=CATCHUP_BEGIN,
         catchup=False,
         default_args=default_args,
@@ -315,7 +296,7 @@ def test_scheduler_pipeline_state() -> None:
         scheduled()
 
     dag_def: DAG = dag_regular()
-    dag_def.test(execution_date=CATCHUP_BEGIN)
+    airflow_utils.exec_dag_test(dag_def, execution_date=CATCHUP_BEGIN)
 
     # no source and resource state
     assert "sources" not in pipeline.state
@@ -324,23 +305,13 @@ def test_scheduler_pipeline_state() -> None:
     dag_def.test()
     assert "sources" not in pipeline.state
 
-    # start ==  end interval
-    dag_def.create_dagrun(
-        state=DagRunState.RUNNING,
-        execution_date=now,
-        run_type=DagRunType.MANUAL,
-        data_interval=(now, now),
-    )
-    dag_def.run(start_date=now, run_at_least_once=True)
-    task_def = dag_def.task_dict["scheduled"]
-    ti = TaskInstance(task=task_def, execution_date=now)
-    ti.run()
-    assert ti.state == State.SUCCESS
+    # start == end interval
+    run_task(dag_def, "scheduled", execution_date=now, data_interval=(now, now))
     assert "sources" not in pipeline.state
 
     pipeline = pipeline.drop()
 
-    dag_def.test(execution_date=CATCHUP_BEGIN)
+    airflow_utils.exec_dag_test(dag_def, execution_date=CATCHUP_BEGIN)
     assert "sources" not in pipeline.state
 
     @dag(schedule=None, start_date=CATCHUP_BEGIN, catchup=False, default_args=default_args)
@@ -353,7 +324,7 @@ def test_scheduler_pipeline_state() -> None:
         unscheduled()
 
     dag_def = dag_no_schedule()
-    dag_def.test(execution_date=CATCHUP_BEGIN)
+    airflow_utils.exec_dag_test(dag_def, execution_date=CATCHUP_BEGIN)
 
     # state was saved (end date not specified)
     assert "sources" not in pipeline.state

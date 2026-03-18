@@ -127,7 +127,7 @@ aws_access_key_id="..."
 aws_secret_access_key="..."
 ```
 
-same for sources ie. **sources-mongodb** will store mongo credentials:
+same for sources i.e. **sources-mongodb** will store mongo credentials:
 ```toml
 [sources.mongodb]
 connection_url="mongodb+srv://temp_writer:***/dlt_data?authSource=admin&replicaSet=db-mongodb&tls=true"

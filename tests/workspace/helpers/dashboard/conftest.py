@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import pytest
 import tempfile
 
@@ -10,6 +13,9 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     create_load_exception_pipeline,
     create_no_destination_pipeline,
     create_sync_exception_pipeline,
+    create_custom_destination_pipeline,
+    create_custom_dest_callable_pipeline,
+    create_custom_dest_string_ref_pipeline,
 )
 
 
@@ -73,8 +79,6 @@ def load_exception_pipeline():
 def temp_pipelines_dir():
     """Create a temporary directory structure for testing pipelines"""
     with tempfile.TemporaryDirectory() as temp_dir:
-        from pathlib import Path
-        import os
         from dlt.pipeline.trace import TRACE_FILE_NAME
 
         pipelines_dir = Path(temp_dir) / "pipelines"
@@ -103,3 +107,21 @@ def temp_pipelines_dir():
 def sync_exception_pipeline():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_sync_exception_pipeline(temp_dir)
+
+
+@pytest.fixture
+def custom_destination_pipeline():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield create_custom_destination_pipeline(temp_dir)
+
+
+@pytest.fixture
+def custom_dest_callable_pipeline():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield create_custom_dest_callable_pipeline(temp_dir)
+
+
+@pytest.fixture
+def custom_dest_string_ref_pipeline():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield create_custom_dest_string_ref_pipeline(temp_dir)

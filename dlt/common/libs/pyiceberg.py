@@ -23,8 +23,6 @@ from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfigu
 from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt.common.configuration.inject import with_config
 
-from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
-
 
 try:
     import pyiceberg
@@ -98,7 +96,7 @@ def merge_iceberg_table(
 ) -> None:
     """Merges in-memory Arrow data into on-disk Iceberg table."""
     strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
-    if strategy == "upsert":
+    if strategy in ("upsert", "insert-only"):
         # evolve schema
         with table.update_schema() as update:
             update.union_by_name(ensure_iceberg_compatible_arrow_schema(data.schema))
@@ -116,7 +114,7 @@ def merge_iceberg_table(
             table.upsert(
                 df=batch_tbl,
                 join_cols=join_cols,
-                when_matched_update_all=True,
+                when_matched_update_all=strategy == "upsert",
                 when_not_matched_insert_all=True,
                 case_sensitive=True,
             )
@@ -389,7 +387,8 @@ def get_catalog(
 
 def evolve_table(
     catalog: IcebergCatalog,
-    client: FilesystemClient,
+    fs_client: AbstractFileSystem,
+    config: FilesystemConfiguration,
     table_id: str,
     table_location: str,
     schema: Optional[pa.Schema] = None,
@@ -399,11 +398,9 @@ def evolve_table(
     except NoSuchTableError:
         # add table to catalog
         metadata_path = f"{table_location.rstrip('/')}/metadata"
-        if client.fs_client.exists(metadata_path):
+        if fs_client.exists(metadata_path):
             # found metadata; register existing table
-            table = register_table(
-                table_id, metadata_path, catalog, client.fs_client, client.config
-            )
+            table = register_table(table_id, metadata_path, catalog, fs_client, config)
         else:
             raise
 
@@ -422,6 +419,7 @@ def create_table(
     schema: Union[pa.Schema, "pyiceberg.schema.Schema"],
     partition_columns: Optional[List[str]] = None,
     partition_spec: Optional[IcebergPartitionSpec] = UNPARTITIONED_PARTITION_SPEC,
+    properties: Optional[Dict[str, str]] = None,
 ) -> None:
     if isinstance(schema, pa.Schema):
         schema = ensure_iceberg_compatible_arrow_schema(schema)
@@ -434,6 +432,7 @@ def create_table(
             table_id,
             schema=schema,
             location=table_location,
+            properties=properties or {},
         ) as txn:
             # add partitioning
             with txn.update_spec() as update_spec:
@@ -445,6 +444,7 @@ def create_table(
             schema=schema,
             location=table_location,
             partition_spec=partition_spec,
+            properties=properties or {},
         )
 
 
