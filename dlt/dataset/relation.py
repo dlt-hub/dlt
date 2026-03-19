@@ -1050,7 +1050,10 @@ def _resolve_magic_join_target(left: Relation, right: Union[str, Relation]) -> s
     """Resolve magic-join target table name from input."""
     if isinstance(right, Relation):
         # TODO: remove once we allow cross-dataset joins
-        if right._dataset is not left._dataset:
+        if not (
+            left._dataset.is_same_physical_destination(right._dataset)
+            and left._dataset.dataset_name == right._dataset.dataset_name
+        ):
             raise ValueError(
                 "Cannot join relations from different datasets: "
                 f"'{right._dataset.dataset_name}' vs '{left._dataset.dataset_name}'"
