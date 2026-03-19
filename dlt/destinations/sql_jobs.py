@@ -1032,8 +1032,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         retire_sql = f"""
             {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
             WHERE {is_active}
-            AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name})
-            {row_filter_clause};
+            AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name}){row_filter_clause};
         """
         merge_keys = cls._escape_list(
             get_columns_names_with_prop(root_table, "merge_key"),
@@ -1056,8 +1055,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
             SELECT {col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
-            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active}
-            {row_filter_clause});
+            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active}{row_filter_clause});
         """)
 
         # insert list elements for new active records in nested tables

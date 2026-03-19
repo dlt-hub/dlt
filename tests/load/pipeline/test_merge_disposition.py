@@ -2613,3 +2613,70 @@ def test_row_filter_insert_only_with_hard_delete(
         {"id": 3, "val": "c", "part": "B"},
     ]
     assert observed == expected
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_row_filter_clear(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test that row_filter can be cleared by passing None or empty string."""
+    table_name = "test_row_filter_clear"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition="merge",
+        primary_key="id",
+    )
+    def data_resource(data):
+        yield data
+
+    p = destination_config.setup_pipeline("row_filter_clear", dev_mode=True)
+
+    # initial load
+    initial = [
+        {"id": 1, "val": "a", "part": "A"},
+        {"id": 2, "val": "b", "part": "B"},
+    ]
+    info = p.run(data_resource(initial), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # set row_filter to partition A
+    data_resource.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "row_filter": "part = 'A'",
+        },
+    )
+    update1 = [{"id": 1, "val": "a_updated", "part": "A"}]
+    info = p.run(data_resource(update1), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # clear row_filter by passing None — subsequent merge should be unscoped
+    data_resource.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "row_filter": None,
+        },
+    )
+    update2 = [
+        {"id": 1, "val": "a_final", "part": "A"},
+        {"id": 2, "val": "b_final", "part": "B"},
+    ]
+    info = p.run(data_resource(update2), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    observed = [
+        {"id": row[0], "val": row[1]}
+        for row in select_data(p, f"SELECT id, val FROM {table_name}")
+    ]
+    observed = sorted(observed, key=lambda d: d["id"])
+    # both partitions updated — row_filter was cleared
+    expected = [
+        {"id": 1, "val": "a_final"},
+        {"id": 2, "val": "b_final"},
+    ]
+    assert observed == expected
