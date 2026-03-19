@@ -120,7 +120,7 @@ Operations on pipelines that were ran locally.
 ```sh
 dlt pipeline [-h] [--list-pipelines] [--pipelines-dir PIPELINES_DIR] [--verbose]
     [pipeline_name]
-    {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package,mcp}
+    {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package}
     ...
 ```
 
@@ -153,7 +153,6 @@ Inherits arguments from [`dlt`](#dlt).
 * [`schema`](#dlt-pipeline-schema) - Displays default schema
 * [`drop`](#dlt-pipeline-drop) - Selectively drop tables and reset state
 * [`load-package`](#dlt-pipeline-load-package) - Displays information on load package, use -v or -vv for more info
-* [`mcp`](#dlt-pipeline-mcp) - Launch mcp server attached to this pipeline
 
 </details>
 
@@ -491,35 +490,6 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 </details>
 
-### `dlt pipeline mcp`
-
-Launch MCP server attached to this pipeline.
-
-**Usage**
-```sh
-dlt pipeline [pipeline_name] mcp [-h] [--stdio] [--sse] [--port PORT]
-    [--features [FEATURES ...]]
-```
-
-**Description**
-
-This MCP facilitates schema and data exploration for the dataset created with this pipeline.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--stdio` - Use stdio transport mode
-* `--sse` - Use legacy sse transport instead of streamable-http
-* `--port PORT` - Port for the mcp server (default: 43656)
-* `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
-
-</details>
-
 ## `dlt init`
 
 Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
@@ -552,7 +522,7 @@ Inherits arguments from [`dlt`](#dlt).
 
 **Positional arguments**
 * `source` - Name of data source for which to create a pipeline. adds existing verified source or creates a new pipeline template if verified source for your data source is not yet implemented.
-* `destination` - Name of a destination i.e. bigquery or redshift
+* `destination` - Name of a destination ie. bigquery or redshift
 
 **Options**
 * `-h, --help` - Show this help message and exit
