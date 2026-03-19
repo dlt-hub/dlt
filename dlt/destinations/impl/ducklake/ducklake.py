@@ -87,7 +87,6 @@ class DuckLakeMergeFollowupJob(SqlMergeFollowupJob):
         deleted_cond: Optional[str],
         insert_only: bool = False,
         not_deleted_cond: Optional[str] = None,
-        row_filter: Optional[str] = None,
     ) -> List[str]:
         """Generate MERGE statement without DELETE clause + separate DELETE for hard deletes."""
         # insert-only: no DuckLake-specific workaround needed

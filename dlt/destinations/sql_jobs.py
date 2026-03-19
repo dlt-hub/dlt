@@ -737,7 +737,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         deleted_cond: Optional[str],
         insert_only: bool = False,
         not_deleted_cond: Optional[str] = None,
-        row_filter: Optional[str] = None,
     ) -> List[str]:
         """Generate MERGE statement for upsert/insert-only on root table.
 
@@ -786,6 +785,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         hard_delete_col: Optional[str],
         deleted_cond: Optional[str],
         row_filter: str,
+        insert_only: bool = False,
     ) -> List[str]:
         """Generate DELETE + INSERT statements for upsert with row_filter.
 
@@ -795,25 +795,28 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         never in the same scope as staging columns.
         """
         sql: List[str] = []
-        # hard delete matching records
-        if hard_delete_col is not None:
-            pk_match_del = " AND ".join([f"{root_table_name}.{c} = s.{c}" for c in primary_keys])
+        if not insert_only:
+            # hard delete matching records
+            if hard_delete_col is not None:
+                pk_match_del = " AND ".join(
+                    [f"{root_table_name}.{c} = s.{c}" for c in primary_keys]
+                )
+                sql.append(
+                    f"DELETE FROM {root_table_name} WHERE ({row_filter})"
+                    " AND EXISTS ("
+                    f"SELECT 1 FROM {staging_root_table_name} AS s"
+                    f" WHERE {pk_match_del} AND s.{deleted_cond});"
+                )
+            # delete-then-insert within the filtered partition (matched keys only)
+            pk_match_del_matched = " AND ".join(
+                [f"{root_table_name}.{c} = s.{c}" for c in primary_keys]
+            )
             sql.append(
                 f"DELETE FROM {root_table_name} WHERE ({row_filter})"
                 " AND EXISTS ("
                 f"SELECT 1 FROM {staging_root_table_name} AS s"
-                f" WHERE {pk_match_del} AND s.{deleted_cond});"
+                f" WHERE {pk_match_del_matched});"
             )
-        # delete-then-insert within the filtered partition (matched keys only)
-        pk_match_del_matched = " AND ".join(
-            [f"{root_table_name}.{c} = s.{c}" for c in primary_keys]
-        )
-        sql.append(
-            f"DELETE FROM {root_table_name} WHERE ({row_filter})"
-            " AND EXISTS ("
-            f"SELECT 1 FROM {staging_root_table_name} AS s"
-            f" WHERE {pk_match_del_matched});"
-        )
         # insert staging rows (excluding hard-deleted) that don't match filtered partition
         col_str = ", ".join(root_table_column_names)
         pk_match_ins = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
@@ -881,6 +884,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     hard_delete_col,
                     deleted_cond,
                     row_filter,
+                    insert_only=insert_only,
                 )
             )
         else:
@@ -1028,7 +1032,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         retire_sql = f"""
             {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
             WHERE {is_active}
-            AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name}){row_filter_clause};
+            AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name})
+            {row_filter_clause};
         """
         merge_keys = cls._escape_list(
             get_columns_names_with_prop(root_table, "merge_key"),
@@ -1051,7 +1056,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
             SELECT {col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
-            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active}{row_filter_clause});
+            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active}
+            {row_filter_clause});
         """)
 
         # insert list elements for new active records in nested tables

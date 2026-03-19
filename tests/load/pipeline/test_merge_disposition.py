@@ -2257,6 +2257,158 @@ def test_row_filter_nested_tables(
         ],
     )
 
+    # child rows: id=1 updated (c1_updated), id=2 unchanged (c2), id=3 unchanged (c3, c4)
+    assert load_table_counts(p, "parent__child")["parent__child"] == 4
+    child_rows = load_tables_to_dicts(p, "parent__child", exclude_system_cols=True)[
+        "parent__child"
+    ]
+    assert sorted([r["val"] for r in child_rows]) == ["c1_updated", "c2", "c3", "c4"]
+
+    # third merge with same data: idempotency check (no child accumulation)
+    info = p.run(r(update), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent")["parent"] == 3
+    assert load_table_counts(p, "parent__child")["parent__child"] == 4
+    child_rows = load_tables_to_dicts(p, "parent__child", exclude_system_cols=True)[
+        "parent__child"
+    ]
+    assert sorted([r["val"] for r in child_rows]) == ["c1_updated", "c2", "c3", "c4"]
+
+    # fourth merge: add an extra child to id=1 (child count increase)
+    update2 = [
+        {"id": 1, "part": "A", "child": [{"val": "c1_v3"}, {"val": "c1_extra"}]},
+    ]
+    info = p.run(r(update2), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent")["parent"] == 3
+    assert load_table_counts(p, "parent__child")["parent__child"] == 5
+    child_rows = load_tables_to_dicts(p, "parent__child", exclude_system_cols=True)[
+        "parent__child"
+    ]
+    assert sorted([r["val"] for r in child_rows]) == [
+        "c1_extra",
+        "c1_v3",
+        "c2",
+        "c3",
+        "c4",
+    ]
+
+    # fifth merge: remove a child from id=1 (child count decrease)
+    update3 = [
+        {"id": 1, "part": "A", "child": [{"val": "c1_final"}]},
+    ]
+    info = p.run(r(update3), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent")["parent"] == 3
+    assert load_table_counts(p, "parent__child")["parent__child"] == 4
+    child_rows = load_tables_to_dicts(p, "parent__child", exclude_system_cols=True)[
+        "parent__child"
+    ]
+    assert sorted([r["val"] for r in child_rows]) == ["c1_final", "c2", "c3", "c4"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_row_filter_nested_tables_upsert(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test row_filter with nested child tables using upsert strategy."""
+    skip_if_unsupported_merge_strategy(destination_config, "upsert")
+    p = destination_config.setup_pipeline("row_filter_nested_upsert", dev_mode=True)
+
+    @dlt.resource(
+        table_name="parent",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+        primary_key="id",
+    )
+    def r(data):
+        yield data
+
+    # initial load without row_filter
+    initial = [
+        {"id": 1, "part": "A", "child": [{"val": "c1"}]},
+        {"id": 2, "part": "A", "child": [{"val": "c2"}]},
+        {"id": 3, "part": "B", "child": [{"val": "c3"}, {"val": "c4"}]},
+    ]
+    info = p.run(r(initial), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent")["parent"] == 3
+    assert load_table_counts(p, "parent__child")["parent__child"] == 4
+
+    # merge scoped to partition A only
+    r.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "upsert",
+            "row_filter": "part = 'A'",
+        },
+    )
+    update = [
+        {"id": 1, "part": "A", "child": [{"val": "c1_updated"}]},
+    ]
+    info = p.run(r(update), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # partition B (id=3) must be untouched
+    assert load_table_counts(p, "parent")["parent"] == 3
+    parent_rows = load_tables_to_dicts(p, "parent", exclude_system_cols=True)["parent"]
+    assert_records_as_set(
+        parent_rows,
+        [
+            {"id": 1, "part": "A"},
+            {"id": 2, "part": "A"},
+            {"id": 3, "part": "B"},
+        ],
+    )
+
+    # child rows: id=1 updated (c1_updated), id=2 unchanged (c2), id=3 unchanged (c3, c4)
+    assert load_table_counts(p, "parent__child")["parent__child"] == 4
+    child_rows = load_tables_to_dicts(p, "parent__child", exclude_system_cols=True)[
+        "parent__child"
+    ]
+    assert sorted([r["val"] for r in child_rows]) == ["c1_updated", "c2", "c3", "c4"]
+
+    # third merge: idempotency check
+    info = p.run(r(update), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent")["parent"] == 3
+    assert load_table_counts(p, "parent__child")["parent__child"] == 4
+
+    # fourth merge: add an extra child to id=1 (child count increase)
+    update2 = [
+        {"id": 1, "part": "A", "child": [{"val": "c1_v3"}, {"val": "c1_extra"}]},
+    ]
+    info = p.run(r(update2), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent")["parent"] == 3
+    assert load_table_counts(p, "parent__child")["parent__child"] == 5
+    child_rows = load_tables_to_dicts(p, "parent__child", exclude_system_cols=True)[
+        "parent__child"
+    ]
+    assert sorted([r["val"] for r in child_rows]) == [
+        "c1_extra",
+        "c1_v3",
+        "c2",
+        "c3",
+        "c4",
+    ]
+
+    # fifth merge: remove a child from id=1 (child count decrease)
+    update3 = [
+        {"id": 1, "part": "A", "child": [{"val": "c1_final"}]},
+    ]
+    info = p.run(r(update3), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent")["parent"] == 3
+    assert load_table_counts(p, "parent__child")["parent__child"] == 4
+    child_rows = load_tables_to_dicts(p, "parent__child", exclude_system_cols=True)[
+        "parent__child"
+    ]
+    assert sorted([r["val"] for r in child_rows]) == ["c1_final", "c2", "c3", "c4"]
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -2321,6 +2473,143 @@ def test_row_filter_with_hard_delete(
     # id=1 hard-deleted, id=2 updated, id=3 (partition B) untouched
     expected = [
         {"id": 2, "val": "b_updated", "part": "A"},
+        {"id": 3, "val": "c", "part": "B"},
+    ]
+    assert observed == expected
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_row_filter_insert_only(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test row_filter + insert-only strategy: no rows are deleted."""
+    table_name = "test_row_filter_ins_only"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "upsert",
+        },
+        primary_key="id",
+    )
+    def data_resource(data):
+        yield data
+
+    p = destination_config.setup_pipeline("row_filter_insert_only", dev_mode=True)
+
+    # initial load without row_filter
+    initial = [
+        {"id": 1, "val": "a", "part": "A"},
+        {"id": 2, "val": "b", "part": "A"},
+        {"id": 3, "val": "c", "part": "B"},
+    ]
+    info = p.run(data_resource(initial), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 3
+
+    # apply row_filter with insert-only: new rows inserted, no rows deleted
+    data_resource.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "row_filter": "part = 'A'",
+        },
+    )
+    update = [
+        {"id": 1, "val": "a_dup", "part": "A"},
+        {"id": 4, "val": "d", "part": "A"},
+    ]
+    info = p.run(data_resource(update), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    observed = [
+        {"id": row[0], "val": row[1], "part": row[2]}
+        for row in select_data(p, f"SELECT id, val, part FROM {table_name}")
+    ]
+    observed = sorted(observed, key=lambda d: (d["part"], d["id"]))
+    # no rows deleted; id=1 already exists in filtered partition so not re-inserted;
+    # id=4 is new so it gets inserted; partition B untouched
+    expected = [
+        {"id": 1, "val": "a", "part": "A"},
+        {"id": 2, "val": "b", "part": "A"},
+        {"id": 4, "val": "d", "part": "A"},
+        {"id": 3, "val": "c", "part": "B"},
+    ]
+    assert observed == expected
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_row_filter_insert_only_with_hard_delete(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test row_filter + insert-only + hard_delete: hard-deleted rows are excluded
+    from INSERT but no DELETEs are emitted against the destination."""
+    table_name = "test_row_filter_io_hd"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "upsert",
+        },
+        primary_key="id",
+        columns={"deleted": {"hard_delete": True}},
+    )
+    def data_resource(data):
+        yield data
+
+    p = destination_config.setup_pipeline("row_filter_io_hd", dev_mode=True)
+
+    # initial load without row_filter
+    initial = [
+        {"id": 1, "val": "a", "part": "A", "deleted": False},
+        {"id": 2, "val": "b", "part": "A", "deleted": False},
+        {"id": 3, "val": "c", "part": "B", "deleted": False},
+    ]
+    info = p.run(data_resource(initial), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 3
+
+    # insert-only + row_filter + hard_delete:
+    # - id=1 marked deleted=True → should be excluded from INSERT (not re-inserted)
+    # - id=1 in destination should NOT be deleted (insert-only semantics)
+    # - id=4 is new with deleted=False → should be inserted
+    # - id=5 is new with deleted=True → should NOT be inserted
+    data_resource.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "row_filter": "part = 'A'",
+        },
+    )
+    update = [
+        {"id": 1, "val": "a", "part": "A", "deleted": True},
+        {"id": 4, "val": "d", "part": "A", "deleted": False},
+        {"id": 5, "val": "e", "part": "A", "deleted": True},
+    ]
+    info = p.run(data_resource(update), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    observed = [
+        {"id": row[0], "val": row[1], "part": row[2]}
+        for row in select_data(p, f"SELECT id, val, part FROM {table_name}")
+    ]
+    observed = sorted(observed, key=lambda d: (d["part"], d["id"]))
+    # id=1 still present (no deletes in insert-only), id=4 inserted,
+    # id=5 excluded by hard_delete filter, partition B untouched
+    expected = [
+        {"id": 1, "val": "a", "part": "A"},
+        {"id": 2, "val": "b", "part": "A"},
+        {"id": 4, "val": "d", "part": "A"},
         {"id": 3, "val": "c", "part": "B"},
     ]
     assert observed == expected
