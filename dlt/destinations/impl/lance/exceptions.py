@@ -4,8 +4,6 @@ from typing import (
     Any,
 )
 
-from lancedb.exceptions import MissingValueError, MissingColumnError
-
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
     DestinationTransientException,
@@ -18,25 +16,20 @@ lancedb_not_found_pattern = re.compile(
 )
 
 
-def is_lancedb_not_found_error(error_message: str) -> bool:
+def is_lance_not_found_error(error_message: str) -> bool:
     """Check if the error message indicates a LanceDB not found error."""
     return bool(lancedb_not_found_pattern.search(error_message))
 
 
-def lancedb_error(f: TFun) -> TFun:
+def lance_error(f: TFun) -> TFun:
     @wraps(f)
     def _wrap(self: JobClientBase, *args: Any, **kwargs: Any) -> Any:
         try:
             return f(self, *args, **kwargs)
         except ValueError as e:
-            if is_lancedb_not_found_error(str(e)):
+            if is_lance_not_found_error(str(e)):
                 raise DestinationUndefinedEntity(e) from e
             raise
-        except (
-            MissingValueError,
-            MissingColumnError,
-        ) as status_ex:
-            raise DestinationUndefinedEntity(status_ex) from status_ex
         except Exception as e:
             raise DestinationTransientException(e) from e
 

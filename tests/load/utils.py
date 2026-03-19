@@ -560,6 +560,9 @@ def destinations_configs(
                 destination_type="lancedb",
             ),
             DestinationTestConfiguration(
+                destination_type="lance",
+            ),
+            DestinationTestConfiguration(
                 destination_type="qdrant",
                 credentials=dict(path="qdrant_data"),
                 extra_info="local-file",
@@ -862,6 +865,7 @@ def destinations_configs(
     if read_only_sqlclient_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type="lancedb"),
+            DestinationTestConfiguration(destination_type="lance"),
         ]
 
     try:

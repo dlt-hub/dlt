@@ -307,6 +307,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         "dlt.destinations.snowflake",
         "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
         "dlt.destinations.lancedb",  # default is 200
+        "dlt.destinations.lance",
     ]
 
     # full frame

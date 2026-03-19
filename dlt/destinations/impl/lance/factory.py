@@ -4,34 +4,33 @@ from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.exceptions import MissingDependencyException
-from dlt.destinations.impl.lancedb.configuration import (
-    LanceDBCredentials,
-    LanceDBClientConfiguration,
+from dlt.destinations.impl.lance.configuration import (
+    LanceCredentials,
+    LanceClientConfiguration,
     TEmbeddingProvider,
 )
 
-LanceDBTypeMapper: Type[DataTypeMapper]
+LanceTypeMapper: Type[DataTypeMapper]
 try:
     # lancedb type mapper cannot be used without pyarrow installed
-    from dlt.destinations.impl.lancedb.type_mapper import LanceDBTypeMapper
+    from dlt.destinations.impl.lance.type_mapper import LanceTypeMapper
 except MissingDependencyException:
     # assign mock type mapper if no arrow
-    from dlt.common.destination.capabilities import UnsupportedTypeMapper as LanceDBTypeMapper
+    from dlt.common.destination.capabilities import UnsupportedTypeMapper as LanceTypeMapper
 
 
 if TYPE_CHECKING:
-    from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-    from lancedb import DBConnection
+    from dlt.destinations.impl.lance.lance_client import LanceClient
 
 
-class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
-    spec = LanceDBClientConfiguration
+class lance(Destination[LanceClientConfiguration, "LanceClient"]):
+    spec = LanceClientConfiguration
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "parquet"
         caps.supported_loader_file_formats = ["parquet", "reference"]
-        caps.type_mapper = LanceDBTypeMapper
+        caps.type_mapper = LanceTypeMapper
 
         caps.max_identifier_length = 200
         caps.max_column_identifier_length = 1024
@@ -58,14 +57,14 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         return caps
 
     @property
-    def client_class(self) -> Type["LanceDBClient"]:
-        from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
+    def client_class(self) -> Type["LanceClient"]:
+        from dlt.destinations.impl.lance.lance_client import LanceClient
 
-        return LanceDBClient
+        return LanceClient
 
     def __init__(
         self,
-        credentials: Union["DBConnection", LanceDBCredentials, Dict[str, Any]] = None,
+        credentials: Union[LanceCredentials, Dict[str, Any]] = None,
         lance_uri: Optional[str] = None,
         embedding_model_provider: TEmbeddingProvider = None,
         embedding_model: str = None,
@@ -74,28 +73,23 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         environment: str = None,
         **kwargs: Any,
     ) -> None:
-        """Configure the LanceDB destination to use in a pipeline.
+        """Configure the Lance destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Union["DBConnection", LanceDBCredentials, Dict[str, Any]]): Credentials to connect to the LanceDB database. Can be
-                an instance of `LanceDBCredentials` or
-                an instance of native LanceDB client or
-                a dictionary with the credentials parameters.
-            lance_uri (Optional[str]): LanceDB database URI. Defaults to local, on-disk instance.
-                The available schemas are:
-                - `/path/to/database` - local database.
-                - `db://host:port` - remote database (LanceDB cloud).
+            credentials (Union[LanceCredentials, Dict[str, Any]]): Credentials for the Lance destination. Can be
+                an instance of `LanceCredentials` or a dictionary with the credentials parameters.
+            lance_uri (Optional[str]): Directory containing .lance datasets. Defaults to local `.lancedb` directory.
             embedding_model_provider (TEmbeddingProvider, optional): Embedding provider used for generating embeddings.
                 Default is "cohere". See LanceDB documentation for the full list of available providers.
             embedding_model (str, optional): The model used by the embedding provider for generating embeddings.
                 Default is "embed-english-v3.0". Check with the embedding provider which options are available.
             vector_field_name (str, optional): Name of the special field to store the vector embeddings.
                 Default is "vector".
-            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
-            environment (str, optional): Environment of the destination
-            **kwargs (Any, optional): Additional arguments forwarded to the destination config
+            destination_name (str, optional): Name of the destination.
+            environment (str, optional): Environment of the destination.
+            **kwargs (Any): Additional arguments forwarded to the destination config.
         """
         super().__init__(
             credentials=credentials,
@@ -109,4 +103,4 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         )
 
 
-lancedb.register()
+lance.register()

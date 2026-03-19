@@ -1,12 +1,12 @@
 import os
-from typing import Optional, Union, Dict, List
+from typing import Any, Optional, Union, Dict, List
 
-import pyarrow as pa
 import pyarrow as pa
 from pyarrow import ArrowInvalid
 from pyarrow import types as pat
-from lancedb import DBConnection
-from lancedb.common import DATA
+
+import lance
+from lancedb.table import _append_vector_columns
 
 from dlt.common import logger
 from dlt.common.data_writers.escape import escape_lancedb_literal
@@ -14,8 +14,7 @@ from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
-from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
-from dlt.destinations.impl.lancedb.schema import add_vector_column
+from dlt.destinations.impl.lance.configuration import TEmbeddingProvider
 
 PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
     "cohere": "COHERE_API_KEY",
@@ -64,53 +63,50 @@ def create_in_filter(field_name: str, array: pa.Array) -> str:
     return f"{field_name} IN ({', '.join(map(escape_lancedb_literal, values_py))})"
 
 
+def create_empty_lance_dataset(schema: pa.Schema, uri: str) -> lance.LanceDataset:
+    return lance.write_dataset(schema.empty_table(), uri)
+
+
 def write_records(
-    records: DATA,
+    records: Union[pa.RecordBatchReader, List[Dict[str, Any]]],
     /,
     *,
-    db_client: DBConnection,
+    lance_uri: str,
     table_name: str,
-    vector_field_name: str,
     write_disposition: Optional[TWriteDisposition] = "append",
     merge_key: Optional[str] = None,
-    remove_orphans: Optional[bool] = False,
-    delete_condition: Optional[str] = None,
+    when_not_matched_by_source_delete_expr: Optional[str] = None,
 ) -> None:
     """Inserts records into a LanceDB table with automatic embedding computation.
 
     Args:
         records: The data to be inserted as payload.
-        db_client: The LanceDB client connection.
+        lance_uri: URI for directory containing the .lance table.
         table_name: The name of the table to insert into.
         merge_key: Keys for update/merge operations.
         write_disposition: The write disposition - one of 'skip', 'append', 'replace', 'merge'.
-        remove_orphans (bool): Whether to remove orphans after insertion or not (only merge disposition).
-        filter_condition (str): If None, then all such rows will be deleted.
-            Otherwise, the condition will be used as an SQL filter to limit what rows are deleted.
-
-    Raises:
-        ValueError: If the write disposition is unsupported, or `id_field_name` is not
-            provided for update/merge operations.
+        when_not_matched_by_source_delete_expr: Optional SQL filter applied to
+            `when_not_matched_by_source_delete` during a merge.
     """
-    tbl = db_client.open_table(table_name)
-    tbl.checkout_latest()
+    uri = _make_lance_table_uri(lance_uri, table_name)
+    ds = lance.dataset(uri)
+
+    if isinstance(records, pa.RecordBatchReader):
+        records = _append_vector_columns(records, schema=ds.schema)
+        records = _align_schema(records, ds.schema)
+
     try:
         if write_disposition in ("append", "skip", "replace"):
-            tbl.add(records)
+            ds.insert(records)
         elif write_disposition == "merge":
-            # LanceDB requires identical schemas for when_not_matched_by_source_delete
-            # The source data schema must exactly match the target table schema (column names,
-            # order, and types). Only after 22. does it work with chunks and embeddings
-            target_schema = tbl.schema
-            records = add_vector_column(records, target_schema, vector_field_name)
-            if remove_orphans:
-                tbl.merge_insert(merge_key).when_not_matched_by_source_delete(
-                    delete_condition
-                ).execute(records)
-            else:
-                tbl.merge_insert(
-                    merge_key
-                ).when_matched_update_all().when_not_matched_insert_all().execute(records)
+            merge_builder = (
+                ds.merge_insert(merge_key).when_matched_update_all().when_not_matched_insert_all()
+            )
+            if when_not_matched_by_source_delete_expr:
+                merge_builder = merge_builder.when_not_matched_by_source_delete(
+                    when_not_matched_by_source_delete_expr
+                )
+            merge_builder.execute(records)
         else:
             raise DestinationTerminalException(
                 f"Unsupported `{write_disposition=:}` for LanceDB Destination - batch"
@@ -120,3 +116,21 @@ def write_records(
         raise DestinationTerminalException(
             "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
         ) from e
+
+
+def _make_lance_table_uri(lance_uri: str, table_name: str) -> str:
+    return f"{lance_uri}/{table_name}.lance"
+
+
+def _align_schema(source: pa.RecordBatchReader, target_schema: pa.Schema) -> pa.RecordBatchReader:
+    """Aligns schema of `source` to match `target_schema`.
+
+    No-op if schemas are identical. Else, reorders columns and casts `source` to match `target_schema`.
+
+    Assumes all columns in `target_schema` are present in `source`.
+    """
+    if source.schema != target_schema:
+        return pa.RecordBatchReader.from_batches(
+            target_schema, (b.select(target_schema.names).cast(target_schema) for b in source)
+        )
+    return source

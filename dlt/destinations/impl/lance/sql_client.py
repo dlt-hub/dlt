@@ -10,13 +10,12 @@ inferface.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, Iterator, TYPE_CHECKING
+from typing import Any, Iterator, TYPE_CHECKING
 
 import sqlglot
 import sqlglot.expressions as exp
 import duckdb
 
-import dlt
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -28,7 +27,7 @@ if TYPE_CHECKING:
     from sqlglot import expressions as sge
     from duckdb import DuckDBPyConnection
 
-    from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
+    from dlt.destinations.impl.lance.lance_client import LanceClient
 
 
 def _get_lancedb_sql_capabilities() -> DestinationCapabilitiesContext:
@@ -56,28 +55,15 @@ def _create_and_use_duckdb_dataset(
     duckdb_con.execute(f"{create_schema_sql}; USE {dataset_qualified_name}")
 
 
-def get_lance_table_uri(lancedb_client: LanceDBClient, table_name: str) -> str:
-    """Create a URI for a Lance table
-
-    This should be equivalent to
-    ```python
-    lancedb_client.credentials.get_conn().open_table("foo").to_lance().uri
-    ```
-    """
-    dataset_lance_uri = lancedb_client.config.lance_uri
-    qualified_table_name = lancedb_client.make_qualified_table_name(table_name)
-    return f"{dataset_lance_uri}/{qualified_table_name}.lance"
-
-
 def _prepare_create_view_statement(lance_table_uri: str, view_name: str) -> str:
     return f'CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM "{lance_table_uri}"'
 
 
-class LanceDBSQLClient(DuckDbSqlClient):
-    def __init__(self, lancedb_client: LanceDBClient) -> None:
-        self.lancedb_client = lancedb_client
+class LanceSQLClient(DuckDbSqlClient):
+    def __init__(self, lance_client: LanceClient) -> None:
+        self.lance_client = lance_client
         super().__init__(
-            dataset_name=self.lancedb_client.dataset_name,
+            dataset_name=self.lance_client.dataset_name,
             staging_dataset_name=None,
             credentials=None,  # duckdb doesn't need special credentials
             capabilities=_get_lancedb_sql_capabilities(),
@@ -94,7 +80,7 @@ class LanceDBSQLClient(DuckDbSqlClient):
 
         # by default, LanceDB has `dataset_name=None`. To be consistent, it uses DuckDB's
         # main schema by default
-        if self.lancedb_client.dataset_name:
+        if self.lance_client.dataset_name:
             _create_and_use_duckdb_dataset(self._conn, self.fully_qualified_dataset_name())
 
         return self._conn
@@ -123,7 +109,7 @@ class LanceDBSQLClient(DuckDbSqlClient):
             yield cursor
 
     def create_view(self, table_name: str) -> None:
-        lance_table_uri = get_lance_table_uri(self.lancedb_client, table_name)
+        lance_table_uri = self.lance_client._get_lance_table_uri(table_name)
 
         # lancedb allows omitting the dataset_name, calling `make_qualified_table_name` will
         # prepend the dataset_name even if it is None

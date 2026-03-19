@@ -1,10 +1,40 @@
-from typing import Union, List, Any, Dict
+from typing import TYPE_CHECKING, Union, List, Any, Dict, cast
 
 import numpy as np
+import pytest
 from lancedb.embeddings import TextEmbeddingFunction
+from lancedb.table import Table as LanceTable
 
 import dlt
-from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
+
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
+
+if TYPE_CHECKING:
+    from dlt.destinations.impl.lance.lance_client import LanceClient
+    from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
+
+    TLanceDestinationClient = Union[LanceDBClient, LanceClient]
+else:
+    TLanceDestinationClient = Any
+
+
+@pytest.fixture(
+    params=destinations_configs(default_vector_configs=True, subset=("lance", "lancedb")),
+    ids=lambda c: c.name,
+)
+def destination_config(request: pytest.FixtureRequest) -> DestinationTestConfiguration:
+    return request.param
+
+
+def open_lance_table(client: TLanceDestinationClient, table_name: str) -> LanceTable:
+    # NOTE: we cannot use `isinstance` because classes are only imported for type checking; we resort to duck typing
+    # if isinstance(client, LanceDBClient):
+    if hasattr(client, "db_client"):  # LanceDBClient
+        qualified_table_name = client.make_qualified_table_name(table_name)
+        return client.db_client.open_table(qualified_table_name)
+    # elif isinstance(client, LanceClient):
+    elif hasattr(client, "open_lance_table"):  # LanceClient
+        return client.open_lance_table(table_name)
 
 
 def assert_unordered_dicts_equal(
@@ -35,11 +65,9 @@ def assert_table(
     expected_items_count: int = None,
     items: List[Any] = None,
 ) -> None:
-    client: LanceDBClient = pipeline.destination_client()  # type: ignore[assignment]
-
-    assert client.table_exists(table_name)
-
-    records = client.get_lancedb_table(table_name).to_arrow().to_pylist()
+    client = pipeline.destination_client()
+    client = cast(TLanceDestinationClient, client)
+    records = open_lance_table(client, table_name).to_arrow().to_pylist()
 
     if expected_items_count is not None:
         assert expected_items_count == len(records)

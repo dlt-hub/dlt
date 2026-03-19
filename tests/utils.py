@@ -88,6 +88,7 @@ IMPLEMENTED_DESTINATIONS = {
     "mssql",
     "qdrant",
     "lancedb",
+    "lance",
     "destination",
     "synapse",
     "databricks",
@@ -102,6 +103,7 @@ NON_SQL_DESTINATIONS = {
     "dummy",
     "qdrant",
     "lancedb",
+    "lance",
     "destination",
 }
 
@@ -574,10 +576,13 @@ def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
     assert all(not key.startswith(key_prefix) for key in d.keys())
 
 
-def skip_if_not_active(destination: str) -> None:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
-    if destination not in ACTIVE_DESTINATIONS:
-        pytest.skip(f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True)
+def skip_if_not_active(*destinations: str) -> None:
+    for destination in destinations:
+        assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
+    if all(d not in ACTIVE_DESTINATIONS for d in destinations):
+        pytest.skip(
+            f"{', '.join(destinations)} not in ACTIVE_DESTINATIONS", allow_module_level=True
+        )
 
 
 def is_running_in_github_fork() -> bool:
