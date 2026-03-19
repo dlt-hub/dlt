@@ -22,7 +22,13 @@ from dlt.common.destination.client import (
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import TColumnType
-from dlt.common.schema.utils import get_columns_names_with_prop, is_nullable_column
+from dlt.common import logger
+from dlt.common.schema.utils import (
+    get_columns_names_with_prop,
+    get_dedup_sort_tuple,
+    get_first_column_name_with_prop,
+    is_nullable_column,
+)
 from dlt.common.storages import FileStorage
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
@@ -270,7 +276,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
             schema, config
         )
-        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(
+        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(  # type: ignore[override]
             dataset_name,
             staging_dataset_name,
             list(schema.tables.keys()),
@@ -388,7 +394,39 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                 self.config.table_engine_type,
             ),
         )
-        sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
+        # for ReplacingMergeTree, wire dedup_sort and hard_delete hints as engine params
+        engine_params = ""
+        if table_type == "replacing_merge_tree":
+            if table.get("write_disposition") == "append":
+                dedup_sort = get_dedup_sort_tuple(table)
+                hard_delete_col = get_first_column_name_with_prop(table, "hard_delete")
+                if dedup_sort is not None:
+                    ver_col = self.sql_client.escape_column_name(dedup_sort[0])
+                    if hard_delete_col is not None:
+                        is_deleted = self.sql_client.escape_column_name(hard_delete_col)
+                        engine_params = f"({ver_col}, {is_deleted})"
+                    else:
+                        engine_params = f"({ver_col})"
+                elif hard_delete_col is not None:
+                    logger.warning(
+                        "Table '%s' has hard_delete hint but no dedup_sort column."
+                        " hard_delete requires dedup_sort (ClickHouse requires a"
+                        " version column when is_deleted is used). hard_delete"
+                        " hint will be ignored.",
+                        table_name,
+                    )
+            else:
+                logger.warning(
+                    "Table '%s' uses replacing_merge_tree with '%s' write"
+                    " disposition. ReplacingMergeTree is only supported for"
+                    " append. Falling back to MergeTree.",
+                    table_name,
+                    table.get("write_disposition"),
+                )
+                table_type = "merge_tree"
+
+        engine_name = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)
+        sql[0] = f"{sql[0]}\nENGINE = {engine_name}{engine_params}"
 
         # PRIMARY KEY
         if primary_key_list := [

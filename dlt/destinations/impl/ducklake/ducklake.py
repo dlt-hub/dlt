@@ -85,9 +85,24 @@ class DuckLakeMergeFollowupJob(SqlMergeFollowupJob):
         root_table_column_names: Sequence[str],
         hard_delete_col: Optional[str],
         deleted_cond: Optional[str],
+        insert_only: bool = False,
+        not_deleted_cond: Optional[str] = None,
     ) -> List[str]:
         """Generate MERGE statement without DELETE clause + separate DELETE for hard deletes."""
-        # Get MERGE statement from base class without DELETE clause (pass hard_delete_col=None)
+        # insert-only: no DuckLake-specific workaround needed
+        if insert_only:
+            return SqlMergeFollowupJob.gen_upsert_merge_sql(
+                root_table_name,
+                staging_root_table_name,
+                primary_keys,
+                root_table_column_names,
+                hard_delete_col,
+                deleted_cond,
+                insert_only=True,
+                not_deleted_cond=not_deleted_cond,
+            )
+
+        # upsert: get MERGE without DELETE clause, then add separate DELETE for hard deletes
         sql = SqlMergeFollowupJob.gen_upsert_merge_sql(
             root_table_name,
             staging_root_table_name,
@@ -97,7 +112,6 @@ class DuckLakeMergeFollowupJob(SqlMergeFollowupJob):
             deleted_cond=None,
         )
 
-        # Add separate DELETE for hard deletes
         if hard_delete_col is not None:
             sql.append(f"""
                 DELETE FROM {root_table_name}

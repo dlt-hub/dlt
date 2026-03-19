@@ -253,7 +253,7 @@ See [Staging support](#staging-support) for authentication options when `dlt` co
 
 ### Using default credentials
 If none of auth methods above is configured, `dlt` attempts to get authorization from the Databricks workspace context. The context may
-come, for example, from a Notebook (runtime) or via standard set of env variables that Databricks Python sdk recognizes (ie. **DATABRICKS_TOKEN** or **DATABRICKS_HOST**)
+come, for example, from a Notebook (runtime) or via standard set of env variables that Databricks Python sdk recognizes (i.e. **DATABRICKS_TOKEN** or **DATABRICKS_HOST**)
 
 When `server_hostname` or `http_path` are not provided, `dlt` attempts to derive them automatically:
 

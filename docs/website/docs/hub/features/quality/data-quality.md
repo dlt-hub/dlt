@@ -310,7 +310,7 @@ Work in progress. Currently unavailable.
 :::
 
 
-The pre-load execution via staging dataset allows to execute checks on the destination and trigger actions before data is loaded into the dataset. This is effectively using **post-load** checks before a 2nd load phase.
+The pre-load execution via staging dataset allows you to execute checks on the destination and trigger actions before data is loaded into the dataset. This is effectively using **post-load** checks before a 2nd load phase.
 
 :::info
 `dlt` uses staging datasets for other features such as `merge` and `replace` write dispositions.
@@ -346,7 +346,7 @@ sequenceDiagram
 Work in progress. Currently unavailable.
 :::
 
-The pre-load execution in-memory will execute checks using `duckdb` against the load packages (i.e., temporary files) stored on the machine that runs `dlt`. This allows to trigger actions before data is loaded into the destination.
+The pre-load execution in-memory will execute checks using `duckdb` against the load packages (i.e., temporary files) stored on the machine that runs `dlt`. This allows you to trigger actions before data is loaded into the destination.
 
 :::note
 This is equivalent to using a staging destination that is the local filesystem. This section highlights the trade-offs of this choice.

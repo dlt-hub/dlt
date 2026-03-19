@@ -7,8 +7,8 @@ dev:
 
 update-cli-docs: dev
 	# generate as there's no license
-	RUNTIME__LICENSE="" uv run dlt --debug render-docs ../../website/docs/hub/command-line-interface.md --commands license workspace profile runtime
+	RUNTIME__LICENSE="" uv run python ../check_cli_docs.py ../../website/docs/hub/command-line-interface.md --commands license workspace profile runtime
 
 check-cli-docs: dev
 	# generate as there's no license
-	RUNTIME__LICENSE="" uv run dlt --debug render-docs ../../website/docs/hub/command-line-interface.md --compare --commands license workspace profile runtime
+	RUNTIME__LICENSE="" uv run python ../check_cli_docs.py ../../website/docs/hub/command-line-interface.md --compare --commands license workspace profile runtime

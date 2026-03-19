@@ -910,10 +910,15 @@ def cast_arrow_schema_types(
 
 
 def concat_batches_and_tables_in_order(
-    tables_or_batches: Iterable[Union[pyarrow.Table, pyarrow.RecordBatch]]
+    tables_or_batches: Iterable[Union[pyarrow.Table, pyarrow.RecordBatch]],
+    promote_options: str = "none",
 ) -> pyarrow.Table:
-    """Concatenate iterable of tables and batches into a single table, preserving row order. Zero copy is used during
-    concatenation so schemas must be identical.
+    """Concatenate iterable of tables and batches into a single table, preserving row order.
+
+    Args:
+        promote_options: PyArrow concat_tables promote_options. "none" (default) requires identical
+            schemas and enables zero-copy concat. "default" promotes within type families (e.g.
+            int32→int64). "permissive" promotes across families (e.g. int64→double).
     """
     batches = []
     tables = []
@@ -929,8 +934,8 @@ def concat_batches_and_tables_in_order(
             raise ValueError(f"Unsupported type: `{type(item)}`")
     if batches:
         tables.append(pyarrow.Table.from_batches(batches))
-    # "none" option ensures 0 copy concat
-    return pyarrow.concat_tables(tables, promote_options="none")
+    # "none" ensures 0 copy concat; "default"/"permissive" allow type promotion
+    return pyarrow.concat_tables(tables, promote_options=promote_options)
 
 
 def transpose_rows_to_columns(

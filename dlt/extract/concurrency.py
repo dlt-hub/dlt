@@ -6,7 +6,8 @@ from concurrent.futures import (
 )
 import contextvars
 from threading import Thread
-from typing import Awaitable, Dict, Optional
+from collections.abc import Coroutine
+from typing import Dict, Optional
 
 from dlt.common import logger
 from dlt.common.exceptions import PipelineException
@@ -113,7 +114,7 @@ class FuturesPool:
 
         # submit to thread pool or async pool
         item = pipe_item.item
-        if isinstance(item, Awaitable):
+        if isinstance(item, Coroutine):
             future = asyncio.run_coroutine_threadsafe(item, self._ensure_async_pool())
         elif callable(item):
             # pass pipe context to thread pool, happens automatically for coroutines

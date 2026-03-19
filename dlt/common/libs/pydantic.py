@@ -229,7 +229,7 @@ def pydantic_to_table_schema_columns(
             inner_type = extract_inner_type(first_argument_type)
 
         if inner_type is Json:  # Same as `field: Json[Any]`
-            inner_type = Any  # type: ignore[assignment]
+            inner_type = Any
 
         if inner_type is Any:  # Any fields will be inferred from data
             continue

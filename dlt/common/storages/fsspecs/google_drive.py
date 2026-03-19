@@ -538,7 +538,7 @@ class GoogleDriveFile(AbstractBufferedFile):
             body=json.dumps(body).encode("utf-8"),
         )
         assert int(head["status"]) < 400, "Init upload failed"
-        self.location = head["location"]  # type: ignore
+        self.location = head["location"]
 
     def discard(self) -> None:
         """Cancel in-progress multi-upload."""
