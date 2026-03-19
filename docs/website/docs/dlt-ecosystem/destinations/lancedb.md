@@ -293,7 +293,7 @@ info = pipeline.run(
 
 ### Merge
 
-The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination based on a unique identifier. The LanceDB destination merge write disposition only supports upsert strategy. This updates existing records and inserts new ones based on a unique identifier.
+The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination based on a unique identifier. The LanceDB destination supports `upsert` and `insert-only` merge strategies. `upsert` updates existing records and inserts new ones. `insert-only` inserts new records without updating existing ones (see [insert-only strategy](../../general-usage/merge-loading.md#insert-only-strategy)).
 
 You can specify the merge disposition, primary key, and merge key either in a resource or adapter:
 

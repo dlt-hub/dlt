@@ -1194,7 +1194,7 @@ def test_coercion_rules() -> None:
 
 def test_is_valid_hint() -> None:
     assert is_valid_hint(bool) is True
-    assert is_valid_hint(Any) is True  # type: ignore[arg-type]
+    assert is_valid_hint(Any) is True
     assert is_valid_hint(Optional[Any]) is True  # type: ignore[arg-type]
     assert is_valid_hint(RuntimeConfiguration) is True
     assert is_valid_hint(Optional[RuntimeConfiguration]) is True  # type: ignore[arg-type]

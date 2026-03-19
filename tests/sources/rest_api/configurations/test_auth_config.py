@@ -200,7 +200,7 @@ class AuthConfigTest(NamedTuple):
     masked_secrets: Optional[List[str]] = ["s*****t"]
 
 
-SENSITIVE_SECRET = cast(TSecretStrValue, "sensitive-secret")
+SENSITIVE_SECRET = "sensitive-secret"
 
 AUTH_CONFIGS = [
     AuthConfigTest(
@@ -259,7 +259,7 @@ AUTH_CONFIGS = [
     ),
     AuthConfigTest(
         secret_keys=["username", "password"],
-        config=HttpBasicAuth("sensitive-secret", cast(TSecretStrValue, "")),
+        config=HttpBasicAuth("sensitive-secret", ""),
         masked_secrets=["s*****t", "*****"],
     ),
     AuthConfigTest(
@@ -288,9 +288,9 @@ def test_secret_masking_auth_config(secret_keys, config, masked_secrets):
 
 def test_secret_masking_oauth() -> None:
     config = OAuth2ClientCredentials(
-        access_token_url=cast(TSecretStrValue, ""),
-        client_id=cast(TSecretStrValue, "sensitive-secret"),
-        client_secret=cast(TSecretStrValue, "sensitive-secret"),
+        access_token_url="",
+        client_id="sensitive-secret",
+        client_secret="sensitive-secret",
     )
 
     masked = _mask_secrets(config)

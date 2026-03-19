@@ -58,9 +58,9 @@ def rest_client() -> RESTClient:
 @pytest.fixture
 def rest_client_oauth() -> RESTClient:
     auth = OAuth2ClientCredentials(
-        access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token"),
-        client_id=cast(TSecretStrValue, "test-client-id"),
-        client_secret=cast(TSecretStrValue, "test-client-secret"),
+        access_token_url="https://api.example.com/oauth/token",
+        client_id="test-client-id",
+        client_secret="test-client-secret",
         session=Client().session,
     )
     return build_rest_client(auth=auth)
@@ -69,9 +69,9 @@ def rest_client_oauth() -> RESTClient:
 @pytest.fixture
 def rest_client_immediate_oauth_expiry(auth=None) -> RESTClient:
     credentials_expiring_now = OAuth2ClientCredentials(
-        access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token-expires-now"),
-        client_id=cast(TSecretStrValue, "test-client-id"),
-        client_secret=cast(TSecretStrValue, "test-client-secret"),
+        access_token_url="https://api.example.com/oauth/token-expires-now",
+        client_id="test-client-id",
+        client_secret="test-client-secret",
         session=Client().session,
     )
     return build_rest_client(auth=credentials_expiring_now)
@@ -178,14 +178,14 @@ class TestRESTClient:
     def test_basic_auth_success(self, rest_client: RESTClient):
         response = rest_client.get(
             "/protected/posts/basic-auth",
-            auth=HttpBasicAuth("user", cast(TSecretStrValue, "password")),
+            auth=HttpBasicAuth("user", "password"),
         )
         assert response.status_code == 200
         assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
 
         pages_iter = rest_client.paginate(
             "/protected/posts/basic-auth",
-            auth=HttpBasicAuth("user", cast(TSecretStrValue, "password")),
+            auth=HttpBasicAuth("user", "password"),
         )
 
         pages = list(pages_iter)
@@ -194,14 +194,14 @@ class TestRESTClient:
     def test_bearer_token_auth_success(self, rest_client: RESTClient):
         response = rest_client.get(
             "/protected/posts/bearer-token",
-            auth=BearerTokenAuth(cast(TSecretStrValue, "test-token")),
+            auth=BearerTokenAuth("test-token"),
         )
         assert response.status_code == 200
         assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
 
         pages_iter = rest_client.paginate(
             "/protected/posts/bearer-token",
-            auth=BearerTokenAuth(cast(TSecretStrValue, "test-token")),
+            auth=BearerTokenAuth("test-token"),
         )
 
         pages = list(pages_iter)
@@ -210,7 +210,7 @@ class TestRESTClient:
     def test_api_key_auth_success(self, rest_client: RESTClient):
         response = rest_client.get(
             "/protected/posts/api-key",
-            auth=APIKeyAuth(name="x-api-key", api_key=cast(TSecretStrValue, "test-api-key")),
+            auth=APIKeyAuth(name="x-api-key", api_key="test-api-key"),
         )
         assert response.status_code == 200
         assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
@@ -227,9 +227,9 @@ class TestRESTClient:
 
     def test_oauth2_client_credentials_flow_wrong_client_id(self, rest_client: RESTClient):
         auth = OAuth2ClientCredentials(
-            access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token"),
-            client_id=cast(TSecretStrValue, "invalid-client-id"),
-            client_secret=cast(TSecretStrValue, "test-client-secret"),
+            access_token_url="https://api.example.com/oauth/token",
+            client_id="invalid-client-id",
+            client_secret="test-client-secret",
             session=Client().session,
         )
 
@@ -240,9 +240,9 @@ class TestRESTClient:
 
     def test_oauth2_client_credentials_flow_wrong_client_secret(self, rest_client: RESTClient):
         auth = OAuth2ClientCredentials(
-            access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token"),
-            client_id=cast(TSecretStrValue, "test-client-id"),
-            client_secret=cast(TSecretStrValue, "invalid-client-secret"),
+            access_token_url="https://api.example.com/oauth/token",
+            client_id="test-client-id",
+            client_secret="invalid-client-secret",
             session=Client().session,
         )
 
@@ -297,11 +297,11 @@ class TestRESTClient:
                 }
 
         auth = OAuth2ClientCredentialsHTTPBasic(
-            access_token_url=cast(TSecretStrValue, "https://api.example.com/custom-oauth/token"),
-            client_id=cast(TSecretStrValue, "test-account-id"),
-            client_secret=cast(TSecretStrValue, "test-client-secret"),
+            access_token_url="https://api.example.com/custom-oauth/token",
+            client_id="test-account-id",
+            client_secret="test-client-secret",
             access_token_request_data={
-                "account_id": cast(TSecretStrValue, "test-account-id"),
+                "account_id": "test-account-id",
             },
             session=Client().session,
         )

@@ -141,7 +141,10 @@ def _airflow_providers(settings: VaultProviderConfiguration) -> List[ConfigProvi
             providers = [AirflowSecretsTomlProvider(**dict(settings))]
 
             # check if we are in task context and provide more info
-            from airflow.operators.python import get_current_context  # noqa
+            try:
+                from airflow.operators.python import get_current_context  # noqa
+            except ImportError:
+                from airflow.sdk import get_current_context  # type: ignore[no-redef,unused-ignore]
 
             ti: TaskInstance = get_current_context()["ti"]  # type: ignore[assignment,unused-ignore]
 

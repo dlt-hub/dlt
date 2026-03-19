@@ -1386,6 +1386,56 @@ def test_iceberg_adapter_merge_write_disposition(
     "destination_config",
     destinations_configs(
         table_format_local_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_open_table_insert_only_merge(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline("insert_only", dev_mode=True)
+
+    @dlt.resource(
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+        ]
+
+    info = pipeline.run(items())
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 2}
+
+    # second load: existing records should NOT be updated, new record inserted
+    @dlt.resource(
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
+    def items_update():
+        yield [
+            {"id": 1, "name": "Alice Updated", "value": 999},
+            {"id": 3, "name": "Charlie", "value": 300},
+        ]
+
+    info = pipeline.run(items_update.with_name("items")())
+    assert_load_info(info)
+
+    rows = load_tables_to_dicts(pipeline, "items", exclude_system_cols=True)["items"]
+    assert len(rows) == 3
+    alice = next(row for row in rows if row["id"] == 1)
+    assert alice["name"] == "Alice"
+    assert alice["value"] == 100
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
         with_table_format="iceberg",
     ),
     ids=lambda x: x.name,
