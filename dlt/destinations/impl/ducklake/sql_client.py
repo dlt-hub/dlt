@@ -26,13 +26,11 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         staging_dataset_name: str,
         credentials: DuckLakeCredentials,
         capabilities: DestinationCapabilitiesContext,
-        metadata_schema: Optional[str] = None,
         override_data_path: bool = False,
     ) -> None:
         super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
         self.credentials: DuckLakeCredentials = credentials
         self._attach_statement: str = None
-        self.metadata_schema = metadata_schema
         self.override_data_path = override_data_path
 
     def create_dataset(self) -> None:
@@ -166,7 +164,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         else:
             return self.build_attach_statement(
                 ducklake_name=self.credentials.ducklake_name,
-                metadata_schema=self.metadata_schema,
+                metadata_schema=self.credentials.metadata_schema,
                 catalog=self.credentials.catalog,
                 storage_url=self.credentials.storage_url,
                 override_data_path=self.override_data_path,

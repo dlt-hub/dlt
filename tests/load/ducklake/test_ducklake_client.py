@@ -230,10 +230,12 @@ def test_ducklake_configuration_catalog_credentials() -> None:
 
 def test_ducklake_metadata_schema_config() -> None:
     configuration = resolve_configuration(
-        DuckLakeClientConfiguration(metadata_schema="bar")._bind_dataset_name(dataset_name="foo")
+        DuckLakeClientConfiguration(
+            credentials=DuckLakeCredentials(metadata_schema="bar")
+        )._bind_dataset_name(dataset_name="foo")
     )
 
-    assert configuration.metadata_schema == "bar"
+    assert configuration.credentials.metadata_schema == "bar"
 
 
 def test_ducklake_attach_statement() -> None:
