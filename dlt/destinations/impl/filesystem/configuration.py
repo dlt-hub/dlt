@@ -39,6 +39,8 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     """Default Iceberg table properties applied to all tables; per-table adapter properties take precedence."""
     iceberg_namespace_properties: Optional[Dict[str, str]] = None
     """Properties passed to the Iceberg catalog when creating the namespace."""
+    iceberg_gc_collect_interval: int = 0
+    """How often (in batches) to run gc.collect() during streamed Iceberg writes. Set to 0 to disable."""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:

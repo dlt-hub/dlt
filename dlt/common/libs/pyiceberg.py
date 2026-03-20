@@ -76,11 +76,14 @@ def write_iceberg_table(
     table: IcebergTable,
     data: Union[pa.Table, pa.RecordBatchReader],
     write_disposition: TWriteDisposition,
+    gc_collect_interval: int = 10,
 ) -> None:
     start_ts = time.monotonic()
 
     if isinstance(data, pa.RecordBatchReader):
-        _write_iceberg_table_streamed(table, data, write_disposition)
+        _write_iceberg_table_streamed(
+            table, data, write_disposition, gc_collect_interval=gc_collect_interval
+        )
     else:
         if write_disposition == "append":
             table.append(ensure_iceberg_compatible_arrow_data(data))
@@ -97,6 +100,7 @@ def _write_iceberg_table_streamed(
     table: IcebergTable,
     reader: pa.RecordBatchReader,
     write_disposition: TWriteDisposition,
+    gc_collect_interval: int = 10,
 ) -> None:
     """Streams Arrow batches as individual parquet files via Iceberg's IO,
     then does ONE atomic commit.
@@ -141,8 +145,9 @@ def _write_iceberg_table_streamed(
         total_rows += batch_table.num_rows
         del batch_table
 
-        if batch_count % 10 == 0:
+        if gc_collect_interval and batch_count % gc_collect_interval == 0:
             gc.collect()
+        if batch_count % 10 == 0:
             logger.debug(
                 f"pyiceberg: streamed {batch_count} batches, {total_rows} rows so far"
             )
@@ -169,6 +174,7 @@ def merge_iceberg_table(
     data: Union[pa.Table, pa.RecordBatchReader],
     schema: TTableSchema,
     load_table_name: str,
+    gc_collect_interval: int = 10,
 ) -> None:
     """Merges Arrow data into on-disk Iceberg table.
 
@@ -186,7 +192,9 @@ def merge_iceberg_table(
         else:
             join_cols = get_columns_names_with_prop(schema, "primary_key")
 
-        _upsert_iceberg_table(table, data, join_cols, strategy)
+        _upsert_iceberg_table(
+            table, data, join_cols, strategy, gc_collect_interval=gc_collect_interval
+        )
     else:
         raise ValueError(
             f'Merge strategy "{strategy}" is not supported for Iceberg tables. '
@@ -199,6 +207,7 @@ def _upsert_iceberg_table(
     data: Union[pa.Table, pa.RecordBatchReader],
     join_cols: List[str],
     strategy: str,
+    gc_collect_interval: int = 10,
 ) -> None:
     """Upserts Arrow data into an Iceberg table with minimal snapshots.
 
@@ -295,8 +304,9 @@ def _upsert_iceberg_table(
 
             del batch_tbl
 
-            if batch_count % 10 == 0:
+            if gc_collect_interval and batch_count % gc_collect_interval == 0:
                 gc.collect()
+            if batch_count % 10 == 0:
                 logger.debug(
                     f"pyiceberg: upsert streamed {batch_count} batches,"
                     f" {total_inserted} inserts, {total_updated} updates so far"

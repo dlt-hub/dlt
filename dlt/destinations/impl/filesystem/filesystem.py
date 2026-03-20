@@ -322,7 +322,10 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             return
 
         del schema
-        gc.collect()
+
+        gc_interval = self._job_client.config.iceberg_gc_collect_interval
+        if gc_interval:
+            gc.collect()
 
         if self._load_table["write_disposition"] == "merge" and table is not None:
             source_ds = self.arrow_dataset
@@ -334,20 +337,23 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     data=arrow_rbr,
                     schema=self._load_table,
                     load_table_name=self.load_table_name,
+                    gc_collect_interval=gc_interval,
                 )
             del source_ds
         else:
             arrow_rbr = pa.RecordBatchReader.from_batches(
                 pq.read_schema(self.file_paths[0]),
-                self._iter_parquet_batches(self.file_paths),
+                self._iter_parquet_batches(self.file_paths, gc_collect_interval=gc_interval),
             )
             write_iceberg_table(
                 table=table,
                 data=arrow_rbr,
                 write_disposition=self._load_table["write_disposition"],
+                gc_collect_interval=gc_interval,
             )
 
-        gc.collect()
+        if gc_interval:
+            gc.collect()
         logger.info(
             f"Copied {self.file_paths} to iceberg table {self.make_remote_url()}"
             f" [arrow buffer: {pa.total_allocated_bytes()}]"
@@ -355,7 +361,9 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
     @staticmethod
     def _iter_parquet_batches(
-        file_paths: List[str], batch_size: int = 10_000
+        file_paths: List[str],
+        batch_size: int = 10_000,
+        gc_collect_interval: int = 10,
     ) -> Iterator[Any]:
         """Yield Arrow batches from parquet files one at a time for constant memory."""
         import gc
@@ -373,7 +381,8 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 f"({file_size_mb:.1f} MB, {row_count:,} rows)"
             )
             del pf
-            gc.collect()
+            if gc_collect_interval and idx % gc_collect_interval == 0:
+                gc.collect()
 
     def _get_partition_spec_list(self) -> List["PartitionSpec"]:
         """Resolve partition specs. Combines legacy partition columns (identity transform)
