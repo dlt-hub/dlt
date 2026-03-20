@@ -107,3 +107,4 @@ class LoadJobMetrics(NamedTuple):
 
 class LoadMetrics(StepMetrics):
     job_metrics: Dict[str, LoadJobMetrics]
+    dataset_name: Optional[str]

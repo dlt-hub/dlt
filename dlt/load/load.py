@@ -634,6 +634,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         new_jobs = self.get_new_jobs_info(load_id)
         self.init_jobs_counter(load_id)
         running_jobs = self.initialize_package(load_id, schema, new_jobs)
+        dataset_name: Optional[str] = None
+        if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
+            dataset_name = self.initial_client_config.normalize_dataset_name(schema)
         # loop until all jobs are processed
         pending_exception: Optional[LoadClientJobException] = None
         while True:
@@ -665,6 +668,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 "started_at": None,
                 "finished_at": None,
                 "job_metrics": self._job_metrics,
+                "dataset_name": dataset_name,
             }
             self._step_info_update_metrics(load_id, metrics)
 
@@ -788,10 +792,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self,
         pipeline: SupportsPipeline,
     ) -> LoadInfo:
-        # TODO: LoadInfo should hold many datasets
         load_ids = list(self._load_id_metrics.keys())
         metrics: Dict[str, List[LoadMetrics]] = {}
-        # get load packages and dataset_name from the last package
         _dataset_name: str = None
         for load_id in load_ids:
             # find package in load packages
@@ -800,12 +802,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             if package_info is None:
                 package_info = self.load_storage.get_load_package_info(load_id)
                 self._loaded_packages.append(package_info)
-            # TODO: each load id may have a separate dataset so construct a list of datasets here
-            if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
-                _dataset_name = self.initial_client_config.normalize_dataset_name(
-                    package_info.schema
-                )
             metrics[load_id] = self._step_info_metrics(load_id)
+            # dataset_name is computed per load_id in load_single_package and stored in metrics
+            if metrics[load_id]:
+                _dataset_name = metrics[load_id][0].get("dataset_name")
 
         return LoadInfo(
             pipeline,

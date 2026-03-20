@@ -3449,6 +3449,75 @@ def test_pipeline_load_info_metrics_schema_is_not_changing() -> None:
     assert len(schema_hashset) == 1
 
 
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_load_info_dataset_name_per_load_id(use_single_dataset: bool) -> None:
+    """Verify that dataset_name in load metrics is correct per load_id.
+
+    With use_single_dataset=True both schemas share the same dataset name.
+    With use_single_dataset=False each schema gets a suffixed dataset name.
+    """
+    schema_a = dlt.Schema("schema_a")
+    schema_b = dlt.Schema("schema_b")
+
+    s1 = _create_simple_source(schema_a, "resource_1", [{"id": 1}])
+    s2 = _create_simple_source(schema_b, "resource_2", [{"id": 2}])
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_dataset_per_load",
+        destination="duckdb",
+        dataset_name="test_data",
+    )
+    pipeline.config.use_single_dataset = use_single_dataset
+
+    load_info = pipeline.run([s1, s2])
+
+    # each schema produces a separate load package
+    assert len(load_info.loads_ids) == 2
+
+    ds_names = {}
+    for load_id in load_info.loads_ids:
+        metrics_list = load_info.metrics[load_id]
+        assert len(metrics_list) == 1
+        ds_names[load_id] = metrics_list[0]["dataset_name"]
+
+    if use_single_dataset:
+        # both packages target the same dataset (no schema suffix)
+        assert all(ds == "test_data" for ds in ds_names.values())
+    else:
+        # schema_a is the default schema so it gets no suffix
+        assert set(ds_names.values()) == {"test_data", "test_data_schema_b"}
+
+    # top-level dataset_name is backward-compat scalar (last load_id's value)
+    assert load_info.dataset_name == ds_names[load_info.loads_ids[-1]]
+
+    # verify dataset_name appears in trace asdict under load_info
+    trace = pipeline.last_trace
+    load_step = next(s for s in trace.steps if s.step == "load")
+    step_dict = load_step.asdict()
+    assert "dataset_name" in step_dict["load_info"]
+
+
+def test_load_info_dataset_name_none_for_non_dwh_destination() -> None:
+    """Destinations without DestinationClientDwhConfiguration (e.g. dummy, custom)
+    produce dataset_name=None in metrics."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_dataset_none",
+        destination="dummy",
+    )
+    load_info = pipeline.run([{"id": 1}], table_name="items")
+
+    assert len(load_info.loads_ids) == 1
+    load_id = load_info.loads_ids[0]
+    assert load_info.metrics[load_id][0]["dataset_name"] is None
+    assert load_info.dataset_name is None
+
+
 def test_yielding_empty_list_creates_table() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="empty_start",
