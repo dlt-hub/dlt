@@ -6,7 +6,7 @@ from dlt.common.data_types.typing import TDataType
 from dlt.common.destination.capabilities import adjust_column_schema_to_capabilities
 from dlt.common import logger
 from dlt.common.json import json
-from dlt.common.json import custom_pua_decode, may_have_pua
+from dlt.common.json import custom_pua_decode_nested, may_have_pua
 from dlt.common.schema import utils
 from dlt.common.schema.typing import (
     TColumnSchema,
@@ -113,7 +113,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     # decode pua types
                     if may_have_pua:
                         for k, v in row.items():
-                            row[k] = custom_pua_decode(v)  # type: ignore
+                            row[k] = custom_pua_decode_nested(v)  # type: ignore
 
                     # coerce row of values into schema table, generating partial table with new columns if any
                     row, partial_table = self._coerce_row(table_name, parent_table, row)
