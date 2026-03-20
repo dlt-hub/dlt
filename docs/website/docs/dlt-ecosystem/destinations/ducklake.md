@@ -126,6 +126,31 @@ You can set additional connection options, pragmas and extensions - `ducklake` c
 ducklake_max_retry_count=100
 ```
 
+### Metadata schema
+For SQL-based DuckLake catalogs, you can set `metadata_schema` to control the `METADATA_SCHEMA`
+option in the DuckLake `ATTACH` statement independently from `ducklake_name`. If omitted,
+`ducklake_name` is used.
+
+```toml
+[destination.ducklake]
+metadata_schema="ducklake_metadata"
+```
+
+Or via environment variable `DESTINATION__DUCKLAKE__METADATA_SCHEMA=ducklake_metadata`, or in
+code:
+```py
+import dlt
+from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
+
+destination = dlt.destinations.ducklake(
+    credentials=DuckLakeCredentials(
+        catalog="postgresql://loader:loader@localhost:5432/dlt_data",
+        storage="s3://bucket/data",
+    ),
+    metadata_schema="ducklake_metadata",
+)
+```
+
 ### Override data path
 DuckLake stores file paths in the catalog relative to a base `DATA_PATH` that is set at creation time. When `override_data_path` is set to `True`, the `DATA_PATH` provided in the current connection replaces the stored one for both reads and writes. The stored value in the catalog is not modified.
 

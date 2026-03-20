@@ -1,7 +1,7 @@
 # from __future__ import annotations
 
 import dataclasses
-from typing import ClassVar, Union
+from typing import ClassVar, Optional, Union
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -128,6 +128,7 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
     )
     credentials: DuckLakeCredentials = None
     create_indexes: bool = False  # does nothing but required
+    metadata_schema: Optional[str] = None
     override_data_path: bool = False
 
     def fingerprint(self) -> str:

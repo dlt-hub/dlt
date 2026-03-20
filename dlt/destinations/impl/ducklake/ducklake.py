@@ -174,6 +174,7 @@ class DuckLakeClient(DuckDbClient):
             staging_dataset_name=config.normalize_staging_dataset_name(schema),
             credentials=config.credentials,
             capabilities=capabilities,
+            metadata_schema=config.metadata_schema,
             override_data_path=config.override_data_path,
         )
 
