@@ -57,8 +57,9 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
     info = pipeline.run(github(), **destination_config.run_kwargs)
     assert_load_info(info)
-    # checks if remote_url is set correctly on copy jobs
+    # checks if remote_url and followup_jobs are set correctly on copy jobs
     metrics = info.metrics[info.loads_ids[0]][0]
+    all_job_ids = set(metrics["job_metrics"].keys())
     for job_metrics in metrics["job_metrics"].values():
         remote_url = job_metrics.remote_url
         job_ext, is_compressed = get_file_format_and_compression(job_metrics.job_id)
@@ -68,6 +69,14 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
             if FilesystemConfiguration.is_local_path(bucket_uri):
                 bucket_uri = FilesystemConfiguration.make_file_url(bucket_uri)
             assert remote_url.startswith(bucket_uri)
+            # staging copy jobs should have followup_jobs pointing to reference/sql jobs
+            assert job_metrics.followup_jobs is not None
+            assert len(job_metrics.followup_jobs) >= 1
+            for fup_id in job_metrics.followup_jobs:
+                assert fup_id in all_job_ids
+        else:
+            # reference and sql followup jobs should not have followups themselves
+            assert job_metrics.followup_jobs is None
 
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     assert package_info.state == "loaded"

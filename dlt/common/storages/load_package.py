@@ -87,6 +87,8 @@ class TLoadPackageState(TVersionedState, TLoadPackageDropTablesState, total=Fals
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
+    load_metrics: NotRequired[Dict[str, Any]]
+    """Per-job load metrics, persisted so they survive process restarts"""
 
 
 class TLoadPackage(TypedDict, total=False):
@@ -105,7 +107,7 @@ def generate_loadpackage_state_version_hash(state: TLoadPackageState) -> str:
 
 
 def bump_loadpackage_state_version_if_modified(state: TLoadPackageState) -> Tuple[int, str, str]:
-    return bump_state_version_if_modified(state)
+    return bump_state_version_if_modified(state, exclude_attrs=["load_metrics"])
 
 
 def migrate_load_package_state(

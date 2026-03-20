@@ -13,11 +13,13 @@ from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
 from dlt.common.schema.utils import get_root_table
 from dlt.common.storages.load_storage import (
+    LoadJobInfo,
     LoadPackageInfo,
     ParsedLoadJobFileName,
 )
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
+    commit_load_package_state,
     load_package_state as current_load_package,
 )
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
@@ -316,13 +318,20 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def create_followup_jobs(
         self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema
-    ) -> None:
-        """
-        for jobs marked as having followup jobs, find them all and store them to the new jobs folder
-        where they will be picked up for execution
+    ) -> Tuple[List[str], List[str], List[str]]:
+        """Creates followup jobs for a finalized job and imports them into the new_jobs folder.
+
+        Returns:
+            Tuple of (job_followup_ids, chain_followup_ids, chain_job_ids) where:
+            - job_followup_ids: IDs of followup jobs created by the starting job itself
+            - chain_followup_ids: IDs of followup jobs created for a completed table chain
+            - chain_job_ids: IDs of all jobs participating in the completed table chain
         """
 
-        jobs: List[FollowupJobRequest] = []
+        table_chain_jobs: List[LoadJobInfo] = []
+        table_chain_follow_up_jobs: List[FollowupJobRequest] = []
+        per_job_followups: List[FollowupJobRequest] = []
+
         if isinstance(starting_job, HasFollowupJobs):
             # check for merge jobs only for jobs executing on the destination, the staging destination jobs must be excluded
             # NOTE: we may move that logic to the interface
@@ -356,21 +365,24 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         and job_state[0] in ("completed_jobs", "started_jobs")
                     ]
                     try:
-                        if follow_up_jobs := client.create_table_chain_completed_followup_jobs(
-                            prep_table_chain, table_chain_jobs
-                        ):
-                            jobs = jobs + follow_up_jobs
+                        table_chain_follow_up_jobs = (
+                            client.create_table_chain_completed_followup_jobs(
+                                prep_table_chain, table_chain_jobs
+                            )
+                            or []
+                        )
                     except Exception as e:
                         raise TableChainFollowupJobCreationFailedException(
                             root_table_name=prep_table_chain[0]["name"], details=str(e)
                         ) from e
 
             try:
-                jobs = jobs + starting_job.create_followup_jobs(state)
+                per_job_followups = starting_job.create_followup_jobs(state)
             except Exception as e:
                 raise FollowupJobCreationFailedException(job_id=starting_job.job_id()) from e
 
         # import all followup jobs to the new jobs folder
+        jobs = table_chain_follow_up_jobs + per_job_followups
         for followup_job in jobs:
             # save all created jobs
             self.load_storage.normalized_packages.import_job(
@@ -381,6 +393,14 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 f" {followup_job.new_file_path()} placed in new_jobs"
             )
         self.collector.update("Jobs", inc=0, inc_total=len(jobs))
+        return (
+            [ParsedLoadJobFileName.parse(j.new_file_path()).job_id() for j in per_job_followups],
+            [
+                ParsedLoadJobFileName.parse(j.new_file_path()).job_id()
+                for j in table_chain_follow_up_jobs
+            ],
+            [j.job_file_info.job_id() for j in table_chain_jobs],
+        )
 
     def complete_jobs(
         self, load_id: str, jobs: Sequence[LoadJob], schema: Schema
@@ -433,7 +453,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 remaining_jobs.append(job)
             elif state == "failed":
                 # create followup jobs
-                self.create_followup_jobs(load_id, state, job, schema)
+                job_fups, chain_fups, chain_ids = self.create_followup_jobs(
+                    load_id, state, job, schema
+                )
                 # try to get exception message from job
                 failed_message = job.failed_message()
                 self.load_storage.normalized_packages.fail_job(
@@ -474,7 +496,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         )
             elif state == "completed":
                 # create followup jobs
-                self.create_followup_jobs(load_id, state, job, schema)
+                job_fups, chain_fups, chain_ids = self.create_followup_jobs(
+                    load_id, state, job, schema
+                )
                 # move to completed folder after followup jobs are created
                 # in case of exception when creating followup job, the loader will retry operation and try to complete again
                 self.load_storage.normalized_packages.complete_job(load_id, job.file_name())
@@ -483,11 +507,22 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             else:
                 raise Exception("Incorrect job state")
 
-            # TODO: metrics should be persisted. this is different vs. all other steps because load step
-            # may be restarted in the middle of execution
-            # NOTE: we could use package state but cases with 100k jobs must be tested
             metrics = job.metrics()
             if metrics:
+                # attach followup job ids for finalized jobs
+                if state in ("failed", "completed"):
+                    all_fups = job_fups + chain_fups if job_fups or chain_fups else None
+                    if all_fups:
+                        metrics = metrics._replace(followup_jobs=all_fups)
+                    # retroactively update chain participants' metrics with chain followups
+                    if chain_fups:
+                        for cid in chain_ids:
+                            if cid != job.job_id() and cid in self._job_metrics:
+                                prev = self._job_metrics[cid]
+                                existing = prev.followup_jobs or []
+                                self._job_metrics[cid] = prev._replace(
+                                    followup_jobs=existing + chain_fups
+                                )
                 self._job_metrics[job.job_id()] = metrics
 
             if state in ["failed", "completed"]:
@@ -496,6 +531,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self.collector.update(
                         "Jobs", 1, message="WARNING: Some of the jobs failed!", label="Failed"
                     )
+
+        if finalized_jobs:
+            self._persist_job_metrics_to_state()
 
         return remaining_jobs, finalized_jobs, pending_exception
 
@@ -692,10 +730,28 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # the same load id may be processed across multiple runs
                 if self.current_load_id is None:
                     self._job_metrics = {}
+                    self._restore_job_metrics_from_state()
                     self._step_info_start_load_id(load_id)
                 self.load_single_package(load_id, schema)
 
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
+
+    def _persist_job_metrics_to_state(self) -> None:
+        """Write all collected job metrics into the load package state."""
+
+        state = current_load_package()["state"]
+        state["load_metrics"] = {job_id: m._asdict() for job_id, m in self._job_metrics.items()}
+        commit_load_package_state()
+
+    def _restore_job_metrics_from_state(self) -> None:
+        """Restore previously persisted job metrics from load package state."""
+
+        state = current_load_package()["state"]
+        try:
+            for job_id, m in state.get("load_metrics", {}).items():
+                self._job_metrics[job_id] = LoadJobMetrics(**m)
+        except Exception as ex:
+            logger.warning(f"Metrics could not be restored from state: {ex}")
 
     def _maybe_truncate_staging_dataset(self, schema: Schema, job_client: JobClientBase) -> None:
         """
