@@ -129,15 +129,16 @@ ducklake_max_retry_count=100
 ### Metadata schema
 For SQL-based DuckLake catalogs, you can set `metadata_schema` to control the `METADATA_SCHEMA`
 option in the DuckLake `ATTACH` statement independently from `ducklake_name`. If omitted,
-`ducklake_name` is used.
+`ducklake_name` is used. This is useful when connecting to an existing PostgreSQL-backed
+DuckLake catalog that stores metadata in the `public` schema.
 
 ```toml
 [destination.ducklake.credentials]
-metadata_schema="ducklake_metadata"
+metadata_schema="public"
 ```
 
 Or via environment variable
-`DESTINATION__DUCKLAKE__CREDENTIALS__METADATA_SCHEMA=ducklake_metadata`, or in code:
+`DESTINATION__DUCKLAKE__CREDENTIALS__METADATA_SCHEMA=public`, or in code:
 ```py
 import dlt
 from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
@@ -146,7 +147,7 @@ destination = dlt.destinations.ducklake(
     credentials=DuckLakeCredentials(
         catalog="postgresql://loader:loader@localhost:5432/dlt_data",
         storage="s3://bucket/data",
-        metadata_schema="ducklake_metadata",
+        metadata_schema="public",
     ),
 )
 ```
