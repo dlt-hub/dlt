@@ -12,7 +12,7 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
     SqlClientBase,
-    TJobQueryTags,
+    TQueryTags,
     raise_database_error,
     raise_open_connection_error,
 )
@@ -141,7 +141,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         self._conn.rollback()
         self._conn.autocommit(True)
 
-    def set_query_tags(self, tags: TJobQueryTags) -> None:
+    def set_query_tags(self, tags: Optional[TQueryTags]) -> None:
         super().set_query_tags(tags)
         if self.query_tag:
             self._tag_session()
