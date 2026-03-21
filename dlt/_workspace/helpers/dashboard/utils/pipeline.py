@@ -15,7 +15,10 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.storages.configuration import WithLocalFiles
-from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.configuration.exceptions import (
+    ConfigFieldMissingException,
+    ConfigurationValueError,
+)
 from dlt.common.utils import map_nested_keys_in_place
 
 from dlt._workspace.cli import utils as cli_utils
@@ -136,7 +139,7 @@ def get_local_data_path(pipeline: dlt.Pipeline) -> str:
         config = pipeline._get_destination_clients(dlt.Schema("temp"))[0].config
         if isinstance(config, WithLocalFiles):
             return config.local_dir
-    except (PipelineConfigMissing, ConfigFieldMissingException):
+    except (PipelineConfigMissing, ConfigFieldMissingException, ConfigurationValueError):
         pass
     return None
 

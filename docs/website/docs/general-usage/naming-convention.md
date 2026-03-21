@@ -92,7 +92,7 @@ Combined identifier is also a valid single identifier. Starting from
 Previously double underscores were contracted into single underscore. That
 prevented using data loaded by `dlt` as a data source without identifier modifications. `dlt` maintains backward compatibility for version >1.4.0 as follows:
 
-* All schemas stored locally or at destination will be migrated to backward compatible mode by setting a flag `use_break_path_on_normalize` ie.:
+* All schemas stored locally or at destination will be migrated to backward compatible mode by setting a flag `use_break_path_on_normalize` i.e.:
 ```yaml
 normalizers:
   names: dlt.common.normalizers.names.snake_case
@@ -214,7 +214,7 @@ import dlt
 dest_ = dlt.destinations.postgres(naming_convention="my_package.sql_cs_latin2")
 ```
 
-⛔ avoid this or you may get pickle errors ie. when using parallel normalization:
+⛔ avoid this or you may get pickle errors i.e. when using parallel normalization:
 ```py
 import dlt
 

@@ -1,6 +1,7 @@
 import pytest
 import sqlalchemy as sa
-from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
+from sqlalchemy.dialects.mssql import DATETIMEOFFSET, UNIQUEIDENTIFIER
+from sqlalchemy.dialects.oracle import DATE as OracleDATE
 from sqlalchemy.dialects.postgresql import UUID
 
 from dlt.sources.sql_database.schema_types import (
@@ -83,6 +84,25 @@ def test_default_table_adapter_sa2_generic_uuid() -> None:
     table = sa.Table("t", metadata, sa.Column("col", sa_uuid.Uuid()))
     default_table_adapter(table, included_columns=None)
     assert table.c.col.type.as_uuid is False
+
+
+@pytest.mark.parametrize(
+    "sql_type,expected_tz",
+    [
+        (sa.DateTime(timezone=False), False),
+        (sa.DateTime(timezone=True), True),
+        (OracleDATE(), False),
+        (DATETIMEOFFSET(), True),
+    ],
+    ids=["datetime_no_tz", "datetime_tz", "oracle_date", "mssql_datetimeoffset"],
+)
+def test_datetime_timezone_mapping(sql_type: sa.types.TypeEngine, expected_tz: bool) -> None:
+    """sqla_col_to_column_schema maps timezone correctly for DateTime types."""
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", sql_type))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema is not None
+    assert col_schema["timezone"] is expected_tz
 
 
 def test_get_table_references() -> None:

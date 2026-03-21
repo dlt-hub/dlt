@@ -627,6 +627,7 @@ def test_resource_custom_metrics(extract_step: Extract, with_custom_metrics: boo
                 "random_constant": 1.5,
                 "random_nested": {"value": 100, "unit": "items"},
                 "items_count": 90,
+                "events": [{"ts": 1}, {"ts": 2}],
             },
             "resource_with_other_metrics": {
                 "custom_count": 3,
@@ -683,6 +684,58 @@ def test_resource_custom_metrics(extract_step: Extract, with_custom_metrics: boo
         expected_custom_metrics["resource_with_other_metrics"]
         == all_resource_metrics["resource_with_other_metrics"].custom_metrics
     )
+
+    # verify _asdict() promotes list-valued metrics to top-level keys
+    if with_custom_metrics:
+        d = all_resource_metrics["resource_with_metrics"]._asdict()
+        assert d["events"] == [{"ts": 1}, {"ts": 2}]
+        assert "events" not in d.get("custom_metrics", {})
+        assert d["custom_metrics"]["custom_count"] == 42
+
+
+def test_asdict_all_list_metrics(extract_step: Extract) -> None:
+    """When all custom metrics are list-valued, no custom_metrics key appears in _asdict()."""
+
+    @dlt.resource
+    def only_lists():
+        m = dlt.current.resource_metrics()
+        m["rows"] = [{"a": 1}]
+        m["errors"] = [{"msg": "oops"}]
+        yield [{"id": 1}]
+
+    source = DltSource(dlt.Schema("all_list"), "module", [only_lists()])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    d = step_info.metrics[load_id][0]["resource_metrics"]["only_lists"]._asdict()
+    assert "custom_metrics" not in d
+    assert d["rows"] == [{"a": 1}]
+    assert d["errors"] == [{"msg": "oops"}]
+
+
+def test_asdict_list_metric_collision_with_standard_field(extract_step: Extract) -> None:
+    """List-valued custom metric whose key collides with a standard NamedTuple field
+    stays nested under custom_metrics so it cannot overwrite standard metrics."""
+
+    @dlt.resource
+    def collision():
+        m = dlt.current.resource_metrics()
+        # items_count is a standard DataWriterMetrics field
+        m["items_count"] = [{"v": 99}]
+        m["safe_list"] = [{"v": 1}]
+        yield [{"id": 1}]
+
+    source = DltSource(dlt.Schema("collision"), "module", [collision()])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    metrics = step_info.metrics[load_id][0]["resource_metrics"]["collision"]
+    d = metrics._asdict()
+    # standard field preserved
+    assert isinstance(d["items_count"], int)
+    # colliding list metric stays in custom_metrics
+    assert d["custom_metrics"]["items_count"] == [{"v": 99}]
+    # non-colliding list metric promoted
+    assert d["safe_list"] == [{"v": 1}]
+    assert "safe_list" not in d.get("custom_metrics", {})
 
 
 @pytest.mark.parametrize(
@@ -786,6 +839,8 @@ def test_add_metrics(extract_step: Extract, as_single_batch: bool) -> None:
             priority = meta["priority"]
             key = f"{priority}_priority_count"
             metrics[key] = metrics.get(key, 0) + 1
+            # collect list-valued metric for child table promotion
+            metrics.setdefault("seen_priorities", []).append({"priority": priority})
 
     data_with_priority.add_metrics(count_by_priority)
 
@@ -805,6 +860,13 @@ def test_add_metrics(extract_step: Extract, as_single_batch: bool) -> None:
     assert source.resources["data_with_priority"].custom_metrics == {
         "high_priority_count": 2,
         "low_priority_count": 3,
+        "seen_priorities": [
+            {"priority": "high"},
+            {"priority": "high"},
+            {"priority": "low"},
+            {"priority": "low"},
+            {"priority": "low"},
+        ],
     }
 
     step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
@@ -823,7 +885,26 @@ def test_add_metrics(extract_step: Extract, as_single_batch: bool) -> None:
     assert all_resource_metrics["data_with_priority"].custom_metrics == {
         "high_priority_count": 2,
         "low_priority_count": 3,
+        "seen_priorities": [
+            {"priority": "high"},
+            {"priority": "high"},
+            {"priority": "low"},
+            {"priority": "low"},
+            {"priority": "low"},
+        ],
     }
+
+    # verify _asdict() promotes list-valued metrics to top-level keys
+    d = all_resource_metrics["data_with_priority"]._asdict()
+    assert d["seen_priorities"] == [
+        {"priority": "high"},
+        {"priority": "high"},
+        {"priority": "low"},
+        {"priority": "low"},
+        {"priority": "low"},
+    ]
+    assert "seen_priorities" not in d.get("custom_metrics", {})
+    assert d["custom_metrics"]["high_priority_count"] == 2
 
 
 def test_object_mixed_case_columns_normalized(extract_step: Extract) -> None:

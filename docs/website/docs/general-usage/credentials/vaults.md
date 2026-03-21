@@ -208,7 +208,6 @@ For example, the following keys would be fetched similarly to environment variab
 * `destination-bigquery-credentials-client_email`
 * `destination-bigquery-location`
 
-Moved this from caution to the main content
 **Naming convention for Google Secrets**
 
 Secret names are normalized to contain letters, digits, hyphens (-), and underscores (_).

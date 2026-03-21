@@ -170,7 +170,7 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         if self.timeout is not None:
             execution["timeout"] = _normalize_timeout(self.timeout)
         if self.job_type == "interactive":
-            timeout = execution.get("timeout", {})
+            timeout: TTimeoutSpec = execution.get("timeout") or {}
             if "grace_period" not in timeout:
                 timeout["grace_period"] = 5.0
                 execution["timeout"] = timeout

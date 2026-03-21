@@ -7,6 +7,7 @@ from typing import Any, ClassVar, Dict, Final, List, TYPE_CHECKING
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.version import __version__
 from dlt.common.configuration import configspec
+from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.typing import TSecretStrValue
@@ -91,6 +92,13 @@ class MotherDuckCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
 
     def on_resolved(self) -> None:
         """Adds custom agent to global config"""
+        if self.database == "":
+            raise MotherDuckCatalogMissing(
+                self.__class__,
+                "md:",
+                "MotherDuck connection string must include a catalog/database name, for example"
+                " `md:my_db`.",
+            )
         if self.global_config is None:
             self.global_config = {}
         self.global_config["custom_user_agent"] = self.custom_user_agent or MOTHERDUCK_USER_AGENT
@@ -120,6 +128,10 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
         if self.credentials and self.credentials.password:
             return digest128(self.credentials.password)
         return ""
+
+
+class MotherDuckCatalogMissing(NativeValueError):
+    pass
 
 
 class MotherduckLocalVersionNotSupported(DestinationTerminalException):

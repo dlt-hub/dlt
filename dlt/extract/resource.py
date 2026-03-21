@@ -474,9 +474,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._pipe.remove_by_type(Incremental, IncrementalResourceWrapper)
 
     def set_incremental(
-        self,
-        new_incremental: Union[Incremental[Any], IncrementalResourceWrapper],
-        from_hints: bool = False,
+        self, new_incremental: Union[Incremental[Any], IncrementalResourceWrapper]
     ) -> Optional[Union[Incremental[Any], IncrementalResourceWrapper]]:
         """Set/replace the incremental transform for the resource.
 
@@ -486,6 +484,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         """
         if new_incremental is Incremental.EMPTY:
             new_incremental = None
+        if new_incremental:
+            # set primary key as dedup key on new incremental
+            if resource_primary_key := self._hints.get("primary_key"):
+                new_incremental.set_deduplication_key(resource_primary_key, from_hints=True)
         incremental = self.incremental
         if incremental is not None:
             # if isinstance(new_incremental, Mapping):
@@ -496,7 +498,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 self._remove_incremental_step()
                 self.add_step(new_incremental)
             elif isinstance(incremental, IncrementalResourceWrapper):
-                incremental.set_incremental(new_incremental, from_hints=from_hints)
+                incremental.set_incremental(new_incremental, from_hints=True)
             else:
                 self._remove_incremental_step()
                 # re-add the step
@@ -517,16 +519,12 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if not create_table_variant:
             # try to late assign incremental
             if table_schema_template.get("incremental") is not None:
-                incremental = self.set_incremental(
-                    table_schema_template["incremental"], from_hints=True
-                )
-            else:
-                incremental = self.incremental
-
-            if incremental:
-                primary_key = table_schema_template.get("primary_key", incremental.primary_key)
-                if primary_key is not None:
-                    incremental.primary_key = primary_key
+                self.set_incremental(table_schema_template["incremental"])
+            elif incremental := self.incremental:
+                # set primary key as dedup key on new incremental
+                resource_primary_key = self._hints.get("primary_key")
+                if resource_primary_key is not None:
+                    incremental.set_deduplication_key(resource_primary_key, from_hints=True)
 
             if table_schema_template.get("validator") is not None:
                 self.validator = table_schema_template["validator"]
@@ -714,7 +712,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         incremental: IncrementalResourceWrapper = None
         sig = inspect.signature(gen)
         if IncrementalResourceWrapper.should_wrap(sig):
-            incremental = IncrementalResourceWrapper(self._hints.get("primary_key"))
+            incremental = IncrementalResourceWrapper()
             if incr_hint := self._hints.get("incremental"):
                 incremental.set_incremental(
                     incr_hint,

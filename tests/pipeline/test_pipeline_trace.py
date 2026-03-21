@@ -258,7 +258,6 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert isinstance(pipeline.last_trace.last_extract_info, ExtractInfo)
 
 
-@pytest.mark.forked
 def test_trace_schema() -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
@@ -296,7 +295,7 @@ def test_trace_schema() -> None:
                 }
             ],
         )
-        def data():
+        def data(id_=dlt.sources.incremental("id")):
             yield [{"id": 1, "multi": "1.2"}, {"id": 2}, {"id": 3}]
 
         return data()
@@ -353,11 +352,15 @@ def test_trace_schema() -> None:
     trace = pipeline.last_trace
     pipeline._schema_storage.storage.save("trace.json", json.dumps(trace, pretty=True))
 
-    schema = dlt.Schema("trace")
+    # load existing contract as schema and let it evolve with new columns/tables
+    with open(f"{PIPELINE_TEST_CASES_PATH}/contracts/trace.schema.yaml", encoding="utf-8") as f:
+        imported_schema = yaml.safe_load(f)
+    evolving_schema = Schema.from_dict(imported_schema, remove_processing_hints=True)
+
     trace_pipeline = dlt.pipeline(
         pipeline_name="test_trace_schema_traces", destination=dummy(completed_prob=1.0)
     )
-    trace_pipeline.run([trace], table_name="trace", schema=schema)
+    trace_pipeline.run([trace], table_name="trace", schema=evolving_schema)
 
     # add exception trace
     with pytest.raises(PipelineStepFailed):
@@ -378,10 +381,10 @@ def test_trace_schema() -> None:
     pipeline._schema_storage.storage.save("trace.schema.yaml", inferred_contract_str)
     # print(pipeline._schema_storage.storage.storage_path)
 
-    # load the schema and use it as contract
+    # reload the original contract and use it with freeze to verify no breaking changes
     with open(f"{PIPELINE_TEST_CASES_PATH}/contracts/trace.schema.yaml", encoding="utf-8") as f:
-        imported_schema = yaml.safe_load(f)
-    trace_contract = Schema.from_dict(imported_schema, remove_processing_hints=True)
+        contract_schema = yaml.safe_load(f)
+    trace_contract = Schema.from_dict(contract_schema, remove_processing_hints=True)
     # compare pretty forms of the schemas, they must be identical
     # NOTE: if this fails you can comment this out and use contract run below to find first offending difference
     # assert trace_contract.to_pretty_yaml() == inferred_contract_str
@@ -782,10 +785,7 @@ def test_trace_custom_metrics_schema() -> None:
     assert "custom_metrics__random_constant" in resource_metrics_table_cols
     assert "custom_metrics__random_nested__value" in resource_metrics_table_cols
     assert "custom_metrics__random_nested__unit" in resource_metrics_table_cols
-    assert (
-        "trace__steps__extract_info__resource_metrics__custom_metrics__list_metric"
-        in inferred_schema.tables
-    )
+    assert "trace__steps__extract_info__resource_metrics__list_metric" in inferred_schema.tables
 
 
 @pytest.mark.skipif(
