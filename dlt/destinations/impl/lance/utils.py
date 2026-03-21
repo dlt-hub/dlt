@@ -6,6 +6,7 @@ from pyarrow import ArrowInvalid
 from pyarrow import types as pat
 
 import lance
+from lance.namespace import LanceNamespace
 from lancedb.table import _append_vector_columns
 
 from dlt.common import logger
@@ -63,33 +64,28 @@ def create_in_filter(field_name: str, array: pa.Array) -> str:
     return f"{field_name} IN ({', '.join(map(escape_lancedb_literal, values_py))})"
 
 
-def create_empty_lance_dataset(schema: pa.Schema, uri: str) -> lance.LanceDataset:
-    return lance.write_dataset(schema.empty_table(), uri)
-
-
 def write_records(
     records: Union[pa.RecordBatchReader, List[Dict[str, Any]]],
     /,
     *,
-    lance_uri: str,
-    table_name: str,
+    namespace: LanceNamespace,
+    table_id: List[str],
     write_disposition: Optional[TWriteDisposition] = "append",
     merge_key: Optional[str] = None,
     when_not_matched_by_source_delete_expr: Optional[str] = None,
 ) -> None:
-    """Inserts records into a LanceDB table with automatic embedding computation.
+    """Inserts records into lLance table with automatic embedding computation.
 
     Args:
         records: The data to be inserted as payload.
-        lance_uri: URI for directory containing the .lance table.
-        table_name: The name of the table to insert into.
+        namespace: Lance namespace containing the table.
+        table_id: Hierarchical table identifier, e.g. [dataset_name, table_name].
         merge_key: Keys for update/merge operations.
         write_disposition: The write disposition - one of 'skip', 'append', 'replace', 'merge'.
         when_not_matched_by_source_delete_expr: Optional SQL filter applied to
             `when_not_matched_by_source_delete` during a merge.
     """
-    uri = _make_lance_table_uri(lance_uri, table_name)
-    ds = lance.dataset(uri)
+    ds = lance.dataset(namespace=namespace, table_id=table_id)
 
     if isinstance(records, pa.RecordBatchReader):
         records = _append_vector_columns(records, schema=ds.schema)
@@ -109,17 +105,13 @@ def write_records(
             merge_builder.execute(records)
         else:
             raise DestinationTerminalException(
-                f"Unsupported `{write_disposition=:}` for LanceDB Destination - batch"
+                f"Unsupported `{write_disposition=:}` for Lance Destination - batch"
                 " failed AND WILL **NOT** BE RETRIED."
             )
     except ArrowInvalid as e:
         raise DestinationTerminalException(
             "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
         ) from e
-
-
-def _make_lance_table_uri(lance_uri: str, table_name: str) -> str:
-    return f"{lance_uri}/{table_name}.lance"
 
 
 def _align_schema(source: pa.RecordBatchReader, target_schema: pa.Schema) -> pa.RecordBatchReader:

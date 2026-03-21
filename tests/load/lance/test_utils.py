@@ -1,17 +1,18 @@
+from pathlib import Path
 from typing import Any, Dict
 
+import lance
 import lancedb
 import numpy as np
 import pyarrow as pa
 import pytest
+from lance.namespace import CreateNamespaceRequest, DirectoryNamespace
 from lancedb.embeddings import EmbeddingFunctionRegistry
 
 import dlt
 from dlt.common.schema import Schema
 from dlt.destinations.impl.lance.schema import make_arrow_table_schema
 from dlt.destinations.impl.lance.utils import (
-    _make_lance_table_uri,
-    create_empty_lance_dataset,
     set_non_standard_providers_environment_variables,
     write_records,
 )
@@ -20,7 +21,7 @@ from dlt.destinations.impl.lance.utils import (
 pytestmark = pytest.mark.essential
 
 
-def test_write_records_matches_lancedb_table_add(tmp_path: str) -> None:
+def test_write_records_matches_lancedb_table_add(tmp_path: Path) -> None:
     """Asserts `write_records` util produces same table as `lancedb.Table.add()`.
 
     We assert this, primarily, to ensure `write_records` produces correct vector embeddings.
@@ -57,7 +58,7 @@ def test_write_records_matches_lancedb_table_add(tmp_path: str) -> None:
         embedding_model_func=model_func,
     )
 
-    lance_uri = tmp_path
+    lance_uri = str(tmp_path)
     db = lancedb.connect(lance_uri)
     records = pa.table(
         {
@@ -71,12 +72,17 @@ def test_write_records_matches_lancedb_table_add(tmp_path: str) -> None:
     db.open_table("lancedb").add(records)
 
     # create table + vectors with our `write_records` util
-    create_empty_lance_dataset(arrow_schema, uri=_make_lance_table_uri(lance_uri, "write_records"))
-    write_records(records.to_reader(), lance_uri=lance_uri, table_name="write_records")
+    namespace = DirectoryNamespace(root=lance_uri)
+    dataset_name = "foo"
+    table_name = "write_records"
+    table_id = [dataset_name, table_name]
+    namespace.create_namespace(CreateNamespaceRequest(id=[dataset_name]))
+    lance.write_dataset(arrow_schema.empty_table(), namespace=namespace, table_id=table_id)
+    write_records(records.to_reader(), namespace=namespace, table_id=table_id)
 
-    # assert equality between between the two tables
+    # assert equality between the two tables
     lancedb_tbl = db.open_table("lancedb").to_arrow()
-    write_records_tbl = db.open_table("write_records").to_arrow()
+    write_records_tbl = lance.dataset(namespace=namespace, table_id=table_id).to_table()
     # exact equality for non-vector fields
     assert write_records_tbl.select(["doc_id", "text"]).equals(
         lancedb_tbl.select(["doc_id", "text"])

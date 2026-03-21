@@ -32,7 +32,7 @@ class LanceLoadJob(RunnableLoadJob):
         self._table_schema: TTableSchema = table_schema
 
     def run(self) -> None:
-        fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
+        table_name: str = self._table_schema["name"]
         write_disposition: TWriteDisposition = cast(
             TWriteDisposition, self._load_table.get("write_disposition", "append")
         )
@@ -54,8 +54,8 @@ class LanceLoadJob(RunnableLoadJob):
 
         write_records(
             self._get_file_reader(self._file_path),
-            lance_uri=self._job_client.config.lance_uri,
-            table_name=fq_table_name,
+            namespace=self._job_client.namespace,
+            table_id=self._job_client.make_table_id(table_name),
             write_disposition=write_disposition,
             merge_key=merge_key,
             when_not_matched_by_source_delete_expr=when_not_matched_by_source_delete_expr,

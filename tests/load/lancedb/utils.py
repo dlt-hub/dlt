@@ -26,15 +26,39 @@ def destination_config(request: pytest.FixtureRequest) -> DestinationTestConfigu
     return request.param
 
 
+def is_lancedb_client(client: TLanceDestinationClient) -> bool:
+    """Checks if client is instance of LanceDBClient without requiring that class to be imported."""
+    return client.__class__.__name__ == "LanceDBClient"
+
+
+def is_lance_client(client: TLanceDestinationClient) -> bool:
+    """Checks if client is instance of LanceClient without requiring that class to be imported."""
+    return client.__class__.__name__ == "LanceClient"
+
+
 def open_lance_table(client: TLanceDestinationClient, table_name: str) -> LanceTable:
-    # NOTE: we cannot use `isinstance` because classes are only imported for type checking; we resort to duck typing
-    # if isinstance(client, LanceDBClient):
-    if hasattr(client, "db_client"):  # LanceDBClient
+    # NOTE: we cannot use `isinstance` because classes are only imported for type checking
+    if is_lancedb_client(client):
+        from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
+
+        assert isinstance(client, LanceDBClient)
         qualified_table_name = client.make_qualified_table_name(table_name)
         return client.db_client.open_table(qualified_table_name)
-    # elif isinstance(client, LanceClient):
-    elif hasattr(client, "open_lance_table"):  # LanceClient
+    elif is_lance_client(client):
+        from dlt.destinations.impl.lance.lance_client import LanceClient
+
+        assert isinstance(client, LanceClient)
         return client.open_lance_table(table_name)
+
+
+def get_table_location(client: TLanceDestinationClient, table_name: str) -> str:
+    tbl = open_lance_table(client, table_name)
+    if is_lancedb_client(client):
+        return tbl._dataset_uri
+    elif is_lance_client(client):
+        return tbl._location
+    else:
+        raise ValueError("Unexpected client type")
 
 
 def assert_unordered_dicts_equal(

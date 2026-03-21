@@ -65,11 +65,6 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
     lance_uri: Optional[str] = None
     """Directory containing .lance datasets. Defaults to local `.lancedb` directory."""
     credentials: LanceCredentials = None
-    dataset_separator: str = "___"
-    """Character for the dataset separator."""
-    dataset_name: Final[Optional[str]] = dataclasses.field(  # type: ignore
-        default=None, init=False, repr=False, compare=False
-    )
 
     options: Optional[LanceClientOptions] = None
     """Lance client options."""
@@ -91,10 +86,6 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
     Make sure it corresponds with the associated embedding model's dimensionality."""
     vector_field_name: str = "vector"
     """Name of the special field to store the vector embeddings."""
-    sentinel_table_name: str = "dltSentinelTable"
-    """Name of the sentinel table that encapsulates datasets. Since LanceDB has no
-    concept of schemas, this table serves as a proxy to group related dlt tables together."""
-
     __config_gen_annotations__: ClassVar[List[str]] = [
         "lance_uri",
         "embedding_model",

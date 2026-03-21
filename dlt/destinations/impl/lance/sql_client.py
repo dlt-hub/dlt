@@ -22,6 +22,7 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.sql_client import raise_database_error, raise_open_connection_error
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
+from dlt.destinations.impl.lance.exceptions import is_lance_undefined_entity_exception
 
 if TYPE_CHECKING:
     from sqlglot import expressions as sge
@@ -56,7 +57,9 @@ def _create_and_use_duckdb_dataset(
 
 
 def _prepare_create_view_statement(lance_table_uri: str, view_name: str) -> str:
-    return f'CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM "{lance_table_uri}"'
+    # NOTE: direct querying fails with our Lance Directory Namespace Catalog Spec V2 table URIs, but
+    # luckily going through __lance_scan() does work
+    return f"CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM __lance_scan('{lance_table_uri}')"
 
 
 class LanceSQLClient(DuckDbSqlClient):
@@ -77,11 +80,7 @@ class LanceSQLClient(DuckDbSqlClient):
 
         self._conn = duckdb.connect(":memory:")
         _install_and_load_lance_duckdb_extension(self._conn)
-
-        # by default, LanceDB has `dataset_name=None`. To be consistent, it uses DuckDB's
-        # main schema by default
-        if self.lance_client.dataset_name:
-            _create_and_use_duckdb_dataset(self._conn, self.fully_qualified_dataset_name())
+        _create_and_use_duckdb_dataset(self._conn, self.fully_qualified_dataset_name())
 
         return self._conn
 
@@ -108,25 +107,16 @@ class LanceSQLClient(DuckDbSqlClient):
         with super().execute_query(query, *args, **kwargs) as cursor:
             yield cursor
 
+    @raise_database_error
     def create_view(self, table_name: str) -> None:
-        lance_table_uri = self.lance_client._get_lance_table_uri(table_name)
-
-        # lancedb allows omitting the dataset_name, calling `make_qualified_table_name` will
-        # prepend the dataset_name even if it is None
-        if self.dataset_name:
-            view_name = self.make_qualified_table_name(table_name)
-        else:
-            view_name = self.capabilities.escape_identifier(
-                self.capabilities.casefold_identifier(table_name)
-            )
-
         create_view_sql = _prepare_create_view_statement(
-            lance_table_uri=lance_table_uri,
-            view_name=view_name,
+            lance_table_uri=self.lance_client.get_table_uri(table_name),
+            view_name=self.make_qualified_table_name(table_name),
         )
-        try:
-            self.open_connection().execute(create_view_sql)
-        # Creating a DuckDB view will fail if the table doesn't exist in lance
-        # potential edge case: a table only exists in the ephemeral DuckDB
-        except duckdb.IOException as e:
-            raise DatabaseUndefinedRelation(e)
+        self.open_connection().execute(create_view_sql)
+
+    @classmethod
+    def _make_database_exception(cls, ex: Exception) -> Exception:
+        if is_lance_undefined_entity_exception(ex):
+            return DatabaseUndefinedRelation(ex)
+        return super()._make_database_exception(ex)

@@ -10,13 +10,19 @@ from typing import (
     TYPE_CHECKING,
 )
 
-import os
-import shutil
-
 import lance
 import lancedb
 import pyarrow as pa
 from lance import LanceDataset
+from lance.namespace import (
+    CreateNamespaceRequest,
+    DropNamespaceRequest,
+    DropTableRequest,
+    DirectoryNamespace,
+    ListTablesRequest,
+    NamespaceExistsRequest,
+    TableExistsRequest,
+)
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction
 from lancedb.table import LanceTable
 from lancedb.query import LanceQueryBuilder
@@ -53,6 +59,7 @@ from dlt.destinations.impl.lance.configuration import (
     LanceClientConfiguration,
 )
 from dlt.destinations.impl.lance.exceptions import (
+    is_lance_undefined_entity_exception,
     lance_error,
 )
 from dlt.destinations.impl.lance.jobs import LanceLoadJob
@@ -64,12 +71,9 @@ from dlt.destinations.impl.lance.schema import (
     make_arrow_field_schema,
     make_arrow_table_schema,
     TArrowSchema,
-    NULL_SCHEMA,
     TArrowField,
 )
 from dlt.destinations.impl.lance.utils import (
-    _make_lance_table_uri,
-    create_empty_lance_dataset,
     set_non_standard_providers_environment_variables,
     write_records,
 )
@@ -95,11 +99,11 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         super().__init__(schema, config, capabilities)
-        self.registry = EmbeddingFunctionRegistry.get_instance()
         self.config: LanceClientConfiguration = config
         self.type_mapper = self.capabilities.get_type_mapper()
-        self.sentinel_table_name = config.sentinel_table_name
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
+        self.namespace = DirectoryNamespace(root=self.config.lance_uri)
+        self.registry = EmbeddingFunctionRegistry.get_instance()
         self._sql_client: SqlClientBase[Any] = None
 
         embedding_model_provider = self.config.embedding_model_provider
@@ -139,62 +143,90 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def sql_client(self, client: SqlClientBase[Any]) -> None:
         self._sql_client = client
 
-    def make_qualified_table_name(self, table_name: str) -> str:
-        return (
-            f"{self.dataset_name}{self.config.dataset_separator}{table_name}"
-            if self.dataset_name
-            else table_name
-        )
+    def list_tables(self, namespace_name: str) -> List[str]:
+        """Lists tables in child namespace."""
+        return self.namespace.list_tables(ListTablesRequest(id=[namespace_name])).tables
 
-    def get_table_schema(self, table_name: str) -> TArrowSchema:
-        return self._get_lance_dataset(table_name).schema
+    def create_namespace(self, name: str) -> None:
+        """Creates child namespace in root namespace."""
+        self.namespace.create_namespace(CreateNamespaceRequest(id=[name]))
+
+    def drop_namespace(self, name: str) -> None:
+        """Drops child namespace after removing all its tables."""
+        for table in self.list_tables(name):
+            self.namespace.drop_table(DropTableRequest(id=[name, table]))
+        self.namespace.drop_namespace(DropNamespaceRequest(id=[name]))
+
+    def namespace_exists(self, name: str) -> bool:
+        """Returns True if child namespace exists in root namespace."""
+        try:
+            self.namespace.namespace_exists(NamespaceExistsRequest(id=[name]))
+            return True
+        except Exception as e:
+            if is_lance_undefined_entity_exception(e):
+                return False
+            raise
 
     @lance_error
     def create_table(self, table_name: str, schema: TArrowSchema) -> None:
-        """Create a lance dataset from the provided PyArrow schema.
+        """Creates empty lance dataset from provided PyArrow schema."""
+        lance.write_dataset(
+            schema.empty_table(),
+            namespace=self.namespace,
+            table_id=self.make_table_id(table_name),
+        )
 
-        Args:
-            schema: The table schema to create.
-            table_name: The name of the table to create.
-        """
-        create_empty_lance_dataset(schema, uri=self._get_lance_table_uri(table_name))
+    def drop_table(self, table_name: str) -> None:
+        """Drops table from lance dataset namespace."""
+        self.namespace.drop_table(DropTableRequest(id=self.make_table_id(table_name)))
 
-    def drop_table(self, table_name: str, is_qualified: bool = False) -> None:
-        """Drops a LanceDB table.
+    def table_exists(self, table_name: str) -> bool:
+        try:
+            self.namespace.table_exists(TableExistsRequest(id=self.make_table_id(table_name)))
+            return True
+        except Exception as e:
+            if is_lance_undefined_entity_exception(e):
+                return False
+            raise
 
-        Args:
-            table_name: The name of the table to drop.
-            is_qualified: Whether the provided table name is already qualified.
-        """
-        uri = self._get_lance_table_uri(table_name, is_qualified=is_qualified)
-        shutil.rmtree(uri, ignore_errors=True)
+    def make_table_id(self, table_name: str) -> List[str]:
+        """Returns namespace `table_id` for given table name."""
+        return [self.dataset_name, table_name]
 
-    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
-        """Drop multiple LanceDB tables.
+    def get_table_schema(self, table_name: str) -> TArrowSchema:
+        return self.open_lance_dataset(table_name).schema
 
-        Args:
-            table_names: The names of the tables to drop.
-        """
+    def get_table_uri(self, table_name: str) -> str:
+        return self.open_lance_dataset(table_name).uri
+
+    def drop_tables(self, *tables: str) -> None:
+        """Drops tables from lance dataset namespace."""
         for table_name in tables:
             self.drop_table(table_name)
 
-    @lance_error
     def drop_storage(self) -> None:
-        """Drop the dataset from the LanceDB instance.
+        """Drops dataset namespace and all its tables."""
+        if self.namespace_exists(self.dataset_name):
+            self.drop_namespace(self.dataset_name)
 
-        Deletes all tables in the dataset and all data, as well as sentinel table associated with them.
+    # NOTE: `lance` currently doesn't natively support truncating tables, so we drop + create instead
+    def truncate_table(self, table_name: str) -> None:
+        """Truncates table by dropping and recreating it with same schema."""
+        schema = self.get_table_schema(table_name)
+        self.drop_table(table_name)
+        self.create_table(table_name, schema)
 
-        If the dataset name wasn't provided, it deletes all the tables in the current schema.
-        """
-        for table_name in self._list_dlt_lance_tables():
-            self.drop_table(table_name, is_qualified=True)
+    def open_lance_dataset(self, table_name: str) -> LanceDataset:
+        """Returns lance dataset for given table name."""
+        return lance.dataset(namespace=self.namespace, table_id=self.make_table_id(table_name))
 
     def open_lance_table(self, table_name: str) -> LanceTable:
-        """Returns a LanceDB table for the specified table."""
-        db = self._get_lancedb_connection()
-        qualified_table_name = self.make_qualified_table_name(table_name)
-        location = self._get_lance_table_uri(table_name)
-        return LanceTable.open(db, qualified_table_name, location=location)
+        """Returns LanceDB table for given table name.
+
+        This provides access to LanceDB-specific features like vector search.
+        """
+        db = lancedb.connect(self.config.lance_uri)
+        return LanceTable.open(db, table_name, location=self.get_table_uri(table_name))
 
     def query_table(
         self,
@@ -212,21 +244,17 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         """
         return self.open_lance_table(table_name).search(query=query)
 
-    @lance_error
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
-            self._create_sentinel_table()
+            self.create_namespace(self.dataset_name)
         elif truncate_tables:
             for table_name in truncate_tables:
                 if not self.table_exists(table_name):
                     continue
-                schema = self.get_table_schema(table_name)
-                self.drop_table(table_name)
-                self.create_table(table_name, schema)
+                self.truncate_table(table_name)
 
-    @lance_error
     def is_storage_initialized(self) -> bool:
-        return self.table_exists(self.sentinel_table_name)
+        return self.namespace_exists(self.dataset_name)
 
     def verify_schema(
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
@@ -252,11 +280,6 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         return loaded_tables
 
-    def _create_sentinel_table(self) -> None:
-        """Create an empty table to indicate that the storage is initialized."""
-        self.create_table(schema=NULL_SCHEMA, table_name=self.sentinel_table_name)
-
-    @lance_error
     def update_stored_schema(
         self,
         only_tables: Iterable[str] = None,
@@ -301,8 +324,10 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         try:
             arrow_schema = self.get_table_schema(table_name)
-        except ValueError:
-            return False, table_schema
+        except Exception as e:
+            if is_lance_undefined_entity_exception(e):
+                return False, table_schema
+            raise
 
         field: TArrowField
         for field in arrow_schema:
@@ -322,14 +347,12 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             yield table_name, table_schema  # type: ignore[misc]
 
     @lance_error
-    def extend_lancedb_table_schema(self, table_name: str, field_schemas: List[pa.Field]) -> None:
-        """Extend LanceDB table schema with empty columns.
-
-        Args:
-        table_name: The name of the table to create the fields on.
-        field_schemas: The list of PyArrow Fields to create in the target LanceDB table.
-        """
-        self._get_lance_dataset(table_name).add_columns(field_schemas)
+    def add_null_columns_to_table(self, table_name: str, new_columns: List[TColumnSchema]) -> None:
+        new_fields: List[TArrowField] = [
+            make_arrow_field_schema(column["name"], column, self.type_mapper)
+            for column in new_columns
+        ]
+        self.open_lance_dataset(table_name).add_columns(new_fields)
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
@@ -342,11 +365,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
             if new_columns:
                 if exists:
-                    field_schemas: List[TArrowField] = [
-                        make_arrow_field_schema(column["name"], column, self.type_mapper)
-                        for column in new_columns
-                    ]
-                    self.extend_lancedb_table_schema(table_name, field_schemas)
+                    self.add_null_columns_to_table(table_name, new_columns)
                 else:
                     if table_name not in self.schema.dlt_table_names():
                         embedding_fields = get_columns_names_with_prop(
@@ -392,15 +411,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 ),
             }
         ]
-        fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
         write_disposition = self.schema.get_table(self.schema.version_table_name).get(
             "write_disposition"
         )
-
         write_records(
             records,
-            lance_uri=self.config.lance_uri,
-            table_name=fq_version_table_name,
+            namespace=self.namespace,
+            table_id=self.make_table_id(self.schema.version_table_name),
             write_disposition=write_disposition,
         )
 
@@ -423,8 +440,8 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         # Read the tables into memory as Arrow tables, with pushdown predicates, so we pull as little
         # data into memory as possible.
-        state_ds = self._get_lance_dataset(self.schema.state_table_name)
-        loads_ds = self._get_lance_dataset(self.schema.loads_table_name)
+        state_ds = self.open_lance_dataset(self.schema.state_table_name)
+        loads_ds = self.open_lance_dataset(self.schema.loads_table_name)
         state_table = state_ds.scanner(
             filter=f"`{p_pipeline_name}` = '{pipeline_name}'", prefilter=True
         ).to_table()
@@ -451,7 +468,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     @lance_error
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
-        ds = self._get_lance_dataset(self.schema.version_table_name)
+        ds = self.open_lance_dataset(self.schema.version_table_name)
         p_version_hash = self.schema.naming.normalize_identifier("version_hash")
         p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
         p_schema_name = self.schema.naming.normalize_identifier("schema_name")
@@ -492,7 +509,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         p_schema = self.schema.naming.normalize_identifier("schema")
 
         try:
-            version_dataset = self._get_lance_dataset(self.schema.version_table_name)
+            version_dataset = self.open_lance_dataset(self.schema.version_table_name)
             if schema_name:
                 schemas = version_dataset.scanner(
                     filter=f'`{p_schema_name}` = "{schema_name}"', prefilter=True
@@ -538,14 +555,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 ): self.schema.version_hash,
             }
         ]
-        fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)
         write_disposition = self.schema.get_table(self.schema.loads_table_name).get(
             "write_disposition"
         )
         write_records(
             records,
-            lance_uri=self.config.lance_uri,
-            table_name=fq_loads_table_name,
+            namespace=self.namespace,
+            table_id=self.make_table_id(self.schema.loads_table_name),
             write_disposition=write_disposition,
         )
 
@@ -553,49 +569,3 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         return LanceLoadJob(file_path, table)
-
-    def table_exists(self, table_name: str) -> bool:
-        return os.path.isdir(self._get_lance_table_uri(table_name))
-
-    @property
-    def _known_table_names(self) -> List[str]:
-        return [table_name for table_name in self.schema.tables] + [self.sentinel_table_name]
-
-    def _get_lancedb_connection(self) -> lancedb.DBConnection:
-        return lancedb.connect(self.config.lance_uri)
-
-    def _get_lance_table_uri(self, table_name: str, is_qualified: bool = False) -> str:
-        qualified_table_name = (
-            table_name if is_qualified else self.make_qualified_table_name(table_name)
-        )
-        return _make_lance_table_uri(self.config.lance_uri, qualified_table_name)
-
-    def _get_lance_dataset(self, table_name: str) -> LanceDataset:
-        """Returns Lance dataset for the specified table name.
-
-        Raises ValueError if dataset does not exist.
-        """
-        return lance.dataset(uri=self._get_lance_table_uri(table_name))
-
-    def _is_lance_table(self, path: str) -> bool:
-        return path.endswith(".lance") and os.path.isdir(path)
-
-    def _list_lance_tables(self) -> List[str]:
-        """Lists all Lance table directories in LanceDB directory."""
-        uri = self.config.lance_uri
-        try:
-            entries = os.listdir(uri)
-        except FileNotFoundError:  # directory does not exist (yet)
-            return []
-        return [
-            e.removesuffix(".lance") for e in entries if self._is_lance_table(os.path.join(uri, e))
-        ]
-
-    def _list_dlt_lance_tables(self) -> List[str]:
-        """Lists all dlt-managed Lance tables in LanceDB directory, including the sentinel table."""
-        all_tables = self._list_lance_tables()
-        if self.dataset_name:
-            prefix = f"{self.dataset_name}{self.config.dataset_separator}"
-            return [t for t in all_tables if t.startswith(prefix)]
-        else:
-            return [t for t in all_tables if t in self._known_table_names]
