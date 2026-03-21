@@ -135,21 +135,30 @@ def init_client(
 
     # update the staging dataset if client supports this
     if isinstance(job_client, WithStagingDataset):
-        # get staging tables (all data tables that are eligible)
+        # get staging tables with jobs in this load (used for truncation)
         staging_tables = set(
             _extend_tables_with_table_chain(
                 schema, tables_with_jobs, tables_with_jobs, load_staging_filter
             )
         )
+        # get all staging-eligible tables (seen-data + pass staging filter) so their
+        # DDL is included in update_stored_schema. this prevents missing tables when
+        # the schema hash was stored after a partial DDL run (#2862)
+        all_data_tables = schema.data_table_names()
+        all_staging_tables = set(
+            _extend_tables_with_table_chain(
+                schema, all_data_tables, all_data_tables, load_staging_filter
+            )
+        )
 
         # if there are tables to drop, we should also drop them in the staging dataset
-        if staging_tables or drop_table_names:
+        if all_staging_tables or drop_table_names:
             with job_client.with_staging_dataset():
                 _init_dataset_and_update_schema(
                     job_client,
                     expected_update,
-                    staging_tables | {schema.version_table_name},  # keep only schema version
-                    staging_tables,  # all eligible tables must be also truncated
+                    all_staging_tables | {schema.version_table_name},
+                    staging_tables,  # only truncate tables with jobs in this load
                     staging_info=True,
                     drop_tables=drop_table_names,  # try to drop all the same tables on staging
                 )
