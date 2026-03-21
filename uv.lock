@@ -2072,7 +2072,8 @@ dependencies = [
     { name = "boto3-stubs", extra = ["athena", "glue", "lakeformation", "sts"] },
     { name = "dbt-core" },
     { name = "mmh3" },
-    { name = "pyathena" },
+    { name = "pyathena", version = "3.20.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pyathena", version = "3.30.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "pydantic", version = "2.11.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "pydantic", version = "2.12.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "tenacity" },
@@ -2451,7 +2452,8 @@ athena = [
     { name = "botocore" },
     { name = "pyarrow", version = "21.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "pyarrow", version = "23.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "pyathena" },
+    { name = "pyathena", version = "3.20.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pyathena", version = "3.30.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "s3fs" },
 ]
 az = [
@@ -8240,17 +8242,74 @@ wheels = [
 
 [[package]]
 name = "pyathena"
-version = "3.0.6"
+version = "3.20.0"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "boto3" },
-    { name = "botocore" },
-    { name = "fsspec" },
-    { name = "tenacity" },
+resolution-markers = [
+    "python_full_version < '3.10' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version < '3.10' and os_name != 'nt' and sys_platform == 'emscripten'",
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e7/35/96220131fc6259b9b18972ad82b26d5aac85c35238514d93606e086f126a/pyathena-3.0.6.tar.gz", hash = "sha256:ee6ea175134894209af2c6be1859b7be4371f7741faa7a58f9f97905ff6a73a4", size = 67070, upload-time = "2023-07-16T15:46:56.75Z" }
+dependencies = [
+    { name = "boto3", marker = "python_full_version < '3.10'" },
+    { name = "botocore", marker = "python_full_version < '3.10'" },
+    { name = "fsspec", marker = "python_full_version < '3.10'" },
+    { name = "python-dateutil", marker = "python_full_version < '3.10'" },
+    { name = "tenacity", marker = "python_full_version < '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/50/dc/06e9491a2368d16d4917463552fbb609c98c4f44a2e86e367ad237337bff/pyathena-3.20.0.tar.gz", hash = "sha256:ee7147db6cf0986e169b6f2a98a04b1ba1a7bff7911423d4fa82953ac90147cc", size = 87524, upload-time = "2025-11-08T14:32:18.501Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/ff/8b225e3e7e1e3abe99660a485aef7d5cd7afe05598cbad9256c49c8b9ded/pyathena-3.0.6-py3-none-any.whl", hash = "sha256:27fb606a73644e62be8ef9b86cdf583ab3cb9f8cac9c2ad8f05b7ad6d4eaaa87", size = 73334, upload-time = "2023-07-16T15:46:53.515Z" },
+    { url = "https://files.pythonhosted.org/packages/93/59/6410e3fc928db7af3a3a1a78cc728ffd62798a5dc5cbf7d3dfc68c18e39e/pyathena-3.20.0-py3-none-any.whl", hash = "sha256:205542699bbc28f7751c45bb7c7c8bdcda2a6d4f9df31b7b977a19776244084c", size = 113409, upload-time = "2025-11-08T14:32:16.761Z" },
+]
+
+[[package]]
+name = "pyathena"
+version = "3.30.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.14' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.13.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.12.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.11.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.10.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.12.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.11.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.10.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+]
+dependencies = [
+    { name = "boto3", marker = "python_full_version >= '3.10'" },
+    { name = "botocore", marker = "python_full_version >= '3.10'" },
+    { name = "fsspec", marker = "python_full_version >= '3.10'" },
+    { name = "python-dateutil", marker = "python_full_version >= '3.10'" },
+    { name = "tenacity", marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7c/e5/325928cb2bcdca8080fdfa3e6ef13d46972b0d81870011efa5e048c936d9/pyathena-3.30.0.tar.gz", hash = "sha256:775d7b1960dce5920e72f0e7767941396ae330480ace5fc34f987df374a3a42d", size = 135662, upload-time = "2026-02-28T13:05:47.477Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/18/8c/7a2906b5a0d5c95077ac52246e33851ec86b57c9831e32705e9f91f0735d/pyathena-3.30.0-py3-none-any.whl", hash = "sha256:6f65522fb0390d147d18c58cf62a7e1744cdf76099c392756cf5692cc845553b", size = 191504, upload-time = "2026-02-28T13:05:46.011Z" },
 ]
 
 [[package]]
