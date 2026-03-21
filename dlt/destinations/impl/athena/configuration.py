@@ -44,8 +44,13 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     def to_connector_params(self, use_catalog_name: bool = True) -> Dict[str, Any]:
         native_credentials = self.credentials.to_native_representation()
+        # pyathena's wrap_unload concatenates s3_staging_dir with "unload/" without
+        # a separator, so we must ensure the trailing slash is present
+        s3_staging_dir = self.query_result_bucket
+        if s3_staging_dir and not s3_staging_dir.endswith("/"):
+            s3_staging_dir += "/"
         return {
-            "s3_staging_dir": self.query_result_bucket,
+            "s3_staging_dir": s3_staging_dir,
             "work_group": self.athena_work_group,
             "catalog_name": self.aws_data_catalog if use_catalog_name else None,
             **(self.connection_params or {}),
