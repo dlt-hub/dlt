@@ -14,6 +14,7 @@ from dlt._workspace.deployment._trigger_helpers import (
     parse_trigger,
     normalize_trigger,
     normalize_triggers,
+    matched_triggers,
     matches_selector,
     filter_jobs_by_selectors,
 )

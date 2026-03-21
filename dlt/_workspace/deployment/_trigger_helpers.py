@@ -211,22 +211,41 @@ _JOB_TYPE_SELECTORS = {"batch", "interactive", "stream", "job"}
 _TRIGGER_TYPE_NAMES = set(PARSERS.keys())
 
 
+def _normalize_selector(selector: str) -> str:
+    """Expand shorthand selectors to glob form."""
+    if selector in _TRIGGER_TYPE_NAMES:
+        return f"{selector}:*"
+    if ":" in selector and selector.endswith(":"):
+        return f"{selector}*"
+    return selector
+
+
+def matched_triggers(job_def: TJobDefinition, selectors: List[str]) -> List[TTrigger]:
+    """Return triggers from job_def that match any of the selectors.
+
+    Job-type selectors (batch, interactive) match ALL triggers on the job.
+    """
+    triggers = job_def.get("triggers", [])
+    matched: List[TTrigger] = []
+
+    for selector in selectors:
+        if selector in _JOB_TYPE_SELECTORS:
+            job_type = job_def["entry_point"]["job_type"]
+            if (selector == "job" and job_type == "batch") or job_type == selector:
+                return list(triggers)
+            continue
+
+        pattern = _normalize_selector(selector)
+        for t in triggers:
+            if t not in matched and fnmatch(t, pattern):
+                matched.append(t)
+
+    return matched
+
+
 def matches_selector(selector: str, job_def: TJobDefinition) -> bool:
     """Check if a job definition matches a selector."""
-    if selector in _JOB_TYPE_SELECTORS:
-        job_type = job_def["entry_point"]["job_type"]
-        if selector == "job":
-            return job_type == "batch"
-        return job_type == selector
-
-    triggers = job_def.get("triggers", [])
-
-    if selector in _TRIGGER_TYPE_NAMES:
-        selector = f"{selector}:*"
-    elif ":" in selector and selector.endswith(":"):
-        selector = f"{selector}*"
-
-    return any(fnmatch(t, selector) for t in triggers)
+    return bool(matched_triggers(job_def, [selector]))
 
 
 def filter_jobs_by_selectors(
@@ -235,4 +254,4 @@ def filter_jobs_by_selectors(
     """Filter jobs matching any of the selectors. Empty = all."""
     if not selectors:
         return list(jobs)
-    return [j for j in jobs if any(matches_selector(s, j) for s in selectors)]
+    return [j for j in jobs if matched_triggers(j, selectors)]

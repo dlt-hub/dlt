@@ -1116,11 +1116,6 @@ workspace info.
             ),
         )
         run_parser.add_argument(
-            "--run-manual",
-            action="store_true",
-            help="Trigger all jobs with manual trigger",
-        )
-        run_parser.add_argument(
             "--with-future",
             action="store_true",
             help="Schedule future jobs (cron, every, once)",
@@ -1129,6 +1124,11 @@ workspace info.
             "--with-future-once",
             action="store_true",
             help="Schedule future jobs but fire each only once",
+        )
+        run_parser.add_argument(
+            "--without-followup",
+            action="store_true",
+            help="Do not collect event-triggered downstream jobs",
         )
         run_parser.add_argument(
             "--no-use-all",
@@ -1178,10 +1178,10 @@ workspace info.
             exit_code = run_from_module(
                 module_name=args.deployment_module,
                 trigger_selectors=args.select,
-                run_manual=args.run_manual,
                 use_all=not args.no_use_all,
                 with_future=args.with_future,
                 with_future_once=args.with_future_once,
+                without_followup=args.without_followup,
                 dry_run=args.dry_run,
                 verbose=args.verbose,
                 warn=fmt.warning,

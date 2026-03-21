@@ -6,6 +6,7 @@ import pytest
 
 from dlt._workspace.deployment._trigger_helpers import (
     filter_jobs_by_selectors,
+    matched_triggers,
     matches_selector,
     normalize_trigger,
     normalize_triggers,
@@ -445,3 +446,75 @@ def test_filter_jobs_manual_selector() -> None:
     filtered = filter_jobs_by_selectors(jobs, ["manual:jobs.batch_jobs.*"])
     assert len(filtered) == 2
     assert all("batch_jobs" in j["job_ref"] for j in filtered)
+
+
+@pytest.mark.parametrize(
+    "selectors,job_triggers,expected_matched",
+    [
+        # single selector matches single trigger
+        (["tag:backfill"], ["tag:backfill", "manual:jobs.x"], ["tag:backfill"]),
+        # single selector matches nothing
+        (["tag:deploy"], ["tag:backfill", "manual:jobs.x"], []),
+        # multiple selectors OR-ed, each matches its trigger
+        (
+            ["tag:*", "schedule:*"],
+            ["tag:daily", "schedule:0 8 * * *", "manual:jobs.x"],
+            ["tag:daily", "schedule:0 8 * * *"],
+        ),
+        # manual:* matches manual trigger only
+        (["manual:*"], ["tag:daily", "manual:jobs.x"], ["manual:jobs.x"]),
+        # schedule:* does NOT match manual
+        (["schedule:*"], ["schedule:0 8 * * *", "manual:jobs.x"], ["schedule:0 8 * * *"]),
+        # every:* matches every trigger only
+        (["every:*"], ["every:30s", "manual:jobs.x"], ["every:30s"]),
+        # glob on tag expression
+        (["tag:back*"], ["tag:backfill", "tag:deploy"], ["tag:backfill"]),
+        # http: matches http
+        (["http:*"], ["http:", "manual:jobs.x"], ["http:"]),
+        # empty selectors = empty result
+        ([], ["tag:daily", "manual:jobs.x"], []),
+        # job.success selector matches event triggers
+        (["job.success:*"], ["job.success:jobs.a", "manual:jobs.x"], ["job.success:jobs.a"]),
+        # manual glob with job ref
+        (
+            ["manual:jobs.mod.*"],
+            ["manual:jobs.mod.backfill", "tag:daily"],
+            ["manual:jobs.mod.backfill"],
+        ),
+    ],
+    ids=[
+        "single-tag-match",
+        "single-tag-miss",
+        "multi-selector-or",
+        "manual-star",
+        "schedule-not-manual",
+        "every-not-manual",
+        "glob-tag-expr",
+        "http-match",
+        "empty-selectors",
+        "event-trigger-match",
+        "manual-glob-ref",
+    ],
+)
+def test_matched_triggers(
+    selectors: List[str],
+    job_triggers: List[str],
+    expected_matched: List[str],
+) -> None:
+    j = _job("jobs.mod.x", job_triggers, manual=False)
+    result = matched_triggers(j, selectors)
+    assert result == [TTrigger(t) for t in expected_matched]
+
+
+def test_matched_triggers_job_type_returns_all() -> None:
+    """Job type selector (batch, interactive) returns ALL triggers."""
+    j = _job("jobs.mod.x", ["tag:daily", "schedule:0 8 * * *"], job_type="batch")
+    result = matched_triggers(j, ["batch"])
+    assert len(result) == len(j["triggers"])
+
+
+def test_matched_triggers_deduplicates() -> None:
+    """Overlapping selectors don't produce duplicate triggers."""
+    j = _job("jobs.mod.x", ["tag:backfill"], manual=False)
+    result = matched_triggers(j, ["tag:*", "tag:backfill"])
+    assert result == [TTrigger("tag:backfill")]

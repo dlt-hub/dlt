@@ -1,7 +1,7 @@
 """Trigger scheduler for local workspace runner."""
 
 import time
-from typing import Dict, FrozenSet, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from dlt.common.pendulum import pendulum
 
@@ -22,12 +22,6 @@ class ScheduledItem:
         self.repeating = repeating
 
 
-# trigger type groups for filtering
-IMMEDIATE_TYPES: FrozenSet[str] = frozenset({"http", "deployment", "manual", "tag", "every"})
-TIMED_TYPES: FrozenSet[str] = frozenset({"schedule", "every", "once"})
-EVENT_TYPES: FrozenSet[str] = frozenset({"job.success", "job.fail"})
-
-
 class TriggerScheduler:
     """Manages trigger evaluation and future job scheduling."""
 
@@ -42,28 +36,21 @@ class TriggerScheduler:
         self._timed: List[ScheduledItem] = []
         self._warnings: List[str] = []
 
-    def register_job(
+    def register_triggers(
         self,
         job_def: TJobDefinition,
-        only: Optional[FrozenSet[str]] = None,
+        triggers: List[TTrigger],
     ) -> List[Tuple[TJobDefinition, TTrigger]]:
-        """Register a job's triggers. Returns (job, trigger) pairs that fire immediately.
-
-        Args:
-            job_def: Job definition with triggers.
-            only: If set, only process trigger types in this set. Others are skipped.
-        """
+        """Register specific triggers for a job. Returns pairs that fire immediately."""
         immediate: List[Tuple[TJobDefinition, TTrigger]] = []
 
-        for trigger in job_def.get("triggers", []):
+        for trigger in triggers:
             try:
                 parsed = parse_trigger(trigger)
             except ValueError:
                 continue
 
             tt = parsed.type
-            if only is not None and tt not in only:
-                continue
 
             if tt in ("http", "deployment", "manual", "tag"):
                 immediate.append((job_def, trigger))

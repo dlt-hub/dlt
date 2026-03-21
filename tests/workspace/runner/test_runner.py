@@ -47,9 +47,9 @@ def test_run_nothing_by_default(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_run_manual() -> None:
-    """--run-manual triggers all jobs with manual trigger."""
+    """--select manual:* triggers all jobs with manual trigger."""
     jobs = [_batch_job("jobs.batch_jobs.backfill")]
-    exit_code = run(jobs, run_manual=True)
+    exit_code = run(jobs, trigger_selectors=["manual:*"])
     assert exit_code == 0
 
 
@@ -70,7 +70,7 @@ def test_run_chained_jobs() -> None:
             function="transform",
         ),
     ]
-    exit_code = run(jobs, run_manual=True)
+    exit_code = run(jobs, trigger_selectors=["manual:*"])
     assert exit_code == 0
 
 

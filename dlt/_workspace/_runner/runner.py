@@ -19,8 +19,8 @@ from dlt._workspace.deployment.typing import (
     TTrigger,
 )
 from dlt._workspace._runner.process import JobProcess
-from dlt._workspace._runner.scheduler import EVENT_TYPES, TIMED_TYPES, TriggerScheduler
-from dlt._workspace.deployment._trigger_helpers import filter_jobs_by_selectors, parse_trigger
+from dlt._workspace._runner.scheduler import TriggerScheduler
+from dlt._workspace.deployment._trigger_helpers import matched_triggers, parse_trigger
 
 INTERACTIVE_PORT_START = 5000
 
@@ -231,22 +231,47 @@ def _resolve_selectors(selectors: List[str], jobs: List[TJobDefinition]) -> List
     return resolved
 
 
+TSelectedJob = Tuple[TJobDefinition, List[TTrigger]]
+"""A job paired with its matched triggers for scheduler registration."""
+
+
 def select_jobs(
     all_jobs: List[TJobDefinition],
     selectors: List[str],
-) -> Tuple[List[TJobDefinition], List[TJobDefinition]]:
-    """Select jobs by selectors and collect their transitive followup chain.
+    collect_followup: bool = True,
+) -> Tuple[List[TSelectedJob], List[TSelectedJob]]:
+    """Select jobs by matching selectors against triggers.
+
+    Selectors match triggers, not jobs. A job is included when at least one
+    of its triggers matches. Only matched triggers are registered with the
+    scheduler. Event-triggered downstream jobs are collected transitively.
+
+    Args:
+        all_jobs: All jobs from the manifest.
+        selectors: Trigger selectors (OR-ed). Each matches triggers via fnmatch.
 
     Returns:
-        Tuple of (directly_selected, followup). Directly selected jobs run with
-        all their triggers. Followup jobs only run via event triggers (job.success/fail).
+        Tuple of (selected, followup). Each entry is (job_def, matched_triggers).
+        Followup jobs have their event triggers as matched triggers.
     """
-    directly_selected = filter_jobs_by_selectors(all_jobs, selectors)
-    if not directly_selected:
+    if not selectors:
         return [], []
 
-    active_refs: Set[str] = {j["job_ref"] for j in directly_selected}
-    followup: List[TJobDefinition] = []
+    selected: List[TSelectedJob] = []
+    for j in all_jobs:
+        triggers = matched_triggers(j, selectors)
+        if triggers:
+            selected.append((j, triggers))
+
+    if not selected:
+        return [], []
+
+    if not collect_followup:
+        return selected, []
+
+    # collect event-triggered downstream jobs transitively
+    active_refs: Set[str] = {j["job_ref"] for j, _ in selected}
+    followup: List[TSelectedJob] = []
 
     changed = True
     while changed:
@@ -254,41 +279,20 @@ def select_jobs(
         for j in all_jobs:
             if j["job_ref"] in active_refs:
                 continue
+            event_triggers: List[TTrigger] = []
             for trigger in j.get("triggers", []):
                 try:
                     parsed = parse_trigger(trigger)
                 except ValueError:
                     continue
-                if parsed.type in ("job.success", "job.fail") and parsed.expr in active_refs:
-                    followup.append(j)
-                    active_refs.add(j["job_ref"])
-                    changed = True
-                    break
+                if parsed.type in ("job.success", "job.fail") and str(parsed.expr) in active_refs:
+                    event_triggers.append(trigger)
+            if event_triggers:
+                followup.append((j, event_triggers))
+                active_refs.add(j["job_ref"])
+                changed = True
 
-    return directly_selected, followup
-
-
-_TIMED_TRIGGER_TYPES = {"schedule", "every", "once"}
-
-
-def _collect_future_jobs(
-    all_jobs: List[TJobDefinition],
-    already_selected: Set[str],
-) -> List[TJobDefinition]:
-    """Collect jobs with timed triggers that aren't already selected."""
-    future: List[TJobDefinition] = []
-    for j in all_jobs:
-        if j["job_ref"] in already_selected:
-            continue
-        for trigger in j.get("triggers", []):
-            try:
-                parsed = parse_trigger(trigger)
-            except ValueError:
-                continue
-            if parsed.type in _TIMED_TRIGGER_TYPES:
-                future.append(j)
-                break
-    return future
+    return selected, followup
 
 
 def _display_manifest(jobs: List[TJobDefinition], max_name_len: int) -> None:
@@ -310,9 +314,9 @@ def _display_manifest(jobs: List[TJobDefinition], max_name_len: int) -> None:
 def run(
     jobs: List[TJobDefinition],
     trigger_selectors: Optional[List[str]] = None,
-    run_manual: bool = False,
     with_future: bool = False,
     with_future_once: bool = False,
+    without_followup: bool = False,
     dry_run: bool = False,
     verbose: bool = False,
 ) -> int:
@@ -321,9 +325,9 @@ def run(
     Args:
         jobs: Job definitions from the manifest.
         trigger_selectors: Glob patterns to filter triggers.
-        run_manual: If True, trigger all jobs with manual: trigger.
         with_future: Schedule future jobs (cron, every, once).
         with_future_once: Schedule future jobs but fire only once.
+        without_followup: Do not collect event-triggered downstream jobs.
         dry_run: Display plan without launching jobs.
         verbose: Show full manifest JSON before running.
 
@@ -335,8 +339,8 @@ def run(
     _shutting_down = False
 
     selectors = list(trigger_selectors or [])
-    if run_manual:
-        selectors.append("manual:*")
+    if with_future or with_future_once:
+        selectors.extend(["schedule:*", "every:*", "once:*"])
 
     # resolve job ref selectors into manual: selectors
     selectors = _resolve_selectors(selectors, jobs)
@@ -352,83 +356,48 @@ def run(
     _display_manifest(jobs, max_name_len)
     _log("")
 
-    if not selectors and not (with_future or with_future_once):
+    if not selectors:
         _log("nothing to run (use --run-manual or --select to choose jobs)")
         return 0
 
-    directly_selected, followup = select_jobs(jobs, selectors) if selectors else ([], [])
-
-    # collect future-only jobs (timed triggers not already selected)
-    selected_refs: Set[str] = {j["job_ref"] for j in directly_selected + followup}
-    future_only: List[TJobDefinition] = []
-    if with_future or with_future_once:
-        future_only = _collect_future_jobs(jobs, selected_refs)
-        # future jobs may have event-triggered downstreams
-        if future_only:
-            _, future_followup = select_jobs(
-                [j for j in jobs if j["job_ref"] not in selected_refs],
-                ["every:*", "schedule:*", "once:*"],
-            )
-            # deduplicate
-            for j in future_followup:
-                if j["job_ref"] not in selected_refs:
-                    followup.append(j)
-                    selected_refs.add(j["job_ref"])
-
-    if not directly_selected and not future_only:
-        if selectors:
-            _log("no jobs matched the provided selectors")
-        else:
-            _log("nothing to run (use --run-manual or --select to choose jobs)")
+    selected, followup = select_jobs(jobs, selectors, collect_followup=not without_followup)
+    if not selected:
+        _log("no jobs matched the provided selectors")
         return 0
 
-    all_selected = directly_selected + future_only + followup
+    all_entries = selected + followup
+    all_jobs_in_plan = [j for j, _ in all_entries]
 
     scheduler = TriggerScheduler(
         with_future=with_future,
         with_future_once=with_future_once,
     )
     failed_refs: List[str] = []
-    max_name_len = max(len(job_short_name(j["job_ref"])) for j in all_selected)
+    max_name_len = max(len(job_short_name(j["job_ref"])) for j in all_jobs_in_plan)
     port_counter = [INTERACTIVE_PORT_START]
 
-    # register directly selected jobs with all triggers
+    # register matched triggers for each job
     immediate: List[Tuple[TJobDefinition, TTrigger]] = []
-    for job_def in directly_selected:
-        immediate.extend(scheduler.register_job(job_def))
-
-    # register future-only jobs with timed triggers only
-    for job_def in future_only:
-        immediate.extend(scheduler.register_job(job_def, only=TIMED_TYPES))
-
-    # register followup jobs with event triggers only
-    for job_def in followup:
-        scheduler.register_job(job_def, only=EVENT_TYPES)
+    for job_def, triggers in all_entries:
+        immediate.extend(scheduler.register_triggers(job_def, triggers))
 
     # display execution plan
-    _log(f"selected {len(all_selected)} job(s):")
-    for job_def in directly_selected + future_only:
+    _log(f"selected {len(all_entries)} job(s):")
+    for job_def, _triggers in selected:
         short = job_short_name(job_def["job_ref"])
-        job_triggers = [t for jd, t in immediate if jd["job_ref"] == job_def["job_ref"]]
-        if job_triggers:
-            descs = ", ".join(_describe_trigger(t) for t in job_triggers)
+        job_immediate = [t for jd, t in immediate if jd["job_ref"] == job_def["job_ref"]]
+        if job_immediate:
+            descs = ", ".join(_describe_trigger(t) for t in job_immediate)
             _log_job(short, max_name_len, 2, f"run now: {descs}")
 
-    for job_def in followup:
+    for job_def, triggers in followup:
         short = job_short_name(job_def["job_ref"])
-        waiting = []
-        for trigger in job_def.get("triggers", []):
-            try:
-                parsed = parse_trigger(trigger)
-            except ValueError:
-                continue
-            if parsed.type in ("job.success", "job.fail"):
-                waiting.append(_describe_trigger(trigger))
+        waiting = [_describe_trigger(t) for t in triggers]
         if waiting:
             _log_job(short, max_name_len, 2, f"waiting: {', '.join(waiting)}")
 
     # display warnings for future triggers
-    for job_def in all_selected:
+    for job_def in all_jobs_in_plan:
         short = job_short_name(job_def["job_ref"])
         for trigger in job_def.get("triggers", []):
             try:
@@ -528,9 +497,9 @@ def run_from_module(
     module_name: str,
     trigger_selectors: List[str],
     use_all: bool = True,
-    run_manual: bool = False,
     with_future: bool = False,
     with_future_once: bool = False,
+    without_followup: bool = False,
     dry_run: bool = False,
     verbose: bool = False,
     warn: Callable[[str], None] = lambda msg: print(  # noqa: T201,T202
@@ -543,9 +512,9 @@ def run_from_module(
         module_name: File path or module name for job discovery.
         trigger_selectors: Trigger selector patterns.
         use_all: Use `__all__` for discovery.
-        run_manual: Trigger all manual jobs.
         with_future: Schedule future jobs.
         with_future_once: Schedule future jobs, fire once.
+        without_followup: Do not collect event-triggered downstream jobs.
         dry_run: Display plan without launching jobs.
         verbose: Show full manifest JSON before running.
         echo: Output function for messages.
@@ -575,9 +544,9 @@ def run_from_module(
     return run(
         jobs=jobs,
         trigger_selectors=trigger_selectors,
-        run_manual=run_manual,
         with_future=with_future,
         with_future_once=with_future_once,
+        without_followup=without_followup,
         dry_run=dry_run,
         verbose=verbose,
     )
