@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import dataclasses
 import contextlib
+import traceback
 from threading import BoundedSemaphore
 from types import TracebackType
 from typing import (
@@ -466,10 +467,17 @@ class RunnableLoadJob(LoadJob, ABC):
             if self._state != "retry":
                 # persist terminal state so resume can skip re-execution
                 if self._on_completed:
-                    self._on_completed(
-                        self._state,
-                        str(self._exception) if self._exception else None,
-                    )
+                    if self._exception:
+                        failed_message = "".join(
+                            traceback.format_exception(
+                                type(self._exception),
+                                self._exception,
+                                self._exception.__traceback__,
+                            )
+                        )
+                    else:
+                        failed_message = None
+                    self._on_completed(self._state, failed_message)
                 self._finished_at = pendulum.now()
                 # wake up waiting threads
                 if self._done_event:

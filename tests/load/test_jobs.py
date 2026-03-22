@@ -133,7 +133,10 @@ def test_on_completed_called_on_failure() -> None:
     assert j.state() == "failed"
     assert len(calls) == 1
     assert calls[0][0] == "failed"
+    # full traceback is passed, not just the message
     assert "broke" in calls[0][1]
+    assert "Traceback" in calls[0][1]
+    assert "DestinationTerminalException" in calls[0][1]
 
 
 def test_on_completed_not_called_on_retry() -> None:

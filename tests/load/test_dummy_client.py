@@ -1,6 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from time import sleep, time
+from time import sleep, monotonic
 from unittest import mock
 import pytest
 from unittest.mock import patch
@@ -127,10 +127,10 @@ def test_big_load_packages() -> None:
     # make the loop faster by basically not sleeping
     load._run_loop_sleep_duration = 0.001
     load_id, schema = prepare_load_package(load.load_storage, SMALL_FILES, jobs_per_case=500)
-    start_time = time()
+    start_time = monotonic()
     with ThreadPoolExecutor(max_workers=20) as pool:
         load.run(pool)
-    duration = float(time() - start_time)
+    duration = float(monotonic() - start_time)
 
     # sanity check
     assert duration > 2
