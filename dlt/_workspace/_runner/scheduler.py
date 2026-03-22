@@ -6,7 +6,11 @@ from typing import Dict, List, Optional, Set, Tuple
 from dlt.common.pendulum import pendulum
 
 from dlt._workspace.deployment._job_ref import short_name as job_short_name
-from dlt._workspace.deployment._trigger_helpers import parse_trigger
+from dlt._workspace.deployment._trigger_helpers import (
+    maybe_parse_schedule,
+    parse_freshness_constraint,
+    parse_trigger,
+)
 from dlt._workspace.deployment.typing import TJobDefinition, TTrigger
 
 
@@ -84,6 +88,24 @@ class TriggerScheduler:
                 self._event_triggers.setdefault(event_key, []).append((job_def, trigger))
 
         return immediate
+
+    def register_freshness_listeners(self, job_def: TJobDefinition) -> None:
+        """Register internal job.success listeners for freshness constraints.
+
+        When an upstream job completes, the downstream interval job is
+        re-evaluated. These listeners are runtime-only, not in the manifest.
+        """
+        cron = maybe_parse_schedule(job_def)
+        if cron is None:
+            return
+        schedule_trigger = TTrigger(f"schedule:{cron}")
+        for constraint in job_def.get("freshness", []):
+            try:
+                fc = parse_freshness_constraint(constraint)
+            except ValueError:
+                continue
+            event_key = f"job.success:{fc.expr}"
+            self._event_triggers.setdefault(event_key, []).append((job_def, schedule_trigger))
 
     def fire_event(self, event: str) -> List[Tuple[TJobDefinition, TTrigger]]:
         """Fire a job event (e.g. 'job.success:jobs.mod.name'). Returns triggered jobs.

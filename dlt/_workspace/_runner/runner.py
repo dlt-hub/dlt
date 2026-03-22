@@ -14,13 +14,25 @@ from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name as jo
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.manifest import generate_manifest, import_deployment_module
 from dlt._workspace.deployment.typing import (
+    TIntervalSpec,
     TJobDefinition,
     TRuntimeEntryPoint,
     TTrigger,
 )
+from dlt._workspace._runner.interval import (
+    IntervalStore,
+    TInterval,
+    check_all_upstream_fresh,
+    next_eligible_interval,
+    resolve_interval_spec,
+)
 from dlt._workspace._runner.process import JobProcess
 from dlt._workspace._runner.scheduler import TriggerScheduler
-from dlt._workspace.deployment._trigger_helpers import matched_triggers, parse_trigger
+from dlt._workspace.deployment._trigger_helpers import (
+    matched_triggers,
+    maybe_parse_schedule,
+    parse_trigger,
+)
 
 INTERACTIVE_PORT_START = 5000
 
@@ -52,6 +64,9 @@ def _job_color(name: str) -> str:
 # module-level state for signal handler
 _processes: Dict[str, JobProcess] = {}
 _shutting_down = False
+_interval_store: Optional[IntervalStore] = None
+_running_intervals: Dict[str, TInterval] = {}
+_all_jobs_map: Dict[str, TJobDefinition] = {}
 
 
 def _log(msg: str) -> None:
@@ -90,11 +105,76 @@ def _handle_signal(signum: int, frame: object) -> None:
             proc.terminate(grace_period=proc.grace_period)
 
 
+def _is_interval_job(job_def: TJobDefinition) -> bool:
+    return "interval" in job_def and job_def.get("allow_external_schedulers", False)
+
+
+def _try_start_interval_job(
+    job_def: TJobDefinition,
+    trigger: TTrigger,
+    port_counter: List[int],
+    max_name_len: int,
+) -> bool:
+    """For interval jobs: find next eligible, check freshness, start if ready."""
+    global _interval_store, _running_intervals
+
+    job_ref = job_def["job_ref"]
+    short = job_short_name(job_ref)
+
+    # skip if job is running
+    if job_ref in _processes and _processes[job_ref].is_alive():
+        return False
+
+    cron = maybe_parse_schedule(job_def)
+    if cron is None:
+        _log_job(short, max_name_len, 2, "no schedule trigger — cannot compute intervals")
+        return False
+
+    overall = resolve_interval_spec(job_def["interval"], cron)
+    iv = next_eligible_interval(job_ref, cron, overall, _interval_store)
+    if iv is None:
+        _log_job(short, max_name_len, 2, "all intervals completed")
+        return False
+
+    freshness = job_def.get("freshness", [])
+    if freshness:
+        ds_overall = overall
+        fresh, reasons = check_all_upstream_fresh(
+            iv, ds_overall, freshness, _all_jobs_map, _interval_store
+        )
+        if not fresh:
+            for reason in reasons:
+                _log_job(short, max_name_len, 2, f"skipped: {reason}")
+            return False
+
+    _log_job(short, max_name_len, 2, f"interval [{iv[0]}, {iv[1]}) selected")
+
+    _running_intervals[job_ref] = iv
+
+    interval_spec: TIntervalSpec = {"start": iv[0].isoformat(), "end": iv[1].isoformat()}
+    _start_job(job_def, trigger, port_counter, max_name_len, interval_spec=interval_spec)
+    return True
+
+
+def _dispatch_job(
+    job_def: TJobDefinition,
+    trigger: TTrigger,
+    port_counter: List[int],
+    max_name_len: int,
+) -> None:
+    """Start a job — routes through interval logic if applicable."""
+    if _is_interval_job(job_def):
+        _try_start_interval_job(job_def, trigger, port_counter, max_name_len)
+    else:
+        _start_job(job_def, trigger, port_counter, max_name_len)
+
+
 def _start_job(
     job_def: TJobDefinition,
     trigger: TTrigger,
     port_counter: List[int],
     max_name_len: int,
+    interval_spec: Optional[TIntervalSpec] = None,
 ) -> None:
     """Start a job subprocess."""
     job_ref = job_def["job_ref"]
@@ -104,10 +184,12 @@ def _start_job(
     entry_point: TRuntimeEntryPoint = dict(job_def["entry_point"])  # type: ignore[assignment]
     job_type = entry_point["job_type"]
 
-    # provision port for interactive jobs
     if job_type == "interactive":
         entry_point["run_args"] = {"port": port_counter[0]}
         port_counter[0] += 1
+
+    if interval_spec is not None:
+        entry_point["interval"] = interval_spec
 
     # select launcher
     launcher = entry_point.get("launcher")
@@ -162,24 +244,43 @@ def _collect_completions(
     port_counter: List[int],
 ) -> None:
     """Check completed processes, fire events, start triggered jobs."""
+    global _running_intervals
+
     for job_ref, proc in list(_processes.items()):
         if not proc.is_alive():
             exit_code = proc.poll()
             short = job_short_name(job_ref)
+
+            iv = _running_intervals.pop(job_ref, None)
+
             if exit_code == 0:
-                _log_job(short, max_name_len, 2, "completed successfully")
+                if iv is not None:
+                    _interval_store.mark_completed(job_ref, iv[0], iv[1])
+                    _log_job(short, max_name_len, 2, f"interval [{iv[0]}, {iv[1]}) completed")
+                else:
+                    _log_job(short, max_name_len, 2, "completed successfully")
                 event = f"job.success:{job_ref}"
             else:
-                _log_job(short, max_name_len, 2, f"failed (exit code {exit_code})")
+                if iv is not None:
+                    _log_job(short, max_name_len, 2, f"interval [{iv[0]}, {iv[1]}) failed")
+                else:
+                    _log_job(short, max_name_len, 2, f"failed (exit code {exit_code})")
                 event = f"job.fail:{job_ref}"
                 failed_refs.append(job_ref)
+
+            del _processes[job_ref]
 
             triggered = scheduler.fire_event(event)
             for jd, trig in triggered:
                 if not _shutting_down:
-                    _start_job(jd, trig, port_counter, max_name_len)
+                    _dispatch_job(jd, trig, port_counter, max_name_len)
 
-            del _processes[job_ref]
+            if exit_code == 0 and iv is not None:
+                job_def = _all_jobs_map.get(job_ref)
+                if job_def is not None and not _shutting_down:
+                    _try_start_interval_job(
+                        job_def, TTrigger("schedule:"), port_counter, max_name_len
+                    )
 
 
 def _describe_trigger(trigger: TTrigger) -> str:
@@ -334,9 +435,12 @@ def run(
     Returns:
         Exit code (0 = all jobs succeeded, 1 = any job failed).
     """
-    global _processes, _shutting_down
+    global _processes, _shutting_down, _interval_store, _running_intervals, _all_jobs_map
     _processes = {}
     _shutting_down = False
+    _running_intervals = {}
+    _interval_store = IntervalStore()
+    _all_jobs_map = {j["job_ref"]: j for j in jobs}
 
     selectors = list(trigger_selectors or [])
     if with_future or with_future_once:
@@ -380,6 +484,11 @@ def run(
     immediate: List[Tuple[TJobDefinition, TTrigger]] = []
     for job_def, triggers in all_entries:
         immediate.extend(scheduler.register_triggers(job_def, triggers))
+
+    # register internal freshness listeners for interval jobs
+    for job_def in all_jobs_in_plan:
+        if _is_interval_job(job_def) and job_def.get("freshness"):
+            scheduler.register_freshness_listeners(job_def)
 
     # display execution plan
     _log(f"selected {len(all_entries)} job(s):")
@@ -444,7 +553,7 @@ def run(
         stagger = random.uniform(0, min(2.0, 0.5 * len(immediate)))
         time.sleep(stagger)
         if not _shutting_down:
-            _start_job(job_def, trigger, port_counter, max_name_len)
+            _dispatch_job(job_def, trigger, port_counter, max_name_len)
 
     # event loop
     while not _shutting_down:
@@ -455,7 +564,7 @@ def run(
         due = scheduler.pop_due_jobs()
         for job_def, trigger in due:
             if not _shutting_down:
-                _start_job(job_def, trigger, port_counter, max_name_len)
+                _dispatch_job(job_def, trigger, port_counter, max_name_len)
 
         # display scheduler warnings (e.g. one-shot exhaustion)
         for warning in scheduler.pop_warnings():
@@ -473,8 +582,10 @@ def run(
         sleep_time = min(next_time, 0.5) if next_time is not None else 0.5
         time.sleep(sleep_time)
 
-    # final drain
     _drain_all_output(max_name_len)
+
+    if _interval_store is not None:
+        _interval_store.close()
 
     if failed_refs:
         _log(f"{len(failed_refs)} job(s) failed: {', '.join(failed_refs)}")

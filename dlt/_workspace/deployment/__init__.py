@@ -12,8 +12,11 @@ from dlt._workspace.deployment.manifest import (
 )
 from dlt._workspace.deployment._trigger_helpers import (
     parse_trigger,
+    parse_freshness_constraint,
+    TFreshnessConstraintSpec,
     normalize_trigger,
     normalize_triggers,
+    maybe_parse_schedule,
     matched_triggers,
     matches_selector,
     filter_jobs_by_selectors,
@@ -36,6 +39,9 @@ from dlt._workspace.deployment.typing import (
     TInterfaceType,
     TExposeSpec,
     TEntryPoint,
+    TFreshnessConstraint,
+    TFreshnessType,
+    TIntervalSpec,
     TJobRunContext,
     TRunArgs,
     TRuntimeEntryPoint,

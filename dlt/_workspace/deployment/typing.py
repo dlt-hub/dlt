@@ -25,6 +25,12 @@ TTriggerType = Literal[
     "manual",
 ]
 
+TFreshnessConstraint = NewType("TFreshnessConstraint", str)
+"""Opaque freshness constraint string in `type:job_ref` form."""
+
+TFreshnessType = Literal["job.is_matching_interval_fresh", "job.is_fresh"]
+"""Constraint types for interval freshness checks — not triggers."""
+
 
 class HttpTriggerInfo(NamedTuple):
     port: Optional[int]
@@ -75,6 +81,19 @@ class TRunArgs(TypedDict, total=False):
     """Reverse proxy subpath prefix (e.g. `"/workspace/123/notebook"`)."""
 
 
+class TIntervalSpec(TypedDict, total=False):
+    """Overall time range for interval-based job scheduling.
+
+    Stored in the manifest. Together with the job's cron schedule, defines
+    the set of discrete intervals to process.
+    """
+
+    start: str
+    """ISO 8601 start of the range. Defaults to "now" semantically if omitted."""
+    end: str
+    """ISO 8601 end of the range. Open-ended if omitted."""
+
+
 class TJobRunContext(TypedDict):
     """Runtime context injected into job functions that declare a `run_context` parameter.
 
@@ -87,6 +106,8 @@ class TJobRunContext(TypedDict):
     """The trigger string that fired this run."""
     run_args: NotRequired[TRunArgs]
     """Runtime-provided launch arguments (port, base_path), if available."""
+    interval: NotRequired[TIntervalSpec]
+    """The interval being processed, for interval-based jobs."""
 
 
 class TRuntimeEntryPoint(TEntryPoint):
@@ -98,6 +119,8 @@ class TRuntimeEntryPoint(TEntryPoint):
     """
 
     run_args: NotRequired[TRunArgs]
+    interval: NotRequired[TIntervalSpec]
+    """Current interval being processed, for interval-based jobs."""
 
 
 class TTimeoutSpec(TypedDict):
@@ -150,6 +173,12 @@ class TJobDefinition(TypedDict):
     config_keys: NotRequired[List[str]]
     """Config keys discovered from function signature (`dlt.config.value` defaults)."""
     deliver: NotRequired[TDeliveryRef]
+    interval: NotRequired[TIntervalSpec]
+    """Overall time range for interval-based scheduling."""
+    freshness: NotRequired[List[TFreshnessConstraint]]
+    """Upstream freshness constraints for interval eligibility."""
+    allow_external_schedulers: NotRequired[bool]
+    """When `True`, intervals and state are managed by the scheduler."""
     manual_disabled: NotRequired[bool]
     """When `True`, manifest generation skips adding the automatic `manual:` trigger."""
     starred: bool

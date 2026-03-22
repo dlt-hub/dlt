@@ -23,11 +23,16 @@ from dlt._workspace.deployment.detectors import (
 )
 from dlt._workspace.deployment._job_ref import parse_job_ref
 from dlt._workspace.deployment import triggers as _triggers
-from dlt._workspace.deployment._trigger_helpers import normalize_trigger, parse_trigger
+from dlt._workspace.deployment._trigger_helpers import (
+    normalize_trigger,
+    parse_freshness_constraint,
+    parse_trigger,
+)
 from dlt._workspace.deployment.typing import (
     MANIFEST_ENGINE_VERSION,
     TDeliverySpec,
     TDeploymentManifest,
+    TFreshnessConstraint,
     TJobDefinition,
     TJobRef,
     TTrigger,
@@ -133,7 +138,13 @@ def load_manifest(f: BinaryIO) -> TDeploymentManifest:
 
 
 def _newtype_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
-    """Custom validator for NewType fields (TTrigger, TJobRef)."""
+    """Custom validator for NewType fields (TTrigger, TJobRef, TFreshnessConstraint)."""
+    if t is TFreshnessConstraint:
+        try:
+            parse_freshness_constraint(pv)
+        except (ValueError, TypeError) as e:
+            raise DictValidationException(str(e), path, t, pk, pv)
+        return True
     if t is TTrigger:
         try:
             normalize_trigger(pv)
@@ -216,6 +227,51 @@ def validate_manifest(manifest: TDeploymentManifest) -> ManifestValidation:
     if unresolved:
         for job_ref, refs in unresolved.items():
             warnings.append(f"job {job_ref!r} has triggers referencing unknown jobs: {refs}")
+
+    # interval validation
+    jobs_by_ref = {j["job_ref"]: j for j in jobs}
+    for job_def in jobs:
+        ref = job_def["job_ref"]
+        has_interval = "interval" in job_def
+        trigger_types = set()
+        for t in job_def.get("triggers", []):
+            try:
+                parsed = parse_trigger(t)
+                trigger_types.add(parsed.type)
+            except ValueError:
+                pass
+
+        if has_interval and "schedule" not in trigger_types:
+            errors.append(f"job {ref!r} has interval but no schedule trigger")
+
+        if job_def.get("allow_external_schedulers") and not has_interval:
+            warnings.append(f"job {ref!r} has allow_external_schedulers but no interval")
+
+        for constraint in job_def.get("freshness", []):
+            try:
+                fc = parse_freshness_constraint(constraint)
+            except ValueError:
+                errors.append(f"job {ref!r} has invalid freshness constraint: {constraint!r}")
+                continue
+            us_ref = fc.expr
+            us_job = jobs_by_ref.get(TJobRef(us_ref))
+            if us_job is None:
+                errors.append(f"job {ref!r} has freshness constraint on unknown job {us_ref!r}")
+                continue
+            if "interval" not in us_job:
+                errors.append(
+                    f"job {ref!r} has {fc.type} constraint on {us_ref!r}"
+                    " but upstream has no interval"
+                )
+            elif has_interval:
+                ds_start = job_def["interval"].get("start")
+                us_start = us_job["interval"].get("start")
+                if ds_start and us_start and ds_start < us_start:
+                    warnings.append(
+                        f"job {ref!r} interval starts ({ds_start}) before"
+                        f" upstream {us_ref!r} ({us_start}) —"
+                        " intervals before upstream start assumed fresh"
+                    )
 
     return ManifestValidation(
         is_valid=len(errors) == 0,

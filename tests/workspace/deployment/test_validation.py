@@ -170,6 +170,91 @@ def test_resolved_job_triggers() -> None:
     assert result.unresolved_triggers == {}
 
 
+def test_interval_without_schedule_trigger() -> None:
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.a", triggers=["manual:jobs.mod.a"], interval={"start": "2024-01-01"}
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert not result.is_valid
+    assert any("no schedule trigger" in e for e in result.errors)
+
+
+def test_freshness_constraint_on_non_interval_upstream() -> None:
+    manifest = _make_manifest(
+        [
+            _make_job("jobs.mod.up", triggers=["schedule:0 0 * * *"]),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01"},
+                freshness=["job.is_matching_interval_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert not result.is_valid
+    assert any("upstream has no interval" in e for e in result.errors)
+
+
+def test_downstream_starts_before_upstream_warns() -> None:
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.up",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2025-01-01"},
+            ),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01"},
+                freshness=["job.is_matching_interval_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid
+    assert any("before upstream" in w for w in result.warnings)
+
+
+def test_allow_external_schedulers_without_interval_warns() -> None:
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.a", triggers=["schedule:0 0 * * *"], allow_external_schedulers=True
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid
+    assert any("allow_external_schedulers" in w and "no interval" in w for w in result.warnings)
+
+
+def test_valid_interval_job_with_freshness() -> None:
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.up",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01"},
+            ),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01"},
+                freshness=["job.is_matching_interval_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid
+    assert not any("interval" in e for e in result.errors)
+
+
 def test_manifest_hash_stable() -> None:
     m1 = _make_manifest([_make_job("jobs.mod.a")])
     m2 = _make_manifest([_make_job("jobs.mod.a")])

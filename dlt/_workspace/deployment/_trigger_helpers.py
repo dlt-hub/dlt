@@ -1,6 +1,6 @@
 import re
 from fnmatch import fnmatch
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, Union
 from urllib.parse import urlparse
 
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -121,6 +121,29 @@ def _parse_job_fail(expr: str) -> TParsedTrigger:
     return TParsedTrigger(type="job.fail", expr=expr, raw=TTrigger(f"job.fail:{expr}"))
 
 
+class TFreshnessConstraintSpec(NamedTuple):
+    type: str  # noqa: A003
+    expr: str
+
+
+def _parse_job_is_matching_interval_fresh(expr: str) -> TFreshnessConstraintSpec:
+    if not expr:
+        raise ValueError("job.is_matching_interval_fresh constraint requires a job_ref")
+    if not expr.startswith("jobs."):
+        raise ValueError(
+            f"job.is_matching_interval_fresh expression must start with 'jobs.', got {expr!r}"
+        )
+    return TFreshnessConstraintSpec(type="job.is_matching_interval_fresh", expr=expr)
+
+
+def _parse_job_is_fresh(expr: str) -> TFreshnessConstraintSpec:
+    if not expr:
+        raise ValueError("job.is_fresh constraint requires a job_ref")
+    if not expr.startswith("jobs."):
+        raise ValueError(f"job.is_fresh expression must start with 'jobs.', got {expr!r}")
+    return TFreshnessConstraintSpec(type="job.is_fresh", expr=expr)
+
+
 PARSERS: Dict[str, Callable[[str], TParsedTrigger]] = {
     "schedule": _parse_schedule,
     "every": _parse_every,
@@ -133,6 +156,22 @@ PARSERS: Dict[str, Callable[[str], TParsedTrigger]] = {
     "job.success": _parse_job_success,
     "job.fail": _parse_job_fail,
 }
+
+_FRESHNESS_PARSERS = {
+    "job.is_matching_interval_fresh": _parse_job_is_matching_interval_fresh,
+    "job.is_fresh": _parse_job_is_fresh,
+}
+
+
+def parse_freshness_constraint(constraint: str) -> TFreshnessConstraintSpec:
+    """Parse a freshness constraint string. Returns type and upstream job_ref."""
+    if ":" not in constraint:
+        raise ValueError(f"freshness constraint must be in type:expr form, got {constraint!r}")
+    constraint_type, expr = constraint.split(":", 1)
+    parser = _FRESHNESS_PARSERS.get(constraint_type)
+    if parser is None:
+        raise ValueError(f"unknown freshness constraint type {constraint_type!r}")
+    return parser(expr)
 
 
 def parse_trigger(trigger: TTrigger) -> TParsedTrigger:
@@ -255,3 +294,20 @@ def filter_jobs_by_selectors(
     if not selectors:
         return list(jobs)
     return [j for j in jobs if matched_triggers(j, selectors)]
+
+
+def maybe_parse_schedule(job_def: TJobDefinition) -> Optional[str]:
+    """Extract the cron expression from a job's schedule trigger.
+
+    Returns:
+        The cron expression string if the job has a `schedule:` trigger,
+        or `None` if no schedule trigger is found.
+    """
+    for trigger in job_def.get("triggers", []):
+        try:
+            parsed = parse_trigger(trigger)
+        except ValueError:
+            continue
+        if parsed.type == "schedule":
+            return str(parsed.expr)
+    return None

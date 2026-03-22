@@ -170,6 +170,9 @@ def run(
         run_args = entry_point.get("run_args")
         if run_args:
             ctx["run_args"] = run_args
+        interval = entry_point.get("interval")
+        if interval:
+            ctx["interval"] = interval
         kwargs["run_context"] = ctx
 
     result = job(**kwargs)

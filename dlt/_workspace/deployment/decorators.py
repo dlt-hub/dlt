@@ -23,7 +23,9 @@ from dlt._workspace.deployment.typing import (
     TEntryPoint,
     TExecutionSpec,
     TExposeSpec,
+    TFreshnessConstraint,
     TInterfaceType,
+    TIntervalSpec,
     TJobDefinition,
     TJobRef,
     TJobType,
@@ -101,6 +103,9 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         self.tags: Sequence[str] = None
         self.deliver: Optional[TDeliverTarget] = None
         self.expose: Optional[TExposeSpec] = None
+        self.interval: Optional[TIntervalSpec] = None
+        self.freshness: List[TFreshnessConstraint] = []
+        self.allow_external_schedulers: bool = False
 
     @property
     def job_ref(self) -> TJobRef:
@@ -118,6 +123,16 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
     def completed(self) -> tuple[TTrigger, TTrigger]:
         """Tuple of (success, fail) triggers — fires on any outcome."""
         return (self.success, self.fail)
+
+    @property
+    def is_matching_interval_fresh(self) -> TFreshnessConstraint:
+        """Downstream interval must be fully covered by this job's completed intervals."""
+        return _triggers.job_is_matching_interval_fresh(self.job_ref)
+
+    @property
+    def is_fresh(self) -> TFreshnessConstraint:
+        """This job's overall interval (intersected with downstream's) must be complete."""
+        return _triggers.job_is_fresh(self.job_ref)
 
     def __call__(self, *args: TJobFunParams.args, **kwargs: TJobFunParams.kwargs) -> TJobResult:
         rv: TJobResult = self._deco_f(*args, **kwargs)
@@ -201,6 +216,13 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         if self.tags:
             job_def["tags"] = list(self.tags)
 
+        if self.interval is not None:
+            job_def["interval"] = self.interval
+        if self.freshness:
+            job_def["freshness"] = list(self.freshness)
+        if self.allow_external_schedulers:
+            job_def["allow_external_schedulers"] = True
+
         if self.deliver is not None:
             job_def["deliver"] = TDeliveryRef(source_ref=_source_ref_from_deliver(self.deliver))
 
@@ -221,6 +243,9 @@ def _job(
     tags: Sequence[str] = None,
     deliver: Optional[TDeliverTarget] = None,
     expose: Optional[TExposeSpec] = None,
+    interval: Optional[TIntervalSpec] = None,
+    freshness: Optional[Sequence[TFreshnessConstraint]] = None,
+    allow_external_schedulers: bool = False,
     spec: Type[BaseConfiguration] = None,
 ) -> Any:
     """Common decorator implementation for all job types."""
@@ -236,6 +261,9 @@ def _job(
     wrapper.tags = tags
     wrapper.deliver = deliver
     wrapper.expose = expose
+    wrapper.interval = interval
+    wrapper.freshness = list(freshness) if freshness else []
+    wrapper.allow_external_schedulers = allow_external_schedulers
     wrapper._user_spec = spec
 
     if func is None:
@@ -256,6 +284,9 @@ def job(
     starred: bool = False,
     tags: Sequence[str] = None,
     deliver: Optional[TDeliverTarget] = None,
+    interval: Optional[TIntervalSpec] = None,
+    freshness: Optional[Sequence[TFreshnessConstraint]] = None,
+    allow_external_schedulers: bool = False,
     spec: Type[BaseConfiguration] = None,
 ) -> JobFactory[TJobFunParams, TJobResult]: ...
 
@@ -273,6 +304,9 @@ def job(
     starred: bool = False,
     tags: Sequence[str] = None,
     deliver: Optional[TDeliverTarget] = None,
+    interval: Optional[TIntervalSpec] = None,
+    freshness: Optional[Sequence[TFreshnessConstraint]] = None,
+    allow_external_schedulers: bool = False,
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]: ...
 
@@ -289,6 +323,9 @@ def job(
     starred: bool = False,
     tags: Sequence[str] = None,
     deliver: Optional[TDeliverTarget] = None,
+    interval: Optional[TIntervalSpec] = None,
+    freshness: Optional[Sequence[TFreshnessConstraint]] = None,
+    allow_external_schedulers: bool = False,
     spec: Type[BaseConfiguration] = None,
 ) -> Any:
     """Marks a function as a deployable batch job.
@@ -324,6 +361,9 @@ def job(
         starred=starred,
         tags=tags,
         deliver=deliver,
+        interval=interval,
+        freshness=freshness,
+        allow_external_schedulers=allow_external_schedulers,
         spec=spec,
     )
 
