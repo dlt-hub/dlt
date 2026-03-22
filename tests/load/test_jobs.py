@@ -1,7 +1,9 @@
+from typing import List, Optional, Tuple
+
 import pytest
 
 from dlt.common import pendulum
-from dlt.common.destination.client import RunnableLoadJob
+from dlt.common.destination.client import RunnableLoadJob, TLoadJobState
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.destinations.job_impl import FinalizedLoadJob
 from dlt.destinations.impl.sqlalchemy.load_jobs import build_mysql_adbc_dsn
@@ -27,10 +29,6 @@ def test_instantiate_job() -> None:
 
 def test_runnable_job_results() -> None:
     file_path = "/table.1234.0.jsonl"
-
-    class MockClient:
-        def prepare_load_job_execution(self, j: RunnableLoadJob):
-            pass
 
     class SuccessfulJob(RunnableLoadJob):
         def run(self) -> None:
@@ -84,6 +82,198 @@ def test_runnable_job_results() -> None:
     assert metrics_4.started_at is not None
     assert metrics_4.finished_at is not None
     assert metrics_4.retry_count == 0
+
+
+class MockClient:
+    def prepare_load_job_execution(self, j: RunnableLoadJob) -> None:
+        pass
+
+
+def test_on_completed_called_on_success() -> None:
+    """_on_completed fires with ('completed', None) on successful run."""
+    file_path = "/table.1234.0.jsonl"
+    calls: List[Tuple[TLoadJobState, Optional[str]]] = []
+
+    class SuccessfulJob(RunnableLoadJob):
+        def run(self) -> None:
+            pass
+
+    j = SuccessfulJob(file_path)
+    j.set_run_vars(
+        load_id="1",
+        schema=None,
+        load_table=None,
+        on_completed=lambda state, msg: calls.append((state, msg)),
+    )
+    j.run_managed(MockClient(), None)  # type: ignore
+
+    assert j.state() == "completed"
+    assert len(calls) == 1
+    assert calls[0] == ("completed", None)
+
+
+def test_on_completed_called_on_failure() -> None:
+    """_on_completed fires with ('failed', error_message) on terminal exception."""
+    file_path = "/table.1234.0.jsonl"
+    calls: List[Tuple[TLoadJobState, Optional[str]]] = []
+
+    class TerminalJob(RunnableLoadJob):
+        def run(self) -> None:
+            raise DestinationTerminalException("broke")
+
+    j = TerminalJob(file_path)
+    j.set_run_vars(
+        load_id="1",
+        schema=None,
+        load_table=None,
+        on_completed=lambda state, msg: calls.append((state, msg)),
+    )
+    j.run_managed(MockClient(), None)  # type: ignore
+
+    assert j.state() == "failed"
+    assert len(calls) == 1
+    assert calls[0][0] == "failed"
+    assert "broke" in calls[0][1]
+
+
+def test_on_completed_not_called_on_retry() -> None:
+    """_on_completed must NOT fire on transient (retry) exceptions."""
+    file_path = "/table.1234.0.jsonl"
+    calls: List[Tuple[TLoadJobState, Optional[str]]] = []
+
+    class RetryJob(RunnableLoadJob):
+        def run(self) -> None:
+            raise Exception("transient")
+
+    j = RetryJob(file_path)
+    j.set_run_vars(
+        load_id="1",
+        schema=None,
+        load_table=None,
+        on_completed=lambda state, msg: calls.append((state, msg)),
+    )
+    j.run_managed(MockClient(), None)  # type: ignore
+
+    assert j.state() == "retry"
+    assert len(calls) == 0
+
+
+def test_on_completed_exception_propagates() -> None:
+    """If _on_completed raises, the exception is not swallowed."""
+    file_path = "/table.1234.0.jsonl"
+
+    class SuccessfulJob(RunnableLoadJob):
+        def run(self) -> None:
+            pass
+
+    def bad_callback(state: TLoadJobState, msg: Optional[str]) -> None:
+        raise OSError("disk full")
+
+    j = SuccessfulJob(file_path)
+    j.set_run_vars(
+        load_id="1",
+        schema=None,
+        load_table=None,
+        on_completed=bad_callback,
+    )
+    with pytest.raises(OSError, match="disk full"):
+        j.run_managed(MockClient(), None)  # type: ignore
+
+
+def test_on_completed_fires_before_semaphore_release() -> None:
+    """_on_completed fires before _finished_at is set and before the
+    semaphore is released."""
+    from threading import BoundedSemaphore
+
+    file_path = "/table.1234.0.jsonl"
+    finished_at_during_callback: List[Optional[pendulum.DateTime]] = []
+
+    class SuccessfulJob(RunnableLoadJob):
+        def run(self) -> None:
+            pass
+
+    sem = BoundedSemaphore()
+    sem.acquire()
+
+    j = SuccessfulJob(file_path)
+    j.set_run_vars(
+        load_id="1",
+        schema=None,
+        load_table=None,
+        on_completed=lambda state, msg: finished_at_during_callback.append(j._finished_at),
+    )
+    j.run_managed(MockClient(), sem)  # type: ignore
+
+    assert j.state() == "completed"
+    assert j._finished_at is not None
+    # during the callback, _finished_at was not yet set
+    assert len(finished_at_during_callback) == 1
+    assert finished_at_during_callback[0] is None
+
+
+def test_set_final_state_completed() -> None:
+    """set_final_state puts a job into completed state."""
+    file_path = "/table.1234.0.jsonl"
+
+    class SomeJob(RunnableLoadJob):
+        def run(self) -> None:
+            pass
+
+    j = SomeJob(file_path)
+    assert j.state() == "ready"
+    j.set_final_state("completed")
+    assert j.state() == "completed"
+    assert j._finished_at is not None
+    assert j.exception() is None
+
+
+def test_set_final_state_failed() -> None:
+    """set_final_state puts a job into failed state with error message."""
+    file_path = "/table.1234.0.jsonl"
+
+    class SomeJob(RunnableLoadJob):
+        def run(self) -> None:
+            pass
+
+    j = SomeJob(file_path)
+    j.set_final_state("failed", "something broke")
+    assert j.state() == "failed"
+    assert j._finished_at is not None
+    assert isinstance(j.exception(), DestinationTerminalException)
+    assert j.failed_message() == "something broke"
+
+
+def test_set_final_state_rejects_non_terminal() -> None:
+    """set_final_state only accepts completed and failed."""
+    file_path = "/table.1234.0.jsonl"
+
+    class SomeJob(RunnableLoadJob):
+        def run(self) -> None:
+            pass
+
+    j = SomeJob(file_path)
+    with pytest.raises(AssertionError):
+        j.set_final_state("retry")
+
+
+def test_set_final_state_on_finalized_job() -> None:
+    """set_final_state works on FinalizedLoadJob too."""
+    file_path = "/path/table.1234.0.jsonl"
+    j = FinalizedLoadJob(file_path, status="completed")
+    assert j.state() == "completed"
+
+    j.set_final_state("failed", "override error")
+    assert j.state() == "failed"
+    assert j.failed_message() == "override error"
+    assert isinstance(j.exception(), DestinationTerminalException)
+    assert str(j.exception()) == "override error"
+    assert j._finished_at is not None
+
+    # also works without message
+    j2 = FinalizedLoadJob(file_path, status="failed", failed_message="old")
+    j2.set_final_state("completed")
+    assert j2.state() == "completed"
+    assert j2.failed_message() is None
 
 
 def test_finalized_load_job() -> None:

@@ -4,6 +4,7 @@ import contextlib
 from threading import BoundedSemaphore
 from types import TracebackType
 from typing import (
+    Callable,
     ClassVar,
     Optional,
     NamedTuple,
@@ -49,6 +50,7 @@ from dlt.common.schema.typing import (
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationSchemaTampered,
+    DestinationTerminalException,
     DestinationTransientException,
 )
 from dlt.common.destination.utils import prepare_load_table
@@ -346,6 +348,11 @@ class LoadJob(ABC):
         """The exception associated with failed or retry states"""
         pass
 
+    @abstractmethod
+    def set_final_state(self, state: TLoadJobState, failed_message: Optional[str] = None) -> None:
+        """Forces the job into a terminal state without running it."""
+        pass
+
     def metrics(self) -> Optional[LoadJobMetrics]:
         """Returns job execution metrics"""
         return LoadJobMetrics(
@@ -389,14 +396,34 @@ class RunnableLoadJob(LoadJob, ABC):
         # set by run_managed method
         self._job_client: "JobClientBase" = None
         self._done_event: BoundedSemaphore = None
+        # set by set_run_vars, invoked in run_managed when job reaches terminal state
+        self._on_completed: Optional[Callable[["TLoadJobState", Optional[str]], None]] = None
 
-    def set_run_vars(self, load_id: str, schema: Schema, load_table: PreparedTableSchema) -> None:
-        """
-        called by the loader right before the job is run
-        """
+    def set_run_vars(
+        self,
+        load_id: str,
+        schema: Schema,
+        load_table: PreparedTableSchema,
+        on_completed: Optional[Callable[["TLoadJobState", Optional[str]], None]] = None,
+    ) -> None:
+        """Called by the loader right before the job is run."""
         self._load_id = load_id
         self._schema = schema
         self._load_table = load_table
+        self._on_completed = on_completed
+
+    def set_final_state(self, state: TLoadJobState, failed_message: Optional[str] = None) -> None:
+        """Forces the job into a terminal state without running it.
+
+        Used when restoring a job from a pending transition — the destination
+        already committed the data, so we skip execution.
+        """
+        assert state in ("completed", "failed")
+        self._state = state
+        if failed_message:
+            # failed state is always caused by a terminal exception
+            self._exception = DestinationTerminalException(failed_message)
+        self._finished_at = pendulum.now()
 
     @property
     def load_table_name(self) -> str:
@@ -437,6 +464,12 @@ class RunnableLoadJob(LoadJob, ABC):
             # sanity check
             assert self._state in ("completed", "retry", "failed")
             if self._state != "retry":
+                # persist terminal state so resume can skip re-execution
+                if self._on_completed:
+                    self._on_completed(
+                        self._state,
+                        str(self._exception) if self._exception else None,
+                    )
                 self._finished_at = pendulum.now()
                 # wake up waiting threads
                 if self._done_event:
