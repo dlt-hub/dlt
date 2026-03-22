@@ -5245,6 +5245,129 @@ def test_pending_package_exception_warning() -> None:
     # assert pip_ex.value.has_pending_data is False
 
 
+def test_staging_tables_created_after_schema_change_without_data() -> None:
+    """Regression test for #2862: staging tables created for all eligible tables.
+
+    Step 1: resource_a (merge) + resource_b (append), both yield data with children
+    Step 2: directly change resource_b disposition to merge in schema, run only resource_a
+            → schema hash changes → DDL runs for ALL eligible staging tables → hash stored
+    Step 3: both yield data → hash matches → DDL skipped → resource_b staging table exists
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_missing_tables",
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    @dlt.source(name="test_src", root_key=True)
+    def make_source(b_data=None):
+        @dlt.resource(write_disposition="merge", primary_key="id")
+        def resource_a():
+            yield [{"id": 1, "val": "a1", "items": [{"sub_id": 1, "text": "x"}]}]
+
+        @dlt.resource(write_disposition="merge", primary_key="id")
+        def resource_b():
+            if b_data is not None:
+                yield b_data
+
+        return [resource_a, resource_b]
+
+    # step 1: both yield data, but resource_b is append (override at run level)
+    info = pipeline.run(
+        make_source(b_data=[{"id": 1, "val": "b1", "items": [{"sub_id": 1, "text": "y"}]}]),
+        write_disposition="append",
+    )
+    assert_load_info(info)
+
+    # step 2: change resource_b to merge directly in schema, run with no resource_b data
+    pipeline.default_schema.tables["resource_b"]["write_disposition"] = "merge"
+    pipeline.default_schema.tables["resource_b__items"]["write_disposition"] = "merge"
+
+    info = pipeline.run(make_source(b_data=None))
+    assert_load_info(info)
+
+    # step 3: both yield data — resource_b staging table must exist
+    info = pipeline.run(
+        make_source(b_data=[{"id": 2, "val": "b2", "items": [{"sub_id": 2, "text": "z"}]}])
+    )
+    assert_load_info(info)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            f"SELECT val FROM {pipeline.dataset_name}.resource_b ORDER BY val"
+        )
+        assert [r[0] for r in rows] == ["b1", "b2"]
+
+
+def test_staging_tables_recreated_after_staging_dataset_dropped() -> None:
+    """Regression test for #2862: staging tables recreated after staging dataset loss.
+
+    This is the scenario from the issue reproduction script: staging dataset is lost
+    (infra failure, concurrent pipeline, manual cleanup), then fully recreated.
+
+    Step 1: resource_a (merge) + resource_b (merge), both yield data with children
+    Step 2: drop staging dataset (simulating real-world desync)
+    Step 3: only resource_a yields data → staging recreated for ALL eligible tables
+    Step 4: both yield data → resource_b staging table exists → success
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_dropped",
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    @dlt.source(name="test_src", root_key=True)
+    def make_source(a_data, b_data=None):
+        @dlt.resource(write_disposition="merge", primary_key="id")
+        def resource_a():
+            yield a_data
+
+        @dlt.resource(write_disposition="merge", primary_key="id")
+        def resource_b():
+            if b_data is not None:
+                yield b_data
+
+        return [resource_a, resource_b]
+
+    # step 1: both yield data
+    info = pipeline.run(
+        make_source(
+            a_data=[{"id": 1, "val": "a1", "items": [{"sub_id": 1, "text": "x"}]}],
+            b_data=[{"id": 1, "val": "b1", "items": [{"sub_id": 1, "text": "y"}]}],
+        )
+    )
+    assert_load_info(info)
+
+    # step 2: drop staging dataset (simulating infra failure / concurrent pipeline)
+    with pipeline.sql_client() as client:
+        staging_dataset = client.staging_dataset_name
+        client.execute_sql(f'DROP SCHEMA IF EXISTS "{staging_dataset}" CASCADE')
+
+    # step 3: only resource_a yields data — staging recreated for ALL eligible tables
+    info = pipeline.run(
+        make_source(
+            a_data=[{"id": 2, "val": "a2", "items": [{"sub_id": 2, "text": "x2"}]}],
+            b_data=None,
+        )
+    )
+    assert_load_info(info)
+
+    # step 4: both yield data — resource_b staging table must exist
+    info = pipeline.run(
+        make_source(
+            a_data=[{"id": 3, "val": "a3", "items": [{"sub_id": 3, "text": "x3"}]}],
+            b_data=[{"id": 2, "val": "b2", "items": [{"sub_id": 2, "text": "z"}]}],
+        )
+    )
+    assert_load_info(info)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            f"SELECT val FROM {pipeline.dataset_name}.resource_b ORDER BY val"
+        )
+        assert [r[0] for r in rows] == ["b1", "b2"]
+
+
 def test_cleanup() -> None:
     # this must happen after all forked tests (problems with tests teardowns in other tests)
     pass
