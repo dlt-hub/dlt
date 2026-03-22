@@ -1376,16 +1376,17 @@ def test_table_chain_followup_ids_in_metrics() -> None:
     with ThreadPoolExecutor() as pool:
         load.run(pool)
 
-    # all 10 jobs per chain table should reference the chain followup (merge) job
+    # 2 chain followup jobs (one per root table)
     chain_followup_ids = set(dummy_impl.CREATED_TABLE_CHAIN_FOLLOWUP_JOBS.keys())
     assert len(chain_followup_ids) == 2
 
+    # all original jobs are predecessors of the chain followup (fan-in)
     for job_id, m in load._job_metrics.items():
         if job_id in chain_followup_ids:
-            # the chain followup job itself has no followup
+            # chain followup jobs are terminal
             assert m.followup_jobs is None
         else:
-            # original jobs should reference their chain followup
+            # every original job should reference its chain followup
             assert m.followup_jobs is not None
             assert len(m.followup_jobs) == 1
             assert m.followup_jobs[0] in chain_followup_ids

@@ -254,6 +254,8 @@ def w_normalize_files(
                     parsed_file_name,
                     root_table,
                 )
+                normalizer._report_progress(root_table_name, 0)
+                normalizer._flush_progress()
                 logger.debug(
                     f"Processing extracted items in {extracted_items_file} in load_id"
                     f" {load_id} with table name {root_table_name} and schema {schema.name}"

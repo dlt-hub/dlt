@@ -509,12 +509,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
             metrics = job.metrics()
             if metrics:
-                # attach followup job ids for finalized jobs
                 if state in ("failed", "completed"):
+                    # attach per-job and chain followup ids
                     all_fups = job_fups + chain_fups if job_fups or chain_fups else None
                     if all_fups:
                         metrics = metrics._replace(followup_jobs=all_fups)
-                    # retroactively update chain participants' metrics with chain followups
+                    # chain followups depend on all chain participants — propagate
                     if chain_fups:
                         for cid in chain_ids:
                             if cid != job.job_id() and cid in self._job_metrics:
