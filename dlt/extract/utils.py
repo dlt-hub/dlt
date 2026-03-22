@@ -24,7 +24,6 @@ from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.typing import (
     Self,
     AnyFun,
-    DictStrAny,
     TDataItem,
     TDataItems,
     TAnyFunOrGenerator,
@@ -38,13 +37,7 @@ from dlt.extract.exceptions import (
     InvalidResourceReturnsResource,
     InvalidStepFunctionArguments,
 )
-from dlt.extract.items import (
-    TTableHintTemplate,
-    TFunHintTemplate,
-    SupportsPipe,
-)
-
-from dlt.common.schema.typing import TFileFormat
+from dlt.extract.items import TTableHintTemplate
 
 try:
     from dlt.common.libs import pydantic
