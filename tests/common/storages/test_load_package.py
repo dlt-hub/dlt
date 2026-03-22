@@ -473,3 +473,51 @@ def test_migrate_to_load_package_state() -> None:
     storage.storage.delete(join(LoadStorage.NORMALIZED_FOLDER, state_path))
 
     p.load()
+
+
+def test_progress_write_and_collect(load_storage: LoadStorage) -> None:
+    """Tests PackageStorage progress file IPC: write, collect, cleanup."""
+    from dlt.common import json
+
+    load_id = uniq_id()
+    load_storage.new_packages.create_package(load_id)
+    pkg = load_storage.new_packages
+
+    # create progress dir
+    pkg.create_progress_dir(load_id)
+    progress_dir = pkg.get_progress_dir(load_id)
+    assert pkg.storage.has_folder(progress_dir)
+
+    # collect on empty dir returns empty
+    assert pkg.collect_progress(load_id) == {}
+
+    # write progress files and verify they are .progress.json with valid JSON
+    pkg.write_progress(load_id, {"users": 50, "orders": 30})
+    pkg.write_progress(load_id, {"users": 25, "products": 10})
+    files = pkg.storage.list_folder_files(progress_dir, to_root=False)
+    assert len(files) == 2
+    for name in files:
+        assert name.endswith(".progress.json")
+        data = json.loads(pkg.storage.load(join(progress_dir, name)))
+        assert isinstance(data, dict)
+        assert all(isinstance(v, int) for v in data.values())
+
+    # collect aggregates across files and consumes them
+    result = pkg.collect_progress(load_id)
+    assert result == {"users": 75, "orders": 30, "products": 10}
+
+    # after collect, files are consumed
+    assert pkg.collect_progress(load_id) == {}
+    assert pkg.storage.list_folder_files(progress_dir, to_root=False) == []
+
+    # write_progress with empty dict is a no-op
+    pkg.write_progress(load_id, {})
+    assert pkg.storage.list_folder_files(progress_dir, to_root=False) == []
+    assert pkg.collect_progress(load_id) == {}
+
+    # cleanup removes the directory
+    pkg.cleanup_progress(load_id)
+    assert not pkg.storage.has_folder(progress_dir)
+
+    # cleanup on non-existent dir is safe
+    pkg.cleanup_progress(load_id)

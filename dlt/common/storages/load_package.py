@@ -43,7 +43,7 @@ from dlt.common.storages.exceptions import (
     LoadPackageNotFound,
     CurrentLoadPackageStateNotAvailable,
 )
-from dlt.common.utils import flatten_list_or_items
+from dlt.common.utils import flatten_list_or_items, uniq_id
 from dlt.common.versioned_state import (
     generate_state_version_hash,
     bump_state_version_if_modified,
@@ -337,6 +337,7 @@ class PackageStorage:
         "load_package_state.json"
     )
     CANCEL_PACKAGE_FILE_NAME = "_cancelled"
+    PROGRESS_DIR = ".progress"
 
     def __init__(self, storage: FileStorage, initial_state: TLoadPackageStatus) -> None:
         """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
@@ -573,6 +574,58 @@ class PackageStorage:
             raise LoadPackageNotFound(load_id)
         if self.storage.has_file(os.path.join(package_path, self.CANCEL_PACKAGE_FILE_NAME)):
             raise LoadPackageCancelled(load_id)
+
+    #
+    # Progress reporting (inter-process signalling for normalize workers)
+    #
+
+    def get_progress_dir(self, load_id: str) -> str:
+        """Gets the relative path to the progress directory within a package."""
+        return os.path.join(self.get_package_path(load_id), self.PROGRESS_DIR)
+
+    def create_progress_dir(self, load_id: str) -> None:
+        """Creates the progress directory within a package."""
+        self.storage.create_folder(self.get_progress_dir(load_id), exists_ok=True)
+
+    def write_progress(self, load_id: str, table_counts: Dict[str, int]) -> None:
+        """Writes buffered table→count pairs as a JSON progress file (atomic via rename)."""
+        if not table_counts:
+            return
+        progress_dir = self.get_progress_dir(load_id)
+        file_path = os.path.join(progress_dir, uniq_id() + ".progress.json")
+        self.storage.save(file_path, json.dumps(table_counts))
+
+    def collect_progress(self, load_id: str) -> Dict[str, int]:
+        """Reads and deletes all progress files, returning aggregated table→items_count."""
+        result: Dict[str, int] = {}
+        progress_dir = self.get_progress_dir(load_id)
+        try:
+            files = self.storage.list_folder_files(progress_dir, to_root=True)
+        except OSError:
+            return result
+        for file_path in files:
+            if not file_path.endswith(".progress.json"):
+                continue
+            try:
+                data = self.storage.load(file_path)
+                self.storage.delete(file_path)
+            except OSError:
+                # can't read or delete — retry next poll
+                continue
+            try:
+                counts: Dict[str, int] = json.loads(data)
+                for table, count in counts.items():
+                    result[table] = result.get(table, 0) + count
+            except (ValueError, KeyError):
+                pass
+        return result
+
+    def cleanup_progress(self, load_id: str) -> None:
+        """Removes the progress directory and all its contents."""
+        try:
+            self.storage.delete_folder(self.get_progress_dir(load_id), recursively=True)
+        except NotADirectoryError:
+            pass
 
     #
     # Load package state
