@@ -5299,6 +5299,68 @@ def test_staging_tables_recreated_after_staging_dataset_dropped() -> None:
         assert [r[0] for r in rows] == ["b1", "b2"]
 
 
+@pytest.mark.parametrize("skip_dedup", [False, True], ids=["dedup_enabled", "dedup_skipped"])
+def test_merge_no_child_duplicates_on_duplicate_staging_data(skip_dedup: bool) -> None:
+    """When a child table's data file is duplicated in staging (simulating
+    crash+retry), the merge SQL deduplicates nested tables by _dlt_id.
+
+    With `deduplicated=True` the safety net is disabled and duplicates
+    pass through — verifying the flag is respected.
+    """
+    wd: Any = {"disposition": "merge", "deduplicated": True} if skip_dedup else "merge"
+
+    @dlt.resource(primary_key="id", write_disposition=wd)
+    def items():
+        yield [
+            {"id": 1, "val": "a", "nested": [{"x": 10}]},
+            {"id": 2, "val": "b", "nested": [{"x": 20}]},
+        ]
+
+    p = dlt.pipeline(
+        pipeline_name="test_merge_child_dedup",
+        destination="duckdb",
+        dataset_name="child_dedup",
+    )
+
+    # initial load to create tables
+    info = p.run(items())
+    assert_load_info(info)
+    assert_table_counts(p, {"items": 2, "items__nested": 2})
+
+    # extract + normalize a second batch (same data)
+    p.extract(items())
+    p.normalize()
+
+    # duplicate the child table's job file in the normalized package
+    load_id = p.list_normalized_load_packages()[0]
+    package_info = p.get_load_package_info(load_id)
+    child_jobs = [
+        j for j in package_info.jobs["new_jobs"] if j.job_file_info.table_name == "items__nested"
+    ]
+    assert len(child_jobs) >= 1
+    for child_job in child_jobs:
+        src_path = child_job.file_path
+        parsed = child_job.job_file_info
+        new_name = ParsedLoadJobFileName(
+            parsed.table_name,
+            ParsedLoadJobFileName.new_file_id(),
+            parsed.retry_count,
+            parsed.file_format,
+        ).file_name()
+        dst_path = os.path.join(os.path.dirname(src_path), new_name)
+        shutil.copy(src_path, dst_path)
+
+    info = p.load()
+    assert_load_info(info)
+
+    if skip_dedup:
+        # dedup disabled: duplicates pass through
+        assert_table_counts(p, {"items": 2, "items__nested": 4})
+    else:
+        # dedup enabled: nested table deduplicated by _dlt_id
+        assert_table_counts(p, {"items": 2, "items__nested": 2})
+
+
 def test_cleanup() -> None:
     # this must happen after all forked tests (problems with tests teardowns in other tests)
     pass
