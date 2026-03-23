@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Optional, Sequence
 
-import dlt
 import sqlglot.expressions as sge
 from dlt.common.typing import TypedDict
-from dlt.common.schema import utils as schema_utils
+from dlt.common.schema import Schema, utils as schema_utils
 from dlt.common.schema.typing import TTableReference
 
 if TYPE_CHECKING:
-    from dlt.dataset.relation import Relation, TJoinType
+    from dlt.dataset.relation import TJoinType
 
 _INTERMEDIATE_JOIN_ALIAS_PREFIX = "_dlt_int_t"
 
@@ -60,7 +59,7 @@ def _to_join_ref(ref: TTableReference, from_table: str) -> _JoinRef:
     )
 
 
-def _resolve_parent_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
+def _resolve_parent_reference_chain(schema: Schema, left: str, right: str) -> list[_JoinRef]:
     """Resolve ordered join steps between ancestor/descendant tables only."""
 
     upward_chain_from_left = [
@@ -107,7 +106,7 @@ def _resolve_parent_reference_chain(schema: dlt.Schema, left: str, right: str) -
     raise ValueError(f"Unable to resolve reference chain between {left} and {right}")
 
 
-def _resolve_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
+def _resolve_reference_chain(schema: Schema, left: str, right: str) -> list[_JoinRef]:
     """Resolve ordered join steps between two tables."""
     if left == right:
         raise ValueError(f"Cannot join a table to itself: {left}")
@@ -207,52 +206,27 @@ def _next_generated_alias_index(qualifier_map: dict[str, str]) -> int:
     return next_index
 
 
-def _resolve_magic_join_target(left: Relation, right: Union[str, Relation]) -> str:
-    """Resolve magic-join target table name from input."""
-    if isinstance(right, dlt.Relation):
-        # TODO: remove once we allow cross-dataset joins
-        if not (
-            left._dataset.is_same_physical_destination(right._dataset)
-            and left._dataset.dataset_name == right._dataset.dataset_name
-        ):
-            raise ValueError(
-                "Cannot join relations from different datasets: "
-                f"'{right._dataset.dataset_name}' vs '{left._dataset.dataset_name}'"
-            )
-        other_table = right._table_name
-        if not other_table:
-            raise ValueError(f"Relation `{right}` has no base table to resolve references.")
-    else:
-        other_table = right
-    if not other_table or not isinstance(other_table, str):
-        raise ValueError("`other` must be a table name or a base table relation.")
-    if other_table not in left._dataset.schema.tables:
-        raise ValueError(f"Table `{other_table}` not found in dataset schema")
-
-    return other_table
-
-
 def _discover_join_params(
     expression: sge.Query,
     *,
-    schema: dlt.Schema,
+    schema: Schema,
     left_table: str,
     right_table: str,
 ) -> tuple[list[_JoinParams], str]:
-    """Discover join params from schema reference chain."""
-    # refs is the entire reference chain from origin to target (`right_table`) table
+    """Discover join params from the schema reference chain."""
+    # Full reference chain from `left_table` to `right_table`.
     refs = _resolve_reference_chain(schema, left_table, right_table)
 
     qualifier_map = _extract_joined_table_aliases(expression)
     if left_table not in qualifier_map:
-        raise ValueError("This relation has no base table to resolve references.")
+        raise ValueError("Join query has no base table to resolve references.")
 
     attach_qualifier = qualifier_map[left_table]
 
-    # some tables might already be joined (skip them)
+    # Skip join steps whose target table is already present in the query.
     pending = [ref for ref in refs if ref["target_table"] not in qualifier_map]
 
-    # find "last" qualifier to attach new join to
+    # Attach new joins to the most recent qualifier already present on the chain.
     for ref in refs:
         if ref["target_table"] in qualifier_map:
             attach_qualifier = qualifier_map[ref["target_table"]]
@@ -294,7 +268,7 @@ def _discover_join_params(
 def _apply_join_projection(
     query: sge.Select,
     *,
-    schema: dlt.Schema,
+    schema: Schema,
     left_table: str,
     target_table: str,
     target_qualifier: str,
@@ -364,7 +338,7 @@ def _apply_join_projection(
 def _apply_join(
     expression: sge.Query,
     *,
-    schema: dlt.Schema,
+    schema: Schema,
     left_table: str,
     right_table: str,
     projection_prefix: str,
@@ -378,9 +352,7 @@ def _apply_join(
 
     query = expression.copy()
     if not isinstance(query, sge.Select):
-        raise ValueError(
-            f"Query `{query}` received for `Relation`. Must be an SQL SELECT statement."
-        )
+        raise ValueError(f"Join query `{query}` must be an SQL SELECT statement.")
 
     join_params, target_qualifier = _discover_join_params(
         query,

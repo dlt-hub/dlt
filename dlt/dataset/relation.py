@@ -38,7 +38,7 @@ from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import bind_query, build_select_expr
 from dlt.common.destination.dataset import SupportsDataAccess
-from dlt.dataset._join import _apply_join, _resolve_magic_join_target
+from dlt.dataset._join import _apply_join
 
 
 if TYPE_CHECKING:
@@ -404,7 +404,27 @@ class Relation(WithSqlClient):
         if not self._table_name:
             raise ValueError("This relation has no base table to resolve references.")
 
-        target_table = _resolve_magic_join_target(self, other)
+        if isinstance(other, dlt.Relation):
+            # TODO: remove once we allow cross-dataset joins
+            if not (
+                self._dataset.is_same_physical_destination(other._dataset)
+                and self._dataset.dataset_name == other._dataset.dataset_name
+            ):
+                raise ValueError(
+                    "Cannot join relations from different datasets: "
+                    f"'{other._dataset.dataset_name}' vs '{self._dataset.dataset_name}'"
+                )
+            target_table = other._table_name
+            if not target_table:
+                raise ValueError(f"Relation `{other}` has no base table to resolve references.")
+        else:
+            target_table = other
+
+        if not target_table or not isinstance(target_table, str):
+            raise ValueError("`other` must be a table name or a base table relation.")
+        if target_table not in self._dataset.schema.tables:
+            raise ValueError(f"Table `{target_table}` not found in dataset schema")
+
         projection_prefix = alias or target_table
         query = _apply_join(
             self.sqlglot_expression,
