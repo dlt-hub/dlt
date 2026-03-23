@@ -46,6 +46,7 @@ from dlt.extract.utils import (
     wrap_compat_transformer,
     wrap_resource_gen,
     wrap_async_iterator,
+    dynstr,
 )
 
 
@@ -277,6 +278,11 @@ class Pipe(SupportsPipe):
         """Lazily evaluate gen of the pipe when creating PipeIterator. Allows creating multiple use pipes from generator functions and lists"""
         if not self.is_data_bound:
             raise PipeNotBoundToData(self.name, self.has_parent)
+
+        assert not isinstance(self.name, dynstr), (
+            f"Resource {self.name} has dynamic table name and was never called so name could not be"
+            " evaluated. Maybe you wanted to use dynamic table_name instead"
+        )
 
         gen = self.gen
         if not self.has_parent:
