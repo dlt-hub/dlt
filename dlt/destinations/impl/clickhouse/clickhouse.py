@@ -133,7 +133,11 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 ]
                 auth = f"extra_credentials({', '.join(extra_credential_args)})"
             elif access_key_id and secret_access_key:
-                auth = f"'{access_key_id}','{secret_access_key}'"
+                session_token = self._staging_credentials.aws_session_token
+                if session_token:
+                    auth = f"'{access_key_id}','{secret_access_key}','{session_token}'"
+                else:
+                    auth = f"'{access_key_id}','{secret_access_key}'"
 
             return f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
 
