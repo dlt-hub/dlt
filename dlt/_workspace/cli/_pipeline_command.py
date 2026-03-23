@@ -18,7 +18,7 @@ from dlt.common.schema.utils import (
 from dlt.common.storages import PackageStorage
 
 from dlt.extract.state import resource_state
-from dlt.pipeline.helpers import pipeline_drop
+from dlt.pipeline.helpers import pipeline_drop, pipeline_abort
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
@@ -297,7 +297,47 @@ def pipeline_command(
             else:
                 fmt.echo("No failed jobs found")
 
+    if operation == "abort-packages":
+        abort = pipeline_abort(p)
+        if abort.is_empty:
+            fmt.echo("No pending packages found. Nothing to abort.")
+            return
+        fmt.echo(
+            "The following packages will be aborted (retry/pending jobs moved to failed_jobs):"
+        )
+        for load_id, job_info in abort.info["packages_to_abort"].items():
+            fmt.echo("  %s" % fmt.bold(load_id))
+            if job_info["terminal_jobs"]:
+                fmt.echo("    jobs already failed: %s" % ", ".join(job_info["terminal_jobs"]))
+            if job_info["transient_jobs"]:
+                fmt.echo("    jobs to mark as failed: %s" % ", ".join(job_info["transient_jobs"]))
+        if abort.info["packages_to_delete"]:
+            fmt.echo(
+                "Normalized packages to delete (not selected for abort): %s"
+                % ", ".join(abort.info["packages_to_delete"])
+            )
+        if abort.info["extracted_packages_to_delete"]:
+            fmt.echo(
+                "Extracted packages to delete: %s"
+                % ", ".join(abort.info["extracted_packages_to_delete"])
+            )
+        fmt.echo()
+        fmt.echo(
+            "After aborting, the pipeline will load the abort markers, then drop"
+            " local state and resync from the destination."
+        )
+        if fmt.confirm("Proceed?", default=False):
+            abort()
+            fmt.echo(
+                "Done. Packages aborted, local state dropped, and pipeline"
+                " resynced from destination."
+            )
+
     if operation == "drop-pending-packages":
+        fmt.warning(
+            "drop-pending-packages is deprecated and does not record failed jobs or"
+            " resync state. Use `dlt pipeline %s abort-packages` instead." % pipeline_name
+        )
         extracted_packages, norm_packages = _display_pending_packages()
         if len(extracted_packages) == 0 and len(norm_packages) == 0:
             fmt.echo("No pending packages found")

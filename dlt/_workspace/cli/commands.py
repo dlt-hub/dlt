@@ -212,14 +212,35 @@ files that got loaded and the failure message from the destination.
         pipeline_subparsers.add_parser(
             "drop-pending-packages",
             help=(
-                "Deletes all extracted and normalized packages including those that are partially"
-                " loaded."
+                "[Deprecated: use abort-packages] Deletes all extracted and normalized"
+                " packages including those that are partially loaded."
             ),
             description="""
+DEPRECATED: use `abort-packages` instead. That command properly records failed jobs
+and resyncs pipeline state from the destination.
+
 Removes all extracted and normalized packages in the pipeline's working dir.
 `dlt` keeps extracted and normalized load packages in the pipeline working directory. When the `run` method is called, it will attempt to normalize and load
 pending packages first. The command above removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
 were created. Using `dlt pipeline ... sync` is recommended if your destination supports state sync.
+""",
+        )
+        pipeline_subparsers.add_parser(
+            "abort-packages",
+            help=(
+                "Safely cancels pending loads: marks packages as aborted, records"
+                " failed jobs, then resyncs pipeline state from the destination."
+            ),
+            description="""
+Use this when a load is stuck or you want to discard pending work without losing track of what
+happened. Unlike `drop-pending-packages` (which silently deletes packages), this command moves
+retry/pending jobs to failed_jobs so they stay visible in `failed-jobs` output, marks normalized
+packages as aborted, and cleans up any remaining extracted packages. It then runs `load` to
+finalize the abort, wipes local pipeline state, and restores it from the destination (equivalent
+to `drop` + `sync`).
+
+After this, the pipeline is clean and its state matches what the destination has actually loaded.
+You can safely re-extract and re-run.
 """,
         )
         pipeline_subparsers.add_parser(

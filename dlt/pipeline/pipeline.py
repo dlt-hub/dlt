@@ -96,7 +96,7 @@ from dlt.common.pipeline import (
 )
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive, simple_repr, without_none
-from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
+from dlt.common.warnings import deprecated, Dlt04DeprecationWarning, DltDeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
 from dlt.extract import DltSource
@@ -1063,6 +1063,15 @@ class Pipeline(SupportsPipeline):
 
     def drop_pending_packages(self, with_partial_loads: bool = True) -> None:
         """Deletes all extracted and normalized packages, including those that are partially loaded by default"""
+        import warnings
+
+        warnings.warn(
+            DltDeprecationWarning(
+                "drop_pending_packages is deprecated. Use abort_packages instead",
+                since="1.24.0",
+            ),
+            stacklevel=2,
+        )
         # delete normalized packages
         load_storage = self._get_load_storage()
         for load_id in load_storage.normalized_packages.list_packages():
