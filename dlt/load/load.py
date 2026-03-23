@@ -449,8 +449,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self.load_storage.normalized_packages.retry_job(
                         load_id, job.file_name(), failed_message, "terminal"
                     )
-                #                if self.config.raise_on_failed_jobs:
-                if self.config.auto_abort_on_terminal_error:
+                if self.config.auto_abort_on_terminal_error or not self.config.raise_on_failed_jobs:
                     pending_exception = LoadClientJobFailed(
                         load_id,
                         job.job_file_info().job_id(),
@@ -664,7 +663,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         mark_aborted: bool = False
         if pending_exception:
             if isinstance(pending_exception, LoadClientJobFailed):
-                mark_aborted = True
+                mark_aborted = self.config.auto_abort_on_terminal_error
                 if self.config.raise_on_failed_jobs:
                     # the package is completed and skipped
                     self.complete_package(load_id, schema, aborted=True)
