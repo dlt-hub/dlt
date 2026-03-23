@@ -6,7 +6,13 @@ from dlt.common.data_types.typing import TDataType
 from dlt.common.destination.capabilities import adjust_column_schema_to_capabilities
 from dlt.common import logger
 from dlt.common.json import json
-from dlt.common.json import custom_pua_decode_nested, may_have_pua
+from dlt.common.json import (
+    DECODERS,
+    PUA_CHARACTER_MAX,
+    PUA_START,
+    custom_pua_decode_nested,
+    may_have_pua,
+)
 from dlt.common.schema import utils
 from dlt.common.schema.typing import (
     TColumnSchema,
@@ -110,10 +116,20 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             should_descend = False
                             continue
 
-                    # decode pua types
+                    # decode pua types: inline string check for the common
+                    # case (flat rows), delegate to recursive decoder for containers
                     if may_have_pua:
                         for k, v in row.items():
-                            row[k] = custom_pua_decode_nested(v)  # type: ignore
+                            if isinstance(v, str):
+                                if len(v) > 1:
+                                    c = ord(v[0]) - PUA_START
+                                    if c >= 0 and c <= PUA_CHARACTER_MAX:
+                                        try:
+                                            row[k] = DECODERS[c](v[1:])  # type: ignore[index]
+                                        except Exception:
+                                            pass
+                            elif isinstance(v, (dict, list)):
+                                custom_pua_decode_nested(v)
 
                     # coerce row of values into schema table, generating partial table with new columns if any
                     row, partial_table = self._coerce_row(table_name, parent_table, row)

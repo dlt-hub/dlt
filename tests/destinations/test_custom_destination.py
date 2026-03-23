@@ -347,6 +347,7 @@ def test_destination_type_main_module_fallback() -> None:
 
 def test_custom_destination_cli_info() -> None:
     """Test that `dlt pipeline <name> info` works for all custom destination patterns."""
+
     # pattern 1: @dlt.destination decorator
     @dlt.destination
     def my_sink(items, table):
