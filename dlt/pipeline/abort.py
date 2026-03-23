@@ -31,25 +31,29 @@ def prepare_abort_packages(
     load_storage: LoadStorage,
     normalize_storage: NormalizeStorage,
     load_ids: Optional[List[str]] = None,
+    abort_all: bool = False,
 ) -> _AbortDryRunResult:
     """Generate abort information for the requested packages.
 
     Args:
         load_storage: The load storage instance
         normalize_storage: The normalize storage instance
-        load_ids: Load IDs to abort. If None, all pending normalized packages.
+        load_ids: Load IDs to abort. If empty or None with abort_all=False, nothing is aborted.
+        abort_all: If True, abort all pending normalized packages (overrides load_ids).
 
     Returns:
         _AbortDryRunResult containing information about the abort operation.
     """
     all_normalized = load_storage.normalized_packages.list_packages()
 
-    if load_ids is None:
-        load_ids = list(load_storage.normalized_packages.list_packages())
-    else:
+    if abort_all:
+        load_ids = list(all_normalized)
+    elif load_ids:
         for load_id in load_ids:
             if load_id not in all_normalized:
                 raise ValueError(f"Package {load_id} not found in pending packages")
+    else:
+        load_ids = []
 
     packages_to_abort: Dict[str, _AbortPackageJobInfo] = {}
     for load_id in load_ids:

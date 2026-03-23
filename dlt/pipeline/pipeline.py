@@ -960,10 +960,14 @@ class Pipeline(SupportsPipeline):
     @property
     def has_pending_data(self) -> bool:
         """Tells if the pipeline contains any pending packages to be normalized or loaded"""
-        return (
-            len(self.list_normalized_load_packages()) > 0
-            or len(self.list_extracted_load_packages()) > 0
-        )
+        if len(self.list_extracted_load_packages()) > 0:
+            return True
+        normalized = self.list_normalized_load_packages()
+        if not normalized:
+            return False
+        # abort-flagged packages are scheduled for cleanup, not real pending work
+        load_storage = self._get_load_storage()
+        return any(not load_storage.normalized_packages.has_abort_flag(lid) for lid in normalized)
 
     @property
     def schemas(self) -> SchemaStorage:
@@ -1072,7 +1076,10 @@ class Pipeline(SupportsPipeline):
             normalize_storage.extracted_packages.delete_package(load_id)
 
     def abort_packages(
-        self, load_ids: Sequence[str] = None, dry_run: bool = False
+        self,
+        load_ids: Sequence[str] = (),
+        abort_all: bool = False,
+        dry_run: bool = False,
     ) -> _AbortDryRunResult:
         load_storage = self._get_load_storage()
         normalize_storage = self._get_normalize_storage()
@@ -1081,6 +1088,7 @@ class Pipeline(SupportsPipeline):
             load_storage,
             normalize_storage,
             load_ids=list(load_ids) if load_ids else None,
+            abort_all=abort_all,
         )
 
         if not dry_run:

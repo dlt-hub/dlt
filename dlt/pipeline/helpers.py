@@ -144,12 +144,8 @@ class pipeline_drop:
         try:
             self.pipeline.load()
         except Exception:
-            # Abort all pending packages so command can run again
-            self.pipeline.abort_packages()
-            try:
-                self.pipeline.load()  # Process the abort
-            except Exception:
-                pass  # Abort flag is set, will be processed on next load
+            # abort all pending packages so command can run again
+            self.pipeline.abort_packages(abort_all=True)
             with self.pipeline.managed_state() as state:
                 force_state_extract(state)
             # Restore original schema file so all tables are known on next run
@@ -213,7 +209,7 @@ class pipeline_abort:
             load_ids: Specific load package IDs to abort. If empty, all normalized packages are aborted.
         """
         self.pipeline = pipeline
-        result = pipeline.abort_packages(load_ids, dry_run=True)
+        result = pipeline.abort_packages(load_ids, abort_all=not load_ids, dry_run=True)
         self.info = result.info
         self.load_ids = list(result.info["packages_to_abort"].keys())
 
