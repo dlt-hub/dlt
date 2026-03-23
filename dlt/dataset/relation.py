@@ -302,7 +302,7 @@ class Relation(WithSqlClient):
 
         backend = _DltBackend.from_dataset(self._dataset)
 
-        if self._table_name:
+        if self._table_name and self._query is None:
             ibis_table = backend.table(self._table_name)
         else:
             # pass raw query before any identifiers are expanded, quoted or normalized

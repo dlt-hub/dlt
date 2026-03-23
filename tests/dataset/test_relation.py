@@ -56,8 +56,8 @@ def test_transformed_relation_to_ibis_(purchases: dlt.Relation) -> None:
 
     table = purchases.where("id", "gt", 2).select("name").to_ibis()
     assert isinstance(table, ir.Table)
-    # executes without error
-    table.execute()
+    out = table.execute()
+    assert list(out["name"]) == ["charlie"]
 
 
 def test_dataset_load_ids(dataset_with_loads: TLoadsFixture):
