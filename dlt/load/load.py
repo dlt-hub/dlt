@@ -28,6 +28,7 @@ from dlt.common.logger import pretty_format_exception
 from dlt.common.configuration.container import Container
 from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.destination import DestinationReference, AnyDestination, Destination
 from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
@@ -146,10 +147,16 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         else:
             yield
 
-    def submit_job(
+    def _create_job(
         self, file_path: str, load_id: str, schema: Schema, restore: bool = False
-    ) -> LoadJob:
+    ) -> Tuple[LoadJob, bool, bool]:
+        """Creates a load job from a file path without starting it.
+
+        Returns the job, whether it targets the staging destination, and whether
+        it should be loaded into the staging dataset.
+        """
         job: LoadJob = None
+        use_staging_dataset = False
 
         is_staging_destination_job = self.is_staging_destination_job(file_path)
         job_client = self.get_destination_client(schema)
@@ -203,6 +210,20 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     " extension could not be associated with job type and that indicates an error"
                     " in the code."
                 )
+            if isinstance(job, RunnableLoadJob):
+                _packages = self.load_storage.normalized_packages
+                _file_name = job.file_name()
+                job.set_run_vars(
+                    load_id=load_id,
+                    schema=schema,
+                    load_table=load_table,
+                    on_completed=lambda state, msg: _packages.save_pending_transition(
+                        load_id, _file_name, state, msg
+                    ),
+                )
+                # set closed job client: note that it will be replaced
+                # by a client created in the worker thread after submit
+                job._job_client = active_job_client
         except (TerminalException, AssertionError) as term_ex:
             job = FinalizedLoadJobWithFollowupJobs.from_file_path(
                 file_path,
@@ -220,6 +241,15 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 exception=retry_ex,
             )
 
+        return job, is_staging_destination_job, use_staging_dataset
+
+    def submit_job(
+        self, file_path: str, load_id: str, schema: Schema, restore: bool = False
+    ) -> LoadJob:
+        job, is_staging_destination_job, use_staging_dataset = self._create_job(
+            file_path, load_id, schema, restore=restore
+        )
+
         # move to started jobs in case this is not a restored job
         if not restore:
             job._file_path = self.load_storage.normalized_packages.start_job(
@@ -228,8 +258,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         # only start a thread if this job is runnable
         if isinstance(job, RunnableLoadJob):
-            # set job vars
-            job.set_run_vars(load_id=load_id, schema=schema, load_table=load_table)
             # submit to pool
             self.pool.submit(Load.w_run_job, *(id(self), job, is_staging_destination_job, use_staging_dataset, schema))  # type: ignore
         else:
@@ -292,8 +320,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         return started_jobs
 
     def resume_started_jobs(self, load_id: str, schema: Schema) -> List[LoadJob]:
-        """
-        will check jobs in the started folder and resume them
+        """Checks jobs in the started folder and resumes them.
+
+        If a job has a pending transition marker (written by the worker thread
+        after the destination committed), a fresh job instance is created via the
+        client and placed into the target terminal state without re-execution.
         """
         jobs: List[LoadJob] = []
 
@@ -304,7 +335,33 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         if len(started_jobs) == 0:
             return jobs
 
+        # collect pending transitions keyed by job file name
+        packages = self.load_storage.normalized_packages
+        started_names = set(FileStorage.get_file_name_from_file_path(f) for f in started_jobs)
+        # every pending transition must correspond to a started job
+        for pending_name in packages.list_pending_transitions(load_id):
+            if pending_name not in started_names:
+                logger.error(
+                    f"Pending transition for {pending_name} has no matching started"
+                    f" job in load {load_id}"
+                )
+
         for file_path in started_jobs:
+            file_name = FileStorage.get_file_name_from_file_path(file_path)
+            pending = packages.load_pending_transition(load_id, file_name)
+            if pending is not None:
+                pending_state: TLoadJobState = pending[0]  # type: ignore[assignment]
+                failed_message = pending[1]
+                # create a real job via the client and set it into the
+                # recorded terminal state without running
+                job, _, _ = self._create_job(file_path, load_id, schema, restore=True)
+                job.set_final_state(pending_state, failed_message)
+                jobs.append(job)
+                logger.info(
+                    f"Job {file_name} has pending transition to {pending_state},"
+                    " creating surrogate job"
+                )
+                continue
             job = self.submit_job(file_path, load_id, schema, restore=True)
             jobs.append(job)
 
@@ -461,6 +518,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 self.load_storage.normalized_packages.fail_job(
                     load_id, job.file_name(), failed_message
                 )
+                # consume pending transition only after successful file move
+                self.load_storage.normalized_packages.clear_pending_transition(
+                    load_id, job.file_name()
+                )
                 logger.error(
                     f"Job for {job.job_id()} failed terminally in load {load_id} with message"
                     f" {failed_message}"
@@ -502,6 +563,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # move to completed folder after followup jobs are created
                 # in case of exception when creating followup job, the loader will retry operation and try to complete again
                 self.load_storage.normalized_packages.complete_job(load_id, job.file_name())
+                # consume pending transition only after successful file move
+                self.load_storage.normalized_packages.clear_pending_transition(
+                    load_id, job.file_name()
+                )
                 logger.info(f"Job for {job.job_id()} completed in load {load_id}")
                 finalized_jobs.append(job)
             else:

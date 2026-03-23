@@ -1,6 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from time import sleep, time
+from time import sleep, monotonic
 from unittest import mock
 import pytest
 from unittest.mock import patch
@@ -134,10 +134,10 @@ def test_big_load_packages() -> None:
     # make the loop faster by basically not sleeping
     load._run_loop_sleep_duration = 0.001
     load_id, schema = prepare_load_package(load.load_storage, SMALL_FILES, jobs_per_case=500)
-    start_time = time()
+    start_time = monotonic()
     with ThreadPoolExecutor(max_workers=20) as pool:
         load.run(pool)
-    duration = float(time() - start_time)
+    duration = float(monotonic() - start_time)
 
     # sanity check
     assert duration > 2
@@ -443,12 +443,242 @@ def test_try_retrieve_job() -> None:
     for j in jobs:
         while j.state() not in ("completed", "failed", "retry"):
             sleep(0.01)
-    # now jobs are known
+    # now jobs are known and have pending transitions from completion
     jobs = load.resume_started_jobs(load_id, schema)
     assert len(jobs) == 2
     for j in jobs:
         assert j.state() == "completed"
+    # _create_job(restore=True) goes through DummyClient.create_load_job which
+    # registers existing jobs as retried
     assert len(dummy_impl.RETRIED_JOBS) == 2
+
+
+def test_resume_with_pending_completed_transition() -> None:
+    """Jobs with a pending completed transition are restored as surrogates
+    and processed by complete_jobs without re-execution."""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        # move jobs to started and write pending completed transitions
+        # (simulates: worker committed data + wrote marker, then process crashed
+        #  before main thread could call complete_jobs)
+        files = packages.list_new_jobs(load_id)
+        assert len(files) == 2
+        for f in files:
+            fn = FileStorage.get_file_name_from_file_path(f)
+            packages.start_job(load_id, fn)
+            packages.save_pending_transition(load_id, fn, "completed")
+
+        assert len(packages.list_started_jobs(load_id)) == 2
+        assert len(packages.list_pending_transitions(load_id)) == 2
+
+        # resume: should find pending transitions and create surrogates
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        assert len(resumed_jobs) == 2
+        for j in resumed_jobs:
+            assert j.state() == "completed"
+
+        # process surrogates through complete_jobs
+        remaining, finalized, exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(remaining) == 0
+        assert len(finalized) == 2
+        assert exc is None
+
+        # files moved to completed_jobs, pending transitions consumed
+        all_jobs = packages.get_load_package_jobs(load_id)
+        assert len(all_jobs["completed_jobs"]) == 2
+        assert len(all_jobs["started_jobs"]) == 0
+        assert len(packages.list_pending_transitions(load_id)) == 0
+
+
+def test_resume_with_pending_failed_transition() -> None:
+    """One job completed, one failed. Tests both raise_on_failed_jobs modes
+    to verify pending transitions produce correct exception chain."""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        # move jobs to started: first completes, second fails
+        files = packages.list_new_jobs(load_id)
+        assert len(files) == 2
+        file_names = [FileStorage.get_file_name_from_file_path(f) for f in files]
+        for fn in file_names:
+            packages.start_job(load_id, fn)
+        packages.save_pending_transition(load_id, file_names[0], "completed")
+        packages.save_pending_transition(load_id, file_names[1], "failed", "a random fail occurred")
+
+        # resume: one completed surrogate, one failed surrogate
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        assert len(resumed_jobs) == 2
+        states = {j.state() for j in resumed_jobs}
+        assert states == {"completed", "failed"}
+
+        # --- mode 1: raise_on_failed_jobs=True (default) ---
+        # complete_jobs returns a pending_exception with correct exception chain
+        remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(remaining) == 0
+        assert len(finalized) == 2
+        assert pending_exc is not None
+        assert isinstance(pending_exc, LoadClientJobFailed)
+        # the chained client_exception must be a DestinationTerminalException
+        assert isinstance(pending_exc.client_exception, DestinationTerminalException)
+        assert "a random fail occurred" in pending_exc.failed_message
+
+        # files moved correctly
+        all_jobs = packages.get_load_package_jobs(load_id)
+        assert len(all_jobs["completed_jobs"]) == 1
+        assert len(all_jobs["failed_jobs"]) == 1
+        assert len(all_jobs["started_jobs"]) == 0
+        assert len(packages.list_pending_transitions(load_id)) == 0
+
+    # --- mode 2: raise_on_failed_jobs=False (silent completion) ---
+    loader_config = LoaderConfiguration(
+        raise_on_failed_jobs=False,
+        workers=1,
+        pool_type="none",
+    )
+    load = setup_loader(
+        client_config=DummyClientConfiguration(completed_prob=1.0),
+        loader_config=loader_config,
+    )
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        files = packages.list_new_jobs(load_id)
+        file_names = [FileStorage.get_file_name_from_file_path(f) for f in files]
+        for fn in file_names:
+            packages.start_job(load_id, fn)
+        packages.save_pending_transition(load_id, file_names[0], "completed")
+        packages.save_pending_transition(load_id, file_names[1], "failed", "a random fail occurred")
+
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(finalized) == 2
+        # no exception scheduled when raise_on_failed_jobs is False
+        assert pending_exc is None
+
+
+def test_resume_without_pending_transition() -> None:
+    """Without pending transitions, jobs are re-submitted normally (existing behavior)."""
+    load = setup_loader()
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+
+    # manually move jobs to started
+    files = load.load_storage.normalized_packages.list_new_jobs(load_id)
+    for f in files:
+        load.load_storage.normalized_packages.start_job(
+            load_id, FileStorage.get_file_name_from_file_path(f)
+        )
+
+    # no pending transitions exist — jobs should be re-submitted via submit_job(restore=True)
+    jobs = load.resume_started_jobs(load_id, schema)
+    assert len(jobs) == 2
+    # dummy client returns failed for unknown jobs (not in JOBS dict)
+    for j in jobs:
+        assert j.state() == "failed"
+
+
+def test_pending_transition_with_followup_jobs() -> None:
+    """Restored jobs produce their followup jobs via create_followup_jobs.
+
+    The DummyClient requires jobs to exist in its in-memory JOBS dict for
+    create_load_job(restore=True) to succeed, so we first run jobs through the
+    pool (which populates JOBS), then simulate a crash by writing pending
+    transitions and calling resume directly.
+    """
+    load = setup_loader(
+        client_config=DummyClientConfiguration(completed_prob=1.0, create_followup_jobs=True)
+    )
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        # submit jobs so DummyClient registers them in JOBS
+        load.pool = ThreadPoolExecutor()
+        new_jobs = load.start_new_jobs(load_id, schema, [])
+        for j in new_jobs:
+            while j.state() not in ("completed", "failed", "retry"):
+                sleep(0.01)
+
+        # write pending transitions (simulating crash after worker committed)
+        for j in new_jobs:
+            packages.save_pending_transition(load_id, j.file_name(), "completed")
+
+        # reset followup tracking
+        dummy_impl.CREATED_FOLLOWUP_JOBS = {}
+
+        # resume surrogates — _create_job_for_pending_transition calls
+        # DummyClient.create_load_job(restore=True) which returns the real
+        # LoadDummyJob from JOBS with its create_followup_jobs implementation
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        assert len(resumed_jobs) == 2
+
+        # process through complete_jobs — should trigger create_followup_jobs
+        remaining, finalized, exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(finalized) == 2
+
+        # followup jobs created by the real LoadDummyJob instances
+        assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 2
+
+
+def test_pending_transition_without_started_job() -> None:
+    """An orphaned pending transition (no matching started job) is tolerated."""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    # move only one job to started, but write a pending transition for a
+    # file name that was never started
+    files = packages.list_new_jobs(load_id)
+    fn = FileStorage.get_file_name_from_file_path(files[0])
+    packages.start_job(load_id, fn)
+    packages.save_pending_transition(load_id, fn, "completed")
+    # orphan: pending transition for a job that is NOT in started_jobs
+    packages.save_pending_transition(load_id, "ghost_table.abc123.0.jsonl", "completed")
+
+    # orphan is logged as error but does not prevent resume
+    jobs = load.resume_started_jobs(load_id, schema)
+    # the valid started job is still resumed as a surrogate
+    assert len(jobs) == 1
+    assert jobs[0].state() == "completed"
+
+
+def test_pending_transition_corrupt_format() -> None:
+    """A corrupt pending transition file raises on load."""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    files = packages.list_new_jobs(load_id)
+    fn = FileStorage.get_file_name_from_file_path(files[0])
+    packages.start_job(load_id, fn)
+
+    # write garbage directly to the pending transitions file
+    rel_path = packages._pending_transition_path(load_id, fn)
+    packages.storage.save(rel_path, "not valid json {{{")
+
+    with pytest.raises(Exception):
+        load.resume_started_jobs(load_id, schema)
 
 
 def test_completed_loop() -> None:
@@ -490,7 +720,9 @@ def test_failing_followup_jobs() -> None:
     # no metrics were collected
     assert len(load._job_metrics) == 0
 
-    # now we can retry the same load, it will restart the two jobs and successfully create the followup jobs
+    # now we can retry the same load, it will restart the two jobs and successfully
+    # create the followup jobs. pending transitions cause fresh job creation via the
+    # client which picks up the updated config
     load.initial_client_config.fail_followup_job_creation = False  # type: ignore
     assert_complete_job(load, load_id=load_id)
     assert len(dummy_impl.JOBS) == 2 * 2
@@ -521,7 +753,8 @@ def test_failing_table_chain_followup_jobs() -> None:
     # no metrics were collected
     assert len(load._job_metrics) == 0
 
-    # now we can retry the same load, it will restart the two jobs and successfully create the table chain followup jobs
+    # now we can retry the same load, pending transitions cause fresh job creation
+    # via the client which picks up the updated config
     load.initial_client_config.fail_table_chain_followup_job_creation = False  # type: ignore
     assert_complete_job(load, load_id=load_id)
     assert len(dummy_impl.JOBS) == 2 * 2

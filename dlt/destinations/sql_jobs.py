@@ -694,9 +694,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
             columns = list(map(escape_column_id, get_columns_names_with_prop(table, "name")))
             col_str = ", ".join(columns)
-            select_sql = f"SELECT {col_str} FROM {staging_table_name} WHERE {insert_cond}"
             if len(primary_keys) > 0 and len(table_chain) == 1:
-                # without nested tables we deduplicate inside the query instead of using a temp table
+                # single root table without children: deduplicate inline by primary key
                 select_sql = cls.gen_select_from_dedup_sql(
                     staging_table_name,
                     primary_keys,
@@ -705,6 +704,27 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     insert_cond,
                     skip_dedup=skip_dedup,
                 )
+            elif is_nested_table(table) and len(table_chain) > 1:
+                # deduplicate nested tables by their row key to guard against
+                # duplicate rows in staging (e.g. from crash+retry)
+                nested_row_key = escape_column_id(
+                    cls.get_row_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
+                )
+                select_sql = cls.gen_select_from_dedup_sql(
+                    staging_table_name,
+                    [nested_row_key],
+                    columns,
+                    condition=insert_cond,
+                    skip_dedup=skip_dedup,
+                )
+            else:
+                # root table in multi-table chain: dedup handled by insert_temp_table above
+                select_sql = f"SELECT {col_str} FROM {staging_table_name} WHERE {insert_cond}"
 
             sql.append(f"INSERT INTO {table_name}({col_str}) {select_sql}")
         return sql

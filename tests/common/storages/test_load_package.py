@@ -475,6 +475,143 @@ def test_migrate_to_load_package_state() -> None:
     p.load()
 
 
+def test_pending_transition_folder_created(load_storage: LoadStorage) -> None:
+    """create_package creates the .pending_transitions folder."""
+    load_id, _ = start_loading_file(load_storage, [{"content": "a"}], start_job=False)
+    pkg_path = load_storage.normalized_packages.storage.make_full_path(
+        load_storage.normalized_packages.get_package_path(load_id)
+    )
+    pt_path = os.path.join(pkg_path, PackageStorage.PENDING_TRANSITIONS_FOLDER)
+    assert os.path.isdir(pt_path)
+
+
+def test_save_load_pending_transition(load_storage: LoadStorage) -> None:
+    """save and load round-trip for pending transitions."""
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}], start_job=True, file_count=1
+    )
+    packages = load_storage.normalized_packages
+    fn = file_names[0]
+
+    # no transition yet
+    assert packages.load_pending_transition(load_id, fn) is None
+
+    # save completed transition
+    packages.save_pending_transition(load_id, fn, "completed")
+    result = packages.load_pending_transition(load_id, fn)
+    assert result is not None
+    state, msg = result
+    assert state == "completed"
+    assert msg is None
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "simple error",
+        "line one\nline two\nline three",
+        "",
+        "has\ttabs\tand\nnewlines",
+        'contains "quotes" and {braces}',
+        None,
+    ],
+    ids=[
+        "single_line",
+        "multiline",
+        "empty_string",
+        "tabs_and_newlines",
+        "special_chars",
+        "none",
+    ],
+)
+def test_save_load_pending_transition_with_message(load_storage: LoadStorage, message: str) -> None:
+    """Failed transitions preserve error messages of any shape."""
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}], start_job=True, file_count=1
+    )
+    packages = load_storage.normalized_packages
+    fn = file_names[0]
+
+    packages.save_pending_transition(load_id, fn, "failed", message)
+    state, msg = packages.load_pending_transition(load_id, fn)
+    assert state == "failed"
+    assert msg == message
+
+
+def test_clear_pending_transition(load_storage: LoadStorage) -> None:
+    """clear_pending_transition removes the marker."""
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}], start_job=True, file_count=1
+    )
+    packages = load_storage.normalized_packages
+    fn = file_names[0]
+
+    packages.save_pending_transition(load_id, fn, "completed")
+    assert packages.load_pending_transition(load_id, fn) is not None
+
+    packages.clear_pending_transition(load_id, fn)
+    assert packages.load_pending_transition(load_id, fn) is None
+
+    # clearing non-existent is a no-op
+    packages.clear_pending_transition(load_id, fn)
+
+
+def test_list_pending_transitions(load_storage: LoadStorage) -> None:
+    """list_pending_transitions returns all marker file names."""
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}, {"content": "b"}], start_job=False, file_count=2
+    )
+    packages = load_storage.normalized_packages
+    for fn in file_names:
+        packages.start_job(load_id, fn)
+
+    assert len(packages.list_pending_transitions(load_id)) == 0
+
+    packages.save_pending_transition(load_id, file_names[0], "completed")
+    packages.save_pending_transition(load_id, file_names[1], "failed", "err")
+
+    listed = packages.list_pending_transitions(load_id)
+    assert set(listed) == set(file_names)
+
+
+def test_pending_transitions_independent_of_job_folders(
+    load_storage: LoadStorage,
+) -> None:
+    """Pending transitions do not appear in WORKING_FOLDERS job listings."""
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}], start_job=True, file_count=1
+    )
+    packages = load_storage.normalized_packages
+    fn = file_names[0]
+
+    packages.save_pending_transition(load_id, fn, "completed")
+
+    # pending transition must not leak into get_load_package_jobs
+    all_jobs = packages.get_load_package_jobs(load_id)
+    all_file_names = [j.file_name() for jobs in all_jobs.values() for j in jobs]
+    # the actual job file is in started_jobs
+    assert fn in all_file_names
+    # but .pending_transitions folder is not iterated
+    total = sum(len(v) for v in all_jobs.values())
+    assert total == 1  # only the one real job
+
+
+def test_save_pending_transition_overwrites(load_storage: LoadStorage) -> None:
+    """A second save replaces the previous pending transition."""
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}], start_job=True, file_count=1
+    )
+    packages = load_storage.normalized_packages
+    fn = file_names[0]
+
+    packages.save_pending_transition(load_id, fn, "completed")
+    packages.save_pending_transition(load_id, fn, "failed", "oops")
+
+    state, msg = packages.load_pending_transition(load_id, fn)
+    assert state == "failed"
+    assert msg == "oops"
+
+
 def test_progress_write_and_collect(load_storage: LoadStorage) -> None:
     """Tests PackageStorage progress file IPC: write, collect, cleanup."""
     from dlt.common import json

@@ -337,6 +337,7 @@ class PackageStorage:
         "load_package_state.json"
     )
     CANCEL_PACKAGE_FILE_NAME = "_cancelled"
+    PENDING_TRANSITIONS_FOLDER: ClassVar[str] = ".pending_transitions"
     PROGRESS_DIR = ".progress"
 
     def __init__(self, storage: FileStorage, initial_state: TLoadPackageStatus) -> None:
@@ -486,6 +487,55 @@ class PackageStorage:
         )
 
     #
+    # Pending transitions
+    #
+
+    def _pending_transition_path(self, load_id: str, file_name: str) -> str:
+        return os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.PENDING_TRANSITIONS_FOLDER,
+            file_name,
+        )
+
+    def save_pending_transition(
+        self,
+        load_id: str,
+        file_name: str,
+        state: str,
+        failed_message: Optional[str] = None,
+    ) -> None:
+        """Atomically saves a pending transition marker with state and optional error."""
+        rel_path = self._pending_transition_path(load_id, file_name)
+        content = json.dumps({"state": state, "failed_message": failed_message})
+        self.storage.save(rel_path, content)
+
+    def load_pending_transition(
+        self, load_id: str, file_name: str
+    ) -> Optional[Tuple[str, Optional[str]]]:
+        """Returns `(state, failed_message)` if a pending transition exists."""
+        rel_path = self._pending_transition_path(load_id, file_name)
+        if self.storage.has_file(rel_path):
+            data = json.loads(self.storage.load(rel_path))
+            return data["state"], data["failed_message"]
+        return None
+
+    def list_pending_transitions(self, load_id: str) -> Sequence[str]:
+        """Lists file names in the pending transitions folder."""
+        folder = os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.PENDING_TRANSITIONS_FOLDER,
+        )
+        if self.storage.has_folder(folder):
+            return self.storage.list_folder_files(folder, to_root=False)
+        return []
+
+    def clear_pending_transition(self, load_id: str, file_name: str) -> None:
+        """Removes a pending transition marker file."""
+        rel_path = self._pending_transition_path(load_id, file_name)
+        if self.storage.has_file(rel_path):
+            self.storage.delete(rel_path)
+
+    #
     # Create and drop entities
     #
 
@@ -498,6 +548,7 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.COMPLETED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
+        self.storage.create_folder(os.path.join(load_id, PackageStorage.PENDING_TRANSITIONS_FOLDER))
         # use initial state or create a new by loading non existing state
         state = self.get_load_package_state(load_id) if initial_state is None else initial_state
         if not state.get("created_at"):
