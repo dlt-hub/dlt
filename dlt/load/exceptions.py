@@ -1,6 +1,4 @@
-from typing import Sequence, List
-from unittest.mock import Base
-from dlt.common.typing import TypedDict
+from typing import Sequence
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     DestinationTransientException,
@@ -37,8 +35,8 @@ class LoadClientJobRetryPending(DestinationTerminalException, LoadClientJobExcep
 
         super().__init__(
             f"Job with `{job_id=:}` and `{load_id=:}` failed terminally with message:"
-            f" {failed_message}. The job has been retried and the package is left pending. Options:"
-            " TODO"
+            f" {failed_message}. The job has been queued for retry and the package"
+            " remains pending. Run `pipeline.load()` to retry or abort the package."
         )
 
 

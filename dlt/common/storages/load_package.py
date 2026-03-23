@@ -329,7 +329,7 @@ class PackageStorage:
     FAILED_JOBS_FOLDER: ClassVar[TPackageJobState] = "failed_jobs"
     STARTED_JOBS_FOLDER: ClassVar[TPackageJobState] = "started_jobs"
     COMPLETED_JOBS_FOLDER: ClassVar[TPackageJobState] = "completed_jobs"
-    EXCEPTIONS_FOLDER: str = "exceptions"
+    EXCEPTIONS_FOLDER: ClassVar[str] = "exceptions"
 
     SCHEMA_FILE_NAME: ClassVar[str] = "schema.json"
     SCHEMA_UPDATES_FILE_NAME = (  # updates to the tables in schema created by normalizer

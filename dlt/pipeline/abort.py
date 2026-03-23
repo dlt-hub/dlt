@@ -2,6 +2,7 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 from dlt.common.typing import TypedDict
+from dlt.common.exceptions import DltException
 from dlt.common.storages import LoadStorage, NormalizeStorage
 
 
@@ -51,7 +52,7 @@ def prepare_abort_packages(
     elif load_ids:
         for load_id in load_ids:
             if load_id not in all_normalized:
-                raise ValueError(f"Package {load_id} not found in pending packages")
+                raise DltException(f"Package {load_id} not found in pending packages")
     else:
         load_ids = []
 

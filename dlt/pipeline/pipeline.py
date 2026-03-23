@@ -1081,6 +1081,19 @@ class Pipeline(SupportsPipeline):
         abort_all: bool = False,
         dry_run: bool = False,
     ) -> _AbortDryRunResult:
+        """Marks pending normalized packages for abort. Abort is processed on next `load()`.
+
+        Args:
+            load_ids (Sequence[str]): Specific load package IDs to abort. If empty and
+                `abort_all` is `False`, nothing is aborted.
+            abort_all (bool): If `True`, abort all pending normalized packages
+                (overrides `load_ids`).
+            dry_run (bool): If `True`, return abort info without applying any changes.
+
+        Returns:
+            _AbortDryRunResult: Result containing information about packages to abort,
+                delete, and extracted packages to delete.
+        """
         load_storage = self._get_load_storage()
         normalize_storage = self._get_normalize_storage()
 
