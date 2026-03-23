@@ -460,36 +460,41 @@ def test_resume_with_pending_completed_transition() -> None:
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     packages = load.load_storage.normalized_packages
 
-    # move jobs to started and write pending completed transitions
-    # (simulates: worker committed data + wrote marker, then process crashed
-    #  before main thread could call complete_jobs)
-    files = packages.list_new_jobs(load_id)
-    assert len(files) == 2
-    for f in files:
-        fn = FileStorage.get_file_name_from_file_path(f)
-        packages.start_job(load_id, fn)
-        packages.save_pending_transition(load_id, fn, "completed")
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        # move jobs to started and write pending completed transitions
+        # (simulates: worker committed data + wrote marker, then process crashed
+        #  before main thread could call complete_jobs)
+        files = packages.list_new_jobs(load_id)
+        assert len(files) == 2
+        for f in files:
+            fn = FileStorage.get_file_name_from_file_path(f)
+            packages.start_job(load_id, fn)
+            packages.save_pending_transition(load_id, fn, "completed")
 
-    assert len(packages.list_started_jobs(load_id)) == 2
-    assert len(packages.list_pending_transitions(load_id)) == 2
+        assert len(packages.list_started_jobs(load_id)) == 2
+        assert len(packages.list_pending_transitions(load_id)) == 2
 
-    # resume: should find pending transitions and create surrogates
-    resumed_jobs = load.resume_started_jobs(load_id, schema)
-    assert len(resumed_jobs) == 2
-    for j in resumed_jobs:
-        assert j.state() == "completed"
+        # resume: should find pending transitions and create surrogates
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        assert len(resumed_jobs) == 2
+        for j in resumed_jobs:
+            assert j.state() == "completed"
 
-    # process surrogates through complete_jobs
-    remaining, finalized, exc = load.complete_jobs(load_id, resumed_jobs, schema)
-    assert len(remaining) == 0
-    assert len(finalized) == 2
-    assert exc is None
+        # process surrogates through complete_jobs
+        remaining, finalized, exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(remaining) == 0
+        assert len(finalized) == 2
+        assert exc is None
 
-    # files moved to completed_jobs, pending transitions consumed
-    all_jobs = packages.get_load_package_jobs(load_id)
-    assert len(all_jobs["completed_jobs"]) == 2
-    assert len(all_jobs["started_jobs"]) == 0
-    assert len(packages.list_pending_transitions(load_id)) == 0
+        # files moved to completed_jobs, pending transitions consumed
+        all_jobs = packages.get_load_package_jobs(load_id)
+        assert len(all_jobs["completed_jobs"]) == 2
+        assert len(all_jobs["started_jobs"]) == 0
+        assert len(packages.list_pending_transitions(load_id)) == 0
 
 
 def test_resume_with_pending_failed_transition() -> None:
@@ -499,38 +504,43 @@ def test_resume_with_pending_failed_transition() -> None:
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     packages = load.load_storage.normalized_packages
 
-    # move jobs to started: first completes, second fails
-    files = packages.list_new_jobs(load_id)
-    assert len(files) == 2
-    file_names = [FileStorage.get_file_name_from_file_path(f) for f in files]
-    for fn in file_names:
-        packages.start_job(load_id, fn)
-    packages.save_pending_transition(load_id, file_names[0], "completed")
-    packages.save_pending_transition(load_id, file_names[1], "failed", "a random fail occurred")
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        # move jobs to started: first completes, second fails
+        files = packages.list_new_jobs(load_id)
+        assert len(files) == 2
+        file_names = [FileStorage.get_file_name_from_file_path(f) for f in files]
+        for fn in file_names:
+            packages.start_job(load_id, fn)
+        packages.save_pending_transition(load_id, file_names[0], "completed")
+        packages.save_pending_transition(load_id, file_names[1], "failed", "a random fail occurred")
 
-    # resume: one completed surrogate, one failed surrogate
-    resumed_jobs = load.resume_started_jobs(load_id, schema)
-    assert len(resumed_jobs) == 2
-    states = {j.state() for j in resumed_jobs}
-    assert states == {"completed", "failed"}
+        # resume: one completed surrogate, one failed surrogate
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        assert len(resumed_jobs) == 2
+        states = {j.state() for j in resumed_jobs}
+        assert states == {"completed", "failed"}
 
-    # --- mode 1: raise_on_failed_jobs=True (default) ---
-    # complete_jobs returns a pending_exception with correct exception chain
-    remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
-    assert len(remaining) == 0
-    assert len(finalized) == 2
-    assert pending_exc is not None
-    assert isinstance(pending_exc, LoadClientJobFailed)
-    # the chained client_exception must be a DestinationTerminalException
-    assert isinstance(pending_exc.client_exception, DestinationTerminalException)
-    assert "a random fail occurred" in pending_exc.failed_message
+        # --- mode 1: raise_on_failed_jobs=True (default) ---
+        # complete_jobs returns a pending_exception with correct exception chain
+        remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(remaining) == 0
+        assert len(finalized) == 2
+        assert pending_exc is not None
+        assert isinstance(pending_exc, LoadClientJobFailed)
+        # the chained client_exception must be a DestinationTerminalException
+        assert isinstance(pending_exc.client_exception, DestinationTerminalException)
+        assert "a random fail occurred" in pending_exc.failed_message
 
-    # files moved correctly
-    all_jobs = packages.get_load_package_jobs(load_id)
-    assert len(all_jobs["completed_jobs"]) == 1
-    assert len(all_jobs["failed_jobs"]) == 1
-    assert len(all_jobs["started_jobs"]) == 0
-    assert len(packages.list_pending_transitions(load_id)) == 0
+        # files moved correctly
+        all_jobs = packages.get_load_package_jobs(load_id)
+        assert len(all_jobs["completed_jobs"]) == 1
+        assert len(all_jobs["failed_jobs"]) == 1
+        assert len(all_jobs["started_jobs"]) == 0
+        assert len(packages.list_pending_transitions(load_id)) == 0
 
     # --- mode 2: raise_on_failed_jobs=False (silent completion) ---
     loader_config = LoaderConfiguration(
@@ -544,18 +554,24 @@ def test_resume_with_pending_failed_transition() -> None:
     )
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     packages = load.load_storage.normalized_packages
-    files = packages.list_new_jobs(load_id)
-    file_names = [FileStorage.get_file_name_from_file_path(f) for f in files]
-    for fn in file_names:
-        packages.start_job(load_id, fn)
-    packages.save_pending_transition(load_id, file_names[0], "completed")
-    packages.save_pending_transition(load_id, file_names[1], "failed", "a random fail occurred")
 
-    resumed_jobs = load.resume_started_jobs(load_id, schema)
-    remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
-    assert len(finalized) == 2
-    # no exception scheduled when raise_on_failed_jobs is False
-    assert pending_exc is None
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        files = packages.list_new_jobs(load_id)
+        file_names = [FileStorage.get_file_name_from_file_path(f) for f in files]
+        for fn in file_names:
+            packages.start_job(load_id, fn)
+        packages.save_pending_transition(load_id, file_names[0], "completed")
+        packages.save_pending_transition(load_id, file_names[1], "failed", "a random fail occurred")
+
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(finalized) == 2
+        # no exception scheduled when raise_on_failed_jobs is False
+        assert pending_exc is None
 
 
 def test_resume_without_pending_transition() -> None:
@@ -592,32 +608,37 @@ def test_pending_transition_with_followup_jobs() -> None:
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     packages = load.load_storage.normalized_packages
 
-    # submit jobs so DummyClient registers them in JOBS
-    load.pool = ThreadPoolExecutor()
-    new_jobs = load.start_new_jobs(load_id, schema, [])
-    for j in new_jobs:
-        while j.state() not in ("completed", "failed", "retry"):
-            sleep(0.01)
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        # submit jobs so DummyClient registers them in JOBS
+        load.pool = ThreadPoolExecutor()
+        new_jobs = load.start_new_jobs(load_id, schema, [])
+        for j in new_jobs:
+            while j.state() not in ("completed", "failed", "retry"):
+                sleep(0.01)
 
-    # write pending transitions (simulating crash after worker committed)
-    for j in new_jobs:
-        packages.save_pending_transition(load_id, j.file_name(), "completed")
+        # write pending transitions (simulating crash after worker committed)
+        for j in new_jobs:
+            packages.save_pending_transition(load_id, j.file_name(), "completed")
 
-    # reset followup tracking
-    dummy_impl.CREATED_FOLLOWUP_JOBS = {}
+        # reset followup tracking
+        dummy_impl.CREATED_FOLLOWUP_JOBS = {}
 
-    # resume surrogates — _create_job_for_pending_transition calls
-    # DummyClient.create_load_job(restore=True) which returns the real
-    # LoadDummyJob from JOBS with its create_followup_jobs implementation
-    resumed_jobs = load.resume_started_jobs(load_id, schema)
-    assert len(resumed_jobs) == 2
+        # resume surrogates — _create_job_for_pending_transition calls
+        # DummyClient.create_load_job(restore=True) which returns the real
+        # LoadDummyJob from JOBS with its create_followup_jobs implementation
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        assert len(resumed_jobs) == 2
 
-    # process through complete_jobs — should trigger create_followup_jobs
-    remaining, finalized, exc = load.complete_jobs(load_id, resumed_jobs, schema)
-    assert len(finalized) == 2
+        # process through complete_jobs — should trigger create_followup_jobs
+        remaining, finalized, exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(finalized) == 2
 
-    # followup jobs created by the real LoadDummyJob instances
-    assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 2
+        # followup jobs created by the real LoadDummyJob instances
+        assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 2
 
 
 def test_pending_transition_without_started_job() -> None:
