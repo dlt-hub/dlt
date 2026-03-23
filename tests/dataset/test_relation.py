@@ -76,6 +76,23 @@ LOAD_1_STATS = {
 }
 
 
+ITEMS_DATA = [{"item_id": 1, "name": "Widget"}, {"item_id": 2, "name": "Gadget"}]
+WAREHOUSES_DATA = [{"warehouse_id": 1, "location": "Berlin"}]
+
+
+@dlt.source
+def inventory():
+    @dlt.resource
+    def items():
+        yield ITEMS_DATA
+
+    @dlt.resource
+    def warehouses():
+        yield WAREHOUSES_DATA
+
+    return [items, warehouses]
+
+
 TLoadsFixture = tuple[dlt.Dataset, tuple[str, str], tuple[dict[str, Any], dict[str, Any]]]
 
 
@@ -391,3 +408,136 @@ def test_relation_from_loads_query(
         assert any(col.name == normalized_load_id for col in expr.expressions)
     else:
         assert not any(col.name == normalized_load_id for col in expr.expressions)
+
+
+@pytest.fixture(scope="module")
+def multi_schema_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
+    pipeline = dlt.pipeline(
+        pipeline_name="multi_schema",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "multi_schema.db")),
+        dev_mode=True,
+    )
+    pipeline.run(crm(0))
+    pipeline.run(inventory())
+    return pipeline.dataset()
+
+
+def test_multi_schema_schemas_property(multi_schema_dataset: dlt.Dataset) -> None:
+    schemas = multi_schema_dataset.schemas
+    assert len(schemas) == 2
+    schema_names = {s.name for s in multi_schema_dataset.schemas}
+    assert schema_names == {"crm", "inventory"}
+
+
+def test_multi_schema_tables_includes_all_schemas(multi_schema_dataset: dlt.Dataset) -> None:
+    tables = multi_schema_dataset.tables
+    expected = set(
+        [
+            "users",
+            "products",
+            "users__orders",
+            "users__orders__items",
+            "items",
+            "warehouses",
+            "_dlt_version",
+            "_dlt_loads",
+            "_dlt_pipeline_state",
+        ]
+    )
+    assert set(tables) == expected
+
+
+def test_multi_schema_get_table_schema_secondary(multi_schema_dataset: dlt.Dataset) -> None:
+    table = multi_schema_dataset.get_table_schema("items")
+    assert table["name"] == "items"
+    assert "item_id" in table["columns"]
+
+
+def test_multi_schema_table_access_secondary(multi_schema_dataset: dlt.Dataset) -> None:
+    items = multi_schema_dataset["items"].fetchall()
+    assert len(items) == len(ITEMS_DATA)
+    assert items[0][0] == 1
+    assert items[0][1] == "Widget"
+    assert items[1][0] == 2
+    assert items[1][1] == "Gadget"
+
+
+def test_multi_schema_row_counts(multi_schema_dataset: dlt.Dataset) -> None:
+    counts = dict(multi_schema_dataset.row_counts().fetchall())
+    expected_counts = {
+        "users": 2,
+        "products": 2,
+        "users__orders": 3,
+        "users__orders__items": 4,
+        "items": 2,
+        "warehouses": 1,
+    }
+    assert counts == expected_counts
+
+
+def test_multi_schema_cross_schema_sql_query(multi_schema_dataset: dlt.Dataset) -> None:
+    result = multi_schema_dataset.query(
+        "SELECT u.id, i.item_id FROM users u, items i WHERE u.id = i.item_id"
+    ).fetchall()
+    assert sorted(result) == [(1, 1), (2, 2)]
+
+
+def test_multi_schema_load_ids(multi_schema_dataset: dlt.Dataset) -> None:
+    load_ids = multi_schema_dataset.load_ids()
+    assert len(load_ids) == 3
+    assert load_ids == sorted(load_ids)
+    assert all(isinstance(lid, str) for lid in load_ids)
+
+
+def test_multi_schema_latest_load_id(multi_schema_dataset: dlt.Dataset) -> None:
+    latest = multi_schema_dataset.latest_load_id()
+    all_ids = multi_schema_dataset.load_ids()
+    assert latest == all_ids[-1]
+
+
+def test_multi_schema_str_shows_all_schema_names(multi_schema_dataset: dlt.Dataset) -> None:
+    s = str(multi_schema_dataset)
+    assert "crm" in s
+    assert "inventory" in s
+
+
+def test_multi_schema_sqlglot_schema_has_all_tables(multi_schema_dataset: dlt.Dataset) -> None:
+    sg_schema = multi_schema_dataset.sqlglot_schema
+    assert sg_schema.column_names(sge.Table(this=sge.to_identifier("users")))
+    assert sg_schema.column_names(sge.Table(this=sge.to_identifier("items")))
+
+
+def test_multi_schema_get_table_schema_not_found(multi_schema_dataset: dlt.Dataset) -> None:
+    with pytest.raises(KeyError):
+        multi_schema_dataset.get_table_schema("nonexistent")
+
+
+def test_use_single_dataset_false_stays_single_schema(
+    module_tmp_path: pathlib.Path,
+) -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="multi_dataset_mode",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "multi_dataset.db")),
+        dev_mode=True,
+    )
+    pipeline.config.use_single_dataset = False
+    pipeline.run(crm(0))
+    pipeline.run(inventory())
+    ds = pipeline.dataset()
+    assert len(ds.schemas) == 1
+    assert ds.schema.name == "crm"
+
+
+def test_explicit_schema_stays_single(module_tmp_path: pathlib.Path) -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="explicit_schema",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "explicit_schema.db")),
+        dev_mode=True,
+    )
+    pipeline.run(crm(0))
+    pipeline.run(inventory())
+    ds = pipeline.dataset(schema="crm")
+    assert len(ds.schemas) == 1
