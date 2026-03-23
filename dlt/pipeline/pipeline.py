@@ -145,7 +145,7 @@ from dlt.pipeline.state_sync import (
     default_pipeline_state,
 )
 from dlt.pipeline.abort import prepare_abort_packages, _AbortDryRunResult
-from dlt.common.storages.load_package import TLoadPackageState
+from dlt.common.storages.load_package import TLoadPackageState, TExceptionType
 from dlt.pipeline.helpers import prepare_refresh_source
 
 
@@ -1060,6 +1060,56 @@ class Pipeline(SupportsPipeline):
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a specified `load_id`"""
         return self._get_load_storage().get_load_package_info(load_id).jobs.get("failed_jobs", [])
+
+    def list_pending_retry_jobs_in_package(
+        self,
+        load_id: str,
+        exception_type: Optional[TExceptionType] = None,
+    ) -> Sequence[str]:
+        """List retried jobs still pending in a normalized package.
+
+        Args:
+            load_id (str): Load package ID.
+            exception_type (Optional[TExceptionType]): Filter by `"terminal"` or `"transient"`.
+                Returns all retried jobs when `None`.
+
+        Returns:
+            Sequence[str]: Job file names that can be passed to `fail_pending_job` or
+                `retry_failed_job`.
+        """
+        return self._get_load_storage().normalized_packages.list_pending_jobs(
+            load_id, exception_type
+        )
+
+    def fail_pending_job(self, load_id: str, job_file_name: str) -> str:
+        """Move a retried pending job to failed_jobs.
+
+        The exception recorded during retry is copied to failed_jobs so it appears in
+        `list_failed_jobs_in_package`.
+
+        Args:
+            load_id (str): Load package ID.
+            job_file_name (str): File name as returned by `list_pending_retry_jobs_in_package`.
+
+        Returns:
+            str: New file path of the job in failed_jobs.
+        """
+        return self._get_load_storage().normalized_packages.fail_pending_job(load_id, job_file_name)
+
+    def retry_failed_job(self, load_id: str, job_file_name: str) -> str:
+        """Move a failed job back to new_jobs for retry.
+
+        The retry count is incremented and the exception is preserved in the exceptions
+        folder.
+
+        Args:
+            load_id (str): Load package ID.
+            job_file_name (str): File name of the job in failed_jobs.
+
+        Returns:
+            str: New file path of the job in new_jobs.
+        """
+        return self._get_load_storage().normalized_packages.retry_failed_job(load_id, job_file_name)
 
     def drop_pending_packages(self, with_partial_loads: bool = True) -> None:
         """Deletes all extracted and normalized packages, including those that are partially loaded by default"""

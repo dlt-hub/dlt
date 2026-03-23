@@ -2060,6 +2060,68 @@ def test_abort_package_restores_state_from_destination() -> None:
     )
 
 
+def test_pipeline_job_management() -> None:
+    """Test list_pending_retry_jobs_in_package, fail_pending_job, and retry_failed_job on Pipeline."""
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+
+    # run fails with terminal error, package stays pending
+    with pytest.raises(PipelineStepFailed):
+        p.run(s)
+
+    load_id = p.list_normalized_load_packages()[0]
+
+    # list all retried jobs — at least the numbers job should be pending
+    all_pending = p.list_pending_retry_jobs_in_package(load_id)
+    assert len(all_pending) > 0
+
+    # filter by terminal — numbers job failed terminally
+    terminal_pending = p.list_pending_retry_jobs_in_package(load_id, exception_type="terminal")
+    assert len(terminal_pending) > 0
+    numbers_job = next(j for j in terminal_pending if "numbers" in j)
+
+    # filter by transient — should not include the terminal job
+    transient_pending = p.list_pending_retry_jobs_in_package(load_id, exception_type="transient")
+    assert numbers_job not in transient_pending
+
+    # fail the pending job
+    failed_path = p.fail_pending_job(load_id, os.path.basename(numbers_job))
+    assert "failed_jobs" in failed_path
+
+    # job should no longer be in pending retry list
+    remaining_terminal = p.list_pending_retry_jobs_in_package(load_id, exception_type="terminal")
+    assert os.path.basename(numbers_job) not in [os.path.basename(j) for j in remaining_terminal]
+
+    # job should appear in failed jobs
+    failed_jobs = p.list_failed_jobs_in_package(load_id)
+    failed_names = [j.job_file_info.file_name() for j in failed_jobs]
+    assert os.path.basename(numbers_job) in failed_names
+
+    # retry the failed job
+    retried_path = p.retry_failed_job(load_id, os.path.basename(numbers_job))
+    assert "new_jobs" in retried_path
+
+    # job should be back in pending retry list with incremented retry count
+    pending_after_retry = p.list_pending_retry_jobs_in_package(load_id)
+    retried_names = [os.path.basename(j) for j in pending_after_retry]
+    from dlt.common.storages.load_package import ParsedLoadJobFileName
+
+    retried_job = ParsedLoadJobFileName.parse(os.path.basename(retried_path))
+    assert retried_job.file_name() in retried_names
+    assert retried_job.retry_count >= 2  # was already 1, now at least 2
+
+
 def test_load_info_raise_on_failed_jobs() -> None:
     # By default, raises terminal error on a failed job and aborts load. This pipeline does not fail
     os.environ["COMPLETED_PROB"] = "1.0"
