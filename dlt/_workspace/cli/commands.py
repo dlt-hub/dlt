@@ -402,6 +402,33 @@ This will select the `archives` key in the `chess` source.
             default=False,
         )
 
+        pipe_cmd_fail_job = pipeline_subparsers.add_parser(
+            "fail-job",
+            help="Fails a pending retry job, moving it to failed_jobs in the load package.",
+            description="""
+Fails a specific job that is pending retry in a normalized load package. The job is moved from
+new_jobs to failed_jobs and its exception message is preserved. Use `load-package` or
+`list_pending_retry_jobs_in_package` to find the job identifier.
+
+The `job` argument accepts either a job id (e.g. `numbers.abc12.jsonl` as shown by
+`load-package`) or the full file name including retry count (e.g. `numbers.abc12.1.jsonl`
+as returned by `list_pending_retry_jobs_in_package`).
+""",
+        )
+        pipe_cmd_fail_job.add_argument(
+            "load_id",
+            metavar="load-id",
+            help="Load id of the normalized package containing the job.",
+        )
+        pipe_cmd_fail_job.add_argument(
+            "job",
+            metavar="job",
+            help=(
+                "Job id (e.g. table.file_id.format) or full job file name"
+                " (e.g. table.file_id.retry_count.format)."
+            ),
+        )
+
         pipe_cmd_package = pipeline_subparsers.add_parser(
             "load-package",
             help="Displays information on load package, use -v or -vv for more info",

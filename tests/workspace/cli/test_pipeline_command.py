@@ -7,7 +7,12 @@ from subprocess import CalledProcessError
 
 import dlt
 from dlt.common.runners.venv import Venv
+from dlt.common.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.utils import uniq_id
+from dlt.extract import DltSource
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from dlt._workspace.cli import echo, _init_command, _pipeline_command
 
@@ -382,3 +387,106 @@ def test_pipeline_command_drop_pending_packages_deprecation(repo_dir: str) -> No
         assert "abort-packages" in _out
         assert "Pending packages deleted" in _out
     print(_out)
+
+
+def test_pipeline_command_fail_job() -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+
+    with pytest.raises(PipelineStepFailed):
+        p.run(s)
+
+    load_id = p.list_normalized_load_packages()[0]
+    pending = p.list_pending_retry_jobs_in_package(load_id, exception_type="terminal")
+    assert len(pending) > 0
+    job_file_name = os.path.basename(pending[0])
+    job_id = ParsedLoadJobFileName.parse(job_file_name).job_id()
+
+    # test with job_id (as users would copy from load-package output)
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            _pipeline_command.pipeline_command(
+                "fail-job", pipeline_name, None, 0, load_id=load_id, job=job_id
+            )
+        _out = buf.getvalue()
+        assert "Job:" in _out
+        assert "Retry count:" in _out
+        assert "Exception type: terminal" in _out
+        assert "moved to failed_jobs" in _out
+    print(_out)
+
+    # job should now be in failed_jobs
+    failed = p.list_failed_jobs_in_package(load_id)
+    failed_ids = [j.job_file_info.job_id() for j in failed]
+    assert job_id in failed_ids
+
+
+def test_pipeline_command_fail_job_with_file_name() -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+        ],
+    )
+
+    with pytest.raises(PipelineStepFailed):
+        p.run(s)
+
+    load_id = p.list_normalized_load_packages()[0]
+    pending = p.list_pending_retry_jobs_in_package(load_id)
+    assert len(pending) > 0
+    job_file_name = os.path.basename(pending[0])
+
+    # test with full file_name (including retry count)
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            _pipeline_command.pipeline_command(
+                "fail-job", pipeline_name, None, 0, load_id=load_id, job=job_file_name
+            )
+        _out = buf.getvalue()
+        assert "moved to failed_jobs" in _out
+    print(_out)
+
+
+def test_pipeline_command_fail_job_not_found() -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+        ],
+    )
+
+    with pytest.raises(PipelineStepFailed):
+        p.run(s)
+
+    load_id = p.list_normalized_load_packages()[0]
+
+    from dlt._workspace.cli.exceptions import CliCommandInnerException
+
+    with pytest.raises(CliCommandInnerException, match="not found in pending retry jobs"):
+        _pipeline_command.pipeline_command(
+            "fail-job", pipeline_name, None, 0, load_id=load_id, job="nonexistent.abc.jsonl"
+        )

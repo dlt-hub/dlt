@@ -15,7 +15,7 @@ from dlt.common.schema.utils import (
     is_complete_column,
     remove_defaults,
 )
-from dlt.common.storages import PackageStorage
+from dlt.common.storages import PackageStorage, ParsedLoadJobFileName
 
 from dlt.extract.state import resource_state
 from dlt.pipeline.helpers import pipeline_drop, pipeline_abort
@@ -344,6 +344,61 @@ def pipeline_command(
         if fmt.confirm("Delete the above packages?", default=False):
             p.drop_pending_packages(with_partial_loads=True)
             fmt.echo("Pending packages deleted")
+
+    if operation == "fail-job":
+        load_id = command_kwargs.get("load_id")
+        job_arg = command_kwargs.get("job")
+        if not load_id or not job_arg:
+            raise CliCommandInnerException(
+                "pipeline", "Both load-id and job arguments are required for fail-job"
+            )
+
+        pending = p.list_pending_retry_jobs_in_package(load_id)
+        if not pending:
+            fmt.echo("No pending retry jobs in package %s" % fmt.bold(load_id))
+            return
+
+        # resolve job argument: try as file_name first, then as job_id
+        matched_file_name = None
+        try:
+            parsed_arg = ParsedLoadJobFileName.parse(job_arg)
+            # input parsed as a file name — look for exact match
+            for job_path in pending:
+                if os.path.basename(job_path) == parsed_arg.file_name():
+                    matched_file_name = os.path.basename(job_path)
+                    break
+        except Exception:
+            pass
+
+        if matched_file_name is None:
+            # treat input as job_id — scan pending jobs
+            for job_path in pending:
+                parsed = ParsedLoadJobFileName.parse(os.path.basename(job_path))
+                if parsed.job_id() == job_arg:
+                    matched_file_name = os.path.basename(job_path)
+                    break
+
+        if matched_file_name is None:
+            raise CliCommandInnerException(
+                "pipeline",
+                "Job '%s' not found in pending retry jobs for package '%s'" % (job_arg, load_id),
+            )
+
+        parsed_job = ParsedLoadJobFileName.parse(matched_file_name)
+        load_storage = p._get_load_storage()
+        exc_type, exc_msg = load_storage.normalized_packages.get_pending_job_exception(
+            load_id, parsed_job
+        )
+
+        fmt.echo("Job: %s (table: %s)" % (fmt.bold(parsed_job.job_id()), parsed_job.table_name))
+        fmt.echo("Retry count: %d" % parsed_job.retry_count)
+        if exc_type:
+            fmt.echo("Exception type: %s" % exc_type)
+        if exc_msg:
+            fmt.echo("Exception message: %s" % exc_msg.strip())
+        if fmt.confirm("Fail this job?", default=False):
+            p.fail_pending_job(load_id, matched_file_name)
+            fmt.echo("Job %s moved to failed_jobs" % parsed_job.job_id())
 
     if operation == "sync":
         if fmt.confirm(
