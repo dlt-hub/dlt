@@ -13,7 +13,7 @@ from dlt.dataset._join import (
     _to_join_ref,
 )
 from dlt.dataset.relation import TJoinType
-from tests.dataset.conftest import TLoadsFixture
+from tests.dataset.utils import TLoadsFixture
 
 
 class _ColumnRef(TypedDict):
@@ -28,6 +28,20 @@ class JoinExpectation(TypedDict):
 
     target_table: str
     pairs: list[tuple[_ColumnRef, _ColumnRef]]
+
+
+@pytest.fixture
+def join_dataset(request: pytest.FixtureRequest) -> dlt.Dataset:
+    dataset_fixture_name, dataset_variant = request.param
+
+    if dataset_fixture_name == "dataset_with_loads":
+        loads_fixture_name = f"loads_{dataset_variant}"
+        dataset, _, _ = request.getfixturevalue(loads_fixture_name)
+        return dataset
+    if dataset_fixture_name == "dataset_with_annotated_references":
+        return request.getfixturevalue("dataset_with_annotated_references")
+
+    raise ValueError(f"Unknown join dataset fixture: {dataset_fixture_name}")
 
 
 def _flatten_on_pairs(
@@ -386,10 +400,10 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
 
 
 @pytest.mark.parametrize(
-    "dataset_with_loads,build_rel,other,expected_new_joins",
+    "join_dataset,build_rel,other,expected_new_joins",
     [
         pytest.param(
-            "with_root_key",
+            ("dataset_with_loads", "with_root_key"),
             lambda ds: ds.table("users__orders"),
             "users",
             [
@@ -406,7 +420,7 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
             id="child-to-parent",
         ),
         pytest.param(
-            "with_root_key",
+            ("dataset_with_loads", "with_root_key"),
             lambda ds: ds.table("users"),
             "users__orders",
             [
@@ -423,7 +437,7 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
             id="parent-to-child",
         ),
         pytest.param(
-            "with_root_key",
+            ("dataset_with_loads", "with_root_key"),
             lambda ds: ds.table("users__orders__items"),
             "users",
             [
@@ -441,7 +455,7 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
             id="multi-hop-to-root",
         ),
         pytest.param(
-            "without_root_key",
+            ("dataset_with_loads", "without_root_key"),
             lambda ds: ds.table("users__orders__items"),
             "users",
             [
@@ -470,7 +484,7 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
             id="multi-hop-to-root-parent-key",
         ),
         pytest.param(
-            "with_root_key",
+            ("dataset_with_loads", "with_root_key"),
             lambda ds: ds.table("users__orders").join("users"),
             "users__orders__items",
             [
@@ -488,7 +502,7 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
             id="chain-with-existing-join",
         ),
         pytest.param(
-            "without_root_key",
+            ("dataset_with_loads", "without_root_key"),
             lambda ds: ds.table("users__orders__items").join("users__orders"),
             "users",
             [
@@ -506,7 +520,7 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
             id="reuse-joined-alias",
         ),
         pytest.param(
-            "with_root_key",
+            ("dataset_with_loads", "with_root_key"),
             lambda ds: ds.table("users__orders__items"),
             lambda ds: ds.table("users__orders").join("users"),
             [
@@ -524,16 +538,92 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
             ],
             id="joinable-graph-other",
         ),
+        pytest.param(
+            ("dataset_with_annotated_references", None),
+            lambda ds: ds.table("user_sessions"),
+            "users",
+            [
+                {
+                    "target_table": "users",
+                    "pairs": [
+                        (
+                            {"qualifier": "user_sessions", "column": "user_id"},
+                            {"qualifier": "users", "column": "id"},
+                        )
+                    ],
+                }
+            ],
+            id="annotated-single-column-child-to-parent",
+        ),
+        pytest.param(
+            ("dataset_with_annotated_references", None),
+            lambda ds: ds.table("users"),
+            "user_sessions",
+            [
+                {
+                    "target_table": "user_sessions",
+                    "pairs": [
+                        (
+                            {"qualifier": "users", "column": "id"},
+                            {"qualifier": "user_sessions", "column": "user_id"},
+                        )
+                    ],
+                }
+            ],
+            id="annotated-single-column-parent-to-child",
+        ),
+        pytest.param(
+            ("dataset_with_annotated_references", None),
+            lambda ds: ds.table("account_memberships"),
+            "accounts",
+            [
+                {
+                    "target_table": "accounts",
+                    "pairs": [
+                        (
+                            {"qualifier": "account_memberships", "column": "account_id"},
+                            {"qualifier": "accounts", "column": "account_id"},
+                        ),
+                        (
+                            {"qualifier": "account_memberships", "column": "tenant_id"},
+                            {"qualifier": "accounts", "column": "tenant_id"},
+                        ),
+                    ],
+                }
+            ],
+            id="annotated-multi-column-child-to-parent",
+        ),
+        pytest.param(
+            ("dataset_with_annotated_references", None),
+            lambda ds: ds.table("accounts"),
+            "account_memberships",
+            [
+                {
+                    "target_table": "account_memberships",
+                    "pairs": [
+                        (
+                            {"qualifier": "accounts", "column": "account_id"},
+                            {"qualifier": "account_memberships", "column": "account_id"},
+                        ),
+                        (
+                            {"qualifier": "accounts", "column": "tenant_id"},
+                            {"qualifier": "account_memberships", "column": "tenant_id"},
+                        ),
+                    ],
+                }
+            ],
+            id="annotated-multi-column-parent-to-child",
+        ),
     ],
-    indirect=["dataset_with_loads"],
+    indirect=["join_dataset"],
 )
 def test_magic_join_plan_matrix(
-    dataset_with_loads: TLoadsFixture,
+    join_dataset: dlt.Dataset,
     build_rel: Callable[[dlt.Dataset], dlt.Relation],
     other: Any,
     expected_new_joins: list[JoinExpectation],
 ) -> None:
-    dataset, _, _ = dataset_with_loads
+    dataset = join_dataset
     rel = build_rel(dataset)
     target = other(dataset) if callable(other) else other
     existing_joins = rel.sqlglot_expression.args.get("joins") or []
@@ -550,6 +640,42 @@ def test_magic_join_plan_matrix(
         assert actual.this.this.name == expected["target_table"]
         actual_pairs = _flatten_on_pairs(actual.args["on"])
         assert actual_pairs == expected["pairs"]
+
+
+@pytest.mark.parametrize(
+    "left,right,expected_rows,joined_name_column,expected_names",
+    [
+        pytest.param(
+            "user_sessions",
+            "users",
+            3,
+            "users__name",
+            ["Alice", "Alice", "Bob"],
+            id="annotated-single-column-e2e",
+        ),
+        pytest.param(
+            "account_memberships",
+            "accounts",
+            3,
+            "accounts__name",
+            ["Acme", "Globex", "Initech"],
+            id="annotated-multi-column-e2e",
+        ),
+    ],
+)
+def test_e2e_join_user_references_matrix(
+    dataset_with_annotated_references: dlt.Dataset,
+    left: str,
+    right: str,
+    expected_rows: int,
+    joined_name_column: str,
+    expected_names: list[str],
+) -> None:
+    df = dataset_with_annotated_references.table(left).join(right).order_by(joined_name_column).df()
+
+    assert df is not None
+    assert len(df) == expected_rows
+    assert list(df[joined_name_column]) == expected_names
 
 
 def test_join_rejoin_existing_target_is_idempotent(dataset_with_loads: TLoadsFixture) -> None:

@@ -1,14 +1,22 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-import pytest
 import dlt
+import pytest
+
+from tests.dataset.utils import (
+    LOAD_0_STATS,
+    LOAD_1_STATS,
+    TLoadsFixture,
+    annotated_references,
+    crm,
+)
 from tests.utils import (
-    preserve_environ,
-    autouse_test_storage,
     auto_test_run_context,
+    autouse_test_storage,
     deactivate_pipeline,
+    preserve_environ,
 )
 
 if TYPE_CHECKING:
@@ -19,74 +27,6 @@ if TYPE_CHECKING:
 def module_tmp_path(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
     """Temporary directory that persist for the lifetime of test `.py` file."""
     return tmp_path_factory.mktemp("pytest-test_relation")
-
-
-USERS_DATA_0 = [
-    {
-        "id": 1,
-        "name": "Alice",
-        "orders": [
-            {"order_id": 101, "amount": 100.0, "items": [{"item": "A"}, {"item": "B"}]},
-            {"order_id": 102, "amount": 200.0, "items": [{"item": "C"}]},
-        ],
-    },
-    {
-        "id": 2,
-        "name": "Bob",
-        "orders": [{"order_id": 103, "amount": 150.0, "items": [{"item": "D"}]}],
-    },
-]
-
-USERS_DATA_1 = [
-    {
-        "id": 3,
-        "name": "Charlie",
-        "orders": [{"order_id": 104, "amount": 300.0, "items": [{"item": "E"}]}],
-    }
-]
-
-PRODUCTS_DATA_0 = [{"product_id": 1, "name": "Widget"}, {"product_id": 2, "name": "Gadget"}]
-PRODUCTS_DATA_1 = [{"product_id": 3, "name": "Doohickey"}]
-
-
-@dlt.source(root_key=False)
-def crm(i: int = 0):
-    @dlt.resource
-    def users(i: int):
-        if i == 0:
-            yield USERS_DATA_0
-        elif i == 1:
-            yield USERS_DATA_1
-
-    @dlt.resource
-    def products(i: int):
-        if i == 0:
-            yield PRODUCTS_DATA_0
-        elif i == 1:
-            yield PRODUCTS_DATA_1
-
-    return [users(i), products(i)]
-
-
-LOAD_0_STATS = {
-    "users": len(USERS_DATA_0),
-    "products": len(PRODUCTS_DATA_0),
-    "users__orders": sum(len(user["orders"]) for user in USERS_DATA_0),  # type: ignore[misc,arg-type]
-    "users__orders__items": sum(
-        len(order["items"]) for user in USERS_DATA_0 for order in user["orders"]  # type: ignore[misc,attr-defined]
-    ),
-}
-LOAD_1_STATS = {
-    "users": len(USERS_DATA_1),
-    "products": len(PRODUCTS_DATA_1),
-    "users__orders": sum(len(user["orders"]) for user in USERS_DATA_1),  # type: ignore[misc,arg-type]
-    "users__orders__items": sum(
-        len(order["items"]) for user in USERS_DATA_1 for order in user["orders"]  # type: ignore[misc,attr-defined]
-    ),
-}
-
-
-TLoadsFixture = tuple[dlt.Dataset, tuple[str, str], tuple[dict[str, Any], dict[str, Any]]]
 
 
 @pytest.fixture(scope="module")
@@ -147,24 +87,14 @@ def dataset_with_loads(
 
 
 @pytest.fixture(scope="module")
-def dataset() -> dlt.Dataset:
-    @dlt.resource
-    def purchases():
-        yield from (
-            {"id": 1, "name": "alice", "city": "berlin"},
-            {"id": 2, "name": "bob", "city": "paris"},
-            {"id": 3, "name": "charlie", "city": "barcelona"},
-        )
-
+def dataset_with_annotated_references(module_tmp_path: pathlib.Path) -> dlt.Dataset:
     pipeline = dlt.pipeline(
-        "_relation_to_ibis", destination="duckdb", full_refresh=True, dev_mode=True
+        pipeline_name="annotated_references",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "annotated_references.db")),
+        dev_mode=True,
     )
-    pipeline.run([purchases])
+
+    pipeline.run(annotated_references())
+
     return pipeline.dataset()
-
-
-@pytest.fixture
-def purchases(dataset: dlt.Dataset) -> dlt.Relation:
-    purchases = dataset.table("purchases")
-    assert isinstance(purchases, dlt.Relation)
-    return purchases

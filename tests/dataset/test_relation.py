@@ -5,7 +5,7 @@ from sqlglot import expressions as sge
 import dlt
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.dataset.dataset import _get_load_ids, _get_latest_load_id
-from tests.dataset.conftest import TLoadsFixture
+from tests.dataset.utils import TLoadsFixture
 
 # TODO move destination-independent tests from `test_read_interfaces.py` to this module
 
@@ -13,6 +13,30 @@ from tests.dataset.conftest import TLoadsFixture
 def _set_name_normalizer_on_schema(schema: dlt.Schema, name_normalizer_ref: str) -> None:
     schema._normalizers_config["names"] = name_normalizer_ref
     schema.update_normalizers()
+
+
+@pytest.fixture(scope="module")
+def dataset() -> dlt.Dataset:
+    @dlt.resource(name="purchases")
+    def purchases_data():
+        yield from (
+            {"id": 1, "name": "alice", "city": "berlin"},
+            {"id": 2, "name": "bob", "city": "paris"},
+            {"id": 3, "name": "charlie", "city": "barcelona"},
+        )
+
+    pipeline = dlt.pipeline(
+        "_relation_to_ibis", destination="duckdb", full_refresh=True, dev_mode=True
+    )
+    pipeline.run([purchases_data])
+    return pipeline.dataset()
+
+
+@pytest.fixture
+def purchases(dataset: dlt.Dataset) -> dlt.Relation:
+    purchases = dataset.table("purchases")
+    assert isinstance(purchases, dlt.Relation)
+    return purchases
 
 
 @pytest.mark.skipif(
