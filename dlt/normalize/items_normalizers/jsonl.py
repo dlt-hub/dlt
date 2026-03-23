@@ -6,7 +6,13 @@ from dlt.common.data_types.typing import TDataType
 from dlt.common.destination.capabilities import adjust_column_schema_to_capabilities
 from dlt.common import logger
 from dlt.common.json import json
-from dlt.common.json import custom_pua_decode, may_have_pua
+from dlt.common.json import (
+    DECODERS,
+    PUA_CHARACTER_MAX,
+    PUA_START,
+    custom_pua_decode_nested,
+    may_have_pua,
+)
 from dlt.common.schema import utils
 from dlt.common.schema.typing import (
     TColumnSchema,
@@ -24,6 +30,7 @@ from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.time import normalize_timezone
 from dlt.common.typing import VARIANT_FIELD_FORMAT, DictStrAny, REPattern, StrAny, TDataItem
 
+from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.items_normalizers.base import ItemsNormalizer
 
@@ -37,8 +44,19 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
+        report_progress: bool = False,
+        collector: Collector = NULL_COLLECTOR,
     ) -> None:
-        super().__init__(item_storage, load_storage, normalize_storage, schema, load_id, config)
+        super().__init__(
+            item_storage,
+            load_storage,
+            normalize_storage,
+            schema,
+            load_id,
+            config,
+            report_progress=report_progress,
+            collector=collector,
+        )
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
         self._filtered_tables: Set[str] = set()
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
@@ -76,6 +94,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema = self.schema
         schema_name = schema.name
         normalize_data_fun = self.schema.normalize_data_item
+        row_counts: Dict[str, int] = {}
 
         for item in items:
             items_gen = normalize_data_fun(item, self.load_id, root_table_name)
@@ -110,10 +129,20 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             should_descend = False
                             continue
 
-                    # decode pua types
+                    # decode pua types: inline string check for the common
+                    # case (flat rows), delegate to recursive decoder for containers
                     if may_have_pua:
                         for k, v in row.items():
-                            row[k] = custom_pua_decode(v)  # type: ignore
+                            if isinstance(v, str):
+                                if len(v) > 1:
+                                    c = ord(v[0]) - PUA_START
+                                    if c >= 0 and c <= PUA_CHARACTER_MAX:
+                                        try:
+                                            row[k] = DECODERS[c](v[1:])  # type: ignore[index]
+                                        except Exception:
+                                            pass
+                            elif isinstance(v, (dict, list)):
+                                custom_pua_decode_nested(v)
 
                     # coerce row of values into schema table, generating partial table with new columns if any
                     row, partial_table = self._coerce_row(table_name, parent_table, row)
@@ -176,9 +205,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         self.item_storage.write_data_item(
                             self.load_id, schema_name, table_name, row, columns
                         )
+                        row_counts[table_name] = row_counts.get(table_name, 0) + 1
             except StopIteration:
                 pass
 
+        # report per-table progress after the chunk
+        for table_name, count in row_counts.items():
+            self._report_progress(table_name, count)
         return schema_update
 
     def _coerce_row(

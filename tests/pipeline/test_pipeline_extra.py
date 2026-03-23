@@ -1,3 +1,5 @@
+from datetime import date, datetime
+from decimal import Decimal as PyDecimal
 import os
 import importlib.util
 from typing import Any, ClassVar, Dict, Iterator, List, Optional, Union
@@ -914,3 +916,50 @@ def test_pydantic_return_validated_models(return_models, yield_models, yield_lis
             assert all(t is dict for t in seen_inner if t)
         else:
             assert all(t is dict for t in seen_outer)
+
+
+def test_nested_pydantic_model_no_pua_markers() -> None:
+    """Nested Pydantic models with date/datetime/Decimal must not leak PUA markers.
+
+    Regression test for #3755.
+    """
+
+    class NestedModel(BaseModel):
+        date_field: date
+        timestamp_field: datetime
+        decimal_field: PyDecimal
+
+    class ParentModel(BaseModel):
+        nested: NestedModel
+
+    @dlt.resource(
+        table_name="items",
+        max_table_nesting=0,
+        columns=ParentModel,
+    )
+    def get_items():
+        yield [
+            {
+                "id": 1,
+                "nested": {
+                    "date_field": date(2026, 1, 1),
+                    "timestamp_field": datetime(2026, 1, 1, 12, 0, 0),
+                    "decimal_field": PyDecimal("123.45"),
+                },
+            },
+        ]
+
+    pipeline = dlt.pipeline(destination="duckdb")
+    info = pipeline.run(get_items)
+    assert_load_info(info)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT nested FROM items")
+        nested_json = rows[0][0]
+        assert nested_json == json.dumps(
+            {
+                "date_field": "2026-01-01",
+                "timestamp_field": "2026-01-01T12:00:00",
+                "decimal_field": "123.45",
+            }
+        )
