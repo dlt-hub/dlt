@@ -308,7 +308,10 @@ def pipeline_command(
         for load_id, job_info in abort.info["packages_to_abort"].items():
             fmt.echo("  %s" % fmt.bold(load_id))
             if job_info["terminal_jobs"]:
-                fmt.echo("    jobs already failed: %s" % ", ".join(job_info["terminal_jobs"]))
+                fmt.echo(
+                    "    jobs pending with terminal errors: %s"
+                    % ", ".join(job_info["terminal_jobs"])
+                )
             if job_info["transient_jobs"]:
                 fmt.echo("    jobs to mark as failed: %s" % ", ".join(job_info["transient_jobs"]))
         if abort.info["packages_to_delete"]:

@@ -1,5 +1,6 @@
 import contextlib
 import os
+import warnings
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy, copy
 from functools import wraps
@@ -1113,8 +1114,6 @@ class Pipeline(SupportsPipeline):
 
     def drop_pending_packages(self, with_partial_loads: bool = True) -> None:
         """Deletes all extracted and normalized packages, including those that are partially loaded by default"""
-        import warnings
-
         warnings.warn(
             DltDeprecationWarning(
                 "drop_pending_packages is deprecated. Use abort_packages instead",

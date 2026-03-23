@@ -853,7 +853,7 @@ class PackageStorage:
         )
         exception_type: Optional[TExceptionType] = None
         failed_message: Optional[str] = None
-        with contextlib.suppress(FileNotFoundError):
+        with contextlib.suppress(FileNotFoundError, ValueError, IndexError):
             content = self.storage.load(exception_path)
             first_line, message = content.split("\n", 1)
             exception_type = first_line.split(": ", 1)[1]
@@ -965,7 +965,7 @@ class PackageStorage:
 
         Args:
             load_id: Load package ID
-            job: Parsed job file name (any retry count - we match by table_name.file_id prefix)
+            file_name: Job file name (any retry count - we match by table_name.file_id prefix)
         """
         job_info = ParsedLoadJobFileName.parse(file_name)
         exceptions_folder = os.path.join(

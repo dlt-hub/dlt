@@ -1,4 +1,3 @@
-from operator import ne
 import os
 import pytest
 from pathlib import Path

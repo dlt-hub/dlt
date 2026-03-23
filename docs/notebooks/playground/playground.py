@@ -4,9 +4,6 @@ __generated_with = "0.14.10"
 app = marimo.App()
 
 
-with app.setup:
-    import dlt
-
 @app.cell(hide_code=True)
 async def initialize():
     import sys
@@ -16,7 +13,7 @@ async def initialize():
         import micropip
 
         # dependencies needed for dlt
-#        await micropip.install("dlt[duckdb]")
+        await micropip.install("dlt[duckdb]")
         await micropip.install("pandas")
         # dependencies needed for ibis
         await micropip.install("requests")
@@ -27,6 +24,7 @@ async def initialize():
 
 @app.cell
 def run():
+    import dlt
     import requests
 
     @dlt.resource(name="customers")

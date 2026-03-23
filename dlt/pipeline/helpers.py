@@ -21,7 +21,6 @@ from dlt.pipeline.exceptions import (
 from dlt.pipeline.state_sync import force_state_extract
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.drop import prepare_drop_resources
-from dlt.pipeline.abort import prepare_abort_packages
 from dlt.extract import DltSource
 
 if TYPE_CHECKING:
