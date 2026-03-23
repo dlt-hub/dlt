@@ -6,6 +6,14 @@ from dlt._workspace._workspace_context import WorkspaceRunContext
 
 from tests.workspace.utils import isolated_workspace
 
+# Import fixtures from utils to make them available to all tests
+from tests.workspace.cli.utils import (  # noqa: F401
+    _cached_init_repo,
+    cloned_init_repo,
+    repo_dir,
+    auto_echo_default_choice,
+)
+
 
 @pytest.fixture(autouse=True)
 def auto_isolated_workspace(

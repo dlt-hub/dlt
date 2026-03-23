@@ -68,10 +68,9 @@ class NonInteractiveAction(argparse.Action):
         values: Any,
         option_string: str = None,
     ) -> None:
-        fmt.ALWAYS_CHOOSE_DEFAULT = True
+        fmt.ALWAYS_CHOOSE_VALUE = True
         fmt.note(
-            "Non interactive mode. Default choices are automatically made for confirmations and"
-            " prompts."
+            "Non interactive mode. Confirmations are automatically accepted."
         )
 
 
