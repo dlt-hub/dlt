@@ -6,11 +6,13 @@ import pytest
 from unittest.mock import patch
 from typing import List, Tuple
 
+from dlt.common import pendulum
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
 from dlt.common.storages.configuration import FilesystemConfiguration
-from dlt.common.storages.load_package import TPackageJobState
+from dlt.common.storages.load_package import LoadPackageStateInjectableContext, TPackageJobState
+from dlt.common.configuration.container import Container
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination import AnyDestination
 from dlt.common.destination.client import RunnableLoadJob
@@ -85,7 +87,12 @@ def test_spool_job_started() -> None:
         )
         assert_job_metrics(job, "completed")
         jobs.append(job)
-    remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
     assert len(finalized_jobs) == 2
     assert len(load._job_metrics) == 2
@@ -210,7 +217,12 @@ def test_spool_job_failed_and_package_completed() -> None:
         jobs.append(job)
     assert len(jobs) == 2
     # complete files
-    remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
     assert len(finalized_jobs) == 2
     for job in jobs:
@@ -1333,6 +1345,95 @@ def test_load_multiple_packages() -> None:
     assert len(load_info.metrics) == 2
 
 
+def test_followup_job_ids_in_metrics() -> None:
+    load = setup_loader(
+        client_config=DummyClientConfiguration(completed_prob=1.0, create_followup_jobs=True)
+    )
+    load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    with ThreadPoolExecutor() as pool:
+        load.run(pool)
+
+    # original jobs should have followup_jobs set (reference job IDs)
+    # followup (reference) jobs should have followup_jobs as None
+    for job_id, m in load._job_metrics.items():
+        if job_id in dummy_impl.CREATED_FOLLOWUP_JOBS:
+            # this is a followup job
+            assert m.followup_jobs is None
+        else:
+            # this is an original job - should reference its followup
+            assert m.followup_jobs is not None
+            assert len(m.followup_jobs) == 1
+            assert m.followup_jobs[0] in dummy_impl.CREATED_FOLLOWUP_JOBS
+
+
+def test_table_chain_followup_ids_in_metrics() -> None:
+    load = setup_loader(
+        client_config=DummyClientConfiguration(
+            completed_prob=1.0, create_followup_table_chain_reference_jobs=True
+        ),
+    )
+    load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES, jobs_per_case=10)
+    with ThreadPoolExecutor() as pool:
+        load.run(pool)
+
+    # 2 chain followup jobs (one per root table)
+    chain_followup_ids = set(dummy_impl.CREATED_TABLE_CHAIN_FOLLOWUP_JOBS.keys())
+    assert len(chain_followup_ids) == 2
+
+    # all original jobs are predecessors of the chain followup (fan-in)
+    for job_id, m in load._job_metrics.items():
+        if job_id in chain_followup_ids:
+            # chain followup jobs are terminal
+            assert m.followup_jobs is None
+        else:
+            # every original job should reference its chain followup
+            assert m.followup_jobs is not None
+            assert len(m.followup_jobs) == 1
+            assert m.followup_jobs[0] in chain_followup_ids
+
+
+def test_job_metrics_persisted_and_restored() -> None:
+    from dlt.common.metrics import LoadJobMetrics
+
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+
+    # write a fake metric into the load package state before running
+    fake_metric = LoadJobMetrics(
+        job_id="fake_table.fake_id.jsonl",
+        file_path="/fake/path",
+        table_name="fake_table",
+        started_at=pendulum.now(),
+        finished_at=pendulum.now(),
+        state="completed",
+        remote_url=None,
+        retry_count=0,
+        followup_jobs=["fake_followup.abc.reference"],
+    )
+    state = load.load_storage.normalized_packages.get_load_package_state(load_id)
+    state["load_metrics"] = {fake_metric.job_id: fake_metric._asdict()}
+    load.load_storage.normalized_packages.save_load_package_state(load_id, state)
+
+    with ThreadPoolExecutor() as pool:
+        load.run(pool)
+
+    # should contain both the fake metric and the real job metrics
+    assert "fake_table.fake_id.jsonl" in load._job_metrics
+    restored_fake = load._job_metrics["fake_table.fake_id.jsonl"]
+    assert restored_fake.state == "completed"
+    assert restored_fake.followup_jobs == ["fake_followup.abc.reference"]
+
+    # real jobs should also be present
+    real_job_ids = {jid for jid in load._job_metrics if jid != "fake_table.fake_id.jsonl"}
+    assert len(real_job_ids) == 2
+
+    # verify the loaded package state has load_metrics persisted
+    loaded_state = load.load_storage.loaded_packages.get_load_package_state(load_id)
+    assert "load_metrics" in loaded_state
+    assert "fake_table.fake_id.jsonl" in loaded_state["load_metrics"]
+    assert len(loaded_state["load_metrics"]) == 3  # fake + 2 real
+
+
 def test_terminal_exceptions() -> None:
     try:
         raise TerminalValueError("a")
@@ -1422,6 +1523,20 @@ def assert_complete_job(
                             )
                         else:
                             assert remote_url is None
+                        # followup_jobs: jobs that are themselves followups should
+                        # not have followup_jobs set; if followup_jobs is set,
+                        # each referenced id must exist as a completed job
+                        followup_jobs = job_metrics.followup_jobs
+                        is_followup = (
+                            job.job_id() in dummy_impl.CREATED_FOLLOWUP_JOBS
+                            or job.job_id() in dummy_impl.CREATED_TABLE_CHAIN_FOLLOWUP_JOBS
+                        )
+                        if is_followup:
+                            assert followup_jobs is None
+                        elif followup_jobs is not None:
+                            all_completed_ids = {j.job_id() for j in package_info["completed_jobs"]}
+                            for fup_id in followup_jobs:
+                                assert fup_id in all_completed_ids
                     else:
                         assert job_metrics is None
 

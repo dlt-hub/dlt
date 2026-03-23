@@ -1,7 +1,8 @@
-from typing import Callable, List, Dict, NamedTuple, Sequence, Set, Optional, Type
+from typing import List, Dict, NamedTuple, Sequence, Set, Type
 
 from dlt.common import logger
 from dlt.common.configuration.container import Container
+from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.data_writers import (
     DataWriter,
     create_import_spec,
@@ -67,6 +68,8 @@ def w_normalize_files(
     stored_schema: TStoredSchema,
     load_id: str,
     extracted_items_files: Sequence[str],
+    report_progress: bool = False,
+    collector: Collector = NULL_COLLECTOR,
 ) -> TWorkerRV:
     destination_caps = config.destination_capabilities
     schema_updates: List[TSchemaUpdate] = []
@@ -193,6 +196,8 @@ def w_normalize_files(
                 schema,
                 load_id,
                 config,
+                report_progress=report_progress,
+                collector=collector,
             )
             return norm
 
@@ -249,12 +254,16 @@ def w_normalize_files(
                     parsed_file_name,
                     root_table,
                 )
+                normalizer._report_progress(root_table_name, 0)
+                normalizer._flush_progress()
                 logger.debug(
                     f"Processing extracted items in {extracted_items_file} in load_id"
                     f" {load_id} with table name {root_table_name} and schema {schema.name}"
                 )
                 partial_updates = normalizer(extracted_items_file, root_table_name)
                 schema_updates.extend(partial_updates)
+                normalizer._report_progress("Files", 1)
+                normalizer._flush_progress()
                 logger.debug(f"Processed file {extracted_items_file}")
         except Exception as exc:
             job_id = parsed_file_name.job_id() if parsed_file_name else ""

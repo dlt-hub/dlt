@@ -698,6 +698,26 @@ tables:
         data_type: bigint
         nullable: true
     parent: trace__steps
+  trace__steps__load_info__job_metrics__followup_jobs:
+    description: IDs of followup jobs created by this load job (per-job and table
+      chain followups)
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+    parent: trace__steps__load_info__job_metrics
   trace__steps__step_info__load_packages__tables:
     description: Schema update tables within a load package (write disposition, format,
       contract)

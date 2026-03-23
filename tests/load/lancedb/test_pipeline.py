@@ -603,6 +603,9 @@ def test_empty_dataset_allowed() -> None:
     info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
     # Dataset in load info is empty.
     assert info.dataset_name is None
+    # lancedb is a DWH destination with optional dataset_name — verify metrics reflect None
+    load_id = info.loads_ids[0]
+    assert info.metrics[load_id][0]["dataset_name"] is None
     client = pipe.destination_client()
     assert client.dataset_name is None  # type: ignore
     assert client.sentinel_table == "dltSentinelTable"  # type: ignore
