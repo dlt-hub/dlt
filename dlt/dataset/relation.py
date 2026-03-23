@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections.abc import Collection, Sequence
-from functools import reduce, partial
+from functools import partial
 from typing import (
     overload,
     Union,
@@ -10,7 +10,6 @@ from typing import (
     Type,
     TYPE_CHECKING,
     Literal,
-    TypeVar,
 )
 from textwrap import indent
 from contextlib import contextmanager
@@ -39,6 +38,7 @@ from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import bind_query, build_select_expr
 from dlt.common.destination.dataset import SupportsDataAccess
+from dlt.dataset._join import _apply_join, _resolve_magic_join_target
 
 
 if TYPE_CHECKING:
@@ -61,7 +61,6 @@ _FILTER_OP_MAP = {
 
 
 TJoinType = Literal["left", "right", "inner", "full"]
-_INTERMEDIATE_JOIN_ALIAS_PREFIX = "_dlt_int_t"
 
 
 class Relation(WithSqlClient):
@@ -402,16 +401,22 @@ class Relation(WithSqlClient):
         if alias == "":
             raise ValueError("`alias` must be a non-empty string when provided.")
 
-        join_params, target_table, target_qualifier = _discover_join_params(self, other)
+        if not self._table_name:
+            raise ValueError("This relation has no base table to resolve references.")
+
+        target_table = _resolve_magic_join_target(self, other)
         projection_prefix = alias or target_table
-        return _apply_join(
-            self,
-            join_params,
-            target_table=target_table,
-            target_qualifier=target_qualifier,
+        query = _apply_join(
+            self.sqlglot_expression,
+            schema=self._dataset.schema,
+            left_table=self._table_name,
+            right_table=target_table,
             projection_prefix=projection_prefix,
             kind=kind,
         )
+        rel = self.__copy__()
+        rel._sqlglot_expression = query
+        return rel
 
     # NOTE we currently force to have one column selected; we could be more flexible
     # and rewrite the query to compute the AGG of all selected columns
@@ -675,30 +680,6 @@ class Relation(WithSqlClient):
         return rel
 
 
-_TRelation = TypeVar("_TRelation", bound=Relation)
-"""_TRelation is used for internal typing only.
-
-It allows methods on `dlt.Relation` to return `Self`, but extract
-the logic to utility functions that return `_TRelation`.
-Returning the concrete type `Relation` would fail type checking.
-"""
-
-
-class _JoinRef(TypedDict):
-    """A resolved join step from currently attached table to a target table."""
-
-    target_table: str
-    on_pairs: tuple[tuple[str, str], ...]
-    """(existing_side_col, new_side_col) pairs for the ON clause."""
-
-
-class _JoinParams(TypedDict):
-    target: sge.Expression
-    on: tuple[tuple[str, str], ...]
-    left_qualifier: str
-    right_qualifier: str
-
-
 def _get_relation_output_columns_schema(
     relation: dlt.Relation,
     *,
@@ -862,384 +843,6 @@ def _add_load_id_via_parent_key(relation: dlt.Relation) -> dlt.Relation:
         table_name=origin_table_name,
         table_schemas=table_schemas,
         normalized_load_id=relation._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID),
-    )
-
-    rel = relation.__copy__()
-    rel._sqlglot_expression = query
-    return rel
-
-
-def _to_join_ref(ref: TTableReference, from_table: str) -> _JoinRef:
-    if "table" not in ref or ref["table"] is None or "referenced_table" not in ref:
-        raise ValueError(
-            f"Malformed table reference for join: {ref} - missing 'table' or 'referenced_table'"
-        )
-    columns = ref.get("columns", [])
-    referenced_columns = ref.get("referenced_columns", [])
-    if not columns or not referenced_columns or len(columns) != len(referenced_columns):
-        raise ValueError(
-            f"Malformed table reference for join: {ref} - 'columns' or 'referenced_columns' are"
-            " empty"
-        )
-
-    if from_table == ref["table"]:
-        return _JoinRef(
-            target_table=ref["referenced_table"],
-            on_pairs=tuple(zip(columns, referenced_columns)),
-        )
-
-    if from_table == ref["referenced_table"]:
-        return _JoinRef(
-            target_table=ref["table"],
-            on_pairs=tuple(zip(referenced_columns, columns)),
-        )
-
-    raise ValueError(
-        f"Malformed table reference for join: {ref} - table `{from_table}` is not connected"
-    )
-
-
-def _resolve_parent_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
-    """Resolve ordered join steps between ancestor/descendant tables only."""
-
-    upward_chain_from_left = [
-        TTableReference(**ref)
-        for ref in schema_utils.get_all_parent_references_to_root(schema.tables, left)
-        if "table" in ref and "referenced_table" in ref
-    ]
-    upward_chain_from_right = [
-        TTableReference(**ref)
-        for ref in schema_utils.get_all_parent_references_to_root(schema.tables, right)
-        if "table" in ref and "referenced_table" in ref
-    ]
-
-    # Case 1: right is an ancestor of left (walk up from left to right)
-    current_left = left
-    steps_to_ancestor: list[_JoinRef] = []
-    for ref in upward_chain_from_left:
-        step = _to_join_ref(ref, current_left)
-        steps_to_ancestor.append(step)
-        current_left = step["target_table"]
-        if current_left == right:
-            return steps_to_ancestor
-
-    # Case 2: left is an ancestor of right (walk down from left to right)
-    ancestor_index = next(
-        (
-            index
-            for index, ref in enumerate(upward_chain_from_right)
-            if ref["referenced_table"] == left
-        ),
-        None,
-    )
-    if ancestor_index is not None:
-        current = left
-        steps_from_ancestor: list[_JoinRef] = []
-        upward_segment_to_ancestor = upward_chain_from_right[: ancestor_index + 1]
-        for ref in reversed(upward_segment_to_ancestor):
-            step = _to_join_ref(ref, current)
-            steps_from_ancestor.append(step)
-            current = step["target_table"]
-        if current == right:
-            return steps_from_ancestor
-
-    raise ValueError(f"Unable to resolve reference chain between {left} and {right}")
-
-
-def _resolve_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
-    """Resolve ordered join steps between two tables."""
-    if left == right:
-        raise ValueError(f"Cannot join a table to itself: {left}")
-
-    # Check direct references first
-    for ref in schema.references:
-        if (ref.get("table") == left and ref.get("referenced_table") == right) or (
-            ref.get("table") == right and ref.get("referenced_table") == left
-        ):
-            return [_to_join_ref(TTableReference(**ref), left)]
-
-    # Fall back to parent-child reference chain
-    return _resolve_parent_reference_chain(schema, left, right)
-
-
-def _build_join_condition_from_pairs(
-    column_pairs: Sequence[tuple[str, str]],
-    *,
-    left_alias: str,
-    right_alias: str,
-) -> sge.Expression:
-    """Build join ON condition from explicit column pairs."""
-    if not column_pairs:
-        raise ValueError("Cannot build join condition from empty column pairs")
-
-    conditions: list[sge.Expression] = []
-
-    for left_col, right_col in column_pairs:
-        condition = sge.EQ(
-            this=sge.Column(
-                this=sge.to_identifier(left_col, quoted=True),
-                table=sge.to_identifier(left_alias, quoted=False),
-            ),
-            expression=sge.Column(
-                this=sge.to_identifier(right_col, quoted=True),
-                table=sge.to_identifier(right_alias, quoted=False),
-            ),
-        )
-        conditions.append(condition)
-    if len(conditions) == 1:
-        return conditions[0]
-    return reduce(lambda x, y: sge.And(this=x, expression=y), conditions)
-
-
-def _extract_table_qualifier(table_expr: sge.Expression) -> Optional[tuple[str, str]]:
-    if not isinstance(table_expr, sge.Table):
-        return None
-
-    table_identifier = table_expr.args.get("this")
-    if isinstance(table_identifier, sge.Identifier):
-        table_name = table_identifier.name
-    elif isinstance(table_identifier, str):
-        table_name = table_identifier
-    else:
-        return None
-
-    alias_expr = table_expr.args.get("alias")
-    if isinstance(alias_expr, sge.TableAlias):
-        alias_identifier = alias_expr.this
-        if isinstance(alias_identifier, sge.Identifier):
-            return table_name, alias_identifier.name
-        if isinstance(alias_identifier, str):
-            return table_name, alias_identifier
-
-    return table_name, table_name
-
-
-def _extract_joined_table_aliases(query: sge.Query) -> dict[str, str]:
-    alias_map: dict[str, str] = {}
-    # sqlglot >= 28 renamed `from` to `from_` internally
-    from_expr = query.args.get("from_") or query.args.get("from")
-    if not isinstance(from_expr, sge.From) or not isinstance(from_expr.this, sge.Table):
-        return alias_map
-
-    tables: list[sge.Table] = [from_expr.this]
-    for join in query.args.get("joins") or []:
-        if isinstance(join.this, sge.Table):
-            tables.append(join.this)
-
-    for table in tables:
-        table_qualifier = _extract_table_qualifier(table)
-        if not table_qualifier:
-            continue
-        table_name, qualifier = table_qualifier
-        alias_map[table_name] = qualifier
-
-    return alias_map
-
-
-def _next_generated_alias_index(qualifier_map: dict[str, str]) -> int:
-    next_index = 1
-    for qualifier in qualifier_map.values():
-        if qualifier.startswith(_INTERMEDIATE_JOIN_ALIAS_PREFIX):
-            alias_index = qualifier[len(_INTERMEDIATE_JOIN_ALIAS_PREFIX) :]
-            if alias_index.isdigit():
-                next_index = max(next_index, int(alias_index) + 1)
-    return next_index
-
-
-def _resolve_magic_join_target(left: Relation, right: Union[str, Relation]) -> str:
-    """Resolve magic-join target table name from input."""
-    if isinstance(right, Relation):
-        # TODO: remove once we allow cross-dataset joins
-        if not (
-            left._dataset.is_same_physical_destination(right._dataset)
-            and left._dataset.dataset_name == right._dataset.dataset_name
-        ):
-            raise ValueError(
-                "Cannot join relations from different datasets: "
-                f"'{right._dataset.dataset_name}' vs '{left._dataset.dataset_name}'"
-            )
-        other_table = right._table_name
-        if not other_table:
-            raise ValueError(f"Relation `{right}` has no base table to resolve references.")
-    else:
-        other_table = right
-    if not other_table or not isinstance(other_table, str):
-        raise ValueError("`other` must be a table name or a base table relation.")
-    if other_table not in left._dataset.schema.tables:
-        raise ValueError(f"Table `{other_table}` not found in dataset schema")
-
-    return other_table
-
-
-def _discover_join_params(
-    left: Relation, right: Union[str, Relation]
-) -> tuple[list[_JoinParams], str, str]:
-    """Discover join params from schema reference chain."""
-    origin_table_name = left._table_name
-    if not origin_table_name:
-        raise ValueError("This relation has no base table to resolve references.")
-    other_table = _resolve_magic_join_target(left, right)
-    # refs is the entire reference chain from origin to target(`other`) table
-    refs = _resolve_reference_chain(left._dataset.schema, origin_table_name, other_table)
-
-    qualifier_map = _extract_joined_table_aliases(left.sqlglot_expression)
-    if origin_table_name not in qualifier_map:
-        raise ValueError("This relation has no base table to resolve references.")
-
-    attach_qualifier = qualifier_map[origin_table_name]
-
-    # some tables might already be joined (skip them)
-    pending = [ref for ref in refs if ref["target_table"] not in qualifier_map]
-
-    # find "last" qualifier to attach new join to
-    for ref in refs:
-        if ref["target_table"] in qualifier_map:
-            attach_qualifier = qualifier_map[ref["target_table"]]
-
-    start_index = _next_generated_alias_index(qualifier_map)
-    # last pending target is the target table (right) and shouldn't get aliased later
-    last_pending_target = pending[-1]["target_table"] if pending else None
-
-    joins: list[_JoinParams] = []
-    for ref in pending:
-        target_table = ref["target_table"]
-        right_qualifier = target_table
-        target_expr = sge.Table(this=sge.to_identifier(target_table, quoted=True))
-
-        if target_table != last_pending_target:
-            generated_alias = f"{_INTERMEDIATE_JOIN_ALIAS_PREFIX}{start_index}"
-            target_expr = sge.Table(
-                this=sge.to_identifier(target_table, quoted=True),
-                alias=sge.TableAlias(this=sge.to_identifier(generated_alias, quoted=False)),
-            )
-            right_qualifier = generated_alias
-            start_index += 1
-
-        joins.append(
-            _JoinParams(
-                target=target_expr,
-                on=ref["on_pairs"],
-                left_qualifier=attach_qualifier,
-                right_qualifier=right_qualifier,
-            )
-        )
-        qualifier_map[target_table] = right_qualifier
-        attach_qualifier = right_qualifier
-
-    target_qualifier = qualifier_map[other_table]
-    return joins, other_table, target_qualifier
-
-
-def _apply_join_projection(
-    relation: Relation,
-    query: sge.Select,
-    *,
-    target_table: str,
-    target_qualifier: str,
-    projection_prefix: str,
-    allow_existing_target_projection: bool,
-) -> None:
-    """Apply join projection contract onto ``query``.
-
-    Preserves the left-side projection and appends only columns from the explicitly
-    joined ``target_table`` as ``{projection_prefix}__{column}`` aliases.
-
-    ``allow_existing_target_projection`` is used for idempotent re-joins: when a
-    join call contributes no new join edges, all target-prefixed columns may already
-    exist in the left projection and should be accepted as a no-op instead of raising
-    a collision error.
-    """
-    origin_table_name = relation._table_name
-    if not origin_table_name:
-        raise ValueError("This relation has no base table to resolve references.")
-
-    # Unbound columns must refer to the origin table so bind them to it
-    origin_identifier = sge.to_identifier(origin_table_name, quoted=False)
-    normalized_left_expressions: list[sge.Expression] = []
-    for expr in query.selects:
-        if isinstance(expr, sge.Star):
-            normalized_left_expressions.append(sge.Column(table=origin_identifier, this=sge.Star()))
-        elif isinstance(expr, sge.Column) and expr.args.get("table") is None:
-            expr_copy = expr.copy()
-            expr_copy.set("table", origin_identifier)
-            normalized_left_expressions.append(expr_copy)
-        else:
-            normalized_left_expressions.append(expr)
-
-    existing_projection_column_names = {
-        expr.output_name
-        for expr in normalized_left_expressions
-        if expr.output_name not in {"", "*"}
-    }
-
-    target_columns = relation._dataset.schema.tables[target_table]["columns"]
-    target_output_names = {
-        f"{projection_prefix}__{column_name}" for column_name in target_columns.keys()
-    }
-    duplicate_output_names = target_output_names & existing_projection_column_names
-    if duplicate_output_names:
-        if duplicate_output_names == target_output_names and allow_existing_target_projection:
-            # no-op: all target columns are already projected (on duplicate join call for example)
-            return
-        duplicate_names_list = ", ".join(sorted(duplicate_output_names))
-        raise ValueError(
-            "Join projection output names conflict with existing columns: "
-            f"{duplicate_names_list}. Choose a different `alias` for `join(...)`."
-        )
-
-    appended_target_columns: list[sge.Expression] = []
-    for column_name in target_columns.keys():
-        output_name = f"{projection_prefix}__{column_name}"
-        appended_target_columns.append(
-            sge.Alias(
-                this=sge.Column(
-                    table=sge.to_identifier(target_qualifier, quoted=False),
-                    this=sge.to_identifier(column_name, quoted=True),
-                ),
-                alias=sge.to_identifier(output_name, quoted=True),
-            )
-        )
-
-    query.set("expressions", [*normalized_left_expressions, *appended_target_columns])
-
-
-def _apply_join(
-    relation: _TRelation,
-    join_params: list[_JoinParams],
-    *,
-    target_table: str,
-    target_qualifier: str,
-    projection_prefix: str,
-    kind: TJoinType = "inner",
-) -> _TRelation:
-    """Apply join params to produce the next relation."""
-    query = relation.sqlglot_expression.copy()
-    if not isinstance(query, sge.Select):
-        raise ValueError(
-            f"Query `{query}` received for `{relation.__class__.__name__}`. "
-            "Must be an SQL SELECT statement."
-        )
-
-    for join_param in join_params:
-        join_expr = sge.Join(
-            this=join_param["target"],
-            kind=kind.upper(),
-        ).on(
-            _build_join_condition_from_pairs(
-                join_param["on"],
-                left_alias=join_param["left_qualifier"],
-                right_alias=join_param["right_qualifier"],
-            )
-        )
-        query = query.join(join_expr)
-
-    _apply_join_projection(
-        relation,
-        query,
-        target_table=target_table,
-        target_qualifier=target_qualifier,
-        projection_prefix=projection_prefix,
-        allow_existing_target_projection=not join_params,
     )
 
     rel = relation.__copy__()

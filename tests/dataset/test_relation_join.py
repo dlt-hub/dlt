@@ -7,12 +7,12 @@ import sqlglot.expressions as sge
 
 import dlt
 from dlt.common.schema.typing import TTableReference
-from dlt.dataset.relation import (
+from dlt.dataset._join import (
     _build_join_condition_from_pairs,
     _resolve_reference_chain,
     _to_join_ref,
-    TJoinType,
 )
+from dlt.dataset.relation import TJoinType
 from tests.dataset.conftest import TLoadsFixture
 
 
