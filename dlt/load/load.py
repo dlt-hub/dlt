@@ -338,12 +338,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         started_names = set(FileStorage.get_file_name_from_file_path(f) for f in started_jobs)
         # every pending transition must correspond to a started job
         for pending_name in packages.list_pending_transitions(load_id):
-            # TODO: change to error after full CI
-            # logger.error()
-            assert pending_name in started_names, (
-                f"Pending transition for {pending_name} has no matching started"
-                f" job in load {load_id}"
-            )
+            if pending_name not in started_names:
+                logger.error(
+                    f"Pending transition for {pending_name} has no matching started"
+                    f" job in load {load_id}"
+                )
 
         for file_path in started_jobs:
             file_name = FileStorage.get_file_name_from_file_path(file_path)

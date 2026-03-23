@@ -609,7 +609,7 @@ def test_pending_transition_with_followup_jobs() -> None:
 
 
 def test_pending_transition_without_started_job() -> None:
-    """An orphaned pending transition (no matching started job) triggers an assertion."""
+    """An orphaned pending transition (no matching started job) is tolerated."""
     load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     packages = load.load_storage.normalized_packages
@@ -623,8 +623,11 @@ def test_pending_transition_without_started_job() -> None:
     # orphan: pending transition for a job that is NOT in started_jobs
     packages.save_pending_transition(load_id, "ghost_table.abc123.0.jsonl", "completed")
 
-    with pytest.raises(AssertionError, match="ghost_table.abc123.0.jsonl"):
-        load.resume_started_jobs(load_id, schema)
+    # orphan is logged as error but does not prevent resume
+    jobs = load.resume_started_jobs(load_id, schema)
+    # the valid started job is still resumed as a surrogate
+    assert len(jobs) == 1
+    assert jobs[0].state() == "completed"
 
 
 def test_pending_transition_corrupt_format() -> None:
