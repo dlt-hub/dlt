@@ -321,3 +321,64 @@ def test_pipeline_command_drop_with_global_args(repo_dir: str) -> None:
     # Verify the command actually executed
     pipeline = dlt.attach(pipeline_name="chess_pipeline")
     assert "players_games" not in pipeline.default_schema.tables
+
+
+def test_pipeline_command_abort_packages(repo_dir: str) -> None:
+    _init_command.init_command("chess", "dummy", repo_dir)
+    os.environ["EXCEPTION_PROB"] = "1.0"
+
+    try:
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        pipeline.drop()
+    except Exception as e:
+        print(e)
+
+    venv = Venv.restore_current()
+    with pytest.raises(CalledProcessError) as cpe:
+        print(venv.run_script("chess_pipeline.py"))
+    assert "PipelineStepFailed" in cpe.value.stdout
+
+    # verify pending packages exist before abort
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    assert len(pipeline.list_normalized_load_packages()) > 0
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            _pipeline_command.pipeline_command("abort-packages", "chess_pipeline", None, 0)
+        _out = buf.getvalue()
+        assert "The following packages will be aborted" in _out
+        assert "Packages aborted" in _out
+        assert "resynced from destination" in _out
+    print(_out)
+
+    # after abort, running again should show no pending packages
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command("abort-packages", "chess_pipeline", None, 0)
+        _out = buf.getvalue()
+        assert "No pending packages found" in _out
+    print(_out)
+
+
+def test_pipeline_command_drop_pending_packages_deprecation(repo_dir: str) -> None:
+    _init_command.init_command("chess", "dummy", repo_dir)
+    os.environ["EXCEPTION_PROB"] = "1.0"
+
+    try:
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        pipeline.drop()
+    except Exception as e:
+        print(e)
+
+    venv = Venv.restore_current()
+    with pytest.raises(CalledProcessError) as cpe:
+        print(venv.run_script("chess_pipeline.py"))
+    assert "PipelineStepFailed" in cpe.value.stdout
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            _pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
+        _out = buf.getvalue()
+        assert "drop-pending-packages is deprecated" in _out
+        assert "abort-packages" in _out
+        assert "Pending packages deleted" in _out
+    print(_out)

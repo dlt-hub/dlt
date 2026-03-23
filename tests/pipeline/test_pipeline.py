@@ -3286,6 +3286,14 @@ def test_remove_pending_packages() -> None:
     assert pipeline.has_pending_data is False
 
 
+def test_drop_pending_packages_deprecation_warning() -> None:
+    pipeline = dlt.pipeline(pipeline_name="emojis", destination=DUMMY_COMPLETE)
+    pipeline.extract(airtable_emojis())
+    with pytest.warns(DltDeprecationWarning, match="abort_packages"):
+        pipeline.drop_pending_packages()
+    assert pipeline.has_pending_data is False
+
+
 @pytest.mark.parametrize("workers", (1, 4), ids=("1 norm worker", "4 norm workers"))
 def test_parallel_pipelines_threads(workers: int) -> None:
     # critical section to control pipeline steps
