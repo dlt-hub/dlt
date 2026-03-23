@@ -45,7 +45,7 @@ def _install_and_load_lance_duckdb_extension(duckdb_con: DuckDBPyConnection) -> 
     Extension loading must be done on every connection
     """
     duckdb_version = pkg_version.parse(duckdb.__version__)
-    if duckdb_version > pkg_version.Version("1.5.0"):
+    if duckdb_version >= pkg_version.Version("1.5.0"):
         install_extension_cmd = "INSTALL lance;"
     else:
         install_extension_cmd = "INSTALL lance FROM community;"
