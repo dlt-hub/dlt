@@ -1,7 +1,20 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Any, Optional, Type, Union, TYPE_CHECKING, Literal, overload, Collection
+from typing import (
+    Any,
+    Collection,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Type,
+    Tuple,
+    Union,
+    TYPE_CHECKING,
+    Literal,
+    overload,
+)
 
 from sqlglot.schema import Schema as SQLGlotSchema
 import sqlglot.expressions as sge
@@ -14,8 +27,14 @@ from dlt.common.versioned_state import decompress_state
 from dlt.common.destination.reference import AnyDestination, TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.schema import Schema
+from dlt.common.schema import utils as schema_utils
 from dlt.common.typing import Self
-from dlt.common.schema.typing import C_DLT_LOAD_ID, C_DLT_LOADS_TABLE_LOAD_ID, LOADS_TABLE_NAME
+from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
+    LOADS_TABLE_NAME,
+    TTableSchema,
+)
 from dlt.common.utils import simple_repr, without_none
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
@@ -39,15 +58,24 @@ class Dataset:
         self,
         destination: TDestinationReferenceArg,
         dataset_name: str,
-        schema: Union[dlt.Schema, str, None] = None,
+        schema: Union[dlt.Schema, str, Sequence[dlt.Schema], None] = None,
     ) -> None:
         self._destination_reference = destination
         self._destination: AnyDestination = Destination.from_reference(destination)
         self._dataset_name = dataset_name
-        self._schema: Union[dlt.Schema, str, None] = schema
         self._pipeline_name: Optional[str] = None
-        """If _schema not provided, used to get default schema from state"""
-        # self._sqlglot_schema: SQLGlotSchema = None
+        """If _default_schema not provided, used to get default schema from state"""
+
+        if isinstance(schema, Sequence) and not isinstance(schema, str):
+            if not schema:
+                raise ValueError("schema sequence must not be empty")
+            self._default_schema: Union[dlt.Schema, str, None] = schema[0]
+            self._additional_schemas: Tuple[dlt.Schema, ...] = tuple(schema[1:])
+        else:
+            self._default_schema = schema
+            self._additional_schemas = ()
+
+        self._unified_schema: Optional[dlt.Schema] = None
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
@@ -71,17 +99,17 @@ class Dataset:
     def schema(self) -> dlt.Schema:
         """dlt schema associated with the dataset.
 
-        If no provided at dataset initialization, it is fetched from the destination. Fallbacks
+        If not provided at dataset initialization, it is fetched from the destination. Fallbacks
         to local dlt pipeline metadata.
         """
-        if isinstance(self._schema, dlt.Schema):
-            return self._schema
+        if isinstance(self._default_schema, dlt.Schema):
+            return self._default_schema
 
         maybe_schema: Optional[dlt.Schema] = None
 
-        if isinstance(self._schema, str):
+        if isinstance(self._default_schema, str):
             maybe_schema = _get_dataset_schema_from_destination_using_schema_name(
-                self, self._schema
+                self, self._default_schema
             )
 
         if not maybe_schema:
@@ -92,8 +120,47 @@ class Dataset:
             maybe_schema = dlt.Schema(self.dataset_name)
 
         assert isinstance(maybe_schema, dlt.Schema)
-        self._schema = maybe_schema
-        return self._schema
+        self._default_schema = maybe_schema
+        return self._default_schema
+
+    @property
+    def schemas(self) -> Tuple[dlt.Schema, ...]:
+        """All local schemas in this dataset, default schema first."""
+        return (self.schema, *self._additional_schemas)
+
+    def _get_unified_schema(self) -> dlt.Schema:
+        """Merged schema for query-time table resolution.
+
+        Single-schema case returns the default schema directly.
+        Multi-schema case clones the default schema and merges tables from
+        additional schemas (root tables first, then nested children).
+        """
+        if self._unified_schema is not None:
+            return self._unified_schema
+        if not self._additional_schemas:
+            self._unified_schema = self.schema
+        else:
+            unified = self.schema.clone()
+            for schema in self._additional_schemas:
+                for table in schema.tables.values():
+                    if not schema_utils.is_nested_table(table):
+                        for chain_table in schema_utils.get_nested_tables(
+                            schema._schema_tables, table["name"]
+                        ):
+                            unified.update_table(chain_table, normalize_identifiers=False)
+            self._unified_schema = unified
+        return self._unified_schema
+
+    def get_tables(self) -> Dict[str, TTableSchema]:
+        """Merged table mapping across all local schemas."""
+        return self._get_unified_schema().tables
+
+    def get_table_schema(self, table_name: str) -> TTableSchema:
+        """Look up a single table across all local schemas."""
+        tables = self.get_tables()
+        if table_name not in tables:
+            raise KeyError(f"Table '{table_name}' not found in dataset schemas")
+        return tables[table_name]
 
     @property
     def tables(self) -> list[str]:
@@ -103,8 +170,9 @@ class Dataset:
         execution, tables may exist on the destination, but will only appear on the dataset once
         `pipeline.run()` is done.
         """
-        # return only completed tables
-        return self.schema.data_table_names() + self.schema.dlt_table_names()
+        # return only completed tables from all schemas
+        unified = self._get_unified_schema()
+        return unified.data_table_names() + unified.dlt_table_names()
 
     def _ipython_key_completions_(self) -> list[str]:
         """Provide table names as completion suggestion in interactive environments."""
@@ -112,11 +180,11 @@ class Dataset:
 
     @property
     def sqlglot_schema(self) -> SQLGlotSchema:
-        """SQLGlot schema of the dataset derived from the dlt schema."""
+        """SQLGlot schema of the dataset derived from all dlt schemas."""
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
         return lineage.create_sqlglot_schema(
-            self.schema, self.dataset_name, dialect=self.destination_dialect
+            self._get_unified_schema(), self.dataset_name, dialect=self.destination_dialect
         )
 
     @property
@@ -273,12 +341,14 @@ class Dataset:
             dlt.Relation: Relation for the query that computes the requested row count.
         """
 
+        unified = self._get_unified_schema()
+
         selected_tables = table_names or []
         if not selected_tables:
             if data_tables:
-                selected_tables += self.schema.data_table_names(seen_data_only=True)
+                selected_tables += unified.data_table_names(seen_data_only=True)
             if dlt_tables:
-                selected_tables += self.schema.dlt_table_names()
+                selected_tables += unified.dlt_table_names()
 
         # filter tables so only ones with dlt_load_id column are included
         dlt_load_id_col = None
@@ -287,7 +357,7 @@ class Dataset:
             selected_tables = [
                 table
                 for table in selected_tables
-                if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
+                if dlt_load_id_col in unified.tables[table]["columns"].keys()
             ]
 
         union_all_expr: Optional[sge.Query] = None
@@ -390,22 +460,23 @@ class Dataset:
         if self.schema.is_new:
             schema_info = "\nDataset is not available at the destination.\n"
         else:
-            schema_info = f"with tables in dlt schema `{self.schema.name}`:\n"
+            schema_names_str = "`, `".join(s.name for s in self.schemas)
+            schema_info = f"with tables in dlt schema `{schema_names_str}`:\n"
 
         msg = f"Dataset `{self.dataset_name}` at `{destination_info}` {schema_info}"
-        if self.schema:
-            tables = [name for name in self.schema.data_table_names()]
-            if tables:
-                msg += ", ".join(tables)
-            else:
-                msg += "No data tables found in schema."
+        unified = self._get_unified_schema()
+        tables = unified.data_table_names()
+        if tables:
+            msg += ", ".join(tables)
+        else:
+            msg += "No data tables found in schema."
         return msg
 
 
 def dataset(
     destination: TDestinationReferenceArg,
     dataset_name: str,
-    schema: Union[Schema, str, None] = None,
+    schema: Union[Schema, str, Sequence[Schema], None] = None,
 ) -> Dataset:
     return Dataset(destination, dataset_name, schema)
 
@@ -490,13 +561,13 @@ def _get_dataset_schema_from_dataset_dlt_tables(
 def _get_load_ids(dataset: dlt.Dataset) -> list[str]:
     """Get a list of load ids associated with the dataset."""
     loads_table = dataset.loads_table()
+    schema_names = [s.name for s in dataset.schemas]
+    normalized_schema_col = dataset.schema.naming.normalize_identifier("schema_name")
+    normalized_load_id_col = dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID)
     query = (
-        loads_table
-        # need to filter out rare case where a dataset includes multiple `dlt.Schema`
-        # this mechanism is currently used by data quality metrics and checks
-        .where(dataset.schema.naming.normalize_identifier("schema_name"), "eq", dataset.schema.name)
-        .select(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID))
-        .order_by(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID), "asc")
+        loads_table.where(normalized_schema_col, "in", schema_names)
+        .select(normalized_load_id_col)
+        .order_by(normalized_load_id_col, "asc")
     )
     load_ids: list[str] = [load_id[0] for load_id in query.fetchall()]
     return load_ids
@@ -505,12 +576,12 @@ def _get_load_ids(dataset: dlt.Dataset) -> list[str]:
 def _get_latest_load_id(dataset: dlt.Dataset) -> Optional[str]:
     """Get the latest load id associated with the dataset."""
     loads_table = dataset.loads_table()
+    schema_names = [s.name for s in dataset.schemas]
+    normalized_schema_col = dataset.schema.naming.normalize_identifier("schema_name")
+    normalized_load_id_col = dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID)
     query = (
-        loads_table
-        # need to filter out rare case where a dataset includes multiple `dlt.Schema`
-        # this mechanism is currently used by data quality metrics and checks
-        .where(dataset.schema.naming.normalize_identifier("schema_name"), "eq", dataset.schema.name)
-        .select(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID))
+        loads_table.where(normalized_schema_col, "in", schema_names)
+        .select(normalized_load_id_col)
         .max()
     )
     load_id = query.fetchone()

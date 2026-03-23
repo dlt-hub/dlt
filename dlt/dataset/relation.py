@@ -510,7 +510,7 @@ class Relation(WithSqlClient):
         This should only raise if the `dlt.Schema` was tempered, breaking the
         dlt-generated root and parent relationships.
         """
-        table_schema = self._dataset.schema.tables[self._table_name]
+        table_schema = self._dataset.get_table_schema(self._table_name)
 
         if self._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID) in self.columns:
             return self
@@ -680,7 +680,7 @@ def _add_load_id_via_root_key(relation: dlt.Relation) -> dlt.Relation:
     This is done by joining the `root_table._dlt_id` with the `table._dlt_root_id`
     """
     origin_table_name: str = relation._table_name
-    tables_schema = relation._dataset.schema.tables
+    tables_schema = relation._dataset.get_tables()
     root_table = schema_utils.get_root_table(tables_schema, origin_table_name)
     root_table_name = root_table["name"]
 
@@ -767,7 +767,7 @@ def _add_load_id_via_parent_key(relation: dlt.Relation) -> dlt.Relation:
     until the input relation is reached.
     """
     origin_table_name: str = relation._table_name
-    table_schemas = relation._dataset.schema.tables
+    table_schemas = relation._dataset.get_tables()
 
     query = _add_load_id_via_parent_key_query(
         table_name=origin_table_name,

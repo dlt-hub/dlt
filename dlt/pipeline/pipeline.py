@@ -1891,7 +1891,9 @@ class Pipeline(SupportsPipeline):
         """Returns a dataset object for querying the destination data.
 
         Args:
-            schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
+            schema (Union[Schema, str, None]): Schema name or Schema object to use. If None,
+                uses the default schema. When `use_single_dataset` is True and multiple
+                schemas exist, all schemas are included.
         Returns:
             dlt.Dataset: A dataset object that supports querying the destination data.
         """
@@ -1924,8 +1926,16 @@ class Pipeline(SupportsPipeline):
                 schema = self.schemas[schema]
 
         elif self.default_schema_name:
-            schema = self.default_schema
             schema_name = self.default_schema_name
+            if self.config.use_single_dataset and len(self.schema_names) > 1:
+                # pass all schemas so Dataset can query tables from all of them
+                all_schemas: List[Schema] = [self.default_schema]
+                for name in self.schema_names:
+                    if name != self.default_schema_name:
+                        all_schemas.append(self.schemas[name])
+                schema = all_schemas
+            else:
+                schema = self.default_schema
 
         try:
             dataset = dlt.dataset(
