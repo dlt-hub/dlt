@@ -115,17 +115,12 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                         f"Bigquery Load Job failed, reason reported from bigquery: `{reason}`"
                     )
                 )
-            elif reason in ["internalError"]:
-                logger.warning(
-                    f"Got reason `{reason}` for job `{self._file_name}`, job considered still"
-                    f" running. ({self._bq_load_job.error_result})"
-                )
-                continue
             else:
                 raise DatabaseTransientException(
                     Exception(
                         "Bigquery Job needs to be retried, reason reported from bigquery"
-                        f" `{reason}`"
+                        f" `{reason}`, for job `{self._file_name}`."
+                        f" Error details: {self._bq_load_job.error_result}"
                     )
                 )
 

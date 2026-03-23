@@ -138,9 +138,7 @@ def ensure_table_schema_columns_hint(
     if callable(columns) and not isinstance(columns, type):
 
         def wrapper(item: TDataItem) -> TTableSchemaColumns:
-            return ensure_table_schema_columns(
-                cast(TFunHintTemplate[TAnySchemaColumns], columns)(item)
-            )
+            return ensure_table_schema_columns(columns(item))
 
         return wrapper
 

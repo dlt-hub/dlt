@@ -1025,7 +1025,7 @@ adbc = [
     { name = "adbc-driver-manager", specifier = ">=1.8.0" },
     { name = "dbc", specifier = ">=0.1.0" },
 ]
-airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.12'", specifier = ">=2.8.0,<3" }]
+airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.13'", specifier = ">=2.8.0,<3" }]
 dashboard-tests = [
     { name = "playwright", specifier = ">=1.58.0,<2" },
     { name = "pytest-playwright", specifier = ">=0.7.1,<1" },
@@ -1053,7 +1053,7 @@ dev = [
     { name = "graphviz", specifier = ">=0.21" },
     { name = "griffe", specifier = ">=1.10.0" },
     { name = "isort", specifier = ">=5.12.0,<6" },
-    { name = "mypy", specifier = ">=1.11.0,<1.13.0" },
+    { name = "mypy", specifier = ">=1.11.0" },
     { name = "pip", specifier = ">=24.0.0" },
     { name = "pydoclint", specifier = ">=0.6.5,<0.7" },
     { name = "pyjwt", specifier = ">=2.8.0,<3" },

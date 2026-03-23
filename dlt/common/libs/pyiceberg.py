@@ -96,7 +96,7 @@ def merge_iceberg_table(
 ) -> None:
     """Merges in-memory Arrow data into on-disk Iceberg table."""
     strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
-    if strategy == "upsert":
+    if strategy in ("upsert", "insert-only"):
         # evolve schema
         with table.update_schema() as update:
             update.union_by_name(ensure_iceberg_compatible_arrow_schema(data.schema))
@@ -114,7 +114,7 @@ def merge_iceberg_table(
             table.upsert(
                 df=batch_tbl,
                 join_cols=join_cols,
-                when_matched_update_all=True,
+                when_matched_update_all=strategy == "upsert",
                 when_not_matched_insert_all=True,
                 case_sensitive=True,
             )

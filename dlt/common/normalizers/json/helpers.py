@@ -107,7 +107,7 @@ def should_be_nested(schema: Schema, table_name: str) -> bool:
 def get_root_row_id_type(schema: Schema, table_name: str) -> TRowIdType:
     if table := schema.tables.get(table_name):
         merge_strategy = resolve_merge_strategy(schema.tables, table)
-        if merge_strategy == "upsert":
+        if merge_strategy in ("upsert", "insert-only"):
             return "key_hash"
         elif merge_strategy == "scd2":
             x_row_version_col = get_first_column_name_with_prop(
@@ -148,7 +148,7 @@ def requires_root_key(
     else:
         merge_strategy = resolve_merge_strategy(schema.tables, root_table)
         merge_requires = (
-            merge_strategy in ["delete-insert", "upsert"]
+            merge_strategy in ["delete-insert", "upsert", "insert-only"]
             if root_key_propagation is None
             else root_key_propagation
         )

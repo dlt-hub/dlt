@@ -124,10 +124,7 @@ def merge_delta_table(
     """Merges in-memory Arrow data into on-disk Delta table."""
 
     strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
-    if strategy == "upsert":
-        # `DeltaTable.merge` does not support automatic schema evolution
-        # https://github.com/delta-io/delta-rs/issues/2282
-        # NOTE: fixing the issue didn't help here
+    if strategy in ("upsert", "insert-only"):
         evolve_delta_table_schema(table, data.schema)
 
         if "parent" in schema:
@@ -138,18 +135,16 @@ def merge_delta_table(
             predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
 
         partition_by = get_columns_names_with_prop(schema, "partition")
-        qry = (
-            table.merge(
-                source=ensure_delta_compatible_arrow_data(data, partition_by),
-                predicate=predicate,
-                source_alias="source",
-                target_alias="target",
-                streamed_exec=streamed_exec,
-            )
-            .when_matched_update_all()
-            .when_not_matched_insert_all()
+        qry = table.merge(
+            source=ensure_delta_compatible_arrow_data(data, partition_by),
+            predicate=predicate,
+            source_alias="source",
+            target_alias="target",
+            streamed_exec=streamed_exec,
         )
-
+        if strategy == "upsert":
+            qry = qry.when_matched_update_all()
+        qry = qry.when_not_matched_insert_all()
         qry.execute()
     else:
         raise ValueError(
@@ -180,7 +175,7 @@ def deltalake_storage_options(
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
     creds = {}
     extra_options = {}
-    if isinstance(credentials, WithObjectStoreRsCredentials):
+    if credentials is not None and isinstance(credentials, WithObjectStoreRsCredentials):
         creds = credentials.to_object_store_rs_credentials()
     if storage_options is not None:
         extra_options = storage_options

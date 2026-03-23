@@ -419,20 +419,7 @@ def test_config_section_context_restored_in_worker(
         )
 
 
-@pytest.mark.parametrize(
-    "start_method",
-    [
-        "spawn",
-        pytest.param(
-            "fork",
-            marks=pytest.mark.skipif(
-                "fork" not in multiprocessing.get_all_start_methods(),
-                reason="fork start method not available on this platform",
-            ),
-        ),
-    ],
-)
-def test_worker_contexts_thread_to_process(start_method: str) -> None:
+def test_worker_contexts_thread_to_process() -> None:
     """Test that thread-local contexts are passed to process pools via run_pool.
 
     Simulates parallel dlt pipelines:
@@ -440,6 +427,9 @@ def test_worker_contexts_thread_to_process(start_method: str) -> None:
     - Each thread calls run_pool with ProcessPoolConfiguration
     - Process workers read context via Container
     - Verify workers see parent thread's context value
+
+    Note: only `spawn` is tested because `fork` from a multi-threaded process
+    is fundamentally unsafe (inherits poisoned locks from other threads).
     """
     from concurrent.futures import ThreadPoolExecutor
 
@@ -463,19 +453,18 @@ def test_worker_contexts_thread_to_process(start_method: str) -> None:
         pool_config = PoolRunnerConfiguration(
             pool_type="process",
             workers=3,
-            start_method=start_method,
+            start_method="spawn",
         )
         runner.run_pool(pool_config, runnable)
 
         return runnable.results
 
-    # Create thread pool
     with ThreadPoolExecutor(max_workers=2) as thread_pool:
         future_a = thread_pool.submit(thread_worker_fn, "A")
         future_b = thread_pool.submit(thread_worker_fn, "B")
 
-        results["thread_A"] = future_a.result()
-        results["thread_B"] = future_b.result()
+        results["thread_A"] = future_a.result(timeout=120)
+        results["thread_B"] = future_b.result(timeout=120)
 
     # Verify: all process workers in thread A saw "thread_A"
     assert all(
@@ -488,24 +477,14 @@ def test_worker_contexts_thread_to_process(start_method: str) -> None:
     ), f"Process workers in thread B should see 'thread_B', got {results['thread_B']}"
 
 
-@pytest.mark.parametrize(
-    "start_method",
-    [
-        "spawn",
-        pytest.param(
-            "fork",
-            marks=pytest.mark.skipif(
-                "fork" not in multiprocessing.get_all_start_methods(),
-                reason="fork start method not available on this platform",
-            ),
-        ),
-    ],
-)
-def test_worker_contexts_thread_to_process_global(start_method: str) -> None:
+def test_worker_contexts_thread_to_process_global() -> None:
     """Test that global worker contexts are passed to all process pools.
 
     With WorkerAffinityContext (global_affinity=True), all processes
     should see the same value regardless of parent thread.
+
+    Note: only `spawn` is tested because `fork` from a multi-threaded process
+    is fundamentally unsafe (inherits poisoned locks from other threads).
     """
     from concurrent.futures import ThreadPoolExecutor
 
@@ -526,7 +505,7 @@ def test_worker_contexts_thread_to_process_global(start_method: str) -> None:
         pool_config = PoolRunnerConfiguration(
             pool_type="process",
             workers=3,
-            start_method=start_method,
+            start_method="spawn",
         )
         runner.run_pool(pool_config, runnable)
         return runnable.results
@@ -535,8 +514,8 @@ def test_worker_contexts_thread_to_process_global(start_method: str) -> None:
         future_a = thread_pool.submit(thread_worker_fn, "A")
         future_b = thread_pool.submit(thread_worker_fn, "B")
 
-        results["thread_A"] = future_a.result()
-        results["thread_B"] = future_b.result()
+        results["thread_A"] = future_a.result(timeout=120)
+        results["thread_B"] = future_b.result(timeout=120)
 
     # All processes should see same global value
     all_values = results["thread_A"] + results["thread_B"]

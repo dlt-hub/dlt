@@ -271,18 +271,18 @@ def test_two_resources_can_depend_on_one_parent_resource() -> None:
         },
         "resources": [
             "users",
-            {
+            {  # type: ignore[list-item]
                 "name": "user_details",
                 "endpoint": {
                     "path": "user/{user_id}/",
-                    "params": user_id,  # type: ignore[typeddict-item]
+                    "params": user_id,
                 },
             },
-            {
+            {  # type: ignore[list-item]
                 "name": "meetings",
                 "endpoint": {
                     "path": "meetings/{user_id}/",
-                    "params": user_id,  # type: ignore[typeddict-item]
+                    "params": user_id,
                 },
             },
         ],

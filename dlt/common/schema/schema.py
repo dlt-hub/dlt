@@ -343,7 +343,7 @@ class Schema:
             try:
                 settings = utils.get_inherited_table_hint(tables, table_name, "schema_contract")
             except ValueError:
-                settings = self._settings.get("schema_contract", {})
+                settings = self._settings.get("schema_contract", settings)
 
         # expand settings, empty settings will expand into default settings
         return Schema.expand_schema_contract_settings(settings)
@@ -685,13 +685,13 @@ class Schema:
             # TODO more specific error handling than ValueError
             try:
                 parent_ref = utils.create_parent_child_reference(self.tables, table_name)
-                all_references.append(cast(TTableReferenceStandalone, parent_ref))
+                all_references.append(parent_ref)
             except ValueError:
                 pass
 
             try:
                 root_ref = utils.create_root_child_reference(self.tables, table_name)
-                all_references.append(cast(TTableReferenceStandalone, root_ref))
+                all_references.append(root_ref)
             except ValueError:
                 pass
 
@@ -699,7 +699,7 @@ class Schema:
                 load_table_ref = utils.create_load_table_reference(
                     self.tables[table_name], naming=self.naming
                 )
-                all_references.append(cast(TTableReferenceStandalone, load_table_ref))
+                all_references.append(load_table_ref)
             except ValueError:
                 pass
 
@@ -712,7 +712,7 @@ class Schema:
                 if top_level_ref.get("table") is None:
                     top_level_ref["table"] = table_name
 
-                all_references.append(cast(TTableReferenceStandalone, top_level_ref))
+                all_references.append(top_level_ref)
 
         # internal references with `_dlt_version` need to be extracted once
         try:
@@ -722,8 +722,8 @@ class Schema:
             version_table_schema_name_ref = utils.create_version_and_loads_schema_name_reference(
                 self.tables, naming=self.naming
             )
-            all_references.append(cast(TTableReferenceStandalone, version_table_hash_ref))
-            all_references.append(cast(TTableReferenceStandalone, version_table_schema_name_ref))
+            all_references.append(version_table_hash_ref)
+            all_references.append(version_table_schema_name_ref)
         except ValueError:
             pass
 

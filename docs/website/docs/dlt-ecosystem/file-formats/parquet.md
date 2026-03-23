@@ -49,6 +49,7 @@ Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org
 - `allow_truncated_timestamps` - will raise if precision is lost on truncated timestamps.
 - `write_page_index`: Boolean specifying whether a [page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md) is written. Defaults to `False`.
 - `use_content_defined_chunking`: Boolean specifying whether [Content-Defined Chunking](https://github.com/apache/arrow/pull/45360) is used. Defaults to `False`. Requires `pyarrow>=21.0.0`, ignored otherwise.
+- `arrow_concat_promote_options`: Controls type promotion when concatenating multiple Arrow tables/DataFrames. Accepts `"none"` (default), `"default"`, or `"permissive"`. See [Handling schema mismatches](../verified-sources/arrow-pandas.md#handling-schema-mismatches-across-batches) for details.
 
 :::tip
 The default parquet version used by `dlt` is 2.4. It coerces timestamps to microseconds and truncates nanoseconds silently. Such a setting
@@ -75,6 +76,7 @@ DATA_WRITER__FLAVOR
 DATA_WRITER__VERSION
 DATA_WRITER__DATA_PAGE_SIZE
 DATA_WRITER__TIMESTAMP_TIMEZONE
+DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS
 ```
 
 :::tip

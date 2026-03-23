@@ -8,7 +8,12 @@ from dlt.common.normalizers.naming.naming import NamingConvention
 from dlt.common.reflection.exceptions import ReferenceImportError
 from dlt.common.reflection.ref import ImportTrace, callable_typechecker, object_from_ref
 from dlt.common.typing import AnyFun
-from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
+from dlt.common.destination import (
+    Destination,
+    DestinationCapabilitiesContext,
+    DestinationReference,
+    TLoaderFileFormat,
+)
 from dlt.common.configuration import known_sections, with_config, get_fun_spec
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import get_callable_name, is_inner_callable
@@ -58,6 +63,16 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         caps.max_parallel_load_jobs = 0
         caps.loader_parallelism_strategy = None
         return caps
+
+    @property
+    def destination_type(self) -> str:
+        cls = self.__class__
+        # synthesized classes from @dlt.destination in __main__ have non-importable paths;
+        # fall back to __orig_base__ (the factory class) for a portable destination_type
+        if cls.__module__ == "__main__" and (orig := getattr(cls, "__orig_base__", None)):
+            cls = orig
+        full_path = cls.__module__ + "." + cls.__qualname__
+        return DestinationReference.normalize_type(full_path)
 
     @property
     def spec(self) -> Type[CustomDestinationClientConfiguration]:
@@ -117,8 +132,10 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         # this is needed for cli commands to work
         if not destination_callable:
             logger.warning(
-                "No destination callable provided, providing dummy callable which will fail on"
-                " load."
+                "Custom destination callable not provided. Note that custom destination"
+                " callables cannot be resolved from a process different than the one that"
+                " originally ran the pipeline, such as processes started by CLI commands."
+                " Providing a dummy callable that doesn't allow loading for this process."
             )
             destination_callable = dummy_custom_destination
         elif not callable(destination_callable):
