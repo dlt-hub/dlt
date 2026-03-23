@@ -838,7 +838,7 @@ class PackageStorage:
 
     def get_pending_job_exception(
         self, load_id: str, job: ParsedLoadJobFileName
-    ) -> Tuple[TExceptionType, str]:
+    ) -> Tuple[Optional[TExceptionType], Optional[str]]:
         """Get exception type and message of a job that is currently in new_jobs (pending retry)"""
         rel_path = self.get_job_file_path(load_id, "new_jobs", job.file_name())
         if not self.storage.has_file(rel_path):
@@ -851,11 +851,11 @@ class PackageStorage:
             PackageStorage.EXCEPTIONS_FOLDER,
             exception_file_name,
         )
+        exception_type: Optional[TExceptionType] = None
         failed_message: Optional[str] = None
         with contextlib.suppress(FileNotFoundError):
             content = self.storage.load(exception_path)
             first_line, message = content.split("\n", 1)
-            failed_message = content.split("\n", 1)[1]
             exception_type = first_line.split(": ", 1)[1]
             failed_message = message
         return exception_type, failed_message
