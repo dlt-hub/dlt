@@ -1591,6 +1591,47 @@ def test_incremental_merge_preserves_dedup_key_flag() -> None:
     assert copied.primary_key == ()
 
 
+def test_incremental_hash_based():
+    @dlt.resource(primary_key="i")
+    def resource(ids=dlt.sources.incremental("i")):
+        for i in ids.unprocessed_values:
+            yield {"i": i}
+
+    ids1 = ["a", "b", "d"]
+
+    pipeline = dlt.pipeline("incremental_hash", destination="duckdb")
+
+    # LOAD 1
+    extract_info1 = pipeline.extract(resource(ids1))
+
+    load1_count = extract_info1.metrics[extract_info1.loads_ids[0]][0]["resource_metrics"][
+        "resource"
+    ].items_count
+    assert load1_count == len(ids1)
+    # manually complete the load
+    pipeline.normalize()
+    pipeline.load()
+
+    loaded_values = (r[0] for r in pipeline.dataset().table("resource").fetchall())
+    assert set(loaded_values) == set(ids1)
+
+    # LOAD 2
+    ids2 = ["a", "b", "c", "d"]
+    extract_info2 = pipeline.extract(resource(ids2))
+
+    load2_count = extract_info2.metrics[extract_info2.loads_ids[0]][0]["resource_metrics"][
+        "resource"
+    ].items_count
+    new_items_count = len(set(ids1).symmetric_difference(set(ids2)))
+    assert load2_count == new_items_count
+    # manually complete the load
+    pipeline.normalize()
+    pipeline.load()
+
+    loaded_values2 = (r[0] for r in pipeline.dataset().table("resource").fetchall())
+    assert set(loaded_values2) == set(ids2)
+
+
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 @pytest.mark.parametrize("dedup_key", [(), "alt_id"])
 def test_incremental_dedup_key_survives_resource_pk(
