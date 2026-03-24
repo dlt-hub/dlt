@@ -1,3 +1,4 @@
+import re
 from copy import deepcopy
 from textwrap import dedent
 from typing import Any, Literal, Optional, List, Sequence, cast
@@ -20,7 +21,6 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import TColumnType
 from dlt.common import logger
 from dlt.common.schema.utils import (
@@ -256,6 +256,20 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         key_clauses: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
+        if for_delete:
+            # ClickHouse lightweight DELETE doesn't support table aliases or
+            # correlated subqueries with qualified column references. Use IN
+            # with one DELETE per key group (like BigQuery's OR-split pattern).
+            sql: List[str] = []
+            for clause in key_clauses:
+                # extract column identifiers from "{d}.col = {s}.col AND ..."
+                cols = re.findall(r"\{s\}\.(\S+)", clause)
+                col_tuple = ", ".join(cols)
+                sql.append(
+                    f"FROM {root_table_name} WHERE ({col_tuple}) IN"
+                    f" (SELECT {col_tuple} FROM {staging_root_table_name})"
+                )
+            return sql
         join_conditions = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
         return [
             f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
@@ -267,7 +281,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
-        return True
+        return False
 
 
 class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):

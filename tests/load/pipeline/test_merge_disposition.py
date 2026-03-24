@@ -2,7 +2,7 @@ from copy import copy
 import os
 import pytest
 import random
-from typing import List, cast
+from typing import List
 import yaml
 
 import dlt
@@ -16,9 +16,9 @@ from dlt.common.schema.exceptions import (
     UnboundColumnException,
     CannotCoerceNullException,
 )
-from dlt.common.schema.typing import TLoaderMergeStrategy, TTableFormat
+from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.common.typing import StrAny
-from dlt.common.utils import digest128, uniq_id
+from dlt.common.utils import digest128
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.common.libs.pyarrow import row_tuples_to_arrow
@@ -1809,6 +1809,67 @@ def test_merge_arrow(
             {"id": 1, "name": "foo"},
             {"id": 2, "name": "updated bar"},
         ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_merge_arrow_merge_key_only(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Arrow merge with only merge_key (no primary_key, no _dlt_id).
+
+    Reproduces https://github.com/dlt-hub/dlt/issues/2248 — destinations that required
+    a temp table for delete (e.g. ClickHouse) would fail with MergeDispositionException
+    because no row_key column existed.
+    """
+    pipeline = destination_config.setup_pipeline("merge_arrow_mk", dev_mode=True)
+
+    @dlt.resource(
+        write_disposition="merge",
+        merge_key="id",
+        table_format=destination_config.table_format,
+    )
+    def arrow_items(rows, schema_columns, timezone="UTC"):
+        yield row_tuples_to_arrow(
+            rows,
+            DestinationCapabilitiesContext.generic_capabilities(),
+            columns=schema_columns,
+            tz=timezone,
+        )
+
+    schema_columns = {
+        "id": {"name": "id", "nullable": False, "data_type": "bigint"},
+        "name": {"name": "name", "nullable": True, "data_type": "text"},
+    }
+    test_rows = [(1, "foo"), (2, "bar")]
+
+    load_info = pipeline.run(arrow_items(test_rows, schema_columns))
+    assert_load_info(load_info)
+
+    tables = load_tables_to_dicts(pipeline, "arrow_items")
+    assert_records_as_set(
+        tables["arrow_items"],
+        [{"id": 1, "name": "foo"}, {"id": 2, "name": "bar"}],
+    )
+
+    # update one record — merge_key delete removes matching rows, then re-inserts
+    test_rows = [(1, "foo"), (2, "updated bar")]
+    load_info = pipeline.run(arrow_items(test_rows, schema_columns))
+    assert_load_info(load_info)
+
+    tables = load_tables_to_dicts(pipeline, "arrow_items")
+    assert_records_as_set(
+        tables["arrow_items"],
+        [{"id": 1, "name": "foo"}, {"id": 2, "name": "updated bar"}],
     )
 
 
