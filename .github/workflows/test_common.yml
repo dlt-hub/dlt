@@ -27,9 +27,6 @@ jobs:
 
           # linux tests
           - os: ubuntu-latest
-            python-version: "3.9"
-            shell: bash
-          - os: ubuntu-latest
             python-version: "3.10"
             shell: bash
           - os: ubuntu-latest
@@ -57,7 +54,7 @@ jobs:
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--upgrade' # could also be 'direct'
-          
+
           # windows tests
           - os: windows-latest
             python-version: "3.11"
@@ -102,7 +99,7 @@ jobs:
         run: make install-common-core
         env:
           UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
-    
+
       - name: Run common tests with minimum dependencies
         run: make test-common-core
         env:
@@ -118,7 +115,7 @@ jobs:
 
       - name: Run min dependencies source tests
         run: make test-common-source
-  
+
       - name: Install duckdb dependencies
         run: make install-pipeline-min
         env:
