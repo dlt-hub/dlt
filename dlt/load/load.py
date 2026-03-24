@@ -800,12 +800,20 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     def _abort_package(self, load_id: str, schema: Schema) -> None:
         """Execute the abort operation for a package."""
         logger.info(f"Aborting package {load_id} as requested")
+        # TODO: replay pending transitions from .pending_transitions/ before aborting.
+        #  jobs stuck in started_jobs with a pending transition have already committed
+        #  to the destination. we should move them to completed_jobs/failed_jobs based
+        #  on the marker (file moves only, no followup jobs) and clear the markers.
         # Move pending jobs to failed_jobs and mark package as aborted
         self.load_storage.normalized_packages.abort_package(load_id)
+        dataset_name: Optional[str] = None
+        if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
+            dataset_name = self.initial_client_config.normalize_dataset_name(schema)
         metrics: LoadMetrics = {
             "started_at": None,
             "finished_at": None,
-            "job_metrics": {},
+            "job_metrics": self._job_metrics,
+            "dataset_name": dataset_name,
         }
         self._step_info_update_metrics(load_id, metrics)
         self.complete_package(load_id, schema, aborted=True)

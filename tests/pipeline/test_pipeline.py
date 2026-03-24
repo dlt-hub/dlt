@@ -12,7 +12,7 @@ import random
 import shutil
 import threading
 from time import sleep
-from typing import Any, List, Tuple, cast, Optional
+from typing import Any, Dict, List, Tuple, cast, Optional
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
 import pytest
@@ -1894,6 +1894,11 @@ def test_abort_package() -> None:
     package_info = p.get_load_package_info(load_id)
     assert package_info.state == "normalized"
 
+    # the first run completed the letters job — its metrics should be persisted
+    first_run_metrics: Dict[str, Any] = py_ex.value.step_info.metrics[load_id][0]["job_metrics"]  # type: ignore[typeddict-item]
+    completed_job_ids = [jid for jid, m in first_run_metrics.items() if m.state == "completed"]
+    assert len(completed_job_ids) > 0, "letters job should have completed before abort"
+
     # manually abort the package using helper
     load_info = pipeline_abort(p, load_ids=[load_id])()
 
@@ -1901,6 +1906,14 @@ def test_abort_package() -> None:
     assert load_info is not None
     assert load_info.load_packages[0].load_id == load_id
     assert load_info.load_packages[0].state == "aborted"
+
+    # abort load_info preserves job metrics from the pre-abort run
+    abort_metrics = load_info.metrics[load_id][0]["job_metrics"]
+    for jid in completed_job_ids:
+        assert jid in abort_metrics, f"metrics for completed job {jid} lost during abort"
+
+    # dataset_name is present (None for dummy destination)
+    assert "dataset_name" in load_info.metrics[load_id][0]
 
     # next run does nothing (no pending packages)
     load_info = p.run()
