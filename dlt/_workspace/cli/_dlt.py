@@ -151,6 +151,12 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
     m = plugins.manager()
     commands = cast(List[Type[SupportsCliCommand]], m.hook.plug_cli())
 
+    # Sort commands alphabetically for deterministic help output and docs generation.
+    # Plugin discovery order depends on importlib.metadata.distributions() which iterates
+    # in filesystem-dependent order (e.g. APFS vs ext4), making the output non-reproducible
+    # across platforms without sorting.
+    commands.sort(key=lambda c: c().command)
+
     # install Available subcommands
     installed_commands: Dict[str, SupportsCliCommand] = {}
     for c in commands:
