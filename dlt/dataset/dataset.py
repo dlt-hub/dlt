@@ -27,13 +27,11 @@ from dlt.common.versioned_state import decompress_state
 from dlt.common.destination.reference import AnyDestination, TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.schema import Schema
-from dlt.common.schema import utils as schema_utils
 from dlt.common.typing import Self
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     C_DLT_LOADS_TABLE_LOAD_ID,
     LOADS_TABLE_NAME,
-    TTableSchema,
 )
 from dlt.common.utils import simple_repr, without_none
 from dlt.common.exceptions import ValueErrorWithKnownValues
@@ -49,6 +47,7 @@ from dlt.common.destination.exceptions import (
 if TYPE_CHECKING:
     from dlt.common.libs.ibis import ir
     from dlt.common.libs.ibis import BaseBackend as IbisBackend
+    from dlt.common.pipeline import SupportsPipeline
 
 
 class Dataset:
@@ -64,21 +63,52 @@ class Dataset:
         self._destination: AnyDestination = Destination.from_reference(destination)
         self._dataset_name = dataset_name
         self._pipeline_name: Optional[str] = None
-        """If _default_schema not provided, used to get default schema from state"""
+        """If set, used to resolve default schema from pipeline state"""
+
+        self._schemas: Dict[str, dlt.Schema] = {}
+        self._default_schema_name: Optional[str] = None
+        self._schema_arg: Optional[str] = None
+        """Deferred schema name for lazy resolution from destination"""
 
         if isinstance(schema, Sequence) and not isinstance(schema, str):
             if not schema:
                 raise ValueError("schema sequence must not be empty")
-            self._default_schema: Union[dlt.Schema, str, None] = schema[0]
-            self._additional_schemas: Tuple[dlt.Schema, ...] = tuple(schema[1:])
-        else:
-            self._default_schema = schema
-            self._additional_schemas = ()
+            for s in schema:
+                self._schemas[s.name] = s
+            self._default_schema_name = schema[0].name
+        elif isinstance(schema, dlt.Schema):
+            self._schemas[schema.name] = schema
+            self._default_schema_name = schema.name
+        elif isinstance(schema, str):
+            self._schema_arg = schema
 
-        self._unified_schema: Optional[dlt.Schema] = None
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
+
+    @classmethod
+    def from_pipeline(
+        cls, pipeline: SupportsPipeline, dataset_name: Optional[str] = None
+    ) -> "Dataset":
+        """Create a Dataset with all schemas from a pipeline.
+
+        Args:
+            pipeline: Pipeline instance to collect schemas from.
+            dataset_name: Override the pipeline's dataset name. If None, uses
+                the pipeline's configured dataset name.
+        """
+        default_name = pipeline.default_schema_name
+        all_schemas: List[dlt.Schema] = [pipeline.schemas[default_name]]
+        for name in pipeline.schemas:
+            if name != default_name:
+                all_schemas.append(pipeline.schemas[name])
+        ds = cls(
+            destination=pipeline.destination,
+            dataset_name=dataset_name or pipeline.dataset_name,
+            schema=all_schemas,
+        )
+        ds._pipeline_name = pipeline.pipeline_name
+        return ds
 
     def ibis(self, read_only: bool = False) -> IbisBackend:
         """Get an ibis backend for the dataset.
@@ -97,70 +127,37 @@ class Dataset:
 
     @property
     def schema(self) -> dlt.Schema:
-        """dlt schema associated with the dataset.
+        """Default dlt schema associated with the dataset.
 
         If not provided at dataset initialization, it is fetched from the destination. Fallbacks
         to local dlt pipeline metadata.
         """
-        if isinstance(self._default_schema, dlt.Schema):
-            return self._default_schema
+        if self._default_schema_name and self._default_schema_name in self._schemas:
+            return self._schemas[self._default_schema_name]
 
         maybe_schema: Optional[dlt.Schema] = None
 
-        if isinstance(self._default_schema, str):
+        if self._schema_arg:
             maybe_schema = _get_dataset_schema_from_destination_using_schema_name(
-                self, self._default_schema
+                self, self._schema_arg
             )
 
         if not maybe_schema:
             maybe_schema = _get_dataset_schema_from_dataset_dlt_tables(self)
 
         if not maybe_schema:
-            # uses local dlt pipeline data instead of destination
             maybe_schema = dlt.Schema(self.dataset_name)
 
         assert isinstance(maybe_schema, dlt.Schema)
-        self._default_schema = maybe_schema
-        return self._default_schema
+        self._schemas[maybe_schema.name] = maybe_schema
+        self._default_schema_name = maybe_schema.name
+        return maybe_schema
 
     @property
     def schemas(self) -> Tuple[dlt.Schema, ...]:
         """All local schemas in this dataset, default schema first."""
-        return (self.schema, *self._additional_schemas)
-
-    def _get_unified_schema(self) -> dlt.Schema:
-        """Merged schema for query-time table resolution.
-
-        Single-schema case returns the default schema directly.
-        Multi-schema case clones the default schema and merges tables from
-        additional schemas (root tables first, then nested children).
-        """
-        if self._unified_schema is not None:
-            return self._unified_schema
-        if not self._additional_schemas:
-            self._unified_schema = self.schema
-        else:
-            unified = self.schema.clone()
-            for schema in self._additional_schemas:
-                for table in schema.tables.values():
-                    if not schema_utils.is_nested_table(table):
-                        for chain_table in schema_utils.get_nested_tables(
-                            schema._schema_tables, table["name"]
-                        ):
-                            unified.update_table(chain_table, normalize_identifiers=False)
-            self._unified_schema = unified
-        return self._unified_schema
-
-    def get_tables(self) -> Dict[str, TTableSchema]:
-        """Merged table mapping across all local schemas."""
-        return self._get_unified_schema().tables
-
-    def get_table_schema(self, table_name: str) -> TTableSchema:
-        """Look up a single table across all local schemas."""
-        tables = self.get_tables()
-        if table_name not in tables:
-            raise KeyError(f"Table '{table_name}' not found in dataset schemas")
-        return tables[table_name]
+        self.schema  # ensure default schema is resolved
+        return tuple(self._schemas.values())
 
     @property
     def tables(self) -> list[str]:
@@ -170,9 +167,14 @@ class Dataset:
         execution, tables may exist on the destination, but will only appear on the dataset once
         `pipeline.run()` is done.
         """
-        # return only completed tables from all schemas
-        unified = self._get_unified_schema()
-        return unified.data_table_names() + unified.dlt_table_names()
+        seen: set[str] = set()
+        result: list[str] = []
+        for schema in self.schemas:
+            for name in schema.data_table_names() + schema.dlt_table_names():
+                if name not in seen:
+                    seen.add(name)
+                    result.append(name)
+        return result
 
     def _ipython_key_completions_(self) -> list[str]:
         """Provide table names as completion suggestion in interactive environments."""
@@ -184,7 +186,7 @@ class Dataset:
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
         return lineage.create_sqlglot_schema(
-            self._get_unified_schema(), self.dataset_name, dialect=self.destination_dialect
+            self.schemas, self.dataset_name, dialect=self.destination_dialect
         )
 
     @property
@@ -341,24 +343,32 @@ class Dataset:
             dlt.Relation: Relation for the query that computes the requested row count.
         """
 
-        unified = self._get_unified_schema()
-
         selected_tables = table_names or []
         if not selected_tables:
+            seen: set[str] = set()
             if data_tables:
-                selected_tables += unified.data_table_names(seen_data_only=True)
+                for schema in self.schemas:
+                    for t in schema.data_table_names(seen_data_only=True):
+                        if t not in seen:
+                            seen.add(t)
+                            selected_tables.append(t)
             if dlt_tables:
-                selected_tables += unified.dlt_table_names()
+                for schema in self.schemas:
+                    for t in schema.dlt_table_names():
+                        if t not in seen:
+                            seen.add(t)
+                            selected_tables.append(t)
 
         # filter tables so only ones with dlt_load_id column are included
         dlt_load_id_col = None
         if load_id:
             dlt_load_id_col = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
-            selected_tables = [
-                table
-                for table in selected_tables
-                if dlt_load_id_col in unified.tables[table]["columns"].keys()
-            ]
+            tables_with_load_id: set[str] = set()
+            for schema in self.schemas:
+                for t_name, t_schema in schema.tables.items():
+                    if dlt_load_id_col in t_schema.get("columns", {}):
+                        tables_with_load_id.add(t_name)
+            selected_tables = [t for t in selected_tables if t in tables_with_load_id]
 
         union_all_expr: Optional[sge.Query] = None
 
@@ -464,8 +474,13 @@ class Dataset:
             schema_info = f"with tables in dlt schema `{schema_names_str}`:\n"
 
         msg = f"Dataset `{self.dataset_name}` at `{destination_info}` {schema_info}"
-        unified = self._get_unified_schema()
-        tables = unified.data_table_names()
+        seen: set[str] = set()
+        tables: list[str] = []
+        for schema in self.schemas:
+            for name in schema.data_table_names():
+                if name not in seen:
+                    seen.add(name)
+                    tables.append(name)
         if tables:
             msg += ", ".join(tables)
         else:

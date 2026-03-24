@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Tuple, cast
+from typing import Optional, Sequence, Tuple, Union, cast
 
 import sqlglot.expressions as sge
 
@@ -26,40 +26,51 @@ from dlt.dataset.exceptions import LineageFailedException
 
 
 def create_sqlglot_schema(
-    schema: dlt.Schema,
+    schemas: Union[dlt.Schema, Sequence[dlt.Schema]],
     dataset_name: str,
     dialect: TSqlGlotDialect,
 ) -> SQLGlotSchema:
-    """Create an SQLGlot schema using a dlt Schema and the destination capabilities.
+    """Create an SQLGlot schema from one or more dlt schemas.
+
+    Multiple dlt schemas are kept separate at the data-model level but merged
+    into a single SQLGlot schema so that query qualification and lineage work
+    across all tables regardless of which dlt schema owns them.
 
     The SQLGlot schema automatically scopes the tables to the `dataset_name`.
-    This can allow cross-dataset transformations on the same physical location.
-    No name translation nor case folding is performing. All identifiers correspond
-    to identifiers in dlt schema.
+    No name translation nor case folding is performed. All identifiers correspond
+    to identifiers in the dlt schemas.
     """
+    if isinstance(schemas, dlt.Schema):
+        schemas = (schemas,)
 
-    sqlglot_schema = {}  # MappingSchema(empty_schema, normalize=False)
+    sqlglot_schema = {}
 
-    for table_name in schema.tables.keys():
-        column_mapping = {}
-        # skip not materialized columns
-        for column_name, column in schema.get_table_columns(
-            table_name, include_incomplete=False
-        ).items():
-            sqlglot_type = to_sqlglot_type(
-                dlt_type=column["data_type"],
-                nullable=column.get("nullable"),
-                precision=column.get("precision"),
-                scale=column.get("scale"),
-                timezone=column.get("timezone"),
-            )
-            sqlglot_type = set_metadata(sqlglot_type, column)
-            # column_name = sql_client.capabilities.casefold_identifier(column_name)
-            column_mapping[column_name] = sqlglot_type
-        # skip tables without columns
-        if column_mapping:
-            # table_name = sql_client.make_qualified_table_name_path(table_name, quote=False, casefold=False)[-1]
-            sqlglot_schema[table_name] = column_mapping
+    for schema in schemas:
+        for table_name in schema.tables.keys():
+            column_mapping = {}
+            # skip not materialized columns
+            for column_name, column in schema.get_table_columns(
+                table_name, include_incomplete=False
+            ).items():
+                sqlglot_type = to_sqlglot_type(
+                    dlt_type=column["data_type"],
+                    nullable=column.get("nullable"),
+                    precision=column.get("precision"),
+                    scale=column.get("scale"),
+                    timezone=column.get("timezone"),
+                )
+                sqlglot_type = set_metadata(sqlglot_type, column)
+                column_mapping[column_name] = sqlglot_type
+            # skip tables without columns; first schema (default) wins on collision
+            if column_mapping:
+                if table_name in sqlglot_schema:
+                    logger.warning(
+                        "Table '%s' exists in multiple schemas; using definition"
+                        " from the default schema for query qualification.",
+                        table_name,
+                    )
+                else:
+                    sqlglot_schema[table_name] = column_mapping
 
     # ensure proper nesting with db and catalog
     nested_schema = {dataset_name: sqlglot_schema}

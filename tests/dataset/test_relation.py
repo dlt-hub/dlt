@@ -448,12 +448,6 @@ def test_multi_schema_tables_includes_all_schemas(multi_schema_dataset: dlt.Data
     assert set(tables) == expected
 
 
-def test_multi_schema_get_table_schema_secondary(multi_schema_dataset: dlt.Dataset) -> None:
-    table = multi_schema_dataset.get_table_schema("items")
-    assert table["name"] == "items"
-    assert "item_id" in table["columns"]
-
-
 def test_multi_schema_table_access_secondary(multi_schema_dataset: dlt.Dataset) -> None:
     items = multi_schema_dataset["items"].fetchall()
     assert len(items) == len(ITEMS_DATA)
@@ -506,11 +500,6 @@ def test_multi_schema_sqlglot_schema_has_all_tables(multi_schema_dataset: dlt.Da
     sg_schema = multi_schema_dataset.sqlglot_schema
     assert sg_schema.column_names(sge.Table(this=sge.to_identifier("users")))
     assert sg_schema.column_names(sge.Table(this=sge.to_identifier("items")))
-
-
-def test_multi_schema_get_table_schema_not_found(multi_schema_dataset: dlt.Dataset) -> None:
-    with pytest.raises(KeyError):
-        multi_schema_dataset.get_table_schema("nonexistent")
 
 
 def test_use_single_dataset_false_stays_single_schema(

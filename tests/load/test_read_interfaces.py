@@ -731,7 +731,8 @@ def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipe
     assert dataset_._opened_sql_client is None
 
     # check that if the schema needs to be fetched, no opened client is left
-    dataset_._schema = None
+    dataset_._schemas.clear()
+    dataset_._default_schema_name = None
     assert dataset_.schema
     assert dataset_._opened_sql_client is None
 
@@ -1430,7 +1431,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     )
 
     # dataset.schema is only set once first accessed
-    assert dataset._schema == populated_pipeline.default_schema_name
+    assert dataset._schema_arg == populated_pipeline.default_schema_name
     dataset.schema
     assert isinstance(dataset.schema, dlt.Schema)
 

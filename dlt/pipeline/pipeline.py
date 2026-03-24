@@ -1908,6 +1908,7 @@ class Pipeline(SupportsPipeline):
             )
 
         schema_name = None
+        _use_from_pipeline = False
         if isinstance(schema, Schema):
             schema_name = schema.name
             logger.info(
@@ -1927,24 +1928,20 @@ class Pipeline(SupportsPipeline):
 
         elif self.default_schema_name:
             schema_name = self.default_schema_name
-            if self.config.use_single_dataset and len(self.schema_names) > 1:
-                # pass all schemas so Dataset can query tables from all of them
-                all_schemas: List[Schema] = [self.default_schema]
-                for name in self.schema_names:
-                    if name != self.default_schema_name:
-                        all_schemas.append(self.schemas[name])
-                schema = all_schemas
-            else:
+            _use_from_pipeline = self.config.use_single_dataset and len(self.schema_names) > 1
+            if not _use_from_pipeline:
                 schema = self.default_schema
 
         try:
-            dataset = dlt.dataset(
-                self._destination,
-                self.dataset_name,
-                schema=schema,
-            )
-            # allow dataset to lazily resolve schema from pipeline state
-            dataset._pipeline_name = self.pipeline_name
+            if _use_from_pipeline:
+                dataset = dlt.Dataset.from_pipeline(self)
+            else:
+                dataset = dlt.dataset(
+                    self._destination,
+                    self.dataset_name,
+                    schema=schema,
+                )
+                dataset._pipeline_name = self.pipeline_name
             success = True
             return dataset
         except Exception:
