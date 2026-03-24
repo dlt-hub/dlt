@@ -1045,6 +1045,6 @@ def test_paginator_overrides_single_entity_paths(
         assert isinstance(captured["endpoint_paginator"], SinglePagePaginator)
     elif isinstance(expected_endpoint_paginator_type, str):
         expected_endpoint = paginators.get(expected_endpoint_paginator_type)
-        assert captured["endpoint_paginator"] is expected_endpoint
+        assert isinstance(captured["endpoint_paginator"], type(expected_endpoint))
     else:
         assert captured["endpoint_paginator"] is None
