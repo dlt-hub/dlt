@@ -14,7 +14,7 @@ lint: lint-core lint-embedded-snippets lint-notebooks ## Runs all linters
 # created by prepare-examples-tests, so exclude them from mypy
 lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks
 	uv run ruff check
-	uv run mypy docs_tools website examples --exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
+	uv run mypy --config-file ../pyproject.toml docs_tools website examples --exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
 	uv run flake8 --max-line-length=200 docs_tools examples website/docs --exclude docs_tools/snippets/lint_setup
 	uv run black docs_tools website examples --check --diff --color
 
@@ -23,7 +23,7 @@ lint-embedded-snippets: ## Lints all embedded snippets in the docs
 
 lint-notebooks: ## Lints the notebooks in the education folder
 	uv run nbqa flake8 education --extend-ignore=D,F704 --max-line-length=200
-	uv run nbqa mypy  education \
+	uv run nbqa mypy education \
 	--ignore-missing-imports \
 	--no-strict-optional \
 	--disable-error-code=no-redef \
