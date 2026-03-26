@@ -11,7 +11,7 @@ from dlt.common import pendulum
 from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter
 
-from tests.load.lancedb.utils import LOCAL_LANCE_DEST_CONFS, chunk_document, open_lance_table
+from tests.load.lancedb.utils import LANCE_DEST_CONFS, chunk_document, open_lance_table
 from tests.load.utils import (
     DestinationTestConfiguration,
     destinations_configs,
@@ -33,7 +33,7 @@ pytestmark = pytest.mark.essential
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_lancedb_remove_nested_orphaned_records(
@@ -140,7 +140,7 @@ def test_lancedb_remove_nested_orphaned_records(
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_lancedb_remove_orphaned_records_root_table(
@@ -209,7 +209,7 @@ def test_lancedb_remove_orphaned_records_root_table(
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_lancedb_remove_orphaned_records_root_table_string_doc_id(
@@ -278,7 +278,7 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id(
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
@@ -364,7 +364,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_lancedb_compound_merge_key_root_table(
@@ -440,7 +440,7 @@ def test_lancedb_compound_merge_key_root_table(
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_must_provide_at_least_primary_key_on_merge_disposition(

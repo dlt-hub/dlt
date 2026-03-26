@@ -17,12 +17,7 @@ else:
     TLanceDestinationClient = Any
 
 
-LOCAL_LANCE_DEST_CONFS = destinations_configs(
-    default_vector_configs=True, subset=("lance", "lancedb")
-)
-CLOUD_LANCE_DEST_CONFS = destinations_configs(
-    cloud_vector_configs=True, subset=("lance", "lancedb")
-)
+LANCE_DEST_CONFS = destinations_configs(default_vector_configs=True, subset=("lance", "lancedb"))
 
 
 def is_lancedb_client(client: TLanceDestinationClient) -> bool:

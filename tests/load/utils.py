@@ -138,8 +138,8 @@ DEFAULT_BUCKETS = [bucket for bucket in WITH_GDRIVE_BUCKETS if bucket != GDRIVE_
 
 OBJECT_STORE_RS_BUCKETS = [
     bucket
-    for bucket in (AWS_BUCKET, GCS_BUCKET, AZ_BUCKET)
-    if urlparse(bucket).scheme in ALL_FILESYSTEM_DRIVERS
+    for bucket in (FILE_BUCKET, AWS_BUCKET, GCS_BUCKET, AZ_BUCKET)
+    if FilesystemDestinationClientConfiguration.parse_protocol(bucket) in ALL_FILESYSTEM_DRIVERS
 ]
 
 # Add r2 in extra buckets so it's not run for all tests
@@ -329,7 +329,6 @@ class DestinationTestConfiguration:
 def destinations_configs(
     default_sql_configs: bool = False,
     default_vector_configs: bool = False,
-    cloud_vector_configs: bool = False,
     default_staging_configs: bool = False,
     all_staging_configs: bool = False,
     local_filesystem_configs: bool = False,
@@ -337,7 +336,6 @@ def destinations_configs(
     table_format_filesystem_configs: bool = False,
     table_format_local_configs: bool = False,
     read_only_sqlclient_configs: bool = False,
-    cloud_read_only_sqlclient_configs: bool = False,
     subset: Sequence[str] = (),
     bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
@@ -359,7 +357,6 @@ def destinations_configs(
             bigquery, snowflake, redshift, athena, mssql, synapse, databricks, clickhouse,
             dremio, sqlalchemy, motherduck, ducklake, fabric).
         default_vector_configs: Include vector database configs (weaviate, lancedb, qdrant).
-        cloud_vector_configs: Include vector database configs with cloud storage backend.
         default_staging_configs: Include common staging configs (redshift/s3, bigquery/gcs,
             snowflake with various buckets, databricks, synapse, fabric, clickhouse).
         all_staging_configs: Include all staging configs (superset of default_staging_configs).
@@ -371,8 +368,6 @@ def destinations_configs(
         table_format_local_configs: Include delta and iceberg configs for local file bucket only.
         read_only_sqlclient_configs: Include all configs that support read-only SQL client
             (filesystem with all buckets, table formats, and lancedb).
-        cloud_read_only_sqlclient_configs: Include configs with cloud storage backend that support
-            read-only SQL client and are not part of `read_only_sqlclient_configs`.
 
     Active Destination Filtering:
         The candidate list is first filtered to include only destinations in ACTIVE_DESTINATIONS
@@ -568,12 +563,7 @@ def destinations_configs(
     if default_vector_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type="weaviate"),
-            DestinationTestConfiguration(
-                destination_type="lancedb",
-            ),
-            DestinationTestConfiguration(
-                destination_type="lance",
-            ),
+            DestinationTestConfiguration(destination_type="lancedb"),
         ]
         destination_configs += [
             DestinationTestConfiguration(
@@ -587,8 +577,6 @@ def destinations_configs(
                 extra_info="server",
             ),
         ]
-
-    if cloud_vector_configs:
         for bucket in OBJECT_STORE_RS_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
@@ -889,10 +877,7 @@ def destinations_configs(
     if read_only_sqlclient_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type="lancedb"),
-            DestinationTestConfiguration(destination_type="lance"),
         ]
-
-    if cloud_read_only_sqlclient_configs:
         for bucket in OBJECT_STORE_RS_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(

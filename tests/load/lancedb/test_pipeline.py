@@ -17,8 +17,7 @@ from dlt.common.utils import uniq_id, digest128
 from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter, VECTORIZE_HINT
 from dlt.extract import DltResource
 from tests.load.lancedb.utils import (
-    CLOUD_LANCE_DEST_CONFS,
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     assert_table,
     chunk_document,
     mock_embed,
@@ -80,7 +79,7 @@ def test_adapter_and_hints() -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_changing_merge_key(destination_config: DestinationTestConfiguration) -> None:
@@ -129,7 +128,7 @@ def test_changing_merge_key(destination_config: DestinationTestConfiguration) ->
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_basic_state_and_schema(destination_config: DestinationTestConfiguration) -> None:
@@ -165,9 +164,7 @@ def test_basic_state_and_schema(destination_config: DestinationTestConfiguration
 
 @pytest.mark.parametrize(
     "destination_config",
-    # we include cloud configs here somewhat arbitrarly to make sure cloud storage backends also
-    # work — we do not include them in every test to keep test runtime lower
-    LOCAL_LANCE_DEST_CONFS + CLOUD_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_pipeline_append(destination_config: DestinationTestConfiguration) -> None:
@@ -206,7 +203,7 @@ def test_pipeline_append(destination_config: DestinationTestConfiguration) -> No
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_explicit_append(destination_config: DestinationTestConfiguration) -> None:
@@ -248,7 +245,7 @@ def test_explicit_append(destination_config: DestinationTestConfiguration) -> No
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_pipeline_replace(destination_config: DestinationTestConfiguration) -> None:
@@ -291,7 +288,7 @@ def test_pipeline_replace(destination_config: DestinationTestConfiguration) -> N
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_pipeline_merge(destination_config: DestinationTestConfiguration) -> None:
@@ -391,7 +388,7 @@ def test_pipeline_merge(destination_config: DestinationTestConfiguration) -> Non
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_pipeline_with_schema_evolution(destination_config: DestinationTestConfiguration) -> None:
@@ -451,7 +448,7 @@ def test_pipeline_with_schema_evolution(destination_config: DestinationTestConfi
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("lance_location", (":external:", ":pipeline:", "default"))
@@ -520,7 +517,7 @@ def test_merge_github_nested(
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_bring_your_own_vector(destination_config: DestinationTestConfiguration) -> None:
@@ -600,7 +597,7 @@ def test_bring_your_own_vector(destination_config: DestinationTestConfiguration)
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_empty_dataset_allowed(destination_config: DestinationTestConfiguration) -> None:
@@ -627,7 +624,7 @@ def test_empty_dataset_allowed(destination_config: DestinationTestConfiguration)
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_lancedb_remove_nested_orphaned_records_with_chunks(
@@ -736,7 +733,7 @@ search_data = [
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_fts_query(destination_config: DestinationTestConfiguration) -> None:
@@ -764,7 +761,7 @@ def test_fts_query(destination_config: DestinationTestConfiguration) -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_semantic_query(destination_config: DestinationTestConfiguration) -> None:
@@ -800,7 +797,7 @@ def test_semantic_query(destination_config: DestinationTestConfiguration) -> Non
 
 @pytest.mark.parametrize(
     "destination_config",
-    LOCAL_LANCE_DEST_CONFS,
+    LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
 def test_semantic_query_custom_embedding_functions_registered(
