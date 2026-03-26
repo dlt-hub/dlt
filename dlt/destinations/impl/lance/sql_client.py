@@ -44,7 +44,7 @@ def _install_and_load_lance_duckdb_extension(duckdb_con: DuckDBPyConnection) -> 
     DuckDB ensures installation is only done once per system.
     Extension loading must be done on every connection
     """
-    duckdb_con.execute("INSTALL lance FROM community;")
+    duckdb_con.execute("INSTALL lance;")
     duckdb_con.execute("LOAD lance;")
 
 
