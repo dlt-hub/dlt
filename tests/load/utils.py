@@ -136,6 +136,12 @@ WITH_GDRIVE_BUCKETS = [
 # while gdrive is not working as a destination
 DEFAULT_BUCKETS = [bucket for bucket in WITH_GDRIVE_BUCKETS if bucket != GDRIVE_BUCKET]
 
+OBJECT_STORE_RS_BUCKETS = [
+    bucket
+    for bucket in (AWS_BUCKET, GCS_BUCKET, AZ_BUCKET)
+    if urlparse(bucket).scheme in ALL_FILESYSTEM_DRIVERS
+]
+
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
     bucket_url=R2_BUCKET,
@@ -583,7 +589,7 @@ def destinations_configs(
         ]
 
     if cloud_vector_configs:
-        for bucket in [AWS_BUCKET, GCS_BUCKET, AZ_BUCKET]:
+        for bucket in OBJECT_STORE_RS_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="lance",
@@ -887,7 +893,7 @@ def destinations_configs(
         ]
 
     if cloud_read_only_sqlclient_configs:
-        for bucket in [AWS_BUCKET, GCS_BUCKET, AZ_BUCKET]:
+        for bucket in OBJECT_STORE_RS_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="lance",
