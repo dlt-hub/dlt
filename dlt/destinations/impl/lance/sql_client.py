@@ -10,7 +10,7 @@ inferface.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Iterator, TYPE_CHECKING
+from typing import Any, Dict, Iterator, TYPE_CHECKING
 
 import sqlglot
 import sqlglot.expressions as exp
@@ -62,6 +62,19 @@ def _prepare_create_view_statement(lance_table_uri: str, view_name: str) -> str:
     return f"CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM __lance_scan('{lance_table_uri}')"
 
 
+def _prepare_create_lance_secret_statement(
+    secret_name: str, scope: str, storage_options: Dict[str, str]
+) -> str:
+    storage_options_str = "{" + ", ".join(f"'{k}': '{v}'" for k, v in storage_options.items()) + "}"
+    return f"""
+        CREATE SECRET {secret_name} (
+            TYPE LANCE,
+            PROVIDER config,
+            SCOPE '{scope}',
+            STORAGE_OPTIONS {storage_options_str}
+        )"""
+
+
 class LanceSQLClient(DuckDbSqlClient):
     def __init__(self, lance_client: LanceClient) -> None:
         self.lance_client = lance_client
@@ -81,8 +94,18 @@ class LanceSQLClient(DuckDbSqlClient):
         self._conn = duckdb.connect(":memory:")
         _install_and_load_lance_duckdb_extension(self._conn)
         _create_and_use_duckdb_dataset(self._conn, self.fully_qualified_dataset_name())
+        self._create_lance_secret()
 
         return self._conn
+
+    def _create_lance_secret(self) -> None:
+        storage_options = self.lance_client.config.storage.options
+        if not storage_options:
+            return
+        scope = self.lance_client.config.storage.namespace_url
+        secret_name = self.create_secret_name(scope)
+        stmt = _prepare_create_lance_secret_statement(secret_name, scope, storage_options)
+        self._conn.execute(stmt)
 
     def close_connection(self) -> None:
         if self._conn:

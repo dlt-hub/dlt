@@ -331,6 +331,7 @@ def destinations_configs(
     table_format_filesystem_configs: bool = False,
     table_format_local_configs: bool = False,
     read_only_sqlclient_configs: bool = False,
+    cloud_read_only_sqlclient_configs: bool = False,
     subset: Sequence[str] = (),
     bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
@@ -364,6 +365,8 @@ def destinations_configs(
         table_format_local_configs: Include delta and iceberg configs for local file bucket only.
         read_only_sqlclient_configs: Include all configs that support read-only SQL client
             (filesystem with all buckets, table formats, and lancedb).
+        cloud_read_only_sqlclient_configs: Include configs with cloud storage backend that support
+            read-only SQL client and are not part of `read_only_sqlclient_configs`.
 
     Active Destination Filtering:
         The candidate list is first filtered to include only destinations in ACTIVE_DESTINATIONS
@@ -882,6 +885,16 @@ def destinations_configs(
             DestinationTestConfiguration(destination_type="lancedb"),
             DestinationTestConfiguration(destination_type="lance"),
         ]
+
+    if cloud_read_only_sqlclient_configs:
+        for bucket in [AWS_BUCKET, GCS_BUCKET, AZ_BUCKET]:
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="lance",
+                    extra_info=FilesystemConfiguration.parse_protocol(bucket),
+                    env_vars={"DESTINATION__STORAGE__BUCKET_URL": bucket},
+                ),
+            ]
 
     try:
         # register additional destinations from _addons.py which must be placed in the same folder

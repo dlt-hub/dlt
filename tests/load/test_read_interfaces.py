@@ -178,6 +178,9 @@ configs = destinations_configs(
     bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
 )
 
+# separate cloud read-only configs — these are relatively slow, so we only run them on a subset of tests
+cloud_read_only_sqlclient_configs = destinations_configs(cloud_read_only_sqlclient_configs=True)
+
 
 @pytest.mark.no_load
 @pytest.mark.essential
@@ -233,7 +236,7 @@ Columns:
 @pytest.mark.no_load
 @pytest.mark.parametrize(
     "populated_pipeline",
-    configs,
+    configs + cloud_read_only_sqlclient_configs,
     indirect=True,
     ids=lambda x: x.name,
 )
