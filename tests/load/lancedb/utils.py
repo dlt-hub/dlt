@@ -1,13 +1,12 @@
 from typing import TYPE_CHECKING, Union, List, Any, Dict, cast
 
 import numpy as np
-import pytest
 from lancedb.embeddings import TextEmbeddingFunction
 from lancedb.table import Table as LanceTable
 
 import dlt
+from tests.load.utils import destinations_configs
 
-from tests.load.utils import DestinationTestConfiguration, destinations_configs
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.lance.lance_client import LanceClient
@@ -18,12 +17,12 @@ else:
     TLanceDestinationClient = Any
 
 
-@pytest.fixture(
-    params=destinations_configs(default_vector_configs=True, subset=("lance", "lancedb")),
-    ids=lambda c: c.name,
+LOCAL_LANCE_DEST_CONFS = destinations_configs(
+    default_vector_configs=True, subset=("lance", "lancedb")
 )
-def destination_config(request: pytest.FixtureRequest) -> DestinationTestConfiguration:
-    return request.param
+CLOUD_LANCE_DEST_CONFS = destinations_configs(
+    cloud_vector_configs=True, subset=("lance", "lancedb")
+)
 
 
 def is_lancedb_client(client: TLanceDestinationClient) -> bool:

@@ -5,6 +5,10 @@ import pytest
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lance.lance_client import LanceClient
 
+from tests.utils import (
+    auto_module_test_storage,
+    auto_module_test_run_context,
+)
 from tests.load.utils import yield_client
 
 

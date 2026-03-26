@@ -17,14 +17,15 @@ from dlt.common.utils import uniq_id, digest128
 from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter, VECTORIZE_HINT
 from dlt.extract import DltResource
 from tests.load.lancedb.utils import (
+    CLOUD_LANCE_DEST_CONFS,
+    LOCAL_LANCE_DEST_CONFS,
     assert_table,
     chunk_document,
     mock_embed,
-    destination_config,
     get_table_location,
     open_lance_table,
 )
-from tests.load.utils import DestinationTestConfiguration
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.load.utils import sequence_generator
 from tests.pipeline.utils import assert_load_info
 from tests.utils import get_test_storage_root
@@ -77,6 +78,11 @@ def test_adapter_and_hints() -> None:
     assert some_data.compute_table_schema()["columns"]["content"]["merge_key"] is True
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_changing_merge_key(destination_config: DestinationTestConfiguration) -> None:
     @dlt.resource
     def some_data():
@@ -121,6 +127,11 @@ def test_changing_merge_key(destination_config: DestinationTestConfiguration) ->
     assert pipeline.default_schema.tables["some_data"]["columns"]["other_id"]["nullable"] is False
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_basic_state_and_schema(destination_config: DestinationTestConfiguration) -> None:
     generator_instance1 = sequence_generator()
 
@@ -152,6 +163,13 @@ def test_basic_state_and_schema(destination_config: DestinationTestConfiguration
         assert state
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    # we include cloud configs here somewhat arbitrarly to make sure cloud storage backends also
+    # work — we do not include them in every test to keep test runtime lower
+    LOCAL_LANCE_DEST_CONFS + CLOUD_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_pipeline_append(destination_config: DestinationTestConfiguration) -> None:
     generator_instance1 = sequence_generator()
     generator_instance2 = sequence_generator()
@@ -186,6 +204,11 @@ def test_pipeline_append(destination_config: DestinationTestConfiguration) -> No
     assert_table(pipeline, "some_data", items=data)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_explicit_append(destination_config: DestinationTestConfiguration) -> None:
     data = [
         {"doc_id": 1, "content": "1"},
@@ -223,6 +246,11 @@ def test_explicit_append(destination_config: DestinationTestConfiguration) -> No
     assert_table(pipeline, "some_data", items=data)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_pipeline_replace(destination_config: DestinationTestConfiguration) -> None:
     os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "2"
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"
@@ -261,6 +289,11 @@ def test_pipeline_replace(destination_config: DestinationTestConfiguration) -> N
     assert_table(pipeline, "some_data", items=data)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_pipeline_merge(destination_config: DestinationTestConfiguration) -> None:
     data = [
         {
@@ -356,6 +389,11 @@ def test_pipeline_merge(destination_config: DestinationTestConfiguration) -> Non
     assert_table(pipeline, "movies_data", items=data)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_pipeline_with_schema_evolution(destination_config: DestinationTestConfiguration) -> None:
     data = [
         {
@@ -411,6 +449,11 @@ def test_pipeline_with_schema_evolution(destination_config: DestinationTestConfi
     assert_table(pipeline, "some_data", items=aggregated_data)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("lance_location", (":external:", ":pipeline:", "default"))
 def test_merge_github_nested(
     lance_location: str, destination_config: DestinationTestConfiguration
@@ -475,6 +518,11 @@ def test_merge_github_nested(
     assert_table(pipe, "issues", expected_items_count=17)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_bring_your_own_vector(destination_config: DestinationTestConfiguration) -> None:
     """Test pipeline with explicitly provided vector data in an arrow table."""
 
@@ -550,6 +598,11 @@ def test_bring_your_own_vector(destination_config: DestinationTestConfiguration)
         assert len(tbl.to_pandas()) == num_rows
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_empty_dataset_allowed(destination_config: DestinationTestConfiguration) -> None:
     if destination_config.destination_type == "lance":
         pytest.skip("lance destination does not allow empty datasets")
@@ -572,6 +625,11 @@ def test_empty_dataset_allowed(destination_config: DestinationTestConfiguration)
     assert len(rows) == 3
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_lancedb_remove_nested_orphaned_records_with_chunks(
     destination_config: DestinationTestConfiguration,
 ) -> None:
@@ -676,6 +734,11 @@ search_data = [
 ]
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_fts_query(destination_config: DestinationTestConfiguration) -> None:
     @dlt.resource
     def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
@@ -699,6 +762,11 @@ def test_fts_query(destination_config: DestinationTestConfiguration) -> None:
         assert results[0]["text"] == "There are several kittens playing"
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_semantic_query(destination_config: DestinationTestConfiguration) -> None:
     @dlt.resource
     def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
@@ -730,11 +798,18 @@ def test_semantic_query(destination_config: DestinationTestConfiguration) -> Non
         assert results[0]["text"] == "Frodo was a happy puppy"
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_semantic_query_custom_embedding_functions_registered(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     """Test the LanceDB registry registered custom embedding functions defined in models, if any.
     See: https://github.com/dlt-hub/dlt/issues/1765"""
+    if destination_config.extra_info == "s3":
+        pytest.skip("testing this locally suffices")
 
     @dlt.resource
     def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
@@ -756,7 +831,6 @@ def test_semantic_query_custom_embedding_functions_registered(
 
     with pipeline.destination_client() as client:
         client = cast(TLanceDestinationClient, client)
-        lance_uri = client.config.lance_uri
         table_location = get_table_location(client, "search_data_resource")
 
     # A new python process doesn't seem to correctly deserialize the custom embedding
@@ -766,20 +840,18 @@ def test_semantic_query_custom_embedding_functions_registered(
     with multiprocessing.get_context("spawn").Pool(1) as pool:
         results = pool.apply(
             run_lance_search_in_separate_process,
-            (lance_uri, "search_data_resource", table_location),
+            ("search_data_resource", table_location),
         )
 
     assert results[0]["text"] == "Frodo was a happy puppy"
 
 
-def run_lance_search_in_separate_process(
-    lance_uri: str, table_name: str, table_location: str
-) -> Any:
+def run_lance_search_in_separate_process(table_name: str, table_location: str) -> Any:
     import lancedb
     from lancedb.table import LanceTable
 
     # Must read into __REGISTRY__ here.
-    db = lancedb.connect(lance_uri)
+    db = lancedb.connect("dummy")  # we specify table location directly so this is fine
     tbl = LanceTable.open(db, table_name, location=table_location)
 
     return (

@@ -6,8 +6,8 @@ from decimal import Decimal
 
 import dlt
 from dlt.pipeline.exceptions import PipelineStepFailed
-from tests.load.lancedb.utils import destination_config, open_lance_table
-from tests.load.utils import DestinationTestConfiguration
+from tests.load.lancedb.utils import LOCAL_LANCE_DEST_CONFS, open_lance_table
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info
 from tests.cases import arrow_table_all_data_types, remove_column_from_data
 from tests.utils import TestDataItemFormat
@@ -19,6 +19,11 @@ else:
 
 
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_identical_schemas_all_types(
     destination_config: DestinationTestConfiguration, object_format: TestDataItemFormat
 ) -> None:
@@ -54,6 +59,11 @@ def test_identical_schemas_all_types(
     assert schema_after_first_load == pipeline.default_schema
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_add_columns_of_new_types_one_by_one(
     destination_config: DestinationTestConfiguration,
 ) -> None:
@@ -107,6 +117,11 @@ def test_add_columns_of_new_types_one_by_one(
 
 
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_new_column_in_second_load(
     destination_config: DestinationTestConfiguration, object_format: TestDataItemFormat
 ) -> None:
@@ -156,6 +171,11 @@ def test_new_column_in_second_load(
         )
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_arrow_precision_types(destination_config: DestinationTestConfiguration):
     # create a table with all those types as columns
     import numpy as np
@@ -224,6 +244,11 @@ def test_arrow_precision_types(destination_config: DestinationTestConfiguration)
 
 @pytest.mark.parametrize("remove_orphans", [True, False])
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_missing_column_in_second_load(
     destination_config: DestinationTestConfiguration,
     object_format: TestDataItemFormat,
@@ -299,6 +324,11 @@ def test_missing_column_in_second_load(
 
 
 # @pytest.mark.xfail(reason="normalizer issue?")
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_json_nesting_evolution(destination_config: DestinationTestConfiguration) -> None:
     """Test that json nesting evolution is handled correctly."""
     pipeline = destination_config.setup_pipeline(

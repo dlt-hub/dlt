@@ -7,6 +7,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.destinations.impl.lance.configuration import (
     LanceCredentials,
     LanceClientConfiguration,
+    LanceStorageConfiguration,
     TEmbeddingProvider,
 )
 
@@ -64,8 +65,8 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
 
     def __init__(
         self,
+        storage: LanceStorageConfiguration = None,
         credentials: Union[LanceCredentials, Dict[str, Any]] = None,
-        lance_uri: Optional[str] = None,
         embedding_model_provider: TEmbeddingProvider = None,
         embedding_model: str = None,
         vector_field_name: str = None,
@@ -78,9 +79,9 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
+            storage (LanceStorageConfiguration): Configuration for storage where lance datasets are stored.
             credentials (Union[LanceCredentials, Dict[str, Any]]): Credentials for the Lance destination. Can be
                 an instance of `LanceCredentials` or a dictionary with the credentials parameters.
-            lance_uri (Optional[str]): Directory containing .lance datasets. Defaults to local `.lancedb` directory.
             embedding_model_provider (TEmbeddingProvider, optional): Embedding provider used for generating embeddings.
                 Default is "cohere". See LanceDB documentation for the full list of available providers.
             embedding_model (str, optional): The model used by the embedding provider for generating embeddings.
@@ -92,8 +93,8 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
             **kwargs (Any): Additional arguments forwarded to the destination config.
         """
         super().__init__(
+            storage=storage,
             credentials=credentials,
-            lance_uri=lance_uri,
             embedding_model_provider=embedding_model_provider,
             embedding_model=embedding_model,
             vector_field_name=vector_field_name,

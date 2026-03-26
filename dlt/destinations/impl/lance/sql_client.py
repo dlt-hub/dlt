@@ -58,7 +58,7 @@ def _create_and_use_duckdb_dataset(
 
 def _prepare_create_view_statement(lance_table_uri: str, view_name: str) -> str:
     # NOTE: direct querying fails with our Lance Directory Namespace Catalog Spec V2 table URIs, but
-    # luckily going through __lance_scan() does work
+    # going through __lance_scan() does work
     return f"CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM __lance_scan('{lance_table_uri}')"
 
 

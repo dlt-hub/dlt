@@ -18,7 +18,6 @@ from lance.namespace import (
     CreateNamespaceRequest,
     DropNamespaceRequest,
     DropTableRequest,
-    DirectoryNamespace,
     ListTablesRequest,
     NamespaceExistsRequest,
     TableExistsRequest,
@@ -102,7 +101,8 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.config: LanceClientConfiguration = config
         self.type_mapper = self.capabilities.get_type_mapper()
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
-        self.namespace = DirectoryNamespace(root=self.config.lance_uri)
+
+        self.namespace = self.config.storage.make_directory_namespace()
         self.registry = EmbeddingFunctionRegistry.get_instance()
         self._sql_client: SqlClientBase[Any] = None
 
@@ -218,14 +218,20 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     def open_lance_dataset(self, table_name: str) -> LanceDataset:
         """Returns lance dataset for given table name."""
-        return lance.dataset(namespace=self.namespace, table_id=self.make_table_id(table_name))
+        return lance.dataset(
+            namespace=self.namespace,
+            table_id=self.make_table_id(table_name),
+        )
 
     def open_lance_table(self, table_name: str) -> LanceTable:
         """Returns LanceDB table for given table name.
 
         This provides access to LanceDB-specific features like vector search.
         """
-        db = lancedb.connect(self.config.lance_uri)
+        db = lancedb.connect(
+            self.config.storage.bucket_url,
+            storage_options=self.config.storage.options,
+        )
         return LanceTable.open(db, table_name, location=self.get_table_uri(table_name))
 
     def query_table(

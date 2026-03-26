@@ -306,9 +306,9 @@ def _preserve_environ() -> Iterator[None]:
         environ.clear()
         environ.update(saved_environ)
         for key_, value_ in known_environ.items():
-            if value_ is not None or key_ not in environ:
-                environ[key_] = value_ or ""
-            else:
+            if value_ is not None:
+                environ[key_] = value_
+            elif key_ in environ:
                 del environ[key_]
 
 

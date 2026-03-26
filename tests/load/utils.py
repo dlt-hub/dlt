@@ -55,6 +55,7 @@ from dlt.common.schema.typing import TTableFormat, TTableSchema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import LoadJobInfo, create_load_id
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
@@ -322,6 +323,7 @@ class DestinationTestConfiguration:
 def destinations_configs(
     default_sql_configs: bool = False,
     default_vector_configs: bool = False,
+    cloud_vector_configs: bool = False,
     default_staging_configs: bool = False,
     all_staging_configs: bool = False,
     local_filesystem_configs: bool = False,
@@ -350,6 +352,7 @@ def destinations_configs(
             bigquery, snowflake, redshift, athena, mssql, synapse, databricks, clickhouse,
             dremio, sqlalchemy, motherduck, ducklake, fabric).
         default_vector_configs: Include vector database configs (weaviate, lancedb, qdrant).
+        cloud_vector_configs: Include vector database configs with cloud storage backend.
         default_staging_configs: Include common staging configs (redshift/s3, bigquery/gcs,
             snowflake with various buckets, databricks, synapse, fabric, clickhouse).
         all_staging_configs: Include all staging configs (superset of default_staging_configs).
@@ -562,6 +565,8 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination_type="lance",
             ),
+        ]
+        destination_configs += [
             DestinationTestConfiguration(
                 destination_type="qdrant",
                 credentials=dict(path="qdrant_data"),
@@ -573,6 +578,16 @@ def destinations_configs(
                 extra_info="server",
             ),
         ]
+
+    if cloud_vector_configs:
+        for bucket in [AWS_BUCKET, GCS_BUCKET, AZ_BUCKET]:
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="lance",
+                    extra_info=FilesystemConfiguration.parse_protocol(bucket),
+                    env_vars={"DESTINATION__STORAGE__BUCKET_URL": bucket},
+                ),
+            ]
 
     if (default_sql_configs or all_staging_configs) and not default_sql_configs:
         # athena default configs not added yet

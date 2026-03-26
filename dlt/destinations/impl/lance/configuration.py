@@ -1,30 +1,82 @@
-import os
 import dataclasses
-from typing import Any, Dict, Optional, Final, Literal, ClassVar, List
+from typing import Dict, Optional, Final, Literal, ClassVar, List, Type
 
-from dlt.common import logger
+from lance.namespace import DirectoryNamespace
+
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
+    resolve_type,
 )
+from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 from dlt.common.destination.client import DestinationClientDwhConfiguration
-from dlt.common.storages.configuration import FilesystemConfiguration, WithLocalFiles
-from dlt.common.utils import digest128
+from dlt.common.storages.configuration import (
+    FileSystemCredentials,
+    FilesystemConfigurationWithLocalFiles,
+)
 
-from dlt.destinations.impl.lance.warnings import uri_on_credentials_deprecated
+DEFAULT_LANCE_BUCKET_URL = "."  # active run dir
+DEFAULT_LANCE_NAMESPACE_NAME = "dlt_lance_namespace"
 
 
 @configspec
 class LanceCredentials(CredentialsConfiguration):
-    uri: Optional[str] = None
-
     embedding_model_provider_api_key: Optional[str] = None
     """API key for the embedding model provider."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "embedding_model_provider_api_key",
     ]
+
+
+@configspec(init=False)
+class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
+    namespace_name: Optional[str] = DEFAULT_LANCE_NAMESPACE_NAME
+    """Name of subdirectory in `bucket_url` to use as namespace root. Leave empty to use `bucket_url` as namespace root."""
+    options: Optional[Dict[str, str]] = None
+    """Options to pass to storage client. Used as `storage.*` properties on `DirectoryNamespace` client.
+
+    Will be merged with `credentials`-derived options (if present), with `options` taking precedence in case of conflicts.
+    """
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["bucket_url", "namespace_name"]
+
+    def __init__(
+        self,
+        bucket_url: str = DEFAULT_LANCE_BUCKET_URL,
+        namespace_name: Optional[str] = DEFAULT_LANCE_NAMESPACE_NAME,
+        credentials: Optional[FileSystemCredentials] = None,
+        options: Optional[Dict[str, str]] = None,
+    ) -> None:
+        super().__init__(bucket_url=bucket_url, credentials=credentials)
+        self.namespace_name = namespace_name
+        self.options = options
+
+    @property
+    def namespace_url(self) -> str:
+        namespace_url = self.bucket_url.rstrip("/")
+        if self.namespace_name:
+            namespace_url += "/" + self.namespace_name
+        return namespace_url
+
+    @resolve_type("credentials")
+    def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
+        return super().resolve_credentials_type()
+
+    def on_resolved(self) -> None:
+        super().on_resolved()
+        credentials = (
+            self.credentials.to_object_store_rs_credentials()
+            if isinstance(self.credentials, WithObjectStoreRsCredentials)
+            else {}
+        )
+        if credentials or self.options:
+            self.options = credentials | (self.options or {})
+
+    def make_directory_namespace(self) -> DirectoryNamespace:
+        storage_props = {f"storage.{k}": v for k, v in (self.options or {}).items()}
+        return DirectoryNamespace(root=self.namespace_url, **storage_props)
 
 
 @configspec
@@ -58,12 +110,12 @@ TEmbeddingProvider = Literal[
 
 
 @configspec
-class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
+class LanceClientConfiguration(DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lance", init=False, repr=False, compare=False
     )
-    lance_uri: Optional[str] = None
-    """Directory containing .lance datasets. Defaults to local `.lancedb` directory."""
+    storage: LanceStorageConfiguration = None
+    """Storage configuration including URI and cloud credentials."""
     credentials: LanceCredentials = None
 
     options: Optional[LanceClientOptions] = None
@@ -87,29 +139,9 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
     vector_field_name: str = "vector"
     """Name of the special field to store the vector embeddings."""
     __config_gen_annotations__: ClassVar[List[str]] = [
-        "lance_uri",
         "embedding_model",
         "embedding_model_provider",
     ]
 
-    def on_resolved(self) -> None:
-        if self.credentials.uri and not self.lance_uri:
-            uri_on_credentials_deprecated()
-            self.lance_uri = self.credentials.uri
-
-        # use local path if uri not provided or relative path
-        if (
-            not self.lance_uri
-            or FilesystemConfiguration.is_local_path(self.lance_uri)
-            and not os.path.isabs(self.lance_uri)
-        ):
-            self.lance_uri = self.make_location(self.lance_uri, "%s.lancedb")
-        # TODO: move uri back to credentials to make it more like other connections
-        self.credentials.uri = self.lance_uri
-
     def fingerprint(self) -> str:
-        """Returns a fingerprint of a connection string."""
-
-        if self.lance_uri:
-            return digest128(self.lance_uri)
-        return ""
+        return self.storage.fingerprint()

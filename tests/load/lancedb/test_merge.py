@@ -11,9 +11,10 @@ from dlt.common import pendulum
 from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter
 
-from tests.load.lancedb.utils import chunk_document, destination_config, open_lance_table
+from tests.load.lancedb.utils import LOCAL_LANCE_DEST_CONFS, chunk_document, open_lance_table
 from tests.load.utils import (
     DestinationTestConfiguration,
+    destinations_configs,
     sequence_generator,
 )
 from tests.pipeline.utils import (
@@ -30,6 +31,11 @@ else:
 pytestmark = pytest.mark.essential
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_lancedb_remove_nested_orphaned_records(
     destination_config: DestinationTestConfiguration,
 ) -> None:
@@ -132,6 +138,11 @@ def test_lancedb_remove_nested_orphaned_records(
         assert_frame_equal(actual_grandchild_df[["baz"]], expected_grandchild_data)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_lancedb_remove_orphaned_records_root_table(
     destination_config: DestinationTestConfiguration,
 ) -> None:
@@ -196,6 +207,11 @@ def test_lancedb_remove_orphaned_records_root_table(
         assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_lancedb_remove_orphaned_records_root_table_string_doc_id(
     destination_config: DestinationTestConfiguration,
 ) -> None:
@@ -260,6 +276,11 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id(
         assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
     destination_config: DestinationTestConfiguration,
 ) -> None:
@@ -341,6 +362,11 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
             assert vector.size > 0
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_lancedb_compound_merge_key_root_table(
     destination_config: DestinationTestConfiguration,
 ) -> None:
@@ -412,6 +438,11 @@ def test_lancedb_compound_merge_key_root_table(
         assert_frame_equal(actual_child_df, expected_child_df)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LOCAL_LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_must_provide_at_least_primary_key_on_merge_disposition(
     destination_config: DestinationTestConfiguration,
 ) -> None:
