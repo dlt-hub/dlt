@@ -64,7 +64,7 @@ dltHub embraces the dlt library, not replaces it:
 dltHub extends the dlt developer experience with new [local workspace layout](workspace/init.md), [configuration profiles](core-concepts/profiles-dlthub.md), [additional CLI commands](command-line-interface.md), workspace dashboard, [MCP server](features/mcp-server.md) and more.
 Those developer experience improvements belong to **dltHub Free tier** and are distributed side by side with the `dlt` under [Apache 2.0 license](https://github.com/dlt-hub/dlt?tab=Apache-2.0-1-ov-file#readme). You can use **dltHub Free tier** right away - like you use regular `dlt`.
 
-All features that require a license are part of dltHub paid tiers (i.e. Pro tier) and are clearly marked as such in this documentation. Those features are shipped via `dlthub` Python package (available on [PyPI](https://pypi.org/project/dlthub/)) which is not open source and can be used with a valid license.
+All features that require a license are part of dltHub paid tiers (e.g., Pro, Scale, Enterprise) and are clearly marked as such in this documentation. Those features are shipped via `dlthub` Python package (available on [PyPI](https://pypi.org/project/dlthub/)) which is not open source and can be used with a valid license.
 
 ## dltHub products
 dltHub consists of three main products. You can use them together or compose them based on your needs.
