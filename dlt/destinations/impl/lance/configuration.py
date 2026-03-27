@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import dataclasses
-from typing import Dict, Optional, Final, Literal, ClassVar, List, Type
+import os
+from typing import Any, Dict, Literal, Optional, Final, ClassVar, List, Type
 
 from lance.namespace import DirectoryNamespace
+from lancedb.embeddings import EmbeddingFunction, EmbeddingFunctionRegistry
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import (
@@ -19,15 +23,21 @@ from dlt.common.storages.configuration import (
 DEFAULT_LANCE_BUCKET_URL = "."  # active run dir
 DEFAULT_LANCE_NAMESPACE_NAME = "dlt_lance_namespace"
 
-
-@configspec
-class LanceCredentials(CredentialsConfiguration):
-    embedding_model_provider_api_key: Optional[str] = None
-    """API key for the embedding model provider."""
-
-    __config_gen_annotations__: ClassVar[List[str]] = [
-        "embedding_model_provider_api_key",
-    ]
+# NOTE: you can list providers with `EmbeddingFunctionRegistry.get_instance()._functions.keys()`
+TEmbeddingProvider = Literal[
+    "gemini-text",
+    "bedrock-text",
+    "cohere",
+    "gte-text",
+    "imagebind",
+    "instructor",
+    "open-clip",
+    "openai",
+    "sentence-transformers",
+    "huggingface",
+    "colbert",
+    "ollama",
+]
 
 
 @configspec(init=False)
@@ -80,33 +90,53 @@ class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
 
 
 @configspec
-class LanceClientOptions(BaseConfiguration):
-    max_retries: Optional[int] = 3
-    """`EmbeddingFunction` class wraps the calls for source and query embedding
-    generation inside a rate limit handler that retries the requests with exponential
-    backoff after successive failures.
+class LanceEmbeddingsCredentials(CredentialsConfiguration):
+    api_key: str = None
+    """API key for embedding model provider."""
 
-    You can tune it by setting it to a different number, or disable it by setting it to 0."""
+    __config_gen_annotations__: ClassVar[List[str]] = ["api_key"]
+
+
+@configspec
+class LanceEmbeddingsConfiguration(BaseConfiguration):
+    credentials: Optional[LanceEmbeddingsCredentials] = None
+    """Credentials for embedding model provider. Leave empty if authentication is not required (e.g. local providers)."""
+
+    vector_column: str = "vector"
+    """Name of column to store vector embeddings in."""
+    provider: TEmbeddingProvider = "cohere"
+    """Provider of model used to generate embeddings.
+
+    Find all providers at https://github.com/lancedb/lancedb/tree/main/python/python/lancedb/embeddings.
+    """
+    name: str = "embed-english-v3.0"
+    """Name of model used by provider to generate embeddings."""
+    max_retries: Optional[int] = 3
+    """Number of retries for embedding requests. Set to 0 to disable retries."""
+    kwargs: Optional[Dict[str, Any]] = None
+    """Additional provider-specific keyword arguments passed to `EmbeddingFunction.create()`."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
-        "max_retries",
+        "provider",
+        "name",
     ]
 
+    _PROVIDER_ENV_VAR_NAMES: ClassVar[Dict[TEmbeddingProvider, str]] = {
+        "cohere": "COHERE_API_KEY",
+        "gemini-text": "GOOGLE_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "huggingface": "HUGGINGFACE_API_KEY",
+    }
 
-TEmbeddingProvider = Literal[
-    "gemini-text",
-    "bedrock-text",
-    "cohere",
-    "gte-text",
-    "imagebind",
-    "instructor",
-    "open-clip",
-    "openai",
-    "sentence-transformers",
-    "huggingface",
-    "colbert",
-    "ollama",
-]
+    def create_embedding_function(self) -> EmbeddingFunction:
+        if self.credentials:
+            self._set_provider_api_key_env_var(self.credentials.api_key)
+        kwargs = {"name": self.name, "max_retries": self.max_retries} | (self.kwargs or {})
+        return EmbeddingFunctionRegistry.get_instance().get(self.provider).create(**kwargs)
+
+    def _set_provider_api_key_env_var(self, api_key: str) -> None:
+        if env_var := self._PROVIDER_ENV_VAR_NAMES.get(self.provider):
+            os.environ[env_var] = api_key
 
 
 @configspec
@@ -116,32 +146,8 @@ class LanceClientConfiguration(DestinationClientDwhConfiguration):
     )
     storage: LanceStorageConfiguration = None
     """Storage configuration including URI and cloud credentials."""
-    credentials: LanceCredentials = None
-
-    options: Optional[LanceClientOptions] = None
-    """Lance client options."""
-
-    embedding_model_provider: TEmbeddingProvider = "cohere"
-    """Embedding provider used for generating embeddings. Default is "cohere". You can find the full list of
-    providers at https://github.com/lancedb/lancedb/tree/main/python/python/lancedb/embeddings as well as
-    https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/."""
-    embedding_model_provider_host: Optional[str] = None
-    """Full host URL with protocol and port (e.g. 'http://localhost:11434'). Uses LanceDB's default if not specified, assuming the provider accepts this parameter."""
-    embedding_model: str = "embed-english-v3.0"
-    """The model used by the embedding provider for generating embeddings.
-    Check with the embedding provider which options are available.
-    Reference https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/."""
-    embedding_model_dimensions: Optional[int] = None
-    """The dimensions of the embeddings generated. In most cases it will be automatically inferred, by LanceDB,
-    but it is configurable in rare cases.
-
-    Make sure it corresponds with the associated embedding model's dimensionality."""
-    vector_field_name: str = "vector"
-    """Name of the special field to store the vector embeddings."""
-    __config_gen_annotations__: ClassVar[List[str]] = [
-        "embedding_model",
-        "embedding_model_provider",
-    ]
+    embeddings: LanceEmbeddingsConfiguration = None
+    """Embeddings configuration including model provider, model, and credentials."""
 
     def fingerprint(self) -> str:
         return self.storage.fingerprint()

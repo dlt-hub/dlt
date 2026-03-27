@@ -1,4 +1,3 @@
-import os
 from typing import Any, Optional, Union, Dict, List
 
 import pyarrow as pa
@@ -15,21 +14,6 @@ from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
-from dlt.destinations.impl.lance.configuration import TEmbeddingProvider
-
-PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
-    "cohere": "COHERE_API_KEY",
-    "gemini-text": "GOOGLE_API_KEY",
-    "openai": "OPENAI_API_KEY",
-    "huggingface": "HUGGINGFACE_API_KEY",
-}
-
-
-def set_non_standard_providers_environment_variables(
-    embedding_model_provider: TEmbeddingProvider, api_key: Union[str, None]
-) -> None:
-    if embedding_model_provider in PROVIDER_ENVIRONMENT_VARIABLES_MAP:
-        os.environ[PROVIDER_ENVIRONMENT_VARIABLES_MAP[embedding_model_provider]] = api_key or ""
 
 
 def get_canonical_vector_database_doc_id_merge_key(

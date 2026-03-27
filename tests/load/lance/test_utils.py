@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Any, Dict
 
 import lance
 import lancedb
@@ -7,15 +6,13 @@ import numpy as np
 import pyarrow as pa
 import pytest
 from lance.namespace import CreateNamespaceRequest, DirectoryNamespace
-from lancedb.embeddings import EmbeddingFunctionRegistry
 
 import dlt
+from dlt.common.configuration import resolve_configuration
 from dlt.common.schema import Schema
+from dlt.destinations.impl.lance.configuration import LanceEmbeddingsConfiguration
 from dlt.destinations.impl.lance.schema import make_arrow_table_schema
-from dlt.destinations.impl.lance.utils import (
-    set_non_standard_providers_environment_variables,
-    write_records,
-)
+from dlt.destinations.impl.lance.utils import write_records
 
 
 pytestmark = pytest.mark.essential
@@ -26,17 +23,11 @@ def test_write_records_matches_lancedb_table_add(tmp_path: Path) -> None:
 
     We assert this, primarily, to ensure `write_records` produces correct vector embeddings.
     """
-
-    # get lancedb config
-    config: Dict[str, Any] = dlt.secrets.get("destination.lancedb")
-    provider = config.get("embedding_model_provider")
-    model = config.get("embedding_model")
-    api_key = config.get("credentials", {}).get("embedding_model_provider_api_key")
-
-    # get embedding function
-    set_non_standard_providers_environment_variables(provider, api_key)
-    registry = EmbeddingFunctionRegistry.get_instance()
-    model_func = registry.get(provider).create(name=model)
+    embeddings_config = resolve_configuration(
+        LanceEmbeddingsConfiguration(),
+        sections=("destination", "lance", "embeddings"),
+    )
+    model_func = embeddings_config.create_embedding_function()
 
     # create arrow schema with `embedding_functions` metadata
     schema = Schema("test")
@@ -53,7 +44,7 @@ def test_write_records_matches_lancedb_table_add(tmp_path: Path) -> None:
         "docs",
         schema=schema,
         type_mapper=dlt.destinations.lance().capabilities().get_type_mapper(),
-        vector_field_name="vector",
+        vector_column="vector",
         embedding_fields=["text"],
         embedding_model_func=model_func,
     )

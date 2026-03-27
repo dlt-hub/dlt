@@ -22,7 +22,6 @@ from lance.namespace import (
     NamespaceExistsRequest,
     TableExistsRequest,
 )
-from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction
 from lancedb.table import LanceTable
 from lancedb.query import LanceQueryBuilder
 from pyarrow import Array, ChunkedArray
@@ -72,10 +71,7 @@ from dlt.destinations.impl.lance.schema import (
     TArrowSchema,
     TArrowField,
 )
-from dlt.destinations.impl.lance.utils import (
-    set_non_standard_providers_environment_variables,
-    write_records,
-)
+from dlt.destinations.impl.lance.utils import write_records
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 
 if TYPE_CHECKING:
@@ -85,12 +81,6 @@ else:
 
 
 class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
-    """LanceDB destination handler."""
-
-    model_func: TextEmbeddingFunction
-    """The embedder callback used for each chunk."""
-    dataset_name: str
-
     def __init__(
         self,
         schema: Schema,
@@ -103,26 +93,8 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
 
         self.namespace = self.config.storage.make_directory_namespace()
-        self.registry = EmbeddingFunctionRegistry.get_instance()
+        self.model_func = self.config.embeddings.create_embedding_function()
         self._sql_client: SqlClientBase[Any] = None
-
-        embedding_model_provider = self.config.embedding_model_provider
-        embedding_model_host = self.config.embedding_model_provider_host
-
-        # LanceDB doesn't provide a standardized way to set API keys across providers.
-        # Some use ENV variables and others allow passing api key as an argument.
-        # To account for this, we set provider environment variable as well.
-        set_non_standard_providers_environment_variables(
-            embedding_model_provider,
-            self.config.credentials.embedding_model_provider_api_key,
-        )
-
-        self.model_func = self.registry.get(embedding_model_provider).create(
-            name=self.config.embedding_model,
-            max_retries=self.config.options.max_retries,
-            # actually the model func doesnt need the api-key!
-            **({"host": embedding_model_host} if embedding_model_host else {}),
-        )
 
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
@@ -377,14 +349,12 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                         embedding_fields = get_columns_names_with_prop(
                             self.schema.get_table(table_name=table_name), VECTORIZE_HINT
                         )
-                        vector_field_name = self.config.vector_field_name
+                        vector_column = self.config.embeddings.vector_column
                         embedding_model_func = self.model_func
-                        embedding_model_dimensions = self.config.embedding_model_dimensions
                     else:
                         embedding_fields = None
-                        vector_field_name = None
+                        vector_column = None
                         embedding_model_func = None
-                        embedding_model_dimensions = None
 
                     table_schema: TArrowSchema = make_arrow_table_schema(
                         table_name,
@@ -392,8 +362,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                         type_mapper=self.type_mapper,
                         embedding_fields=embedding_fields,
                         embedding_model_func=embedding_model_func,
-                        embedding_model_dimensions=embedding_model_dimensions,
-                        vector_field_name=vector_field_name,
+                        vector_column=vector_column,
                     )
                     self.create_table(table_name, table_schema)
 

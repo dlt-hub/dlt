@@ -1,14 +1,13 @@
-from typing import Any, Dict, Optional, Type, Union, TYPE_CHECKING
+from typing import Any, Type, TYPE_CHECKING
 
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.exceptions import MissingDependencyException
 from dlt.destinations.impl.lance.configuration import (
-    LanceCredentials,
     LanceClientConfiguration,
+    LanceEmbeddingsConfiguration,
     LanceStorageConfiguration,
-    TEmbeddingProvider,
 )
 
 LanceTypeMapper: Type[DataTypeMapper]
@@ -66,10 +65,7 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
     def __init__(
         self,
         storage: LanceStorageConfiguration = None,
-        credentials: Union[LanceCredentials, Dict[str, Any]] = None,
-        embedding_model_provider: TEmbeddingProvider = None,
-        embedding_model: str = None,
-        vector_field_name: str = None,
+        embeddings: LanceEmbeddingsConfiguration = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -80,24 +76,15 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
 
         Args:
             storage (LanceStorageConfiguration): Configuration for storage where lance datasets are stored.
-            credentials (Union[LanceCredentials, Dict[str, Any]]): Credentials for the Lance destination. Can be
-                an instance of `LanceCredentials` or a dictionary with the credentials parameters.
-            embedding_model_provider (TEmbeddingProvider, optional): Embedding provider used for generating embeddings.
-                Default is "cohere". See LanceDB documentation for the full list of available providers.
-            embedding_model (str, optional): The model used by the embedding provider for generating embeddings.
-                Default is "embed-english-v3.0". Check with the embedding provider which options are available.
-            vector_field_name (str, optional): Name of the special field to store the vector embeddings.
-                Default is "vector".
+            embeddings (LanceEmbeddingsConfiguration): Embeddings configuration including model provider,
+                model, provider credentials, and vector field settings.
             destination_name (str, optional): Name of the destination.
             environment (str, optional): Environment of the destination.
             **kwargs (Any): Additional arguments forwarded to the destination config.
         """
         super().__init__(
             storage=storage,
-            credentials=credentials,
-            embedding_model_provider=embedding_model_provider,
-            embedding_model=embedding_model,
-            vector_field_name=vector_field_name,
+            embeddings=embeddings,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

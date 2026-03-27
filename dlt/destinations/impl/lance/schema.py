@@ -41,10 +41,9 @@ def make_arrow_table_schema(
     table_name: str,
     schema: Schema,
     type_mapper: DataTypeMapper,
-    vector_field_name: Optional[str] = None,
+    vector_column: Optional[str] = None,
     embedding_fields: Optional[List[str]] = None,
     embedding_model_func: Optional[TextEmbeddingFunction] = None,
-    embedding_model_dimensions: Optional[int] = None,
 ) -> TArrowSchema:
     """Creates a PyArrow schema from a dlt schema."""
     arrow_schema: List[TArrowField] = []
@@ -55,15 +54,14 @@ def make_arrow_table_schema(
         arrow_schema.append(field)
 
     if embedding_fields:
-        if vector_field_name not in columns:
-            # User's provided dimension config, if provided, takes precedence.
-            vec_size = embedding_model_dimensions or embedding_model_func.ndims()
-            arrow_schema.append(pa.field(vector_field_name, pa.list_(pa.float32(), vec_size)))
+        if vector_column not in columns:
+            vec_size = embedding_model_func.ndims()
+            arrow_schema.append(pa.field(vector_column, pa.list_(pa.float32(), vec_size)))
         else:
             # bring your own vector
             logger.info(
                 f"LanceDb table `{table_name}` in schema `{schema.name}` contains user supplied"
-                f" vector column `{vector_field_name}`. Arrow column type must fit the vector"
+                f" vector column `{vector_column}`. Arrow column type must fit the vector"
                 " dimensions."
             )
 
@@ -78,7 +76,7 @@ def make_arrow_table_schema(
         embedding_functions = [
             {
                 "source_column": source_column,
-                "vector_column": vector_field_name,
+                "vector_column": vector_column,
                 "name": name,
                 "model": embedding_model_func.safe_model_dump(),
             }

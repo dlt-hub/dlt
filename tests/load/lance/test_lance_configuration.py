@@ -7,6 +7,8 @@ from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 from dlt.destinations.impl.lance.configuration import (
     DEFAULT_LANCE_BUCKET_URL,
     DEFAULT_LANCE_NAMESPACE_NAME,
+    LanceEmbeddingsConfiguration,
+    LanceEmbeddingsCredentials,
     LanceStorageConfiguration,
 )
 
@@ -94,3 +96,55 @@ def test_lance_storage_configuration_options() -> None:
     )
     config.resolve()
     assert config.options == CREDS_PROVIDED_OPTS | {"creds_opt": "user_foo"} | USER_PROVIDED_OPTS
+
+
+def test_lance_embeddings_configuration_create_embedding_function() -> None:
+    from lancedb.embeddings import OpenAIEmbeddings, CohereEmbeddingFunction, OllamaEmbeddings
+
+    creds = LanceEmbeddingsCredentials(api_key="test-key")
+
+    # selects correct class based on provider, sets name and max_retries
+    config = LanceEmbeddingsConfiguration(
+        credentials=creds, provider="openai", name="text-embedding-3-small", max_retries=5
+    )
+    func = config.create_embedding_function()
+    assert isinstance(func, OpenAIEmbeddings)
+    assert func.name == "text-embedding-3-small"
+    assert func.max_retries == 5
+
+    config = LanceEmbeddingsConfiguration(
+        credentials=creds, provider="cohere", name="embed-english-v3.0", max_retries=2
+    )
+    func = config.create_embedding_function()
+    assert isinstance(func, CohereEmbeddingFunction)
+    assert func.name == "embed-english-v3.0"
+    assert func.max_retries == 2
+
+    # works without credentials (local providers don't need API key)
+    config = LanceEmbeddingsConfiguration(provider="ollama", name="nomic-embed-text")
+    func = config.create_embedding_function()
+    assert isinstance(func, OllamaEmbeddings)
+    assert func.name == "nomic-embed-text"
+
+    # kwargs are forwarded and set provider-specific attributes
+    config = LanceEmbeddingsConfiguration(
+        provider="ollama",
+        name="nomic-embed-text",
+        kwargs={"host": "http://localhost:11434"},
+    )
+    func = config.create_embedding_function()
+    assert isinstance(func, OllamaEmbeddings)
+    assert func.name == "nomic-embed-text"
+    assert func.host == "http://localhost:11434"
+
+    # kwargs override name and max_retries when conflicting
+    config = LanceEmbeddingsConfiguration(
+        credentials=creds,
+        provider="openai",
+        name="text-embedding-3-small",
+        max_retries=3,
+        kwargs={"name": "text-embedding-3-large", "max_retries": 1},
+    )
+    func = config.create_embedding_function()
+    assert func.name == "text-embedding-3-large"
+    assert func.max_retries == 1
