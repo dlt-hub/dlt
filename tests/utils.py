@@ -1,4 +1,5 @@
 import contextlib
+import logging
 from http import HTTPStatus
 import http.server
 import multiprocessing
@@ -655,3 +656,17 @@ def _inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvide
         yield ctx
     finally:
         container[PluggableRunContext].providers = old_providers
+
+
+@contextlib.contextmanager
+def capture_dlt_logger(
+    caplog: pytest.LogCaptureFixture, level: int = logging.WARNING
+) -> Iterator[pytest.LogCaptureFixture]:
+    """Temporarily enables propagation on `dlt` logger so `caplog` can capture logs."""
+    dlt_logger = logging.getLogger("dlt")
+    dlt_logger.propagate = True
+    try:
+        with caplog.at_level(level, logger="dlt"):
+            yield caplog
+    finally:
+        dlt_logger.propagate = False

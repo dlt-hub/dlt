@@ -7,6 +7,7 @@ from typing import Any, Dict, Literal, Optional, Final, ClassVar, List, Type
 from lance.namespace import DirectoryNamespace
 from lancedb.embeddings import EmbeddingFunction, EmbeddingFunctionRegistry
 
+from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
@@ -23,20 +24,25 @@ from dlt.common.storages.configuration import (
 DEFAULT_LANCE_BUCKET_URL = "."  # active run dir
 DEFAULT_LANCE_NAMESPACE_NAME = "dlt_lance_namespace"
 
-# NOTE: you can list providers with `EmbeddingFunctionRegistry.get_instance()._functions.keys()`
+# NOTE: list providers with `EmbeddingFunctionRegistry.get_instance()._functions.keys()`
 TEmbeddingProvider = Literal[
-    "gemini-text",
     "bedrock-text",
     "cohere",
+    "colbert",
+    "colpali",
+    "gemini-text",
     "gte-text",
+    "huggingface",
     "imagebind",
     "instructor",
+    "jina",
+    "ollama",
     "open-clip",
     "openai",
     "sentence-transformers",
-    "huggingface",
-    "colbert",
-    "ollama",
+    "siglip",
+    "voyageai",
+    "watsonx",
 ]
 
 
@@ -121,11 +127,16 @@ class LanceEmbeddingsConfiguration(BaseConfiguration):
         "name",
     ]
 
+    # NOTE: env var names derived from `lancedb==0.26.1` source code.
+    # Providers with `api_key` field (openai, jina, watsonx) also accept
+    # the key via kwargs, but we set the env var regardless for consistency.
     _PROVIDER_ENV_VAR_NAMES: ClassVar[Dict[TEmbeddingProvider, str]] = {
         "cohere": "COHERE_API_KEY",
         "gemini-text": "GOOGLE_API_KEY",
+        "jina": "JINA_API_KEY",
         "openai": "OPENAI_API_KEY",
-        "huggingface": "HUGGINGFACE_API_KEY",
+        "voyageai": "VOYAGE_API_KEY",
+        "watsonx": "WATSONX_API_KEY",
     }
 
     def create_embedding_function(self) -> EmbeddingFunction:
@@ -137,6 +148,12 @@ class LanceEmbeddingsConfiguration(BaseConfiguration):
     def _set_provider_api_key_env_var(self, api_key: str) -> None:
         if env_var := self._PROVIDER_ENV_VAR_NAMES.get(self.provider):
             os.environ[env_var] = api_key
+        else:
+            logger.warning(
+                "Provider %r is not in _PROVIDER_ENV_VAR_NAMES. The provided API key"
+                " will be ignored.",
+                self.provider,
+            )
 
 
 @configspec

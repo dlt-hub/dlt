@@ -35,7 +35,7 @@ from tests.pipeline.utils import (
     load_tables_to_dicts,
 )
 from tests.load.sources.sql_database.test_helpers import mock_json_column, mock_array_column
-from tests.utils import data_item_length
+from tests.utils import capture_dlt_logger, data_item_length
 from tests.pipeline.utils import load_table_counts
 
 try:
@@ -321,8 +321,6 @@ def test_pyarrow_normalized_hints_on_camel_case_columns(
       - "is_active" with data_type (complete/bound) — normalized form of "isActive"
       - "created_at" without data_type (incomplete/unbound) — normalized form of "createdAt"
     """
-    import logging
-
     resource = sql_table(
         credentials=postgres_db.credentials,
         schema=postgres_db.schema,
@@ -339,14 +337,8 @@ def test_pyarrow_normalized_hints_on_camel_case_columns(
     )
 
     pipeline = make_pipeline("duckdb")
-    # temporarily enable propagation so caplog captures dlt logger output
-    dlt_logger = logging.getLogger("dlt")
-    dlt_logger.propagate = True
-    try:
-        with caplog.at_level(logging.WARNING, logger="dlt"):
-            load_info = pipeline.run(resource.add_limit(1, count_rows=True))
-    finally:
-        dlt_logger.propagate = False
+    with capture_dlt_logger(caplog) as caplog:
+        load_info = pipeline.run(resource.add_limit(1, count_rows=True))
     assert_load_info(load_info)
 
     # warning was emitted about unmatched columns

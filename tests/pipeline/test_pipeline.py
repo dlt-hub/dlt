@@ -75,7 +75,7 @@ from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 from dlt.pipeline.typing import TPipelineStep
 
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import get_test_storage_root, skipifwindows
+from tests.utils import capture_dlt_logger, get_test_storage_root, skipifwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_table_counts,
@@ -1581,13 +1581,8 @@ def test_restore_state_on_destination_dataset_name_change(caplog: Any) -> None:
     pipeline = dlt.pipeline(pipeline_name, destination="duckdb", dataset_name="new_dataset")
 
     # state restored from new_dataset must not revert dataset_name to original_dataset
-    dlt_logger = logging.getLogger("dlt")
-    dlt_logger.propagate = True
-    try:
-        with caplog.at_level(logging.WARNING, logger="dlt"):
-            load_info = pipeline.run(items([{"id": 1, "name": "Bob"}, {"id": 2, "name": "Alice"}]))
-    finally:
-        dlt_logger.propagate = False
+    with capture_dlt_logger(caplog) as caplog:
+        load_info = pipeline.run(items([{"id": 1, "name": "Bob"}, {"id": 2, "name": "Alice"}]))
     assert_load_info(load_info)
     assert pipeline.dataset_name == "new_dataset"
     assert pipeline.state["dataset_name"] == "new_dataset"

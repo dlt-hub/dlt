@@ -1,8 +1,10 @@
 import pytest
+from lancedb.embeddings import CohereEmbeddingFunction, OllamaEmbeddings, OpenAIEmbeddings
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
+from dlt.common.runtime.run_context import active
 
 from dlt.destinations.impl.lance.configuration import (
     DEFAULT_LANCE_BUCKET_URL,
@@ -10,15 +12,15 @@ from dlt.destinations.impl.lance.configuration import (
     LanceEmbeddingsConfiguration,
     LanceEmbeddingsCredentials,
     LanceStorageConfiguration,
+    TEmbeddingProvider,
 )
+from tests.utils import capture_dlt_logger
 
 
 pytestmark = pytest.mark.essential
 
 
 def test_lance_storage_configuration_namespace_url() -> None:
-    from dlt.common.runtime.run_context import active  # from auto_test_run_context fixture
-
     # falls back to defaults when no values are provided
     config = LanceStorageConfiguration()
     assert config.namespace_url == f"{DEFAULT_LANCE_BUCKET_URL}/{DEFAULT_LANCE_NAMESPACE_NAME}"
@@ -99,8 +101,6 @@ def test_lance_storage_configuration_options() -> None:
 
 
 def test_lance_embeddings_configuration_create_embedding_function() -> None:
-    from lancedb.embeddings import OpenAIEmbeddings, CohereEmbeddingFunction, OllamaEmbeddings
-
     creds = LanceEmbeddingsCredentials(api_key="test-key")
 
     # selects correct class based on provider, sets name and max_retries
@@ -148,3 +148,20 @@ def test_lance_embeddings_configuration_create_embedding_function() -> None:
     func = config.create_embedding_function()
     assert func.name == "text-embedding-3-large"
     assert func.max_retries == 1
+
+
+def test_lance_embeddings_configuration_warns_on_unknown_provider_api_key(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    provider: TEmbeddingProvider = "ollama"
+    assert provider not in LanceEmbeddingsConfiguration._PROVIDER_ENV_VAR_NAMES
+
+    creds = LanceEmbeddingsCredentials(api_key="test-key")
+    config = LanceEmbeddingsConfiguration(credentials=creds, provider=provider)
+
+    with capture_dlt_logger(caplog) as caplog:
+        func = config.create_embedding_function()
+    assert isinstance(func, OllamaEmbeddings)
+    assert "ollama" in caplog.text
+    assert "_PROVIDER_ENV_VAR_NAMES" in caplog.text
+    assert "ignored" in caplog.text
