@@ -1831,6 +1831,7 @@ def test_merge_arrow_merge_key_only(
     a temp table for delete (e.g. ClickHouse) would fail with MergeDispositionException
     because no row_key column existed.
     """
+    skip_if_unsupported_merge_strategy(destination_config, "delete-insert")
     pipeline = destination_config.setup_pipeline("merge_arrow_mk", dev_mode=True)
 
     @dlt.resource(
