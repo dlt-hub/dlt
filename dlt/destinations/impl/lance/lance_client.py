@@ -1,5 +1,6 @@
 from types import TracebackType
 from typing import (
+    Dict,
     List,
     Any,
     Union,
@@ -13,6 +14,7 @@ from typing import (
 import lance
 import lancedb
 import pyarrow as pa
+from pyarrow import ArrowInvalid
 from lance import LanceDataset
 from lance.namespace import (
     CreateNamespaceRequest,
@@ -22,7 +24,7 @@ from lance.namespace import (
     NamespaceExistsRequest,
     TableExistsRequest,
 )
-from lancedb.table import LanceTable
+from lancedb.table import LanceTable, _append_vector_columns
 from lancedb.query import LanceQueryBuilder
 from pyarrow import Array, ChunkedArray
 
@@ -46,6 +48,7 @@ from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
     TTableSchemaColumns,
     TColumnSchema,
+    TWriteDisposition,
 )
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
@@ -72,7 +75,7 @@ from dlt.destinations.impl.lance.schema import (
     TArrowSchema,
     TArrowField,
 )
-from dlt.destinations.impl.lance.utils import write_records
+from dlt.destinations.impl.lance.utils import _align_schema
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 
 if TYPE_CHECKING:
@@ -208,6 +211,47 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             storage_options=self.config.storage.options,
         )
         return LanceTable.open(db, table_name, location=self.get_table_uri(table_name))
+
+    def write_records(
+        self,
+        records: Union[pa.RecordBatchReader, List[Dict[str, Any]]],
+        table_name: str,
+        /,
+        *,
+        write_disposition: Optional[TWriteDisposition] = "append",
+        merge_key: Optional[str] = None,
+        when_not_matched_by_source_delete_expr: Optional[str] = None,
+    ) -> None:
+        """Inserts records into Lance dataset with automatic embedding computation."""
+        ds = self.open_lance_dataset(table_name)
+
+        if isinstance(records, pa.RecordBatchReader):
+            records = _append_vector_columns(records, schema=ds.schema)
+            records = _align_schema(records, ds.schema)
+
+        try:
+            if write_disposition in ("append", "skip", "replace"):
+                ds.insert(records)
+            elif write_disposition == "merge":
+                merge_builder = (
+                    ds.merge_insert(merge_key)
+                    .when_matched_update_all()
+                    .when_not_matched_insert_all()
+                )
+                if when_not_matched_by_source_delete_expr:
+                    merge_builder = merge_builder.when_not_matched_by_source_delete(
+                        when_not_matched_by_source_delete_expr
+                    )
+                merge_builder.execute(records)
+            else:
+                raise DestinationTerminalException(
+                    f"Unsupported `{write_disposition=:}` for Lance Destination - batch"
+                    " failed AND WILL **NOT** BE RETRIED."
+                )
+        except ArrowInvalid as e:
+            raise DestinationTerminalException(
+                "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
+            ) from e
 
     def query_table(
         self,
@@ -397,10 +441,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         write_disposition = self.schema.get_table(self.schema.version_table_name).get(
             "write_disposition"
         )
-        write_records(
+        self.write_records(
             records,
-            namespace=self.namespace,
-            table_id=self.make_table_id(self.schema.version_table_name),
+            self.schema.version_table_name,
             write_disposition=write_disposition,
         )
 
@@ -541,10 +584,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         write_disposition = self.schema.get_table(self.schema.loads_table_name).get(
             "write_disposition"
         )
-        write_records(
+        self.write_records(
             records,
-            namespace=self.namespace,
-            table_id=self.make_table_id(self.schema.loads_table_name),
+            self.schema.loads_table_name,
             write_disposition=write_disposition,
         )
 

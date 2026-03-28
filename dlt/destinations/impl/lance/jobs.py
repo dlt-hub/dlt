@@ -14,7 +14,6 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import NO_REMOVE_ORPHANS_HINT
 from dlt.destinations.impl.lance.utils import (
     get_canonical_vector_database_doc_id_merge_key,
     create_in_filter,
-    write_records,
 )
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
@@ -52,10 +51,9 @@ class LanceLoadJob(RunnableLoadJob):
             if self._should_remove_orphans(self._load_table):
                 when_not_matched_by_source_delete_expr = self._build_remove_orphans_scope_expr()
 
-        write_records(
+        self._job_client.write_records(
             self._get_file_reader(self._file_path),
-            namespace=self._job_client.namespace,
-            table_id=self._job_client.make_table_id(table_name),
+            table_name,
             write_disposition=write_disposition,
             merge_key=merge_key,
             when_not_matched_by_source_delete_expr=when_not_matched_by_source_delete_expr,
