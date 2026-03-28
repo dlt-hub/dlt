@@ -157,7 +157,9 @@ def test_lance_embeddings_configuration_warns_on_unknown_provider_api_key(
     assert provider not in LanceEmbeddingsConfiguration._PROVIDER_ENV_VAR_NAMES
 
     creds = LanceEmbeddingsCredentials(api_key="test-key")
-    config = LanceEmbeddingsConfiguration(credentials=creds, provider=provider)
+    config = LanceEmbeddingsConfiguration(
+        credentials=creds, provider=provider, name="nomic-embed-text"
+    )
 
     with capture_dlt_logger(caplog) as caplog:
         func = config.create_embedding_function()

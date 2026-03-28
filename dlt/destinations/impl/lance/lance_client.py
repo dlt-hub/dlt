@@ -57,6 +57,7 @@ from dlt.destinations.impl.lance.configuration import (
     LanceClientConfiguration,
 )
 from dlt.destinations.impl.lance.exceptions import (
+    LanceEmbeddingsConfigurationMissing,
     is_lance_undefined_entity_exception,
     lance_error,
 )
@@ -93,7 +94,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
 
         self.namespace = self.config.storage.make_directory_namespace()
-        self.model_func = self.config.embeddings.create_embedding_function()
+        self.model_func = (
+            self.config.embeddings.create_embedding_function() if self.config.embeddings else None
+        )
         self._sql_client: SqlClientBase[Any] = None
 
     @property
@@ -256,6 +259,11 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                     f" enabled: {merge_keys}"
                 )
 
+            # embeddings configuration must be provided if embed columns exist
+            if not self.config.embeddings:
+                if embed_columns := get_columns_names_with_prop(load_table, VECTORIZE_HINT):
+                    raise LanceEmbeddingsConfigurationMissing(load_table["name"], embed_columns)
+
         return loaded_tables
 
     def update_stored_schema(
@@ -345,7 +353,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 if exists:
                     self.add_null_columns_to_table(table_name, new_columns)
                 else:
-                    if table_name not in self.schema.dlt_table_names():
+                    if self.config.embeddings and table_name not in self.schema.dlt_table_names():
                         embedding_fields = get_columns_names_with_prop(
                             self.schema.get_table(table_name=table_name), VECTORIZE_HINT
                         )

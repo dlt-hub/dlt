@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
-from typing import Any, Dict, Literal, Optional, Final, ClassVar, List, Type
-
-from lance.namespace import DirectoryNamespace
-from lancedb.embeddings import EmbeddingFunction, EmbeddingFunctionRegistry
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Final, ClassVar, List, Type
 
 from dlt.common import logger
 from dlt.common.configuration import configspec
@@ -21,8 +18,13 @@ from dlt.common.storages.configuration import (
     FilesystemConfigurationWithLocalFiles,
 )
 
+if TYPE_CHECKING:
+    from lance.namespace import DirectoryNamespace
+    from lancedb.embeddings import EmbeddingFunction, EmbeddingFunctionRegistry
+
 DEFAULT_LANCE_BUCKET_URL = "."  # active run dir
 DEFAULT_LANCE_NAMESPACE_NAME = "dlt_lance_namespace"
+DEFAULT_LANCE_VECTOR_COLUMN_NAME = "vector"
 
 # NOTE: list providers with `EmbeddingFunctionRegistry.get_instance()._functions.keys()`
 TEmbeddingProvider = Literal[
@@ -91,6 +93,8 @@ class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
             self.options = credentials | (self.options or {})
 
     def make_directory_namespace(self) -> DirectoryNamespace:
+        from lance.namespace import DirectoryNamespace
+
         storage_props = {f"storage.{k}": v for k, v in (self.options or {}).items()}
         return DirectoryNamespace(root=self.namespace_url, **storage_props)
 
@@ -108,15 +112,15 @@ class LanceEmbeddingsConfiguration(BaseConfiguration):
     credentials: Optional[LanceEmbeddingsCredentials] = None
     """Credentials for embedding model provider. Leave empty if authentication is not required (e.g. local providers)."""
 
-    vector_column: str = "vector"
+    vector_column: str = DEFAULT_LANCE_VECTOR_COLUMN_NAME
     """Name of column to store vector embeddings in."""
-    provider: TEmbeddingProvider = "cohere"
-    """Provider of model used to generate embeddings.
+    provider: TEmbeddingProvider = None
+    """Provider of model used to generate embeddings, e.g. `cohere` or `openai`.
 
     Find all providers at https://github.com/lancedb/lancedb/tree/main/python/python/lancedb/embeddings.
     """
-    name: str = "embed-english-v3.0"
-    """Name of model used by provider to generate embeddings."""
+    name: str = None
+    """Name of model used by provider to generate embeddings, e.g. `embed-english-v3.0`."""
     max_retries: Optional[int] = 3
     """Number of retries for embedding requests. Set to 0 to disable retries."""
     kwargs: Optional[Dict[str, Any]] = None
@@ -140,6 +144,8 @@ class LanceEmbeddingsConfiguration(BaseConfiguration):
     }
 
     def create_embedding_function(self) -> EmbeddingFunction:
+        from lancedb.embeddings import EmbeddingFunctionRegistry
+
         if self.credentials:
             self._set_provider_api_key_env_var(self.credentials.api_key)
         kwargs = {"name": self.name, "max_retries": self.max_retries} | (self.kwargs or {})
@@ -163,8 +169,8 @@ class LanceClientConfiguration(DestinationClientDwhConfiguration):
     )
     storage: LanceStorageConfiguration = None
     """Storage configuration including URI and cloud credentials."""
-    embeddings: LanceEmbeddingsConfiguration = None
-    """Embeddings configuration including model provider, model, and credentials."""
+    embeddings: Optional[LanceEmbeddingsConfiguration] = None
+    """Optional embeddings configuration to add a vector embedding column. Leave empty to skip embedding generation."""
 
     def fingerprint(self) -> str:
         return self.storage.fingerprint()

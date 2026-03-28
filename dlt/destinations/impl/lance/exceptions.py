@@ -1,11 +1,10 @@
 from functools import wraps
 import re
-from typing import (
-    Any,
-)
+from typing import Any, List
 
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
+    DestinationTerminalException,
     DestinationTransientException,
 )
 from dlt.common.destination.client import JobClientBase
@@ -19,6 +18,16 @@ LANCE_MANIFEST_MODE = r"manifest\s+mode\s+is\s+enabled"
 LANCE_UNDEFINED_ENTITY_PATTERN = re.compile(
     rf"(?i){LANCE_NOT_FOUND}|{LANCE_DOES_NOT_EXIST}|{LANCE_MANIFEST_MODE}"
 )
+
+
+class LanceEmbeddingsConfigurationMissing(DestinationTerminalException):
+    def __init__(self, table_name: str, columns: List[str]) -> None:
+        columns_str = ", ".join(f"'{col}'" for col in columns)
+        super().__init__(
+            f"Table '{table_name}' has columns marked for embedding ({columns_str}) but is"
+            " missing embeddings configuration. Either configure `embeddings` on the lance"
+            " destination or remove the `embed` argument from `lancedb_adapter()`."
+        )
 
 
 def is_lance_undefined_entity_exception(e: Exception) -> bool:

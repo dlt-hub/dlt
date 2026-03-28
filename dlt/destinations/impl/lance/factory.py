@@ -76,8 +76,8 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
 
         Args:
             storage (LanceStorageConfiguration): Configuration for storage where lance datasets are stored.
-            embeddings (LanceEmbeddingsConfiguration): Embeddings configuration including model provider,
-                model, provider credentials, and vector field settings.
+            embeddings (LanceEmbeddingsConfiguration, optional): Embeddings configuration including model provider,
+                model, provider credentials, and vector field settings. If not provided, no vector column is added.
             destination_name (str, optional): Name of the destination.
             environment (str, optional): Environment of the destination.
             **kwargs (Any): Additional arguments forwarded to the destination config.
