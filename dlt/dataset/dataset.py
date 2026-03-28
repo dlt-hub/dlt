@@ -47,7 +47,6 @@ from dlt.common.destination.exceptions import (
 if TYPE_CHECKING:
     from dlt.common.libs.ibis import ir
     from dlt.common.libs.ibis import BaseBackend as IbisBackend
-    from dlt.common.pipeline import SupportsPipeline
 
 
 class Dataset:
@@ -86,30 +85,6 @@ class Dataset:
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
 
-    @classmethod
-    def from_pipeline(
-        cls, pipeline: SupportsPipeline, dataset_name: Optional[str] = None
-    ) -> "Dataset":
-        """Create a Dataset with all schemas from a pipeline.
-
-        Args:
-            pipeline: Pipeline instance to collect schemas from.
-            dataset_name: Override the pipeline's dataset name. If None, uses
-                the pipeline's configured dataset name.
-        """
-        default_name = pipeline.default_schema_name
-        all_schemas: List[dlt.Schema] = [pipeline.schemas[default_name]]
-        for name in pipeline.schemas:
-            if name != default_name:
-                all_schemas.append(pipeline.schemas[name])
-        ds = cls(
-            destination=pipeline.destination,
-            dataset_name=dataset_name or pipeline.dataset_name,
-            schema=all_schemas,
-        )
-        ds._pipeline_name = pipeline.pipeline_name
-        return ds
-
     def ibis(self, read_only: bool = False) -> IbisBackend:
         """Get an ibis backend for the dataset.
 
@@ -125,38 +100,46 @@ class Dataset:
             read_only=read_only,
         )
 
+    def _resolve_schemas(self) -> None:
+        """Resolve all schemas on first access.
+
+        Uses ``_default_schema_name`` presence in ``_schemas`` as a marker
+        that resolution already happened.
+        """
+        if self._default_schema_name and self._default_schema_name in self._schemas:
+            return
+
+        schemas: Optional[List[dlt.Schema]] = None
+
+        if self._schema_arg:
+            schema = _get_dataset_schema_from_destination_using_schema_name(self, self._schema_arg)
+            if schema:
+                schemas = [schema]
+
+        if not schemas:
+            schemas = _get_dataset_schemas_from_dataset_dlt_tables(self)
+
+        if not schemas:
+            schemas = [dlt.Schema(self.dataset_name)]
+
+        for s in schemas:
+            self._schemas[s.name] = s
+        self._default_schema_name = schemas[0].name
+
     @property
     def schema(self) -> dlt.Schema:
         """Default dlt schema associated with the dataset.
 
-        If not provided at dataset initialization, it is fetched from the destination. Fallbacks
-        to local dlt pipeline metadata.
+        If not provided at dataset initialization, it is fetched from the destination.
+        Falls back to local dlt pipeline metadata.
         """
-        if self._default_schema_name and self._default_schema_name in self._schemas:
-            return self._schemas[self._default_schema_name]
-
-        maybe_schema: Optional[dlt.Schema] = None
-
-        if self._schema_arg:
-            maybe_schema = _get_dataset_schema_from_destination_using_schema_name(
-                self, self._schema_arg
-            )
-
-        if not maybe_schema:
-            maybe_schema = _get_dataset_schema_from_dataset_dlt_tables(self)
-
-        if not maybe_schema:
-            maybe_schema = dlt.Schema(self.dataset_name)
-
-        assert isinstance(maybe_schema, dlt.Schema)
-        self._schemas[maybe_schema.name] = maybe_schema
-        self._default_schema_name = maybe_schema.name
-        return maybe_schema
+        self._resolve_schemas()
+        return self._schemas[self._default_schema_name]
 
     @property
     def schemas(self) -> Tuple[dlt.Schema, ...]:
         """All local schemas in this dataset, default schema first."""
-        self.schema  # ensure default schema is resolved
+        self._resolve_schemas()
         return tuple(self._schemas.values())
 
     @property
@@ -186,7 +169,7 @@ class Dataset:
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
         return lineage.create_sqlglot_schema(
-            self.schemas, self.dataset_name, dialect=self.destination_dialect
+            {self.dataset_name: list(self.schemas)}, dialect=self.destination_dialect
         )
 
     @property
@@ -308,21 +291,21 @@ class Dataset:
         """Get `_dlt_loads` table from the dataset."""
         return dlt.Relation(dataset=self, table_name=self.schema.loads_table_name)
 
-    def load_ids(self) -> list[str]:
+    def load_ids(self, schema_name: Optional[str] = None) -> list[str]:
         """Retrieved the list of load ids for this dataset.
 
-        This queries the `_dlt_loads` table on the destination and filters
-        the `schema_name` columns based on the current dataset.
+        Args:
+            schema_name: Filter by this schema. Defaults to the default schema.
         """
-        return _get_load_ids(self)
+        return _get_load_ids(self, schema_name=schema_name)
 
-    def latest_load_id(self) -> Optional[str]:
+    def latest_load_id(self, schema_name: Optional[str] = None) -> Optional[str]:
         """Retrieved the latest load id for this dataset.
 
-        This is the max value of the `load_id` column in the `_dlt_loads` table
-        on the destination when filtering the `schema_name` columns based on the current dataset.
+        Args:
+            schema_name: Filter by this schema. Defaults to the default schema.
         """
-        return _get_latest_load_id(self)
+        return _get_latest_load_id(self, schema_name=schema_name)
 
     def row_counts(
         self,
@@ -360,22 +343,22 @@ class Dataset:
                             selected_tables.append(t)
 
         # filter tables so only ones with dlt_load_id column are included
-        dlt_load_id_col = None
+        # normalize per-schema since naming conventions may differ
+        load_id_cols: Dict[str, str] = {}
         if load_id:
-            dlt_load_id_col = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
-            tables_with_load_id: set[str] = set()
             for schema in self.schemas:
+                dlt_load_id_col = schema.naming.normalize_identifier(C_DLT_LOAD_ID)
                 for t_name, t_schema in schema.tables.items():
                     if dlt_load_id_col in t_schema.get("columns", {}):
-                        tables_with_load_id.add(t_name)
-            selected_tables = [t for t in selected_tables if t in tables_with_load_id]
+                        load_id_cols[t_name] = dlt_load_id_col
+            selected_tables = [t for t in selected_tables if t in load_id_cols]
 
         union_all_expr: Optional[sge.Query] = None
 
         for table_name in selected_tables:
             counts_expr = build_row_counts_expr(
                 table_name=table_name,
-                dlt_load_id_col=dlt_load_id_col,
+                dlt_load_id_col=load_id_cols.get(table_name),
                 load_id=load_id,
             )
             if union_all_expr is None:
@@ -540,11 +523,15 @@ def _get_dataset_schema_from_destination_using_schema_name(
     return schema
 
 
-def _get_dataset_schema_from_dataset_dlt_tables(
+def _get_dataset_schemas_from_dataset_dlt_tables(
     dataset: dlt.Dataset,
-) -> Optional[dlt.Schema]:
-    """Resolves schema from destination. First tries pipeline state to get default_schema_name,
-    then falls back to most recently stored schema."""
+) -> Optional[List[dlt.Schema]]:
+    """Resolves all schemas from destination.
+
+    Uses the pipeline state's ``schema_names`` list to load every schema stored
+    on the destination, with the default schema first. Falls back to the most
+    recently stored schema when no pipeline state is available.
+    """
     with get_destination_clients(
         schema=dlt.Schema(dataset.dataset_name),
         destination=dataset._destination,
@@ -561,26 +548,47 @@ def _get_dataset_schema_from_dataset_dlt_tables(
                     stored_state = None
                 if stored_state:
                     state = decompress_state(stored_state.state)
-                    schema_name = state.get("default_schema_name")
-                    if schema_name:
-                        stored_schema = client.get_stored_schema(schema_name)
-                        if stored_schema:
-                            return dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+                    default_schema_name = state.get("default_schema_name")
+                    schema_names = state.get("schema_names") or (
+                        [default_schema_name] if default_schema_name else []
+                    )
+                    if schema_names:
+                        # ensure default schema is first
+                        # since schema_names from the state is sorted alphabetically
+                        if default_schema_name and default_schema_name in schema_names:
+                            ordered = [default_schema_name] + [
+                                n for n in schema_names if n != default_schema_name
+                            ]
+                        else:
+                            ordered = list(schema_names)
+                        schemas: List[dlt.Schema] = []
+                        for name in ordered:
+                            stored_schema = client.get_stored_schema(name)
+                            if stored_schema:
+                                schemas.append(
+                                    dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+                                )
+                        if schemas:
+                            return schemas
             # fall back to most recently stored schema
             stored_schema = client.get_stored_schema()
             if stored_schema:
-                return dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+                return [dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))]
     return None
 
 
-def _get_load_ids(dataset: dlt.Dataset) -> list[str]:
-    """Get a list of load ids associated with the dataset."""
+def _get_load_ids(dataset: dlt.Dataset, schema_name: Optional[str] = None) -> list[str]:
+    """Get a list of load ids for a single schema.
+
+    Args:
+        schema_name: Filter by this schema. Defaults to the default schema.
+    """
     loads_table = dataset.loads_table()
-    schema_names = [s.name for s in dataset.schemas]
+    name = schema_name or dataset.schema.name
     normalized_schema_col = dataset.schema.naming.normalize_identifier("schema_name")
     normalized_load_id_col = dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID)
     query = (
-        loads_table.where(normalized_schema_col, "in", schema_names)
+        loads_table.where(normalized_schema_col, "eq", name)
         .select(normalized_load_id_col)
         .order_by(normalized_load_id_col, "asc")
     )
@@ -588,16 +596,18 @@ def _get_load_ids(dataset: dlt.Dataset) -> list[str]:
     return load_ids
 
 
-def _get_latest_load_id(dataset: dlt.Dataset) -> Optional[str]:
-    """Get the latest load id associated with the dataset."""
+def _get_latest_load_id(dataset: dlt.Dataset, schema_name: Optional[str] = None) -> Optional[str]:
+    """Get the latest load id for a single schema.
+
+    Args:
+        schema_name: Filter by this schema. Defaults to the default schema.
+    """
     loads_table = dataset.loads_table()
-    schema_names = [s.name for s in dataset.schemas]
+    name = schema_name or dataset.schema.name
     normalized_schema_col = dataset.schema.naming.normalize_identifier("schema_name")
     normalized_load_id_col = dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID)
     query = (
-        loads_table.where(normalized_schema_col, "in", schema_names)
-        .select(normalized_load_id_col)
-        .max()
+        loads_table.where(normalized_schema_col, "eq", name).select(normalized_load_id_col).max()
     )
     load_id = query.fetchone()
     return load_id[0] if load_id else None  # type: ignore[no-any-return]

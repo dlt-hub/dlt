@@ -478,16 +478,31 @@ def test_multi_schema_cross_schema_sql_query(multi_schema_dataset: dlt.Dataset) 
 
 
 def test_multi_schema_load_ids(multi_schema_dataset: dlt.Dataset) -> None:
-    load_ids = multi_schema_dataset.load_ids()
-    assert len(load_ids) == 3
-    assert load_ids == sorted(load_ids)
-    assert all(isinstance(lid, str) for lid in load_ids)
+    # default: returns load ids for the default schema only
+    default_ids = multi_schema_dataset.load_ids()
+    assert len(default_ids) >= 1
+    assert default_ids == sorted(default_ids)
+    assert all(isinstance(lid, str) for lid in default_ids)
+
+    # explicit schema_name returns that schema's load ids
+    inv_ids = multi_schema_dataset.load_ids(schema_name="inventory")
+    assert len(inv_ids) >= 1
+    assert all(isinstance(lid, str) for lid in inv_ids)
+
+    # each schema's load ids are disjoint
+    assert set(default_ids).isdisjoint(set(inv_ids))
 
 
 def test_multi_schema_latest_load_id(multi_schema_dataset: dlt.Dataset) -> None:
+    # default schema
     latest = multi_schema_dataset.latest_load_id()
     all_ids = multi_schema_dataset.load_ids()
     assert latest == all_ids[-1]
+
+    # explicit schema
+    inv_latest = multi_schema_dataset.latest_load_id(schema_name="inventory")
+    inv_ids = multi_schema_dataset.load_ids(schema_name="inventory")
+    assert inv_latest == inv_ids[-1]
 
 
 def test_multi_schema_str_shows_all_schema_names(multi_schema_dataset: dlt.Dataset) -> None:

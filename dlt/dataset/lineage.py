@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast
 
 import sqlglot.expressions as sge
 
@@ -26,54 +26,52 @@ from dlt.dataset.exceptions import LineageFailedException
 
 
 def create_sqlglot_schema(
-    schemas: Union[dlt.Schema, Sequence[dlt.Schema]],
-    dataset_name: str,
+    schema_map: Dict[str, Sequence[dlt.Schema]],
     dialect: TSqlGlotDialect,
 ) -> SQLGlotSchema:
-    """Create an SQLGlot schema from one or more dlt schemas.
+    """Create an SQLGlot schema from dlt schemas mapped to dataset names.
 
     Multiple dlt schemas are kept separate at the data-model level but merged
     into a single SQLGlot schema so that query qualification and lineage work
     across all tables regardless of which dlt schema owns them.
 
-    The SQLGlot schema automatically scopes the tables to the `dataset_name`.
-    No name translation nor case folding is performed. All identifiers correspond
-    to identifiers in the dlt schemas.
+    Args:
+        schema_map: Mapping of dataset_name to dlt schemas. Local schemas
+            all map to the same dataset_name. Foreign schemas (future) map to
+            their own dataset_names.
+        dialect: SQLGlot dialect for the target destination.
     """
-    if isinstance(schemas, dlt.Schema):
-        schemas = (schemas,)
+    nested_schema: Dict[str, Dict[str, Any]] = {}
 
-    sqlglot_schema = {}
-
-    for schema in schemas:
-        for table_name in schema.tables.keys():
-            column_mapping = {}
-            # skip not materialized columns
-            for column_name, column in schema.get_table_columns(
-                table_name, include_incomplete=False
-            ).items():
-                sqlglot_type = to_sqlglot_type(
-                    dlt_type=column["data_type"],
-                    nullable=column.get("nullable"),
-                    precision=column.get("precision"),
-                    scale=column.get("scale"),
-                    timezone=column.get("timezone"),
-                )
-                sqlglot_type = set_metadata(sqlglot_type, column)
-                column_mapping[column_name] = sqlglot_type
-            # skip tables without columns; first schema (default) wins on collision
-            if column_mapping:
-                if table_name in sqlglot_schema:
-                    logger.warning(
-                        "Table '%s' exists in multiple schemas; using definition"
-                        " from the default schema for query qualification.",
-                        table_name,
+    for dataset_name, schemas in schema_map.items():
+        tables: Dict[str, Any] = {}
+        for schema in schemas:
+            for table_name in schema.tables.keys():
+                column_mapping = {}
+                # skip not materialized columns
+                for column_name, column in schema.get_table_columns(
+                    table_name, include_incomplete=False
+                ).items():
+                    sqlglot_type = to_sqlglot_type(
+                        dlt_type=column["data_type"],
+                        nullable=column.get("nullable"),
+                        precision=column.get("precision"),
+                        scale=column.get("scale"),
+                        timezone=column.get("timezone"),
                     )
-                else:
-                    sqlglot_schema[table_name] = column_mapping
-
-    # ensure proper nesting with db and catalog
-    nested_schema = {dataset_name: sqlglot_schema}
+                    sqlglot_type = set_metadata(sqlglot_type, column)
+                    column_mapping[column_name] = sqlglot_type
+                # skip tables without columns; first schema (default) wins on collision
+                if column_mapping:
+                    if table_name in tables:
+                        logger.warning(
+                            "Table '%s' exists in multiple schemas; using definition"
+                            " from the default schema for query qualification.",
+                            table_name,
+                        )
+                    else:
+                        tables[table_name] = column_mapping
+        nested_schema[dataset_name] = tables
 
     return ensure_schema(nested_schema, dialect=dialect, normalize=False)
 
