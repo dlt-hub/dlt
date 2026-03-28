@@ -105,33 +105,8 @@ class TimeoutThreadPoolExecutor(ThreadPoolExecutor):
         self._is_alive = len(alive) > 0
 
 
-def get_default_start_method(method_: str) -> str:
-    """Sets method to `spawn` is running in one of orchestrator tasks.
-
-    Called when explicit start method is not set on `PoolRunnerConfiguration`
-    """
-    if method_ == "fork":
-        from dlt.common.runtime.exec_info import (
-            is_running_in_airflow_task,
-            is_running_in_dagster_task,
-            is_running_in_prefect_flow,
-        )
-
-        for m_ in [
-            is_running_in_airflow_task,
-            is_running_in_dagster_task,
-            is_running_in_prefect_flow,
-        ]:
-            if m_():
-                logger.info(
-                    f"Switching pool start method to `spawn` because `{m_.__name__}` is True"
-                )
-                return "spawn"
-    return method_
-
-
-def is_orchestrator() -> bool:
-    """Checks if dlt runs in known orchestrator"""
+def _detect_orchestrator() -> Optional[str]:
+    """Returns the name of the detected orchestrator check, or `None`."""
     from dlt.common.runtime.exec_info import (
         is_running_in_airflow_task,
         is_running_in_dagster_task,
@@ -144,8 +119,26 @@ def is_orchestrator() -> bool:
         is_running_in_prefect_flow,
     ]:
         if m_():
-            return True
-    return False
+            return m_.__name__
+    return None
+
+
+def get_default_start_method(method_: str) -> str:
+    """Sets method to `spawn` if running in one of orchestrator tasks.
+
+    Called when explicit start method is not set on `PoolRunnerConfiguration`
+    """
+    if method_ == "fork":
+        detected = _detect_orchestrator()
+        if detected is not None:
+            logger.info(f"Switching pool start method to `spawn` because `{detected}` is True")
+            return "spawn"
+    return method_
+
+
+def is_orchestrator() -> bool:
+    """Checks if dlt runs in known orchestrator."""
+    return _detect_orchestrator() is not None
 
 
 def create_pool(config: PoolRunnerConfiguration) -> Executor:

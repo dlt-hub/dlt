@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import pytest
 import sys
 import time
@@ -271,7 +273,9 @@ def test_pool_runner_process_methods_configured(method) -> None:
     assert [v[0] for v in r.rv] == list(range(4))
 
 
-def test_spawn_pool_with_non_importable_main(tmp_path, monkeypatch) -> None:
+def test_spawn_pool_with_non_importable_main(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Verify #3586: spawn pool works when `__main__.__file__` is a non-importable
     orchestrator CLI entry point.
     """
@@ -308,6 +312,36 @@ def test_spawn_pool_with_non_importable_main(tmp_path, monkeypatch) -> None:
             main.__file__ = original_file
         elif hasattr(main, "__file__"):
             del main.__file__
+        main.__spec__ = original_spec
+
+
+def test_spawn_pool_no_fixup_without_orchestrator(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify that `_suppress_main_fixup_in_orchestrator` is NOT called when
+    no orchestrator is detected -- `__main__.__spec__` stays `None`.
+    """
+    import dlt.common.runners.pool_runner as pool_runner_mod
+
+    config = resolve_configuration(RuntimeConfiguration())
+    initialize_runtime("dlt", config)
+
+    # ensure no orchestrator env vars are set
+    monkeypatch.delenv("AIRFLOW_CTX_TASK_ID", raising=False)
+    monkeypatch.setattr(pool_runner_mod, "_MAIN_FIXUP_SUPPRESSED", False)
+
+    main = sys.modules["__main__"]
+    original_spec = getattr(main, "__spec__", None)
+    try:
+        main.__spec__ = None
+
+        r = _TestRunnableWorker(4)
+        # explicitly set start_method="spawn" since no orchestrator means
+        # get_default_start_method won't switch from fork to spawn
+        runs_count = runner.run_pool(ProcessPoolConfiguration(workers=2, start_method="spawn"), r)
+        assert runs_count == 1
+        assert [v[0] for v in r.rv] == list(range(4))
+        # fixup was NOT applied: __spec__ is still None
+        assert main.__spec__ is None
+    finally:
         main.__spec__ = original_spec
 
 
