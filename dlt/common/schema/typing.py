@@ -266,6 +266,10 @@ class TWriteDispositionDict(TypedDict):
 
 class TMergeDispositionDict(TWriteDispositionDict):
     strategy: Optional[TLoaderMergeStrategy]
+    row_filter: Optional[str]
+    """Raw SQL WHERE predicate scoping merge operations to a partition of the
+    destination table. Injected as-is into generated SQL — the caller is
+    responsible for correctness and escaping."""
 
 
 class TDeleteInsertStrategyDict(TMergeDispositionDict):
