@@ -201,13 +201,25 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             ds.create_branch(branch_name)
 
     def open_lance_dataset(
-        self, table_name: str, branch_name: Optional[str] = None
+        self,
+        table_name: str,
+        branch_name: Optional[str] = None,
+        version_number: Optional[int] = None,
     ) -> LanceDataset:
-        """Returns lance dataset for given table name, optionally on a branch."""
+        """Returns lance dataset for given table name.
+
+        Args:
+            table_name (str): Name of table to open dataset for.
+            branch_name (Optional[str]): Branch to check out. Uses main branch if `None`.
+            version_number (Optional[int]): Dataset version to check out. Uses latest if `None`.
+
+        Returns:
+            LanceDataset: The dataset checked out at the specified branch and version.
+        """
         return lance.dataset(
             namespace=self.namespace,
             table_id=self.make_table_id(table_name),
-        ).checkout_version((branch_name, None))
+        ).checkout_version((branch_name, version_number))
 
     def open_lance_table(self, table_name: str) -> LanceTable:
         """Returns LanceDB table for given table name.
