@@ -136,6 +136,8 @@ WITH_GDRIVE_BUCKETS = [
 # while gdrive is not working as a destination
 DEFAULT_BUCKETS = [bucket for bucket in WITH_GDRIVE_BUCKETS if bucket != GDRIVE_BUCKET]
 
+# NOTE: we can't include MEMORY_BUCKET here — unlike fsspec, `object_store`'s memory impl does
+# not use a global singleton storage as required by dlt
 OBJECT_STORE_RS_BUCKETS = [
     bucket
     for bucket in (FILE_BUCKET, AWS_BUCKET, GCS_BUCKET, AZ_BUCKET)
