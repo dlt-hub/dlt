@@ -1832,6 +1832,8 @@ def test_merge_arrow_merge_key_only(
     because no row_key column existed.
     """
     skip_if_unsupported_merge_strategy(destination_config, "delete-insert")
+    if destination_config.destination_type == "athena":
+        pytest.skip("Athena requires _dlt_id for merge (no correlated subquery support)")
     pipeline = destination_config.setup_pipeline("merge_arrow_mk", dev_mode=True)
 
     @dlt.resource(
