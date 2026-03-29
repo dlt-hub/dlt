@@ -65,6 +65,8 @@ def main():
         env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = f"sqlite:///{airflow_home / 'airflow.db'}"
         env["AIRFLOW__API__BASE_URL"] = "http://127.0.0.1:8080"
         env["DLT_SMOKE_DB_PATH"] = db_path
+        # use 2 normalize workers to exercise spawn pool inside Airflow (#3586)
+        env["NORMALIZE__WORKERS"] = "2"
 
         print("=== Initializing Airflow DB ===")
         try:
