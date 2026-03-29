@@ -201,30 +201,33 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         cls, primary_keys: Sequence[str], merge_keys: Sequence[str]
     ) -> List[str]:
         """Generate sql clauses to select rows to delete via merge and primary key. Return select all clause if no keys defined."""
+        assert primary_keys or merge_keys
+
         clauses: List[str] = []
-        if primary_keys or merge_keys:
-            if primary_keys:
-                clauses.append(
-                    " AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in primary_keys])
-                )
-            if merge_keys:
-                clauses.append(
-                    " AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in merge_keys])
-                )
-        return clauses or ["1=1"]
+        if primary_keys:
+            clauses.append(
+                " AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in primary_keys])
+            )
+        if merge_keys:
+            clauses.append(
+                " AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in merge_keys])
+            )
+        return clauses
 
     @classmethod
     def gen_key_table_clauses(
         cls,
         root_table_name: str,
         staging_root_table_name: str,
-        key_clauses: Sequence[str],
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
         """Generate sql clauses that may be used to select or delete rows in root table of destination dataset
 
         A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
+        key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
         return [
             f"FROM {root_table_name} as d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} as"
             f" s WHERE {' OR '.join([c.format(d='d',s='s') for c in key_clauses])})"
@@ -587,21 +590,27 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         append_fallback = (len(primary_keys) + len(merge_keys)) == 0
 
         if not append_fallback:
-            key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
-
             row_key_column: str = None
             root_key_column: str = None
 
             if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
                 key_table_clauses = cls.gen_key_table_clauses(
-                    root_table_name, staging_root_table_name, key_clauses, for_delete=True
+                    root_table_name,
+                    staging_root_table_name,
+                    primary_keys,
+                    merge_keys,
+                    for_delete=True,
                 )
                 # if no nested tables, just delete data from root table
                 for clause in key_table_clauses:
                     sql.append(f"DELETE {clause}")
             else:
                 key_table_clauses = cls.gen_key_table_clauses(
-                    root_table_name, staging_root_table_name, key_clauses, for_delete=False
+                    root_table_name,
+                    staging_root_table_name,
+                    primary_keys,
+                    merge_keys,
+                    for_delete=False,
                 )
                 # use row_key or unique hint to create temp table with all identifiers to delete
                 row_key_column = escape_column_id(

@@ -223,6 +223,6 @@ Hugging Face enforces [rate limits](https://huggingface.co/docs/hub/rate-limits#
 If you see authentication errors, verify that:
 
 1. Your token has **write** access to the target namespace.
-2. The token is correctly set in `hf_token`, `HF_TOKEN`, or via `huggingface-cli login`.
+2. The token is correctly set in `hf_token`, `HF_TOKEN`, or via `hf auth login`.
 3. If using a Private Hub, `hf_endpoint` (or `HF_ENDPOINT`) is set to the correct URL.
 4. Dataset `dataset_name` exists.
