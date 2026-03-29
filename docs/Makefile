@@ -61,4 +61,4 @@ build-molabs: ## Format the notebooks files first and build Molabs
 	uv run marimo check education/*/*.py --fix --quiet
 
 validate-molabs: build-molabs ## Validate marimo notebooks are up-to-date
-	git diff --quiet --exit-code -- education/
+	git diff --exit-code -- education/
