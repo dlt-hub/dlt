@@ -172,7 +172,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         return [self.dataset_name, table_name]
 
     def get_table_schema(self, table_name: str) -> TArrowSchema:
-        return self.open_lance_dataset(table_name).schema
+        return self.open_lance_dataset(
+            table_name, branch_name=self.config.storage.branch_name
+        ).schema
 
     def get_table_uri(self, table_name: str) -> str:
         return self.open_lance_dataset(table_name).uri
@@ -187,19 +189,25 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         if self.namespace_exists(self.dataset_name):
             self.drop_namespace(self.dataset_name)
 
-    # NOTE: `lance` currently doesn't natively support truncating tables, so we drop + create instead
     def truncate_table(self, table_name: str) -> None:
-        """Truncates table by dropping and recreating it with same schema."""
-        schema = self.get_table_schema(table_name)
-        self.drop_table(table_name)
-        self.create_table(table_name, schema)
+        """Truncates table by deleting all rows in active branch."""
+        self.open_lance_dataset(table_name, branch_name=self.config.storage.branch_name).delete(
+            "true"
+        )
 
-    def open_lance_dataset(self, table_name: str) -> LanceDataset:
-        """Returns lance dataset for given table name."""
+    def create_branch_if_not_exists(self, table_name: str, branch_name: str) -> None:
+        ds = self.open_lance_dataset(table_name)
+        if branch_name not in ds.branches.list():
+            ds.create_branch(branch_name)
+
+    def open_lance_dataset(
+        self, table_name: str, branch_name: Optional[str] = None
+    ) -> LanceDataset:
+        """Returns lance dataset for given table name, optionally on a branch."""
         return lance.dataset(
             namespace=self.namespace,
             table_id=self.make_table_id(table_name),
-        )
+        ).checkout_version((branch_name, None))
 
     def open_lance_table(self, table_name: str) -> LanceTable:
         """Returns LanceDB table for given table name.
@@ -218,12 +226,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         table_name: str,
         /,
         *,
+        branch_name: Optional[str] = None,
         write_disposition: Optional[TWriteDisposition] = "append",
         merge_key: Optional[str] = None,
         when_not_matched_by_source_delete_expr: Optional[str] = None,
     ) -> None:
         """Inserts records into Lance dataset with automatic embedding computation."""
-        ds = self.open_lance_dataset(table_name)
+        ds = self.open_lance_dataset(table_name, branch_name=branch_name)
 
         if isinstance(records, pa.RecordBatchReader):
             records = _append_vector_columns(records, schema=ds.schema)
@@ -382,41 +391,51 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             make_arrow_field_schema(column["name"], column, self.type_mapper)
             for column in new_columns
         ]
-        self.open_lance_dataset(table_name).add_columns(new_fields)
+        self.open_lance_dataset(
+            table_name, branch_name=self.config.storage.branch_name
+        ).add_columns(new_fields)
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
-            exists, existing_columns = self.get_storage_table(table_name)
-            new_columns: List[TColumnSchema] = self.schema.get_new_table_columns(
-                table_name,
-                existing_columns,
-                self.capabilities.generates_case_sensitive_identifiers(),
-            )
-            logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
-            if new_columns:
-                if exists:
-                    self.add_null_columns_to_table(table_name, new_columns)
-                else:
-                    if self.config.embeddings and table_name not in self.schema.dlt_table_names():
-                        embedding_fields = get_columns_names_with_prop(
-                            self.schema.get_table(table_name=table_name), VECTORIZE_HINT
-                        )
-                        vector_column = self.config.embeddings.vector_column
-                        embedding_model_func = self.model_func
-                    else:
-                        embedding_fields = None
-                        vector_column = None
-                        embedding_model_func = None
+            table_exists = self.table_exists(table_name)
 
-                    table_schema: TArrowSchema = make_arrow_table_schema(
-                        table_name,
-                        schema=self.schema,
-                        type_mapper=self.type_mapper,
-                        embedding_fields=embedding_fields,
-                        embedding_model_func=embedding_model_func,
-                        vector_column=vector_column,
+            # create new table if it doesn't exist
+            if not table_exists:
+                if self.config.embeddings and table_name not in self.schema.dlt_table_names():
+                    embedding_fields = get_columns_names_with_prop(
+                        self.schema.get_table(table_name=table_name), VECTORIZE_HINT
                     )
-                    self.create_table(table_name, table_schema)
+                    vector_column = self.config.embeddings.vector_column
+                    embedding_model_func = self.model_func
+                else:
+                    embedding_fields = None
+                    vector_column = None
+                    embedding_model_func = None
+
+                table_schema: TArrowSchema = make_arrow_table_schema(
+                    table_name,
+                    schema=self.schema,
+                    type_mapper=self.type_mapper,
+                    embedding_fields=embedding_fields,
+                    embedding_model_func=embedding_model_func,
+                    vector_column=vector_column,
+                )
+                self.create_table(table_name, table_schema)
+
+            # create branch if needed
+            if branch_name := self.config.storage.branch_name:
+                self.create_branch_if_not_exists(table_name, branch_name)
+
+            # add new columns to existing table (on the branch if configured)
+            if table_exists:
+                _, existing_columns = self.get_storage_table(table_name)
+                new_columns = self.schema.get_new_table_columns(
+                    table_name,
+                    existing_columns,
+                    self.capabilities.generates_case_sensitive_identifiers(),
+                )
+                if new_columns:
+                    self.add_null_columns_to_table(table_name, new_columns)
 
         self.update_schema_in_storage()
 
@@ -444,6 +463,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.write_records(
             records,
             self.schema.version_table_name,
+            branch_name=self.config.storage.branch_name,
             write_disposition=write_disposition,
         )
 
@@ -466,8 +486,12 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         # Read the tables into memory as Arrow tables, with pushdown predicates, so we pull as little
         # data into memory as possible.
-        state_ds = self.open_lance_dataset(self.schema.state_table_name)
-        loads_ds = self.open_lance_dataset(self.schema.loads_table_name)
+        state_ds = self.open_lance_dataset(
+            self.schema.state_table_name, branch_name=self.config.storage.branch_name
+        )
+        loads_ds = self.open_lance_dataset(
+            self.schema.loads_table_name, branch_name=self.config.storage.branch_name
+        )
         state_table = state_ds.scanner(
             filter=f"`{p_pipeline_name}` = '{pipeline_name}'", prefilter=True
         ).to_table()
@@ -494,7 +518,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     @lance_error
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
-        ds = self.open_lance_dataset(self.schema.version_table_name)
+        ds = self.open_lance_dataset(
+            self.schema.version_table_name, branch_name=self.config.storage.branch_name
+        )
         p_version_hash = self.schema.naming.normalize_identifier("version_hash")
         p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
         p_schema_name = self.schema.naming.normalize_identifier("schema_name")
@@ -535,7 +561,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         p_schema = self.schema.naming.normalize_identifier("schema")
 
         try:
-            version_dataset = self.open_lance_dataset(self.schema.version_table_name)
+            version_dataset = self.open_lance_dataset(
+                self.schema.version_table_name, branch_name=self.config.storage.branch_name
+            )
             if schema_name:
                 schemas = version_dataset.scanner(
                     filter=f'`{p_schema_name}` = "{schema_name}"', prefilter=True
@@ -587,6 +615,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.write_records(
             records,
             self.schema.loads_table_name,
+            branch_name=self.config.storage.branch_name,
             write_disposition=write_disposition,
         )
 

@@ -31,11 +31,16 @@ class LanceEmbeddingsConfigurationMissing(DestinationTerminalException):
 
 
 def is_lance_undefined_entity_exception(e: Exception) -> bool:
-    """Returns True if exception indicates an undefined entity (e.g. missing namespace or table).
+    """Returns True if exception indicates an undefined entity (e.g. missing namespace, table, or branch).
 
-    Used to work around bug: https://github.com/lance-format/lance/issues/6240.
+    Used to work around:
+    - bug: https://github.com/lance-format/lance/issues/6240
+    - fact that `LanceDataset.checkout_version()` raises `ValueError` with "not found" message if
+    version does not exist
     """
-    return isinstance(e, RuntimeError) and bool(LANCE_UNDEFINED_ENTITY_PATTERN.search(str(e)))
+    return isinstance(e, (RuntimeError, ValueError)) and bool(
+        LANCE_UNDEFINED_ENTITY_PATTERN.search(str(e))
+    )
 
 
 def lance_error(f: TFun) -> TFun:

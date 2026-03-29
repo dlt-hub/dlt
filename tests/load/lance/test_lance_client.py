@@ -58,7 +58,55 @@ def test_lance_client_storage(client: LanceClient) -> None:
     assert not client.namespace_exists(client.dataset_name)
 
 
-def test_write_records_matches_lancedb_table_add(
+def test_lance_client_create_branch_if_not_exists(client_with_storage: LanceClient) -> None:
+    client = client_with_storage
+    table_name = "foo"
+    alt_branch_name = "dev"
+
+    # create table
+    arrow_schema = pa.schema([("id", pa.int64())])
+    client.create_table(table_name, arrow_schema)
+
+    # branch doesn't exist initially
+    ds = client.open_lance_dataset(table_name)
+    assert alt_branch_name not in ds.branches.list()
+
+    # create branch
+    client.create_branch_if_not_exists(table_name, alt_branch_name)
+
+    # branch now exists
+    ds = client.open_lance_dataset(table_name)
+    assert alt_branch_name in ds.branches.list()
+
+    # calling again doesn't error
+    client.create_branch_if_not_exists(table_name, alt_branch_name)
+
+
+def test_lance_client_write_records_into_branch(client_with_storage: LanceClient) -> None:
+    client = client_with_storage
+    table_name = "foo"
+    alt_branch_name = "dev"
+
+    # create table
+    arrow_schema = pa.schema([("id", pa.int64())])
+    client.create_table(table_name, arrow_schema)
+
+    # write to main
+    client.write_records([{"id": 1}], table_name)
+    assert client.open_lance_dataset(table_name).count_rows() == 1
+
+    # create branch and write to it
+    client.create_branch_if_not_exists(table_name, alt_branch_name)
+    client.write_records([{"id": 2}, {"id": 3}], table_name, branch_name=alt_branch_name)
+
+    # main still has 1 row
+    assert client.open_lance_dataset(table_name).count_rows() == 1
+
+    # branch has 3 rows (1 from main + 2 new)
+    assert client.open_lance_dataset(table_name, branch_name=alt_branch_name).count_rows() == 3
+
+
+def test_lance_client_write_records_matches_lancedb_table_add(
     client_with_storage: LanceClient, tmp_path: str
 ) -> None:
     """Asserts `write_records` produces same table as `lancedb.Table.add()`.

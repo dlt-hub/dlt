@@ -52,23 +52,27 @@ TEmbeddingProvider = Literal[
 class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
     namespace_name: Optional[str] = DEFAULT_LANCE_NAMESPACE_NAME
     """Name of subdirectory in `bucket_url` to use as namespace root. Leave empty to use `bucket_url` as namespace root."""
+    branch_name: Optional[str] = None
+    """Name of branch to use for read/write table operations. Uses `main` branch if not set."""
     options: Optional[Dict[str, str]] = None
     """Options to pass to storage client. Used as `storage.*` properties on `DirectoryNamespace` client.
 
     Will be merged with `credentials`-derived options (if present), with `options` taking precedence in case of conflicts.
     """
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["bucket_url", "namespace_name"]
+    __config_gen_annotations__: ClassVar[List[str]] = ["bucket_url"]
 
     def __init__(
         self,
         bucket_url: str = DEFAULT_LANCE_BUCKET_URL,
         namespace_name: Optional[str] = DEFAULT_LANCE_NAMESPACE_NAME,
+        branch_name: Optional[str] = None,
         credentials: Optional[FileSystemCredentials] = None,
         options: Optional[Dict[str, str]] = None,
     ) -> None:
         super().__init__(bucket_url=bucket_url, credentials=credentials)
         self.namespace_name = namespace_name
+        self.branch_name = branch_name
         self.options = options
 
     @property
