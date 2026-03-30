@@ -95,10 +95,10 @@ def test_query_tag(client: SnowflakeClient, mocker: MockerFixture):
     client.sql_client.query_tag = None
     execute_sql_spy.reset_mock()
     client.sql_client.set_query_tags(QUERY_TAGS_DICT)
-    execute_sql_spy.assert_not_called
+    execute_sql_spy.assert_not_called()
     execute_sql_spy.reset_mock()
     client.sql_client.set_query_tags(None)
-    execute_sql_spy.assert_not_called
+    execute_sql_spy.assert_not_called()
 
 
 def test_session_autocommit() -> None:

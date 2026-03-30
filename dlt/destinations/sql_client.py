@@ -19,6 +19,7 @@ from typing import (
     Generator,
     cast,
 )
+from typing_extensions import NotRequired
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.typing import TFun, TypedDict, Self
@@ -50,7 +51,8 @@ class TQueryTags(TypedDict):
     table: str
     load_id: str
     pipeline_name: str
-    operation: str
+    operation: NotRequired[str]
+
 
 # compatibility export, query tags are no longer job scoped
 TJobQueryTags = TQueryTags

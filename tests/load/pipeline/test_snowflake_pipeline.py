@@ -96,21 +96,90 @@ def test_snowflake_query_tagging(
     info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert_load_info(info)
 
-    operations = {call.args[1]["operation"] for call in set_query_tags_spy.call_args_list}
-    assert {"prepare_storage", "update_stored_schema", "load", "complete_load"} <= operations
+    expected_load_id = info.loads_ids[0]
+    expected_pipeline_name = pipeline.pipeline_name
+    expected_source = pipeline.default_schema.name
+    expected_resource = pipeline.default_schema.get_table("digits")["resource"]
+
+    tag_calls = [call.args[1] for call in set_query_tags_spy.call_args_list]
+    load_tags = [
+        call for call in tag_calls if call["operation"] == "load" and call["table"] == "digits"
+    ]
+    assert load_tags
+    assert load_tags[0] == {
+        "operation": "load",
+        "source": expected_source,
+        "resource": expected_resource,
+        "table": "digits",
+        "load_id": expected_load_id,
+        "pipeline_name": expected_pipeline_name,
+    }
+
+    complete_load_tags = [call for call in tag_calls if call["operation"] == "complete_load"]
+    assert complete_load_tags
+    assert complete_load_tags[0] == {
+        "operation": "complete_load",
+        "source": expected_source,
+        "resource": "",
+        "table": "",
+        "load_id": expected_load_id,
+        "pipeline_name": expected_pipeline_name,
+    }
+
+    operations = {call["operation"] for call in tag_calls}
+    assert operations == {
+        "complete_load",
+        "get_stored_state",
+        "load",
+        "prepare_storage",
+        "update_stored_schema",
+    }
 
     set_query_tags_spy.reset_mock()
     pipeline._schema_storage.clear_storage()
     pipeline.sync_destination()
 
-    operations = {call.args[1]["operation"] for call in set_query_tags_spy.call_args_list}
-    assert {"get_stored_state", "get_stored_schema"} <= operations
+    sync_tag_calls = [call.args[1] for call in set_query_tags_spy.call_args_list]
+    operations = {call["operation"] for call in sync_tag_calls}
+    assert operations == {"get_stored_state", "get_stored_schema"}
+    for operation in ("get_stored_state", "get_stored_schema"):
+        operation_tags = [call for call in sync_tag_calls if call["operation"] == operation]
+        assert operation_tags
+        assert operation_tags[0] == {
+            "operation": operation,
+            "source": expected_source,
+            "resource": "",
+            "table": "",
+            "load_id": "",
+            "pipeline_name": expected_pipeline_name,
+        }
 
     set_query_tags_spy.reset_mock()
-    info = pipeline.run([1,2,3], table_name="digits", refresh="drop_sources", **destination_config.run_kwargs)
+    info = pipeline.run(
+        [1, 2, 3], table_name="digits", refresh="drop_sources", **destination_config.run_kwargs
+    )
     assert_load_info(info)
-    operations = {call.args[1]["operation"] for call in set_query_tags_spy.call_args_list}
-    assert {"drop_tables"} <= operations
+    refresh_load_id = info.loads_ids[0]
+    refresh_tag_calls = [call.args[1] for call in set_query_tags_spy.call_args_list]
+    operations = {call["operation"] for call in refresh_tag_calls}
+    assert operations == {
+        "complete_load",
+        "drop_tables",
+        "load",
+        "prepare_storage",
+        "update_stored_schema",
+    }
+    drop_table_tags = [call for call in refresh_tag_calls if call["operation"] == "drop_tables"]
+    assert drop_table_tags
+    assert drop_table_tags[0] == {
+        "operation": "drop_tables",
+        "source": expected_source,
+        "resource": "",
+        "table": "",
+        "load_id": refresh_load_id,
+        "pipeline_name": expected_pipeline_name,
+    }
+
 
 # do not remove - it allows us to filter tests by destination
 @pytest.mark.parametrize(

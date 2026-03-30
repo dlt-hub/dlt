@@ -1,3 +1,4 @@
+from dlt.common.storages.load_package import load_package_state, CurrentLoadPackageStateNotAvailable
 import os
 from abc import abstractmethod
 import base64
@@ -920,19 +921,31 @@ WHERE """
     ) -> None:
         from dlt.common.pipeline import current_pipeline
 
+        if not load_id:
+            try:
+                load_id = load_package_state()["load_id"]
+            except CurrentLoadPackageStateNotAvailable:
+                load_id = ""
+
         pipeline = current_pipeline()
         pipeline_name = pipeline.pipeline_name if pipeline else ""
-        table_name = table["name"] if table else ""
+        if table:
+            table_name = table["name"] if table else ""
+            resource = (
+                get_inherited_table_hint(
+                    self.schema.tables, table_name, "resource", allow_none=True
+                )
+                or ""
+            )
+        else:
+            table_name = ""
+            resource = ""
+
         self.sql_client.set_query_tags(
             {
                 "operation": operation,
                 "source": self.schema.name,
-                "resource": (
-                    get_inherited_table_hint(
-                        self.schema.tables, table_name, "resource", allow_none=True
-                    )
-                    or ""
-                ),
+                "resource": resource,
                 "table": table_name,
                 "load_id": load_id,
                 "pipeline_name": pipeline_name,
