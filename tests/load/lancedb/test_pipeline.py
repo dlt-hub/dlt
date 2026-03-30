@@ -817,7 +817,7 @@ def test_semantic_query_custom_embedding_functions_registered(
 ) -> None:
     """Test the LanceDB registry registered custom embedding functions defined in models, if any.
     See: https://github.com/dlt-hub/dlt/issues/1765"""
-    if destination_config.extra_info == "s3":
+    if destination_config.destination_type == "lance" and destination_config.extra_info != "file":
         pytest.skip("testing this locally suffices")
 
     @dlt.resource
