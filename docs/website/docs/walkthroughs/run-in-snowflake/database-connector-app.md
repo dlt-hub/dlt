@@ -6,7 +6,7 @@ keywords: [snowflake, native app, database connector app]
 
 # Database Connector App
 
-The dltHub Database Connector App is a Snowflake Native App that lets you move data from your source database into Snowflake using a simple UI. 
+The dltHub Database Connector App is a Snowflake Native App that lets you move data from external SQL databases (PostgreSQL, MySQL, MSSQL) into Snowflake using a simple web UI. It runs entirely within your Snowflake account — no external infrastructure required.
 
 You can: 
 - connect an external [SQL database](../../dlt-ecosystem/verified-sources/sql_database) to Snowflake
@@ -29,15 +29,56 @@ This documentation explains how to set up sources, create and manage pipelines, 
 ## Prerequisites
 Before creating your first pipeline, make sure you have:
 1. A destination database in Snowflake where the loaded data should land
-2. Role with permissions to create references requested by the app (External Access Integrations)
+2. A role with permissions to approve External Access Integrations (`ACCOUNTADMIN`, or a role with that privilege)
 3. Connection details for your source database, including:
-  - host + port
-  - database name / schema
-  - username + password 
+    - host + port
+    - database name / schema
+    - username + password 
 4. (Optional) An S3 bucket if you plan to stage data externally
 
 ## Install and open the app
 Use the link we provided to you or download the app via the [Snowflake Marketplace](https://app.snowflake.com/marketplace).
+
+
+## Set up connection
+
+Before creating a pipeline, you need to set up a connection — a secure, approved link between your Snowflake account and your source database.
+
+Go to the Connections tab. It has three sub-tabs: **Create**, **Manage**, and **Approve**.
+
+Snowflake controls outbound network access through External Access Integrations (EAIs). Creating one requires an `ACCOUNTADMIN` to approve the connection before it can be used. Once approved, the connection is available to every role that has access to the app.
+
+The app handles this for you: it creates a specification requesting the EAI, and an admin approves it in the **Connections → Approve** tab.
+
+### Create a connection
+
+In the **Connections → Create** tab, select the connection type:
+
+- **database** - for PostgreSQL, MySQL, or MSSQL sources
+- **stage** - for an S3 bucket used as an intermediate staging area
+
+
+For a database connection, fill in:
+
+- **Connection name** - a unique label (e.g. rfam_public_db)
+- **Database type** - MySQL, PostgreSQL, or MSSQL
+- **Host** - hostname of the source database (e.g. mysql-rfam-public.ebi.ac.uk)
+- **Port** - leave empty to use the default port for the selected database type
+- **Username** - database user
+- **Password** - stored securely as a Snowflake secret
+
+
+Click **Create connection**. This creates a Network Rule (specifying the allowed host and port), a Secret (storing the credentials), and an External Access Integration — all without requiring admin involvement. Finally, it submits an approval request that an `ACCOUNTADMIN` must review before the connection becomes active.
+
+### Approve a connections
+Once a connection is awaiting approval, an `ACCOUNTADMIN` must approve it. In the **Connections → Approve tab**, click Review pending connections to open Snowflake's native approval UI.
+
+After approval, the connection status automatically changes to `ACTIVE` and it becomes available for use in pipelines.
+
+### Manage connections
+The **Connections → Manage** tab shows all your connections and their current status.
+You can delete a connection from here. This removes all associated objects (Network Rule, Secret, External Access Integration, and Specification).
+
 
 ## Create a pipeline
 1. Go to the pipeline tab in the UI
@@ -69,11 +110,8 @@ Source settings define **what to ingest** from your external SQL database and **
 - **Database name**  
   The name of the source database to connect to.
 
-- **Network rule**  
-  Allow external access to the source database endpoint. This allows the app to reach your database through the configured External Access Integration.
-
-- **Database credentials**  
-  Enter the username and password for your source database. Credentials are stored in your Snowflake account as secrets.
+- **Database connection**
+    Select an active connection from the dropdown. If no connections appear, go to the Connections tab and complete setup first.
 
 
 #### Optional fields
