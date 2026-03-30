@@ -16,7 +16,6 @@ from typing import (
 import lance
 import lancedb
 import pyarrow as pa
-from pyarrow import ArrowInvalid
 from lance import LanceDataset
 from lance.namespace import (
     CreateNamespaceRequest,
@@ -63,7 +62,7 @@ from dlt.destinations.impl.lance.configuration import (
 from dlt.destinations.impl.lance.exceptions import (
     LanceEmbeddingsConfigurationMissing,
     is_lance_undefined_entity_exception,
-    lance_error,
+    raise_destination_error,
 )
 from dlt.destinations.impl.lance.jobs import LanceLoadJob
 from dlt.destinations.impl.lance.lance_adapter import (
@@ -124,20 +123,24 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def sql_client(self, client: SqlClientBase[Any]) -> None:
         self._sql_client = client
 
+    @raise_destination_error
     def list_child_namespace_tables(self, namespace_name: str) -> List[str]:
         """Lists tables in child namespace."""
         return self.namespace.list_tables(ListTablesRequest(id=[namespace_name])).tables
 
+    @raise_destination_error
     def create_child_namespace(self, name: str) -> None:
         """Creates child namespace in root namespace."""
         self.namespace.create_namespace(CreateNamespaceRequest(id=[name]))
 
+    @raise_destination_error
     def drop_child_namespace(self, name: str) -> None:
         """Drops child namespace after removing all its tables."""
         for table in self.list_child_namespace_tables(name):
             self.namespace.drop_table(DropTableRequest(id=[name, table]))
         self.namespace.drop_namespace(DropNamespaceRequest(id=[name]))
 
+    @raise_destination_error
     def child_namespace_exists(self, name: str) -> bool:
         """Returns True if child namespace exists in root namespace."""
         try:
@@ -148,7 +151,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 return False
             raise
 
-    @lance_error
+    @raise_destination_error
     def create_table(self, table_name: str, schema: pa.Schema) -> None:
         """Creates empty lance dataset from provided PyArrow schema."""
         lance.write_dataset(
@@ -157,10 +160,12 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             table_id=self.make_table_id(table_name),
         )
 
+    @raise_destination_error
     def drop_table(self, table_name: str) -> None:
         """Drops table from lance dataset namespace."""
         self.namespace.drop_table(DropTableRequest(id=self.make_table_id(table_name)))
 
+    @raise_destination_error
     def table_exists(self, table_name: str) -> bool:
         try:
             self.namespace.table_exists(TableExistsRequest(id=self.make_table_id(table_name)))
@@ -204,6 +209,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         if branch_name not in ds.branches.list():
             ds.create_branch(branch_name)
 
+    @raise_destination_error
     def open_lance_dataset(
         self,
         table_name: str,
@@ -236,6 +242,27 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         )
         return LanceTable.open(db, table_name, location=self.get_table_uri(table_name))
 
+    @raise_destination_error
+    def _write_records(
+        self,
+        ds: LanceDataset,
+        records: Union[pa.RecordBatchReader, List[Dict[str, Any]]],
+        write_disposition: Optional[TWriteDisposition] = "append",
+        merge_key: Optional[str] = None,
+        when_not_matched_by_source_delete_expr: Optional[str] = None,
+    ) -> None:
+        if write_disposition in ("append", "skip", "replace"):
+            ds.insert(records)
+        elif write_disposition == "merge":
+            merge_builder = (
+                ds.merge_insert(merge_key).when_matched_update_all().when_not_matched_insert_all()
+            )
+            if when_not_matched_by_source_delete_expr:
+                merge_builder = merge_builder.when_not_matched_by_source_delete(
+                    when_not_matched_by_source_delete_expr
+                )
+            merge_builder.execute(records)
+
     def write_records(
         self,
         records: Union[pa.RecordBatchReader, List[Dict[str, Any]]],
@@ -254,29 +281,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             records = _append_vector_columns(records, schema=ds.schema)
             records = _align_schema(records, ds.schema)
 
-        try:
-            if write_disposition in ("append", "skip", "replace"):
-                ds.insert(records)
-            elif write_disposition == "merge":
-                merge_builder = (
-                    ds.merge_insert(merge_key)
-                    .when_matched_update_all()
-                    .when_not_matched_insert_all()
-                )
-                if when_not_matched_by_source_delete_expr:
-                    merge_builder = merge_builder.when_not_matched_by_source_delete(
-                        when_not_matched_by_source_delete_expr
-                    )
-                merge_builder.execute(records)
-            else:
-                raise DestinationTerminalException(
-                    f"Unsupported `{write_disposition=:}` for Lance Destination - batch"
-                    " failed AND WILL **NOT** BE RETRIED."
-                )
-        except ArrowInvalid as e:
-            raise DestinationTerminalException(
-                "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
-            ) from e
+        self._write_records(
+            ds,
+            records,
+            write_disposition=write_disposition,
+            merge_key=merge_key,
+            when_not_matched_by_source_delete_expr=when_not_matched_by_source_delete_expr,
+        )
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
@@ -426,7 +437,6 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         return arrow_schema
 
-    @lance_error
     def add_null_columns_to_table(self, table_name: str, new_columns: List[TColumnSchema]) -> None:
         new_fields = [dlt_column_to_arrow_field(col, self.capabilities) for col in new_columns]
         self.open_lance_dataset(
@@ -458,7 +468,6 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         self.update_schema_in_storage()
 
-    @lance_error
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Retrieves the latest completed state for a pipeline."""
 
@@ -506,12 +515,10 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             return None
         return StorageSchemaInfo.from_normalized_mapping(row, self.schema.naming)
 
-    @lance_error
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         col = self.schema.naming.normalize_identifier("version_hash")
         return self._get_latest_schema(filter_=f'`{col}` = "{schema_hash}"')
 
-    @lance_error
     def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
         if not self.table_exists(self.schema.version_table_name):
@@ -521,7 +528,6 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             return self._get_latest_schema(filter_=f'`{col}` = "{schema_name}"')
         return self._get_latest_schema()
 
-    @lance_error
     def update_schema_in_storage(self) -> None:
         record = {
             "version": self.schema.version,
@@ -542,7 +548,6 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             write_disposition=write_disposition,
         )
 
-    @lance_error
     def complete_load(self, load_id: str) -> None:
         record = {
             C_DLT_LOADS_TABLE_LOAD_ID: load_id,

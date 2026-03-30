@@ -43,7 +43,7 @@ def is_lance_undefined_entity_exception(e: Exception) -> bool:
     )
 
 
-def lance_error(f: TFun) -> TFun:
+def raise_destination_error(f: TFun) -> TFun:
     @wraps(f)
     def _wrap(self: JobClientBase, *args: Any, **kwargs: Any) -> Any:
         try:
