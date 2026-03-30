@@ -3500,6 +3500,22 @@ def test_load_info_dataset_name_per_load_id(use_single_dataset: bool) -> None:
     step_dict = load_step.asdict()
     assert "dataset_name" in step_dict["load_info"]
 
+    # verify dataset_name is propagated into serialized job_metrics
+    asdict_job_metrics = load_info.asdict()["job_metrics"]
+    assert all("dataset_name" in jm for jm in asdict_job_metrics)
+    # each job's dataset_name must match the per-load-id value from LoadMetrics
+    for jm in asdict_job_metrics:
+        assert jm["dataset_name"] == ds_names[jm["load_id"]]
+
+    # same for the trace step dict
+    trace_job_metrics = step_dict["load_info"]["job_metrics"]
+    assert all("dataset_name" in jm for jm in trace_job_metrics)
+    trace_ds_names = {jm["dataset_name"] for jm in trace_job_metrics}
+    if use_single_dataset:
+        assert trace_ds_names == {"test_data"}
+    else:
+        assert trace_ds_names == {"test_data", "test_data_schema_b"}
+
 
 def test_load_info_dataset_name_none_for_non_dwh_destination() -> None:
     """Destinations without DestinationClientDwhConfiguration (e.g. dummy, custom)
