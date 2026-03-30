@@ -12,7 +12,7 @@ from dlt.destinations.impl.lance.configuration import (
 
 LanceTypeMapper: Type[DataTypeMapper]
 try:
-    # lancedb type mapper cannot be used without pyarrow installed
+    # lance type mapper cannot be used without pyarrow installed
     from dlt.destinations.impl.lance.type_mapper import LanceTypeMapper
 except MissingDependencyException:
     # assign mock type mapper if no arrow

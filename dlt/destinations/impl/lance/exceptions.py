@@ -26,7 +26,7 @@ class LanceEmbeddingsConfigurationMissing(DestinationTerminalException):
         super().__init__(
             f"Table '{table_name}' has columns marked for embedding ({columns_str}) but is"
             " missing embeddings configuration. Either configure `embeddings` on the lance"
-            " destination or remove the `embed` argument from `lancedb_adapter()`."
+            " destination or remove the `embed` argument from `lance_adapter()`."
         )
 
 

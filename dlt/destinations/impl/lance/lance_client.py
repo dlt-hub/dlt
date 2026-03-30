@@ -305,7 +305,6 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     ) -> List[PreparedTableSchema]:
         loaded_tables = super().verify_schema(only_tables, new_jobs)
 
-        # Verify LanceDB-specific requirements for root tables
         for load_table in loaded_tables:
             # Skip nested tables as they inherit behavior from parent tables
             if is_nested_table(load_table):

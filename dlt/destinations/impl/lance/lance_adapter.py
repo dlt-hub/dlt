@@ -70,7 +70,7 @@ def lance_adapter(
         )
     else:
         raise ValueError(
-            "You must provide at least either the `embed` or `merge_key` or `remove_orphans`"
+            "You must provide at least either the `embed`, `merge_key`, or `no_remove_orphans`"
             " argument if using the adapter."
         )
 

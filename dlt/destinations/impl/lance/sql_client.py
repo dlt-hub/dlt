@@ -1,12 +1,3 @@
-"""Query LanceDB using DuckDB SQL client
-
-LanceDB doesn't have an SQL interface. However, using a
-DuckDB instance with the `lance-duckdb` extension allows
-to read the `.lance` files (each maps to a single table).
-
-This SQL client makes LanceDB compatible with the `dlt.Dataset`
-inferface.
-"""
 from __future__ import annotations
 
 from contextlib import contextmanager
