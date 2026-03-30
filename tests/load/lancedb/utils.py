@@ -5,6 +5,7 @@ from lancedb.embeddings import TextEmbeddingFunction
 from lancedb.table import Table as LanceTable
 
 import dlt
+from dlt.common.typing import TColumnNames
 from dlt.extract.resource import DltResource
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
@@ -58,11 +59,26 @@ def get_table_location(client: TLanceDestinationClient, table_name: str) -> str:
 
 
 def get_adapter(destination_config: DestinationTestConfiguration) -> Callable[..., DltResource]:
-    """Returns appropriate adapter function for given destination configuration."""
+    """Returns appropriate adapter function for given destination configuration.
+
+    For `lance` destination, wraps the adapter to accept `no_remove_orphans` (the `lancedb`
+    destination convention) and translates it to `remove_orphans` so tests can use a
+    uniform interface.
+    """
     if destination_config.destination_type == "lance":
         from dlt.destinations.impl.lance.lance_adapter import lance_adapter
 
-        return lance_adapter
+        def _lance_adapter(
+            data: Any,
+            embed: TColumnNames = None,
+            merge_key: TColumnNames = None,
+            no_remove_orphans: bool = False,
+        ) -> DltResource:
+            return lance_adapter(
+                data, embed=embed, merge_key=merge_key, remove_orphans=not no_remove_orphans
+            )
+
+        return _lance_adapter
     elif destination_config.destination_type == "lancedb":
         from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter
 

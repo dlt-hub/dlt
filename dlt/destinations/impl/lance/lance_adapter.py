@@ -6,16 +6,17 @@ from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
 
+DEFAULT_REMOVE_ORPHANS = True
 
 VECTORIZE_HINT = "x-lance-embed"
-NO_REMOVE_ORPHANS_HINT = "x-lance-remove-orphans"
+REMOVE_ORPHANS_HINT = "x-lance-remove-orphans"
 
 
 def lance_adapter(
     data: Any,
     embed: TColumnNames = None,
     merge_key: TColumnNames = None,
-    no_remove_orphans: bool = False,
+    remove_orphans: bool = DEFAULT_REMOVE_ORPHANS,
 ) -> DltResource:
     """Prepares data for the Lance destination by specifying which columns should be embedded.
 
@@ -27,7 +28,7 @@ def lance_adapter(
             It can be a single column name as a string, or a list of column names.
         merge_key (TColumnNames): Specify columns to merge on.
             It can be a single column name as a string, or a list of column names.
-        no_remove_orphans (bool): Specify whether to remove orphaned records in child
+        remove_orphans (bool): Whether to remove orphaned records in child
             tables with no parent records after merges to maintain referential integrity.
 
     Returns:
@@ -62,7 +63,7 @@ def lance_adapter(
                 "nullable": True,
             }
 
-    additional_table_hints[NO_REMOVE_ORPHANS_HINT] = no_remove_orphans
+    additional_table_hints[REMOVE_ORPHANS_HINT] = remove_orphans
 
     if column_hints or additional_table_hints or merge_key:
         resource.apply_hints(
@@ -70,7 +71,7 @@ def lance_adapter(
         )
     else:
         raise ValueError(
-            "You must provide at least either the `embed`, `merge_key`, or `no_remove_orphans`"
+            "You must provide at least either the `embed`, `merge_key`, or `remove_orphans`"
             " argument if using the adapter."
         )
 

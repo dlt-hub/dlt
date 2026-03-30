@@ -66,8 +66,9 @@ from dlt.destinations.impl.lance.exceptions import (
 )
 from dlt.destinations.impl.lance.jobs import LanceLoadJob
 from dlt.destinations.impl.lance.lance_adapter import (
+    DEFAULT_REMOVE_ORPHANS,
     VECTORIZE_HINT,
-    NO_REMOVE_ORPHANS_HINT,
+    REMOVE_ORPHANS_HINT,
 )
 from dlt.common.libs.pyarrow import columns_to_arrow, dlt_column_to_arrow_field
 from dlt.destinations.impl.lance.utils import _align_schema
@@ -311,11 +312,11 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 continue
 
             # Check if this table has orphan removal enabled (either explicitly or via merge strategy)
-            should_remove_orphans = LanceLoadJob._should_remove_orphans(load_table)
+            remove_orphans = load_table[REMOVE_ORPHANS_HINT]  # type: ignore[literal-required]
             merge_keys = get_columns_names_with_prop(load_table, "merge_key")
 
             # Validate merge key constraints when orphan removal is enabled
-            if should_remove_orphans and len(merge_keys) > 1:
+            if remove_orphans and len(merge_keys) > 1:
                 raise DestinationTerminalException(
                     "Multiple merge keys are not supported when LanceDB orphan removal is"
                     f" enabled: {merge_keys}"
@@ -359,10 +360,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)
 
-        # inherit missing hint from parent table, if available
-        if NO_REMOVE_ORPHANS_HINT not in table:
-            table[NO_REMOVE_ORPHANS_HINT] = get_inherited_table_hint(  # type: ignore[literal-required]
-                self.schema.tables, table_name, NO_REMOVE_ORPHANS_HINT, allow_none=True
+        # inherit missing hint from parent table, or use default
+        if REMOVE_ORPHANS_HINT not in table:
+            inherited_hint = get_inherited_table_hint(
+                self.schema.tables, table_name, REMOVE_ORPHANS_HINT, allow_none=True
+            )
+            table[REMOVE_ORPHANS_HINT] = (  # type: ignore[literal-required]
+                inherited_hint if inherited_hint is not None else DEFAULT_REMOVE_ORPHANS
             )
 
         return table

@@ -10,7 +10,7 @@ from dlt.common.schema.typing import (
     TTableSchema,
 )
 from dlt.common.schema.utils import is_nested_table
-from dlt.destinations.impl.lance.lance_adapter import NO_REMOVE_ORPHANS_HINT
+from dlt.destinations.impl.lance.lance_adapter import REMOVE_ORPHANS_HINT
 from dlt.destinations.impl.lance.utils import (
     get_canonical_vector_database_doc_id_merge_key,
     create_in_filter,
@@ -48,7 +48,7 @@ class LanceLoadJob(RunnableLoadJob):
                 self._job_client.dataset_name,
             )
 
-            if self._should_remove_orphans(self._load_table):
+            if self._load_table[REMOVE_ORPHANS_HINT]:  # type: ignore[literal-required]
                 when_not_matched_by_source_delete_expr = self._build_remove_orphans_scope_expr()
 
         self._job_client.write_records(
@@ -81,10 +81,6 @@ class LanceLoadJob(RunnableLoadJob):
         # scope it to just the key column
         keys = pq.read_table(self._file_path, columns=[key_col])[key_col]
         return create_in_filter(key_col, keys)
-
-    @staticmethod
-    def _should_remove_orphans(table: PreparedTableSchema) -> bool:
-        return not table.get(NO_REMOVE_ORPHANS_HINT)
 
     @staticmethod
     def _get_file_reader(file_path: str) -> pa.RecordBatchReader:
