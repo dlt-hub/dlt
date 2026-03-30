@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
     [--non-interactive] [--debug] [--no-pwd]
-    {workspace,telemetry,schema,profile,pipeline,init,render-docs,deploy,dashboard,ai,license,runtime}
+    {workspace,telemetry,schema,profile,pipeline,init,deploy,dashboard,ai,runtime,license}
     ...
 ```
 
@@ -51,8 +51,8 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 **Available subcommands**
 * [`workspace`](#dlt-workspace) - Manage current workspace
 * [`profile`](#dlt-profile) - Manage workspace built-in profiles
-* [`license`](#dlt-license) - View dlthub license status
 * [`runtime`](#dlt-runtime) - Connect to dlthub runtime and run your code remotely
+* [`license`](#dlt-license) - View dlthub license status
 
 </details>
 
@@ -62,7 +62,7 @@ Manage current Workspace.
 
 **Usage**
 ```sh
-dlt workspace [-h] [--verbose] {clean,info,mcp,show} ...
+dlt workspace [-h] [--verbose] {clean,info,show} ...
 ```
 
 **Description**
@@ -83,7 +83,6 @@ Inherits arguments from [`dlt`](#dlt).
 **Available subcommands**
 * [`clean`](#dlt-workspace-clean) - Cleans local data for the selected profile. locally loaded data will be deleted. pipelines working directories are also deleted by default. data in remote destinations is not affected.
 * [`info`](#dlt-workspace-info) - Displays workspace info.
-* [`mcp`](#dlt-workspace-mcp) - Launch dlt mcp server in current python environment and workspace in sse transport mode by default.
 * [`show`](#dlt-workspace-show) - Shows workspace dashboard for the pipelines and data in this workspace.
 
 </details>
@@ -134,32 +133,6 @@ Inherits arguments from [`dlt workspace`](#dlt-workspace).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt workspace mcp`
-
-Launch dlt MCP server in current Python environment and Workspace in SSE transport mode by default.
-
-**Usage**
-```sh
-dlt workspace mcp [-h] [--stdio] [--port PORT]
-```
-
-**Description**
-
-This MCP allows you to attach to any pipeline that was previously run in this workspace and then facilitates schema and data exploration in the pipeline's dataset.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt workspace`](#dlt-workspace).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--stdio` - Use stdio transport mode
-* `--port PORT` - Sse port to use (default: 43654)
 
 </details>
 
@@ -294,110 +267,6 @@ Inherits arguments from [`dlt profile`](#dlt-profile).
 
 </details>
 
-## `dlt license`
-
-View dlthub license status.
-
-**Usage**
-```sh
-dlt license [-h] {info,scopes,issue} ...
-```
-
-**Description**
-
-View dlthub license status.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt`](#dlt).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`info`](#dlt-license-info) - Show the installed license
-* [`scopes`](#dlt-license-scopes) - Show available scopes
-* [`issue`](#dlt-license-issue) - Issues a self-signed trial license that may be used for development, testing and for ci ops.
-
-</details>
-
-### `dlt license info`
-
-Show the installed license.
-
-**Usage**
-```sh
-dlt license info [-h]
-```
-
-**Description**
-
-Show the installed license.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt license`](#dlt-license).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt license scopes`
-
-Show available scopes.
-
-**Usage**
-```sh
-dlt license scopes [-h]
-```
-
-**Description**
-
-Show available scopes.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt license`](#dlt-license).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt license issue`
-
-Issues a self-signed trial license that may be used for development, testing and for ci ops.
-
-**Usage**
-```sh
-dlt license issue [-h] scope
-```
-
-**Description**
-
-Issue a new self-signed trial license.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt license`](#dlt-license).
-
-**Positional arguments**
-* `scope` - Scope of the license, a comma separated list of the scopes: ['dlthub.dbt_generator', 'dlthub.sources.mssql', 'dlthub.project', 'dlthub.transformation', 'dlthub.data_quality', 'dlthub.destinations.iceberg', 'dlthub.destinations.snowflake_plus', 'dlthub.runner']
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
 ## `dlt runtime`
 
 Connect to dltHub Runtime and run your code remotely.
@@ -411,7 +280,7 @@ dlt runtime [-h]
 
 **Description**
 
-Allows to connect to the dltHub Runtime, deploy and run local workspaces there. Requires dltHub license.
+Allows you to connect to the dltHub Runtime, deploy and run local workspaces there. Requires dltHub license.
 
 <details>
 
@@ -423,8 +292,8 @@ Inherits arguments from [`dlt`](#dlt).
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
-* [`login`](#dlt-runtime-login) - Login to dlthub runtime using github oauth and connect current workspace to the remote one
-* [`logout`](#dlt-runtime-logout) - Logout from dlthub runtime
+* [`login`](#dlt-runtime-login) - Log in to dlthub runtime and connect the current workspace to the remote one
+* [`logout`](#dlt-runtime-logout) - Log out from dlthub runtime
 * [`launch`](#dlt-runtime-launch) - Deploy code/config and run a script (follow status and logs by default)
 * [`serve`](#dlt-runtime-serve) - Deploy and serve an interactive notebook/app (read-only) and follow until ready
 * [`publish`](#dlt-runtime-publish) - Generate or revoke a public link for an interactive notebook/app
@@ -434,18 +303,18 @@ Inherits arguments from [`dlt`](#dlt).
 * [`dashboard`](#dlt-runtime-dashboard) - Open the runtime dashboard for this workspace
 * [`deploy`](#dlt-runtime-deploy) - Sync code and configuration to runtime without running anything
 * [`info`](#dlt-runtime-info) - Show overview of current runtime workspace
-* [`deployment`](#dlt-runtime-deployment) - Manipulate deployments in workspace
+* [`deployment`](#dlt-runtime-deployment) - Manipulate deployments in the workspace
 * [`job`](#dlt-runtime-job) - List, create and inspect jobs
 * [`jobs`](#dlt-runtime-jobs) - List, create and inspect jobs
 * [`job-run`](#dlt-runtime-job-run) - List, create and inspect job runs
 * [`job-runs`](#dlt-runtime-job-runs) - List, create and inspect job runs
-* [`configuration`](#dlt-runtime-configuration) - Manipulate configurations in workspace
+* [`configuration`](#dlt-runtime-configuration) - Manipulate configurations in the workspace
 
 </details>
 
 ### `dlt runtime login`
 
-Login to dltHub Runtime using Github OAuth and connect current workspace to the remote one.
+Log in to dltHub Runtime and connect the current workspace to the remote one.
 
 **Usage**
 ```sh
@@ -454,7 +323,7 @@ dlt runtime login [-h]
 
 **Description**
 
-Login to dltHub Runtime using Github OAuth.
+Log in to dltHub Runtime.
 
 <details>
 
@@ -469,7 +338,7 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 ### `dlt runtime logout`
 
-Logout from dltHub Runtime.
+Log out from dltHub Runtime.
 
 **Usage**
 ```sh
@@ -478,7 +347,7 @@ dlt runtime logout [-h]
 
 **Description**
 
-Logout from dltHub Runtime.
+Log out from dltHub Runtime.
 
 <details>
 
@@ -525,7 +394,7 @@ Deploy and serve an interactive notebook/app (read-only) and follow until ready.
 
 **Usage**
 ```sh
-dlt runtime serve [-h] script_path
+dlt runtime serve [-h] [--app-type {marimo,mcp,streamlit}] script_path
 ```
 
 **Description**
@@ -543,6 +412,7 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--app-type {marimo,mcp,streamlit}` - Specify if the interactive job is a marimo notebook, streamlit app, or mcp server
 
 </details>
 
@@ -609,7 +479,7 @@ Show logs for latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime logs [-h] [-f] script_path_or_job_name [run_number]
+dlt runtime logs [-h] script_path_or_job_name [run_number]
 ```
 
 **Description**
@@ -628,7 +498,6 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `-f, --follow` - Follow the logs of the run in tailing mode
 
 </details>
 
@@ -719,7 +588,7 @@ dlt runtime info [-h]
 
 **Description**
 
-Show workspace id and summary of deployments, configurations and jobs.
+Show workspace ID and summary of deployments, configurations and jobs.
 
 <details>
 
@@ -734,7 +603,7 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 ### `dlt runtime deployment`
 
-Manipulate deployments in workspace.
+Manipulate deployments in the workspace.
 
 **Usage**
 ```sh
@@ -743,7 +612,7 @@ dlt runtime deployment [-h] [deployment_version_no] {list,info,sync} ...
 
 **Description**
 
-Manipulate deployments in workspace.
+Manipulate deployments in the workspace.
 
 <details>
 
@@ -923,7 +792,8 @@ Create a job without running it.
 **Usage**
 ```sh
 dlt runtime job [script_path_or_job_name] create [-h] [--name [NAME]]
-    [--schedule [SCHEDULE]] [--interactive] [--description [DESCRIPTION]]
+    [--schedule [SCHEDULE]] [--interactive] [--app-type {marimo,mcp,streamlit}]
+    [--description [DESCRIPTION]]
 ```
 
 **Description**
@@ -941,6 +811,7 @@ Inherits arguments from [`dlt runtime job`](#dlt-runtime-job).
 * `--name [NAME]` - Job name to create
 * `--schedule [SCHEDULE]` - Cron schedule for the job if it's a scheduled one
 * `--interactive` - Run the job interactively, e.g. for a notebook
+* `--app-type {marimo,mcp,streamlit}` - Specify if the interactive app is a marimo notebook, streamlit app, or mcp server.
 * `--description [DESCRIPTION]` - Job description
 
 </details>
@@ -1032,7 +903,8 @@ Create a job without running it.
 **Usage**
 ```sh
 dlt runtime jobs [script_path_or_job_name] create [-h] [--name [NAME]]
-    [--schedule [SCHEDULE]] [--interactive] [--description [DESCRIPTION]]
+    [--schedule [SCHEDULE]] [--interactive] [--app-type {marimo,mcp,streamlit}]
+    [--description [DESCRIPTION]]
 ```
 
 **Description**
@@ -1050,6 +922,7 @@ Inherits arguments from [`dlt runtime jobs`](#dlt-runtime-jobs).
 * `--name [NAME]` - Job name to create
 * `--schedule [SCHEDULE]` - Cron schedule for the job if it's a scheduled one
 * `--interactive` - Run the job interactively, e.g. for a notebook
+* `--app-type {marimo,mcp,streamlit}` - Specify if the interactive app is a marimo notebook, streamlit app, or mcp server.
 * `--description [DESCRIPTION]` - Job description
 
 </details>
@@ -1076,7 +949,7 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
 * `script_path_or_job_name` - Local script path or job name. required for all commands except `list`
-* `run_number` - Run number. used in all commands except `list` and `create` as optional argument. if not specified, the latest run of given script be used.
+* `run_number` - Run number. used in all commands except `list` and `create` as optional argument. if not specified, the latest run of the given script will be used.
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -1168,12 +1041,12 @@ Show logs for the latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime job-run [script_path_or_job_name] [run_number] logs [-h] [-f]
+dlt runtime job-run [script_path_or_job_name] [run_number] logs [-h]
 ```
 
 **Description**
 
-Show logs for the latest or selected job run. Use --follow to follow the logs in tailing mode.
+Show logs for the latest or selected job run. Will follow logs if the run is not in a terminal state.
 
 <details>
 
@@ -1183,7 +1056,6 @@ Inherits arguments from [`dlt runtime job-run`](#dlt-runtime-job-run).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `-f, --follow` - Follow the logs of the run in tailing mode
 
 </details>
 
@@ -1233,7 +1105,7 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
 * `script_path_or_job_name` - Local script path or job name. required for all commands except `list`
-* `run_number` - Run number. used in all commands except `list` and `create` as optional argument. if not specified, the latest run of given script be used.
+* `run_number` - Run number. used in all commands except `list` and `create` as optional argument. if not specified, the latest run of the given script will be used.
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -1325,12 +1197,12 @@ Show logs for the latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime job-runs [script_path_or_job_name] [run_number] logs [-h] [-f]
+dlt runtime job-runs [script_path_or_job_name] [run_number] logs [-h]
 ```
 
 **Description**
 
-Show logs for the latest or selected job run. Use --follow to follow the logs in tailing mode.
+Show logs for the latest or selected job run. Will follow logs if the run is not in a terminal state.
 
 <details>
 
@@ -1340,7 +1212,6 @@ Inherits arguments from [`dlt runtime job-runs`](#dlt-runtime-job-runs).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `-f, --follow` - Follow the logs of the run in tailing mode
 
 </details>
 
@@ -1370,7 +1241,7 @@ Inherits arguments from [`dlt runtime job-runs`](#dlt-runtime-job-runs).
 
 ### `dlt runtime configuration`
 
-Manipulate configurations in workspace.
+Manipulate configurations in the workspace.
 
 **Usage**
 ```sh
@@ -1379,7 +1250,7 @@ dlt runtime configuration [-h] [configuration_version_no] {list,info,sync} ...
 
 **Description**
 
-Manipulate configurations in workspace.
+Manipulate configurations in the workspace.
 
 <details>
 
@@ -1466,6 +1337,110 @@ Create new configuration if local config content changed.
 <summary>Show Arguments and Options</summary>
 
 Inherits arguments from [`dlt runtime configuration`](#dlt-runtime-configuration).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+## `dlt license`
+
+View dlthub license status.
+
+**Usage**
+```sh
+dlt license [-h] {info,scopes,issue} ...
+```
+
+**Description**
+
+View dlthub license status.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`info`](#dlt-license-info) - Show the installed license
+* [`scopes`](#dlt-license-scopes) - Show available scopes
+* [`issue`](#dlt-license-issue) - Issues a self-signed trial license that may be used for development, testing and for ci ops.
+
+</details>
+
+### `dlt license info`
+
+Show the installed license.
+
+**Usage**
+```sh
+dlt license info [-h]
+```
+
+**Description**
+
+Show the installed license.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt license`](#dlt-license).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt license scopes`
+
+Show available scopes.
+
+**Usage**
+```sh
+dlt license scopes [-h]
+```
+
+**Description**
+
+Show available scopes.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt license`](#dlt-license).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt license issue`
+
+Issues a self-signed trial license that may be used for development, testing and for ci ops.
+
+**Usage**
+```sh
+dlt license issue [-h] scope
+```
+
+**Description**
+
+Issue a new self-signed trial license.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt license`](#dlt-license).
+
+**Positional arguments**
+* `scope` - Scope of the license, a comma separated list of the scopes: ['dlthub.dbt_generator', 'dlthub.sources.mssql', 'dlthub.project', 'dlthub.transformation', 'dlthub.data_quality', 'dlthub.destinations.iceberg', 'dlthub.destinations.snowflake_plus', 'dlthub.runner']
 
 **Options**
 * `-h, --help` - Show this help message and exit

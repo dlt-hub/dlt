@@ -4,6 +4,7 @@ from typing import (
     Generic,
     ClassVar,
     Any,
+    List,
     Optional,
     Type,
     Dict,
@@ -75,11 +76,15 @@ except MissingDependencyException:
     pandas = None
 
 
-class IncrementalCustomMetrics(TypedDict, total=False):
+class IncrementalMetricsRow(TypedDict, total=False):
     unfiltered_items_count: int
     unfiltered_batches_count: int
     initial_unique_hashes_count: int
     final_unique_hashes_count: int
+
+
+class IncrementalCustomMetrics(TypedDict, total=False):
+    incremental: List[IncrementalMetricsRow]
 
 
 @configspec
@@ -212,12 +217,17 @@ class Incremental(
         """Bound pipe"""
         self.range_start = range_start
         self.range_end = range_end
-        self._custom_metrics: IncrementalCustomMetrics = {
+        self._incremental_metrics: IncrementalMetricsRow = {
             "unfiltered_items_count": 0,
             "unfiltered_batches_count": 0,
             "initial_unique_hashes_count": 0,
             "final_unique_hashes_count": 0,
         }
+        self._custom_metrics: IncrementalCustomMetrics = {
+            "incremental": [self._incremental_metrics],
+        }
+        self._dedup_key_from_hints: Optional[bool] = False if primary_key is not None else None
+        """Tells if dedup key was set from resource hints, to prevent overrides of directly set values"""
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -225,8 +235,21 @@ class Incremental(
 
     @primary_key.setter
     def primary_key(self, value: str) -> None:
+        # set deduplication key directly
+        self.set_deduplication_key(value, from_hints=False)
+
+    def set_deduplication_key(
+        self, value: Optional[TTableHintTemplate[TColumnNames]], from_hints: bool
+    ) -> None:
+        """Set deduplication key. Manage priority with `from_hints` flag so values coming
+        from hints never overwrite values set directly"""
+        # do not allow to set primary key is it is being set from resource hints
+        # but was already set directly on incremental
+        if from_hints and self._dedup_key_from_hints is False:
+            return
         # set key in incremental and data type transformers
         self._primary_key = value
+        self._dedup_key_from_hints = from_hints
         if self._transformers:
             for transform in self._transformers.values():
                 transform.primary_key = value
@@ -253,12 +276,15 @@ class Incremental(
         """
         # func, resource name and primary key are not part of the dict
         kwargs = dict(
-            self, last_value_func=self.last_value_func, primary_key=self._primary_key, lag=self.lag
+            self,
+            last_value_func=self.last_value_func,
+            primary_key=self._primary_key,
+            lag=self.lag,
         )
         for key, value in dict(
             other,
             last_value_func=other.last_value_func,
-            primary_key=other.primary_key,
+            primary_key=other._primary_key,
             lag=other.lag,
         ).items():
             if value is not None:
@@ -275,6 +301,8 @@ class Incremental(
         merged.resource_name = self.resource_name
         if other.resource_name:
             merged.resource_name = other.resource_name
+        if other._dedup_key_from_hints is not None:
+            merged._dedup_key_from_hints = other._dedup_key_from_hints
         # also pass if resolved
         merged.__is_resolved__ = other.__is_resolved__
         merged.__exception__ = other.__exception__
@@ -473,7 +501,10 @@ class Incremental(
 
         try:
             # we can move it to separate module when we have more of those
-            from airflow.operators.python import get_current_context  # noqa
+            try:
+                from airflow.operators.python import get_current_context  # noqa
+            except ImportError:
+                from airflow.sdk import get_current_context  # type: ignore[no-redef,unused-ignore]
 
             context = get_current_context()
             start_date = context["data_interval_start"]
@@ -595,8 +626,8 @@ class Incremental(
             return rows
 
         # collect metrics
-        self.custom_metrics["unfiltered_items_count"] += count_rows_in_items(rows)
-        self.custom_metrics["unfiltered_batches_count"] += 1
+        self._incremental_metrics["unfiltered_items_count"] += count_rows_in_items(rows)
+        self._incremental_metrics["unfiltered_batches_count"] += 1
 
         transformer = self._get_transform(rows)
         if isinstance(rows, list):
@@ -629,13 +660,13 @@ class Incremental(
             )
             initial_hash_list = self._cached_state.get("unique_hashes")
             initial_hash_count = len(initial_hash_list) if initial_hash_list else 0
-            self.custom_metrics["initial_unique_hashes_count"] = initial_hash_count
+            self._incremental_metrics["initial_unique_hashes_count"] = initial_hash_count
 
             # add directly computed hashes
             unique_hashes.update(transformer.unique_hashes)
             self._cached_state["unique_hashes"] = list(unique_hashes)
             final_hash_count = len(self._cached_state["unique_hashes"])
-            self.custom_metrics["final_unique_hashes_count"] = final_hash_count
+            self._incremental_metrics["final_unique_hashes_count"] = final_hash_count
 
             self._check_duplicate_cursor_threshold(initial_hash_count, final_hash_count)
         else:
@@ -667,23 +698,39 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem, IncrementalCustomMetri
     _incremental: Optional[Incremental[Any]] = None
     """Keeps the injectable incremental"""
     _from_hints: bool = False
-    """If True, incremental was set explicitly from_hints"""
+    """If True, incremental was set explicitly from hints"""
     _resource_name: str = None
 
-    def __init__(self, primary_key: Optional[TTableHintTemplate[TColumnNames]] = None) -> None:
+    def __init__(self) -> None:
         """Creates a wrapper over a resource function that accepts Incremental instance in its argument to perform incremental loading.
 
         The wrapper delays instantiation of the Incremental to the moment of actual execution and is currently used by `dlt.resource` decorator.
         The wrapper explicitly (via `resource_name`) parameter binds the Incremental state to a resource state.
         Note that wrapper implements `FilterItem` transform interface and functions as a processing step in the before-mentioned resource pipe.
-
-        Args:
-            primary_key (TTableHintTemplate[TColumnKey], optional): A primary key to be passed to Incremental Instance at execution. Defaults to None.
         """
-        self.primary_key = primary_key
+        self._primary_key: Optional[TTableHintTemplate[TColumnNames]] = None
         self.incremental_state: IncrementalColumnState = None
         self._allow_external_schedulers: bool = None
         self._bound_pipe: SupportsPipe = None
+
+    @property
+    def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
+        return self._primary_key
+
+    @primary_key.setter
+    def primary_key(self, value: Optional[TTableHintTemplate[TColumnNames]]) -> None:
+        if self._incremental is not None:
+            self._incremental.set_deduplication_key(value, from_hints=True)
+            self._primary_key = self._incremental.primary_key
+        else:
+            self._primary_key = value
+
+    def set_deduplication_key(
+        self, value: Optional[TTableHintTemplate[TColumnNames]], from_hints: Literal[True]
+    ) -> None:
+        """Set deduplication key, wrapper is always called from resource so from_hints must be always True"""
+        assert from_hints is True
+        self.primary_key = value
 
     @staticmethod
     def should_wrap(sig: inspect.Signature) -> bool:
@@ -810,6 +857,12 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem, IncrementalCustomMetri
             incremental = Incremental.ensure_instance(incremental)
         self._from_hints = from_hints
         self._incremental = incremental
+        # sync primary_key between wrapper and inner incremental
+        if incremental is not None:
+            if self._primary_key is not None:
+                incremental.set_deduplication_key(self._primary_key, from_hints=True)
+            if incremental._primary_key is not None:
+                self._primary_key = incremental.primary_key
 
     @property
     def allow_external_schedulers(self) -> bool:
@@ -845,11 +898,6 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem, IncrementalCustomMetri
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if not self._incremental:
             return item
-        if self._incremental.primary_key is None:
-            self._incremental.primary_key = self.primary_key
-        elif self.primary_key is None:
-            # propagate from incremental
-            self.primary_key = self._incremental.primary_key
         return self._incremental(item, meta)
 
 

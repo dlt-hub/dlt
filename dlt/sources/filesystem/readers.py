@@ -27,11 +27,21 @@ def _read_csv(
 
     # apply defaults to pandas kwargs
     kwargs = {**{"header": "infer", "chunksize": chunksize}, **pandas_kwargs}
+    # For some remote file systems (for example, sftp/paramiko), decoding may happen before
+    # pandas gets a chance to apply `encoding=...`. If encoding is explicitly provided,
+    # decode at file-open level and let pandas consume text directly.
+    open_mode = "rb"
+    open_kwargs = {}
+    if "encoding" in kwargs:
+        open_mode = "rt"
+        open_kwargs["encoding"] = kwargs.pop("encoding")
+        if "encoding_errors" in kwargs:
+            open_kwargs["errors"] = kwargs.pop("encoding_errors")
 
     for file_obj in items:
         # Here we use pandas chunksize to read the file in chunks and avoid loading the whole file
         # in memory.
-        with file_obj.open() as file:
+        with file_obj.open(mode=open_mode, **open_kwargs) as file:
             for df in pd.read_csv(file, **kwargs):
                 yield df.to_dict(orient="records")
 

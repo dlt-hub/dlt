@@ -8,15 +8,14 @@ from airflow import DAG
 from airflow.decorators import task, dag
 from airflow.operators.python import PythonOperator
 from airflow.models.variable import Variable
-from airflow.models.taskinstance import TaskInstance
-from airflow.utils.state import State, DagRunState
-from airflow.utils.types import DagRunType
 
 import dlt
 from dlt.common import pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import PluggableRunContext
 from dlt.common.configuration.providers.vault import SECRETS_TOML_KEY
+
+from tests.helpers.airflow_tests.utils import run_task
 
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz="Europe/Berlin")
 
@@ -48,20 +47,10 @@ def test_airflow_secrets_toml_provider() -> None:
         test_task()
 
     dag_def: DAG = test_dag()
-    dag_def.create_dagrun(
-        state=DagRunState.RUNNING,
-        execution_date=DEFAULT_DATE,
-        start_date=DEFAULT_DATE,
-        run_type=DagRunType.MANUAL,
-    )
-    task_def = dag_def.task_dict["test_task"]
-    ti = TaskInstance(task=task_def, execution_date=DEFAULT_DATE)
-    ti.run()
-    # print(task_def.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE))
+    ti = run_task(dag_def, "test_task", execution_date=DEFAULT_DATE)
 
     result = ti.xcom_pull(task_ids="test_task")
 
-    assert ti.state == State.SUCCESS
     assert result["name"] == "Airflow Secrets TOML Provider"
     assert result["supports_secrets"]
     assert result["api_key_from_provider"] == "test_value"
@@ -87,20 +76,10 @@ def test_airflow_secrets_toml_provider_import_dlt_dag() -> None:
         test_task()
 
     dag_def: DAG = test_dag()
-    dag_def.create_dagrun(
-        state=DagRunState.RUNNING,
-        execution_date=DEFAULT_DATE,
-        start_date=DEFAULT_DATE,
-        run_type=DagRunType.MANUAL,
-    )
-    task_def = dag_def.task_dict["test_task"]
-    ti = TaskInstance(task=task_def, execution_date=DEFAULT_DATE)
-    ti.run()
-    # print(task_def.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE))
+    ti = run_task(dag_def, "test_task", execution_date=DEFAULT_DATE)
 
     result = ti.xcom_pull(task_ids="test_task")
 
-    assert ti.state == State.SUCCESS
     assert result["api_key_from_provider"] == "test_value"
 
 
@@ -123,25 +102,15 @@ def test_airflow_secrets_toml_provider_import_dlt_task() -> None:
         test_task()
 
     dag_def: DAG = test_dag()
-    dag_def.create_dagrun(
-        state=DagRunState.RUNNING,
-        execution_date=DEFAULT_DATE,
-        start_date=DEFAULT_DATE,
-        run_type=DagRunType.MANUAL,
-    )
-    task_def = dag_def.task_dict["test_task"]
-    ti = TaskInstance(task=task_def, execution_date=DEFAULT_DATE)
-    ti.run()
-    # print(task_def.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE))
+    ti = run_task(dag_def, "test_task", execution_date=DEFAULT_DATE)
 
     result = ti.xcom_pull(task_ids="test_task")
 
-    assert ti.state == State.SUCCESS
     assert result["api_key_from_provider"] == "test_value"
 
 
 def test_airflow_secrets_toml_provider_is_loaded():
-    dag = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
+    dag_inst = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
 
     def test_task():
         from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
@@ -164,28 +133,17 @@ def test_airflow_secrets_toml_provider_is_loaded():
             "api_key_from_provider": api_key,
         }
 
-    task = PythonOperator(task_id="test_task", python_callable=test_task, dag=dag)
-
-    dag.create_dagrun(
-        state=DagRunState.RUNNING,
-        execution_date=DEFAULT_DATE,
-        start_date=DEFAULT_DATE,
-        run_type=DagRunType.MANUAL,
-    )
-
-    ti = TaskInstance(task=task, execution_date=DEFAULT_DATE)
-
-    ti.run()
+    PythonOperator(task_id="test_task", python_callable=test_task, dag=dag_inst)
+    ti = run_task(dag_inst, "test_task", execution_date=DEFAULT_DATE)
 
     result = ti.xcom_pull(task_ids="test_task")
 
-    assert ti.state == State.SUCCESS
     assert result["airflow_secrets_toml_provider_is_loaded"]
     assert result["api_key_from_provider"] == "test_value"
 
 
 def test_airflow_secrets_toml_provider_missing_variable():
-    dag = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
+    dag_inst = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
 
     def test_task():
         from dlt.common.configuration.specs import config_providers_context
@@ -201,27 +159,16 @@ def test_airflow_secrets_toml_provider_missing_variable():
             "airflow_secrets_toml": provider.to_toml(),
         }
 
-    task = PythonOperator(task_id="test_task", python_callable=test_task, dag=dag)
-
-    dag.create_dagrun(
-        state=DagRunState.RUNNING,
-        execution_date=DEFAULT_DATE,
-        start_date=DEFAULT_DATE,
-        run_type=DagRunType.MANUAL,
-    )
-
-    ti = TaskInstance(task=task, execution_date=DEFAULT_DATE)
-
-    ti.run()
+    PythonOperator(task_id="test_task", python_callable=test_task, dag=dag_inst)
+    ti = run_task(dag_inst, "test_task", execution_date=DEFAULT_DATE)
 
     result = ti.xcom_pull(task_ids="test_task")
 
-    assert ti.state == State.SUCCESS
     assert result["airflow_secrets_toml"] == ""
 
 
 def test_airflow_secrets_toml_provider_invalid_content():
-    dag = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
+    dag_inst = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
 
     def test_task():
         from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
@@ -241,27 +188,16 @@ def test_airflow_secrets_toml_provider_invalid_content():
             "exception_raised": exception_raised,
         }
 
-    task = PythonOperator(task_id="test_task", python_callable=test_task, dag=dag)
-
-    dag.create_dagrun(
-        state=DagRunState.RUNNING,
-        execution_date=DEFAULT_DATE,
-        start_date=DEFAULT_DATE,
-        run_type=DagRunType.MANUAL,
-    )
-
-    ti = TaskInstance(task=task, execution_date=DEFAULT_DATE)
-
-    ti.run()
+    PythonOperator(task_id="test_task", python_callable=test_task, dag=dag_inst)
+    ti = run_task(dag_inst, "test_task", execution_date=DEFAULT_DATE)
 
     result = ti.xcom_pull(task_ids="test_task")
 
-    assert ti.state == State.SUCCESS
     assert result["exception_raised"]
 
 
 def test_airflow_pipeline_scoped_secrets_toml():
-    dag = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
+    dag_inst = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
 
     def test_task():
         import dlt
@@ -280,20 +216,9 @@ dataset_name="test_dataset_scoped"
             "dataset_name": pipeline.dataset_name,
         }
 
-    task = PythonOperator(task_id="test_task", python_callable=test_task, dag=dag)
-
-    dag.create_dagrun(
-        state=DagRunState.RUNNING,
-        execution_date=DEFAULT_DATE,
-        start_date=DEFAULT_DATE,
-        run_type=DagRunType.MANUAL,
-    )
-
-    ti = TaskInstance(task=task, execution_date=DEFAULT_DATE)
-
-    ti.run()
+    PythonOperator(task_id="test_task", python_callable=test_task, dag=dag_inst)
+    ti = run_task(dag_inst, "test_task", execution_date=DEFAULT_DATE)
 
     result = ti.xcom_pull(task_ids="test_task")
 
-    assert ti.state == State.SUCCESS
     assert result["dataset_name"] == "test_dataset_scoped"

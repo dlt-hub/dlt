@@ -74,7 +74,7 @@ connect_timeout = 30
 ```
 
 ## Write disposition
-All write dispositions are supported.
+All write dispositions are supported, including the [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) and [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy) merge strategies.
 
 If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and recreated with an `ALTER SCHEMA ... TRANSFER`. The operation is atomic: Fabric supports DDL transactions.
 

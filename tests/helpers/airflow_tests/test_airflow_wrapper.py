@@ -9,8 +9,9 @@ from dlt.common.runtime.exec_info import is_running_in_airflow_task
 pytest.importorskip("airflow")
 from airflow import DAG
 from airflow.decorators import dag
-from airflow.operators.python import BaseOperator, PythonOperator, get_current_context
-from airflow.models import TaskInstance
+from airflow.models import BaseOperator, TaskInstance
+from airflow.operators.empty import EmptyOperator
+from airflow.operators.python import PythonOperator, get_current_context
 from airflow.utils.state import DagRunState
 from airflow.utils.types import DagRunType
 
@@ -22,6 +23,7 @@ from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCa
 from dlt.helpers.airflow_helper import PipelineTasksGroup, DEFAULT_RETRY_BACKOFF
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineStepFailed
 
+from tests.helpers.airflow_tests.utils import _get_airflow_version
 from tests.pipeline.utils import load_table_counts
 from tests.utils import get_test_storage_root
 
@@ -193,7 +195,6 @@ def test_regular_run() -> None:
             decompose="none",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
 
     dag_def: DAG = dag_regular()
@@ -236,7 +237,6 @@ def test_regular_run() -> None:
             decompose="serialize",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
 
     dag_def = dag_decomposed()
@@ -295,7 +295,8 @@ def test_run() -> None:
     assert isinstance(task, PythonOperator)
 
 
-def test_parallel_run():
+@pytest.mark.parametrize("serialize_first_task", [True, False])
+def test_parallel_run(serialize_first_task: bool):
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
         dataset_name="mock_data_" + uniq_id(),
@@ -319,7 +320,6 @@ def test_parallel_run():
             wipe_local_data=False,
         )
 
-        # set duckdb to be outside of pipeline folder which is dropped on each task
         pipeline_dag_parallel = dlt.pipeline(
             pipeline_name="pipeline_dag_parallel",
             dataset_name="mock_data_" + uniq_id(),
@@ -329,13 +329,18 @@ def test_parallel_run():
             pipeline_dag_parallel,
             mock_data_source(),
             decompose="parallel",
+            serialize_first_task=serialize_first_task,
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
 
     dag_def = dag_parallel()
-    assert len(tasks_list) == 4
+    if serialize_first_task:
+        assert len(tasks_list) == 4
+    else:
+        assert len(tasks_list) == 5
+        assert isinstance(tasks_list[0], EmptyOperator)
+        assert isinstance(tasks_list[-1], EmptyOperator)
     dag_def.test()
 
     pipeline_dag_parallel = dlt.attach(
@@ -343,11 +348,10 @@ def test_parallel_run():
         destination=dlt.destinations.duckdb(credentials=quackdb_path),
     )
     results = load_table_counts(pipeline_dag_parallel)
-
     assert results == pipeline_standalone_counts
 
-    # verify tasks 1-2 in between tasks 0 and 3
-    for task in dag_def.tasks[1:3]:
+    # verify middle tasks fan out from start and join at end
+    for task in dag_def.tasks[1:-1]:
         assert task.downstream_task_ids == set([dag_def.tasks[-1].task_id])
         assert task.upstream_task_ids == set([dag_def.tasks[0].task_id])
 
@@ -383,7 +387,6 @@ def test_parallel_incremental():
             decompose="parallel",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
 
     with mock.patch("dlt.helpers.airflow_helper.logger.warn") as warn_mock:
@@ -402,7 +405,8 @@ def test_parallel_incremental():
         )
 
 
-def test_parallel_isolated_run():
+@pytest.mark.parametrize("serialize_first_task", [True, False])
+def test_parallel_isolated_run(serialize_first_task: bool):
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
         dataset_name="mock_data_" + uniq_id(),
@@ -422,7 +426,6 @@ def test_parallel_isolated_run():
             wipe_local_data=False,
         )
 
-        # set duckdb to be outside of pipeline folder which is dropped on each task
         pipeline_dag_parallel = dlt.pipeline(
             pipeline_name="pipeline_dag_parallel",
             dataset_name="mock_data_" + uniq_id(),
@@ -432,21 +435,29 @@ def test_parallel_isolated_run():
             pipeline_dag_parallel,
             mock_data_source(),
             decompose="parallel-isolated",
+            serialize_first_task=serialize_first_task,
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
 
     dag_def = dag_parallel()
-    assert len(tasks_list) == 4
+    if serialize_first_task:
+        assert len(tasks_list) == 4
+    else:
+        assert len(tasks_list) == 5
+        assert isinstance(tasks_list[0], EmptyOperator)
+        assert isinstance(tasks_list[-1], EmptyOperator)
     dag_def.test()
 
+    # attach to each isolated pipeline and collect loaded data
     results = {}
     snake_case = SnakeCaseNamingConvention()
-    for i in range(0, 3):
+    # skip start/end EmptyOperator nodes — only source tasks have pipelines
+    source_tasks = tasks_list[1:-1] if not serialize_first_task else tasks_list[:-1]
+    for task in source_tasks:
         pipeline_dag_parallel = dlt.attach(
             pipeline_name=snake_case.normalize_identifier(
-                dag_def.tasks[i].task_id.replace("pipeline_dag_parallel.", "")[:-2]
+                task.task_id.replace("pipeline_dag_parallel.", "")[:-2]
             ),
         )
         pipeline_dag_decomposed_counts = load_table_counts(pipeline_dag_parallel)
@@ -454,13 +465,14 @@ def test_parallel_isolated_run():
 
     assert results == pipeline_standalone_counts
 
-    # verify tasks 1-2 in between tasks 0 and 3
-    for task in dag_def.tasks[1:3]:
+    # verify middle tasks fan out from start and join at end
+    for task in dag_def.tasks[1:-1]:  # type: ignore[assignment,unused-ignore]
         assert task.downstream_task_ids == set([dag_def.tasks[-1].task_id])
         assert task.upstream_task_ids == set([dag_def.tasks[0].task_id])
 
 
-def test_parallel_run_single_resource():
+@pytest.mark.parametrize("serialize_first_task", [True, False])
+def test_parallel_run_single_resource(serialize_first_task: bool):
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
         dataset_name="mock_data_" + uniq_id(),
@@ -480,7 +492,6 @@ def test_parallel_run_single_resource():
             wipe_local_data=False,
         )
 
-        # set duckdb to be outside of pipeline folder which is dropped on each task
         pipeline_dag_parallel = dlt.pipeline(
             pipeline_name="pipeline_dag_parallel",
             dataset_name="mock_data_" + uniq_id(),
@@ -490,13 +501,18 @@ def test_parallel_run_single_resource():
             pipeline_dag_parallel,
             mock_data_single_resource(),
             decompose="parallel",
+            serialize_first_task=serialize_first_task,
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
 
     dag_def = dag_parallel()
-    assert len(tasks_list) == 2
+    if serialize_first_task:
+        assert len(tasks_list) == 2
+    else:
+        assert len(tasks_list) == 3
+        assert isinstance(tasks_list[0], EmptyOperator)
+        assert isinstance(tasks_list[-1], EmptyOperator)
     dag_def.test()
     pipeline_dag_parallel = dlt.attach(
         pipeline_name="pipeline_dag_parallel",
@@ -505,7 +521,6 @@ def test_parallel_run_single_resource():
     assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
 
     assert dag_def.tasks[0].downstream_task_ids == set([dag_def.tasks[1].task_id])
-    assert dag_def.tasks[1].upstream_task_ids == set([dag_def.tasks[0].task_id])
 
 
 # def test_run_with_dag_config()
@@ -526,6 +541,10 @@ def test_parallel_run_single_resource():
 #         tasks.add_run(pipeline_fail_3, _fail_3, decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
 
 
+@pytest.mark.skipif(
+    _get_airflow_version().major >= 3,
+    reason="AF3 removed create_dagrun/_run_raw_task pattern",
+)
 def test_run_with_retry() -> None:
     retries = 2
     now = pendulum.now()
@@ -642,7 +661,6 @@ def test_run_decomposed_with_state_wipe() -> None:
             decompose="serialize",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
 
     dag_def: DAG = dag_regular()
@@ -691,7 +709,6 @@ def test_run_multiple_sources() -> None:
             decompose="serialize",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
         nst_tasks = tasks.add_run(
             pipeline_dag_regular,
@@ -699,7 +716,6 @@ def test_run_multiple_sources() -> None:
             decompose="serialize",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
         # connect end of first run to a head of a second
         st_tasks[-1] >> nst_tasks[0]
@@ -755,7 +771,6 @@ def test_run_multiple_sources() -> None:
             decompose="serialize",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
         tasks.add_run(
             pipeline_dag_regular,
@@ -763,7 +778,6 @@ def test_run_multiple_sources() -> None:
             decompose="serialize",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
         # do not connect graph
 
@@ -808,7 +822,6 @@ def test_run_multiple_sources() -> None:
             decompose="serialize",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
         hb_tasks = tasks.add_run(
             pipeline_dag_regular,
@@ -816,7 +829,6 @@ def test_run_multiple_sources() -> None:
             decompose="serialize",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
         # create almost randomly connected tasks across two runs
         for pd_t, hb_t in zip(pd_tasks, hb_tasks):
@@ -891,7 +903,6 @@ def test_task_already_added():
             decompose="none",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )[0]
         assert task.task_id == "test_pipeline.mock_data_source__r_init-_t_init_post-_t1-_t2-2-more"
 
@@ -901,7 +912,6 @@ def test_task_already_added():
             decompose="none",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )[0]
         assert (
             task.task_id == "test_pipeline.mock_data_source__r_init-_t_init_post-_t1-_t2-2-more-2"
@@ -913,7 +923,6 @@ def test_task_already_added():
             decompose="none",
             trigger_rule="all_done",
             retries=0,
-            provide_context=True,
         )
         assert (
             tasks_list[0].task_id
@@ -925,14 +934,22 @@ def test_task_already_added():
     dag_def.test()
 
 
+def _get_tomorrow_ds() -> str:
+    """Get tomorrow's date string from Airflow context, compatible with AF2 and AF3."""
+    context = get_current_context()
+    if _get_airflow_version().major >= 3:
+        return context["logical_date"].add(days=1).format("YYYY-MM-DD")
+    return context["tomorrow_ds"]
+
+
 def callable_source():
     @dlt.resource
     def test_res():
-        context = get_current_context()
+        tomorrow = _get_tomorrow_ds()
         yield [
-            {"id": 1, "tomorrow": context["tomorrow_ds"]},
-            {"id": 2, "tomorrow": context["tomorrow_ds"]},
-            {"id": 3, "tomorrow": context["tomorrow_ds"]},
+            {"id": 1, "tomorrow": tomorrow},
+            {"id": 2, "tomorrow": tomorrow},
+            {"id": 3, "tomorrow": tomorrow},
         ]
 
     return test_res
@@ -970,8 +987,8 @@ def test_run_callable() -> None:
 
 
 def on_before_run():
-    context = get_current_context()
-    logger.info(f'on_before_run test: {context["tomorrow_ds"]}')
+    tomorrow = _get_tomorrow_ds()
+    logger.info(f"on_before_run test: {tomorrow}")
 
 
 def test_on_before_run() -> None:

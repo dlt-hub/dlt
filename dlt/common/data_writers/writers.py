@@ -518,7 +518,9 @@ class ArrowToParquetWriter(ParquetDataWriter):
         # pyarrow writer starts a row group for each item it writes (even with 0 rows)
         # it also converts batches into tables internally. by creating a single table
         # we allow the user rudimentary control over row group size via max buffered items
-        table = concat_batches_and_tables_in_order(items)
+        table = concat_batches_and_tables_in_order(
+            items, promote_options=self.parquet_format.arrow_concat_promote_options
+        )
         # release batch references - concat is zero-copy so table shares the
         # underlying buffers via Arrow refcounting. clearing the input list
         # drops the Python-level RecordBatch/Table references so only the

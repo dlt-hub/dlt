@@ -35,6 +35,9 @@ class CustomDestinationClientConfiguration(DestinationClientConfiguration):
             or self.destination_callable is dummy_custom_destination
         ):
             raise ConfigurationValueError(
-                f"A valid callable was not provided to `{self.__class__.__name__}`. Did you"
-                " properly decorate the function with `@dlt.destination`?"
+                f"A valid callable was not provided to `{self.__class__.__name__}`. Note that"
+                " custom destination callables cannot be resolved from a process different than"
+                " the one that originally ran the pipeline, such as processes started by CLI"
+                " commands. If you are running in the same process, make sure a valid callable"
+                " is provided."
             )

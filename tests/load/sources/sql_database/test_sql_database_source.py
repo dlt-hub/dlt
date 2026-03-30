@@ -1246,13 +1246,19 @@ def test_incremental_composite_primary_key_from_table(
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("upfront_incremental", (True, False))
+@pytest.mark.parametrize("incremental_primary_key", [None, ()])
 def test_set_primary_key_deferred_incremental(
     postgres_db: PostgresSourceDB,
     upfront_incremental: bool,
     backend: TableBackend,
+    incremental_primary_key: Optional[tuple[str, ...]],
 ) -> None:
     # this tests dynamically adds primary key to resource and as consequence to incremental
-    updated_at = dlt.sources.incremental("updated_at")  # type: ignore[var-annotated]
+    # when incremental_primary_key is None, table pk should be inherited
+    # when incremental_primary_key is (), dedup is explicitly disabled and must not be overridden
+    updated_at = dlt.sources.incremental(
+        "updated_at", primary_key=incremental_primary_key
+    )  # type: ignore[var-annotated]
     resource = sql_table(
         credentials=postgres_db.credentials,
         table="chat_message",
@@ -1264,39 +1270,57 @@ def test_set_primary_key_deferred_incremental(
 
     resource.apply_hints(incremental=None if upfront_incremental else updated_at)
 
-    # nothing set for deferred reflect
-    assert resource.incremental.primary_key is None
+    # wrapper pk before extraction: None for upfront (inner not yet set on wrapper),
+    # synced from inner for apply_hints path
+    if upfront_incremental or incremental_primary_key is None:
+        assert resource.incremental.primary_key is None
+    else:
+        assert resource.incremental.primary_key == incremental_primary_key
 
     def _assert_incremental(item):
-        # for all the items, all keys must be present
         _r = dlt.current.resource()
-        # assert _r.incremental._incremental is updated_at
         if len(item) == 0:
-            # not yet propagated
-            assert _r.incremental.primary_key is None
+            # hints not yet applied (with_hints processed by extractor after this step)
+            assert _r.incremental.primary_key == incremental_primary_key
+            assert _r.incremental._incremental.primary_key == incremental_primary_key
         else:
-            assert _r.incremental.primary_key == ["id"]
-        assert _r.incremental._incremental.primary_key == ["id"]
-        assert _r.incremental._incremental._make_or_get_transformer(
-            JsonIncremental
-        )._primary_key == ["id"]
-        assert _r.incremental._incremental._make_or_get_transformer(
-            ArrowIncremental
-        )._primary_key == ["id"]
+            # after with_hints applied, _set_hints propagated resource pk
+            if incremental_primary_key is None:
+                assert _r.incremental.primary_key == ["id"]
+                assert _r.incremental._incremental.primary_key == ["id"]
+            else:
+                assert _r.incremental.primary_key == ()
+                assert _r.incremental._incremental.primary_key == ()
         return item
 
     pipeline = make_pipeline("duckdb")
     # must evaluate resource for primary key to be set
     pipeline.extract(resource.add_step(_assert_incremental))  # type: ignore[arg-type]
 
-    assert resource.incremental.primary_key == ["id"]
-    assert resource.incremental._incremental.primary_key == ["id"]
-    assert resource.incremental._incremental._make_or_get_transformer(
-        JsonIncremental
-    )._primary_key == ["id"]
-    assert resource.incremental._incremental._make_or_get_transformer(
-        ArrowIncremental
-    )._primary_key == ["id"]
+    if incremental_primary_key is None:
+        assert resource.incremental.primary_key == ["id"]
+        assert resource.incremental._incremental.primary_key == ["id"]
+        assert resource.incremental._incremental._make_or_get_transformer(
+            JsonIncremental
+        )._primary_key == ["id"]
+        assert resource.incremental._incremental._make_or_get_transformer(
+            ArrowIncremental
+        )._primary_key == ["id"]
+    else:
+        # primary_key=() must survive — dedup stays disabled
+        assert resource.incremental._incremental.primary_key == ()
+        assert (
+            resource.incremental._incremental._make_or_get_transformer(
+                JsonIncremental
+            ).boundary_deduplication
+            is False
+        )
+        assert (
+            resource.incremental._incremental._make_or_get_transformer(
+                ArrowIncremental
+            ).boundary_deduplication
+            is False
+        )
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

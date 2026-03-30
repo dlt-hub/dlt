@@ -20,9 +20,14 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import TColumnType
-from dlt.common.schema.utils import get_columns_names_with_prop, is_nullable_column
+from dlt.common import logger
+from dlt.common.schema.utils import (
+    get_columns_names_with_prop,
+    get_dedup_sort_tuple,
+    get_first_column_name_with_prop,
+    is_nullable_column,
+)
 from dlt.common.storages import FileStorage
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
@@ -127,7 +132,11 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 ]
                 auth = f"extra_credentials({', '.join(extra_credential_args)})"
             elif access_key_id and secret_access_key:
-                auth = f"'{access_key_id}','{secret_access_key}'"
+                session_token = self._staging_credentials.aws_session_token
+                if session_token:
+                    auth = f"'{access_key_id}','{secret_access_key}','{session_token}'"
+                else:
+                    auth = f"'{access_key_id}','{secret_access_key}'"
 
             return f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
 
@@ -243,9 +252,24 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         cls,
         root_table_name: str,
         staging_root_table_name: str,
-        key_clauses: Sequence[str],
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
+        if for_delete:
+            # ClickHouse lightweight DELETE doesn't support table aliases or
+            # correlated subqueries with qualified column references. Use IN
+            # with one DELETE per key group (like BigQuery's OR-split pattern).
+            sql: List[str] = []
+            for cols in (primary_keys, merge_keys):
+                if cols:
+                    col_tuple = ", ".join(cols)
+                    sql.append(
+                        f"FROM {root_table_name} WHERE ({col_tuple}) IN"
+                        f" (SELECT {col_tuple} FROM {staging_root_table_name})"
+                    )
+            return sql
+        key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
         join_conditions = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
         return [
             f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
@@ -257,7 +281,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
-        return True
+        return False
 
 
 class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
@@ -270,7 +294,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
             schema, config
         )
-        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(
+        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(  # type: ignore[override]
             dataset_name,
             staging_dataset_name,
             list(schema.tables.keys()),
@@ -388,7 +412,39 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                 self.config.table_engine_type,
             ),
         )
-        sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
+        # for ReplacingMergeTree, wire dedup_sort and hard_delete hints as engine params
+        engine_params = ""
+        if table_type == "replacing_merge_tree":
+            if table.get("write_disposition") == "append":
+                dedup_sort = get_dedup_sort_tuple(table)
+                hard_delete_col = get_first_column_name_with_prop(table, "hard_delete")
+                if dedup_sort is not None:
+                    ver_col = self.sql_client.escape_column_name(dedup_sort[0])
+                    if hard_delete_col is not None:
+                        is_deleted = self.sql_client.escape_column_name(hard_delete_col)
+                        engine_params = f"({ver_col}, {is_deleted})"
+                    else:
+                        engine_params = f"({ver_col})"
+                elif hard_delete_col is not None:
+                    logger.warning(
+                        "Table '%s' has hard_delete hint but no dedup_sort column."
+                        " hard_delete requires dedup_sort (ClickHouse requires a"
+                        " version column when is_deleted is used). hard_delete"
+                        " hint will be ignored.",
+                        table_name,
+                    )
+            else:
+                logger.warning(
+                    "Table '%s' uses replacing_merge_tree with '%s' write"
+                    " disposition. ReplacingMergeTree is only supported for"
+                    " append. Falling back to MergeTree.",
+                    table_name,
+                    table.get("write_disposition"),
+                )
+                table_type = "merge_tree"
+
+        engine_name = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)
+        sql[0] = f"{sql[0]}\nENGINE = {engine_name}{engine_params}"
 
         # PRIMARY KEY
         if primary_key_list := [

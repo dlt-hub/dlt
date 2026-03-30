@@ -252,7 +252,7 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
         "client": {
             "base_url": "https://example.com",
             "paginator": CustomPaginator(),
-            "auth": CustomOAuthAuth(access_token=cast(TSecretStrValue, "X")),
+            "auth": CustomOAuthAuth(access_token="X"),
         },
         "resource_defaults": {
             "table_name": lambda event: event["type"],
@@ -275,7 +275,7 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
         "client": {
             "base_url": "https://example.com",
             "paginator": "header_link",
-            "auth": HttpBasicAuth("my-secret", cast(TSecretStrValue, "")),
+            "auth": HttpBasicAuth("my-secret", ""),
         },
         "resources": ["users"],
     },

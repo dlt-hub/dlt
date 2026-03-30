@@ -400,6 +400,60 @@ def test_pipeline_merge(destination_config: DestinationTestConfiguration) -> Non
     LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
+def test_pipeline_insert_only_merge(destination_config: DestinationTestConfiguration) -> None:
+    if destination_config.destination_type == "lance":
+        pytest.skip("`insert-only` merge strategy not yet implement for `lance`")
+
+    data = [
+        {"doc_id": 1, "title": "The Shawshank Redemption"},
+        {"doc_id": 2, "title": "The Godfather"},
+    ]
+
+    @dlt.resource(
+        primary_key=["doc_id"],
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+    )
+    def movies_data() -> Any:
+        yield data
+
+    get_adapter(destination_config)(movies_data, no_remove_orphans=True)
+
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="movies_insert_only",
+        dev_mode=True,
+    )
+    info = pipeline.run(movies_data())
+    assert_load_info(info)
+    assert_table(pipeline, "movies_data", items=data)
+
+    # second load: existing records should NOT be updated, new record inserted
+    updated_data = [
+        {"doc_id": 1, "title": "Shawshank 2"},
+        {"doc_id": 3, "title": "The Matrix"},
+    ]
+
+    @dlt.resource(
+        primary_key=["doc_id"],
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+    )
+    def movies_update() -> Any:
+        yield updated_data
+
+    get_adapter(destination_config)(movies_update, no_remove_orphans=True)
+
+    info = pipeline.run(movies_update.with_name("movies_data")())
+    assert_load_info(info)
+
+    # should have 3 records: original 2 + The Matrix, Shawshank NOT updated
+    expected = data + [updated_data[1]]
+    assert_table(pipeline, "movies_data", items=expected)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_pipeline_with_schema_evolution(destination_config: DestinationTestConfiguration) -> None:
     data = [
         {
@@ -623,6 +677,9 @@ def test_empty_dataset_allowed(destination_config: DestinationTestConfiguration)
     info = pipe.run(adapter(["context", "created", "not a stop word"], embed=["value"]))
     # Dataset in load info is empty.
     assert info.dataset_name is None
+    # lancedb is a DWH destination with optional dataset_name — verify metrics reflect None
+    load_id = info.loads_ids[0]
+    assert info.metrics[load_id][0]["dataset_name"] is None
     client = pipe.destination_client()
     assert client.dataset_name is None  # type: ignore
     if destination_config.destination_type == "lancedb":

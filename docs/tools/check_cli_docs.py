@@ -1,12 +1,18 @@
-"""Cli for rendering markdown docs"""
+# ruff: noqa: T201
+# flake8: noqa: T201
+"""Standalone tool for generating and checking CLI reference docs.
+
+Usage:
+    uv run python tools/check_cli_docs.py <file_name> [--commands CMD ...] [--compare]
+"""
 
 import argparse
-import textwrap
+import difflib
 import os
 import re
-from typing import List
-
-import dlt._workspace.cli.echo as fmt
+import sys
+import textwrap
+from typing import List, Optional
 
 HEADER = """---
 title: Command Line Interface
@@ -46,25 +52,36 @@ class _WidthFormatter(argparse.RawTextHelpFormatter):
         super().__init__(prog, width=99999, max_help_position=99999)
 
 
+def _set_prog_recursive(
+    parser: argparse.ArgumentParser, old_prog: str, new_prog: str
+) -> None:
+    """Propagates prog to a parser and all nested subparsers."""
+    parser.prog = parser.prog.replace(old_prog, new_prog, 1)
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for subparser in action._name_parser_map.values():
+                _set_prog_recursive(subparser, old_prog, new_prog)
+
+
 def render_argparse_markdown(
     name: str,
     parser: argparse.ArgumentParser,
     /,
     *,
     header: str = HEADER,
-    commands: List[str] = None,
+    commands: Optional[List[str]] = None,
 ) -> str:
     def get_parser_help_recursive(
         parser: argparse.ArgumentParser,
         cmd: str = "",
         parent: str = "",
         nesting: int = 0,
-        help_string: str = None,
-        commands: List[str] = None,
+        help_string: Optional[str] = None,
+        commands: Optional[List[str]] = None,
     ) -> str:
         markdown = ""
 
-        # Prevent wrapping in help output for better parseability
+        # prevent wrapping in help output for better parseability
         parser.formatter_class = _WidthFormatter
         if parser.description:
             # remove markdown from description
@@ -99,7 +116,10 @@ def render_argparse_markdown(
             description = None
 
         if not parser.description:
-            fmt.warning(f"No description found for {cmd}, please consider providing one.")
+            print(
+                f"WARNING: No description found for {cmd}, please consider providing one.",
+                file=sys.stderr,
+            )
 
         inherits_from = ""
         if parent:
@@ -124,7 +144,10 @@ def render_argparse_markdown(
             header = section_lines[0].replace(":", "")
 
             if header.lower() not in ["available subcommands", "positional arguments", "options"]:
-                fmt.warning(f"Skipping unknown section {header} of {cmd}.")
+                print(
+                    f"WARNING: Skipping unknown section {header} of {cmd}.",
+                    file=sys.stderr,
+                )
                 continue
 
             section_lines = section_lines[1:]
@@ -146,9 +169,10 @@ def render_argparse_markdown(
                 arg_title = line_elements[0]
                 arg_help = line_elements[1] if len(line_elements) > 1 else ""
                 if not arg_help:
-                    fmt.warning(
-                        f"Missing helpstring for argument '{arg_title}' in section '{header}' of"
-                        f" command '{cmd}'."
+                    print(
+                        f"WARNING: Missing helpstring for argument '{arg_title}' in section"
+                        f" '{header}' of command '{cmd}'.",
+                        file=sys.stderr,
                     )
 
                 quoted_title = ""
@@ -223,3 +247,60 @@ def render_argparse_markdown(
     markdown = get_parser_help_recursive(parser, name, commands=commands)
 
     return header + markdown
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate or check CLI reference docs.")
+    parser.add_argument("file_name", help="Output file name")
+    parser.add_argument(
+        "--commands",
+        nargs="*",
+        help="List of command names to render (optional)",
+        default=None,
+    )
+    parser.add_argument(
+        "--compare",
+        default=False,
+        action="store_true",
+        help="Compare and raise if output would be updated",
+    )
+    parser.add_argument(
+        "--executable-name",
+        default="dlt",
+        help="Name of the executable shown in generated docs (default: dlt)",
+    )
+    args = parser.parse_args()
+
+    from dlt._workspace.cli._dlt import _create_parser
+
+    cli_parser, _ = _create_parser()
+    _set_prog_recursive(cli_parser, cli_parser.prog, args.executable_name)
+    result = render_argparse_markdown(args.executable_name, cli_parser, commands=args.commands)
+
+    if args.compare:
+        with open(args.file_name, "r", encoding="utf-8") as f:
+            existing = f.read()
+            if result != existing:
+                diff = difflib.unified_diff(
+                    existing.splitlines(keepends=True),
+                    result.splitlines(keepends=True),
+                    fromfile=args.file_name,
+                    tofile=args.file_name + " (generated)",
+                )
+                print(
+                    "ERROR: CLI docs out of date, please run"
+                    " update-cli-docs from the main Makefile and commit your changes.\n"
+                    "Diff:\n" + "".join(diff),
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+        print("Docs page up to date.")
+    else:
+        with open(args.file_name, "w", encoding="utf-8") as f:
+            f.write(result)
+        print("Docs page updated.")
+
+
+if __name__ == "__main__":
+    main()

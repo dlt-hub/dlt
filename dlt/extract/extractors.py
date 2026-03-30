@@ -93,10 +93,13 @@ def with_file_import(
     metrics = DataWriterMetrics(file_path, items_count, 0, 0, 0)
     item: TDataItem = None
     # if hints are dict assume that this is dlt schema, if not - that it is arrow table
+    resource_hints: Optional[TResourceHints] = hints
     if not isinstance(hints, dict):
         item = hints
-        hints = None
-    return DataItemWithMeta(ImportFileMeta(file_path, metrics, file_format, hints, False), item)
+        resource_hints = None
+    return DataItemWithMeta(
+        ImportFileMeta(file_path, metrics, file_format, resource_hints, False), item
+    )
 
 
 class Extractor:

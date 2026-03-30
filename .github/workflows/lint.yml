@@ -14,7 +14,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     defaults:
       run:
@@ -48,10 +48,6 @@ jobs:
         run: |
           export PATH=$PATH:"/c/Program Files/usr/bin" # needed for Windows
           make lint
-
-      - name: Check that cli docs are up to date
-        run: make check-cli-docs
-        if: ${{ matrix.python-version == '3.11' }}
 
       - name: Check filesizes
         uses: ppremk/lfs-warning@v3.2

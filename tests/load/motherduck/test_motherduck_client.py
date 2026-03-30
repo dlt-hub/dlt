@@ -10,6 +10,7 @@ from dlt.destinations.impl.motherduck.configuration import (
     MOTHERDUCK_USER_AGENT,
     MotherDuckCredentials,
     MotherDuckClientConfiguration,
+    MotherDuckCatalogMissing,
 )
 
 # mark all tests as essential, do not remove
@@ -30,6 +31,9 @@ def test_motherduck_configuration() -> None:
     assert cred.database == ""
     assert cred.is_partial() is False
     assert cred.is_resolved() is False
+
+    with pytest.raises(MotherDuckCatalogMissing):
+        resolve_configuration(MotherDuckCredentials("md:?motherduck_token=TOKEN"))
 
     cred = MotherDuckCredentials()
     cred.parse_native_representation("md:xdb?motherduck_token=TOKEN2")

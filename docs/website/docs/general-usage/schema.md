@@ -351,7 +351,7 @@ When `dlt` normalizes nested data into a relational schema, it automatically cre
 `parent` + `row_key` + `parent_key` form a **nested reference**: from the nested table to the `parent` table and are extensively used when loading data. Both `replace` and `merge` write dispositions.
 
 `row_key` is created as follows:
-1. A random string on **root** tables, except for [`upsert`](merge-loading.md#upsert-strategy) and
+1. A random string on **root** tables, except for [`upsert`](merge-loading.md#upsert-strategy), [`insert-only`](merge-loading.md#insert-only-strategy), and
 [`scd2`](merge-loading.md#scd2-strategy) merge strategies, where it is a deterministic hash of the `primary_key` (or whole row, so-called `content_hash`, if PK is not defined).
 2. A deterministic hash of `parent_key`, `parent` table name, and position in the list (`_dlt_list_idx`)
 for **nested** tables.

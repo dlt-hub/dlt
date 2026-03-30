@@ -1,14 +1,8 @@
-from typing import cast
-
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from dlt.common.destination.client import RunnableLoadJob
-from dlt.common.destination.typing import PreparedTableSchema
-from dlt.common.schema.typing import (
-    TWriteDisposition,
-    TTableSchema,
-)
+from dlt.common.schema.typing import TTableSchema
 from dlt.common.schema.utils import is_nested_table
 from dlt.destinations.impl.lance.lance_adapter import REMOVE_ORPHANS_HINT
 from dlt.destinations.impl.lance.utils import (
@@ -32,9 +26,7 @@ class LanceLoadJob(RunnableLoadJob):
 
     def run(self) -> None:
         table_name: str = self._table_schema["name"]
-        write_disposition: TWriteDisposition = cast(
-            TWriteDisposition, self._load_table.get("write_disposition", "append")
-        )
+        write_disposition = self._load_table.get("write_disposition", "append")
 
         merge_key: str = None
         when_not_matched_by_source_delete_expr: str = None

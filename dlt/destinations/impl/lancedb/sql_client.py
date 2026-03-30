@@ -10,13 +10,13 @@ inferface.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, Iterator, TYPE_CHECKING
+from packaging import version as pkg_version
+from typing import Any, Iterator, TYPE_CHECKING
 
 import sqlglot
 import sqlglot.expressions as exp
 import duckdb
 
-import dlt
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -44,7 +44,13 @@ def _install_and_load_lance_duckdb_extension(duckdb_con: DuckDBPyConnection) -> 
     DuckDB ensures installation is only done once per system.
     Extension loading must be done on every connection
     """
-    duckdb_con.execute("INSTALL lance FROM community;")
+    duckdb_version = pkg_version.parse(duckdb.__version__)
+    if duckdb_version >= pkg_version.Version("1.5.0"):
+        install_extension_cmd = "INSTALL lance;"
+    else:
+        install_extension_cmd = "INSTALL lance FROM community;"
+
+    duckdb_con.execute(install_extension_cmd)
     duckdb_con.execute("LOAD lance;")
 
 
@@ -105,8 +111,8 @@ class LanceDBSQLClient(DuckDbSqlClient):
 
     @contextmanager
     @raise_database_error
-    def execute_query(
-        self, query: str, *args: Any, **kwargs: Any  # type: ignore[override]
+    def execute_query(  # type: ignore[override]
+        self, query: str, *args: Any, **kwargs: Any
     ) -> Iterator[DBApiCursor]:
         # replace generic string placeholder by DuckDB placeholders
         if args or kwargs:
