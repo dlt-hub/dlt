@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Iterator, cast
 
 import lancedb
@@ -32,28 +33,52 @@ def client_with_storage() -> Iterator[LanceClient]:
     yield from cast(Iterator[LanceClient], yield_client_with_storage("lance"))
 
 
-def test_lance_client_namespace_methods(client: LanceClient) -> None:
-    namespace_name = "foo"
-    assert not client.child_namespace_exists(namespace_name)
-    client.create_child_namespace(namespace_name)
-    assert client.child_namespace_exists(namespace_name)
-    client.drop_child_namespace(namespace_name)
-    assert not client.child_namespace_exists(namespace_name)
+def test_lance_client_dataset_namespace_and_table_methods(client: LanceClient) -> None:
+    # create dataset namespace
+    assert not client.dataset_namespace_exists()
+    client.create_dataset_namespace()
+    assert client.dataset_namespace_exists()
+
+    # create tables inside dataset namespace
+    client.create_table("foo", pa.schema([("id", pa.int64())]))
+    client.create_table("bar", pa.schema([("id", pa.int64())]))
+    assert client.table_exists("foo")
+    assert client.table_exists("bar")
+    assert set(client.list_dataset_namespace_tables()) == {"foo", "bar"}
+
+    # assert table directories exists
+    foo_table_path = Path(client.get_table_uri("foo").removeprefix("file://"))
+    bar_table_path = Path(client.get_table_uri("bar").removeprefix("file://"))
+    assert foo_table_path.exists()
+    assert bar_table_path.exists()
+
+    # drop "foo" table
+    client.drop_table("foo")
+    assert not client.table_exists("foo")
+    assert not foo_table_path.exists()
+    assert client.table_exists("bar")
+    assert bar_table_path.exists()
+
+    # drop dataset namespace (and "bar" table with it)
+    client.drop_dataset_namespace()
+    assert not client.dataset_namespace_exists()
+    assert not client.table_exists("bar")
+    assert not bar_table_path.exists()
 
 
 def test_lance_client_storage(client: LanceClient) -> None:
     assert not client.is_storage_initialized()
-    assert not client.child_namespace_exists(client.dataset_name)
+    assert not client.dataset_namespace_exists()
 
     # initializing storage should create dataset namespace
     client.initialize_storage()
     assert client.is_storage_initialized()
-    assert client.child_namespace_exists(client.dataset_name)
+    assert client.dataset_namespace_exists()
 
     # dropping storage should drop dataset namespace
     client.drop_storage()
     assert not client.is_storage_initialized()
-    assert not client.child_namespace_exists(client.dataset_name)
+    assert not client.dataset_namespace_exists()
 
 
 def test_lance_client_create_branch_if_not_exists(client_with_storage: LanceClient) -> None:

@@ -124,27 +124,26 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self._sql_client = client
 
     @raise_destination_error
-    def list_child_namespace_tables(self, namespace_name: str) -> List[str]:
-        """Lists tables in child namespace."""
-        return self.namespace.list_tables(ListTablesRequest(id=[namespace_name])).tables
+    def list_dataset_namespace_tables(self) -> List[str]:
+        return self.namespace.list_tables(ListTablesRequest(id=[self.dataset_name])).tables
 
     @raise_destination_error
-    def create_child_namespace(self, name: str) -> None:
-        """Creates child namespace in root namespace."""
-        self.namespace.create_namespace(CreateNamespaceRequest(id=[name]))
+    def create_dataset_namespace(self) -> None:
+        """Creates child namespace for dataset in root namespace."""
+        self.namespace.create_namespace(CreateNamespaceRequest(id=[self.dataset_name]))
 
     @raise_destination_error
-    def drop_child_namespace(self, name: str) -> None:
-        """Drops child namespace after removing all its tables."""
-        for table in self.list_child_namespace_tables(name):
-            self.namespace.drop_table(DropTableRequest(id=[name, table]))
-        self.namespace.drop_namespace(DropNamespaceRequest(id=[name]))
+    def drop_dataset_namespace(self) -> None:
+        """Drops dataset namespace after removing all its tables."""
+        for table in self.list_dataset_namespace_tables():
+            self.namespace.drop_table(DropTableRequest(id=[self.dataset_name, table]))
+        self.namespace.drop_namespace(DropNamespaceRequest(id=[self.dataset_name]))
 
     @raise_destination_error
-    def child_namespace_exists(self, name: str) -> bool:
-        """Returns True if child namespace exists in root namespace."""
+    def dataset_namespace_exists(self) -> bool:
+        """Returns True if child namespace for dataset exists in root namespace."""
         try:
-            self.namespace.namespace_exists(NamespaceExistsRequest(id=[name]))
+            self.namespace.namespace_exists(NamespaceExistsRequest(id=[self.dataset_name]))
             return True
         except Exception as e:
             if is_lance_undefined_entity_exception(e):
@@ -195,8 +194,8 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     def drop_storage(self) -> None:
         """Drops dataset namespace and all its tables."""
-        if self.child_namespace_exists(self.dataset_name):
-            self.drop_child_namespace(self.dataset_name)
+        if self.dataset_namespace_exists():
+            self.drop_dataset_namespace()
 
     def truncate_table(self, table_name: str) -> None:
         """Truncates table by deleting all rows in active branch."""
@@ -291,7 +290,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
-            self.create_child_namespace(self.dataset_name)
+            self.create_dataset_namespace()
         elif truncate_tables:
             for table_name in truncate_tables:
                 if not self.table_exists(table_name):
@@ -299,7 +298,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 self.truncate_table(table_name)
 
     def is_storage_initialized(self) -> bool:
-        return self.child_namespace_exists(self.dataset_name)
+        return self.dataset_namespace_exists()
 
     def verify_schema(
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
