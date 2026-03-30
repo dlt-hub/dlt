@@ -34,14 +34,14 @@ If this is a fresh project, set up `uv`, install `dlt[workspace]`, and initializ
 
 ## Explore your data
 
-The **data-exploration** toolkit connects to a dlt pipeline and builds an interactive dashboard. The assistant adapts to how specifically you phrase your intent:
+The **data-exploration** toolkit connects to a dlt pipeline and builds an interactive notebook. The coding assistant adapts to the specificity of your intent:
 
-- **High-intent** (e.g. "show revenue by month"): scans the schema, plans the chart, and renders it directly.
-- **Low-intent** (e.g. "explore my github data"): profiles all tables, proposes 5–10 business questions, and builds the dashboard from your selection.
+- **High-intent** (i.e. you already know which kind of insights you want to generate from your data, e.g. "show revenue by month"): scans the schema, plans the chart, and renders it directly.
+- **Low-intent** (i.e. you want to explore your data without a specific question to focus on, e.g. "explore my github data"): profiles all tables, proposes 5–10 business questions, and builds the dashboard from your selection.
 
 ### `/explore-data` — connect and plan charts
 
-The entry-point skill connects to your pipeline, profiles the data, and plans one chart at a time. It writes an `analysis_plan.md` artifact that captures the chart spec, the SQL query, and the Altair chart code.
+The explore-data skill connects to your pipeline, profiles the data, and plans one chart at a time. It writes an `analysis_plan.md` artifact that captures the chart spec, the SQL query, and the Altair chart code.
 
 ```text
 /explore-data github_pipeline
@@ -51,7 +51,7 @@ The entry-point skill connects to your pipeline, profiles the data, and plans on
 /explore-data github_pipeline -- what is the distribution of issues by label?
 ```
 
-The skill uses the dlt MCP tools (`list_pipelines`, `list_tables`, `get_table_schema`, `execute_sql_query`) to inspect your data without you copying output manually. After each chart is planned, it proposes handing off to `/build-notebook`.
+The skill uses the dlt MCP tools (`list_pipelines`, `list_tables`, `get_table_schema`, `execute_sql_query`) to inspect your data without you copying output manually. After each chart is planned, the coding agent will propose handing off to `/build-notebook`.
 
 ### `/build-notebook` — assemble and launch the dashboard
 
@@ -61,7 +61,7 @@ Reads the `analysis_plan.md` and assembles a marimo Python notebook with all pla
 uv run marimo edit <pipeline_name>_dashboard.py --no-token
 ```
 
-The iteration loop is: plan one chart with `/explore-data`, launch with `/build-notebook`, then add the next chart. Each re-invocation of `/explore-data` appends a new chart to the plan and `/build-notebook` regenerates the full notebook.
+The agents iterate over this loop: plan one chart with `/explore-data`, launch with `/build-notebook`, then add the next chart. Each re-invocation of `/explore-data` appends a new chart to the plan and `/build-notebook` regenerates the full notebook.
 
 ### Anatomy of the data-exploration toolkit
 
@@ -78,11 +78,11 @@ stateDiagram-v2
 
 ## Transform your data
 
-The **transformations** toolkit starts from your actual source data and your stated business goals, and **derives the model from an ontology** — a formal description of the business entities and relationships that exist across your sources.
+The **transformations** toolkit starts from your source data and your stated business goals, and **derives the model from an ontology** — a formal description of the business entities and relationships that exist across your sources.
 
-The process moves through four stages: annotating sources with business concepts, building an entity graph (ontology), generating a Kimball-style CDM, and finally writing the transformation code. At each stage the assistant confirms decisions with you before proceeding, so the resulting model reflects your domain — not a generic template.
+The process moves through four stages: annotating sources with business concepts, building an entity graph (ontology), generating a Kimball-style Canonical Data Model (CDM), and finally writing the transformation code. At each stage the assistant confirms decisions with you before proceeding, so the resulting model reflects your domain — not a generic template.
 
-The output is a `@dlt.hub.transformation` script powered by ibis that populates the CDM from your raw pipeline tables.
+The output is a `@dlt.hub.transformation` script powered by ibis that populates the Canonical Data Model from your raw pipeline tables.
 
 ### `/annotate-sources` — map tables to business concepts
 
@@ -171,9 +171,9 @@ stateDiagram-v2
 
 By the end of this guide you should have:
 
-- An interactive marimo dashboard with Altair charts built from your pipeline data
+- An interactive marimo notebook with Altair charts built from your pipeline data
 - An annotated source schema and taxonomy mapping raw tables to business concepts
-- A Kimball CDM in DBML format
+- A Kimball Canonical Data Model in DBML format
 - A working `@dlt.hub.transformation` script that populates the CDM
 
 Next steps:
