@@ -4,8 +4,8 @@ import dataclasses
 import datetime  # noqa: I251
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from functools import lru_cache
-from typing import Any, Type, Union, Callable, Dict, Tuple
 from enum import Enum
+from typing import Any, Type, Union, Callable, Dict, Tuple
 
 from dlt.common.json import custom_pua_remove, json
 from dlt.common.json._simplejson import custom_encode as json_custom_encode
@@ -33,8 +33,10 @@ PY_TYPE_TO_SC_TYPE: Dict[Type[Any], TDataType] = {
     int: "bigint",
     float: "double",
     bool: "bool",
+    bytes: "binary",
     dict: "json",
     list: "json",
+    Decimal: "decimal",
     datetime.datetime: "timestamp",
     datetime.date: "date",
     datetime.time: "time",
