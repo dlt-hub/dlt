@@ -70,7 +70,7 @@ For a database connection, fill in:
 
 Click **Create connection**. This creates a Network Rule (specifying the allowed host and port), a Secret (storing the credentials), and an External Access Integration — all without requiring admin involvement. Finally, it submits an approval request that an `ACCOUNTADMIN` must review before the connection becomes active.
 
-### Approve a connections
+### Approve a connection
 Once a connection is awaiting approval, an `ACCOUNTADMIN` must approve it. In the **Connections → Approve tab**, click Review pending connections to open Snowflake's native approval UI.
 
 After approval, the connection status automatically changes to `ACTIVE` and it becomes available for use in pipelines.
@@ -149,7 +149,7 @@ Choose whether to ingest:
 - **All** tables from the selected schema, or  
 - a **Subset** of tables.
 
-If you choose **Subset**, add the tables you want to ingest. If you choose **All**, you may still list specific tables below to customize their settings.Any tables not listed will be ingested using default configuration.
+If you choose **Subset**, add the tables you want to ingest. If you choose **All**, you may still list specific tables below to customize their settings. Any tables not listed will be ingested using default configuration.
 
 
 #### Optional fields (per configured table)
@@ -186,7 +186,7 @@ If you choose **Subset**, add the tables you want to ingest. If you choose **All
     ```
 ### Destination Settings
 Destination settings define where in Snowflake the data is loaded and allow advanced destination tuning.
-- **Destination databse**:
+- **Destination database**:
     Name of the Snowflake database to load into.
 - **Check privileges**:
     Validates that the app has access to the destination database. If permissions are missing, the app will request/grant the required access.
@@ -260,7 +260,7 @@ Statuses typically move through:
 Click the **view logs** tab to see the logs of the job:
 - When each pipeline stage (extract, normalize, load) starts and finishes
 - Progress information for each stage 
-- Performance metrics (processing time, memoray usage, CPU, ...)
+- Performance metrics (processing time, memory usage, CPU, ...)
 
 ![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_runs_button.png)
 
