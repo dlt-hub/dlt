@@ -9,9 +9,8 @@ from pandas.testing import assert_frame_equal
 import dlt
 from dlt.common import pendulum
 from dlt.common.typing import DictStrAny, DictStrStr
-from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter
 
-from tests.load.lancedb.utils import LANCE_DEST_CONFS, chunk_document, open_lance_table
+from tests.load.lancedb.utils import LANCE_DEST_CONFS, chunk_document, get_adapter, open_lance_table
 from tests.load.utils import (
     DestinationTestConfiguration,
     destinations_configs,
@@ -162,7 +161,7 @@ def test_lancedb_remove_orphaned_records_root_table(
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    lancedb_adapter(identity_resource)
+    get_adapter(destination_config)(identity_resource)
 
     run_1 = [
         {"doc_id": 1, "chunk_hash": "1a"},
@@ -231,7 +230,7 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id(
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    lancedb_adapter(identity_resource)
+    get_adapter(destination_config)(identity_resource)
 
     run_1 = [
         {"doc_id": "A", "chunk_hash": "1a"},
@@ -306,7 +305,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
     ) -> Any:
         return documents(docs)
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         documents,
         embed=["chunk"],
     )
@@ -386,7 +385,7 @@ def test_lancedb_compound_merge_key_root_table(
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    lancedb_adapter(identity_resource, no_remove_orphans=True)
+    get_adapter(destination_config)(identity_resource, no_remove_orphans=True)
 
     run_1 = [
         {"doc_id": 1, "chunk_hash": "a", "foo": "bar", "child": [{"val": 1}, {"val": 2}]},

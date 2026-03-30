@@ -14,12 +14,13 @@ from dlt.common import json
 from dlt.common.typing import DictStrAny
 from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id, digest128
-from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter, VECTORIZE_HINT
 from dlt.extract import DltResource
 from tests.load.lancedb.utils import (
     LANCE_DEST_CONFS,
     assert_table,
     chunk_document,
+    get_adapter,
+    get_vectorize_hint,
     mock_embed,
     get_table_location,
     open_lance_table,
@@ -38,7 +39,12 @@ else:
 pytestmark = pytest.mark.essential
 
 
-def test_adapter_and_hints() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_adapter_and_hints(destination_config: DestinationTestConfiguration) -> None:
     generator_instance1 = sequence_generator()
 
     @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
@@ -47,7 +53,10 @@ def test_adapter_and_hints() -> None:
 
     assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
 
-    lancedb_adapter(
+    adapter = get_adapter(destination_config)
+    vectorize_hint = get_vectorize_hint(destination_config)
+
+    adapter(
         some_data,
         embed=["content"],
     )
@@ -55,11 +64,11 @@ def test_adapter_and_hints() -> None:
     assert some_data.columns["content"] == {  # type: ignore
         "name": "content",
         "data_type": "text",
-        "x-lancedb-embed": True,
-        "nullable": True,  # lancedb will override nullability
+        vectorize_hint: True,
+        "nullable": True,
     }
 
-    lancedb_adapter(
+    adapter(
         some_data,
         merge_key="content",
     )
@@ -70,8 +79,8 @@ def test_adapter_and_hints() -> None:
     assert some_data.columns["content"] == {  # type: ignore
         "name": "content",
         "data_type": "text",
-        "x-lancedb-embed": True,
-        "nullable": True,  # lancedb will override nullability
+        vectorize_hint: True,
+        "nullable": True,
     }
 
     assert some_data.compute_table_schema()["columns"]["content"]["merge_key"] is True
@@ -88,7 +97,7 @@ def test_changing_merge_key(destination_config: DestinationTestConfiguration) ->
         yield {"id": 1, "other_id": 2, "content": "random"}
 
     # Initially "id" is set as key
-    lancedb_adapter(
+    get_adapter(destination_config)(
         some_data,
         embed=["random"],
         merge_key="id",
@@ -107,7 +116,7 @@ def test_changing_merge_key(destination_config: DestinationTestConfiguration) ->
     assert pipeline.default_schema.tables["some_data"]["columns"]["id"]["nullable"] is False
 
     # We change key to "other_id"
-    lancedb_adapter(
+    get_adapter(destination_config)(
         some_data,
         embed=["random"],
         merge_key="other_id",
@@ -138,7 +147,7 @@ def test_basic_state_and_schema(destination_config: DestinationTestConfiguration
     def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         some_data,
         embed=["content"],
     )
@@ -175,7 +184,7 @@ def test_pipeline_append(destination_config: DestinationTestConfiguration) -> No
     def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         some_data,
         embed=["content"],
     )
@@ -217,7 +226,7 @@ def test_explicit_append(destination_config: DestinationTestConfiguration) -> No
     def some_data() -> Generator[List[DictStrAny], Any, None]:
         yield data
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         some_data,
         embed=["content"],
     )
@@ -361,7 +370,7 @@ def test_pipeline_merge(destination_config: DestinationTestConfiguration) -> Non
     def movies_data() -> Any:
         yield data
 
-    lancedb_adapter(movies_data, embed=["description"], no_remove_orphans=True)
+    get_adapter(destination_config)(movies_data, embed=["description"], no_remove_orphans=True)
 
     pipeline = destination_config.setup_pipeline(
         pipeline_name="movies",
@@ -407,7 +416,7 @@ def test_pipeline_with_schema_evolution(destination_config: DestinationTestConfi
     def some_data() -> Generator[List[DictStrAny], Any, None]:
         yield data
 
-    lancedb_adapter(some_data, embed=["content"])
+    get_adapter(destination_config)(some_data, embed=["content"])
 
     pipeline = destination_config.setup_pipeline(
         pipeline_name="test_pipeline_with_schema_evolution",
@@ -479,8 +488,9 @@ def test_merge_github_nested(
     ) as f:
         data = json.load(f)
 
+    adapter = get_adapter(destination_config)
     info = pipe.run(
-        lancedb_adapter(data[:17], embed=["title", "body"], no_remove_orphans=True),
+        adapter(data[:17], embed=["title", "body"], no_remove_orphans=True),
         table_name="issues",
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         primary_key="id",
@@ -509,9 +519,10 @@ def test_merge_github_nested(
     issues = pipe.default_schema.tables["issues"]
     assert issues["columns"]["id"]["primary_key"] is True
     # Make sure vectorization is enabled for.
-    assert issues["columns"]["title"][VECTORIZE_HINT]  # type: ignore[literal-required]
-    assert issues["columns"]["body"][VECTORIZE_HINT]  # type: ignore[literal-required]
-    assert VECTORIZE_HINT not in issues["columns"]["url"]
+    vectorize_hint = get_vectorize_hint(destination_config)
+    assert issues["columns"]["title"][vectorize_hint]  # type: ignore[literal-required]
+    assert issues["columns"]["body"][vectorize_hint]  # type: ignore[literal-required]
+    assert vectorize_hint not in issues["columns"]["url"]
     assert_table(pipe, "issues", expected_items_count=17)
 
 
@@ -608,7 +619,8 @@ def test_empty_dataset_allowed(destination_config: DestinationTestConfiguration)
     pipe = dlt.pipeline(destination=destination_config.destination_type, dev_mode=True)
 
     assert pipe.dataset_name is None
-    info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
+    adapter = get_adapter(destination_config)
+    info = pipe.run(adapter(["context", "created", "not a stop word"], embed=["value"]))
     # Dataset in load info is empty.
     assert info.dataset_name is None
     client = pipe.destination_client()
@@ -769,7 +781,7 @@ def test_semantic_query(destination_config: DestinationTestConfiguration) -> Non
     def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
         yield from search_data
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         search_data_resource,
         embed=["text"],
     )
@@ -812,7 +824,7 @@ def test_semantic_query_custom_embedding_functions_registered(
     def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
         yield from search_data
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         search_data_resource,
         embed=["text"],
     )

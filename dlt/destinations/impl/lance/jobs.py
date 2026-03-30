@@ -10,7 +10,7 @@ from dlt.common.schema.typing import (
     TTableSchema,
 )
 from dlt.common.schema.utils import is_nested_table
-from dlt.destinations.impl.lancedb.lancedb_adapter import NO_REMOVE_ORPHANS_HINT
+from dlt.destinations.impl.lance.lance_adapter import NO_REMOVE_ORPHANS_HINT
 from dlt.destinations.impl.lance.utils import (
     get_canonical_vector_database_doc_id_merge_key,
     create_in_filter,

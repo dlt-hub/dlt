@@ -9,7 +9,7 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lance.configuration import LanceEmbeddingsConfiguration
 from dlt.destinations.impl.lance.lance_client import LanceClient
-from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
+from dlt.destinations.impl.lance.lance_adapter import VECTORIZE_HINT
 
 from tests.utils import (
     auto_module_test_storage,

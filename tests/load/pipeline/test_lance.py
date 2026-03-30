@@ -5,7 +5,7 @@ from typing import cast
 
 from dlt.destinations.impl.lance.exceptions import LanceEmbeddingsConfigurationMissing
 from dlt.destinations.impl.lance.lance_client import LanceClient
-from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter
+from dlt.destinations.impl.lance.lance_adapter import lance_adapter
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 
@@ -26,7 +26,7 @@ def test_lance_pipeline_raises_on_embed_column_without_embeddings_config(
     def items():
         yield [{"id": 1, "content": "hello"}]
 
-    lancedb_adapter(items, embed=["content"])
+    lance_adapter(items, embed=["content"])
 
     # create destination without embeddings config
     destination = destination_config.destination_factory()

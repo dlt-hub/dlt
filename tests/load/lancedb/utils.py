@@ -1,11 +1,13 @@
-from typing import TYPE_CHECKING, Union, List, Any, Dict, cast
+from typing import TYPE_CHECKING, Callable, Union, List, Any, Dict, cast
 
 import numpy as np
 from lancedb.embeddings import TextEmbeddingFunction
 from lancedb.table import Table as LanceTable
 
 import dlt
-from tests.load.utils import destinations_configs
+from dlt.extract.resource import DltResource
+
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 
 
 if TYPE_CHECKING:
@@ -53,6 +55,31 @@ def get_table_location(client: TLanceDestinationClient, table_name: str) -> str:
         return tbl._location
     else:
         raise ValueError("Unexpected client type")
+
+
+def get_adapter(destination_config: DestinationTestConfiguration) -> Callable[..., DltResource]:
+    """Returns appropriate adapter function for given destination configuration."""
+    if destination_config.destination_type == "lance":
+        from dlt.destinations.impl.lance.lance_adapter import lance_adapter
+
+        return lance_adapter
+    elif destination_config.destination_type == "lancedb":
+        from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter
+
+        return lancedb_adapter
+    else:
+        raise ValueError(f"Unexpected destination type: {destination_config.destination_type}")
+
+
+def get_vectorize_hint(destination_config: DestinationTestConfiguration) -> str:
+    """Returns appropriate vectorize hint key for destination configuration."""
+    if destination_config.destination_type == "lance":
+        from dlt.destinations.impl.lance.lance_adapter import VECTORIZE_HINT
+    elif destination_config.destination_type == "lancedb":
+        from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
+    else:
+        raise ValueError(f"Unexpected destination type: {destination_config.destination_type}")
+    return VECTORIZE_HINT
 
 
 def assert_unordered_dicts_equal(

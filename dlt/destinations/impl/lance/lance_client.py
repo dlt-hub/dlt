@@ -66,7 +66,7 @@ from dlt.destinations.impl.lance.exceptions import (
     lance_error,
 )
 from dlt.destinations.impl.lance.jobs import LanceLoadJob
-from dlt.destinations.impl.lancedb.lancedb_adapter import (
+from dlt.destinations.impl.lance.lance_adapter import (
     VECTORIZE_HINT,
     NO_REMOVE_ORPHANS_HINT,
 )
