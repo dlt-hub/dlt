@@ -4,9 +4,9 @@ description: How to use the database connector app
 keywords: [snowflake, native app, database connector app]
 ---
 
-# Database Connector App
+# Snowflake Native App
 
-The dltHub Database Connector App is a Snowflake Native App that lets you move data from external SQL databases (PostgreSQL, MySQL, MSSQL) into Snowflake using a simple web UI. It runs entirely within your Snowflake account — no external infrastructure required.
+The dlt Connector App is a Snowflake Native App that lets you move data from external SQL databases (PostgreSQL, MySQL, MSSQL) into Snowflake using a simple web UI. It runs entirely within your Snowflake account — no external infrastructure required.
 
 You can: 
 - connect an external [SQL database](../../dlt-ecosystem/verified-sources/sql_database) to Snowflake
@@ -37,7 +37,7 @@ Before creating your first pipeline, make sure you have:
 4. (Optional) An S3 bucket if you plan to stage data externally
 
 ## Install and open the app
-Use the link we provided to you or download the app via the [Snowflake Marketplace](https://app.snowflake.com/marketplace).
+Use the link we provided to you or find and install the app via the [Snowflake Marketplace](https://app.snowflake.com/marketplace).
 
 
 ## Set up connection
@@ -49,6 +49,8 @@ Go to the Connections tab. It has three sub-tabs: **Create**, **Manage**, and **
 Snowflake controls outbound network access through External Access Integrations (EAIs). Creating one requires an `ACCOUNTADMIN` to approve the connection before it can be used. Once approved, the connection is available to every role that has access to the app.
 
 The app handles this for you: it creates a specification requesting the EAI, and an admin approves it in the **Connections → Approve** tab.
+
+![Create Connection](https://storage.googleapis.com/dlt-blog-images/sna_ui.png)
 
 ### Create a connection
 
@@ -86,7 +88,7 @@ You can delete a connection from here. This removes all associated objects (Netw
 3. Click the **+** button to create the pipeline
 4. Fill in the configurations
 
-![add a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_add_pipeline.png)
+![add a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_create_pipeline.png)
 
 
 
@@ -148,7 +150,7 @@ Source settings define **what to ingest** from your external SQL database and **
 ### Table Settings
 Table settings control **which tables are ingested** and allow **per-table configuration**.
 
-![tables setting](https://storage.googleapis.com/dlt-blog-images/sna_table_settings.png)
+![tables setting](https://storage.googleapis.com/dlt-blog-images/sna_table_setting_new.png)
 
 #### Tables to ingest
 Choose whether to ingest:
