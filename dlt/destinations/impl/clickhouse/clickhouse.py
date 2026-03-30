@@ -20,7 +20,6 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import TColumnType
 from dlt.common import logger
 from dlt.common.schema.utils import (
@@ -133,7 +132,11 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 ]
                 auth = f"extra_credentials({', '.join(extra_credential_args)})"
             elif access_key_id and secret_access_key:
-                auth = f"'{access_key_id}','{secret_access_key}'"
+                session_token = self._staging_credentials.aws_session_token
+                if session_token:
+                    auth = f"'{access_key_id}','{secret_access_key}','{session_token}'"
+                else:
+                    auth = f"'{access_key_id}','{secret_access_key}'"
 
             return f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
 
@@ -249,9 +252,24 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         cls,
         root_table_name: str,
         staging_root_table_name: str,
-        key_clauses: Sequence[str],
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
+        if for_delete:
+            # ClickHouse lightweight DELETE doesn't support table aliases or
+            # correlated subqueries with qualified column references. Use IN
+            # with one DELETE per key group (like BigQuery's OR-split pattern).
+            sql: List[str] = []
+            for cols in (primary_keys, merge_keys):
+                if cols:
+                    col_tuple = ", ".join(cols)
+                    sql.append(
+                        f"FROM {root_table_name} WHERE ({col_tuple}) IN"
+                        f" (SELECT {col_tuple} FROM {staging_root_table_name})"
+                    )
+            return sql
+        key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
         join_conditions = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
         return [
             f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
@@ -263,7 +281,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
-        return True
+        return False
 
 
 class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):

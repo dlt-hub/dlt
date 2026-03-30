@@ -72,9 +72,6 @@ prepare-examples-tests = "docs_tools.examples.prepare_examples_tests:main"
 [tool.uv.sources]
 dlt = { path = "..", editable = true }
 
-[tool.mypy]
-mypy_path = ["../tests"]
-
 [tool.pytest.ini_options]
 pythonpath = [".."]
 norecursedirs = [".direnv", ".eggs", "build", "dist"]

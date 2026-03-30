@@ -102,7 +102,9 @@ class LoadJobMetrics(NamedTuple):
     state: str
     remote_url: Optional[str]
     retry_count: int = 0
+    followup_jobs: Optional[List[str]] = None
 
 
 class LoadMetrics(StepMetrics):
     job_metrics: Dict[str, LoadJobMetrics]
+    dataset_name: Optional[str]

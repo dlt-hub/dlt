@@ -834,7 +834,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.23.0"
+version = "1.24.0"
 source = { editable = "../" }
 dependencies = [
     { name = "click" },
@@ -927,8 +927,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.2,<0.24" },
-    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.1,<0.24" },
+    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.2,<0.25" },
+    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.1,<0.25" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lancedb'", specifier = ">=1.4.3" },
@@ -1097,6 +1097,7 @@ pipeline = [
     { name = "datasets", specifier = ">=4.5.0" },
     { name = "enlighten", specifier = ">=1.11.2,<2" },
     { name = "greenlet", specifier = ">=3.1" },
+    { name = "mmh3", specifier = ">5.0.0" },
     { name = "pandas", specifier = ">=2.1.4" },
     { name = "pyarrow", specifier = ">=16.0.0" },
     { name = "pydantic", specifier = ">=2.10" },
