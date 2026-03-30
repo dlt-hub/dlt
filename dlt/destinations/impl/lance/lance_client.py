@@ -70,11 +70,7 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import (
     VECTORIZE_HINT,
     NO_REMOVE_ORPHANS_HINT,
 )
-from dlt.destinations.impl.lance.schema import (
-    make_arrow_field_schema,
-    TArrowSchema,
-    TArrowField,
-)
+from dlt.common.libs.pyarrow import columns_to_arrow, dlt_column_to_arrow_field
 from dlt.destinations.impl.lance.utils import _align_schema
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 
@@ -153,7 +149,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             raise
 
     @lance_error
-    def create_table(self, table_name: str, schema: TArrowSchema) -> None:
+    def create_table(self, table_name: str, schema: pa.Schema) -> None:
         """Creates empty lance dataset from provided PyArrow schema."""
         lance.write_dataset(
             schema.empty_table(),
@@ -178,7 +174,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         """Returns namespace `table_id` for given table name."""
         return [self.dataset_name, table_name]
 
-    def get_table_schema(self, table_name: str) -> TArrowSchema:
+    def get_table_schema(self, table_name: str) -> pa.Schema:
         return self.open_lance_dataset(
             table_name, branch_name=self.config.storage.branch_name
         ).schema
@@ -372,7 +368,6 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 return False, table_schema
             raise
 
-        field: TArrowField
         for field in arrow_schema:
             name = field.name
             table_schema[name] = {
@@ -389,13 +384,10 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             table_exists, table_schema = self.get_storage_table(table_name)
             yield table_name, table_schema  # type: ignore[misc]
 
-    def make_arrow_table_schema(self, table_name: str) -> TArrowSchema:
+    def make_arrow_table_schema(self, table_name: str) -> pa.Schema:
         """Creates a PyArrow schema for a table, including embedding metadata if configured."""
         columns = self.schema.get_table_columns(table_name)
-        arrow_fields: List[TArrowField] = [
-            make_arrow_field_schema(col_name, col, self.type_mapper)
-            for col_name, col in columns.items()
-        ]
+        arrow_schema = columns_to_arrow(columns, self.capabilities)
 
         embedding_fields = None
         vector_column = None
@@ -408,7 +400,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         if embedding_fields:
             if vector_column not in columns:
                 vec_size = self.embedding_function.ndims()
-                arrow_fields.append(pa.field(vector_column, pa.list_(pa.float32(), vec_size)))
+                arrow_schema = arrow_schema.append(
+                    pa.field(vector_column, pa.list_(pa.float32(), vec_size))
+                )
             else:
                 logger.info(
                     f"Lance table `{table_name}` in schema `{self.schema.name}` contains user"
@@ -428,15 +422,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 for source_column in embedding_fields
             ]
             metadata = registry.get_table_metadata(configs) or {}
+            arrow_schema = arrow_schema.with_metadata(metadata)
 
-        return pa.schema(arrow_fields, metadata=metadata)
+        return arrow_schema
 
     @lance_error
     def add_null_columns_to_table(self, table_name: str, new_columns: List[TColumnSchema]) -> None:
-        new_fields: List[TArrowField] = [
-            make_arrow_field_schema(column["name"], column, self.type_mapper)
-            for column in new_columns
-        ]
+        new_fields = [dlt_column_to_arrow_field(col, self.capabilities) for col in new_columns]
         self.open_lance_dataset(
             table_name, branch_name=self.config.storage.branch_name
         ).add_columns(new_fields)
