@@ -512,6 +512,7 @@ const sidebars = {
       label: 'Ingestion',
       items: [
         'hub/workspace/init',
+        { type: 'ref', id: 'general-usage/dashboard' },
         'hub/ecosystem/ms-sql',
         'hub/ecosystem/delta',
         'hub/ecosystem/iceberg',
@@ -538,7 +539,6 @@ const sidebars = {
       type: 'category',
       label: 'Data quality & governance',
       items: [
-        { type: 'ref', id: 'general-usage/dashboard' },
         'hub/features/quality/data-quality',
         'hub/features/quality/advanced',
         'hub/features/quality/tests',
