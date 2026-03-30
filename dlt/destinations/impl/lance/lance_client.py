@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from types import TracebackType
 from typing import (
     Dict,
@@ -25,8 +27,7 @@ from lance.namespace import (
     TableExistsRequest,
 )
 from lancedb.table import LanceTable, _append_vector_columns
-from lancedb.query import LanceQueryBuilder
-from pyarrow import Array, ChunkedArray
+from lancedb.embeddings import EmbeddingFunctionConfig, EmbeddingFunctionRegistry
 
 from dlt.common import json, pendulum, logger
 from dlt.common.libs.numpy import numpy
@@ -71,7 +72,6 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import (
 )
 from dlt.destinations.impl.lance.schema import (
     make_arrow_field_schema,
-    make_arrow_table_schema,
     TArrowSchema,
     TArrowField,
 )
@@ -95,12 +95,19 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.config: LanceClientConfiguration = config
         self.type_mapper = self.capabilities.get_type_mapper()
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
-
         self.namespace = self.config.storage.make_directory_namespace()
-        self.model_func = (
+        self.embedding_function = (
             self.config.embeddings.create_embedding_function() if self.config.embeddings else None
         )
         self._sql_client: SqlClientBase[Any] = None
+
+    def __enter__(self) -> LanceClient:
+        return self
+
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
+        pass
 
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
@@ -121,21 +128,21 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def sql_client(self, client: SqlClientBase[Any]) -> None:
         self._sql_client = client
 
-    def list_tables(self, namespace_name: str) -> List[str]:
+    def list_child_namespace_tables(self, namespace_name: str) -> List[str]:
         """Lists tables in child namespace."""
         return self.namespace.list_tables(ListTablesRequest(id=[namespace_name])).tables
 
-    def create_namespace(self, name: str) -> None:
+    def create_child_namespace(self, name: str) -> None:
         """Creates child namespace in root namespace."""
         self.namespace.create_namespace(CreateNamespaceRequest(id=[name]))
 
-    def drop_namespace(self, name: str) -> None:
+    def drop_child_namespace(self, name: str) -> None:
         """Drops child namespace after removing all its tables."""
-        for table in self.list_tables(name):
+        for table in self.list_child_namespace_tables(name):
             self.namespace.drop_table(DropTableRequest(id=[name, table]))
         self.namespace.drop_namespace(DropNamespaceRequest(id=[name]))
 
-    def namespace_exists(self, name: str) -> bool:
+    def child_namespace_exists(self, name: str) -> bool:
         """Returns True if child namespace exists in root namespace."""
         try:
             self.namespace.namespace_exists(NamespaceExistsRequest(id=[name]))
@@ -177,6 +184,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         ).schema
 
     def get_table_uri(self, table_name: str) -> str:
+        # we don't pass branch here — `uri` always returns base URI
         return self.open_lance_dataset(table_name).uri
 
     def drop_tables(self, *tables: str) -> None:
@@ -186,8 +194,8 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     def drop_storage(self) -> None:
         """Drops dataset namespace and all its tables."""
-        if self.namespace_exists(self.dataset_name):
-            self.drop_namespace(self.dataset_name)
+        if self.child_namespace_exists(self.dataset_name):
+            self.drop_child_namespace(self.dataset_name)
 
     def truncate_table(self, table_name: str) -> None:
         """Truncates table by deleting all rows in active branch."""
@@ -221,7 +229,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             table_id=self.make_table_id(table_name),
         ).checkout_version((branch_name, version_number))
 
-    def open_lance_table(self, table_name: str) -> LanceTable:
+    def open_lancedb_table(self, table_name: str) -> LanceTable:
         """Returns LanceDB table for given table name.
 
         This provides access to LanceDB-specific features like vector search.
@@ -274,25 +282,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
             ) from e
 
-    def query_table(
-        self,
-        table_name: str,
-        query: Union[List[Any], NDArray, Array, ChunkedArray, str, Tuple[Any], None] = None,
-    ) -> LanceQueryBuilder:
-        """Query a LanceDB table.
-
-        Args:
-            table_name: The name of the table to query.
-            query: The targeted vector to search for.
-
-        Returns:
-            A LanceDB query builder.
-        """
-        return self.open_lance_table(table_name).search(query=query)
-
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
-            self.create_namespace(self.dataset_name)
+            self.create_child_namespace(self.dataset_name)
         elif truncate_tables:
             for table_name in truncate_tables:
                 if not self.table_exists(table_name):
@@ -300,7 +292,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 self.truncate_table(table_name)
 
     def is_storage_initialized(self) -> bool:
-        return self.namespace_exists(self.dataset_name)
+        return self.child_namespace_exists(self.dataset_name)
 
     def verify_schema(
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
@@ -397,6 +389,48 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             table_exists, table_schema = self.get_storage_table(table_name)
             yield table_name, table_schema  # type: ignore[misc]
 
+    def make_arrow_table_schema(self, table_name: str) -> TArrowSchema:
+        """Creates a PyArrow schema for a table, including embedding metadata if configured."""
+        columns = self.schema.get_table_columns(table_name)
+        arrow_fields: List[TArrowField] = [
+            make_arrow_field_schema(col_name, col, self.type_mapper)
+            for col_name, col in columns.items()
+        ]
+
+        embedding_fields = None
+        vector_column = None
+        if self.config.embeddings and table_name not in self.schema.dlt_table_names():
+            embedding_fields = get_columns_names_with_prop(
+                self.schema.get_table(table_name=table_name), VECTORIZE_HINT
+            )
+            vector_column = self.config.embeddings.vector_column
+
+        if embedding_fields:
+            if vector_column not in columns:
+                vec_size = self.embedding_function.ndims()
+                arrow_fields.append(pa.field(vector_column, pa.list_(pa.float32(), vec_size)))
+            else:
+                logger.info(
+                    f"Lance table `{table_name}` in schema `{self.schema.name}` contains user"
+                    f" supplied vector column `{vector_column}`. Arrow column type must fit the"
+                    " vector dimensions."
+                )
+
+        metadata: Dict[str, bytes] = {}
+        if self.embedding_function and embedding_fields:
+            registry = EmbeddingFunctionRegistry.get_instance()
+            configs = [
+                EmbeddingFunctionConfig(
+                    source_column=source_column,
+                    vector_column=vector_column,
+                    function=self.embedding_function,
+                )
+                for source_column in embedding_fields
+            ]
+            metadata = registry.get_table_metadata(configs) or {}
+
+        return pa.schema(arrow_fields, metadata=metadata)
+
     @lance_error
     def add_null_columns_to_table(self, table_name: str, new_columns: List[TColumnSchema]) -> None:
         new_fields: List[TArrowField] = [
@@ -413,26 +447,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
             # create new table if it doesn't exist
             if not table_exists:
-                if self.config.embeddings and table_name not in self.schema.dlt_table_names():
-                    embedding_fields = get_columns_names_with_prop(
-                        self.schema.get_table(table_name=table_name), VECTORIZE_HINT
-                    )
-                    vector_column = self.config.embeddings.vector_column
-                    embedding_model_func = self.model_func
-                else:
-                    embedding_fields = None
-                    vector_column = None
-                    embedding_model_func = None
-
-                table_schema: TArrowSchema = make_arrow_table_schema(
-                    table_name,
-                    schema=self.schema,
-                    type_mapper=self.type_mapper,
-                    embedding_fields=embedding_fields,
-                    embedding_model_func=embedding_model_func,
-                    vector_column=vector_column,
-                )
-                self.create_table(table_name, table_schema)
+                self.create_table(table_name, self.make_arrow_table_schema(table_name))
 
             # create branch if needed
             if branch_name := self.config.storage.branch_name:
@@ -452,49 +467,16 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.update_schema_in_storage()
 
     @lance_error
-    def update_schema_in_storage(self) -> None:
-        records = [
-            {
-                self.schema.naming.normalize_identifier("version"): self.schema.version,
-                self.schema.naming.normalize_identifier(
-                    "engine_version"
-                ): self.schema.ENGINE_VERSION,
-                self.schema.naming.normalize_identifier("inserted_at"): pendulum.now(),
-                self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
-                self.schema.naming.normalize_identifier(
-                    "version_hash"
-                ): self.schema.stored_version_hash,
-                self.schema.naming.normalize_identifier("schema"): json.dumps(
-                    self.schema.to_dict()
-                ),
-            }
-        ]
-        write_disposition = self.schema.get_table(self.schema.version_table_name).get(
-            "write_disposition"
-        )
-        self.write_records(
-            records,
-            self.schema.version_table_name,
-            branch_name=self.config.storage.branch_name,
-            write_disposition=write_disposition,
-        )
-
-    @lance_error
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Retrieves the latest completed state for a pipeline."""
 
-        # normalize property names
+        # normalize column names needed for query / join / sort
         p_load_id = self.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID)
         p_dlt_load_id = self.schema.naming.normalize_identifier(
             self.schema.data_item_normalizer.c_dlt_load_id  # type: ignore[attr-defined]
         )
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_status = self.schema.naming.normalize_identifier("status")
-        p_version = self.schema.naming.normalize_identifier("version")
-        p_engine_version = self.schema.naming.normalize_identifier("engine_version")
-        p_state = self.schema.naming.normalize_identifier("state")
-        p_created_at = self.schema.naming.normalize_identifier("created_at")
-        p_version_hash = self.schema.naming.normalize_identifier("version_hash")
 
         # Read the tables into memory as Arrow tables, with pushdown predicates, so we pull as little
         # data into memory as possible.
@@ -517,110 +499,67 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         if joined_table.num_rows == 0:
             return None
 
-        state = joined_table.take([0]).to_pylist()[0]
-        return StateInfo(
-            version=state[p_version],
-            engine_version=state[p_engine_version],
-            pipeline_name=state[p_pipeline_name],
-            state=state[p_state],
-            created_at=pendulum.instance(state[p_created_at]),
-            version_hash=state[p_version_hash],
-            _dlt_load_id=state[p_dlt_load_id],
-        )
+        row = joined_table.take([0]).to_pylist()[0]
+        return StateInfo.from_normalized_mapping(row, self.schema.naming)
 
-    @lance_error
-    def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
+    def _get_latest_schema(self, filter_: Optional[str] = None) -> Optional[StorageSchemaInfo]:
         ds = self.open_lance_dataset(
             self.schema.version_table_name, branch_name=self.config.storage.branch_name
         )
-        p_version_hash = self.schema.naming.normalize_identifier("version_hash")
-        p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
-        p_schema_name = self.schema.naming.normalize_identifier("schema_name")
-        p_version = self.schema.naming.normalize_identifier("version")
-        p_engine_version = self.schema.naming.normalize_identifier("engine_version")
-        p_schema = self.schema.naming.normalize_identifier("schema")
-
+        table = ds.scanner(filter=filter_, prefilter=True).to_table() if filter_ else ds.to_table()
+        rows = table.to_pylist()
         try:
-            schemas = (
-                ds.scanner(filter=f'`{p_version_hash}` = "{schema_hash}"', prefilter=True)
-                .to_table()
-                .to_pylist()
-            )
-
-            most_recent_schema = sorted(schemas, key=lambda x: x[p_inserted_at], reverse=True)[0]
-            return StorageSchemaInfo(
-                version_hash=most_recent_schema[p_version_hash],
-                schema_name=most_recent_schema[p_schema_name],
-                version=most_recent_schema[p_version],
-                engine_version=most_recent_schema[p_engine_version],
-                inserted_at=most_recent_schema[p_inserted_at],
-                schema=most_recent_schema[p_schema],
-            )
-        except IndexError:
+            row = max(rows, key=lambda x: x[self.schema.naming.normalize_identifier("inserted_at")])
+        except ValueError:
             return None
+        return StorageSchemaInfo.from_normalized_mapping(row, self.schema.naming)
+
+    @lance_error
+    def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
+        col = self.schema.naming.normalize_identifier("version_hash")
+        return self._get_latest_schema(filter_=f'`{col}` = "{schema_hash}"')
 
     @lance_error
     def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
         if not self.table_exists(self.schema.version_table_name):
             return None
+        if schema_name:
+            col = self.schema.naming.normalize_identifier("schema_name")
+            return self._get_latest_schema(filter_=f'`{col}` = "{schema_name}"')
+        return self._get_latest_schema()
 
-        p_version_hash = self.schema.naming.normalize_identifier("version_hash")
-        p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
-        p_schema_name = self.schema.naming.normalize_identifier("schema_name")
-        p_version = self.schema.naming.normalize_identifier("version")
-        p_engine_version = self.schema.naming.normalize_identifier("engine_version")
-        p_schema = self.schema.naming.normalize_identifier("schema")
-
-        try:
-            version_dataset = self.open_lance_dataset(
-                self.schema.version_table_name, branch_name=self.config.storage.branch_name
-            )
-            if schema_name:
-                schemas = version_dataset.scanner(
-                    filter=f'`{p_schema_name}` = "{schema_name}"', prefilter=True
-                ).to_table()
-            else:
-                schemas = version_dataset.to_table()
-
-            most_recent_schema = sorted(
-                schemas.to_pylist(), key=lambda x: x[p_inserted_at], reverse=True
-            )[0]
-            return StorageSchemaInfo(
-                version_hash=most_recent_schema[p_version_hash],
-                schema_name=most_recent_schema[p_schema_name],
-                version=most_recent_schema[p_version],
-                engine_version=most_recent_schema[p_engine_version],
-                inserted_at=most_recent_schema[p_inserted_at],
-                schema=most_recent_schema[p_schema],
-            )
-        except IndexError:
-            return None
-
-    def __exit__(
-        self,
-        exc_type: Type[BaseException],
-        exc_val: BaseException,
-        exc_tb: TracebackType,
-    ) -> None:
-        pass
-
-    def __enter__(self) -> "LanceClient":
-        return self
+    @lance_error
+    def update_schema_in_storage(self) -> None:
+        record = {
+            "version": self.schema.version,
+            "engine_version": self.schema.ENGINE_VERSION,
+            "inserted_at": pendulum.now(),
+            "schema_name": self.schema.name,
+            "version_hash": self.schema.stored_version_hash,
+            "schema": json.dumps(self.schema.to_dict()),
+        }
+        records = [{self.schema.naming.normalize_identifier(k): v for k, v in record.items()}]
+        write_disposition = self.schema.get_table(self.schema.version_table_name).get(
+            "write_disposition"
+        )
+        self.write_records(
+            records,
+            self.schema.version_table_name,
+            branch_name=self.config.storage.branch_name,
+            write_disposition=write_disposition,
+        )
 
     @lance_error
     def complete_load(self, load_id: str) -> None:
-        records = [
-            {
-                self.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID): load_id,
-                self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
-                self.schema.naming.normalize_identifier("status"): 0,
-                self.schema.naming.normalize_identifier("inserted_at"): pendulum.now(),
-                self.schema.naming.normalize_identifier(
-                    "schema_version_hash"
-                ): self.schema.version_hash,
-            }
-        ]
+        record = {
+            C_DLT_LOADS_TABLE_LOAD_ID: load_id,
+            "schema_name": self.schema.name,
+            "status": 0,
+            "inserted_at": pendulum.now(),
+            "schema_version_hash": self.schema.version_hash,
+        }
+        records = [{self.schema.naming.normalize_identifier(k): v for k, v in record.items()}]
         write_disposition = self.schema.get_table(self.schema.loads_table_name).get(
             "write_disposition"
         )

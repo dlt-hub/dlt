@@ -5,13 +5,11 @@ import numpy as np
 import pyarrow as pa
 import pytest
 
-import dlt
 from dlt.common.configuration import resolve_configuration
-from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lance.configuration import LanceEmbeddingsConfiguration
 from dlt.destinations.impl.lance.lance_client import LanceClient
-from dlt.destinations.impl.lance.schema import make_arrow_table_schema
+from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
 
 from tests.utils import (
     auto_module_test_storage,
@@ -36,26 +34,26 @@ def client_with_storage() -> Iterator[LanceClient]:
 
 def test_lance_client_namespace_methods(client: LanceClient) -> None:
     namespace_name = "foo"
-    assert not client.namespace_exists(namespace_name)
-    client.create_namespace(namespace_name)
-    assert client.namespace_exists(namespace_name)
-    client.drop_namespace(namespace_name)
-    assert not client.namespace_exists(namespace_name)
+    assert not client.child_namespace_exists(namespace_name)
+    client.create_child_namespace(namespace_name)
+    assert client.child_namespace_exists(namespace_name)
+    client.drop_child_namespace(namespace_name)
+    assert not client.child_namespace_exists(namespace_name)
 
 
 def test_lance_client_storage(client: LanceClient) -> None:
     assert not client.is_storage_initialized()
-    assert not client.namespace_exists(client.dataset_name)
+    assert not client.child_namespace_exists(client.dataset_name)
 
     # initializing storage should create dataset namespace
     client.initialize_storage()
     assert client.is_storage_initialized()
-    assert client.namespace_exists(client.dataset_name)
+    assert client.child_namespace_exists(client.dataset_name)
 
     # dropping storage should drop dataset namespace
     client.drop_storage()
     assert not client.is_storage_initialized()
-    assert not client.namespace_exists(client.dataset_name)
+    assert not client.child_namespace_exists(client.dataset_name)
 
 
 def test_lance_client_create_branch_if_not_exists(client_with_storage: LanceClient) -> None:
@@ -113,31 +111,27 @@ def test_lance_client_write_records_matches_lancedb_table_add(
 
     We assert this, primarily, to ensure `write_records` produces correct vector embeddings.
     """
+    client = client_with_storage
+
+    # configure embeddings on client
     embeddings_config = resolve_configuration(
         LanceEmbeddingsConfiguration(),
         sections=("destination", "lance", "embeddings"),
     )
-    model_func = embeddings_config.create_embedding_function()
+    client.config.embeddings = embeddings_config
+    client.embedding_function = embeddings_config.create_embedding_function()
 
     table_name = "docs"
-    schema = Schema("test")
-    schema.update_table(
+    client.schema.update_table(
         {
             "name": table_name,
             "columns": {
                 "doc_id": {"name": "doc_id", "data_type": "bigint"},
-                "text": {"name": "text", "data_type": "text"},
+                "text": {"name": "text", "data_type": "text", VECTORIZE_HINT: True},  # type: ignore[misc]
             },
         }
     )
-    arrow_schema = make_arrow_table_schema(
-        table_name,
-        schema=schema,
-        type_mapper=dlt.destinations.lance().capabilities().get_type_mapper(),
-        vector_column="vector",
-        embedding_fields=["text"],
-        embedding_model_func=model_func,
-    )
+    arrow_schema = client.make_arrow_table_schema(table_name)
 
     records = pa.table(
         {
@@ -153,7 +147,6 @@ def test_lance_client_write_records_matches_lancedb_table_add(
     db.open_table("lancedb").add(records)
 
     # create table + vectors via LanceClient.write_records
-    client = client_with_storage
     client.create_table(table_name, arrow_schema)
     client.write_records(records.to_reader(), table_name)
 

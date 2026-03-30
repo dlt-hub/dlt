@@ -42,7 +42,7 @@ def open_lance_table(client: TLanceDestinationClient, table_name: str) -> LanceT
         from dlt.destinations.impl.lance.lance_client import LanceClient
 
         assert isinstance(client, LanceClient)
-        return client.open_lance_table(table_name)
+        return client.open_lancedb_table(table_name)
 
 
 def get_table_location(client: TLanceDestinationClient, table_name: str) -> str:
