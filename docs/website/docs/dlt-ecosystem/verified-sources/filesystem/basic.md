@@ -372,10 +372,10 @@ filesystem_pipe = filesystem(
 
 #### Available readers
 
-- `read_csv()` - processes CSV files using [Pandas](https://pandas.pydata.org/)
-- `read_jsonl()` - processes JSONL files chunk by chunk
-- `read_parquet()` - processes Parquet files using [PyArrow](https://arrow.apache.org/docs/python/)
-- `read_csv_duckdb()` - this transformer processes CSV files using DuckDB, which usually shows better performance than pandas.
+- `read_csv()` - processes CSV files using [Pandas](https://pandas.pydata.org/). Control batch size with `chunksize` (defaults to 10000 rows). Accepts additional `**pandas_kwargs` passed to `pd.read_csv()`.
+- `read_jsonl()` - processes JSONL files chunk by chunk. Control batch size with `chunksize` (defaults to 1000 lines per batch).
+- `read_parquet()` - processes Parquet files using [PyArrow](https://arrow.apache.org/docs/python/). Control memory usage with `chunksize` (defaults to 1000 rows per batch). Set `use_pyarrow=True` to yield native `pyarrow.RecordBatch` objects instead of Python dictionaries for zero-copy operations.
+- `read_csv_duckdb()` - processes CSV files using DuckDB, which usually shows better performance than Pandas. Control batch size with `chunk_size` (defaults to 5000 rows). Set `use_pyarrow=True` to yield Arrow format instead of JSON. Accepts additional `**duckdb_kwargs` passed to DuckDB's `read_csv()`.
 
 :::tip
 We advise that you give each resource a [specific name](../../../general-usage/resource#duplicate-and-rename-resources) before loading with `pipeline.run`. This will ensure that data goes to a table with the name you want and that each pipeline uses a [separate state for incremental loading.](../../../general-usage/state#read-and-write-pipeline-state-in-a-resource)
@@ -486,11 +486,11 @@ two methods to do that:
 
 **Partitioning works as follows:**
 
-1. Obtain a list of files ie. by just listing your resource `files = list(filesystem(...))`
+1. Obtain a list of files i.e. by just listing your resource `files = list(filesystem(...))`
 2. Order your list by `modification_date` or `file_url` and split it into equal chunks.
 3. For each chunk find min and max of the range
 4. Use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill. 
-5. You can load each partition in a loop or in parallel (ie. in separate process).
+5. You can load each partition in a loop or in parallel (i.e. in separate process).
 6. Continue regular incremental loading with `initial_value` set to the value at the end of the range (`modification_date` or `file_url`)
 and make the start range open to avoid duplicates.
 ```py
@@ -555,7 +555,7 @@ incremental_ = dlt.sources.incremental("modification_date", row_order="asc")  # 
 # each page contains only one file
 fs_ = filesystem(bucket_url=bucket_url, file_glob="csv/*", incremental=incremental_, files_per_page=1)
 
-# process one file in each run, you could also use max_time to process files ie. for an hour
+# process one file in each run, you could also use max_time to process files i.e. for an hour
 while not pipeline.run(fs_.with_name("files").add_limit(1)).is_empty:
     print(pipeline.last_trace.last_load_info)
 ```

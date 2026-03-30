@@ -983,7 +983,7 @@ def test_cursor_path_none_can_raise_on_none_2(item_type: TestDataItemFormat) -> 
         assert isinstance(e.value.__context__, IncrementalCursorPathMissing)
     else:
         assert isinstance(e.value.__context__, IncrementalCursorPathHasValueNone)
-    assert e.value.__context__.json_path == "created_at"  # type: ignore[attr-defined]
+    assert e.value.__context__.json_path == "created_at"
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch", "pandas"])
@@ -1370,7 +1370,7 @@ def test_start_value_set_to_last_value() -> None:
         p.run(r, destination="duckdb")
 
 
-@pytest.mark.parametrize("item_type", set(ALL_TEST_DATA_ITEM_FORMATS) - {"object"})
+@pytest.mark.parametrize("item_type", sorted(set(ALL_TEST_DATA_ITEM_FORMATS) - {"object"}))
 def test_start_value_set_to_last_value_arrow(item_type: TestDataItemFormat) -> None:
     p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination="duckdb")
     now = pendulum.now()
@@ -1397,7 +1397,7 @@ def test_start_value_set_to_last_value_arrow(item_type: TestDataItemFormat) -> N
     p.run(some_data(False))
 
 
-@pytest.mark.parametrize("item_type", set(ALL_TEST_DATA_ITEM_FORMATS) - {"pandas"})
+@pytest.mark.parametrize("item_type", sorted(set(ALL_TEST_DATA_ITEM_FORMATS) - {"pandas"}))
 @pytest.mark.parametrize(
     "id_value",
     ("1231231231231271872", b"1231231231231271872", pendulum.now(), 1271.78, Decimal("1231.87")),
@@ -1560,6 +1560,153 @@ def test_incremental_explicit_disable_unique_check(item_type: TestDataItemFormat
         assert s.state["incremental"]["ts"]["unique_hashes"] == []
 
 
+def test_incremental_merge_preserves_dedup_key_flag() -> None:
+    """Merge must preserve _dedup_key_from_hints from the explicit (other) incremental."""
+    # explicit pk=() must survive merge — flag stays False
+    default_inc: Incremental[int] = Incremental("cursor")
+    explicit_inc: Incremental[int] = Incremental("cursor", primary_key=())
+    merged = default_inc.merge(explicit_inc)
+    assert merged.primary_key == ()
+    assert merged._dedup_key_from_hints is False
+    # resource pk cannot override
+    merged.set_deduplication_key("id", from_hints=True)
+    assert merged.primary_key == ()
+
+    # explicit without pk — flag stays False from default's pk
+    default_inc2: Incremental[int] = Incremental("cursor", primary_key="alt_id")
+    explicit_inc2: Incremental[int] = Incremental("cursor", initial_value=0)
+    merged2 = default_inc2.merge(explicit_inc2)
+    assert merged2.primary_key == "alt_id"
+    assert merged2._dedup_key_from_hints is False
+    # resource pk cannot override — default's pk was explicitly set
+    merged2.set_deduplication_key("id", from_hints=True)
+    assert merged2.primary_key == "alt_id"
+
+    # copy preserves flag
+    original_inc: Incremental[int] = Incremental("cursor", primary_key=())
+    copied = original_inc.copy()
+    assert copied.primary_key == ()
+    assert copied._dedup_key_from_hints is False
+    copied.set_deduplication_key("id", from_hints=True)
+    assert copied.primary_key == ()
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("dedup_key", [(), "alt_id"])
+def test_incremental_dedup_key_survives_resource_pk(
+    item_type: TestDataItemFormat,
+    dedup_key: Any,
+) -> None:
+    """Explicit dedup key on incremental default must not be overridden by resource pk."""
+    data = [
+        {"created_at": 1, "id": 1, "alt_id": 10},
+        {"created_at": 1, "id": 1, "alt_id": 20},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource(primary_key="id")
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", primary_key=dedup_key),
+    ):
+        yield from source_items
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(some_data)
+    assert some_data.incremental._incremental.primary_key == dedup_key
+    assert some_data.incremental.primary_key == some_data.incremental._incremental.primary_key
+
+
+def test_dynamic_dedup_key() -> None:
+    """Callable dedup key selects primary key based on item content."""
+
+    def dedup_key_fn(item: Any) -> str:
+        return "alt_id" if item.get("type") == "a" else "id"
+
+    @dlt.resource(primary_key="id", table_name=lambda i_: f"table_{i_['type']}")
+    def some_data(created_at=dlt.sources.incremental("created_at", primary_key=dedup_key_fn)):
+        yield [
+            {"created_at": 1, "id": 1, "alt_id": 10, "type": "a"},
+            {"created_at": 1, "id": 2, "alt_id": 10, "type": "a"},
+            {"created_at": 1, "id": 3, "alt_id": 10, "type": "b"},
+        ]
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(some_data)
+    # dedup_key_fn is preserved, not overridden by resource pk
+    assert some_data.incremental._incremental.primary_key is dedup_key_fn
+    # row 1,2: type=a → key=alt_id → value=10 (duplicate)
+    # row 3: type=b → key=id → value=3
+    hashes = some_data.state["incremental"]["created_at"]["unique_hashes"]
+    assert set(hashes) == {digest128(json.dumps(10)), digest128(json.dumps(3))}
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_decorator_incremental_pk_not_overridden(
+    item_type: TestDataItemFormat,
+) -> None:
+    """When incremental with primary_key=() is set via @dlt.resource decorator,
+    the resource pk must not override it."""
+    data = [{"created_at": 1, "id": 1}, {"created_at": 1, "id": 2}]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource(
+        primary_key="id",
+        incremental=dlt.sources.incremental("created_at", primary_key=()),
+    )
+    def some_data(created_at: Optional[dlt.sources.incremental[int]] = None):
+        yield from source_items
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(some_data())
+    assert some_data.state["incremental"]["created_at"]["unique_hashes"] == []
+    assert some_data.incremental.primary_key == some_data.incremental._incremental.primary_key
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_non_aware_resource_incremental_pk_not_overridden(
+    item_type: TestDataItemFormat,
+) -> None:
+    """When incremental with primary_key=() is set on a resource that has no
+    incremental parameter (non-aware), the resource pk must not override it."""
+    data = [{"created_at": 1, "id": 1}, {"created_at": 1, "id": 2}]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource(primary_key="id")
+    def some_data():
+        yield from source_items
+
+    r = some_data()
+    r.apply_hints(incremental=dlt.sources.incremental("created_at", primary_key=()))
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(r)
+    assert r.state["incremental"]["created_at"]["unique_hashes"] == []
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_apply_hints_primary_key_does_not_override_incremental_empty_tuple(
+    item_type: TestDataItemFormat,
+) -> None:
+    """Regression for #3657: apply_hints(primary_key=...) after
+    apply_hints(incremental=incremental(primary_key=())) must not override the
+    empty-tuple primary key that disables deduplication."""
+
+    @dlt.resource
+    def some_data(last_timestamp=dlt.sources.incremental("ts")):
+        data = [{"delta": i, "ts": pendulum.now().timestamp()} for i in range(-10, 10)]
+        source_items = data_to_item_format(item_type, data)
+        yield from source_items
+
+    r = some_data()
+    r.apply_hints(incremental=dlt.sources.incremental("ts", primary_key=()))
+    r.apply_hints(primary_key=["delta"])
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(r)
+    assert r.state["incremental"]["ts"]["unique_hashes"] == []
+    assert r.incremental.primary_key == r.incremental._incremental.primary_key
+
+
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
@@ -1680,6 +1827,59 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
     # remove incremental
     r.apply_hints(incremental=dlt.sources.incremental.EMPTY)
     assert r.incremental is None
+
+
+def test_set_hints_does_not_desync_wrapper_from_inner() -> None:
+    """Simulates deferred reflect: generator emits hints with primary_key via
+    dlt.mark.with_hints after inner incremental is already set. The wrapper
+    must stay in sync with inner after _set_hints processes the late hints."""
+
+    @dlt.resource
+    def some_data(created_at=dlt.sources.incremental("created_at", primary_key=())):
+        # emit late hints with primary_key, like sql_database deferred reflect
+        yield dlt.mark.with_hints(
+            [],
+            dlt.mark.make_hints(primary_key=["id"]),
+        )
+        yield [{"created_at": 1, "id": 1}, {"created_at": 1, "id": 2}]
+
+    r = some_data()
+
+    def _check_sync(item):
+        _r = dlt.current.resource()
+        if _r.incremental._incremental is not None:
+            assert _r.incremental.primary_key == _r.incremental._incremental.primary_key
+        return item
+
+    r.add_step(_check_sync)  # type: ignore[arg-type]
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(r)
+    assert r.incremental.primary_key == r.incremental._incremental.primary_key
+
+
+def test_set_hints_syncs_wrapper_primary_key() -> None:
+    """Verify that _set_hints updates the IncrementalResourceWrapper's primary_key
+    when apply_hints changes the resource primary_key, so that wrapper.__call__
+    does not overwrite the incremental's primary_key with a stale value."""
+
+    @dlt.resource(primary_key="id")
+    def some_data(created_at=dlt.sources.incremental("created_at")):
+        yield [{"created_at": 1, "id": 1, "alt_id": 10}]
+
+    r = some_data()
+    # wrapper starts with primary_key="id" from the decorator
+    assert r.incremental.primary_key == "id"
+    # apply_hints changes the resource primary_key
+    r.apply_hints(primary_key=["id", "alt_id"])
+    # wrapper's primary_key must be updated so __call__ stays in sync
+    assert r.incremental.primary_key == ["id", "alt_id"]
+
+    # after extraction, inner incremental should also have the updated pk
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(r)
+    assert r.incremental._incremental.primary_key == ["id", "alt_id"]
+    assert r.incremental.primary_key == r.incremental._incremental.primary_key
 
 
 def test_incremental_wrapper_on_clone_standalone_incremental() -> None:
@@ -2299,6 +2499,29 @@ def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
     pipeline.extract(descending_single_item())
 
     pipeline.extract(ascending_single_item())
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_start_out_of_range_open_equals_start_value(item_type: TestDataItemFormat) -> None:
+    """start_out_of_range is set when row equals start_value with range_start='open'"""
+
+    @dlt.resource
+    def descending(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at", initial_value=10, row_order="desc", range_start="open"
+        )
+    ) -> Any:
+        # descending from 12 down to 8, with value 10 == start_value
+        for i in [12, 11, 10, 9, 8]:
+            yield data_to_item_format(item_type, [{"updated_at": i}])
+            # 10 equals start_value and range_start="open" so it's out of range
+            if i <= 10:
+                assert updated_at.start_out_of_range is True
+
+    # early stopping should close the generator when row_order="desc"
+    data = list(descending)
+    # only 12 and 11 are > 10 (open range excludes 10)
+    assert data_item_length(data) == 2
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -4201,7 +4424,7 @@ def test_primary_key_disables_deduplication() -> None:
     incremental = dlt.sources.incremental[int]("updated_at")
     incremental._cached_state = {"unique_hashes": [], "initial_value": None, "last_value": None}
     assert incremental._get_transform({}).boundary_deduplication is True
-    incremental.primary_key = ()
+    incremental.set_deduplication_key((), False)
     assert incremental._get_transform({}).boundary_deduplication is False
 
 
@@ -4409,20 +4632,13 @@ def test_custom_metrics_in_incremental() -> None:
             "resource_with_metrics"
         ]
         assert resource_metrics.custom_metrics["from_resource"] == "hey"
-        assert resource_metrics.custom_metrics["unfiltered_items_count"] == unfiltered_items_count
-        assert (
-            resource_metrics.custom_metrics["unfiltered_batches_count"] == unfiltered_batches_count
-        )
+        inc = resource_metrics.custom_metrics["incremental"][0]
+        assert inc["unfiltered_items_count"] == unfiltered_items_count
+        assert inc["unfiltered_batches_count"] == unfiltered_batches_count
         # NOTE: initial_unique_hashes_count is always last value in pipeline state,
         # so it persists across different incremental instances
-        assert (
-            resource_metrics.custom_metrics["initial_unique_hashes_count"]
-            == initial_unique_hashes_count
-        )
-        assert (
-            resource_metrics.custom_metrics["final_unique_hashes_count"]
-            == final_unique_hashes_count
-        )
+        assert inc["initial_unique_hashes_count"] == initial_unique_hashes_count
+        assert inc["final_unique_hashes_count"] == final_unique_hashes_count
         assert p.last_trace.last_normalize_info.row_counts.get("items") == last_normalized_count
 
     def _run_with_items(items: TDataItems, as_batch: bool) -> str:
@@ -4480,3 +4696,89 @@ def test_custom_metrics_in_incremental() -> None:
     # None items should increment unfiltered_items_count
     load_id = _run_with_items([None, None, {"id": 9, "value": "9"}], True)
     _assert_custom_metrics(load_id, 12, 6, 1, 1, 1)
+
+
+def test_incremental_hints_in_extract_trace() -> None:
+    """Verify that incremental configuration is correctly stored in extract
+    trace hints for first run, subsequent run, run with end_value, and
+    resource refresh run."""
+    call_no = 0
+
+    @dlt.resource(table_name="items", primary_key="id")
+    def some_data(
+        updated_at=dlt.sources.incremental("updated_at", initial_value=1),
+    ):
+        nonlocal call_no
+        call_no += 1
+        yield [
+            {"id": call_no * 10 + 1, "updated_at": call_no * 10 + 2},
+            {"id": call_no * 10 + 2, "updated_at": call_no * 10 + 3},
+        ]
+
+    # yields static data so all items get filtered on second run
+    @dlt.resource(table_name="items", primary_key="id")
+    def static_data(
+        updated_at=dlt.sources.incremental("updated_at", initial_value=1),
+    ):
+        yield [{"id": 1, "updated_at": 2}, {"id": 2, "updated_at": 3}]
+
+    p = dlt.pipeline(pipeline_name="p_hints_" + uniq_id(), destination="duckdb")
+
+    def _get_incremental_hint(resource_name: str = "some_data") -> Dict[str, Any]:
+        extract_info = p.last_trace.last_extract_info
+        load_id = list(extract_info.metrics.keys())[0]
+        return extract_info.metrics[load_id][0]["hints"][resource_name]["incremental"]
+
+    # 1. first run: initial_value=1, no end_value, no prior state
+    p.run(some_data)
+    inc_hint = _get_incremental_hint()
+    assert inc_hint["cursor_path"] == "updated_at"
+    assert inc_hint["initial_value"] == 1
+    assert inc_hint["end_value"] is None
+    assert inc_hint["range_start"] == "closed"
+    assert inc_hint["range_end"] == "open"
+    assert inc_hint["lag"] is None
+    assert inc_hint["allow_external_schedulers"] is False
+
+    # 2. subsequent run: initial_value stays as configured (state is separate)
+    p.run(some_data)
+    inc_hint = _get_incremental_hint()
+    assert inc_hint["cursor_path"] == "updated_at"
+    assert inc_hint["initial_value"] == 1
+    assert inc_hint["end_value"] is None
+
+    # 3. run with end_value set
+    some_data_with_end = some_data()
+    some_data_with_end.apply_hints(
+        incremental=dlt.sources.incremental("updated_at", initial_value=1, end_value=100)
+    )
+    p.run(some_data_with_end)
+    inc_hint = _get_incremental_hint()
+    assert inc_hint["cursor_path"] == "updated_at"
+    assert inc_hint["initial_value"] == 1
+    assert inc_hint["end_value"] == 100
+    assert inc_hint["range_start"] == "closed"
+    assert inc_hint["range_end"] == "open"
+
+    # 4. resource refresh run (drop_resources resets state)
+    p.run(some_data, refresh="drop_resources")
+    inc_hint = _get_incremental_hint()
+    assert inc_hint["cursor_path"] == "updated_at"
+    assert inc_hint["initial_value"] == 1
+    assert inc_hint["end_value"] is None
+
+    # 5. no new data: all items filtered by incremental, nothing loaded
+    #    but hints are still present in extract metrics
+    p.run(static_data)
+    assert p.last_trace.last_extract_info.metrics
+    # second run yields same items — all filtered out
+    load_info = p.run(static_data)
+    assert load_info.loads_ids == []
+    inc_hint = _get_incremental_hint("static_data")
+    assert inc_hint["cursor_path"] == "updated_at"
+    assert inc_hint["initial_value"] == 1
+    assert inc_hint["end_value"] is None
+    # resource_metrics should be empty when no items pass the filter
+    extract_info = p.last_trace.last_extract_info
+    load_id = list(extract_info.metrics.keys())[0]
+    assert extract_info.metrics[load_id][0]["resource_metrics"] == {}

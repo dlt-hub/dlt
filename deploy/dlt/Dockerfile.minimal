@@ -57,5 +57,6 @@ RUN uv run dlt pipeline fruit_pipeline info
 # install hub
 RUN uv pip install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz[hub] --resolution lowest-direct && uv pip install typing-extensions==4.8.0
 RUN uv run python minimal_pipeline.py
-RUN uv run dlt --non-interactive license issue dlthub.transformation
-RUN uv run dlt runtime --help
+# TODO: enable when dlthub fixed
+# RUN uv run dlt --non-interactive license issue dlthub.transformation
+# RUN uv run dlt runtime --help

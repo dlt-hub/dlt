@@ -106,9 +106,9 @@ class ClickHouseTypeMapper(TypeMapperImpl):
         if decimal_match := re.match(
             r"Decimal\((?P<precision>\d+)\s*(?:,\s*(?P<scale>\d+))?\)", db_type
         ):
-            precision, scale = decimal_match.groups()
-            precision = int(precision)
-            scale = int(scale) if scale else 0
+            precision_str, scale_str = decimal_match.groups()
+            precision = int(precision_str)
+            scale = int(scale_str) if scale_str else 0
             db_type = "Decimal"
 
         if db_type == "Decimal" and (precision, scale) == self.capabilities.wei_precision:
@@ -226,6 +226,7 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         credentials: Union[ClickHouseCredentials, str, Dict[str, Any], Type[Connection]] = None,
         destination_name: str = None,
         environment: str = None,
+        select_sequential_consistency: int = None,
         **kwargs: Any,
     ) -> None:
         """Configure the ClickHouse destination to use in a pipeline.
@@ -238,12 +239,14 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
                 a connection string in the format `clickhouse://user:password@host:port/database`
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
+            select_sequential_consistency (int, optional): Ensures read-after-write consistency on ClickHouse Cloud and clusters. Defaults to 1.
             **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,
             destination_name=destination_name,
             environment=environment,
+            select_sequential_consistency=select_sequential_consistency,
             **kwargs,
         )
 

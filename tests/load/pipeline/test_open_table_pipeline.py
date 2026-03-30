@@ -1161,6 +1161,98 @@ def test_iceberg_adapter_partitioning(
     ),
     ids=lambda x: x.name,
 )
+def test_iceberg_table_properties(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Config-level defaults, adapter-only, and merge (adapter wins) in one pipeline run."""
+    from dlt.common.libs.pyiceberg import get_iceberg_tables
+    from dlt.destinations.adapters import iceberg_adapter
+
+    # config sets defaults for all tables
+    os.environ["DESTINATION__FILESYSTEM__ICEBERG_TABLE_PROPERTIES"] = (
+        '{"write.format.default": "avro", "write.target-file-size-bytes": "536870912"}'
+    )
+
+    try:
+        pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+        @dlt.resource(table_format="iceberg")
+        def config_only():
+            yield [{"id": 1, "value": "a"}]
+
+        @dlt.resource(table_format="iceberg")
+        def adapter_override():
+            yield [{"id": 1, "value": "b"}]
+
+        info = pipeline.run(
+            [
+                config_only,
+                iceberg_adapter(
+                    adapter_override,
+                    table_properties={"write.format.default": "parquet"},
+                ),
+            ]
+        )
+        assert_load_info(info)
+
+        tables = get_iceberg_tables(pipeline, "config_only", "adapter_override")
+
+        # config-only: both config properties applied
+        assert tables["config_only"].properties["write.format.default"] == "avro"
+        assert tables["config_only"].properties["write.target-file-size-bytes"] == "536870912"
+
+        # adapter override: adapter wins on conflict, config default kept
+        assert tables["adapter_override"].properties["write.format.default"] == "parquet"
+        assert tables["adapter_override"].properties["write.target-file-size-bytes"] == "536870912"
+    finally:
+        del os.environ["DESTINATION__FILESYSTEM__ICEBERG_TABLE_PROPERTIES"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg_namespace_properties(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Namespace properties from config are applied when creating the Iceberg namespace."""
+    os.environ["DESTINATION__FILESYSTEM__ICEBERG_NAMESPACE_PROPERTIES"] = (
+        '{"owner": "data-team", "description": "test namespace"}'
+    )
+
+    try:
+        pipeline = destination_config.setup_pipeline("fs_pipe_ns", dev_mode=True)
+
+        @dlt.resource(table_format="iceberg")
+        def ns_data():
+            yield [{"id": 1, "value": "a"}]
+
+        info = pipeline.run(ns_data)
+        assert_load_info(info)
+
+        from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+
+        client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
+        catalog = client.get_open_table_catalog("iceberg")
+        ns_props = catalog.load_namespace_properties(client.dataset_name)
+        assert ns_props["owner"] == "data-team"
+        assert ns_props["description"] == "test namespace"
+    finally:
+        del os.environ["DESTINATION__FILESYSTEM__ICEBERG_NAMESPACE_PROPERTIES"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
 def test_iceberg_adapter_data_verification(
     destination_config: DestinationTestConfiguration,
 ) -> None:
@@ -1288,6 +1380,56 @@ def test_iceberg_adapter_merge_write_disposition(
     diana = next(row for row in data_list if row["user_id"] == 4)
     assert diana["name"] == "Diana"
     assert diana["region"] == "APAC"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_open_table_insert_only_merge(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline("insert_only", dev_mode=True)
+
+    @dlt.resource(
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+        ]
+
+    info = pipeline.run(items())
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 2}
+
+    # second load: existing records should NOT be updated, new record inserted
+    @dlt.resource(
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
+    def items_update():
+        yield [
+            {"id": 1, "name": "Alice Updated", "value": 999},
+            {"id": 3, "name": "Charlie", "value": 300},
+        ]
+
+    info = pipeline.run(items_update.with_name("items")())
+    assert_load_info(info)
+
+    rows = load_tables_to_dicts(pipeline, "items", exclude_system_cols=True)["items"]
+    assert len(rows) == 3
+    alice = next(row for row in rows if row["id"] == 1)
+    assert alice["name"] == "Alice"
+    assert alice["value"] == 100
 
 
 @pytest.mark.parametrize(

@@ -34,6 +34,7 @@ from tests.common.configuration.utils import environment
 from tests.common.storages.utils import TEST_SAMPLE_FILES, assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET, WITH_GDRIVE_BUCKETS
 from tests.load.filesystem.utils import self_signed_cert
+from tests.utils import get_test_storage_root
 
 
 # mark all tests as essential, do not remove
@@ -57,9 +58,6 @@ def test_filesystem_configuration() -> None:
         "client_kwargs": None,
         "config_kwargs": None,
         "kwargs": None,
-        "deltalake_storage_options": None,
-        "deltalake_configuration": None,
-        "deltalake_streamed_exec": True,
     }
 
 
@@ -140,13 +138,16 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
 
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()
+    if config.protocol == "hf":
+        pytest.skip("`hf` protocol requires repo creation, which this test does not do")
     # we do not add protocol to bucket_url (we need relative path)
     assert bucket_url.startswith(config.protocol) or config.is_local_filesystem
     filesystem, url = fsspec_from_config(config)
     # do a few file ops
     now = pendulum.now()
     filename = f"filesystem_common_{uniq_id()}"
-    file_dir = posixpath.join(url, f"filesystem_common_dir_{uniq_id()}")
+    dataset_name = f"filesystem_common_dir_{uniq_id()}"
+    file_dir = posixpath.join(url, dataset_name)
     file_url = posixpath.join(file_dir, filename)
     try:
         filesystem.mkdir(file_dir, create_parents=True)
@@ -226,7 +227,7 @@ def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> No
 
 
 def test_filesystem_configuration_with_additional_arguments() -> None:
-    config = FilesystemConfiguration(
+    config = FilesystemDestinationClientConfiguration(
         bucket_url="az://root",
         kwargs={"use_ssl": True},
         client_kwargs={"verify": "public.crt"},
@@ -236,21 +237,18 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
             "delta.enableChangeDataFeed": "true",
         },
         deltalake_streamed_exec=False,
+        iceberg_table_properties={"write.format.default": "parquet"},
+        iceberg_namespace_properties={"owner": "data-team"},
     )
-    assert dict(config) == {
-        "read_only": False,
-        "bucket_url": "az://root",
-        "credentials": None,
-        "kwargs": {"use_ssl": True},
-        "client_kwargs": {"verify": "public.crt"},
-        "config_kwargs": None,
-        "deltalake_storage_options": {"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
-        "deltalake_configuration": {
-            "delta.minWriterVersion": "7",
-            "delta.enableChangeDataFeed": "true",
-        },
-        "deltalake_streamed_exec": False,
+    config_dict = dict(config)
+    assert config_dict["deltalake_storage_options"] == {"AWS_S3_LOCKING_PROVIDER": "dynamodb"}
+    assert config_dict["deltalake_configuration"] == {
+        "delta.minWriterVersion": "7",
+        "delta.enableChangeDataFeed": "true",
     }
+    assert config_dict["deltalake_streamed_exec"] is False
+    assert config_dict["iceberg_table_properties"] == {"write.format.default": "parquet"}
+    assert config_dict["iceberg_namespace_properties"] == {"owner": "data-team"}
 
 
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
@@ -377,7 +375,7 @@ def glob_test_setup(
             filesystem.mkdirs(mem_path)
             filesystem.upload(TEST_SAMPLE_FILES, mem_path, recursive=True)
     if config.protocol == "file":
-        file_path = os.path.join("_storage", "data", "standard_source")
+        file_path = os.path.join(get_test_storage_root(), "data", "standard_source")
         if not filesystem.isdir(file_path):
             filesystem.mkdirs(file_path)
             filesystem.upload(TEST_SAMPLE_FILES, file_path, recursive=True)

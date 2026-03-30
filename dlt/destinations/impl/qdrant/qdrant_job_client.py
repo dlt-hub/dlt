@@ -531,8 +531,8 @@ class QdrantClient(JobClientBase, WithStateSync):
         except ValueError as e:
             if "not found" in str(e):
                 return False
-            raise e
+            raise
         except UnexpectedResponse as e:
             if e.status_code == 404:
                 return False
-            raise e
+            raise

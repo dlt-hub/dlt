@@ -1,17 +1,24 @@
 import os
+from pathlib import Path
+
 import pytest
 import sys
 import time
 import multiprocessing
-from typing import ClassVar, Tuple, Type
+from concurrent.futures import Executor
+from typing import ClassVar, Dict, Iterator, List, Tuple, Type
 
 from dlt.common.runtime import signals
 from dlt.common.configuration import resolve_configuration, configspec
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs import ConfigSectionContext, RuntimeConfiguration
+from dlt.common.configuration.specs import (
+    ConfigSectionContext,
+    ContainerInjectableContext,
+    RuntimeConfiguration,
+)
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.exceptions import DltException, SignalReceivedException
-from dlt.common.runners import pool_runner as runner
+from dlt.common.runners import pool_runner as runner, Runnable, TRunMetrics
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
 from dlt.common.runtime.init import initialize_runtime
@@ -50,6 +57,70 @@ class SectionedTestConfig(BaseConfiguration):
     __section__: ClassVar[str] = "test_section"
 
 
+@configspec
+class ThreadLocalWorkerContext(ContainerInjectableContext):
+    """A custom context marked for worker affinity, thread-local."""
+
+    worker_affinity: ClassVar[bool] = True
+    global_affinity: ClassVar[bool] = False
+
+    value: str = None
+
+
+@configspec
+class WorkerAffinityContext(ContainerInjectableContext):
+    """A custom context marked for worker affinity, global."""
+
+    worker_affinity: ClassVar[bool] = True
+    global_affinity: ClassVar[bool] = True
+
+    value: str = None
+
+
+class _ThreadLocalContextReaderRunnable(Runnable[Executor]):
+    """Runnable that submits tasks to read ThreadLocalWorkerContext values from workers."""
+
+    def __init__(self, num_tasks: int) -> None:
+        self.num_tasks = num_tasks
+        self.results: List[str] = []
+
+    @staticmethod
+    def worker() -> str:
+        """Worker reads context value."""
+        container = Container()
+        ctx = container[ThreadLocalWorkerContext]
+        return ctx.value
+
+    def run(self, pool: Executor) -> TRunMetrics:
+        """Submit tasks to pool."""
+        futures = [
+            pool.submit(_ThreadLocalContextReaderRunnable.worker) for _ in range(self.num_tasks)
+        ]
+        self.results = [f.result() for f in futures]
+        return TRunMetrics(True, 0)  # idle after one run
+
+
+class _GlobalContextReaderRunnable(Runnable[Executor]):
+    """Runnable that submits tasks to read WorkerAffinityContext values from workers."""
+
+    def __init__(self, num_tasks: int) -> None:
+        self.num_tasks = num_tasks
+        self.results: List[str] = []
+
+    @staticmethod
+    def worker() -> str:
+        """Worker reads global context value."""
+        container = Container()
+        ctx = container[WorkerAffinityContext]
+        return ctx.value
+
+    def run(self, pool: Executor) -> TRunMetrics:
+        """Submit tasks to pool."""
+        futures = [pool.submit(_GlobalContextReaderRunnable.worker) for _ in range(self.num_tasks)]
+        self.results = [f.result() for f in futures]
+        return TRunMetrics(True, 0)  # idle after one run
+
+
 def _worker_resolve_config() -> Tuple[str, Tuple[str, ...]]:
     """Worker function that resolves a config value using ConfigSectionContext.
 
@@ -76,10 +147,17 @@ _counter = 0
 
 
 @pytest.fixture(autouse=True)
-def default_args() -> None:
+def default_args() -> Iterator[None]:
     signals._received_signal = 0
     global _counter
     _counter = 0
+    saved = Container._INSTANCE
+    Container._INSTANCE = None
+    try:
+        yield
+    finally:
+        signals._received_signal = 0
+        Container._INSTANCE = saved
 
 
 # test runner functions
@@ -193,6 +271,78 @@ def test_pool_runner_process_methods_configured(method) -> None:
     runs_count = runner.run_pool(ProcessPoolConfiguration(start_method=method), r)
     assert runs_count == 1
     assert [v[0] for v in r.rv] == list(range(4))
+
+
+def test_spawn_pool_with_non_importable_main(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify #3586: spawn pool works when `__main__.__file__` is a non-importable
+    orchestrator CLI entry point.
+    """
+    import dlt.common.runners.pool_runner as pool_runner_mod
+
+    # create a script that crashes when executed (simulates Airflow CLI entry point)
+    bad_main = tmp_path / "bad_main.py"
+    bad_main.write_text('raise RuntimeError("spawn should not re-execute this script")\n')
+
+    config = resolve_configuration(RuntimeConfiguration())
+    initialize_runtime("dlt", config)
+
+    # simulate orchestrator context and reset one-shot flag
+    monkeypatch.setenv("AIRFLOW_CTX_TASK_ID", "test_task")
+    monkeypatch.setattr(pool_runner_mod, "_MAIN_FIXUP_SUPPRESSED", False)
+
+    main = sys.modules["__main__"]
+    original_file = getattr(main, "__file__", None)
+    original_spec = getattr(main, "__spec__", None)
+    try:
+        main.__file__ = str(bad_main)
+        main.__spec__ = None
+
+        r = _TestRunnableWorker(4)
+        # don't set start_method — let get_default_start_method detect the orchestrator
+        runs_count = runner.run_pool(ProcessPoolConfiguration(workers=2), r)
+        assert runs_count == 1
+        assert [v[0] for v in r.rv] == list(range(4))
+        # __file__ preserved, __spec__ set to suppress re-execution
+        assert main.__file__ == str(bad_main)
+        assert getattr(main.__spec__, "name", None) == "__main__"
+    finally:
+        if original_file is not None:
+            main.__file__ = original_file
+        elif hasattr(main, "__file__"):
+            del main.__file__
+        main.__spec__ = original_spec
+
+
+def test_spawn_pool_no_fixup_without_orchestrator(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify that `_suppress_main_fixup_in_orchestrator` is NOT called when
+    no orchestrator is detected -- `__main__.__spec__` stays `None`.
+    """
+    import dlt.common.runners.pool_runner as pool_runner_mod
+
+    config = resolve_configuration(RuntimeConfiguration())
+    initialize_runtime("dlt", config)
+
+    # ensure no orchestrator env vars are set
+    monkeypatch.delenv("AIRFLOW_CTX_TASK_ID", raising=False)
+    monkeypatch.setattr(pool_runner_mod, "_MAIN_FIXUP_SUPPRESSED", False)
+
+    main = sys.modules["__main__"]
+    original_spec = getattr(main, "__spec__", None)
+    try:
+        main.__spec__ = None
+
+        r = _TestRunnableWorker(4)
+        # explicitly set start_method="spawn" since no orchestrator means
+        # get_default_start_method won't switch from fork to spawn
+        runs_count = runner.run_pool(ProcessPoolConfiguration(workers=2, start_method="spawn"), r)
+        assert runs_count == 1
+        assert [v[0] for v in r.rv] == list(range(4))
+        # fixup was NOT applied: __spec__ is still None
+        assert main.__spec__ is None
+    finally:
+        main.__spec__ = original_spec
 
 
 import threading
@@ -341,3 +491,108 @@ def test_config_section_context_restored_in_worker(
             f"Expected 'non_sectioned_value' but got '{result_value}'. "
             "Config resolution should use non-sectioned value when no ConfigSectionContext is set."
         )
+
+
+def test_worker_contexts_thread_to_process() -> None:
+    """Test that thread-local contexts are passed to process pools via run_pool.
+
+    Simulates parallel dlt pipelines:
+    - Each thread sets ThreadLocalWorkerContext with unique value
+    - Each thread calls run_pool with ProcessPoolConfiguration
+    - Process workers read context via Container
+    - Verify workers see parent thread's context value
+
+    Note: only `spawn` is tested because `fork` from a multi-threaded process
+    is fundamentally unsafe (inherits poisoned locks from other threads).
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    container = Container()
+
+    # Initialize runtime (required for process pools)
+    config = resolve_configuration(RuntimeConfiguration())
+    initialize_runtime("dlt", config)
+
+    results: Dict[str, List[str]] = {}
+
+    def thread_worker_fn(thread_id: str) -> List[str]:
+        """Runs in thread. Sets context, runs process pool."""
+        # Set thread-local context
+        container[ThreadLocalWorkerContext] = ThreadLocalWorkerContext(value=f"thread_{thread_id}")
+
+        # Create runnable that will read context in processes
+        runnable = _ThreadLocalContextReaderRunnable(num_tasks=3)
+
+        # Run with process pool - run_pool handles context passing
+        pool_config = PoolRunnerConfiguration(
+            pool_type="process",
+            workers=3,
+            start_method="spawn",
+        )
+        runner.run_pool(pool_config, runnable)
+
+        return runnable.results
+
+    with ThreadPoolExecutor(max_workers=2) as thread_pool:
+        future_a = thread_pool.submit(thread_worker_fn, "A")
+        future_b = thread_pool.submit(thread_worker_fn, "B")
+
+        results["thread_A"] = future_a.result(timeout=120)
+        results["thread_B"] = future_b.result(timeout=120)
+
+    # Verify: all process workers in thread A saw "thread_A"
+    assert all(
+        val == "thread_A" for val in results["thread_A"]
+    ), f"Process workers in thread A should see 'thread_A', got {results['thread_A']}"
+
+    # Verify: all process workers in thread B saw "thread_B"
+    assert all(
+        val == "thread_B" for val in results["thread_B"]
+    ), f"Process workers in thread B should see 'thread_B', got {results['thread_B']}"
+
+
+def test_worker_contexts_thread_to_process_global() -> None:
+    """Test that global worker contexts are passed to all process pools.
+
+    With WorkerAffinityContext (global_affinity=True), all processes
+    should see the same value regardless of parent thread.
+
+    Note: only `spawn` is tested because `fork` from a multi-threaded process
+    is fundamentally unsafe (inherits poisoned locks from other threads).
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    container = Container()
+
+    # Initialize runtime
+    config = resolve_configuration(RuntimeConfiguration())
+    initialize_runtime("dlt", config)
+
+    # Set global worker context once
+    container[WorkerAffinityContext] = WorkerAffinityContext(value="global_value")
+
+    results: Dict[str, List[str]] = {}
+
+    def thread_worker_fn(thread_id: str) -> List[str]:
+        """Runs in thread. Runs process pool that reads global context."""
+        runnable = _GlobalContextReaderRunnable(num_tasks=3)
+        pool_config = PoolRunnerConfiguration(
+            pool_type="process",
+            workers=3,
+            start_method="spawn",
+        )
+        runner.run_pool(pool_config, runnable)
+        return runnable.results
+
+    with ThreadPoolExecutor(max_workers=2) as thread_pool:
+        future_a = thread_pool.submit(thread_worker_fn, "A")
+        future_b = thread_pool.submit(thread_worker_fn, "B")
+
+        results["thread_A"] = future_a.result(timeout=120)
+        results["thread_B"] = future_b.result(timeout=120)
+
+    # All processes should see same global value
+    all_values = results["thread_A"] + results["thread_B"]
+    assert all(
+        val == "global_value" for val in all_values
+    ), f"All process workers should see 'global_value', got {all_values}"

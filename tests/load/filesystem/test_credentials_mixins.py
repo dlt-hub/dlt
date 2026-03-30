@@ -74,10 +74,16 @@ def can_connect(bucket_url: str, credentials: TCredentialsMixin, mixin: Type[TCr
         file_io = credentials.to_pyiceberg_fileio_config()
         hash_direct_conn = can_connect_pyiceberg_fileio_config(bucket_url, file_io)
         # pyiceberg provides reverse operation so go through it and test both
-        file_io_creds = credentials.from_pyiceberg_fileio_config(file_io)
-        return hash_direct_conn and can_connect_pyiceberg_fileio_config(
-            bucket_url, file_io_creds.to_pyiceberg_fileio_config()
-        )
+        # (only for credentials that support from_pyiceberg_fileio_config)
+        try:
+            file_io_creds = credentials.from_pyiceberg_fileio_config(file_io)
+            return hash_direct_conn and can_connect_pyiceberg_fileio_config(
+                bucket_url, file_io_creds.to_pyiceberg_fileio_config()
+            )
+        except UnsupportedAuthenticationMethodException:
+            # from_pyiceberg_fileio_config not supported for this credential type
+            # only test direct connection
+            return hash_direct_conn
 
 
 def can_connect_object_store_rs_credentials(
@@ -252,13 +258,10 @@ def test_gcp_credentials_mixins(
         private_key_id=fs_creds["private_key_id"],
         client_email=fs_creds["client_email"],
     )
-    if mixin == WithPyicebergConfig:
-        with pytest.raises(UnsupportedAuthenticationMethodException):
-            assert can_connect(GCS_BUCKET, creds, mixin)
-    elif mixin == WithObjectStoreRsCredentials:
-        assert can_connect(GCS_BUCKET, creds, mixin)
+    # Now works with both mixins - pyiceberg support added via token refresh
+    assert can_connect(GCS_BUCKET, creds, mixin)
 
-    # GcpDefaultCredentials
+    # GcpServiceAccountCredentials with default credentials via GOOGLE_APPLICATION_CREDENTIALS
 
     # reset failed default credentials timeout so we resolve below
     GcpDefaultCredentials._LAST_FAILED_DEFAULT = 0
@@ -271,13 +274,12 @@ def test_gcp_credentials_mixins(
         json.dump(service_json, f)
 
     with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": path}):
-        creds = GcpDefaultCredentials()
+        from dlt.common.configuration.specs import GcpServiceAccountCredentials
+
+        creds = GcpServiceAccountCredentials()
         resolve_configuration(creds)
-        if mixin == WithPyicebergConfig:
-            with pytest.raises(UnsupportedAuthenticationMethodException):
-                assert can_connect(GCS_BUCKET, creds, mixin)
-        elif mixin == WithObjectStoreRsCredentials:
-            assert can_connect(GCS_BUCKET, creds, mixin)
+        # GcpServiceAccountCredentials with default credentials works with both mixins
+        assert can_connect(GCS_BUCKET, creds, mixin)
 
     # GcpOAuthCredentialsWithoutDefaults
     creds = resolve_configuration(

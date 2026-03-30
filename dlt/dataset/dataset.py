@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Any, Optional, Type, Union, TYPE_CHECKING, Literal, overload
+from typing import Any, Optional, Type, Union, TYPE_CHECKING, Literal, overload, Collection
 
 from sqlglot.schema import Schema as SQLGlotSchema
 import sqlglot.expressions as sge
@@ -10,21 +10,26 @@ import dlt
 from dlt.common.destination.exceptions import OpenTableClientNotAvailable
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.json import json
+from dlt.common.versioned_state import decompress_state
 from dlt.common.destination.reference import AnyDestination, TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
-from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.common.schema.typing import C_DLT_LOAD_ID, C_DLT_LOADS_TABLE_LOAD_ID, LOADS_TABLE_NAME
 from dlt.common.utils import simple_repr, without_none
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
-from dlt.common.destination.exceptions import SqlClientNotAvailable
+from dlt.common.destination.exceptions import (
+    DestinationUndefinedEntity,
+    SqlClientNotAvailable,
+)
 
 if TYPE_CHECKING:
-    from ibis import ir
-    from ibis import BaseBackend as IbisBackend
+    from dlt.common.libs.ibis import ir
+    from dlt.common.libs.ibis import BaseBackend as IbisBackend
 
 
 class Dataset:
@@ -40,6 +45,8 @@ class Dataset:
         self._destination: AnyDestination = Destination.from_reference(destination)
         self._dataset_name = dataset_name
         self._schema: Union[dlt.Schema, str, None] = schema
+        self._pipeline_name: Optional[str] = None
+        """If _schema not provided, used to get default schema from state"""
         # self._sqlglot_schema: SQLGlotSchema = None
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
@@ -78,7 +85,7 @@ class Dataset:
             )
 
         if not maybe_schema:
-            maybe_schema = _get_dataset_schema_from_destination_using_dataset_name(self)
+            maybe_schema = _get_dataset_schema_from_dataset_dlt_tables(self)
 
         if not maybe_schema:
             # uses local dlt pipeline data instead of destination
@@ -206,11 +213,10 @@ class Dataset:
         """Convenience method to proxy `Dataset.query()`. See this method for details."""
         return self.query(query, query_dialect, _execute_raw_query=_execute_raw_query)
 
-    def table(self, table_name: str, **kwargs: Any) -> dlt.Relation:
+    def table(
+        self, table_name: str, *, load_ids: Optional[Collection[str]] = None, **kwargs: Any
+    ) -> dlt.Relation:
         """Get a `dlt.Relation` associated with a table from the dataset."""
-
-        # NOTE dataset only provides access to tables known in dlt schema
-        # raw query execution could access tables unknown by dlt
         if table_name not in self.tables:
             # TODO: raise TableNotFound
             raise ValueError(f"Table `{table_name}` not found. Available table(s): {self.tables}")
@@ -223,8 +229,30 @@ class Dataset:
                 " Ibis Table."
             )
 
-        # fallback to the standard dbapi relation
-        return dlt.Relation(dataset=self, table_name=table_name)
+        if load_ids:
+            return dlt.Relation(dataset=self, table_name=table_name).from_loads(load_ids)
+        else:
+            return dlt.Relation(dataset=self, table_name=table_name)
+
+    def loads_table(self) -> dlt.Relation:
+        """Get `_dlt_loads` table from the dataset."""
+        return dlt.Relation(dataset=self, table_name=self.schema.loads_table_name)
+
+    def load_ids(self) -> list[str]:
+        """Retrieved the list of load ids for this dataset.
+
+        This queries the `_dlt_loads` table on the destination and filters
+        the `schema_name` columns based on the current dataset.
+        """
+        return _get_load_ids(self)
+
+    def latest_load_id(self) -> Optional[str]:
+        """Retrieved the latest load id for this dataset.
+
+        This is the max value of the `load_id` column in the `_dlt_loads` table
+        on the destination when filtering the `schema_name` columns based on the current dataset.
+        """
+        return _get_latest_load_id(self)
 
     def row_counts(
         self,
@@ -262,7 +290,7 @@ class Dataset:
                 if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
             ]
 
-        union_all_expr = None
+        union_all_expr: Optional[sge.Query] = None
 
         for table_name in selected_tables:
             counts_expr = build_row_counts_expr(
@@ -302,6 +330,9 @@ class Dataset:
 
         This proxies `Dataset.table()`.
         """
+        # do not intercept dunder attributes (needed for copy/pickle/deepcopy)
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
         try:
             return self.table(name)
         # TODO: expect TableNotFound in the future
@@ -423,18 +454,64 @@ def _get_dataset_schema_from_destination_using_schema_name(
     return schema
 
 
-def _get_dataset_schema_from_destination_using_dataset_name(
+def _get_dataset_schema_from_dataset_dlt_tables(
     dataset: dlt.Dataset,
 ) -> Optional[dlt.Schema]:
-    schema = None
+    """Resolves schema from destination. First tries pipeline state to get default_schema_name,
+    then falls back to most recently stored schema."""
     with get_destination_clients(
         schema=dlt.Schema(dataset.dataset_name),
         destination=dataset._destination,
         destination_dataset_name=dataset.dataset_name,
     )[0] as client:
         if isinstance(client, WithStateSync):
+            # try to resolve via pipeline state for correct default schema
+            pipeline_name = dataset._pipeline_name
+            if pipeline_name:
+                try:
+                    stored_state = client.get_stored_state(pipeline_name)
+                except DestinationUndefinedEntity:
+                    # state tables may not exist if pipeline never ran
+                    stored_state = None
+                if stored_state:
+                    state = decompress_state(stored_state.state)
+                    schema_name = state.get("default_schema_name")
+                    if schema_name:
+                        stored_schema = client.get_stored_schema(schema_name)
+                        if stored_schema:
+                            return dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+            # fall back to most recently stored schema
             stored_schema = client.get_stored_schema()
             if stored_schema:
-                schema = dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+                return dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+    return None
 
-    return schema
+
+def _get_load_ids(dataset: dlt.Dataset) -> list[str]:
+    """Get a list of load ids associated with the dataset."""
+    loads_table = dataset.loads_table()
+    query = (
+        loads_table
+        # need to filter out rare case where a dataset includes multiple `dlt.Schema`
+        # this mechanism is currently used by data quality metrics and checks
+        .where(dataset.schema.naming.normalize_identifier("schema_name"), "eq", dataset.schema.name)
+        .select(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID))
+        .order_by(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID), "asc")
+    )
+    load_ids: list[str] = [load_id[0] for load_id in query.fetchall()]
+    return load_ids
+
+
+def _get_latest_load_id(dataset: dlt.Dataset) -> Optional[str]:
+    """Get the latest load id associated with the dataset."""
+    loads_table = dataset.loads_table()
+    query = (
+        loads_table
+        # need to filter out rare case where a dataset includes multiple `dlt.Schema`
+        # this mechanism is currently used by data quality metrics and checks
+        .where(dataset.schema.naming.normalize_identifier("schema_name"), "eq", dataset.schema.name)
+        .select(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID))
+        .max()
+    )
+    load_id = query.fetchone()
+    return load_id[0] if load_id else None  # type: ignore[no-any-return]

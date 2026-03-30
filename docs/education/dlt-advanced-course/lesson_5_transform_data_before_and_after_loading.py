@@ -743,7 +743,7 @@ def _(pipeline_7):
     # NOTE: You need to provide the dataset name to ibis, in ibis datasets are named databases
     # get the items table
     # print the first 2 rows
-    print(table.limit(2).execute())  #  # type: ignore[attr-defined]
+    print(table.limit(2).execute())  #
     return
 
 

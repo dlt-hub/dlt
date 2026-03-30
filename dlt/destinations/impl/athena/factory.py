@@ -162,7 +162,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.timestamp_precision = 3
         caps.max_timestamp_precision = 3
         caps.supports_truncate_command = False
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.merge_strategies_selector = athena_merge_strategies_selector
         caps.replace_strategies_selector = athena_replace_strategies_selector
@@ -195,7 +195,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
 
     def __init__(
         self,
-        query_result_bucket: str = None,
+        query_result_bucket: Optional[str] = None,
         credentials: Union[AwsCredentials, Dict[str, Any], Any] = None,
         athena_work_group: str = None,
         aws_data_catalog: str = DEFAULT_AWS_DATA_CATALOG,
@@ -209,7 +209,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            query_result_bucket (str, optional): S3 bucket to store query results in
+            query_result_bucket (Optional[str], optional): S3 bucket to store query results in. May be omitted when using Athena managed query results.
             credentials (Union[AwsCredentials, Dict[str, Any], Any], optional): AWS credentials to connect to the Athena database. Can be an instance of `AwsCredentials` or
                 a dict with AWS credentials
             athena_work_group (str, optional): Athena work group to use

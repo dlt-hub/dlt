@@ -12,7 +12,7 @@ from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.load.pipeline.utils import TableBucketTestClient, simple_nested_source
 from tests.pipeline.utils import assert_load_info, load_table_counts
 from tests.pipeline.utils import load_table_counts
-from dlt.destinations.exceptions import CantExtractTablePrefix
+from dlt.destinations.exceptions import CantExtractTablePrefix, DatabaseTransientException
 from dlt.destinations.adapters import athena_partition, athena_adapter
 
 from tests.load.utils import (
@@ -322,13 +322,19 @@ def test_athena_partitioned_iceberg_table(destination_config: DestinationTestCon
     with pipeline.sql_client() as sql_client:
         tbl_name = sql_client.make_qualified_table_name("partitioned_table$partitions")
         rows = sql_client.execute_sql(f"SELECT partition FROM {tbl_name}")
-        partition_keys = {r[0] for r in rows}
+        # newer Athena client returns partition as dict, older as formatted string
+        partition_keys = set()
+        for r in rows:
+            val = r[0]
+            if isinstance(val, dict):
+                partition_keys.add(frozenset(val.items()))
+            else:
+                partition_keys.add(val)
 
         data_rows = sql_client.execute_sql(
             "SELECT id, category, created_at FROM"
             f" {sql_client.make_qualified_table_name('partitioned_table')}"
         )
-        # data_rows = [(i, c, d.toisoformat()) for i, c, d in data_rows]
 
     # All data is in table
     assert len(data_rows) == len(data_items)
@@ -337,11 +343,11 @@ def test_athena_partitioned_iceberg_table(destination_config: DestinationTestCon
     # Compare with expected partitions
     # Months are number of months since epoch
     expected_partitions = {
-        "{category=A, created_at_month=612}",
-        "{category=A, created_at_month=613}",
-        "{category=B, created_at_month=612}",
-        "{category=B, created_at_month=613}",
-        "{category=B, created_at_month=614}",
+        frozenset({("category", "A"), ("created_at_month", "612")}),
+        frozenset({("category", "A"), ("created_at_month", "613")}),
+        frozenset({("category", "B"), ("created_at_month", "612")}),
+        frozenset({("category", "B"), ("created_at_month", "613")}),
+        frozenset({("category", "B"), ("created_at_month", "614")}),
     }
 
     assert partition_keys == expected_partitions
@@ -371,3 +377,74 @@ def test_athena_s3_tables(destination_config: DestinationTestConfiguration) -> N
     assert table_bucket_test_client.namespace_exists(pipe.dataset_name)
     assert table_bucket_test_client.table_exists(pipe.dataset_name, "lists")
     assert table_bucket_test_client.table_exists(pipe.dataset_name, "lists__value")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["athena"],
+        # exclude S3 Tables Catalog, not relevant for this test
+        is_athena_s3_tables=False,
+    ),
+    ids=lambda x: x.name,
+)
+def test_athena_no_query_result_bucket(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test that query_result_bucket=None resolves and reaches Athena without
+    ConfigFieldMissingException.
+
+    Our CI Athena workgroup does not have managed query results enabled, so the pipeline
+    will fail at load time with an Athena-side error about missing output location. This
+    verifies that the config resolution accepts None and the error comes from Athena itself.
+    See: https://github.com/dlt-hub/dlt/issues/3565
+    """
+    # create destination and force query_result_bucket=None to override secrets
+    dest = destination_config.destination_factory(athena_work_group="primary")
+    dest.config_params["query_result_bucket"] = None
+
+    pipeline = destination_config.setup_pipeline(
+        "athena_" + uniq_id(), dev_mode=True, destination=dest
+    )
+
+    @dlt.resource(name="items", write_disposition="append")
+    def items():
+        yield {"id": 1, "name": "item"}
+
+    # pipeline should fail at load with an Athena-side error about output location,
+    # NOT with ConfigFieldMissingException
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(items, **destination_config.run_kwargs)
+    assert isinstance(pip_ex.value.__cause__, DatabaseTransientException)
+    # athena rejects queries when no output location is set and workgroup doesn't manage it
+    assert "output location" in str(pip_ex.value.__cause__).lower() or "ResultConfiguration" in str(
+        pip_ex.value.__cause__
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["athena"], supports_merge=False),
+    ids=lambda x: x.name,
+)
+def test_athena_merge_without_iceberg_falls_back_to_append(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Non-iceberg tables on Athena have no merge strategies — fall back to append."""
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
+
+    @dlt.resource(name="items", write_disposition="merge", primary_key="id")
+    def items():
+        yield [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+
+    info = pipeline.run(items, **destination_config.run_kwargs)
+    assert_load_info(info)
+    table_counts = load_table_counts(pipeline, "items")
+    assert table_counts["items"] == 2
+
+    # second load appends (no dedup since merge is not supported)
+    info = pipeline.run(items, **destination_config.run_kwargs)
+    assert_load_info(info)
+    table_counts = load_table_counts(pipeline, "items")
+    assert table_counts["items"] == 4

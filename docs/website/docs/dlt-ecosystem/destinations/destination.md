@@ -184,6 +184,10 @@ For performance reasons, we recommend keeping the multithreaded approach and mak
 
 `@dlt.destination` will forward all normalized `DataItems` encountered during a pipeline run to the custom destination function, so there is no notion of "write dispositions."
 
+## CLI and dashboard limitations
+
+Custom destination callables cannot be resolved from a process different than the one that originally ran the pipeline. This means that CLI commands like `dlt pipeline info` and `dlt pipeline show` will work only partially for custom destinations.
+
 ## Staging support
 
 `@dlt.destination` does not support staging files in remote locations before being called at this time. If you need this feature, please let us know.

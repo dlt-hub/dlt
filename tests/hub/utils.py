@@ -11,6 +11,11 @@ from dlthub.common.license import (
 )
 
 
+@contextlib.contextmanager
+def ephemeral_license():
+    yield from issue_ephemeral_license()
+
+
 def issue_ephemeral_license() -> Iterator[LicenseContext]:
     license_ = create_self_signed_license("dlthub.transformation dlthub.project dlthub.runner")
     try:

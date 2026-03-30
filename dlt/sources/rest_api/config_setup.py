@@ -1,5 +1,5 @@
 import warnings
-from copy import copy
+from copy import copy, deepcopy
 from typing import (
     Generator,
     Type,
@@ -582,7 +582,6 @@ def _handle_response_action(
     if callable(action):
         custom_hooks = [action]
     else:
-        action = cast(ResponseActionDict, action)
         status_code = action.get("status_code")
         content_substr = action.get("content")
         response_action = action.get("action")
@@ -955,7 +954,7 @@ def _merge_resource_endpoints(
             columns = ensure_table_schema_columns(columns)
             default_columns = ensure_table_schema_columns(default_columns)
             # merge columns with deep merging hints
-            config["columns"] = merge_columns(copy(default_columns), columns, merge_columns=True)
+            config["columns"] = merge_columns(copy(default_columns), columns)
 
     # no need to deep merge resources
     merged_resource: EndpointResource = {
@@ -1038,6 +1037,7 @@ def paginate_dependent_resource(
     incremental_object: Optional[Incremental[Any]],
     incremental_param: Optional[IncrementalParam],
     incremental_cursor_transform: Optional[Callable[..., Any]],
+    parallelized: bool = False,
 ) -> Generator[Any, None, None]:
     if incremental_object:
         params = _set_incremental_params(
@@ -1047,7 +1047,7 @@ def paginate_dependent_resource(
             incremental_cursor_transform,
         )
 
-    for item in items:
+    def _fetch_for_item(item: Dict[str, Any], params: Dict[str, Any]) -> Generator[Any, None, None]:
         processed_data = process_parent_data_item(
             path=path,
             item=item,
@@ -1068,7 +1068,7 @@ def paginate_dependent_resource(
             params=processed_data.params,
             json=processed_data.json,
             data=processed_data.data,
-            paginator=paginator,
+            paginator=deepcopy(paginator),
             data_selector=data_selector,
             hooks=hooks,
         ):
@@ -1076,6 +1076,18 @@ def paginate_dependent_resource(
                 for child_record in child_page:
                     child_record.update(processed_data.parent_record)
             yield child_page
+
+    for item in items:
+        if parallelized:
+
+            def _deferred(
+                item: Dict[str, Any] = item, params: Dict[str, Any] = params
+            ) -> List[Any]:
+                return [record for page in _fetch_for_item(item, params) for record in page]
+
+            yield _deferred
+        else:
+            yield from _fetch_for_item(item, params)
 
 
 def paginate_resource(

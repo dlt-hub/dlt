@@ -12,7 +12,7 @@ from dlt.common import logger
 from dlt.common.data_writers.escape import escape_lancedb_literal
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.schema import TTableSchema
-from dlt.common.schema.typing import TWriteDisposition
+from dlt.common.schema.typing import TLoaderMergeStrategy, TWriteDisposition
 from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
 from dlt.destinations.impl.lancedb.schema import add_vector_column
@@ -73,6 +73,7 @@ def write_records(
     vector_field_name: str,
     write_disposition: Optional[TWriteDisposition] = "append",
     merge_key: Optional[str] = None,
+    merge_strategy: Optional[TLoaderMergeStrategy] = None,
     remove_orphans: Optional[bool] = False,
     delete_condition: Optional[str] = None,
 ) -> None:
@@ -107,6 +108,8 @@ def write_records(
                 tbl.merge_insert(merge_key).when_not_matched_by_source_delete(
                     delete_condition
                 ).execute(records)
+            elif merge_strategy == "insert-only":
+                tbl.merge_insert(merge_key).when_not_matched_insert_all().execute(records)
             else:
                 tbl.merge_insert(
                     merge_key

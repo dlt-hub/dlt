@@ -10,6 +10,7 @@ from dlt.common import pendulum, Decimal, json
 from dlt.common.configuration import inject_section
 from dlt.common.data_writers.writers import ArrowToParquetWriter, ParquetDataWriter
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.schema.utils import new_column
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 
@@ -176,6 +177,7 @@ def test_parquet_writer_config() -> None:
     os.environ["NORMALIZE__DATA_WRITER__VERSION"] = "1.0"
     os.environ["NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE"] = str(1024 * 512)
     os.environ["NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE"] = "America/New York"
+    os.environ["NORMALIZE__DATA_WRITER__WRITE_PAGE_INDEX"] = "true"
 
     with inject_section(ConfigSectionContext(pipeline_name=None, sections=("normalize",))):
         with get_writer(ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
@@ -191,6 +193,7 @@ def test_parquet_writer_config() -> None:
             assert writer._writer.parquet_format.version == "1.0"
             assert writer._writer.parquet_format.data_page_size == 1024 * 512
             assert writer._writer.parquet_format.timestamp_timezone == "America/New York"
+            assert writer._writer.parquet_format.write_page_index is True
 
             # tz can
             column_type = writer._writer.schema.field("col2").type
@@ -202,6 +205,9 @@ def test_parquet_writer_config() -> None:
             assert col2_info["isAdjustedToUTC"] is True
             assert col2_info["timeUnit"] == "microseconds"
             assert reader.schema_arrow.field(1).type.tz == "America/New York"
+            # page index is written (https://github.com/apache/parquet-format/blob/master/PageIndex.md)
+            assert reader.metadata.row_group(0).column(0).has_column_index is True
+            assert reader.metadata.row_group(0).column(0).has_offset_index is True
 
 
 def test_parquet_writer_config_spark() -> None:
@@ -381,6 +387,92 @@ def test_arrow_parquet_row_group_size() -> None:
         assert reader.metadata.row_group(0).num_rows == 1
         # row group with size 0 for an empty item
         assert reader.metadata.row_group(1).num_rows == 0
+
+
+def _caps_with_promote(promote_options: str) -> DestinationCapabilitiesContext:
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.parquet_format = ParquetFormatConfiguration(arrow_concat_promote_options=promote_options)  # type: ignore[arg-type]
+    return caps
+
+
+@pytest.mark.parametrize("promote_options", ["none", "default"])
+def test_arrow_concat_promote_options_rejects_mismatched_types(promote_options: str) -> None:
+    """promote_options="none" and "default" both reject int64/float64 schema mismatch."""
+    c1 = {"col1": new_column("col1", "bigint")}
+    table_int = pa.Table.from_pydict({"col1": pa.array([1, 2], type=pa.int64())})
+    table_float = pa.Table.from_pydict({"col1": pa.array([3.0, 4.0], type=pa.float64())})
+
+    with pytest.raises((pa.lib.ArrowInvalid, pa.lib.ArrowTypeError)):
+        with get_writer(
+            ArrowToParquetWriter,
+            buffer_max_items=10,
+            caps=_caps_with_promote(promote_options),
+        ) as writer:
+            writer.write_data_item(table_int, columns=c1)
+            writer.write_data_item(table_float, columns=c1)
+
+
+def test_arrow_concat_promote_options_permissive() -> None:
+    """promote_options="permissive" promotes int64 to double on cross-family mismatch."""
+    c1 = {"col1": new_column("col1", "bigint")}
+    table_int = pa.Table.from_pydict({"col1": pa.array([1, 2], type=pa.int64())})
+    table_float = pa.Table.from_pydict({"col1": pa.array([3.0, 4.0], type=pa.float64())})
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=10,
+        caps=_caps_with_promote("permissive"),
+    ) as writer:
+        writer.write_data_item(table_int, columns=c1)
+        writer.write_data_item(table_float, columns=c1)
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        table = reader.read()
+        assert table.schema.field("col1").type == pa.float64()
+        assert table.column("col1").to_pylist() == [1.0, 2.0, 3.0, 4.0]
+
+
+@pytest.mark.parametrize("promote_options", ["default", "permissive"])
+def test_arrow_concat_promote_options_null_column(promote_options: str) -> None:
+    """Both "default" and "permissive" promote null + string to string."""
+    cols = {"col1": new_column("col1", "text")}
+    table_str = pa.Table.from_pydict({"col1": pa.array(["a", "b"], type=pa.string())})
+    table_null = pa.Table.from_pydict({"col1": pa.array([None, None], type=pa.null())})
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=10,
+        caps=_caps_with_promote(promote_options),
+    ) as writer:
+        writer.write_data_item(table_str, columns=cols)
+        writer.write_data_item(table_null, columns=cols)
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        table = reader.read()
+        assert table.schema.field("col1").type == pa.string()
+        assert table.column("col1").to_pylist() == ["a", "b", None, None]
+
+
+def test_arrow_concat_promote_options_permissive_missing_column() -> None:
+    """promote_options="permissive" fills missing columns with null."""
+    c1 = {"col1": new_column("col1", "bigint")}
+    table_two_cols = pa.Table.from_pydict(
+        {"col1": pa.array([1], type=pa.int64()), "col2": pa.array(["x"], type=pa.string())}
+    )
+    table_one_col = pa.Table.from_pydict({"col1": pa.array([2], type=pa.int64())})
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=10,
+        caps=_caps_with_promote("permissive"),
+    ) as writer:
+        writer.write_data_item(table_two_cols, columns=c1)
+        writer.write_data_item(table_one_col, columns=c1)
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        table = reader.read()
+        assert table.column("col1").to_pylist() == [1, 2]
+        assert table.column("col2").to_pylist() == ["x", None]
 
 
 def test_empty_tables_get_flushed() -> None:

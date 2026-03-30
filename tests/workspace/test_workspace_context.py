@@ -4,8 +4,9 @@ import pickle
 import tempfile
 
 import dlt
+from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace._workspace_context import WorkspaceRunContext, switch_context
-from dlt._workspace.cli.utils import check_delete_local_data, delete_local_data
+from dlt._workspace.cli.utils import check_delete_local_data, delete_local_data, fetch_profiles_list
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
 from dlt._workspace.profile import DEFAULT_PROFILE, read_profile_pin, save_profile_pin
@@ -17,6 +18,7 @@ from dlt._workspace.run_context import (
 from dlt._workspace.cli.echo import always_choose
 from dlt.common.runtime.exceptions import RunContextNotAvailable
 from dlt.common.runtime.run_context import DOT_DLT, RunContext, global_dir
+from dlt.common.utils import custom_environ
 
 from dlt.common.storages.file_storage import FileStorage
 from tests.pipeline.utils import assert_table_counts
@@ -124,8 +126,81 @@ def test_pinned_profile() -> None:
         assert_workspace_context(ctx, "default", "prod")
 
 
-def test_dev_env_overwrite() -> None:
-    pass
+def test_env_profile_overrides_pin() -> None:
+    """WORKSPACE__PROFILE env var overrides pin file but yields to code."""
+    with isolated_workspace("default") as ctx:
+        save_profile_pin(ctx, "prod")
+        assert read_profile_pin(ctx) == "prod"
+
+        # env var overrides the pin
+        with custom_environ({WORKSPACE__PROFILE: "tests"}):
+            ctx = switch_context(ctx.run_dir)
+            assert ctx.profile == "tests"
+
+        # without env var, pin takes effect again
+        ctx = switch_context(ctx.run_dir)
+        assert ctx.profile == "prod"
+
+
+def test_env_profile_overrides_default() -> None:
+    """WORKSPACE__PROFILE env var overrides the default dev profile."""
+    with isolated_workspace("default") as ctx:
+        assert ctx.profile == "dev"
+
+        with custom_environ({WORKSPACE__PROFILE: "prod"}):
+            ctx = switch_context(ctx.run_dir)
+            assert ctx.profile == "prod"
+
+
+def test_env_profile_yields_to_code() -> None:
+    """Explicit profile kwarg takes precedence over WORKSPACE__PROFILE."""
+    with isolated_workspace("default") as ctx:
+        with custom_environ({WORKSPACE__PROFILE: "prod"}):
+            ctx = switch_context(ctx.run_dir, profile="tests")
+            assert ctx.profile == "tests"
+
+
+def test_fetch_profiles_list() -> None:
+    """fetch_profiles_list returns correct flags through pin and switch scenarios."""
+    with isolated_workspace("default") as ctx:
+        # default workspace: dev is current, nothing pinned
+        profiles = fetch_profiles_list()
+        by_name = {p["name"]: p for p in profiles}
+        assert set(by_name) == {"dev", "prod", "tests", "access"}
+        assert by_name["dev"]["is_current"] is True
+        assert by_name["dev"]["is_pinned"] is False
+        assert by_name["prod"]["is_current"] is False
+        assert all(p["description"] for p in profiles)
+
+        # pin prod and reload — prod becomes current and pinned
+        save_profile_pin(ctx, "prod")
+        ctx = switch_context(ctx.run_dir)
+        by_name = {p["name"]: p for p in fetch_profiles_list()}
+        assert by_name["prod"]["is_pinned"] is True
+        assert by_name["prod"]["is_current"] is True
+        assert by_name["dev"]["is_pinned"] is False
+        assert by_name["dev"]["is_current"] is False
+
+        # pin a custom profile — appears in list with correct description
+        save_profile_pin(ctx, "staging")
+        ctx = switch_context(ctx.run_dir)
+        by_name = {p["name"]: p for p in fetch_profiles_list()}
+        assert "staging" in by_name
+        assert by_name["staging"]["is_pinned"] is True
+        assert by_name["staging"]["is_current"] is True
+        assert by_name["staging"]["description"] == "custom profile"
+
+
+def test_fetch_profiles_list_configured() -> None:
+    """is_configured is True only for profiles with config files or pipelines."""
+    with isolated_workspace("pipelines", profile="tests"):
+        by_name = {p["name"]: p for p in fetch_profiles_list()}
+        # tests and prod have profile-specific config files in this fixture
+        assert by_name["tests"]["is_configured"] is True
+        assert by_name["prod"]["is_configured"] is True
+        # dev and access have no config in this fixture
+        assert by_name["dev"]["is_configured"] is False
+        assert by_name["access"]["is_configured"] is False
 
 
 def test_workspace_pipeline() -> None:

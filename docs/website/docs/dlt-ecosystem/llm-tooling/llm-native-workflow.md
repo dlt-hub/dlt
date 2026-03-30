@@ -1,458 +1,321 @@
 ---
-title: REST API source in 10min
-description: Build a custom REST API connector in 10min
-keywords: [cursor, llm, restapi, ai]
+title: REST API Source with dlthub AI Workbench
+description: Build any REST API source with dltHub AI Workbench toolkits - workflows, skills, rules, and MCP tools
+keywords: [cursor, claude, codex, llm, restapi, ai, workbench, toolkit]
 ---
 
-# REST API source in 10min
+# REST API Source with dltHub AI Workbench
+
+:::info
+The dltHub AI Workbench is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE). Sign up [here](https://dlthub.com/solutions/for-small-data-teams) for early access to dltHub.
+:::
 
 ## Overview
 
-The Python library `dlt` provides a powerful [REST API toolkit](../../dlt-ecosystem/verified-sources/rest_api/basic.md) to ingest data. Combined with our [LLM scaffolds](https://dlthub.com/workspace) and [MCP server](../../hub/features/mcp-server.md), you can build a custom connector for any of the 8k+ available sources in 10 minutes by following this guide.
+Build a custom REST API connector for any of the 8k+ available sources — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices. 
 
-Building with LLMs is an iterative process. We will follow this general workflow and give practical tips for each step.
+The **rest-api-pipeline** toolkit is part of the [dltHub AI Workbench](https://github.com/dlt-hub/dlthub-ai-workbench) and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step. 
 
-```mermaid
-stateDiagram-v2
-    setup: setup workspace
-    instructions: initial instructions
-    codegen: generate code
-    run: run pipeline
-    context: manage context
-    data: check data
-    commit: commit working code
-
-    [*] --> setup: start
-    setup --> instructions: workspace is ready
-    instructions --> codegen: ask to ingest endpoint
-    codegen --> run: code generated
-    run --> context: fails
-    run --> data: completes
-    context --> codegen: context updated
-    data --> context: is incorrect
-    data --> commit: is correct
-    commit --> instructions: add endpoint / refine config
-    commit --> [*]
-```
-
-:::note
-You will need an AI-enabled IDE or agent, such as Copilot, Claude Code, Cursor, Continue, etc.
-:::
-
+The dltHub AI workbench works with **Claude Code**, **Cursor**, and **Codex**.
 
 ## Setup
-Before starting to build our connector, we need to initialize our [dltHub workspace](../../hub/workspace/overview.md) and configure our IDE.
 
+### Python environment
 
-### Python dependencies
+Install `uv` ([instructions](https://docs.astral.sh/uv/getting-started/installation/)) and create a virtual environment:
 
-Run this command to install the Python library `dlt` with the `workspace` extra.
+```sh
+uv venv && source .venv/bin/activate
+```
+
+We recommend using uv. If you use uv, prefix all following commands with `uv run`. 
+
+### Install dlt
+
+Install the dlt workspace:
 
 ```sh
 pip install "dlt[workspace]"
 ```
-
-### Initialize workspace
-
-To initialize your workspace, you will run a command of this shape:
+or upgrade to the latest version:
 
 ```sh
-dlt init dlthub:{source} {destination}
+pip install --upgrade "dlt[workspace]"
 ```
 
-For the destination, `duckdb` is recommend for local development.
-Once you have a working pipeline, you easily change the destination to your
-data warehouse.
+### Initialize the AI assistant
 
-For the source, select one of the 8k+ REST API sources available
-at [https://dlthub.com/workspace](https://dlthub.com/workspace). The source's page includes a command you can copy-paste to initialize your workspace.
-
-For example, this command setups ingestion from GitHub to local DuckDB.
-```sh
-dlt init dlthub:github duckdb
-```
-
-Several files will be added to your directory, similar to this:
-
-```text
-my_project/
-├── .cursor/  # rules for Cursor IDE
-│   ├── rules.mdc
-│   └── ... # more rules
-├── .dlt/
-│   ├── config.toml  # dlt configuration
-│   └── secrets.toml  # dlt secrets
-├── .cursorignore
-├── .gitignore
-├── github_pipeline.py  # pipeline template
-├── requirements.txt
-└── github-docs.yaml  # GitHub LLM scaffold
-```
-
-### Configure IDE
-
-When running `dlt init`, you will be prompted to select the IDE or agent that you want to use.
+<Tabs values={[{"label": "Claude Code", "value": "claude"}, {"label": "Cursor", "value": "cursor"}, {"label": "Codex", "value": "codex"}]} groupId="ai-agent" defaultValue="claude">
+<TabItem value="claude">
 
 ```sh
-❯ dlt init dlthub:github duckdb
-dlt will generate useful project rules tailored to your assistant/IDE.
-Press Enter to accept the default (cursor), or type a name:
-```
-
-Run this command to manually setup another IDE.
-
-```sh
-dlt ai setup {IDE}
-```
-
-### Choose an LLM
-
-Your experience will greatly depend on the capabilities of the LLM you use. We suggest minimally using `GPT-4.1` from OpenAI or `Claude Sonnet 4` from Anthropic.
-
-
-### Install MCP server (optional)
-
-You can install the [dlt MCP server ](https://github.com/dlt-hub/dlt-mcp) by adding this snippet to your IDE's configuration.
-
-This default configuration will support local DuckDB destination
-```json
-{
-  "name": "dlt",
-  "command": "uv",
-  "args": [
-    "run",
-    "--with",
-    "dlt-mcp[search]",
-    "python",
-    "-m",
-    "dlt_mcp"
-  ]
-}
+dlt ai init --agent claude
 ```
 
 :::note
-The configuration file format varies slightly across IDEs
+Add the following to your `CLAUDE.md` to improve safe credential handling:
+```text
+CRITICAL: never ask for credentials in chat. Always let the user edit secrets directly and do not attempt to read them.
+```
 :::
 
-## Initial instructions
+</TabItem>
+<TabItem value="cursor">
 
-To get good result and make progress, it's best to implement one REST endpoint at a time.
-
-The source's page on dlthub.com/workspace includes a prompt to get you started that looks
-like this:
-
-```text
-Generate a REST API Source for {source}, as specified in @{source}-docs.yaml
-Start with endpoint {endpoint_name} and skip incremental loading for now.
-Place the code in {source}_pipeline.py and name the pipeline {source}_pipeline.
-If the file exists, use it as a starting point.
-Do not add or modify any other files.
-After adding the endpoint, allow the user to run the pipeline with
-`python {source}_pipeline.py`
-and await further instructions.
+```sh
+dlt ai init --agent cursor
 ```
 
-:::tip
-Reference `{'{'}source{'}'}-docs.yaml` and ask what the available endpoints are.
+:::note
+After running the command, manually enable the dlt-workspace-mcp server in **Cursor Settings > MCP**.
+
+Add the following to your `.cursor/rules/security.mdc` to improve safe credential handling:
+```text
+CRITICAL: never ask for credentials in chat. Always let the user edit secrets directly and do not attempt to read them.
+```
 :::
 
-## Generate code
+</TabItem>
+<TabItem value="codex">
 
-The LLM can quickly produce a lot of code. When reviewing its proposed changes, your role is to nudge it in the right direction.
+```sh
+dlt ai init --agent codex
+```
 
-### Anatomy of a REST API source
-Before practical tips, let's look at a minimal REST API source:
+:::note
+Codex does not support commands and rules, so the installer converts those into skills and AGENTS.md.
+
+Codex runs in a strict sandbox — enable web access to allow the assistant to research APIs:
+
+`.codex/config.toml`
+```toml
+web_search = "live"
+```
+
+Add the following to your `AGENTS.md` to improve safe credential handling:
+```text
+CRITICAL: never ask for credentials in chat. Always let the user edit secrets directly and do not attempt to read them.
+```
+
+The Codex CLI picks up the MCP server automatically; in the Codex UI you need to copy the MCP configuration manually.
+:::
+
+</TabItem>
+</Tabs>
+
+`dlt ai init` detects your coding assistant from environment variables and config files (unless you have multiple coding assistants set up), then installs skills, rules, and the MCP server in the correct locations for that tool.
+
+### Install toolkit
+
+```sh
+dlt ai toolkit rest-api-pipeline install
+```
+
+This installs the **rest-api-pipeline** toolkit: a workflow that orchestrates the assistant, an entry point skill, and step-by-step skills for each phase.
+
+:::info Claude Code marketplace plugin (Early Access)
+The workbench is also available as a **Claude Code marketplace plugin**. You don't need `uv`, Python, or `dlt` installed to get started — the `bootstrap` plugin handles everything from scratch.
+
+> **Early Access:** The Claude Code plugin is currently in early access and may not provide the best linking experience between different toolkits. We recommend using the `dlt ai` CLI above for the best experience.
+
+In Claude Code, run:
+
+```text
+/plugin marketplace add dlt-hub/dlthub-ai-workbench
+/plugin install bootstrap@dlthub-ai-workbench --scope project
+```
+
+In your terminal, `exit` the Claude session and restart (`claude`) — plugins take effect only after restarting Claude Code. Then run:
+
+```text
+/init-workspace
+```
+
+The bootstrap skill checks for `uv` and Python, installs what's missing, creates a virtual environment, installs `dlt[workspace]`, and runs `dlt ai init` — so you go from an empty directory to a fully configured workspace in one step.
+:::
+
+## Build your first pipeline
+
+The toolkit provides a skill-driven workflow. Each skill listed below is triggered by the identified user intent or explicitly by naming it in prompt — the workflow guides the assistant through the right sequence.
+
+### `/find-source` — discover your data source
+
+Start a conversation with the `/find-source` skill. You can be explicit or let your coding assistant identify your intent:
+
+```text
+/find-source I need to ingest pull requests and issues from the GitHub REST API
+```
+
+```text
+/find-source I want to track customer orders from our internal fulfillment API
+```
+
+Less explicit prompts let the assistant research the API on its own, which often produces better results for well-documented public APIs.
+
+### `/create-rest-api-pipeline` — scaffold the pipeline
+
+This step makes the coding assistant run `dlt init`, read the API documentation, and presents endpoint options. It produces a pipeline file with a structure like this:
 
 ```py
 import dlt
 from dlt.sources.rest_api import rest_api_resources
 from dlt.sources.rest_api.typing import RESTAPIConfig
 
-# decorator indicates that this function produces a source
 @dlt.source
 def github_source(
-    # the `access_token` will be retrieved from `.dlt/secrets.toml` by default
-    access_token: str = dlt.secrets.value
+    access_token: str = dlt.secrets.value,
 ):
     config: RESTAPIConfig = {
-        # client section
         "client": {
-            "base_url": "https://api.github.com/v3/",
-            # access token will be passed via headers
+            "base_url": "https://api.github.com/",
             "auth": {"type": "bearer", "token": access_token},
         },
-        # endpoint section
         "resources": [
-            # refers to GET endpoint `/issues`
             "issues",
         ],
     }
-    # returns a list of resources
     return rest_api_resources(config)
 ```
 
-For now, it's best to delete all the code you don't understand (e.g., paginator, incremental, data selector). This keeps the LLM focused and reduces the surface for bugs. After generating a working pipeline and committing code, you can go back configure endpoints more precisely.
+The assistant starts with a single endpoint, sets `dev_mode=True`, and adds `.add_limit(1)` so the first run finishes fast and validates the structure with a sample.
 
-:::tip
-Reference `{'{'}source{'}'}-docs.yaml` and ask what the available endpoints parameters are.
-:::
+### `setup-secrets` — configure credentials
 
-### Leveraging the IDE
+The assistant uses MCP tools to manage secrets — it is instructed not to read `secrets.toml` directly.
+It will tell you what credentials are needed and where to obtain them. The coding assistant can see the shape of the secrets without actual values, so it is still able to detect misconfigurations and other dlt-related problems.
 
-`dlt` provides extensive validation and completion suggestions inside the IDE.
+### `/debug-pipeline` — run and fix
 
-Invalid code generated by the LLM produce red error lines, simplifying code review.
+The first run validates the pipeline structure. A credential error is expected if secrets are not yet configured:
 
-![invalid rest api config](https://storage.googleapis.com/dlt-blog-images/docs-llm-tooling-invalid-rest-api-config.png)
-
-Completion suggestions makes it easy to fix LLM errors or set configuration options.
-
-![rest api config completion suggestion](https://storage.googleapis.com/dlt-blog-images/docs-llm-tooling-rest-api-config-completion.png)
-
-## Run pipeline
-### Agent running the pipeline
-Typically, the agent will ask permission to run the pipeline via the chat:
-
-```sh
-python github_pipeline.py
+```text
+dlt.common.configuration.exceptions.ConfigFieldMissingException:
+  Missing 1 field(s) in configuration: `access_token`
 ```
 
-If you accept, it will run the pipeline and directly receive the output of the command (success or error).
-Then, it can automatically start fixing things or ask follow-up questions.
+The assistant sets INFO logging, inspects traces, and iterates until the pipeline completes:
 
-:::note
-Depending on the IDE, the pipeline may fail because of missing Python dependencies. In this case,
-you should run the pipeline manually.
-:::
-
-### Manually running the pipeline
-You can manually run this command in the terminal to run the pipeline.
-
-```sh
-python github_pipeline.py
-```
-
-Then, use `@terminal` inside the chat window to add the success / error message to the LLM context.
-
-### Success: pipeline completed without error
-A successful execution should print a message similar to this one:
-
-```sh
+```text
 Pipeline github_source load step completed in 0.26 seconds
 1 load package(s) were loaded to destination duckdb and into dataset github_source_data
 The duckdb destination used duckdb:/github_source.duckdb location to store data
 Load package 1749667187.541553 is LOADED and contains no failed jobs
 ```
 
-### Failure: source credentials
+### `/validate-data` — check your data
 
-Your first iterations will likely trigger credentials errors similar to the one below. The error message indicates how you can set credential values using `.dlt/config.toml`  and `.dlt/secrets.toml` or environment variables ([learn more](../../general-usage/credentials/setup))
+A pipeline that runs without errors is not necessarily correct. Before moving on, the assistant helps you validate results using the dashboard, MCP queries, and schema inspection.
 
-```text
-dlt.common.configuration.exceptions.ConfigFieldMissingException: Missing 1 field(s) in configuration `GithubRestApiSourceConfiguration`: `access_token`
-for field `access_token` the following (config provider, key) were tried in order:
-  (Environment Variables, GITHUB_PIPELINE__SOURCES__GITHUB_PIPELINE__GITHUB_REST_API_SOURCE__ACCESS_TOKEN)
-  (Environment Variables, GITHUB_PIPELINE__SOURCES__GITHUB_PIPELINE__ACCESS_TOKEN)
-  (Environment Variables, GITHUB_PIPELINE__SOURCES__ACCESS_TOKEN)
-  (Environment Variables, GITHUB_PIPELINE__ACCESS_TOKEN)
-  (secrets.toml, github_pipeline.sources.github_pipeline.github_rest_api_source.access_token)
-  (secrets.toml, github_pipeline.sources.github_pipeline.access_token)
-  (secrets.toml, github_pipeline.sources.access_token)
-  (secrets.toml, github_pipeline.access_token)
-  (Environment Variables, SOURCES__GITHUB_PIPELINE__GITHUB_REST_API_SOURCE__ACCESS_TOKEN)
-  (Environment Variables, SOURCES__GITHUB_PIPELINE__ACCESS_TOKEN)
-  (Environment Variables, SOURCES__ACCESS_TOKEN)
-  (Environment Variables, ACCESS_TOKEN)
-  (secrets.toml, sources.github_pipeline.github_rest_api_source.access_token)
-  (secrets.toml, sources.github_pipeline.access_token)
-  (secrets.toml, sources.access_token)
-  (secrets.toml, access_token)
-Provider `secrets.toml` loaded values from locations:
-        - /home/user/path/to/my_project/.dlt/secrets.toml
-        - /home/user/.dlt/secrets.toml
-Provider `config.toml` loaded values from locations:
-        - /home/user/path/to/my_project/.dlt/config.toml
-        - /home/user/.dlt/config.toml
-```
-
-:::tip
-Getting credentials or API keys from a source system can be tedious. For popular sources, LLMs can provide step-by-step instructions
-:::
-
-
-### Failure: destination credentials
-
-Destination credentials are similar to source credentials errors and can be fixed via `.dlt/config.toml`  and `.dlt/secrets.toml` or environment variables ([learn more](../../general-usage/credentials/setup)). Destination-specific information can be found in [the documentation](../../dlt-ecosystem/destinations).
-
-Alternatively, you can point the LLM to the Python code that defines the configuration. It's typically found in `from dlt.destinations.impl.{'{'}destination{'}'}.configuration`. For example, this retrieves the Snowflake configuration and credentials
-
-```py
-from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials, SnowflakeClientConfiguration
-```
-
-Credentials are what you typically put in `secrets.toml` and configuration in `config.toml`.
-
-## Manage context
-
-"Managing context" is about providing the right information to the LLM and help it focus on the right task. Below is a list of practical tips:
-
-- Specify: "I'm a data engineer using the Python library `dlt` to ingest data from {'{'}source{'}'} to {'{'}destination{'}'}. I'm also using the Python libraries X,Y,Z."
-- Specify: "Focus on a single REST API endpoint `X`."
-- In later iteration when you're tuning your pipeline, specify "The current Python code works as expected. Make minimal and focused changes to do X"
-- Use the `@` symbol to reference the terminal output after running the pipeline
-- Use the `@` symbol to reference to the LLM scaffolds
-- Ingest documentation and index your code using your IDE. Refer to it explicitly using `@`
-- Ask the LLM to list available tools and explain them.
-- If the LLM goes on a tangent, trim the conversation history or create a new conversation
-
-:::note
-These tips will differ slightly across IDEs
-:::
-
-## Check data
-
-### dlt Dashboard
-
-Lauch the local [dlt Dashboard](../../general-usage/dashboard) to inspect your pipeline execution including:
-- pipeline state and metrics
-- data schema
-- SQL data explorer
+You can open [Workspace Dashboard](../../general-usage/dashboard.md) to apply your own judgement:
 
 ```sh
 dlt pipeline github_pipeline show
 ```
 
-<div style={{textAlign: 'center'}}>
-![dashboard](https://storage.googleapis.com/dlt-blog-images/llm-native-dashboard.png)
-</div>
+| Question | What to check |
+|----------|---------------|
+| 1) Am I grabbing data correctly? | Row counts match expected volume (not just page 1) |
+| 2) Am I loading data correctly? | Incremental cursor advances between runs |
+| 3) Is my schema correct? | No unexpected child tables or missing columns |
+| 4) Do I have the right business data? | Required entities and attributes are present |
+| 5) Are my data types correct? | Numbers, dates, booleans are not stored as strings |
 
-The dashboard helps detect silent failures due to pagination errors, schema drift, or incremental load misconfigurations.
+See the [full checklist](../../general-usage/dashboard.md#using-the-dashboard) for detailed steps.
 
-:::tip
-Inside Cursor 2.0, you can open the [dashboard's web page inside the IDE](https://cursor.com/docs/agent/browser) and directly reference visual elements inside the chat.
-:::
+## Extend and harden
 
+### `/adjust-endpoint` — remove dev limits and configure loading
 
-### Ask the dlt MCP server
-If the [dlt MCP server](https://github.com/dlt-hub/dlt-mcp) is connected, you can directly ask in the IDE chat window if the data was successfully loaded. Based on your MCP configuration, it can have access to:
-- pipeline metadata
-- loaded data
-- dlt documentation and source code
+This step removes `dev_mode` and `.add_limit()`, verifies that pagination works end-to-end, and adds [incremental loading](../../general-usage/incremental-loading.md) so subsequent runs only fetch new data.
 
-It can answer questions such as:
-- What are the available pipelines?
-- What are the available tables?
-- What's table X's schema?
-- When was data last loaded?
-- Did schema change last run?
-- Display the pipeline's schema
-- How many rows are in table X?
-- Give me a data sample of table X
+### `/new-endpoint` — add more resources
 
+With this skill, you can add additional API endpoints to your source. The assistant is instructed to test them individually with `with_resources()` before running the full pipeline.
 
-### Python data exploration
+### `/view-data` — explore your dataset
 
-Running a `dlt` pipeline creates a dataset, which can be accessed via Python code:
+Open the [dlt Dashboard](../../general-usage/dashboard.md) for visual inspection, or use the Python dataset API for programmatic exploration:
 
 ```py
 import dlt
 
-# this refers to my previously ran pipeline
 github_pipeline = dlt.pipeline("github_pipeline")
 github_dataset = github_pipeline.dataset()
-# list tables
 github_dataset.tables
-# list columns
 github_dataset.table("pull_requests").columns
-# load the results as a pandas dataframe
 github_dataset.table("pull_requests").df()
 ```
 
-This shines in interactive environments like [marimo](../../general-usage/dataset-access/marimo) and Jupyter for data explorations. It's a great way to add data quality checks.
+This works well in interactive environments like [marimo](../../general-usage/dataset-access/marimo.md) and [Jupyter](https://jupyter.org/).
 
-### Automated data quality
+## Anatomy of the REST API pipeline toolkit
 
-Once you're familiar with the data, you can write expectations about the data in code. This section is an introduction to deep topics with their own documentation page.
+```mermaid
+stateDiagram-v2
+    find: find-source
+    create: create-pipeline
+    debug: debug-pipeline
+    validate: validate-data
+    adjust: adjust-endpoint
+    newep: new-endpoint
+    view: view-data
 
-:::tip
-Instead of asking the LLM to make data a certain way, you can ask the LLM to help you write automated data quality. Then, you can feedback the data quality information back to the LLM after each pipeline run.
-:::
-
-#### Schema contract
-Enabling [schema contracts](../../general-usage/schema-contracts) lets you configure what aspect of the data can change or not between pipeline runs.
-
-For example, this configuration allows to add new tables, raises on new columns, and drops records with incorrect data type:
-
-```py
-@dlt.source(
-    schema_contract={
-        "tables": "evolve",
-        "columns": "freeze",
-        "data_type": "discard_row",
-    }
-)
-def github_source(): ...
+    [*] --> find
+    find --> create
+    create --> debug
+    debug --> validate
+    validate --> debug: issues found
+    validate --> adjust: ready to harden
+    validate --> newep: add endpoint
+    adjust --> debug
+    newep --> debug
+    validate --> view
+    view --> [*]
 ```
 
-#### Data validation
-Using [Pydantic](https://docs.pydantic.dev), you can define extend schema contract features and validate individual records one-by-one ([learn more](../../general-usage/resource#define-a-schema-with-pydantic)).
+A toolkit contains skills, rules, and an MCP server — tied together by a workflow that tells the assistant which skill to run at each step and how to leverage the MCP.
 
-This allows to catch invalid data early, cancel the pipeline run, and prevent data being written to the destination
+| Component | What it is | When it runs |
+|-----------|------------|--------------|
+| **Skill** | Step-by-step procedure the assistant follows | Triggered by user intent or explicitly with `/skill-name` |
+| **Rule** | Always-on context (conventions, constraints) | Every session, automatically |
+| **Workflow** | Ordered sequence of skills with a fixed entry point | Loaded as a rule — always active |
+| **MCP server** | Exposes pipelines, tables, and secrets as tools | During a session, via MCP protocol |
 
-Data validation needs to be set on the **resource** rather than the **source**. We need a few more lines of code to retrieve them.
+### How the components interact
 
-```py
-import dlt
-from pydantic import BaseModel
+The **workflow** is loaded into the assistant's context automatically as a rule. When you invoke the entry skill, it tells the assistant which skill to run next based on the current state.
+**Skills** are prompts with embedded instructions — they teach the assistant how to use `dlt` APIs, REST API configuration, and MCP tools.
+The **MCP server** exposes tools like `list_pipelines`, `get_table_schema`, and `execute_sql_query` so the assistant can inspect results without you copying output manually.
 
-class PullRequestModel(BaseModel):
-    ...
+## Handover to other toolkits
 
-@dlt.source
-def github_source(): ...
+Once your pipeline is validated, you can continue to the next phase of the data engineering lifecycle by installing additional toolkits:
 
-if __name__ == "__main__":
-    source = github_source()
-    # "pull_requests" would be one of the endpoints defined by `github_source`
-    source.resources["pull_requests"].apply_hints(columns=PullRequestModel)
+- **`data-exploration`** — connects to your loaded pipeline data and builds an interactive marimo dashboard with Altair charts as the final output.
+  The assistant adapts to how explicitly the user specifies their intent:
+  - **High-intent** (user has a specific question to be answered by the data, e.g. "show revenue by month"): scans the schema, plans the chart, and renders it directly to the dashboard.
+  - **Low-intent** (e.g. "explore my github data"): profiles the data, suggests 5–10 business questions, and builds a dashboard from your selection.
 
-    pipeline = dlt.pipeline("github_pipeline")
-    pipeline.run(source)
+  Two skills drive the workflow: `/explore-data` (entry point skill) connects to your data, profiles it by mapping the intent to the available data and identifying potential gaps, while `/build-notebook` assembles the charts into a marimo dashboard and launches it in your browser.
+  The toolkit is designed for iterative development: create one chart and launch the notebook, then iterate — add or refine charts and re-launch.
+
+- **`dlthub-runtime`** — deploy, schedule, and monitor your pipeline in production
+
+[Sign up for dltHub Early Access](https://dlthub.com/solutions/for-small-data-teams)
+
+```sh
+uv run dlt ai toolkit data-exploration install
+uv run dlt ai toolkit dlthub-runtime install
 ```
 
-#### Data quality checks
-A [data quality check](../../hub/features/quality/data-quality) declares how the data on the destination should look like. It can be executed on the destination and efficiently process large data volume.
+## Results
 
-```py
-from dlt.hub import data_quality as dq
-
-pipeline = dlt.pipeline("github_pipeline")
-pipeline.run(github_source())
-
-dataset = pipeline.dataset()
-
-pull_requests_checks = [
-    dq.checks.is_not_null("id"),
-    dq.checks.is_in("author", ["Romeo", "Foxtrot", "Tango"]),
-    dq.checks.case("created_at > 2025-01-01"),
-]
-
-dq.run_checks(dataset, checks={"pull_requests": pull_requests_checks})
-```
-
-:::tip
-Data quality checks write results to the destination, which can be inspected via the dashboard, MCP server, and manual exploration
-:::
-
-
-## Conclusion
 By the end of this guide, you should have:
-- a local workspace
-- a working REST API source
-- a working pipeline
-- a local dataset
+- A workspace with coding assistant rules and MCP tools configured
+- A working REST API source with validated endpoints
+- A local dataset you have inspected and verified
 
 Next steps:
-- [explore the dataset and build a data product](../../general-usage/dataset-access/dataset)
-- [replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset)
-- [deploy the pipeline](../../walkthroughs/deploy-a-pipeline/)
+- [Explore the dataset and build a data product](../../general-usage/dataset-access/dataset.md)
+- [Replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset.md)

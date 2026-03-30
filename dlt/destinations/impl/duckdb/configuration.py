@@ -36,6 +36,18 @@ class DuckDbBaseCredentials(CredentialsConfiguration):
     """Local config applied to each borrowed connection"""
     conn_pool: Annotated[Optional["DuckDbConnectionPool"], NotResolved()] = None
 
+    def copy(self: "DuckDbBaseCredentials") -> "DuckDbBaseCredentials":
+        new_obj = super().copy()
+        # conn_pool holds threading state that must not be shared across copies
+        if self.conn_pool is not None and not self.conn_pool._conn_owner:
+            # external connection: set _external_conn so pool constructor picks it up
+            new_obj._external_conn = self.conn_pool._conn
+            new_obj.conn_pool = DuckDbConnectionPool(new_obj)
+        else:
+            # owned connection: let on_resolved() create a fresh pool
+            new_obj.conn_pool = None
+        return new_obj
+
     def parse_native_representation(self, native_value: Any) -> None:
         try:
             # check if database was passed as explicit connection

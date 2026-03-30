@@ -102,7 +102,11 @@ def init_client(
     tables_with_jobs = set(job.table_name for job in new_jobs) - tables_no_data
 
     # get tables to truncate by extending tables with jobs with all their nested tables
-    initial_truncate_names = set(t["name"] for t in truncate_tables) if truncate_tables else set()
+    initial_truncate_names = (
+        set(t["name"] for t in truncate_tables if drop_staging_filter(t))
+        if truncate_tables
+        else set()
+    )
     truncate_table_names = set(
         _extend_tables_with_table_chain(
             schema,
@@ -131,21 +135,34 @@ def init_client(
 
     # update the staging dataset if client supports this
     if isinstance(job_client, WithStagingDataset):
-        # get staging tables (all data tables that are eligible)
-        staging_tables = set(
+        # get staging tables with jobs in this load (used for truncation)
+        # WARNING: for append disposition, only tables with actual jobs are truncated - nested
+        # tables without jobs retain stale data from previous loads. This means the staging
+        # dataset does not reflect the current load package exactly. When we add a mode where
+        # all jobs go through staging, we may need to truncate all_staging_tables instead.
+        staging_tables_with_jobs = set(
             _extend_tables_with_table_chain(
                 schema, tables_with_jobs, tables_with_jobs, load_staging_filter
             )
         )
+        # get remaining data tables that are eligible for staging dataset regardless
+        # if they have jobs or not
+        staging_data_tables = set(schema.data_table_names())
+        staging_data_tables = set(
+            _extend_tables_with_table_chain(
+                schema, staging_data_tables, staging_data_tables, load_staging_filter
+            )
+        )
+        all_staging_tables = staging_data_tables | staging_tables_with_jobs
 
         # if there are tables to drop, we should also drop them in the staging dataset
-        if staging_tables or drop_table_names:
+        if all_staging_tables or drop_table_names:
             with job_client.with_staging_dataset():
                 _init_dataset_and_update_schema(
                     job_client,
                     expected_update,
-                    staging_tables | {schema.version_table_name},  # keep only schema version
-                    staging_tables,  # all eligible tables must be also truncated
+                    all_staging_tables | {schema.version_table_name},
+                    staging_tables_with_jobs,  # only truncate tables with jobs in this load
                     staging_info=True,
                     drop_tables=drop_table_names,  # try to drop all the same tables on staging
                 )

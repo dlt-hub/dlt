@@ -3,6 +3,7 @@ from tests.utils import skip_if_not_active
 skip_if_not_active("snowflake")
 
 from copy import deepcopy
+from typing import cast
 
 import pytest
 import sqlfluff
@@ -20,6 +21,10 @@ from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeClientConfiguration,
     SnowflakeCredentials,
 )
+
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.schema.typing import TColumnSchema
+from dlt.destinations.impl.snowflake.factory import SnowflakeTypeMapper
 
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
@@ -41,14 +46,14 @@ def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
     return create_client(empty_schema)
 
 
-def create_client(schema: Schema) -> SnowflakeClient:
+def create_client(schema: Schema, use_decfloat: bool = False) -> SnowflakeClient:
     # return client without opening connection
     creds = SnowflakeCredentials()
-    return snowflake().client(
+    return snowflake(use_decfloat=use_decfloat).client(
         schema,
-        SnowflakeClientConfiguration(credentials=creds)._bind_dataset_name(
-            dataset_name="test_" + uniq_id()
-        ),
+        SnowflakeClientConfiguration(
+            credentials=creds, use_decfloat=use_decfloat
+        )._bind_dataset_name(dataset_name="test_" + uniq_id()),
     )
 
 
@@ -314,3 +319,71 @@ def test_alter_table_with_column_comments(snowflake_client: SnowflakeClient) -> 
     assert add_column_sql.startswith("ALTER TABLE")
     assert "ADD COLUMN" in add_column_sql
     assert "COMMENT 'Added column with comment'" in add_column_sql
+
+
+def test_create_table_decfloat(empty_schema: Schema) -> None:
+    """When use_decfloat is enabled, unbound decimal columns use DECFLOAT type."""
+    client = create_client(empty_schema, use_decfloat=True)
+    statements = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
+    sql = statements[0]
+
+    # unbound decimal (col6) should be DECFLOAT
+    assert '"COL6" DECFLOAT  NOT NULL' in sql
+    # decimal with explicit precision (col6_precision) should still be NUMBER
+    assert '"COL6_PRECISION" NUMBER(6,2)  NOT NULL' in sql
+    # wei should remain NUMBER
+    assert '"COL8" NUMBER(38,0)' in sql
+
+
+def test_create_table_no_decfloat(snowflake_client: SnowflakeClient) -> None:
+    """When use_decfloat is disabled (default), unbound decimal columns use NUMBER with default precision."""
+    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
+    sql = statements[0]
+    # unbound decimal should be NUMBER(38,9), the Snowflake default
+    assert '"COL6" NUMBER(38,9)  NOT NULL' in sql
+
+
+def test_alter_table_decfloat(empty_schema: Schema) -> None:
+    """DECFLOAT is used in ALTER TABLE when use_decfloat is enabled."""
+    client = create_client(empty_schema, use_decfloat=True)
+    new_columns = deepcopy(TABLE_UPDATE[5:7])  # col6 (decimal) and col7 (binary)
+    statements = client._get_table_update_sql("event_test_table", new_columns, True)
+    add_column_sql = statements[0]
+    assert '"COL6" DECFLOAT  NOT NULL' in add_column_sql
+    assert '"COL7" BINARY  NOT NULL' in add_column_sql
+
+
+def test_decfloat_type_mapper_to_destination() -> None:
+    """Test SnowflakeTypeMapper with use_decfloat produces DECFLOAT for unbound decimals."""
+    caps = snowflake()._raw_capabilities()
+    mapper = SnowflakeTypeMapper(caps, use_decfloat=True)
+
+    # unbound decimal -> DECFLOAT
+    col = cast(TColumnSchema, {"name": "test_col", "data_type": "decimal"})
+    table = cast(PreparedTableSchema, {"name": "test_table", "columns": {"test_col": col}})
+    assert mapper.to_destination_type(col, table) == "DECFLOAT"
+
+    # decimal with precision -> NUMBER(p,s)
+    col_prec = cast(
+        TColumnSchema, {"name": "test_col", "data_type": "decimal", "precision": 10, "scale": 3}
+    )
+    assert mapper.to_destination_type(col_prec, table) == "NUMBER(10,3)"
+
+
+def test_decfloat_type_mapper_disabled() -> None:
+    """Test SnowflakeTypeMapper without use_decfloat uses NUMBER for unbound decimals."""
+    caps = snowflake()._raw_capabilities()
+    mapper = SnowflakeTypeMapper(caps, use_decfloat=False)
+
+    col = cast(TColumnSchema, {"name": "test_col", "data_type": "decimal"})
+    table = cast(PreparedTableSchema, {"name": "test_table", "columns": {"test_col": col}})
+    assert mapper.to_destination_type(col, table) == "NUMBER(38,9)"
+
+
+def test_decfloat_type_mapper_from_destination() -> None:
+    """Test SnowflakeTypeMapper maps DECFLOAT back to decimal."""
+    caps = snowflake()._raw_capabilities()
+    mapper = SnowflakeTypeMapper(caps, use_decfloat=True)
+
+    result = mapper.from_destination_type("DECFLOAT")
+    assert result == {"data_type": "decimal"}

@@ -6,6 +6,7 @@ from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 
 PARTITION_HINT = "x-iceberg-partition"
+TABLE_PROPERTIES_HINT = "x-iceberg-table-properties"
 
 
 @dataclass(frozen=True)
@@ -149,31 +150,40 @@ class iceberg_partition:
 def iceberg_adapter(
     data: Any,
     partition: Union[str, PartitionSpec, Sequence[Union[str, PartitionSpec]]] = None,
+    table_properties: Optional[Dict[str, str]] = None,
 ) -> DltResource:
     """Prepares data or a DltResource for loading into Apache Iceberg table.
 
-    Takes raw data or an existing DltResource and configures it for Iceberg,
-    primarily by defining partitioning strategies via the DltResource's hints.
+    Takes raw data or an existing DltResource and configures it for Iceberg
+    by defining partitioning strategies and/or table properties via the
+    DltResource's hints.
 
     Args:
         data: The data to be transformed. This can be raw data (e.g., list of dicts)
             or an instance of `DltResource`. If raw data is provided, it will be
             encapsulated into a `DltResource` instance.
         partition: Defines how the Iceberg table should be partitioned.
-            Must be provided. It accepts:
+            It accepts:
             - A single column name (string): Defaults to an identity transform.
             - A `PartitionSpec` object: Allows for detailed partition configuration,
               including transformation types (year, month, day, hour, bucket, truncate).
               Use the `iceberg_partition` helper class to create these specs.
             - A sequence of the above: To define multiple partition columns.
+        table_properties: A dictionary of Iceberg table properties to set on the
+            table at creation time. Keys and values must be strings. These correspond
+            to Iceberg table properties such as ``write.format.default`` or
+            ``write.target-file-size-bytes``. Properties are only applied when the
+            table is first created.
 
     Returns:
-        A `DltResource` instance configured with Iceberg-specific partitioning hints,
+        A `DltResource` instance configured with Iceberg-specific hints,
         ready for loading.
 
     Raises:
-        ValueError: If `partition` is not specified or if an invalid
-            partition transform is requested within a `PartitionSpec`.
+        ValueError: If neither `partition` nor `table_properties` is specified,
+            or if an invalid partition transform is requested within a
+            `PartitionSpec`, or if `table_properties` is not a dict with string
+            keys and values.
 
     Examples:
         >>> data = [{"id": 1, "event_time": "2023-03-15T10:00:00Z", "category": "A"}]
@@ -182,20 +192,9 @@ def iceberg_adapter(
         ...     partition=[
         ...         "category",  # Identity partition on category
         ...         iceberg_partition.year("event_time"),
-        ...     ]
+        ...     ],
+        ...     table_properties={"write.format.default": "parquet"},
         ... )
-        >>> # The resource's hints now contain the Iceberg partition specs:
-        >>> # resource.compute_table_schema().get('x-iceberg-partition')
-        >>> # [
-        >>> #     {'transform': 'identity', 'source_column': 'event_time'},
-        >>> #     {'transform': 'year', 'source_column': 'event_time'},
-        >>> # ]
-        >>> #
-        >>> # Or in case of using an existing DltResource
-        >>> @dlt.resource
-        ... def my_data():
-        ...     yield [{"value": "abc"}]
-        >>> iceberg_adapter(my_data, partition="value")
     """
     resource = get_resource_for_adapter(data)
     additional_table_hints: Dict[str, Any] = {}
@@ -209,15 +208,28 @@ def iceberg_adapter(
             if isinstance(item, PartitionSpec):
                 specs.append(item)
             else:
-                # Item is the column name, use identity transform
+                # item is the column name, use identity transform
                 specs.append(iceberg_partition.identity(item))
 
         additional_table_hints[PARTITION_HINT] = [spec.to_dict() for spec in specs]
 
+    if table_properties is not None:
+        if not isinstance(table_properties, dict):
+            raise ValueError("`table_properties` must be a dictionary.")
+        for key, value in table_properties.items():
+            if not isinstance(key, str):
+                raise ValueError("Table property keys must be strings.")
+            if not isinstance(value, str):
+                raise ValueError(
+                    f"Table property values must be strings. Got {type(value).__name__}"
+                    f" for key '{key}'."
+                )
+        additional_table_hints[TABLE_PROPERTIES_HINT] = table_properties
+
     if additional_table_hints:
         resource.apply_hints(additional_table_hints=additional_table_hints)
     else:
-        raise ValueError("A value for `partition` must be specified.")
+        raise ValueError("At least one of `partition` or `table_properties` must be specified.")
 
     return resource
 

@@ -1,3 +1,9 @@
+---
+title: Create new destination
+description: How to create a new dlt destination
+keywords: [destination, custom destination, new destination]
+---
+
 # Create new destination
 
 :::tip

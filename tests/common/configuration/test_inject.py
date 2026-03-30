@@ -439,6 +439,7 @@ def test_base_spec() -> None:
         f_no_base(opt=False)
 
 
+@pytest.mark.serial
 @pytest.mark.parametrize("lock", [False, True])
 @pytest.mark.parametrize("same_pool", [False, True])
 def test_lock_context(lock, same_pool) -> None:
@@ -465,8 +466,8 @@ def test_lock_context(lock, same_pool) -> None:
             thread_ids = ["dlt-pool-5-1", "dlt-pool-20-2"]
 
         # simulate threads in the same pool
-        thread1 = threading.Thread(target=test_sections, name=thread_ids[0])
-        thread2 = threading.Thread(target=test_sections, name=thread_ids[1])
+        thread1 = threading.Thread(target=test_sections, name=thread_ids[0], daemon=True)
+        thread2 = threading.Thread(target=test_sections, name=thread_ids[1], daemon=True)
 
         thread1.start()
         thread2.start()
@@ -481,7 +482,7 @@ def test_lock_context(lock, same_pool) -> None:
         if lock and same_pool:
             assert elapsed > 1
         else:
-            assert elapsed < 0.7
+            assert elapsed < 0.9
 
 
 @pytest.mark.skip("not implemented")

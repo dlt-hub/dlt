@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.20.0"
+version = "1.24.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.15"
@@ -51,20 +51,21 @@ dependencies = [
     "orjson>=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "orjson>=3.11.0 ; python_version > '3.13'",
     "tenacity>=8.0.2",
-    "jsonpath-ng>=1.5.3",
+    # 1.8.0 wraps Child/Descendants str() in parens, breaking resolve_paths round-trip in drop.py
+    "jsonpath-ng>=1.5.3,<1.8",
     "fsspec>=2022.4.0",
     "packaging>=21.1",
     "pluggy>=1.3.0",
     "win-precise-time>=1.4.2 ; os_name == 'nt' and python_version < '3.13'",
-    "sqlglot>=25.4.0,!=28.1",
+    "sqlglot>=25.4.0",
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0",
 ]
 
 [project.optional-dependencies]
 hub = [
-    "dlthub>=0.20.0a1,<0.21 ; python_version >= '3.10'",
-    "dlt-runtime>=0.20.0a0,<0.21 ; python_version >= '3.10'",
+    "dlthub>=0.21.1,<0.25 ; python_version >= '3.10'",
+    "dlt-runtime>=0.21.2,<0.25 ; python_version >= '3.10'",
 ]
 gcp = [
     "grpcio>=1.50.0",
@@ -108,6 +109,10 @@ gs = [
 ]
 az = [
     "adlfs>=2024.7.0"
+]
+hf = [
+    "huggingface-hub>=1.4.1",
+    "pyarrow>=21.0.0",  # minimum version that supports CDC (https://huggingface.co/blog/parquet-cdc)
 ]
 sftp = [
     "paramiko>=3.3.0"
@@ -174,7 +179,7 @@ lancedb = [
     "pyarrow>=16.0.0",
     "duckdb>=1.4.3",
     # duckdb >= 1.4.0 doesn't work with ibis < 11.0.0
-    "ibis-framework>=11.0.0"
+    "ibis-framework>=12.0.0 ; python_version >= '3.10'"
 ]
 deltalake = [
     "deltalake>=0.25.1",
@@ -196,11 +201,13 @@ postgis = [
 ]
 workspace = [
     "duckdb>=0.9",
-    "ibis-framework>=10.5.0 ; python_version >= '3.10'",
+    "ibis-framework>=12.0.0 ; python_version >= '3.10'",
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
-    "mcp>=1.2.1 ; python_version >= '3.10'",
+    "fastmcp>=3.0.0 ; python_version >= '3.10'",
+    "mowidgets>=0.2.1 ; python_version >= '3.11'",
     "pathspec>=0.11.2",
+    "pydbml>=1.2.0",
 ]
 dbml = [
     "pydbml"
@@ -224,7 +231,9 @@ dev = [
     "types-deprecated>=1.2.9.2,<2",
     "pytest-console-scripts>=1.4.1,<2",
     "pytest>=7.4.4,<8",
-    "mypy>=1.11.0,<1.13.0",
+    "pytest-xdist>=3.5,<4",
+    "pytest-timeout>=2.3.1,<3",
+    "mypy>=1.11.0",
     "flake8>=7.0.0,<8",
     "bandit>=1.7.0,<2",
     "black[jupyter]>=23.7.0,<24",
@@ -257,9 +266,8 @@ dev = [
     "pip>=24.0.0",
     "pydoclint>=0.6.5,<0.7",
     "types-paramiko>=3.5.0.20250708",
+    "griffe>=1.10.0",
     "graphviz>=0.21",
-    # limits sqlglot - remove when #3489 is fixed
-    "sqlglot<28.1",
 ]
 
 # NOTE: those dependencies are used to test built in sources
@@ -287,28 +295,31 @@ pipeline = [
     "pyarrow>=16.0.0",
     # this pandas and above has functional numpy dependency
     "pandas>=2.1.4",
+    "datasets>=4.5.0",
+    "mmh3>5.0.0",
 ]
-airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
+airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.13'"]
 ibis = [
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=10.5.0 ; python_version >= '3.10' and python_version < '3.13'",
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=10.5.0 ; python_version >= '3.13'"
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=12.0.0 ; python_version >= '3.10' and python_version < '3.13'",
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=12.0.0 ; python_version >= '3.13'"
 ]
-streamlit = ["streamlit>=1.40.0,<2 ; python_version >= '3.9' and python_version != '3.9.7' and python_version < '3.14'"]
+ibis-bare = ["ibis-framework>=12.0.0 ; python_version >= '3.10'"]
 dashboard-tests = [
-    "playwright>=1.52.0,<2",
-    "pytest-playwright>=0.7.0,<1",
+    "playwright>=1.58.0,<2",
+    "pytest-playwright>=0.7.1,<1",
     ]
 # NOTE: required to use google secrets config provider
 providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
 dbt = [
-    "dbt-core>=1.5.0",
-    "dbt-redshift>=1.5.0",
-    "dbt-bigquery>=1.5.0",
-    "dbt-duckdb>=1.5.0",
-    "dbt-snowflake>=1.5.0",
-    "dbt-athena-community>=1.5.0",
-    "dbt-sqlserver>=1.5.0 ; python_version < '3.13'",
+    "dbt-core>=1.7.0",
+    "dbt-redshift>=1.7.0",
+    "dbt-bigquery>=1.7.0",
+    "dbt-duckdb>=1.7.0",
+    "dbt-snowflake>=1.7.0",
+    "dbt-athena-community>=1.7.0",
+    "dbt-sqlserver>=1.7.0 ; python_version < '3.13'",
+    "dbt-fabric>=1.7.0 ; python_version < '3.13'",
 ]
 adbc = [
     "dbc>=0.1.0",
@@ -319,6 +330,9 @@ adbc = [
 dlt = "dlt.__plugins__"
 
 [tool.uv]
+# cyclopts (via fastmcp) pulls in docstring-parser which conflicts with
+# docstring-parser-fork (same Python module). The fork is a superset used by pydoclint.
+override-dependencies = ["docstring-parser ; sys_platform == 'never'"]
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
@@ -352,8 +366,10 @@ include = [
     "dlt/**/*.py",
     "tests/**/*.py",
     "docs/**/*.py",
+    "tools/**/*.py",
 ]
 exclude = [
+    ".venv",
     "docs/website/.dlt-repo",
     "tests/reflection/module_cases/syntax_error.py",
     "docs/website/docs/general-usage/transformations/transformation-snippets.py",
@@ -394,11 +410,107 @@ profile = "black"
 src_paths = ["dlt"]
 multi_line_output = 3
 
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = false
+strict_optional = false
+warn_redundant_casts = true
+disallow_any_generics = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_return_any = true
+namespace_packages = true
+warn_unused_ignores = true
+show_error_codes = true
+exclude = [
+    "docs/examples/archive/",
+    "tests/reflection/module_cases/",
+    "tests/common/reflection/cases/modules/",
+    "dlt/helpers/marimo/_",
+]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+module = ["examples.*", "docs.*", "snippets.*", "dlt._workspace._templates._single_file_templates.*"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "jsonpath_ng.*",
+    "google.oauth2.*",
+    "google.auth.*",
+    "fsspec.*",
+    "json_logging.*",
+    "enlighten.*",
+    "alive_progress.*",
+    "googleapiclient.*",
+    "pyarrow.*",
+    "giturlparse.*",
+    "requests_oauthlib.*",
+    "google_auth_oauthlib.*",
+    "streamlit.*",
+    "marimo.*",
+    "mowidgets.*",
+    "logbook.*",
+    # TODO: Stubs are included but seem to not be installed correctly with pyodbc 4.x.x
+    # Might be fixed in pyodbc 5
+    "pyodbc.*",
+    "prometheus_client.*",
+    "weaviate.*",
+    "psycopg2cffi.*",
+    "cron_descriptor.*",
+    "altair.*",
+    "pandas.*",
+    "numpy.*",
+    "apiclient.*",
+    "sources.*",
+    "utils.*",
+    "connectorx",
+    "s3fs.*",
+    "win_precise_time",
+    "google.*",
+    "openai.*",
+    "dotenv.*",
+    "pytz.*",
+    "sentry_sdk.*",
+    "tornado.*",
+    "adlfs.*",
+    "snowflake.*",
+    "pendulum.*",
+    "time_machine.*",
+    "pyiceberg.*",
+    "airflow.*",
+    "dlthub.*",
+    "ibis.*",
+    "adbc_driver_postgresql.*",
+    "adbc_driver_manager.*",
+    "playwright.*",
+    "lancedb.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "databricks.*",
+    "mcp.*",
+    "pymongo.*",
+    "fastmcp.*",
+    "dbt.*",
+]
+follow_imports = "skip"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 pythonpath = ["dlt"]
 norecursedirs = [".direnv", ".eggs", "build", "dist"]
-addopts = "--showlocals --durations 10 -m 'not rfam'"
+addopts = "-p no:xdist --showlocals --durations 10 -m 'not rfam'"
 xfail_strict = true
+timeout = 1800
+faulthandler_timeout = 1500
 log_cli_level = "INFO"
 console_output_style = "count"
 python_files = ["test_*.py", "*_test.py"]
@@ -406,8 +518,10 @@ python_functions = ["*_test", "test_*"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
     "essential: marks all essential tests",
+    "forked: marks tests that must run in a separate process (forked), e.g. due to global state, crashes, or side effects",
     "no_load: marks tests that do not load anything",
     "rfam: marks tests that use rfam db",
+    "serial: tests that must not run under pytest-xdist / require isolated CPU",
     "oracle: marks tests that use local oracle db",
     "mssql: marks tests that use local mssql db"
 ]

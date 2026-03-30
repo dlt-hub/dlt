@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import os
 import tempfile  # noqa: 251
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 from dlt.common import pendulum
 from dlt.common.json import json
@@ -12,6 +12,7 @@ from dlt.common.destination.client import (
     FollowupJobRequest,
     LoadJob,
 )
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.storages.load_package import commit_load_package_state
 from dlt.common.storages import FileStorage
 from dlt.common.typing import TDataItems
@@ -79,6 +80,14 @@ class FinalizedLoadJob(LoadJob):
 
     def exception(self) -> BaseException:
         return self._exception
+
+    def set_final_state(self, state: TLoadJobState, failed_message: Optional[str] = None) -> None:
+        assert state in ("completed", "failed")
+        self._status = state
+        self._failed_message = failed_message
+        if failed_message:
+            self._exception = DestinationTerminalException(failed_message)
+        self._finished_at = pendulum.now()
 
 
 class FinalizedLoadJobWithFollowupJobs(FinalizedLoadJob, HasFollowupJobs):

@@ -46,7 +46,7 @@ pip install pyathena
 so pip does not fail on backtracking.
 :::
 
-To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`. You will need to provide a `bucket_url`, which holds the uploaded parquet files, a `query_result_bucket`, which Athena uses to write query results to, and credentials that have write and read access to these two buckets as well as the full Athena access AWS role.
+To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`. You will need to provide a `bucket_url`, which holds the uploaded parquet files, and credentials that have write and read access to the bucket as well as the full Athena access AWS role. You should also provide a `query_result_bucket`, which Athena uses to write query results to. If your Athena workgroup has [Managed Query Results](https://docs.aws.amazon.com/athena/latest/ug/querying-athena-managed-query-results.html) enabled, omit `query_result_bucket` (or leave it unset) — Athena will manage the results storage automatically.
 
 The TOML file looks like this:
 

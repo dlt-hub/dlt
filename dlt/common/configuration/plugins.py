@@ -1,5 +1,6 @@
 import os
-from typing import Any, ClassVar, Dict, List, Optional, Protocol
+import warnings
+from typing import Any, ClassVar, Dict, List, Optional, Protocol, Sequence, Set
 import pluggy
 import argparse
 import importlib.metadata
@@ -69,7 +70,14 @@ def load_setuptools_entrypoints(m: pluggy.PluginManager) -> List[str]:
                 or m.is_blocked(ep.name)
             ):
                 continue
-            plugin = ep.load()
+            try:
+                plugin = ep.load()
+            except Exception as e:
+                warnings.warn(
+                    f"Plugin {ep.name} from {package_name} failed to load: {e}",
+                    stacklevel=1,
+                )
+                continue
             m.register(plugin, name=ep.name)
             m._plugin_distinfo.append((plugin, pluggy._manager.DistFacade(dist)))
             top_module = ep.module.split(".")[0]
@@ -118,3 +126,30 @@ class SupportsCliCommand(Protocol):
 @hookspec()
 def plug_cli() -> SupportsCliCommand:
     """Spec for plugin hook that returns current run context."""
+
+
+class SupportsMcpFeatures(Protocol):
+    """Protocol for contributing MCP tools, prompts, and providers via plug_mcp hook"""
+
+    name: str
+    """unique name identifying this feature set"""
+    tools: Sequence[Any]
+    """tool functions or Tool objects to register"""
+    prompts: Sequence[Any]
+    """prompt functions or Prompt objects to register"""
+    providers: Sequence[Any]
+    """provider instances (e.g. SkillProvider) to register"""
+
+
+@hookspec()
+def plug_mcp(features: Set[str]) -> Optional[SupportsMcpFeatures]:
+    """Spec for plugin hook that contributes MCP tools, prompts, and providers.
+
+    MCP server will broadcast `features` to all registered plugins that may
+    decide to return a MCP feature (combination of tools, skills and prompts)
+    or not. The server collects all non-None results and registers everything on the
+    FastMCP instance.
+
+    Args:
+        features: set of feature keywords the server requests
+    """

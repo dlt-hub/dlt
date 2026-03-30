@@ -28,13 +28,12 @@ from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.exceptions import DatabaseTerminalException
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.path_utils import get_file_format_and_compression
-
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
     "cluster": "DISTKEY",
@@ -48,10 +47,21 @@ class RedshiftSqlClient(Psycopg2SqlClient):
     def has_dataset(self) -> bool:
         # In Redshift, the 'public' schema always exists but may not be
         # returned by INFORMATION_SCHEMA.SCHEMATA query, so we handle it as a special case
-        if self.dataset_name == "public":
+        if self.dataset_name.lower() == "public":
             return True
 
-        return super().has_dataset()
+        all_schemas_view_name = "svv_redshift_schemas"
+
+        db_params = []
+        _, schema_name, _ = self._get_information_schema_components()
+        query = f"SELECT 1 FROM {all_schemas_view_name} WHERE schema_name = %s"
+        db_params.append(schema_name)
+        try:
+            rows = self.execute_sql(query, *db_params)
+            return len(rows) > 0
+        except DatabaseException:
+            # fallback to INFORMATION_SCHEMA.SCHEMATA if svv_redshift_schemas is not available
+            return super().has_dataset()
 
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(
@@ -145,7 +155,8 @@ class RedshiftMergeJob(SqlMergeFollowupJob):
         cls,
         root_table_name: str,
         staging_root_table_name: str,
-        key_clauses: Sequence[str],
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
         """Generate sql clauses that may be used to select or delete rows in root table of destination dataset
@@ -153,13 +164,14 @@ class RedshiftMergeJob(SqlMergeFollowupJob):
         A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
         if for_delete:
+            key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
             return [
                 f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM"
                 f" {staging_root_table_name} WHERE"
                 f" {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"
             ]
         return SqlMergeFollowupJob.gen_key_table_clauses(
-            root_table_name, staging_root_table_name, key_clauses, for_delete
+            root_table_name, staging_root_table_name, primary_keys, merge_keys, for_delete
         )
 
 

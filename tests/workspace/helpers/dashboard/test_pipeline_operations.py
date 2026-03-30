@@ -1,0 +1,199 @@
+import pytest
+import marimo as mo
+import dlt
+from typing import Set
+
+from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
+from dlt._workspace.helpers.dashboard.utils.pipeline import (
+    get_pipeline,
+    pipeline_details,
+    pipeline_link_list,
+    exception_section,
+    get_local_data_path,
+    remote_state_details,
+)
+from dlt._workspace.helpers.dashboard.utils.ui import dlt_table
+from dlt._workspace.helpers.dashboard.utils.schema import get_source_and_resource_state_for_table
+from dlt._workspace.helpers.dashboard.utils.visualization import get_steps_data_and_status
+from dlt._workspace.helpers.dashboard.const import TPipelineRunStatus, TVisualPipelineStep
+from tests.workspace.helpers.dashboard.example_pipelines import (
+    ALL_PIPELINES,
+    CUSTOM_DESTINATION_PIPELINES,
+    CUSTOM_DESTINATION_PIPELINE,
+    CUSTOM_DEST_CALLABLE_PIPELINE,
+    CUSTOM_DEST_STRING_REF_PIPELINE,
+    EXTRACT_EXCEPTION_PIPELINE,
+    LOAD_EXCEPTION_PIPELINE,
+    NO_DESTINATION_PIPELINE,
+    PIPELINES_WITH_EXCEPTIONS,
+    PIPELINES_WITH_LOAD,
+    SUCCESS_PIPELINE_FILESYSTEM,
+    SUCCESS_PIPELINE_DUCKDB,
+    SYNC_EXCEPTION_PIPELINE,
+)
+
+
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_exception_section(pipeline: dlt.Pipeline):
+    if pipeline.pipeline_name in PIPELINES_WITH_EXCEPTIONS:
+        assert "Show full stacktrace" in exception_section(pipeline)[0].text
+    else:
+        assert not exception_section(pipeline)
+
+
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_get_local_data_path(pipeline: dlt.Pipeline):
+    if pipeline.pipeline_name in [
+        LOAD_EXCEPTION_PIPELINE,
+        NO_DESTINATION_PIPELINE,
+        *CUSTOM_DESTINATION_PIPELINES,
+    ]:
+        # custom destination does not support local data path
+        assert get_local_data_path(pipeline) is None
+    else:
+        assert get_local_data_path(pipeline)
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_get_source_and_resource_state_for_table(pipeline: dlt.Pipeline):
+    """Test getting source and resource state for a table"""
+    table = pipeline.default_schema.tables["purchases"]
+    resource_name, source_state, resource_state = get_source_and_resource_state_for_table(
+        table, pipeline, pipeline.default_schema_name
+    )
+    assert resource_name
+    assert source_state == {}
+    assert resource_state.get("incremental").get("id") is not None
+
+    # check it can be rendered with marimo
+    assert mo.json(resource_state).text
+    assert mo.json(source_state).text
+
+
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_get_pipeline(pipeline: dlt.Pipeline):
+    """Test getting a real pipeline by name"""
+    expected_name = pipeline.pipeline_name
+    expected_dataset = pipeline.dataset_name
+    pipeline = get_pipeline(pipeline.pipeline_name, pipeline.pipelines_dir)
+
+    assert pipeline.pipeline_name == expected_name
+    assert pipeline.dataset_name == expected_dataset
+
+
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_pipeline_details(pipeline, temp_pipelines_dir):
+    """Test getting pipeline details from a real pipeline"""
+    config = DashboardConfiguration()
+    result = pipeline_details(config, pipeline, temp_pipelines_dir)
+
+    assert isinstance(result, list)
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
+        assert len(result) == 9
+    elif pipeline.pipeline_name in [
+        LOAD_EXCEPTION_PIPELINE,
+        "normalize_exception_pipeline",
+        *CUSTOM_DESTINATION_PIPELINES,
+    ]:
+        # custom destination does not support remote data info
+        assert len(result) == 8
+    else:
+        # no remote data info
+        assert len(result) == 7
+
+    # Convert to dict for easier testing
+    details_dict = {item["name"]: item["value"] for item in result}
+
+    assert details_dict["pipeline_name"] == pipeline.pipeline_name
+    if pipeline.pipeline_name == NO_DESTINATION_PIPELINE:
+        assert details_dict["destination"] == "No destination set"
+    elif pipeline.pipeline_name == SUCCESS_PIPELINE_FILESYSTEM:
+        assert details_dict["destination"] == "filesystem (dlt.destinations.filesystem)"
+    elif pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
+        assert details_dict["destination"] == "dummy (dlt.destinations.dummy)"
+    elif pipeline.pipeline_name == CUSTOM_DESTINATION_PIPELINE:
+        assert (
+            details_dict["destination"]
+            == "_dashboard_decorator_sink (tests.workspace.helpers.dashboard"
+            ".example_pipelines.DashboardDecoratorSinkDestination)"
+        )
+    elif pipeline.pipeline_name == CUSTOM_DEST_CALLABLE_PIPELINE:
+        assert details_dict["destination"] == "callable_sink (dlt.destinations.destination)"
+    elif pipeline.pipeline_name == CUSTOM_DEST_STRING_REF_PIPELINE:
+        assert details_dict["destination"] == "string_ref_sink (dlt.destinations.destination)"
+    else:
+        assert details_dict["destination"] == "duckdb (dlt.destinations.duckdb)"
+    assert details_dict["dataset_name"] == pipeline.dataset_name
+
+
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_get_remote_state_details(pipeline: dlt.Pipeline):
+    remote_state = remote_state_details(pipeline)
+    # check it can be rendered as table with marimo
+    assert dlt_table(remote_state).text is not None
+
+
+@pytest.mark.parametrize(
+    "pipeline, expected_steps, expected_status",
+    [
+        (SUCCESS_PIPELINE_DUCKDB, {"extract", "normalize", "load"}, "succeeded"),
+        (SUCCESS_PIPELINE_FILESYSTEM, {"extract", "normalize", "load"}, "succeeded"),
+        (EXTRACT_EXCEPTION_PIPELINE, {"extract"}, "failed"),
+        (LOAD_EXCEPTION_PIPELINE, {"extract", "normalize", "load"}, "failed"),
+        (SYNC_EXCEPTION_PIPELINE, set(), "failed"),
+    ],
+    indirect=["pipeline"],
+)
+def test_get_steps_data_and_status(
+    pipeline: dlt.Pipeline,
+    expected_steps: Set[TVisualPipelineStep],
+    expected_status: TPipelineRunStatus,
+) -> None:
+    """Test getting steps data and the pipeline execution status from trace"""
+    trace = pipeline.last_trace
+
+    steps_data, status = get_steps_data_and_status(trace.steps)
+    assert len(steps_data) == len(expected_steps)
+    assert status == expected_status
+
+    # not always true due to clock jitter
+    # assert all(step.duration_ms > 0 for step in steps_data)
+    if expected_status == "succeeded":
+        assert all(step.step_exception is None for step in trace.steps)
+    else:
+        assert any(step.step_exception is not None for step in trace.steps)
+
+    assert set([step.step for step in steps_data]) == expected_steps
+
+
+def test_pipeline_link_list():
+    """Test building a pipeline link list"""
+    config = DashboardConfiguration()
+
+    # empty list
+    result = pipeline_link_list(config, [])
+    assert "No pipelines found" in result
+
+    # with pipelines
+    pipelines: list[TPipelineListItem] = [
+        {"name": "pipeline_a", "timestamp": 1700000000.0},
+        {"name": "pipeline_b", "timestamp": 1700001000.0},
+    ]
+    result = pipeline_link_list(config, pipelines)
+    assert "pipeline_a" in result
+    assert "pipeline_b" in result
+    assert "?pipeline=pipeline_a" in result
+    assert "?pipeline=pipeline_b" in result
+
+
+def test_pipeline_link_list_max_10():
+    """Test that pipeline link list is limited to 10 entries"""
+    config = DashboardConfiguration()
+    pipelines: list[TPipelineListItem] = [
+        {"name": f"pipeline_{i}", "timestamp": 1700000000.0 + i} for i in range(15)
+    ]
+    result = pipeline_link_list(config, pipelines)
+    # should only include first 10
+    assert "pipeline_9" in result
+    assert "pipeline_10" not in result

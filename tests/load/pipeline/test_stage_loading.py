@@ -6,6 +6,7 @@ from dlt.common import json
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TDataType
+from dlt.common.schema.utils import get_root_table
 from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
 from dlt.destinations.path_utils import get_file_format_and_compression
 
@@ -17,7 +18,6 @@ from tests.load.utils import (
     assert_all_data_types_row,
     table_update_and_row_for_destination,
 )
-from tests.cases import table_update_and_row
 
 
 @dlt.resource(
@@ -51,14 +51,21 @@ def event_many_load_2():
     "destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name
 )
 def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
+    """Verifies staged loading and the 3-hop followup job chain in metrics.
+
+    The staging load produces a 3-hop job chain: upload (parquet) → COPY
+    (reference) → merge (sql). Each job's `followup_jobs` must point only to
+    its direct successor, not to the entire chain.
+    """
     pipeline = destination_config.setup_pipeline(
         pipeline_name="test_stage_loading_5", dataset_name="test_staging_load" + uniq_id()
     )
 
     info = pipeline.run(github(), **destination_config.run_kwargs)
     assert_load_info(info)
-    # checks if remote_url is set correctly on copy jobs
+    # checks if remote_url and followup_jobs are set correctly on copy jobs
     metrics = info.metrics[info.loads_ids[0]][0]
+    all_job_ids = set(metrics["job_metrics"].keys())
     for job_metrics in metrics["job_metrics"].values():
         remote_url = job_metrics.remote_url
         job_ext, is_compressed = get_file_format_and_compression(job_metrics.job_id)
@@ -68,6 +75,27 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
             if FilesystemConfiguration.is_local_path(bucket_uri):
                 bucket_uri = FilesystemConfiguration.make_file_url(bucket_uri)
             assert remote_url.startswith(bucket_uri)
+            # staging copy jobs should have followup_jobs pointing to reference jobs
+            assert job_metrics.followup_jobs is not None
+            assert len(job_metrics.followup_jobs) >= 1
+            for fup_id in job_metrics.followup_jobs:
+                assert fup_id in all_job_ids
+        elif job_ext == "sql":
+            # sql merge jobs are terminal — no further followups
+            assert job_metrics.followup_jobs is None
+        elif job_ext == "reference":
+            # COPY jobs in a merge chain point to the sql merge job (fan-in)
+            # non-merge tables have no followups
+            if job_metrics.followup_jobs is not None:
+                for fup_id in job_metrics.followup_jobs:
+                    assert fup_id in all_job_ids
+                    fup_ext, _ = get_file_format_and_compression(fup_id)
+                    assert fup_ext == "sql"
+            elif destination_config.supports_merge:
+                # if merge is supported, only non-merge tables should lack followups
+                table_name = job_metrics.table_name
+                root_table = get_root_table(pipeline.default_schema.tables, table_name)
+                assert root_table.get("write_disposition") != "merge"
 
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     assert package_info.state == "loaded"
@@ -254,8 +282,8 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
         # except for Athena which does not delete staging destination tables
         if destination_config.destination_type == "athena":
             if destination_config.table_format == "iceberg":
-                # even more iceberg metadata
-                table_count = 13
+                # even more iceberg metadata (but not with s3 tables, see comment above)
+                table_count = 0 if destination_config.is_athena_s3_tables else 13
             else:
                 table_count = 3
         else:

@@ -63,6 +63,7 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
         caps.supports_ddl_transactions = False
         caps.naming_convention = "dlt.destinations.impl.weaviate.naming"
         caps.supported_replace_strategies = ["truncate-and-insert"]
+        caps.supported_merge_strategies = ["upsert"]
         caps.supports_naive_datetime = False
 
         return caps

@@ -27,11 +27,21 @@ def _read_csv(
 
     # apply defaults to pandas kwargs
     kwargs = {**{"header": "infer", "chunksize": chunksize}, **pandas_kwargs}
+    # For some remote file systems (for example, sftp/paramiko), decoding may happen before
+    # pandas gets a chance to apply `encoding=...`. If encoding is explicitly provided,
+    # decode at file-open level and let pandas consume text directly.
+    open_mode = "rb"
+    open_kwargs = {}
+    if "encoding" in kwargs:
+        open_mode = "rt"
+        open_kwargs["encoding"] = kwargs.pop("encoding")
+        if "encoding_errors" in kwargs:
+            open_kwargs["errors"] = kwargs.pop("encoding_errors")
 
     for file_obj in items:
         # Here we use pandas chunksize to read the file in chunks and avoid loading the whole file
         # in memory.
-        with file_obj.open() as file:
+        with file_obj.open(mode=open_mode, **open_kwargs) as file:
             for df in pd.read_csv(file, **kwargs):
                 yield df.to_dict(orient="records")
 
@@ -70,6 +80,9 @@ def _read_parquet(
 
     Args:
         chunksize (int, optional): The number of records to process at once, defaults to 1000.
+        use_pyarrow (bool, optional): When False (default) batches are converted to Python
+            lists of dictionaries for broad destination compatibility; when True, native `pyarrow`
+            `RecordBatch` objects are yielded for zero-copy pipelines.
 
     Returns:
         TDataItem: The file content
@@ -112,11 +125,17 @@ def _read_csv_duckdb(
 
     helper = fetch_arrow if use_pyarrow else fetch_json
 
+    add_filename = duckdb_kwargs.pop("filename", False)
+
     for item in items:
         with item.open() as f:
             file_data = duckdb.from_csv_auto(f, **duckdb_kwargs)  # type: ignore
 
-            yield from helper(file_data, chunk_size)
+            for batch in helper(file_data, chunk_size):
+                if add_filename:
+                    for record in batch:
+                        record["filename"] = item["file_name"]  # type: ignore
+                yield batch
 
 
 if TYPE_CHECKING:

@@ -198,6 +198,9 @@ def test_forced_anon_tracker() -> None:
 def test_execution_context_with_plugin() -> None:
     import sys
 
+    before = get_execution_context()
+    assert "dlthub" not in before
+
     # move working dir so dlthub mock is importable and appears in settings
     plus_path = os.path.dirname(__file__)
     sys.path.append(plus_path)
@@ -207,6 +210,11 @@ def test_execution_context_with_plugin() -> None:
         assert context["dlthub"] == {"name": "dlthub", "version": "1.7.1"}
     finally:
         sys.path.remove(plus_path)
+        sys.modules.pop("dlthub", None)
+        sys.modules.pop("dlthub.version", None)
+
+    after = get_execution_context()
+    assert "dlthub" not in after
 
 
 @pytest.mark.parametrize(

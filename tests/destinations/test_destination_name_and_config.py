@@ -8,7 +8,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.storages import FilesystemConfiguration
 from dlt.destinations import duckdb, dummy, filesystem
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 
 def test_default_name_to_type() -> None:
@@ -62,7 +62,7 @@ def test_set_name_and_environment() -> None:
 def test_preserve_destination_instance() -> None:
     dummy1 = dummy(destination_name="dummy1", environment="dev/null/1")
     filesystem1 = filesystem(
-        FilesystemConfiguration.make_file_url(TEST_STORAGE_ROOT),
+        FilesystemConfiguration.make_file_url(get_test_storage_root()),
         destination_name="local_fs",
         environment="devel",
     )
@@ -212,7 +212,7 @@ def test_destination_config_in_name(environment: DictStrStr) -> None:
         p.destination_client()
 
     environment["DESTINATION__FILESYSTEM-PROD__BUCKET_URL"] = FilesystemConfiguration.make_file_url(
-        "_storage"
+        get_test_storage_root()
     )
     pathlib = p._fs_client().pathlib  # type: ignore[attr-defined]
     assert p._fs_client().dataset_path.endswith(p.dataset_name + pathlib.sep)

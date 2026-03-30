@@ -28,6 +28,7 @@ from pendulum import DateTime  # noqa: I251
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.time import ensure_pendulum_datetime_non_utc, normalize_timezone
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import removeprefix
 
@@ -99,6 +100,11 @@ class ClickHouseSqlClient(
             return sentinel_table in all_ds_tables
 
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
+        if self.credentials.query is None:
+            self.credentials.query = {}
+        self.credentials.query["select_sequential_consistency"] = (
+            self.config.select_sequential_consistency
+        )
         self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
         return self._conn
 
@@ -136,7 +142,7 @@ class ClickHouseSqlClient(
         sentinel_table_name = self.make_qualified_table_name(
             self.config.dataset_sentinel_table_name
         )
-        sentinel_table_type = cast(TTableEngineType, self.config.table_engine_type)
+        sentinel_table_type = self.config.table_engine_type
         self.execute_sql(f"""
             CREATE TABLE {sentinel_table_name}
             (_dlt_id String NOT NULL)
@@ -215,6 +221,7 @@ class ClickHouseSqlClient(
                     "allow_experimental_lightweight_delete": 1,
                     "enable_http_compression": 1,
                     "date_time_input_format": "best_effort",
+                    "select_sequential_consistency": self.config.select_sequential_consistency,
                 },
                 compression=compression,
             )
@@ -236,10 +243,13 @@ class ClickHouseSqlClient(
     @staticmethod
     def _sanitise_dbargs(db_args: DictStrAny) -> DictStrAny:
         """For ClickHouse OSS, the DBapi driver doesn't parse datetime types.
-        We remove timezone specifications in this case."""
+
+        Converts datetime values to naive UTC strings preserving microsecond precision.
+        """
         for key, value in db_args.items():
             if isinstance(value, (DateTime, datetime.datetime)):
-                db_args[key] = str(value.replace(microsecond=0, tzinfo=None))
+                value = ensure_pendulum_datetime_non_utc(value)
+                db_args[key] = str(normalize_timezone(value, timezone=False))
         return db_args
 
     @contextmanager

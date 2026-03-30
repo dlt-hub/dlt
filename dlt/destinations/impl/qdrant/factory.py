@@ -28,6 +28,7 @@ class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
         caps.is_max_text_data_type_length_in_bytes = False
         caps.supports_ddl_transactions = False
         caps.supported_replace_strategies = ["truncate-and-insert"]
+        caps.supported_merge_strategies = ["upsert"]
 
         return caps
 

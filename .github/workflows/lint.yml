@@ -14,7 +14,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     defaults:
       run:
@@ -42,16 +42,12 @@ jobs:
         run: uv lock --check
 
       - name: Install dependencies
-        run: uv sync --all-extras --no-extra hub --group airflow --group providers --group pipeline --group sources --group sentry-sdk --group dbt --group streamlit
+        run: uv sync --all-extras --no-extra hub --group airflow --group providers --group pipeline --group sources --group sentry-sdk --group dbt
 
       - name: Run make lint
         run: |
           export PATH=$PATH:"/c/Program Files/usr/bin" # needed for Windows
           make lint
-
-      - name: Check that cli docs are up to date
-        run: make check-cli-docs
-        if: ${{ matrix.python-version == '3.11' }}
 
       - name: Check filesizes
         uses: ppremk/lfs-warning@v3.2

@@ -67,7 +67,7 @@ def test_create_table_uses_varchar(client: FabricClient) -> None:
     assert '"col9" varchar(max)  NOT NULL' in sql
 
     assert '"col10" date  NOT NULL' in sql
-    assert '"col11" time' in sql
+    assert '"col11" time(6)' in sql
     assert '"col1_precision" smallint  NOT NULL' in sql
 
     # Fabric uses datetime2 with precision 0-6
@@ -78,8 +78,8 @@ def test_create_table_uses_varchar(client: FabricClient) -> None:
 
     assert '"col6_precision" decimal(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
-    # Fabric Warehouse does not support TIME with precision
-    assert '"col11_precision" time  NOT NULL' in sql
+    # Fabric requires explicit precision for TIME (0-6)
+    assert '"col11_precision" time(3)  NOT NULL' in sql
 
 
 def test_alter_table_uses_varchar(client: FabricClient) -> None:

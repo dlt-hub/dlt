@@ -2,6 +2,7 @@ import os
 import sys
 import pytest
 import yaml
+from pathlib import Path
 from typing import Any, Dict, Type
 import datetime  # noqa: I251
 from unittest.mock import Mock
@@ -262,9 +263,16 @@ def test_toml_global_config() -> None:
     secrets = providers[SECRETS_TOML]
     config = providers[CONFIG_TOML]
 
-    # in pytest should be false, no global dir appended to resolved paths
-    assert len(secrets._toml_paths) == 1  # type: ignore[attr-defined]
-    assert len(config._toml_paths) == 1  # type: ignore[attr-defined]
+    # when developing locally some ~/.dlt/*.toml could have already been discovered with parallel testing
+    assert any(
+        Path(p).as_posix().endswith("/.dlt/secrets.toml")
+        for p in secrets._toml_paths  # type: ignore[attr-defined]
+    )
+
+    assert any(
+        Path(p).as_posix().endswith("/.dlt/config.toml")
+        for p in config._toml_paths  # type: ignore[attr-defined]
+    )
 
     # set dlt data and settings dir
     global_dir = "./tests/common/cases/configuration/dlt_home"
@@ -314,7 +322,7 @@ def test_write_value(toml_providers: ConfigProvidersContainer) -> None:
             continue
         # set single key
         provider.set_value("_new_key_bool", True, None)
-        TAny: Type[Any] = Any  # type: ignore[assignment]
+        TAny: Type[Any] = Any
         assert provider.get_value("_new_key_bool", TAny, None) == (True, "_new_key_bool")
         provider.set_value("_new_key_literal", TSecretValue("literal"), None)
         assert provider.get_value("_new_key_literal", TAny, None) == ("literal", "_new_key_literal")

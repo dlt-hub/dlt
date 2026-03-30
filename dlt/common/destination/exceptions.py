@@ -231,6 +231,12 @@ class DestinationCapabilitiesException(DestinationException):
     pass
 
 
+class WriteDispositionNotSupported(DestinationCapabilitiesException):
+    def __init__(self, write_disposition: str, message: str):
+        self.write_disposition = write_disposition
+        super().__init__(message)
+
+
 class DestinationInvalidFileFormat(DestinationTerminalException):
     def __init__(
         self, destination_type: str, file_format: str, file_name: str, message: str
@@ -241,6 +247,16 @@ class DestinationInvalidFileFormat(DestinationTerminalException):
         super().__init__(
             f"Destination `{destination_type}` cannot process file `{file_name=:}` with"
             f" {file_format=:}: {message}"
+        )
+
+
+class TableFormatNotSupported(DestinationTerminalException):
+    def __init__(self, table_format: str, table_name: str, message: str) -> None:
+        self.table_format = table_format
+        self.table_name = table_name
+        self.message = message
+        super().__init__(
+            f"Table `{table_name}` has unsupported table format `{table_format}`: {message}"
         )
 
 

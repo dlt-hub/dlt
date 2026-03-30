@@ -1,7 +1,7 @@
 ---
 title: Merge loading
 description: Merge loading with dlt
-keywords: [merge, incremental loading, delete-insert, scd2, upsert]
+keywords: [merge, incremental loading, delete-insert, scd2, upsert, insert-only]
 ---
 # Merge loading
 
@@ -9,13 +9,14 @@ Merge loading allows you to update existing data in your destination tables, rat
 
 To perform a merge load, you need to specify the `write_disposition` as `merge` on your resource and provide a `primary_key` or `merge_key`.
 
-Depending on your use case, you can choose from three different merge strategies.
+Depending on your use case, you can choose from four different merge strategies.
 
 ## Merge strategies
 
 1. [`delete-insert` (default strategy)](#delete-insert-strategy)
 2. [`scd2` strategy](#scd2-strategy)
 3. [`upsert` strategy](#upsert-strategy)
+4. [`insert-only` strategy](#insert-only-strategy)
 
 ## `delete-insert` strategy
 
@@ -34,7 +35,7 @@ def github_repo_events():
     yield from _get_event_pages()
 ```
 
-You can use compound primary keys:
+Since primary key is a [compound property](../general-usage/schema.md#compound-hints), you can define a composite primary key by providing multiple column names:
 
 ```py
 @dlt.resource(primary_key=("id", "url"), write_disposition="merge")
@@ -43,7 +44,7 @@ def resource():
 ```
 
 The example below merges on the `batch_day` column that holds the day for which the given record is valid.
-Merge keys also can be compound:
+Merge keys also can be [compound](../general-usage/schema.md#compound-hints):
 
 ```py
 @dlt.resource(merge_key="batch_day", write_disposition="merge")
@@ -287,7 +288,7 @@ In this example, enabling `my_facebook_ads.root_key = True` and running the pipe
 If you have defined your own source with the `@dlt.source` decorator, you can also enable `root key` propagation by adding `@dlt.source(root_key=True)`.
 
 #### Disable root key propagation
-If your source generates single level of nested table (nested tables do not have nested tables) ie. with `max_table_nesting=1` you can disable root key propagation
+If your source generates single level of nested table (nested tables do not have nested tables) i.e. with `max_table_nesting=1` you can disable root key propagation
 by setting `root_key` to `False` on the source level. In that case `dlt` will use `parent_key` which is identical to `root_key` for level 1 nested tables. Note that currently you cannot disable propagation on the resource level.
 
 :::tip
@@ -681,6 +682,41 @@ Unlike the default `delete-insert` merge strategy, the `upsert` strategy:
     primary_key="my_primary_key"
 )
 def my_upsert_resource():
+    ...
+...
+```
+
+## `insert-only` strategy
+
+The `insert-only` merge strategy is supported for all destinations that support `upsert` (see [above](#upsert-strategy)), including `filesystem` with `delta` and `iceberg` table formats and `lancedb`.
+
+The `insert-only` merge strategy does primary-key based *inserts* without updating existing records:
+- *insert* a record if the key does not exist in the target table
+- *skip* a record if the key already exists in the target table (no update happens)
+
+This strategy is ideal for append-only data (events, logs, transactions) where existing records should never be modified. Re-running a pipeline only adds missing records, providing idempotent loads with better performance than `upsert` by skipping `UPDATE` operations entirely.
+
+You can use the `hard_delete` hint to filter out records marked for deletion before insertion. Unlike `upsert`, existing records in the target are never deleted — the hint only prevents new deleted records from being inserted.
+
+### `insert-only` versus `upsert`
+
+Unlike the `upsert` strategy, the `insert-only` strategy:
+1. **does not update** existing records
+2. provides better **performance** by skipping `UPDATE` operations
+
+Like `upsert`, the `insert-only` strategy:
+1. needs a `primary_key`
+2. expects this `primary_key` to be unique
+3. does not support `merge_key`
+4. generates deterministic `_dlt_id` based on primary key
+
+### Example: `insert-only` merge strategy
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "insert-only"},
+    primary_key="event_id"
+)
+def my_insert_only_resource():
     ...
 ...
 ```

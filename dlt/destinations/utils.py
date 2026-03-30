@@ -4,6 +4,7 @@ from typing import Any, List, Dict, Type, Optional, Sequence, Tuple, cast
 
 from dlt.common import logger
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.exceptions import WriteDispositionNotSupported
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.schema import Schema
@@ -154,6 +155,22 @@ def verify_schema_merge_disposition(
                 )
 
             merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+            if merge_strategy is None:
+                table_format_info = ""
+                if capabilities.supported_table_formats:
+                    table_format_info = (
+                        " or try different table format which may offer `merge`:"
+                        f" {capabilities.supported_table_formats}"
+                    )
+                exception_log.append(
+                    WriteDispositionNotSupported(
+                        "merge",
+                        "Destination does not support any merge strategies and `merge` write"
+                        f" disposition  for table `{table_name}` cannot be met. "
+                        f"Change write disposition{table_format_info}.",
+                    )
+                )
+                continue
             if merge_strategy == "delete-insert":
                 if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
                     table, "merge_key"
@@ -162,22 +179,21 @@ def verify_schema_merge_disposition(
                         f"Table {table_name} has `write_disposition` set to `merge`"
                         " and `merge_strategy` set to `delete-insert`, but no primary or"
                         " merge keys defined."
-                        " dlt will fall back to `append` for this table."
                     )
-            elif merge_strategy == "upsert":
+            elif merge_strategy in ("upsert", "insert-only"):
                 if not has_column_with_prop(table, "primary_key"):
                     exception_log.append(
                         SchemaCorruptedException(
                             schema.name,
                             f"No primary key defined for table `{table['name']}`."
-                            " `primary_key` needs to be set when using the `upsert`"
+                            f" `primary_key` needs to be set when using the `{merge_strategy}`"
                             " merge strategy.",
                         )
                     )
                 if has_column_with_prop(table, "merge_key"):
                     log(
                         f"Found `merge_key` for table `{table['name']}` with"
-                        " `upsert` merge strategy. Merge key is not supported"
+                        f" `{merge_strategy}` merge strategy. Merge key is not supported"
                         " for this strategy and will be ignored."
                     )
         if has_column_with_prop(table, "hard_delete"):

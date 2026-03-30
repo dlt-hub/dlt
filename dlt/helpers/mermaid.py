@@ -8,6 +8,7 @@ from dlt.common.schema.typing import (
     TTableReferenceStandalone,
     TTableSchema,
 )
+from dlt.common.schema.utils import is_complete_column
 
 
 INDENT = "    "
@@ -25,6 +26,9 @@ def schema_to_mermaid(
 
     for table_name, table_schema in schema["tables"].items():
         if not include_dlt_tables and table_name.startswith("_dlt"):
+            continue
+        # skip tables with no complete columns
+        if not any(is_complete_column(c) for c in table_schema.get("columns", {}).values()):
             continue
 
         mermaid_er_diagram += INDENT + _to_mermaid_table(
@@ -51,6 +55,8 @@ def _to_mermaid_table(
 
     if hide_columns is False:
         for column in table["columns"].values():
+            if not is_complete_column(column):
+                continue
             mermaid_table += INDENT + _to_mermaid_column(
                 column,
                 hide_descriptions=hide_descriptions,
@@ -62,7 +68,10 @@ def _to_mermaid_table(
 
 # TODO add scale & precision to `data_type`
 def _to_mermaid_column(column: TColumnSchema, hide_descriptions: bool = False) -> str:
-    mermaid_col = column["data_type"] + " " + column["name"]
+    # NOTE: incomplete columns (no data_type) currently arise from "seen-null-first" propagation
+    # (columns whose first observed values were all null). if that propagation is removed so that
+    # incomplete columns no longer reach the schema, this fallback should be revisited.
+    mermaid_col = column.get("data_type", "no_data_seen") + " " + column["name"]
     keys = []
     if column.get("primary_key"):
         keys.append("PK")

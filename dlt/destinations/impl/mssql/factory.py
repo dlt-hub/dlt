@@ -2,6 +2,7 @@ from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming.naming import NamingConvention
@@ -150,13 +151,15 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         # NOTE: timestamp_precision is 7 in the database but there's no way to write it via Python
         caps.timestamp_precision = 6
         caps.max_timestamp_precision = 7
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
         caps.supported_replace_strategies = [
             "truncate-and-insert",
             "insert-from-staging",
             "staging-optimized",
         ]
         caps.sqlglot_dialect = "tsql"
+        # ADBC driver for MSSQL does not support dictionary-encoded Arrow arrays
+        caps.parquet_format = ParquetFormatConfiguration(supports_dictionary_encoding=False)
 
         return caps
 

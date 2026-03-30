@@ -20,7 +20,7 @@ class LakeformationConfig:
 @configspec
 class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="athena", init=False, repr=False, compare=False)  # type: ignore[misc]
-    query_result_bucket: str = None
+    query_result_bucket: Optional[str] = None
     credentials: AwsCredentials = None
     athena_work_group: Optional[str] = None
     aws_data_catalog: str = DEFAULT_AWS_DATA_CATALOG
@@ -36,6 +36,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     db_location: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = [
+        "query_result_bucket",
         "athena_work_group",
         "aws_data_catalog",
         "info_tables_query_threshold",
@@ -43,8 +44,13 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     def to_connector_params(self, use_catalog_name: bool = True) -> Dict[str, Any]:
         native_credentials = self.credentials.to_native_representation()
+        # pyathena's wrap_unload concatenates s3_staging_dir with "unload/" without
+        # a separator, so we must ensure the trailing slash is present
+        s3_staging_dir = self.query_result_bucket
+        if s3_staging_dir and not s3_staging_dir.endswith("/"):
+            s3_staging_dir += "/"
         return {
-            "s3_staging_dir": self.query_result_bucket,
+            "s3_staging_dir": s3_staging_dir,
             "work_group": self.athena_work_group,
             "catalog_name": self.aws_data_catalog if use_catalog_name else None,
             **(self.connection_params or {}),

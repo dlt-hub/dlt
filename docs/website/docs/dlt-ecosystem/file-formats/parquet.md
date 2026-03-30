@@ -34,6 +34,7 @@ pip install "dlt[parquet]"
 `dlt` uses [destination capabilities](../../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) to configure the parquet writer:
 * It uses decimal and wei precision to pick the right **decimal type** and sets precision and scale.
 * It uses timestamp precision to pick the right **timestamp type** resolution (seconds, microseconds, or nanoseconds).
+* It uses `supports_dictionary_encoding` to control whether constant columns (like `_dlt_load_id`) use dictionary-encoded Arrow arrays. Dictionary encoding is memory-efficient for repeated values but not supported by all destinations. Defaults to `true`.
 
 ## Writer settings
 
@@ -46,6 +47,9 @@ Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org
 - `timestamp_timezone`: A string specifying the timezone, default is UTC.
 - `coerce_timestamps`: resolution to which to coerce timestamps, choose from **s**, **ms**, **us**, **ns**
 - `allow_truncated_timestamps` - will raise if precision is lost on truncated timestamps.
+- `write_page_index`: Boolean specifying whether a [page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md) is written. Defaults to `False`.
+- `use_content_defined_chunking`: Boolean specifying whether [Content-Defined Chunking](https://github.com/apache/arrow/pull/45360) is used. Defaults to `False`. Requires `pyarrow>=21.0.0`, ignored otherwise.
+- `arrow_concat_promote_options`: Controls type promotion when concatenating multiple Arrow tables/DataFrames. Accepts `"none"` (default), `"default"`, or `"permissive"`. See [Handling schema mismatches](../verified-sources/arrow-pandas.md#handling-schema-mismatches-across-batches) for details.
 
 :::tip
 The default parquet version used by `dlt` is 2.4. It coerces timestamps to microseconds and truncates nanoseconds silently. Such a setting
@@ -72,6 +76,7 @@ DATA_WRITER__FLAVOR
 DATA_WRITER__VERSION
 DATA_WRITER__DATA_PAGE_SIZE
 DATA_WRITER__TIMESTAMP_TIMEZONE
+DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS
 ```
 
 :::tip

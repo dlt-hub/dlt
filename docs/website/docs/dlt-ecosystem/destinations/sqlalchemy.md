@@ -93,6 +93,56 @@ pipeline = dlt.pipeline(
 )
 ```
 
+### Passing SQLAlchemy Engine Options: `engine_kwargs`
+
+The SQLAlchemy destination accepts an optional `engine_kwargs` parameter, which is forwarded directly to `sqlalchemy.create_engine`.
+The equivalent `engine_args` parameter is maintained for backward compatibility, but will be removed in a future release.
+
+Example enabling SQLAlchemy verbose logging:
+#### In `.dlt/secrets.toml`
+```toml
+[destination.sqlalchemy]
+credentials = "sqlite:///logger.db"
+```
+
+#### In `.dlt/config.toml`
+```toml
+[destination.sqlalchemy.engine_kwargs]
+echo = true
+```
+
+Or, directly in code:
+
+```py
+import logging
+import dlt
+from dlt.destinations import sqlalchemy
+
+logging.basicConfig(level=logging.INFO)
+
+dest = sqlalchemy(
+    credentials="sqlite:///logger.db",
+    engine_kwargs={"echo": True},
+)
+
+pipeline = dlt.pipeline(
+    pipeline_name='logger',
+    destination=dest,
+    dataset_name='main'
+)
+
+pipeline.run(
+    [
+        {'id': 1},
+        {'id': 2},
+        {'id': 3},
+    ],
+    table_name="logger"
+)
+```
+
+Here, `engine_kwargs` configures only the engine used by SQLAlchemy as a **destination**. It does not affect resource extraction (use `engine_kwargs` for sql sources, see [here](../verified-sources/sql_database/configuration.md#passing-sqlalchemy-engine-options-engine_kwargs)).
+
 ## Notes on SQLite
 
 ### Dataset files
@@ -110,29 +160,106 @@ is stored in `/home/me/data/chess_data__games.db`
 In-memory databases require a persistent connection as the database is destroyed when the connection is closed.
 Normally, connections are opened and closed for each load job and in other stages during the pipeline run.
 To ensure the database persists throughout the pipeline run, you need to pass in an SQLAlchemy `Engine` object instead of credentials.
-This engine is not disposed of automatically by `dlt`. Example:
+This engine is not disposed of automatically by `dlt`.
+
+#### Shared-cache URI mode (recommended)
+
+The recommended approach uses SQLite's [shared-cache URI](https://www.sqlite.org/inmemorydb.html) format.
+This creates a named in-memory database that can be safely accessed by multiple connections across threads
+via `SingletonThreadPool` (one connection per thread):
 
 ```py
 import dlt
 import sqlalchemy as sa
 
-# Create the SQLite engine
-engine = sa.create_engine('sqlite:///:memory:')
+engine = sa.create_engine(
+    "sqlite:///file:shared?mode=memory&cache=shared&uri=true",
+    connect_args={"check_same_thread": False},
+    poolclass=sa.pool.SingletonThreadPool,
+)
 
-# Configure the destination instance and create pipeline
-pipeline = dlt.pipeline('my_pipeline', destination=dlt.destinations.sqlalchemy(engine), dataset_name='main')
+pipeline = dlt.pipeline(
+    "my_pipeline",
+    destination=dlt.destinations.sqlalchemy(engine),
+    dataset_name="main",
+)
 
-# Run the pipeline with some data
-pipeline.run([1,2,3], table_name='my_table')
+pipeline.run([1, 2, 3], table_name="my_table")
 
-# The engine is still open and you can query the database
 with engine.connect() as conn:
-    result = conn.execute(sa.text('SELECT * FROM my_table'))
+    result = conn.execute(sa.text("SELECT * FROM my_table"))
     print(result.fetchall())
+
+engine.dispose()
 ```
 
+- `mode=memory&cache=shared` creates a named in-memory database shared across all connections in the process.
+- `uri=true` is required for `pysqlite` to interpret the database path as a URI.
+- `SingletonThreadPool` gives each thread its own connection while all threads see the same data.
+
+#### StaticPool with single worker
+
+Alternatively, you can use `StaticPool` (single shared connection) with `workers=1` to avoid concurrent
+access on the same connection:
+
+```py
+import dlt
+import sqlalchemy as sa
+
+engine = sa.create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=sa.pool.StaticPool,
+)
+
+pipeline = dlt.pipeline(
+    "my_pipeline",
+    destination=dlt.destinations.sqlalchemy(engine),
+    dataset_name="main",
+)
+
+pipeline.run([1, 2, 3], table_name="my_table", loader_file_format="typed-jsonl")
+
+with engine.connect() as conn:
+    result = conn.execute(sa.text("SELECT * FROM my_table"))
+    print(result.fetchall())
+
+engine.dispose()
+```
+
+```toml
+[load]
+workers=1
+```
+
+:::caution
+With `StaticPool`, all threads share a single underlying database connection.
+Using the default parallel loader (`workers > 1`) can cause race conditions where
+committed data appears missing. Always set `workers=1` when using `StaticPool`.
+:::
+
+### Database locking with `ATTACH DATABASE` on Windows
+When `dataset_name` is not `main`, dlt uses SQLite's `ATTACH DATABASE` to store each dataset in a separate file. On Windows, a second `ATTACH` on the same connection can lock indefinitely under concurrent access (e.g. when using the default parallel loading strategy).
+
+To work around this issue, use one of the following approaches:
+
+1. **Set `dataset_name` to `main`** so that no `ATTACH` is needed:
+   ```py
+   pipeline = dlt.pipeline(
+       pipeline_name='my_pipeline',
+       destination=dlt.destinations.sqlalchemy(credentials="sqlite:///my_data.db"),
+       dataset_name='main'
+   )
+   ```
+
+2. **Use sequential loading** to avoid concurrent `ATTACH` calls:
+   ```toml
+   [load]
+   workers=1
+   ```
+
 ## Notes on other dialects
-We tested this destination on **mysql**, **sqlite** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
+We tested this destination on **mysql**, **sqlite**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
 1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
 some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
 2. Primary keys and unique constraints are not created by default to avoid problems with particular dialects.
@@ -146,8 +273,13 @@ Please report issues with particular dialects. We'll try to make them work.
 * We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
 * Trino does not support PRIMARY/UNIQUE constraints
 
+### Oracle limitations
+* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
+
 
 ### Adapting destination for a dialect
+
+#### Quick approach: pass `type_mapper` directly
 You can adapt destination capabilities for a particular dialect [by passing your custom settings](../../general-usage/destination.md#pass-additional-parameters-and-change-destination-capabilities). In the example below we pass custom `TypeMapper` that
 converts `json` data into `text` on the fly.
 ```py
@@ -186,16 +318,16 @@ class TrinoTypeMapper(SqlalchemyTypeMapper):
     for a deeper integration
     """
 
-    def to_destination_type(self, column, table=None):
-        if column["data_type"] == "json":
-            return JSONString()
-        return super().to_destination_type(column, table)
+    def _db_type_from_json_type(self, column, table=None):
+        return JSONString()
 
 # pass dest_ in `destination` argument to dlt.pipeline
 dest_ = dlt.destinations.sqlalchemy(type_mapper=TrinoTypeMapper)
 ```
 
-Custom type mapper is also useful when ie. you want to limit the length of the string. Below we are adding variant
+The `SqlalchemyTypeMapper` dispatches to per-type visitor methods (`db_type_from_text_type`, `db_type_from_json_type`, `db_type_from_bool_type`, etc.), so you only need to override the type(s) you want to customize. You can also override `to_destination_type()` directly for full control.
+
+Custom type mapper is also useful when you want to limit the length of the string. Below we are adding variant
 for `mssql` dialect:
 ```py
 import sqlalchemy as sa
@@ -204,20 +336,105 @@ from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
 class CustomMssqlTypeMapper(SqlalchemyTypeMapper):
     """This is only an illustration, `sqlalchemy` destination already handles mssql types"""
 
-    def to_destination_type(self, column, table=None):
-        type_ = super().to_destination_type(column, table)
-        if column["data_type"] == "text":
-            length = precision = column.get("precision")
-            if length is None:
-                return type_.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
-            else:
-                return type_.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
-        return type_
+    def db_type_from_text_type(self, column, table=None):
+        type_ = super().db_type_from_text_type(column, table)
+        length = column.get("precision")
+        if length is None:
+            return type_.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
+        else:
+            return type_.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
 ```
 
 :::warning
 When extending type mapper for mssql, mysql and trino start with MssqlVariantTypeMapper, MysqlVariantTypeMapper and
 TrinoVariantTypeMapper respectively
+:::
+
+#### Full approach: register custom dialect capabilities
+
+For a more comprehensive integration, you can register a `DialectCapabilities` class for your database backend. This allows you to customize type mapping, destination capabilities, table structure, and error handling — all in one place. Registered capabilities are automatically applied when the SQLAlchemy destination connects to a matching database.
+
+```py
+from typing import Optional, Type
+
+import sqlalchemy as sa
+from dlt.common.destination.capabilities import DataTypeMapper, DestinationCapabilitiesContext
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.destinations.impl.sqlalchemy.dialect import (
+    DialectCapabilities,
+    register_dialect_capabilities,
+)
+from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+
+
+class MyTypeMapper(SqlalchemyTypeMapper):
+    """Override only the types you need to customize."""
+
+    def _db_type_from_json_type(self, column, table=None):
+        # store JSON as VARCHAR instead of native JSON
+        return sa.String(length=4000)
+
+
+class MyDialectCapabilities(DialectCapabilities):
+    def adjust_capabilities(
+        self, caps: DestinationCapabilitiesContext, dialect: sa.engine.interfaces.Dialect
+    ) -> None:
+        caps.max_identifier_length = 128
+        caps.max_column_identifier_length = 128
+        caps.sqlglot_dialect = "oracle"  # type: ignore[assignment]
+
+    def type_mapper_class(self) -> Optional[Type[DataTypeMapper]]:
+        return MyTypeMapper
+
+    def adapt_table(
+        self, table: sa.Table, table_schema: PreparedTableSchema
+    ) -> sa.Table:
+        # Example: reorder columns so primary key columns come first.
+        # Some databases (e.g. StarRocks) require this ordering.
+        pk_col_names = [c.name for c in table.primary_key.columns]
+        if not pk_col_names:
+            return table
+        pk_cols = [c for c in table.columns if c.name in pk_col_names]
+        other_cols = [c for c in table.columns if c.name not in pk_col_names]
+        if [c.name for c in table.columns] == [c.name for c in pk_cols + other_cols]:
+            return table  # already in order
+        schema = table.schema
+        name = table.name
+        metadata = table.metadata
+        metadata.remove(table)
+        return sa.Table(
+            name, metadata,
+            *[c.copy() for c in pk_cols + other_cols],
+            sa.PrimaryKeyConstraint(*pk_col_names),
+            schema=schema,
+        )
+
+    def is_undefined_relation(self, e: Exception) -> Optional[bool]:
+        # return True if the exception means table/schema doesn't exist
+        # return False to prevent default pattern matching
+        # return None to fall through to built-in patterns
+        if "MY_CUSTOM_MISSING_TABLE_CODE" in str(e):
+            return True
+        return None
+
+
+# register for your backend name (as shown in the SQLAlchemy connection URL)
+register_dialect_capabilities("my_dialect", MyDialectCapabilities)
+```
+
+After registration, any pipeline using a `my_dialect://` connection URL will automatically use the custom capabilities. No additional configuration is needed.
+
+The `DialectCapabilities` class supports four extension points:
+
+| Method | Description |
+| --- | --- |
+| `adjust_capabilities` | Modify destination capabilities (identifier lengths, timestamp precision, sqlglot dialect, etc.) |
+| `type_mapper_class` | Return a custom `DataTypeMapper` subclass for the dialect |
+| `adapt_table` | Modify `sa.Table` objects before they are created or used for loading (e.g. reorder columns for StarRocks) |
+| `is_undefined_relation` | Classify exceptions as "table/schema not found" errors for the dialect |
+
+:::tip
+Passing `type_mapper=` directly to `dlt.destinations.sqlalchemy()` always takes precedence over the registered dialect capabilities. Use direct passing for one-off overrides and registration for reusable dialect support.
 :::
 
 
@@ -233,8 +450,8 @@ The following write dispositions are supported:
 
 ### Fast loading with parquet
 
-[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql** and **sqlite**.
-MySQL driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manager ADBC drivers:
+[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql**.
+The driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
 ```sh
 pip install adbc-driver-manager dbc
 dbc install mysql
@@ -242,22 +459,26 @@ dbc install mysql
 
 with `uv` you can run `dbc` directly:
 ```sh
-uv tool run dbc install sqlite
+uv tool run dbc install mysql
 ```
-Note that **we do not detect sqllite** driver [installed via Python package](https://arrow.apache.org/adbc/current/driver/sqlite.html)
 
-You must set have correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
+You must have the correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
 `dlt` will convert parquet into INSERT statements.
-
-Note: The following arrow data types are NOT supported by the **sqlite**:
-* decimal types
-* time type
 
 We copy parquet files with batches of size of 1 row group. All groups are copied in a single transaction.
 
 :::caution
-It looks like ADBC driver is based on go mysql. We do minimal conversion of connection strings from SQLAlchemy (ssl cert settings for mysql).
+The ADBC driver is based on go-mysql. We do minimal conversion of connection strings from SQLAlchemy (ssl cert settings for mysql).
 :::
+
+#### Why ADBC is not supported for SQLite
+
+ADBC is disabled for SQLite because Python's `sqlite3` module and `adbc_driver_sqlite` bundle different SQLite library versions.
+When both libraries operate on the same database file in WAL mode, they have conflicting memory-mapped views of the
+WAL index file (`-shm`), causing data corruption. See [TensorBoard issue #1467](https://github.com/tensorflow/tensorboard/issues/1467)
+for details on this two-library conflict.
+
+For SQLite, parquet files are loaded using batch INSERT statements instead.
 
 ### Loading with SqlAlchemy batch INSERTs
 

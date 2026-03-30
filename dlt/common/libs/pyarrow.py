@@ -347,7 +347,7 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
         # dictates the "logical" type. We simply delegate to the underlying value_type.
         return get_column_type_from_py_arrow(dtype.value_type)
     elif pyarrow.types.is_null(dtype):
-        return {"x-normalizer": {"seen-null-first": True}}  # type: ignore[typeddict-unknown-key]
+        return {}  # incomplete column, no data_type
     else:
         raise UnsupportedArrowTypeException(arrow_type=dtype)
 
@@ -403,10 +403,14 @@ def deserialize_type(type_str: str) -> pyarrow.DataType:
 
 
 def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
-    """Remove all columns of datatype pyarrow.null() from the table or record batch"""
-    return remove_columns(
-        item, [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
-    )
+    """Remove all columns of datatype pyarrow.null() from the table or record batch.
+    Stores removed column names in arrow schema metadata under 'dlt.null_columns' key.
+    """
+    null_col_names = [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
+    if not null_col_names:
+        return item
+    item = remove_columns(item, null_col_names)
+    return add_arrow_metadata(item, {"dlt.null_columns": json.dumps(null_col_names)})
 
 
 def remove_null_columns_from_schema(schema: pyarrow.Schema) -> Tuple[pyarrow.Schema, bool]:
@@ -612,8 +616,10 @@ def normalize_py_arrow_item(
         new_fields.append(schema.field(idx).with_name(column_name))
         new_columns.append(item.column(idx))
 
-    # create desired type
-    return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
+    # preserve schema metadata (e.g. dlt.null_columns) through normalization rebuild
+    return item.__class__.from_arrays(
+        new_columns, schema=pyarrow.schema(new_fields, metadata=item.schema.metadata)
+    )
 
 
 def should_normalize_py_arrow_item_column(
@@ -704,6 +710,11 @@ def add_dlt_load_id_column(
         "UTC",  # ts is irrelevant to get pyarrow string, but it's required...
     )
 
+    # Check if destination supports dictionary encoding (default True if not specified)
+    use_dictionary = True
+    if caps.parquet_format is not None:
+        use_dictionary = caps.parquet_format.supports_dictionary_encoding
+
     # add the column with the new value at previous index or append
     item = add_constant_column(
         item=item,
@@ -716,6 +727,7 @@ def add_dlt_load_id_column(
             else dlt_load_id_column()["nullable"]
         ),
         index=idx,
+        use_dictionary=use_dictionary,
     )
 
     return item
@@ -806,6 +818,7 @@ def add_constant_column(
     value: Any = None,
     nullable: bool = True,
     index: int = -1,
+    use_dictionary: bool = True,
 ) -> TAnyArrowItem:
     """Add column with a single value to the table.
 
@@ -816,26 +829,32 @@ def add_constant_column(
         nullable: Whether the new column is nullable
         value: The value to fill the new column with
         index: The index at which to insert the new column. Defaults to -1 (append)
+        use_dictionary: When True (default), creates a dictionary-encoded column which is
+            memory-efficient for repeated values. Set to False for destinations that don't
+            support dictionary types (e.g., ADBC drivers for MSSQL).
     Note:
-        This function creates a dictionary field for the new column, which is memory-efficient
-        when the column contains a single repeated value.
-        The column is created as a DictionaryArray with int8 indices.
+        When use_dictionary=True, the column is created as a DictionaryArray with int8 indices.
+        When use_dictionary=False, a regular array filled with the repeated value is created.
     """
-    dictionary = pyarrow.array([value], type=data_type)
-    zero_buffer = pyarrow.allocate_buffer(item.num_rows, resizable=False)
-    ctypes.memset(zero_buffer.address, 0, item.num_rows)
+    if use_dictionary:
+        dictionary = pyarrow.array([value], type=data_type)
+        zero_buffer = pyarrow.allocate_buffer(item.num_rows, resizable=False)
+        ctypes.memset(zero_buffer.address, 0, item.num_rows)
 
-    indices = pyarrow.Array.from_buffers(
-        pyarrow.int8(),
-        item.num_rows,
-        [None, zero_buffer],  # None validity bitmap means arrow assumes all entries are valid
-    )
-    dict_array = pyarrow.DictionaryArray.from_arrays(indices, dictionary)
+        indices = pyarrow.Array.from_buffers(
+            pyarrow.int8(),
+            item.num_rows,
+            [None, zero_buffer],  # None validity bitmap means arrow assumes all entries are valid
+        )
+        column_array = pyarrow.DictionaryArray.from_arrays(indices, dictionary)
+    else:
+        # Create a regular array filled with the repeated value
+        column_array = pyarrow.repeat(pyarrow.scalar(value, type=data_type), item.num_rows)
 
-    field = pyarrow.field(name, dict_array.type, nullable=nullable)
+    field = pyarrow.field(name, column_array.type, nullable=nullable)
     if index == -1:
-        return item.append_column(field, dict_array)
-    return item.add_column(index, field, dict_array)
+        return item.append_column(field, column_array)
+    return item.add_column(index, field, column_array)
 
 
 def pq_stream_with_new_columns(
@@ -891,10 +910,15 @@ def cast_arrow_schema_types(
 
 
 def concat_batches_and_tables_in_order(
-    tables_or_batches: Iterable[Union[pyarrow.Table, pyarrow.RecordBatch]]
+    tables_or_batches: Iterable[Union[pyarrow.Table, pyarrow.RecordBatch]],
+    promote_options: str = "none",
 ) -> pyarrow.Table:
-    """Concatenate iterable of tables and batches into a single table, preserving row order. Zero copy is used during
-    concatenation so schemas must be identical.
+    """Concatenate iterable of tables and batches into a single table, preserving row order.
+
+    Args:
+        promote_options: PyArrow concat_tables promote_options. "none" (default) requires identical
+            schemas and enables zero-copy concat. "default" promotes within type families (e.g.
+            int32→int64). "permissive" promotes across families (e.g. int64→double).
     """
     batches = []
     tables = []
@@ -910,8 +934,8 @@ def concat_batches_and_tables_in_order(
             raise ValueError(f"Unsupported type: `{type(item)}`")
     if batches:
         tables.append(pyarrow.Table.from_batches(batches))
-    # "none" option ensures 0 copy concat
-    return pyarrow.concat_tables(tables, promote_options="none")
+    # "none" ensures 0 copy concat; "default"/"permissive" allow type promotion
+    return pyarrow.concat_tables(tables, promote_options=promote_options)
 
 
 def transpose_rows_to_columns(
@@ -1333,7 +1357,7 @@ def row_tuples_to_arrow(
         # TODO if converting to arrow fail, should we raise or skip column?
         except PyToArrowConversionException as e:
             e.field_name = column_name
-            raise e
+            raise
 
         field = pa.field(
             name=column_name, type=arrow_array.type, nullable=column_schema.get("nullable", True)
