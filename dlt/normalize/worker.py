@@ -1,7 +1,8 @@
-from typing import Callable, List, Dict, NamedTuple, Sequence, Set, Optional, Type
+from typing import List, Dict, NamedTuple, Sequence, Set, Type
 
 from dlt.common import logger
 from dlt.common.configuration.container import Container
+from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.data_writers import (
     DataWriter,
     create_import_spec,
@@ -39,6 +40,7 @@ from dlt.normalize.items_normalizers import (
 class TWorkerRV(NamedTuple):
     schema_updates: List[TSchemaUpdate]
     file_metrics: List[DataWriterMetrics]
+    null_only_columns: Dict[str, Set[str]]
 
 
 def group_worker_files(files: Sequence[str], no_groups: int) -> List[Sequence[str]]:
@@ -66,6 +68,8 @@ def w_normalize_files(
     stored_schema: TStoredSchema,
     load_id: str,
     extracted_items_files: Sequence[str],
+    report_progress: bool = False,
+    collector: Collector = NULL_COLLECTOR,
 ) -> TWorkerRV:
     destination_caps = config.destination_capabilities
     schema_updates: List[TSchemaUpdate] = []
@@ -117,7 +121,8 @@ def w_normalize_files(
             if item_format == "file":
                 # if we want to import file, create a spec that may be used only for importing
                 best_writer_spec = create_import_spec(
-                    parsed_file_name.file_format, items_supported_file_formats  # type: ignore[arg-type]
+                    parsed_file_name.file_format,  # type: ignore[arg-type]
+                    items_supported_file_formats,
                 )
 
             config_loader_file_format: TLoaderFileFormat = None
@@ -191,6 +196,8 @@ def w_normalize_files(
                 schema,
                 load_id,
                 config,
+                report_progress=report_progress,
+                collector=collector,
             )
             return norm
 
@@ -247,12 +254,16 @@ def w_normalize_files(
                     parsed_file_name,
                     root_table,
                 )
+                normalizer._report_progress(root_table_name, 0)
+                normalizer._flush_progress()
                 logger.debug(
                     f"Processing extracted items in {extracted_items_file} in load_id"
                     f" {load_id} with table name {root_table_name} and schema {schema.name}"
                 )
                 partial_updates = normalizer(extracted_items_file, root_table_name)
                 schema_updates.extend(partial_updates)
+                normalizer._report_progress("Files", 1)
+                normalizer._flush_progress()
                 logger.debug(f"Processed file {extracted_items_file}")
         except Exception as exc:
             job_id = parsed_file_name.job_id() if parsed_file_name else ""
@@ -260,6 +271,15 @@ def w_normalize_files(
             raise NormalizeJobFailed(load_id, job_id, str(exc), writer_metrics) from exc
         else:
             writer_metrics = _gather_metrics_and_close(parsed_file_name, in_exception=False)
+        finally:
+            for normalizer in item_normalizers.values():
+                normalizer.close()
+
+        # gather null-only columns from all normalizers
+        all_null_only: Dict[str, Set[str]] = {}
+        for normalizer in item_normalizers.values():
+            for table_name, cols in normalizer.null_only_columns.items():
+                all_null_only.setdefault(table_name, set()).update(cols)
 
         logger.info(f"Processed all items in {len(extracted_items_files)} files")
-        return TWorkerRV(schema_updates, writer_metrics)
+        return TWorkerRV(schema_updates, writer_metrics, all_null_only)

@@ -43,7 +43,7 @@ from dlt.common.storages.exceptions import (
     LoadPackageNotFound,
     CurrentLoadPackageStateNotAvailable,
 )
-from dlt.common.utils import flatten_list_or_items
+from dlt.common.utils import flatten_list_or_items, uniq_id
 from dlt.common.versioned_state import (
     generate_state_version_hash,
     bump_state_version_if_modified,
@@ -52,7 +52,7 @@ from dlt.common.versioned_state import (
     json_decode_state,
     json_encode_state,
 )
-from dlt.common.time import precise_time
+from dlt.common.time import precise_time, increasing_precise_time
 
 TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
@@ -87,6 +87,8 @@ class TLoadPackageState(TVersionedState, TLoadPackageDropTablesState, total=Fals
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
+    load_metrics: NotRequired[Dict[str, Any]]
+    """Per-job load metrics, persisted so they survive process restarts"""
 
 
 class TLoadPackage(TypedDict, total=False):
@@ -105,7 +107,7 @@ def generate_loadpackage_state_version_hash(state: TLoadPackageState) -> str:
 
 
 def bump_loadpackage_state_version_if_modified(state: TLoadPackageState) -> Tuple[int, str, str]:
-    return bump_state_version_if_modified(state)
+    return bump_state_version_if_modified(state, exclude_attrs=["load_metrics"])
 
 
 def migrate_load_package_state(
@@ -138,7 +140,7 @@ def create_load_id() -> str:
     `dlt` executes packages in order of load ids
     `dlt` considers a state with the highest load id to be the most up to date when restoring state from destination
     """
-    return str(precise_time())
+    return str(increasing_precise_time())
 
 
 # folders to manage load jobs in a single load package
@@ -335,6 +337,8 @@ class PackageStorage:
         "load_package_state.json"
     )
     CANCEL_PACKAGE_FILE_NAME = "_cancelled"
+    PENDING_TRANSITIONS_FOLDER: ClassVar[str] = ".pending_transitions"
+    PROGRESS_DIR = ".progress"
 
     def __init__(self, storage: FileStorage, initial_state: TLoadPackageStatus) -> None:
         """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
@@ -483,6 +487,55 @@ class PackageStorage:
         )
 
     #
+    # Pending transitions
+    #
+
+    def _pending_transition_path(self, load_id: str, file_name: str) -> str:
+        return os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.PENDING_TRANSITIONS_FOLDER,
+            file_name,
+        )
+
+    def save_pending_transition(
+        self,
+        load_id: str,
+        file_name: str,
+        state: str,
+        failed_message: Optional[str] = None,
+    ) -> None:
+        """Atomically saves a pending transition marker with state and optional error."""
+        rel_path = self._pending_transition_path(load_id, file_name)
+        content = json.dumps({"state": state, "failed_message": failed_message})
+        self.storage.save(rel_path, content)
+
+    def load_pending_transition(
+        self, load_id: str, file_name: str
+    ) -> Optional[Tuple[str, Optional[str]]]:
+        """Returns `(state, failed_message)` if a pending transition exists."""
+        rel_path = self._pending_transition_path(load_id, file_name)
+        if self.storage.has_file(rel_path):
+            data = json.loads(self.storage.load(rel_path))
+            return data["state"], data["failed_message"]
+        return None
+
+    def list_pending_transitions(self, load_id: str) -> Sequence[str]:
+        """Lists file names in the pending transitions folder."""
+        folder = os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.PENDING_TRANSITIONS_FOLDER,
+        )
+        if self.storage.has_folder(folder):
+            return self.storage.list_folder_files(folder, to_root=False)
+        return []
+
+    def clear_pending_transition(self, load_id: str, file_name: str) -> None:
+        """Removes a pending transition marker file."""
+        rel_path = self._pending_transition_path(load_id, file_name)
+        if self.storage.has_file(rel_path):
+            self.storage.delete(rel_path)
+
+    #
     # Create and drop entities
     #
 
@@ -495,6 +548,7 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.COMPLETED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
+        self.storage.create_folder(os.path.join(load_id, PackageStorage.PENDING_TRANSITIONS_FOLDER))
         # use initial state or create a new by loading non existing state
         state = self.get_load_package_state(load_id) if initial_state is None else initial_state
         if not state.get("created_at"):
@@ -571,6 +625,58 @@ class PackageStorage:
             raise LoadPackageNotFound(load_id)
         if self.storage.has_file(os.path.join(package_path, self.CANCEL_PACKAGE_FILE_NAME)):
             raise LoadPackageCancelled(load_id)
+
+    #
+    # Progress reporting (inter-process signalling for normalize workers)
+    #
+
+    def get_progress_dir(self, load_id: str) -> str:
+        """Gets the relative path to the progress directory within a package."""
+        return os.path.join(self.get_package_path(load_id), self.PROGRESS_DIR)
+
+    def create_progress_dir(self, load_id: str) -> None:
+        """Creates the progress directory within a package."""
+        self.storage.create_folder(self.get_progress_dir(load_id), exists_ok=True)
+
+    def write_progress(self, load_id: str, table_counts: Dict[str, int]) -> None:
+        """Writes buffered table→count pairs as a JSON progress file (atomic via rename)."""
+        if not table_counts:
+            return
+        progress_dir = self.get_progress_dir(load_id)
+        file_path = os.path.join(progress_dir, uniq_id() + ".progress.json")
+        self.storage.save(file_path, json.dumps(table_counts))
+
+    def collect_progress(self, load_id: str) -> Dict[str, int]:
+        """Reads and deletes all progress files, returning aggregated table→items_count."""
+        result: Dict[str, int] = {}
+        progress_dir = self.get_progress_dir(load_id)
+        try:
+            files = self.storage.list_folder_files(progress_dir, to_root=True)
+        except OSError:
+            return result
+        for file_path in files:
+            if not file_path.endswith(".progress.json"):
+                continue
+            try:
+                data = self.storage.load(file_path)
+                self.storage.delete(file_path)
+            except OSError:
+                # can't read or delete — retry next poll
+                continue
+            try:
+                counts: Dict[str, int] = json.loads(data)
+                for table, count in counts.items():
+                    result[table] = result.get(table, 0) + count
+            except (ValueError, KeyError):
+                pass
+        return result
+
+    def cleanup_progress(self, load_id: str) -> None:
+        """Removes the progress directory and all its contents."""
+        try:
+            self.storage.delete_folder(self.get_progress_dir(load_id), recursively=True)
+        except NotADirectoryError:
+            pass
 
     #
     # Load package state

@@ -5,32 +5,32 @@ from typing import ClassVar, List
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
 
+from dlt._workspace.helpers.dashboard.const import (
+    DEFAULT_COLUMN_OTHER_HINTS,
+    DEFAULT_COLUMN_TYPE_HINTS,
+    DEFAULT_DATETIME_FORMAT,
+    DEFAULT_TABLE_LIST_FIELDS,
+)
+
 
 @configspec
 class DashboardConfiguration(BaseConfiguration):
     table_list_fields: List[str] = dataclasses.field(
-        default_factory=lambda: ["parent", "resource", "write_disposition", "description"]
+        default_factory=lambda: list(DEFAULT_TABLE_LIST_FIELDS)
     )
     """The fields to show in the table lists, name is always present and cannot be removed"""
 
     column_type_hints: List[str] = dataclasses.field(
-        default_factory=lambda: [
-            "data_type",
-            "nullable",
-            "precision",
-            "scale",
-            "timezone",
-            "variant",
-        ]
+        default_factory=lambda: list(DEFAULT_COLUMN_TYPE_HINTS)
     )
     """Which column hints to show in the column list if type hints are enabled"""
 
     column_other_hints: List[str] = dataclasses.field(
-        default_factory=lambda: ["primary_key", "merge_key", "unique"]
+        default_factory=lambda: list(DEFAULT_COLUMN_OTHER_HINTS)
     )
     """Which column hints to show in the column list if other hints are enabled"""
 
-    datetime_format: str = "YYYY-MM-DD HH:mm:ss Z"
+    datetime_format: str = DEFAULT_DATETIME_FORMAT
     """The format of the datetime strings"""
 
     sync_from_runtime: bool = False

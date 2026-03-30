@@ -1,4 +1,4 @@
-from typing import ClassVar, Type
+from typing import ClassVar, Optional, Type
 
 from duckdb import DuckDBPyConnection
 
@@ -26,10 +26,12 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         staging_dataset_name: str,
         credentials: DuckLakeCredentials,
         capabilities: DestinationCapabilitiesContext,
+        override_data_path: bool = False,
     ) -> None:
         super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
         self.credentials: DuckLakeCredentials = credentials
         self._attach_statement: str = None
+        self.override_data_path = override_data_path
 
     def create_dataset(self) -> None:
         if self.has_dataset():
@@ -120,10 +122,13 @@ class DuckLakeSqlClient(DuckDbSqlClient):
     def build_attach_statement(
         *,
         ducklake_name: str,
+        metadata_schema: Optional[str] = None,
         catalog: ConnectionStringCredentials,
         storage_url: str,
+        override_data_path: bool = False,
     ) -> str:
         attach_params = ""
+        metadata_schema = metadata_schema or ducklake_name
         if isinstance(catalog, DuckDbCredentials):
             attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{catalog._conn_str()}'"
         elif catalog.drivername in ("postgres", "postgresql", "mysql"):
@@ -133,13 +138,13 @@ class DuckLakeSqlClient(DuckDbSqlClient):
 
             db_url = catalog.to_url().render_as_string(hide_password=False)
             attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{catalog.drivername}:{db_url}'"
-            attach_params = f", METADATA_SCHEMA '{ducklake_name}'"
+            attach_params = f", METADATA_SCHEMA '{metadata_schema}'"
         elif catalog.drivername == "md":
             logger.warning(
                 "Motherduck requires token present in the environment and will most probably crash."
             )
             attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:md:{catalog.database}'"
-            attach_params = f", METADATA_SCHEMA '{ducklake_name}'"
+            attach_params = f", METADATA_SCHEMA '{metadata_schema}'"
         elif catalog.drivername in ("sqlite", "duckdb"):
             # attach sqllite with multi-process access
             attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{catalog.database}'"
@@ -147,7 +152,8 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         else:
             raise NotImplementedError(str(catalog))
         attach_statement += f" AS {ducklake_name}"
-        attach_statement += f" (DATA_PATH '{storage_url}'{attach_params})"
+        override_param = ", OVERRIDE_DATA_PATH true" if override_data_path else ""
+        attach_statement += f" (DATA_PATH '{storage_url}'{attach_params}{override_param})"
         return attach_statement
 
     @property
@@ -158,6 +164,8 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         else:
             return self.build_attach_statement(
                 ducklake_name=self.credentials.ducklake_name,
+                metadata_schema=self.credentials.metadata_schema,
                 catalog=self.credentials.catalog,
                 storage_url=self.credentials.storage_url,
+                override_data_path=self.override_data_path,
             )

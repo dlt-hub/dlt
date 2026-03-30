@@ -23,12 +23,13 @@ from tests.utils import ACTIVE_SQL_DESTINATIONS
 def dbt_venv() -> Iterator[Venv]:
     # context manager will delete venv at the end
     # yield Venv.restore_current()
-    # NOTE: we limit the max version of dbt to allow all dbt adapters to run. ie. sqlserver does not work on 1.8
+    # NOTE: we limit the max version of dbt to the latest supported by all adapters.
+    # dbt-sqlserver and dbt-fabric lag behind dbt-core releases (currently max 1.9.x)
     dbt_configs = set(
         c.destination_type
         for c in destinations_configs(default_sql_configs=True, supports_dbt=True)
     )
-    with create_venv(tempfile.mkdtemp(), list(dbt_configs), dbt_version="<1.9") as venv:
+    with create_venv(tempfile.mkdtemp(), list(dbt_configs), dbt_version="<1.10") as venv:
         yield venv
 
 
@@ -77,10 +78,10 @@ def test_run_jaffle_package(
     ids=lambda x: x.name,
 )
 def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
-    if destination_config.destination_type == "mssql":
+    if destination_config.destination_type in ("mssql", "fabric"):
         pytest.skip(
-            "mssql requires non standard SQL syntax and we do not have specialized dbt package"
-            " for it"
+            "mssql/fabric require non standard SQL syntax and we do not have specialized dbt"
+            " package for it"
         )
 
     from docs.examples.chess.chess import chess
@@ -140,10 +141,10 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
 def test_run_chess_dbt_to_other_dataset(
     destination_config: DestinationTestConfiguration, dbt_venv: Venv
 ) -> None:
-    if destination_config.destination_type == "mssql":
+    if destination_config.destination_type in ("mssql", "fabric"):
         pytest.skip(
-            "mssql requires non standard SQL syntax and we do not have specialized dbt package"
-            " for it"
+            "mssql/fabric require non standard SQL syntax and we do not have specialized dbt"
+            " package for it"
         )
     from docs.examples.chess.chess import chess
 

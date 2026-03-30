@@ -24,6 +24,7 @@ import sqlglot.expressions
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common import pendulum, logger
 from dlt.common.destination.capabilities import DataTypeMapper
+from dlt.common.destination.exceptions import WriteDispositionNotSupported
 from dlt.common.destination.utils import resolve_replace_strategy
 from dlt.common.json import json
 from dlt.common.schema.typing import (
@@ -264,6 +265,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         )
         self.active_hints: Dict[TColumnHint, str] = {}
         self.type_mapper: DataTypeMapper = None
+        self.allow_merge_to_append_fallback: bool = False
         super().__init__(schema, config, sql_client.capabilities)
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
@@ -878,9 +880,20 @@ WHERE """
         if exceptions := verify_schema_merge_disposition(
             self.schema, loaded_tables, self.capabilities, warnings=True
         ):
+            filtered = []
             for exception in exceptions:
-                logger.error(str(exception))
-            raise exceptions[0]
+                if (
+                    isinstance(exception, WriteDispositionNotSupported)
+                    and self.allow_merge_to_append_fallback
+                ):
+                    # some destinations allow fallback to append so just warn
+                    logger.warning(str(exception))
+                else:
+                    filtered.append(exception)
+                    logger.error(str(exception))
+            if filtered:
+                raise filtered[0]
+
         if exceptions := verify_schema_replace_disposition(
             self.schema,
             loaded_tables,

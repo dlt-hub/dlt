@@ -88,12 +88,8 @@ Note that not all authentication methods are supported when using Delta table fo
 - [Application Default Credentials](bigquery.md#using-default-credentials) - ✅ Supported
 - [OAuth](../destinations/bigquery.md#oauth-20-authentication) - ❌ Not supported
 
-## Table format `merge` support (**experimental**)
-The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strategy is supported for `delta`.
-
-:::warning
-The `upsert` merge strategy for the filesystem destination with Delta table format is **experimental**.
-:::
+## Table format `merge` support
+The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) and [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy) merge strategies are supported for `delta`.
 
 ```py
 @dlt.resource(

@@ -7,6 +7,7 @@ from dlt.common.typing import get_args
 TSecureConnection = Literal[0, 1]
 TTableEngineType = Literal[
     "merge_tree",
+    "replacing_merge_tree",
     "shared_merge_tree",
     "replicated_merge_tree",
 ]
@@ -24,6 +25,7 @@ HINT_TO_CLICKHOUSE_ATTR: Dict[TColumnHint, str] = {
 
 TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {
     "merge_tree": "MergeTree",
+    "replacing_merge_tree": "ReplacingMergeTree",
     "shared_merge_tree": "SharedMergeTree",
     "replicated_merge_tree": "ReplicatedMergeTree",
 }

@@ -6,8 +6,22 @@ on:
 
 jobs:
   run_airflow:
-    name: tools | airflow tests
+    name: tools | airflow ${{ matrix.airflow-version }} tests
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - airflow-version: "2"
+            python-version: "3.12"
+            airflow-pin: ""
+            run-unit-tests: true
+            run-smoke-test: false
+          - airflow-version: "3"
+            python-version: "3.12"
+            airflow-pin: "apache-airflow>=3.1"
+            run-unit-tests: false
+            run-smoke-test: true
 
     steps:
       - name: Check out
@@ -16,18 +30,26 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           activate-environment: true
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --group airflow --group pipeline --extra duckdb --extra parquet
+        run: |
+          uv sync --group airflow --group pipeline --extra duckdb --extra parquet
+          if [ -n "${{ matrix.airflow-pin }}" ]; then
+            uv pip install '${{ matrix.airflow-pin }}'
+          fi
 
-      - run: |
-          pytest tests/helpers/airflow_tests
-        name: Run tests
+      - name: Run unit tests
+        if: matrix.run-unit-tests
+        run: pytest tests/helpers/airflow_tests
+
+      - name: Run smoke test
+        if: matrix.run-smoke-test
+        run: cd tests/helpers/airflow_tests/smoke && uv run python run.py

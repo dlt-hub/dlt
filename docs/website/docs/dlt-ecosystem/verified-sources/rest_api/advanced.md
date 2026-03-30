@@ -15,6 +15,30 @@ keywords: [rest api, restful api, headers, response actions, advanced configurat
 - `schema_contract`: Schema contract settings that will be applied to this resource.
 - `parallelized`: If `True`, resource generators will be extracted in parallel with other resources.
 
+#### Per-resource parallelization for dependent resources
+
+You can also set `parallelized` on individual dependent resources (transformers) to fetch child data for multiple parent items concurrently. When enabled, each parent item's child fetch runs as a deferred callable in dlt's thread pool rather than sequentially in a loop.
+
+```py
+config: RESTAPIConfig = {
+    "client": {"base_url": "https://api.example.com"},
+    "resources": [
+        "posts",
+        {
+            "name": "post_comments",
+            "parallelized": True,
+            "endpoint": {
+                "path": "posts/{resources.posts.id}/comments",
+            },
+        },
+    ],
+}
+```
+
+:::note
+When `parallelized` is set on a dependent resource, all pages of child data for a single parent item are collected into memory before being yielded. For parent items with a large number of child pages, this increases memory usage compared to the default streaming behavior.
+:::
+
 ### Headers configuration
 
 The REST API source supports configuring custom headers at both the client level and the endpoint level. This allows you to send additional HTTP headers with your API requests, which is useful for some use cases.

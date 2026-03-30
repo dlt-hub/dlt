@@ -64,7 +64,7 @@ request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
 ```
 
 :::note
-Default session retires as follows:
+Default session retries as follows:
 
 ```toml
 [runtime]
@@ -122,7 +122,7 @@ HTTP 429 errors indicate you've hit API rate limits. The dlt requests client ret
 
 - **Check authentication**: Properly authenticated requests often have higher rate limits
 - **Review API documentation**: Look for rate limit guidelines and `Retry-After` header usage
-- **Add delays**: Use `time.sleep()` or `ratelimiter` to space out requests
+- **Add delays**: Use `time.sleep()` or a rate-limiting library to space out requests
 - **Implement backoff**: Increase wait times after failures (exponential backoff)
 - **Reduce calls**: Batch requests or cache results when possible
 

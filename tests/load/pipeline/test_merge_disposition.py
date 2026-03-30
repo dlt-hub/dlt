@@ -1,8 +1,8 @@
 from copy import copy
+import os
 import pytest
 import random
-from typing import List, cast
-import pytest
+from typing import List
 import yaml
 
 import dlt
@@ -16,7 +16,7 @@ from dlt.common.schema.exceptions import (
     UnboundColumnException,
     CannotCoerceNullException,
 )
-from dlt.common.schema.typing import TLoaderMergeStrategy, TTableFormat
+from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -91,7 +91,7 @@ def test_merge_on_keys_in_schema_nested_hints(
 
     hints: TResourceHints = {
         "write_disposition": {"disposition": "merge", "strategy": merge_strategy},
-        "table_format": cast(TTableFormat, destination_config.table_format),
+        "table_format": destination_config.table_format,
     }
     # NOTE: setting primary key will break nesting chain
     nested_hints = {
@@ -1588,6 +1588,56 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         info = p.run(r(), **destination_config.run_kwargs)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_dedup_sort_hint_case_sensitive(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test that dedup_sort column names are properly escaped in merge SQL.
+
+    Reproduces https://github.com/dlt-hub/dlt/issues/3529 where unescaped
+    dedup_sort column names cause failures with case-sensitive naming
+    conventions on destinations that casefold unquoted identifiers.
+    """
+    # use direct naming to preserve mixed case in column names
+    os.environ["SCHEMA__NAMING"] = "direct"
+
+    table_name = "test_dedup_sort_cs"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition="merge",
+        primary_key="id",
+        columns={"Sequence": {"dedup_sort": "desc", "nullable": False}},
+    )
+    def data_resource(data):
+        yield data
+
+    p = destination_config.setup_pipeline("dedup_sort_cs", dev_mode=True)
+
+    # three records with same primary key
+    data = [
+        {"id": 1, "val": "foo", "Sequence": 1},
+        {"id": 1, "val": "baz", "Sequence": 3},
+        {"id": 1, "val": "bar", "Sequence": 2},
+    ]
+    info = p.run(data_resource(data), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 1
+
+    # record with highest value in sort column is inserted (because "desc")
+    result = load_tables_to_dicts(p, table_name, exclude_system_cols=True)
+    # column name depends on effective naming convention (e.g. s3_tables lowercases)
+    seq_col = p.default_schema.naming.normalize_identifier("Sequence")
+    assert_records_as_set(
+        result[table_name],
+        [{"id": 1, "val": "baz", seq_col: 3}],
+    )
+
+
 @pytest.mark.no_load
 def test_merge_strategy_config() -> None:
     # merge strategy invalid
@@ -1760,3 +1810,328 @@ def test_merge_arrow(
             {"id": 2, "name": "updated bar"},
         ],
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_merge_arrow_merge_key_only(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Arrow merge with only merge_key (no primary_key, no _dlt_id).
+
+    Reproduces https://github.com/dlt-hub/dlt/issues/2248 — destinations that required
+    a temp table for delete (e.g. ClickHouse) would fail with MergeDispositionException
+    because no row_key column existed.
+    """
+    skip_if_unsupported_merge_strategy(destination_config, "delete-insert")
+    if destination_config.destination_type == "athena":
+        pytest.skip("Athena requires _dlt_id for merge (no correlated subquery support)")
+    pipeline = destination_config.setup_pipeline("merge_arrow_mk", dev_mode=True)
+
+    @dlt.resource(
+        write_disposition="merge",
+        merge_key="id",
+        table_format=destination_config.table_format,
+    )
+    def arrow_items(rows, schema_columns, timezone="UTC"):
+        yield row_tuples_to_arrow(
+            rows,
+            DestinationCapabilitiesContext.generic_capabilities(),
+            columns=schema_columns,
+            tz=timezone,
+        )
+
+    schema_columns = {
+        "id": {"name": "id", "nullable": False, "data_type": "bigint"},
+        "name": {"name": "name", "nullable": True, "data_type": "text"},
+    }
+    test_rows = [(1, "foo"), (2, "bar")]
+
+    load_info = pipeline.run(arrow_items(test_rows, schema_columns))
+    assert_load_info(load_info)
+
+    tables = load_tables_to_dicts(pipeline, "arrow_items")
+    assert_records_as_set(
+        tables["arrow_items"],
+        [{"id": 1, "name": "foo"}, {"id": 2, "name": "bar"}],
+    )
+
+    # update one record — merge_key delete removes matching rows, then re-inserts
+    test_rows = [(1, "foo"), (2, "updated bar")]
+    load_info = pipeline.run(arrow_items(test_rows, schema_columns))
+    assert_load_info(load_info)
+
+    tables = load_tables_to_dicts(pipeline, "arrow_items")
+    assert_records_as_set(
+        tables["arrow_items"],
+        [{"id": 1, "name": "foo"}, {"id": 2, "name": "updated bar"}],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_replacing_merge_key(destination_config: DestinationTestConfiguration) -> None:
+    """Test that changing merge_key properly deletes records based on the NEW key.
+    Records matching the new merge_key in incoming data should replace old ones.
+    """
+    p = destination_config.setup_pipeline("test_replacing_merge_key", dev_mode=True)
+
+    # load initial data with merge_key "time_off_date"
+    @dlt.resource(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "delete-insert",
+        },
+        merge_key=["time_off_date"],
+    )
+    def people(data):
+        yield from data
+
+    initial_data = [
+        {"email": "user_1@example.com", "time_off_date": "25.07.2025", "month_key": "2025-07"},
+        {"email": "user_2@example.com", "time_off_date": "18.08.2025", "month_key": "2025-08"},
+    ]
+
+    info = p.run(people(initial_data), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    observed = [
+        {"email": row[0], "time_off_date": row[1], "month_key": row[2]}
+        for row in select_data(p, "SELECT email, time_off_date, month_key FROM people")
+    ]
+
+    assert sorted(observed, key=lambda d: d["email"]) == initial_data
+
+    # change merge_key to "month_key"
+    people.apply_hints(merge_key=["month_key"])
+
+    # new data has month_key "2025-08" which exists in old data
+    # should delete the old 2025-08 record (18.08.2025) and insert new one (19.08.2025)
+    new_data = [
+        {"email": "user_2@example.com", "time_off_date": "19.08.2025", "month_key": "2025-08"},
+        {"email": "user_2@example.com", "time_off_date": "20.09.2025", "month_key": "2025-09"},
+    ]
+
+    info = p.run(people(new_data), **destination_config.run_kwargs)
+
+    observed = [
+        {"email": row[0], "time_off_date": row[1], "month_key": row[2]}
+        for row in select_data(p, "SELECT email, time_off_date, month_key FROM people")
+    ]
+
+    expected = [initial_data[0]] + new_data
+
+    assert sorted(observed, key=lambda d: (d["email"], d["month_key"])) == sorted(
+        expected, key=lambda d: (d["email"], d["month_key"])
+    )
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        default_vector_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_insert_only_strategy(destination_config: DestinationTestConfiguration) -> None:
+    """Test insert-only merge strategy: inserts new records but does not update existing ones."""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_test", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+        ]
+
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+        ],
+    )
+
+    @dlt.resource(
+        name="items",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def items_updated():
+        yield [
+            {"id": 1, "name": "Alice Updated", "value": 999},
+            {"id": 2, "name": "Bob Updated", "value": 888},
+            {"id": 3, "name": "Charlie", "value": 300},
+        ]
+
+    info = p.run(items_updated(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+            {"id": 3, "name": "Charlie", "value": 300},
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_insert_only_with_hard_delete(destination_config: DestinationTestConfiguration) -> None:
+    """Test insert-only strategy filters out hard-deleted records from staging."""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_hard_delete", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        columns={"deleted": {"hard_delete": True}},
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "deleted": False},
+            {"id": 2, "name": "Bob", "deleted": False},
+        ]
+
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    assert len(tables["items"]) == 2
+
+    @dlt.resource(
+        name="items",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        columns={"deleted": {"hard_delete": True}},
+        table_format=destination_config.table_format,
+    )
+    def items_with_deleted():
+        yield [
+            {"id": 3, "name": "Charlie", "deleted": True},
+            {"id": 4, "name": "Dave", "deleted": False},
+        ]
+
+    info = p.run(items_with_deleted(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"id": 1, "name": "Alice", "deleted": False},
+            {"id": 2, "name": "Bob", "deleted": False},
+            {"id": 4, "name": "Dave", "deleted": False},
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_insert_only_with_nested_tables(destination_config: DestinationTestConfiguration) -> None:
+    """Test insert-only strategy with nested tables."""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_nested", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def parent_items():
+        yield [
+            {"id": 1, "name": "Parent1", "children": [{"child_id": 1, "child_name": "Child1"}]},
+            {"id": 2, "name": "Parent2", "children": [{"child_id": 2, "child_name": "Child2"}]},
+        ]
+
+    info = p.run(parent_items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    parent_tables = load_tables_to_dicts(
+        p, "parent_items", "parent_items__children", exclude_system_cols=True
+    )
+    assert len(parent_tables["parent_items"]) == 2
+    assert len(parent_tables["parent_items__children"]) == 2
+
+    @dlt.resource(
+        name="parent_items",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def parent_items_update():
+        yield [
+            {
+                "id": 1,
+                "name": "Parent1_Updated",
+                "children": [
+                    {"child_id": 1, "child_name": "Child1"},
+                    {"child_id": 3, "child_name": "Child3"},
+                ],
+            },
+            {
+                "id": 3,
+                "name": "Parent3",
+                "children": [{"child_id": 4, "child_name": "Child4"}],
+            },
+        ]
+
+    info = p.run(parent_items_update(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    parent_tables = load_tables_to_dicts(
+        p, "parent_items", "parent_items__children", exclude_system_cols=True
+    )
+
+    assert len(parent_tables["parent_items"]) == 3
+    parent1_records = [r for r in parent_tables["parent_items"] if r["id"] == 1]
+    assert parent1_records[0]["name"] == "Parent1"
+
+    # Child1 exists so not re-inserted, Child2 unchanged,
+    # Child3 and Child4 are new inserts
+    assert len(parent_tables["parent_items__children"]) == 4

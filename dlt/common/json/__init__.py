@@ -16,7 +16,7 @@ from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
-from dlt.common.utils import map_nested_values_in_place
+from dlt.common.utils import map_nested_values_in_place  # noqa: F401
 from dlt.common.libs.hexbytes import HexBytes
 
 TPuaDecoders = List[Callable[[Any], Any]]
@@ -180,10 +180,42 @@ def custom_pua_decode(obj: Any, decoders: TPuaDecoders = DECODERS) -> Any:
 
 
 def custom_pua_decode_nested(obj: Any, decoders: TPuaDecoders = DECODERS) -> Any:
+    """Decodes PUA markers in `obj`, recursing into dicts and lists in place."""
     if isinstance(obj, str):
-        return custom_pua_decode(obj, decoders)
-    elif isinstance(obj, (list, dict)):
-        return map_nested_values_in_place(custom_pua_decode, obj, decoders=decoders)
+        if len(obj) > 1:
+            c = ord(obj[0]) - PUA_START
+            if c >= 0 and c <= PUA_CHARACTER_MAX:
+                try:
+                    return decoders[c](obj[1:])
+                except Exception:
+                    return obj
+        return obj
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, str):
+                if len(v) > 1:
+                    c = ord(v[0]) - PUA_START
+                    if c >= 0 and c <= PUA_CHARACTER_MAX:
+                        try:
+                            obj[k] = decoders[c](v[1:])
+                        except Exception:
+                            pass
+            elif isinstance(v, (dict, list)):
+                custom_pua_decode_nested(v, decoders)
+        return obj
+    elif isinstance(obj, list):
+        for idx, v in enumerate(obj):
+            if isinstance(v, str):
+                if len(v) > 1:
+                    c = ord(v[0]) - PUA_START
+                    if c >= 0 and c <= PUA_CHARACTER_MAX:
+                        try:
+                            obj[idx] = decoders[c](v[1:])
+                        except Exception:
+                            pass
+            elif isinstance(v, (dict, list)):
+                custom_pua_decode_nested(v, decoders)
+        return obj
     return obj
 
 

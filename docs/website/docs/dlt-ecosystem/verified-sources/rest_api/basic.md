@@ -289,7 +289,7 @@ This is a list of resource configurations that define the API endpoints to be lo
 ### Resource configuration
 
 A resource configuration is used to define a [dlt resource](../../../general-usage/resource.md) for the data to be loaded from an API endpoint. When defining the resource you may specify:
-- dlt resource parameters, for for example:
+- dlt resource parameters, for example:
     - `name`: The name of the resource. This is also used as the table name in the destination unless overridden by the `table_name` parameter.
     - `write_disposition`: The write disposition for the resource.
     - `primary_key`: The primary key for the resource.
@@ -920,6 +920,23 @@ You can include data from the parent resource in the child resource by using the
 ```
 
 This will include the `id`, `title`, and `created_at` fields from the `issues` resource in the `issue_comments` resource data. The names of the included fields will be prefixed with the parent resource name and an underscore (`_`) like so: `_issues_id`, `_issues_title`, `_issues_created_at`.
+
+#### Parallelize dependent resource fetching
+
+By default, dependent resources fetch child data for each parent item sequentially. You can set `parallelized` to `True` on a dependent resource to fetch child data concurrently using dlt's thread pool:
+
+```py
+{
+    "name": "issue_comments",
+    "parallelized": True,
+    "endpoint": {
+        "path": "issues/{resources.issues.number}/comments",
+    },
+    "include_from_parent": ["id"],
+}
+```
+
+See [Per-resource parallelization](./advanced.md#per-resource-parallelization-for-dependent-resources) for more details.
 
 ### Define a resource which is not a REST endpoint
 

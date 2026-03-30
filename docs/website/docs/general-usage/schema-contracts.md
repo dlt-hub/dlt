@@ -22,7 +22,7 @@ This resource will allow new tables (both nested tables and [tables with dynamic
 You can control the following **schema entities**:
 * `tables` - the contract is applied when a new table is created
 * `columns` - the contract is applied when a new column is created on an existing table
-* `data_type` - the contract is applied when data cannot be coerced into a data type associated with an existing column.
+* `data_type` - the contract is applied when a data type property of an existing column changes. This includes variant columns (where data cannot be coerced into the existing type) as well as explicit changes to `data_type`, `nullable`, `precision`, `scale`, or `timezone` on a column that is already complete.
 
 You can use **contract modes** to tell `dlt` how to apply the contract for a particular entity:
 * `evolve`: No constraints on schema changes.
@@ -94,7 +94,9 @@ Note that this works in two directions. If you use a model with such a setting e
 `discard_row` requires additional handling when a ValidationError is raised.
 
 :::tip
-Model validation is added as a [transform step](resource.md#filter-transform-and-pivot-data) to the resource. This step will convert the incoming data items into instances of validating models. You could easily convert them back to dictionaries by using `add_map(lambda item: item.dict())` on a resource.
+Model validation is added as a [transform step](resource.md#filter-transform-and-pivot-data) to the resource. This step will convert the incoming data items into instances of validating models. You could easily convert them back to dictionaries by using `add_map(lambda item: item.model_dump())` on a resource.
+
+Alternatively, you can configure your Pydantic model to return validated model instances instead of dictionaries using the `DltConfig` options. See [Pydantic model configuration](resource.md#define-a-schema-with-pydantic) for available options like `skip_nested_types` and `return_validated_models`.
 :::
 
 :::note
@@ -103,12 +105,116 @@ Pydantic models work on the **extracted** data **before names are normalized or 
 As a consequence, `discard_row` will drop the whole data item - even if a nested model was affected.
 :::
 
+### Authoritative Pydantic models
+
+:::caution Work in progress
+Authoritative Pydantic models are under active development. Behavior below may change in future releases.
+:::
+
+By default, columns derived from a Pydantic model are subject to schema contract checks just like any other columns. If you want the model to be treated as the **authoritative source of truth** — so its columns bypass `columns` and `data_type` contract enforcement — set `is_authoritative_model` in `DltConfig`:
+
+```py
+from typing import ClassVar
+
+from pydantic import BaseModel
+
+from dlt.common.libs.pydantic import DltConfig
+
+
+class MyModel(BaseModel):
+    dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
+
+    class Config:
+        extra = "forbid"
+
+    id: int
+    name: str
+```
+
+With `is_authoritative_model=True`, if you later add an `email` field to `MyModel`, the new column will be accepted on existing tables even though `extra=forbid` maps to `columns=freeze`. The `freeze` contract will still reject any extra fields in the **data** that are not defined in the model.
+
+Without `is_authoritative_model` (the default), adding a new field to the model while `columns=freeze` is active will raise a `DataValidationError` — the same as adding a column from any other data source.
+
+:::tip
+If your goal is to maintain strict data validation (`extra=forbid`) while allowing you to change the model explicitly, set `is_authoritative_model=True`. Without it, you would need to set `schema_contract={"columns": "evolve"}`, which would also override `extra=forbid` and allow unknown fields through validation.
+:::
+
+### Validating event streams with Pydantic
+
+When a single resource produces items of different types (e.g., an event stream), you can use a Pydantic [discriminated union](https://docs.pydantic.dev/latest/concepts/unions/#discriminated-unions) wrapped in a `RootModel` to validate and dispatch them. Each variant model defines its own columns, and `dlt` resolves the correct variant per item using the discriminator field — without re-validating.
+
+Define variant models with a shared `Literal` discriminator field and combine them in a `RootModel`:
+
+```py
+from typing import ClassVar, Literal, Union
+from typing_extensions import Annotated
+from pydantic import BaseModel, Field, RootModel
+from dlt.common.libs.pydantic import DltConfig
+
+
+class EventBase(BaseModel):
+    kind: str
+    id: int
+
+class ClickEvent(EventBase):
+    kind: Literal["click"]
+    element_id: str
+
+class PurchaseEvent(EventBase):
+    kind: Literal["purchase"]
+    amount: float
+
+EventUnion = Annotated[
+    Union[ClickEvent, PurchaseEvent],
+    Field(discriminator="kind"),
+]
+
+class Event(RootModel[EventUnion]):
+    dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
+```
+
+A common base class (like `EventBase` above) is optional. When present, `dlt` can derive the shared columns (`kind`, `id`) even without a specific data item.
+
+Dispatch items to per-type tables using `dlt.mark.with_table_name` or a dynamic `table_name` function. The table names do not need to match the discriminator values:
+
+```py
+import dlt
+
+
+TABLE_MAP = {"click": "click_events", "purchase": "purchase_events"}
+
+@dlt.resource(
+    name="events",
+    columns=Event,
+    schema_contract={"data_type": "discard_row"},
+)
+def event_stream():
+    for item in items:
+        yield dlt.mark.with_table_name(item, TABLE_MAP[item["kind"]])
+```
+
+Each destination table receives only the columns defined by its variant model. For example, the `click_events` table gets `kind`, `id`, and `element_id`, while `purchase_events` gets `kind`, `id`, and `amount`.
+
+#### Items not matching any variant
+
+When an item's discriminator value does not match any variant in the union (e.g., a `"debug"` event when only `"click"` and `"purchase"` are defined), the **data_type** contract controls what happens:
+
+| data_type mode | behavior                                               |
+| -------------- | ------------------------------------------------------ |
+| evolve         | Validation is bypassed; the item passes through as-is  |
+| discard_row    | The item is silently dropped                           |
+| freeze         | Raises an exception                                    |
+
+:::note
+`data_type: discard_value` is not supported with Pydantic models. Use `discard_row` instead.
+:::
+
 ### Set contracts on Arrow tables and Pandas
 
 All contract settings apply to [Arrow tables and pandas frames](../dlt-ecosystem/verified-sources/arrow-pandas.md) as well.
 1. **tables** mode is the same - no matter what the data item type is.
 2. **columns** will allow new columns, raise an exception, or modify tables/frames still in the extract step to avoid rewriting Parquet files.
-3. **data_type** changes to data types in tables/frames are not allowed and will result in a data type schema clash. We could allow for more modes (evolving data types in Arrow tables sounds weird but ping us on Slack if you need it.)
+3. **data_type** applies to variant columns and to changes in type properties (`data_type`, `nullable`, `precision`, `scale`, `timezone`) on existing complete columns. The contract will raise an exception, discard the column, or discard the row depending on the mode.
 
 Here's how `dlt` deals with column modes:
 1. **evolve** new columns are allowed (the table may be reordered to put them at the end).
@@ -160,7 +266,7 @@ blocks:
 ```
 
 Tables that are not considered new:
-1. Those with columns defined by Pydantic models.
+1. Those that already exist in the schema with at least one complete column (a column with a `data_type`).
 
 ### Working with datasets that have manually added tables and columns on the first load
 
@@ -209,4 +315,3 @@ pipeline.run(frozen_source())
 pipeline.run(frozen_source(), schema_contract="freeze")
 
 ```
-

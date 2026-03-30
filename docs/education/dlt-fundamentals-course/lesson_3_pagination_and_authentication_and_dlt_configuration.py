@@ -436,7 +436,7 @@ def _(os):
 @app.cell
 def _(BearerTokenAuth, DltResource, Iterable, RESTClient, TDataItems, dlt):
     @dlt.source
-    def github_source_1(access_token=dlt.secrets.value) -> Iterable[DltResource]:
+    def github_source_1(access_token: str = dlt.secrets.value) -> Iterable[DltResource]:
         client = RESTClient(
             base_url="https://api.github.com", auth=BearerTokenAuth(token=access_token)
         )

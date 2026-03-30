@@ -8,6 +8,7 @@ from typing import (
     Iterator,
     List,
     Sequence,
+    Set,
     IO,
     Tuple,
     Optional,
@@ -70,6 +71,7 @@ from tests.utils import (
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
     EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS,
+    get_test_worker_id,
 )
 from tests.cases import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -91,6 +93,7 @@ R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
 SFTP_BUCKET = dlt.config.get("tests.bucket_url_sftp", str)
 HTTP_BUCKET = dlt.config.get("tests.bucket_url_http", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
+HF_BUCKET = dlt.config.get("tests.bucket_url_hf", str)
 
 # S3 tables
 S3_TABLE_BUCKET_ARN = dlt.config.get("tests.s3_table_bucket_arn", str)
@@ -107,6 +110,7 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "https",
     "r2",
     "sftp",
+    "hf",
 ]
 
 # Filter out buckets not in all filesystem drivers
@@ -119,6 +123,7 @@ WITH_GDRIVE_BUCKETS = [
     AZ_BUCKET,
     GDRIVE_BUCKET,
     SFTP_BUCKET,
+    HF_BUCKET,
 ]
 WITH_GDRIVE_BUCKETS = [
     bucket
@@ -332,6 +337,7 @@ def destinations_configs(
     with_table_format: Union[TTableFormat, Sequence[TTableFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
+    supports_file_format: Optional[TLoaderFileFormat] = None,
     **attr_subset: Any,  # generic attribute filter; useful if above params are not specific enough
 ) -> List[DestinationTestConfiguration]:
     """Generate a filtered list of destination test configurations for parametrized tests.
@@ -351,7 +357,7 @@ def destinations_configs(
         all_buckets_filesystem_configs: Include filesystem configs for all default buckets
             (s3, gcs, az, abfss, file, memory, sftp).
         table_format_filesystem_configs: Include delta and iceberg table format configs
-            for all buckets (except sftp, memory for delta; az for iceberg).
+            for all buckets (except sftp, memory, hf; az excluded for both delta and iceberg).
         table_format_local_configs: Include delta and iceberg configs for local file bucket only.
         read_only_sqlclient_configs: Include all configs that support read-only SQL client
             (filesystem with all buckets, table formats, and lancedb).
@@ -372,6 +378,8 @@ def destinations_configs(
         with_table_format: Keep only configs with table_format matching this value(s).
         supports_merge: Keep only configs where supports_merge equals this value.
         supports_dbt: Keep only configs where supports_dbt equals this value.
+        supports_file_format: Keep only configs whose destination capabilities include
+            this format in supported_loader_file_formats or supported_staging_file_formats.
         **attr_subset: Generic filter - keep configs where the named attribute matches
             any of the provided values.
 
@@ -402,6 +410,7 @@ def destinations_configs(
         >>> destinations_configs(default_staging_configs=True, bucket_subset=[AWS_BUCKET])
     """
     input_args = locals()
+    worker = get_test_worker_id()
 
     # import filesystem destination to use named version for minio
     from dlt.destinations import filesystem
@@ -445,15 +454,34 @@ def destinations_configs(
     if default_sql_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type=destination)
-            for destination in SQL_DESTINATIONS
+            for destination in sorted(SQL_DESTINATIONS)
             if destination
-            not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy", "ducklake", "fabric")
+            not in (
+                "athena",
+                "synapse",
+                "dremio",
+                "clickhouse",
+                "sqlalchemy",
+                "ducklake",
+                "fabric",
+                "motherduck",
+            )
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
-            DestinationTestConfiguration(destination_type="ducklake", supports_dbt=False),
             DestinationTestConfiguration(
-                destination_type="motherduck", file_format="insert_values"
+                destination_type="ducklake",
+                supports_dbt=False,
+                credentials={"ducklake_name": f"ducklake_{worker}"},
+            ),
+            DestinationTestConfiguration(
+                destination_type="motherduck",
+                credentials={"database": f"dlt_test_{worker}"},
+            ),
+            DestinationTestConfiguration(
+                destination_type="motherduck",
+                file_format="insert_values",
+                credentials={"database": f"dlt_test_{worker}"},
             ),
         ]
 
@@ -475,7 +503,7 @@ def destinations_configs(
                 supports_merge=True,
                 supports_dbt=False,
                 destination_name="sqlalchemy_sqlite",
-                credentials="sqlite:///_storage/dl_data.sqlite",
+                credentials="sqlite:///db.sqlite",
             ),
             # TODO: enable in sql alchemy destination test, 99% of tests work
             # DestinationTestConfiguration(
@@ -518,7 +546,7 @@ def destinations_configs(
         destination_configs += [
             # DestinationTestConfiguration(destination_type="mssql", supports_dbt=False),
             DestinationTestConfiguration(destination_type="synapse", supports_dbt=False),
-            DestinationTestConfiguration(destination_type="fabric", supports_dbt=False),
+            DestinationTestConfiguration(destination_type="fabric", supports_dbt=True),
         ]
 
         # sanity check that when selecting default destinations, one of each sql destination is actually
@@ -528,10 +556,12 @@ def destinations_configs(
     if default_vector_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type="weaviate"),
-            DestinationTestConfiguration(destination_type="lancedb"),
+            DestinationTestConfiguration(
+                destination_type="lancedb",
+            ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
-                credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
+                credentials=dict(path="qdrant_data"),
                 extra_info="local-file",
             ),
             DestinationTestConfiguration(
@@ -751,7 +781,7 @@ def destinations_configs(
 
     # all filesystem configs also implement read-only sql client
     if all_buckets_filesystem_configs or read_only_sqlclient_configs:
-        for bucket in DEFAULT_BUCKETS:
+        for bucket in set(DEFAULT_BUCKETS) - {HF_BUCKET}:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
@@ -761,16 +791,30 @@ def destinations_configs(
                     file_format="jsonl",  # keep jsonl as default, test utils are setup for this
                 )
             ]
+        if "hf" in ALL_FILESYSTEM_DRIVERS:
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="filesystem",
+                    bucket_url=HF_BUCKET,
+                    extra_info=HF_BUCKET,
+                    supports_merge=False,
+                    file_format="parquet",
+                    # increase timeout to avoid flakes (default is 10s)
+                    env_vars={"HF_HUB_DOWNLOAD_TIMEOUT": "30"},
+                )
+            ]
 
     # table format configs also implement read-only sqlclient configs
     if table_format_filesystem_configs or table_format_local_configs or read_only_sqlclient_configs:
         if table_format_filesystem_configs:
-            table_buckets = set(DEFAULT_BUCKETS) - {SFTP_BUCKET, MEMORY_BUCKET}
+            table_buckets = set(DEFAULT_BUCKETS) - {SFTP_BUCKET, MEMORY_BUCKET, HF_BUCKET}
         else:
             table_buckets = {FILE_BUCKET}
 
-        # NOTE: delta does not work on memory buckets
-        for bucket in table_buckets:
+        # NOTE: delta-rs kernel fails on az:// scheme (empty log segment error),
+        # Azure is tested via abfss://
+        delta_buckets = table_buckets - {AZ_BUCKET}
+        for bucket in delta_buckets:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
@@ -798,9 +842,9 @@ def destinations_configs(
                     destination_name="filesystem_s3_gcs_comp" if bucket == GCS_BUCKET else None,
                 )
             ]
-            if bucket in [AZ_BUCKET]:
-                # `pyiceberg` does not support `az` scheme
-                continue
+        # pyiceberg does not support az:// scheme
+        iceberg_buckets = table_buckets - {AZ_BUCKET}
+        for bucket in iceberg_buckets:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
@@ -891,6 +935,19 @@ def destinations_configs(
         destination_configs = [
             conf for conf in destination_configs if conf.supports_dbt == supports_dbt
         ]
+    if supports_file_format is not None:
+        _fmt_cache: Dict[str, Set[str]] = {}
+
+        def _dest_has_format(conf: DestinationTestConfiguration) -> bool:
+            dt = conf.destination_type
+            if dt not in _fmt_cache:
+                caps = conf.raw_capabilities()
+                _fmt_cache[dt] = set(caps.supported_loader_file_formats or []) | set(
+                    caps.supported_staging_file_formats or []
+                )
+            return supports_file_format in _fmt_cache[dt]
+
+        destination_configs = [conf for conf in destination_configs if _dest_has_format(conf)]
 
     # filter by other attributes
     for attr_name, allowed_values in attr_subset.items():
@@ -1203,19 +1260,21 @@ def yield_client_with_storage(
 
     with cm_yield_client(destination, dataset_name, default_config_values, schema_name) as client:
         client.initialize_storage()
-        yield client
-        if client.is_storage_initialized():
-            try:
-                client.drop_storage()
-            except Exception as exc:
-                print(f"drop dataset {dataset_name}: {exc}")
-        if isinstance(client, WithStagingDataset):
-            with client.with_staging_dataset():
-                if client.is_storage_initialized():
-                    try:
-                        client.drop_storage()
-                    except Exception as exc:
-                        print(f"drop dataset {dataset_name} STAGING: {exc}")
+        try:
+            yield client
+        finally:
+            if client.is_storage_initialized():
+                try:
+                    client.drop_storage()
+                except Exception as exc:
+                    print(f"drop dataset {dataset_name}: {exc}")
+            if isinstance(client, WithStagingDataset):
+                with client.with_staging_dataset():
+                    if client.is_storage_initialized():
+                        try:
+                            client.drop_storage()
+                        except Exception as exc:
+                            print(f"drop dataset {dataset_name} STAGING: {exc}")
 
 
 def delete_dataset(client: SqlClientBase[Any], normalized_dataset_name: str) -> None:

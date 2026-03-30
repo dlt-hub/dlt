@@ -14,6 +14,7 @@ from dlt.common.libs.pyarrow import (
     remove_columns,
     normalize_py_arrow_item,
 )
+from dlt.extract.hints import make_hints
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import (
@@ -102,10 +103,8 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
 
     # Check schema detection
     schema_columns = schema.tables["some_data"]["columns"]
-    # null column is present, with x-normalizer seen-null-first, without data type
-    assert set(schema_columns) - set(df_tbl.columns) == {"null"}
-    assert schema_columns["null"]["x-normalizer"]["seen-null-first"] is True
-    assert "data_type" not in schema_columns["null"]
+    # null column should not appear in schema at all
+    assert "null" not in schema_columns
     assert schema_columns["date"]["data_type"] == "date"
     assert schema_columns["int"]["data_type"] == "bigint"
     assert schema_columns["float"]["data_type"] == "double"
@@ -323,6 +322,8 @@ def test_normalize_with_dlt_columns(item_type: TPythonTableFormat):
     schema = pipeline.default_schema
     assert schema.tables["some_data"]["columns"]["_dlt_id"]["data_type"] == "text"
     assert schema.tables["some_data"]["columns"]["_dlt_load_id"]["data_type"] == "text"
+    # null column removed during rewrite path via dlt.null_columns metadata
+    assert "null" not in schema.tables["some_data"]["columns"]
 
     pipeline.load()
 
@@ -345,6 +346,34 @@ def test_normalize_with_dlt_columns(item_type: TPythonTableFormat):
 
     schema = pipeline.default_schema
     assert schema.tables["some_data"]["columns"]["static_int"]["data_type"] == "bigint"
+
+
+def test_user_defined_incomplete_column_preserved_with_null_data():
+    """User-defined incomplete columns must not be removed when arrow data has all NULLs."""
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
+
+    # arrow table with a null-type column
+    item = pa.table(
+        {
+            "id": pa.array([1, 2, 3]),
+            "value": pa.array([None, None, None]),  # all nulls → pa.null() type
+        }
+    )
+
+    @dlt.resource(columns={"value": {"name": "value", "nullable": True, "description": "user col"}})
+    def user_data():
+        yield item
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+    pipeline.extract(user_data(), loader_file_format="parquet")
+    pipeline.normalize()
+
+    schema = pipeline.default_schema
+    # user-defined column must survive even though data was all NULLs
+    assert "value" in schema.tables["user_data"]["columns"]
+    col = schema.tables["user_data"]["columns"]["value"]
+    assert col["description"] == "user col"
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
@@ -755,3 +784,67 @@ def test_count_rows_in_items(item_factory, expected_rows):
             count_rows_in_items(item)
     else:
         assert count_rows_in_items(item) == expected_rows
+
+
+def test_arrow_table_variant_hints() -> None:
+    """Arrow tables dispatched to table variants should use variant-specific hints.
+
+    Verifies that ArrowExtractor passes meta through to compute_table_schema
+    so that variant column hints (e.g. primary_key, write_disposition) are
+    applied correctly to the extracted arrow data.
+    """
+
+    table_a = pa.table({"id": [1, 2], "value": ["A", "B"]})
+    table_b = pa.table({"id": [3, 4], "amount": [10.5, 20.0]})
+
+    @dlt.resource(primary_key="id")
+    def variant_arrow():
+        # dispatch arrow table to variant "table_a" with a specific column type
+        yield dlt.mark.with_hints(
+            table_a,
+            make_hints(
+                table_name="table_a",
+                write_disposition="replace",
+                columns=[{"name": "value", "data_type": "text"}],
+            ),
+            create_table_variant=True,
+        )
+        # dispatch arrow table to variant "table_b" with merge disposition
+        yield dlt.mark.with_hints(
+            table_b,
+            make_hints(
+                table_name="table_b",
+                write_disposition="merge",
+            ),
+            create_table_variant=True,
+        )
+        # dispatch another arrow table to table_a via with_table_name
+        # (uses previously created variant hints)
+        yield dlt.mark.with_table_name(
+            pa.table({"id": [5, 6], "value": ["C", "D"]}),
+            "table_a",
+        )
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+    pipeline.run(variant_arrow())
+
+    schema = pipeline.default_schema
+
+    # table_a should have the variant's write_disposition and column hints
+    assert schema.tables["table_a"]["write_disposition"] == "replace"
+    assert "id" in schema.tables["table_a"]["columns"]
+    assert schema.tables["table_a"]["columns"]["id"]["primary_key"] is True
+    assert "value" in schema.tables["table_a"]["columns"]
+    assert schema.tables["table_a"]["columns"]["value"]["data_type"] == "text"
+
+    # table_b should have merge disposition and primary_key from resource
+    assert schema.tables["table_b"]["write_disposition"] == "merge"
+    assert "id" in schema.tables["table_b"]["columns"]
+    assert schema.tables["table_b"]["columns"]["id"]["primary_key"] is True
+    assert "amount" in schema.tables["table_b"]["columns"]
+
+    # verify row counts: table_a got 2+2=4 rows, table_b got 2 rows
+    rows = load_tables_to_dicts(pipeline, "table_a")
+    assert len(rows["table_a"]) == 4
+    rows = load_tables_to_dicts(pipeline, "table_b")
+    assert len(rows["table_b"]) == 2

@@ -21,7 +21,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.common.configuration.utils import toml_providers as toml_providers
 from tests.pipeline.utils import assert_table_column
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -31,7 +31,7 @@ pytestmark = pytest.mark.essential
 def run_in_storage(
     autouse_test_storage, toml_providers: ConfigProvidersContainer
 ) -> Iterator[None]:
-    with set_working_dir("_storage"):
+    with set_working_dir(get_test_storage_root()):
         yield
 
 
@@ -519,7 +519,7 @@ def test_named_destination_path() -> None:
 
 
 def test_db_path_follows_local_dir() -> None:
-    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    local_dir = os.path.join(get_test_storage_root(), uniq_id())
     os.makedirs(local_dir)
     # mock tmp dir
     os.environ[DLT_LOCAL_DIR] = local_dir
@@ -538,14 +538,14 @@ def test_keeps_initial_db_path() -> None:
     os.environ["CREDENTIALS"] = db_path
 
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=dlt.destinations.duckdb())
-    assert p.state["_local"]["initial_cwd"] == os.path.abspath(os.path.curdir).lower()
+    assert p.state["_local"]["initial_cwd"].lower() == os.path.abspath(os.path.curdir).lower()
     with p.sql_client() as conn:
         # still cwd
         assert conn.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
 
     # attach the pipeline
     p = dlt.attach(pipeline_name="quack_pipeline")
-    assert p.state["_local"]["initial_cwd"] == os.path.abspath(os.path.curdir).lower()
+    assert p.state["_local"]["initial_cwd"].lower() == os.path.abspath(os.path.curdir).lower()
     with p.sql_client() as conn:
         # still cwd
         assert conn.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
@@ -633,7 +633,7 @@ def test_duck_database_path_delete() -> None:
 
 def test_case_sensitive_database_name() -> None:
     # make case sensitive folder name
-    cs_quack = os.path.join(TEST_STORAGE_ROOT, "QuAcK")
+    cs_quack = os.path.join(get_test_storage_root(), "QuAcK")
     os.makedirs(cs_quack, exist_ok=True)
     db_path = os.path.join(cs_quack, "path_TEST_quack.duckdb")
     p = dlt.pipeline(pipeline_name="NOT_QUAck", destination=duckdb(credentials=db_path))

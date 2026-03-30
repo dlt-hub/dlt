@@ -10,7 +10,7 @@ keywords: [introduction, who, what, how]
 
 ## What is dlt?
 
-dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect and transform the data. dlt and the dlt docs are built ground up to be used with LLMs: [LLM-native workflow](dlt-ecosystem/llm-tooling/llm-native-workflow.md) will take you pipeline code to data in a notebook for over [5,000 sources](https://dlthub.com/workspace).
+dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect and transform the data. dlt and the dlt docs are built from the ground up to be used with LLMs: [LLM-native workflow](dlt-ecosystem/llm-tooling/llm-native-workflow.md) will take your pipeline code to data in a notebook for over [5,000 sources](https://dlthub.com/workspace).
 
 dlt is designed to be easy to use, flexible, and scalable:
 

@@ -1,6 +1,6 @@
 import os
 import itertools
-from typing import List, Dict, NamedTuple, Sequence, Optional, Callable
+from typing import List, Dict, NamedTuple, Sequence, Set, Optional, Callable
 from concurrent.futures import Future, Executor
 
 from dlt.common import logger
@@ -13,11 +13,7 @@ from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TSchemaUpdate, TStoredSchema, TTableSchema
-from dlt.common.schema.utils import (
-    merge_schema_updates,
-    has_seen_null_first_hint,
-    remove_seen_null_first_hint,
-)
+from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages import (
     NormalizeStorage,
     SchemaStorage,
@@ -38,13 +34,18 @@ from dlt.common.storages.load_package import LoadPackageInfo
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.normalize.worker import w_normalize_files, group_worker_files, TWorkerRV
-from dlt.normalize.validate import validate_and_update_schema, verify_normalized_table
+from dlt.normalize.validate import (
+    validate_and_update_schema,
+    verify_normalized_table,
+    reconcile_null_only_columns,
+)
 
 
 class SubmitRV(NamedTuple):
     schema_updates: List[TSchemaUpdate]
     file_metrics: List[DataWriterMetrics]
     pending_exc: BaseException
+    null_only_columns: Dict[str, Set[str]]
 
 
 # normalize worker wrapping function signature
@@ -96,12 +97,20 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             config=self.config._load_storage_config,
         )
 
+    def _collect_and_update_progress(self, load_id: str) -> None:
+        """Collects progress from worker files and updates the collector."""
+        progress = self.load_storage.new_packages.collect_progress(load_id)
+        for table_name, items_count in progress.items():
+            self.collector.update(table_name, items_count)
+
     def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> SubmitRV:
         workers: int = getattr(self.pool, "_max_workers", 1)
         # group files to process into as many groups as there are workers. prefer to send same tables
         # to the same worker
         chunk_files = group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
+        # create progress directory for worker IPC
+        self.load_storage.new_packages.create_progress_dir(load_id)
         param_chunk = [
             (
                 self.config,
@@ -110,11 +119,12 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 schema_dict,
                 load_id,
                 files,
+                True,  # report_progress
             )
             for files in chunk_files
         ]
         # return stats
-        summary = TWorkerRV([], [])
+        summary = TWorkerRV([], [], {})
         # push all tasks to queue
         tasks = [(self.pool.submit(w_normalize_files, *params), params) for params in param_chunk]
         pending_exc: BaseException = None
@@ -122,6 +132,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
 
         while len(tasks) > 0:
             sleep(0.3)
+            # collect incremental progress from workers
+            self._collect_and_update_progress(load_id)
             # operate on copy of the list
             for task in list(tasks):
                 pending, params = task
@@ -145,12 +157,10 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                             validate_and_update_schema(schema, result[0])
                             summary.schema_updates.extend(result.schema_updates)
                             summary.file_metrics.extend(result.file_metrics)
-                            # update metrics
-                            self.collector.update("Files", len(result.file_metrics))
-                            self.collector.update(
-                                "Items",
-                                sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count,
-                            )
+                            for tn, cols in result.null_only_columns.items():
+                                summary.null_only_columns.setdefault(tn, set()).update(cols)
+                            # collect any remaining progress from this worker
+                            self._collect_and_update_progress(load_id)
                         except CannotCoerceColumnException as exc:
                             # schema conflicts resulting from parallel executing
                             logger.warning(
@@ -175,7 +185,10 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 logger.warning(f"Cancelling package {load_id} due to signal")
                 self.load_storage.new_packages.cancel(load_id)
 
-        return SubmitRV(summary.schema_updates, summary.file_metrics, pending_exc)
+        self.load_storage.new_packages.cleanup_progress(load_id)
+        return SubmitRV(
+            summary.schema_updates, summary.file_metrics, pending_exc, summary.null_only_columns
+        )
 
     def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> SubmitRV:
         pending_exc: Exception = None
@@ -187,21 +200,18 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 schema.to_dict(),
                 load_id,
                 files,
+                collector=self.collector,
             )
             validate_and_update_schema(schema, result.schema_updates)
-            self.collector.update("Files", len(result.file_metrics))
-            self.collector.update(
-                "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
-            )
         except NormalizeJobFailed as job_failed_ex:
             pending_exc = job_failed_ex
-            result = TWorkerRV(None, job_failed_ex.writer_metrics)
+            result = TWorkerRV(None, job_failed_ex.writer_metrics, {})
 
-        return SubmitRV(result.schema_updates, result.file_metrics, pending_exc)
+        return SubmitRV(
+            result.schema_updates, result.file_metrics, pending_exc, result.null_only_columns
+        )
 
-    def clean_x_normalizer(
-        self, load_id: str, table_name: str, table_schema: TTableSchema, path_separator: str
-    ) -> None:
+    def clean_x_normalizer(self, load_id: str, table_name: str, table_schema: TTableSchema) -> None:
         x_normalizer = table_schema.setdefault("x-normalizer", {})
         # drop evolve once for all tables that seen data
         x_normalizer.pop("evolve-columns-once", None)
@@ -212,28 +222,13 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             )
             x_normalizer["seen-data"] = True
 
-        # Handle column-level seen-null-first hint in x-normalizer hints
-        col_schemas = table_schema.get("columns", {})
-        for col_name, col_schema in list(col_schemas.items()):
-            if has_seen_null_first_hint(col_schema):
-                if "data_type" in col_schema:
-                    # 1. Remove seen-null-first hint if data type is set
-                    remove_seen_null_first_hint(col_schema)
-                else:
-                    # 2. Remove entire column if it was created as compound column(s)
-                    # TODO: use column ident paths (also in JsonLItemsNormalizer._coerce_null_value),
-                    # path separator is not reliable with shortened names
-                    if any(
-                        col.startswith(col_name + path_separator)
-                        for col in list(col_schemas.keys())
-                    ):
-                        table_schema["columns"].pop(col_name)
-
     def spool_files(
         self, load_id: str, schema: Schema, map_f: TMapFuncType, files: Sequence[str]
     ) -> None:
         # process files in parallel or in single thread, depending on map_f
-        schema_updates, writer_metrics, pending_exc = map_f(schema, load_id, files)
+        schema_updates, writer_metrics, pending_exc, null_only_columns = map_f(
+            schema, load_id, files
+        )
         # compute metrics
         job_metrics = {ParsedLoadJobFileName.parse(m.file_path): m for m in writer_metrics}
         table_metrics: Dict[str, DataWriterMetrics] = {
@@ -255,11 +250,19 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         if pending_exc:
             raise pending_exc
 
+        # reconcile null-only columns against schema
+        reconciled_null_cols = reconcile_null_only_columns(schema, null_only_columns)
+
         # update normalizer specific info
         for table_name in table_metrics:
             table = schema.tables[table_name]
-            verify_normalized_table(schema, table, self.config.destination_capabilities)
-            self.clean_x_normalizer(load_id, table_name, table, schema.naming.PATH_SEPARATOR)
+            verify_normalized_table(
+                schema,
+                table,
+                self.config.destination_capabilities,
+                reconciled_null_cols.get(table_name),
+            )
+            self.clean_x_normalizer(load_id, table_name, table)
         # schema is updated, save it to schema volume
         if schema.is_modified:
             logger.info(
@@ -343,7 +346,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 continue
             with self.collector(f"Normalize {schema.name} in {load_id}"):
                 self.collector.update("Files", 0, len(schema_files))
-                self.collector.update("Items", 0)
                 # self.verify_package(load_id, schema, schema_files)
                 self._step_info_start_load_id(load_id)
                 self.spool_schema_files(load_id, schema, schema_files)

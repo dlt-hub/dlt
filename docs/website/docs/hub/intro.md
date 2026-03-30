@@ -61,10 +61,10 @@ dltHub embraces the dlt library, not replaces it:
 * dlt (OSS): Python library focused on extract & load with strong typing and schema handling.
 * dltHub: Adds transformations, quality, agentic tooling, managed runtime, and storage choices, so you can move from local dev to production seamlessly.
 
-dltHub extends the dlt developer experience with new [local workspace layout](workspace/init.md), [configuration profiles](core-concepts/profiles-dlthub.md), [additional CLI commands](command-line-interface.md), workspace dashboard, [MCP server](features/mcp-server.md) and more. 
-Those developer experience improvements belong to **dltHub Free tier** and are distributed side by side with the `dlt` under [Apache 2.0 license](https://github.com/dlt-hub/dlt?tab=Apache-2.0-1-ov-file#readme). You can use **dltHub Free tier** right away - like you use regular `dlt`. 
+dltHub extends the dlt developer experience with new [local workspace layout](workspace/init.md), [configuration profiles](core-concepts/profiles-dlthub.md), [additional CLI commands](command-line-interface.md), workspace dashboard, [MCP server](features/mcp-server.md) and more.
+Those developer experience improvements belong to **dltHub Free tier** and are distributed side by side with the `dlt` under [Apache 2.0 license](https://github.com/dlt-hub/dlt?tab=Apache-2.0-1-ov-file#readme). You can use **dltHub Free tier** right away - like you use regular `dlt`.
 
-All features that require a license are part of dltHub paid tiers (i.e. Basic tier) and are clearly marked as such in this documentation. Those features are shipped via `dlthub` Python package (available on [PyPI](https://pypi.org/project/dlthub/)) which is not open source and can be used with a valid license.
+All features that require a license are part of dltHub paid tiers (e.g., Pro, Scale, Enterprise) and are clearly marked as such in this documentation. Those features are shipped via `dlthub` Python package (available on [PyPI](https://pypi.org/project/dlthub/)) which is not open source and can be used with a valid license.
 
 ## dltHub products
 dltHub consists of three main products. You can use them together or compose them based on your needs.
@@ -105,8 +105,7 @@ Most features support a self-guided trial right after install, check the [instal
 
 | Tier                  | Best for                                                                                        | Runtime                        | Typical use case                                                              | Notes                                           | Availability    |
 | --------------------- |-------------------------------------------------------------------------------------------------| ------------------------------ |-------------------------------------------------------------------------------|-------------------------------------------------|-----------------|
-| **dltHub Free**       | Developers running **dlt ingestion pipelines** in production on **self-managed infrastructure** | Local Runtime (self-managed)   | Run and maintain ingestion pipelines in production on your own infrastructure | Ideal for self-hosted and ingestion-only setups | Public preview  |
-| **dltHub Basic**      | Solo developers or small teams owning a **single pipeline + dataset + reports** end-to-end      | Managed dltHub Runtime         | Set up a pipeline quickly, add tests and transformations, share a simple app  | Optimized for velocity with minimal setup       | Private preview |
+| **dltHub Pro**        | Solo developers or small teams owning a **single pipeline + dataset + reports** end-to-end      | Managed dltHub Runtime         | Set up a pipeline quickly, add tests and transformations, share a simple app  | Optimized for velocity with minimal setup       | Private preview |
 | **dltHub Scale**      | Data teams building **composable data platforms** with governance and collaboration             | Managed dltHub Runtime         | Multiple pipelines, shared assets, team workflows, observability              | Team features and extended governance           | Alpha           |
 | **dltHub Enterprise** | Organizations needing **enterprise control** or **self-managed runtime**                        | Managed or self-hosted Runtime | On-prem/VPC deployments, custom licensing, advanced security                  | Enterprise features and deployment flexibility  | In development  |
 
@@ -118,7 +117,7 @@ Most features support a self-guided trial right after install, check the [instal
 * Organizations that prefer managed operations but need open formats and portability.
 
 :::note
-* You can start on Basic and upgrade to Scale or Enterprise later, no code rewrites.
+* You can start on Pro and upgrade to Scale or Enterprise later, no code rewrites.
 * We favor open formats and portable storage (e.g., Iceberg), whether you choose our managed lakehouse or bring your own.
 * For exact features and pricing, check the site; this section is meant to help you choose a sensible starting point.
 :::

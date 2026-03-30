@@ -2,7 +2,7 @@ import os
 import pytest
 import multiprocessing
 from time import sleep
-from typing import Iterator, Tuple, Optional, Any, List
+from typing import Iterator, Tuple, List
 from concurrent.futures import Executor
 
 from dlt.common import logger
@@ -10,14 +10,16 @@ from dlt.common.runners import TRunMetrics, Runnable, workermethod
 from dlt.common.utils import uniq_id
 
 # remove fork-server because it hangs the tests no CI
-ALL_METHODS = set(multiprocessing.get_all_start_methods()).intersection(["fork", "spawn"])
+ALL_METHODS = list(set(multiprocessing.get_all_start_methods()).intersection(["fork", "spawn"]))
 
 
 @pytest.fixture(autouse=True)
 def mp_method_auto() -> Iterator[None]:
     method = multiprocessing.get_start_method()
-    yield
-    multiprocessing.set_start_method(method, force=True)
+    try:
+        yield
+    finally:
+        multiprocessing.set_start_method(method, force=True)
 
 
 class _TestRunnableWorkerMethod(Runnable[Executor]):

@@ -6,7 +6,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 `dlt` retrieves configuration and secrets from several [locations](#choose-where-to-store-configuration) like environment variables, dedicated
 files or secure vaults. It understands both simple and verbose layouts of [configuration sections](#select-a-configuration-layout). You can use one of
-[built-in](#use-built-in-credential-types) credentials for popular external systems. Functions decorated with`@dlt.source`, `@dlt.resource`, or `@dlt.destination` can be configured without writing additional code - `dlt` will automatically [inject](advanced/#injection-rules) missing arguments (like passwords or API keys) when you call them.
+[built-in](#use-built-in-credential-types) credentials for popular external systems. Functions decorated with `@dlt.source`, `@dlt.resource`, or `@dlt.destination` can be configured without writing additional code - `dlt` will automatically [inject](advanced/#injection-rules) missing arguments (like passwords or API keys) when you call them.
 
 ## Choose where to store configuration
 
@@ -144,7 +144,7 @@ how to configure particular source and destination.
 ### How dlt looks for values
 
 `dlt` starts looking for a particular value with all possible sections present and if value is not found,
-it will eliminate rightmost section and try again.
+it will eliminate the rightmost section and try again.
 
 For example, if the source function is in module `notion.py`:
 
@@ -162,6 +162,16 @@ def notion_databases(api_key: str = dlt.secrets.value):
 2. `sources.notion.api_key`
 3. `sources.api_key`
 4. `api_key`
+
+When a source's **section differs from its name** (e.g., after using `.clone(name="my_db", section="my_db_module")`), `dlt` also checks a **compact path** using just the source name:
+
+1. `sources.my_db_module.my_db.api_key` (full path)
+2. `sources.my_db_module.api_key`
+3. `sources.my_db.api_key` (compact path)
+4. `sources.api_key`
+5. `api_key`
+
+Both the full path and the section path take precedence over the compact path. This lets you use simple, readable keys like `sources.my_db.credentials` instead of the longer `sources.my_db_module.my_db.credentials`.
 
 Similarly with destination credentials. In that case `credentials` sections is considered a required grouping
 and won't be eliminated:
@@ -193,7 +203,7 @@ project_id = "<project_id_2>"
 ### Use built-in credential types
 
 Credentials are groups of configs and secrets that are defined together in order to access external systems.
-`dlt` implements several [built-in credential types](./complex_types)) to access AWS, Azure, Google Cloud and other common systems
+`dlt` implements several [built-in credential types](./complex_types) to access AWS, Azure, Google Cloud and other common systems
 
 Some of the credential types give you options how you specify them:
 For example, to connect to a `sql_database` source, you can either use a connection string:
@@ -218,7 +228,7 @@ role="role"
 
 :::tip
 `dlt` can discover **default credentials** of all major cloud providers: it is able to use what is already present in
-the runtime environment: ie. when running in Colab or Google VM it has access to cloud credentials and if
+the runtime environment: i.e. when running in Colab or Google VM it has access to cloud credentials and if
 nothing is specified in the configuration it will use them instead.
 :::
 

@@ -1,6 +1,9 @@
 from __future__ import annotations
+import sys
 import time
+import threading
 import multiprocessing
+from importlib.machinery import ModuleSpec
 from typing import Any, Callable, Optional, Tuple, Union, cast, TypeVar
 from concurrent.futures import Executor, ThreadPoolExecutor, Future
 from typing_extensions import ParamSpec
@@ -8,7 +11,6 @@ from typing_extensions import ParamSpec
 from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.runtime import init
 from dlt.common.runners.runnable import Runnable, TExecutor
 from dlt.common.runners.configuration import PoolRunnerConfiguration
@@ -103,29 +105,40 @@ class TimeoutThreadPoolExecutor(ThreadPoolExecutor):
         self._is_alive = len(alive) > 0
 
 
+def _detect_orchestrator() -> Optional[str]:
+    """Returns the name of the detected orchestrator check, or `None`."""
+    from dlt.common.runtime.exec_info import (
+        is_running_in_airflow_task,
+        is_running_in_dagster_task,
+        is_running_in_prefect_flow,
+    )
+
+    for m_ in [
+        is_running_in_airflow_task,
+        is_running_in_dagster_task,
+        is_running_in_prefect_flow,
+    ]:
+        if m_():
+            return m_.__name__
+    return None
+
+
 def get_default_start_method(method_: str) -> str:
-    """Sets method to `spawn` is running in one of orchestrator tasks.
+    """Sets method to `spawn` if running in one of orchestrator tasks.
 
     Called when explicit start method is not set on `PoolRunnerConfiguration`
     """
     if method_ == "fork":
-        from dlt.common.runtime.exec_info import (
-            is_running_in_airflow_task,
-            is_running_in_dagster_task,
-            is_running_in_prefect_flow,
-        )
-
-        for m_ in [
-            is_running_in_airflow_task,
-            is_running_in_dagster_task,
-            is_running_in_prefect_flow,
-        ]:
-            if m_():
-                logger.info(
-                    f"Switching pool start method to `spawn` because `{m_.__name__}` is True"
-                )
-                return "spawn"
+        detected = _detect_orchestrator()
+        if detected is not None:
+            logger.info(f"Switching pool start method to `spawn` because `{detected}` is True")
+            return "spawn"
     return method_
+
+
+def is_orchestrator() -> bool:
+    """Checks if dlt runs in known orchestrator."""
+    return _detect_orchestrator() is not None
 
 
 def create_pool(config: PoolRunnerConfiguration) -> Executor:
@@ -149,15 +162,17 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
         # get the mp_context for the configured start method
         mp_context = multiprocessing.get_context(method=start_method)
         if start_method != "fork":
-            ctx = Container()[PluggableRunContext]
-            section_ctx = None
-            if ConfigSectionContext in Container():
-                section_ctx = Container()[ConfigSectionContext]
+            # prevent spawn from re-executing __main__ in orchestrator workers (#3586)
+            if not _MAIN_FIXUP_SUPPRESSED and is_orchestrator():
+                _suppress_main_fixup_in_orchestrator()
+            container = Container()
+            run_context = container[PluggableRunContext].context
+            worker_contexts = container.get_worker_contexts()
 
             executor = ProcessPoolExecutor(
                 max_workers=config.workers,
                 initializer=init.restore_run_context,
-                initargs=(ctx.context, section_ctx),
+                initargs=(run_context, worker_contexts),
                 mp_context=mp_context,
             )
         else:
@@ -178,6 +193,36 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
         f" {config.workers or 'default no.'} workers"
     )
     return executor
+
+
+_MAIN_FIXUP_LOCK = threading.Lock()
+_MAIN_FIXUP_SUPPRESSED = False
+
+
+def _suppress_main_fixup_in_orchestrator() -> None:
+    """Prevent spawn from re-executing `__main__.__file__` in orchestrator workers.
+
+    Sets `__main__.__spec__` so spawn sends `init_main_from_name("__main__")`
+    instead of `init_main_from_path`. The child hits an early return — no
+    re-execution of the orchestrator CLI entry point (#3586).
+    """
+    global _MAIN_FIXUP_SUPPRESSED
+    with _MAIN_FIXUP_LOCK:
+        if _MAIN_FIXUP_SUPPRESSED:
+            return
+        main = sys.modules.get("__main__")
+        if main is None:
+            return
+        # if __spec__ is already set, spawn already uses init_main_from_name
+        if getattr(getattr(main, "__spec__", None), "name", None) is not None:
+            _MAIN_FIXUP_SUPPRESSED = True
+            return
+        main.__spec__ = ModuleSpec(name="__main__", loader=None)
+        _MAIN_FIXUP_SUPPRESSED = True
+        logger.info(
+            "Set __main__.__spec__ to prevent spawn from re-executing "
+            f"__main__.__file__ ({getattr(main, '__file__', None)}) in worker processes"
+        )
 
 
 def run_pool(

@@ -1,7 +1,7 @@
 # from __future__ import annotations
 
 import dataclasses
-from typing import ClassVar, Union
+from typing import ClassVar, Optional, Union
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -35,15 +35,22 @@ def _get_ducklake_capabilities() -> DestinationCapabilitiesContext:
 @configspec(init=False)
 class DuckLakeCredentials(DuckDbBaseCredentials):
     ducklake_name: str = DEFAULT_DUCKLAKE_NAME
+    metadata_schema: Optional[str] = None
     catalog: ConnectionStringCredentials = None
     # NOTE: consider moving to DuckLakeClientConfiguration so bucket_url is not a secret
     storage: FilesystemConfiguration = None
 
-    __config_gen_annotations__: ClassVar[list[str]] = ["ducklake_name", "catalog", "storage"]
+    __config_gen_annotations__: ClassVar[list[str]] = [
+        "ducklake_name",
+        "metadata_schema",
+        "catalog",
+        "storage",
+    ]
 
     def __init__(
         self,
         ducklake_name: str = DEFAULT_DUCKLAKE_NAME,
+        metadata_schema: Optional[str] = None,
         catalog: Union[str, ConnectionStringCredentials] = None,
         storage: Union[str, FilesystemConfiguration] = None,
     ) -> None:
@@ -55,6 +62,9 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
                 This value is mainly used as ATTACH name for the ducklake database and
                 as names for catalog and storage files if not configured explicitly.
                 If omitted, ducklake name is derived from destination name or pipeline name.
+            metadata_schema: str, optional
+                Metadata schema to use for SQL-based catalogs. If omitted, defaults to
+                `ducklake_name`.
             catalog: Either a connection string (for example,
                 "sqlite:///catalog.sqlite", "duckdb:///catalog.duckdb",
                 or "postgres://loader:loader@localhost:5432/dlt_data") or a
@@ -68,6 +78,7 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
 
         """
         self.ducklake_name = ducklake_name
+        self.metadata_schema = metadata_schema
         if isinstance(catalog, str):
             catalog = ConnectionStringCredentials(catalog)
         self.catalog = catalog
@@ -128,6 +139,7 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
     )
     credentials: DuckLakeCredentials = None
     create_indexes: bool = False  # does nothing but required
+    override_data_path: bool = False
 
     def fingerprint(self) -> str:
         """Use fingerprint of underlying storage. This is precise to bucket level"""

@@ -22,6 +22,8 @@ from dlt._workspace.cli._deploy_command_helpers import (
     get_schedule_description,
 )
 from dlt._workspace.cli.exceptions import CliCommandException, PipelineWasNotRun
+from dlt._workspace.cli._urls import DLT_DEPLOY_DOCS_URL
+
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
@@ -33,7 +35,6 @@ AIRFLOW_DAG_TEMPLATE_SCRIPT = "dag_template.py"
 AIRFLOW_CLOUDBUILD_YAML = "cloudbuild.yaml"
 COMMAND_REPO_LOCATION = "https://github.com/dlt-hub/dlt-%s-template.git"
 COMMAND_DEPLOY_REPO_LOCATION = COMMAND_REPO_LOCATION % "deploy"
-DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
 
 
 class DeploymentMethods(Enum):

@@ -121,7 +121,7 @@ will activate automatically if the right driver is present in the system.
 ### Fast loading with parquet
 
 [parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/). **mssql** driver is provided by
-[Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manager ADBC drivers:
+[Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
 ```sh
 pip install adbc-driver-manager dbc
 dbc install mssql
@@ -155,7 +155,7 @@ pipeline.run(data_iter, dataset_name="speed_test_2", write_disposition="replace"
 ### Loading with INSERT statements
 
 Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT, and this is what we use. We send multiple
-sql statements in a single batch. In case you observe odbc driver locking (ie. when connection with open transaction leaks into the pool) you can:
+sql statements in a single batch. In case you observe odbc driver locking (i.e. when connection with open transaction leaks into the pool) you can:
 
 1. disable `pyodbc` connection pool.
 ```py
@@ -212,7 +212,7 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 ```
 
 ### dbt support
-This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-msft/dbt-sqlserver).
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-sqlserver](https://github.com/dbt-msft/dbt-sqlserver).
 
 <!--@@@DLT_TUBA mssql-->
 

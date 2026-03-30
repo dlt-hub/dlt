@@ -8,7 +8,7 @@ keywords: [runtime, deployment, cloud, scheduling, notebooks, dashboard]
 
 dltHub Runtime is a managed cloud platform for running your `dlt` pipelines and notebooks. It provides:
 
-- Cloud execution of batch pipelines and interactive notebooks
+- Cloud execution of batch pipelines and interactive applications (notebooks, dashboards, and MCP servers)
 - Scheduling with cron expressions
 - A web dashboard for monitoring runs, viewing logs, and managing jobs
 - Secure secrets management with multiple profiles
@@ -163,7 +163,7 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 | `dlt runtime login` | Authenticate with GitHub OAuth |
 | `dlt runtime logout` | Clear local credentials |
 | `dlt runtime launch <script>` | Deploy and run a batch script |
-| `dlt runtime serve <script>` | Deploy and run an interactive notebook |
+| `dlt runtime serve <script> [--app-type marimo (default) \| streamlit \| mcp]` | Deploy and run an interactive application |
 | `dlt runtime schedule <script> "<cron>"` | Schedule a script with cron expression |
 | `dlt runtime schedule <script> cancel` | Cancel a scheduled script |
 | `dlt runtime logs <script> [run_number]` | View logs for a run |
@@ -198,7 +198,7 @@ dlt runtime job list
 dlt runtime job info <script_path_or_job_name>
 
 # Create a job without running it
-dlt runtime job create <script_path> [--name NAME] [--schedule "CRON"] [--interactive]
+dlt runtime job create <script_path> [--name NAME] [--schedule "CRON"] [--interactive] [--app-type marimo (default) | streamlit | mcp]
 ```
 
 ### Job run commands
@@ -272,7 +272,50 @@ A typical development flow:
 ### Batch vs interactive
 
 - **Batch jobs** run with the `prod` profile and are meant for scheduled data loading
-- **Interactive jobs** run with the `access` profile and are meant for notebooks and dashboards
+- **Interactive jobs** run with the `access` profile and are meant for notebooks, dashboards, mcp servers and streamlit apps.
+
+### Interactive application types
+
+dltHub Runtime supports multiple types of interactive applications. All interactive jobs run with the `access` profile by default.
+
+| Type | Description |
+|-----|-------------|
+| Notebooks | Marimo notebooks for the pipeline dashboard, exploration and analysis |
+| Streamlit apps | Interactive Streamlit dashboards |
+| MCP servers* | Model Context Protocol (MCP) HTTP servers (mounted at `/mcp`) |
+
+Each interactive application is exposed via a unique public URL tied to its run.
+
+\* **MCP servers requirement**
+
+MCP applications must expose an `mcp` object created with `FastMCP`.
+The Runtime imports this object to start the server.
+
+Minimal example:
+
+```py
+from fastmcp import FastMCP
+
+mcp = FastMCP("simple-mcp")
+
+@mcp.tool
+def ping() -> str:
+    return "pong"
+```
+
+### Serving Streamlit and MCP applications
+
+Via job create and job run commands:
+```sh
+dlt runtime job create report.py --interactive --app-type streamlit
+dlt runtime job-run create report.py
+```
+
+Via serve command:
+
+```sh
+dlt runtime serve mcp_server.py --app-type mcp``
+```
 
 ### Profiles
 

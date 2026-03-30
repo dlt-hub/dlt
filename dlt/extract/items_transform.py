@@ -16,6 +16,7 @@ from typing import (
 )
 
 from dlt.common.data_writers.writers import count_rows_in_items
+from dlt.common.schema.typing import TTableSchema
 from dlt.common.typing import TAny, TDataItem, TDataItems, TypeVar
 
 from dlt.extract.utils import (
@@ -159,6 +160,16 @@ class ValidateItem(ItemTransform[TDataItem, Dict[str, Any]]):
         self.table_name = pipe.name
         return self
 
+    def compute_table_schema(
+        self, item: TDataItem = None, meta: Any = None
+    ) -> Optional[TTableSchema]:
+        """Computes table schema enforced by this validator. For dynamic (item dependent) or
+        schemas with discriminator field use item and meta.
+
+        Return None if no authoratitative schema can be computed
+        """
+        return None
+
 
 class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
     placement_affinity: ClassVar[float] = 1.1  # stick to end right behind incremental
@@ -179,7 +190,7 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         self.gen = pipe.gen
         self.count = 0
         self.exhausted = False
-        self.start_time = time.time()
+        self.start_time = time.monotonic()
 
         return self
 
@@ -212,7 +223,7 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         # detect when the limit is reached, max time or yield count
         if (
             (self.count >= self.max_items and self.max_items >= 0)
-            or (self.max_time and time.time() - self.start_time > self.max_time)
+            or (self.max_time and time.monotonic() - self.start_time > self.max_time)
             or self.max_items == 0
         ):
             self.exhausted = True

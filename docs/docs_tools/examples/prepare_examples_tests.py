@@ -17,6 +17,8 @@ SKIP_EXAMPLES: List[str] = [
     "backfill_in_chunks",
     "connector_x_arrow",
     "transformers",
+    "qdrant_zendesk",
+    "incremental_loading",
 ]
 # Examples will be skipped from forked subprocesses
 SKIP_FORK_EXAMPLES: List[str] = ["custom_destination_lancedb"]

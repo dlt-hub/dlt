@@ -1,7 +1,7 @@
 from copy import deepcopy
 from textwrap import dedent
 from typing import Any, Literal, Optional, List, Sequence, cast
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, urlparse
 
 import clickhouse_connect
 
@@ -20,9 +20,14 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import TColumnType
-from dlt.common.schema.utils import get_columns_names_with_prop, is_nullable_column
+from dlt.common import logger
+from dlt.common.schema.utils import (
+    get_columns_names_with_prop,
+    get_dedup_sort_tuple,
+    get_first_column_name_with_prop,
+    is_nullable_column,
+)
 from dlt.common.storages import FileStorage
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
@@ -50,6 +55,7 @@ from dlt.destinations.impl.clickhouse.typing import (
 from dlt.destinations.impl.clickhouse.utils import (
     convert_storage_to_http_scheme,
 )
+from dlt.common.data_writers.escape import escape_clickhouse_literal
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     SqlJobClientWithStagingDataset,
@@ -73,10 +79,98 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._staging_credentials = staging_credentials
         self._config = config
 
+    def _get_table_function(
+        self,
+        *,
+        bucket_scheme: str,
+        bucket_url: ParseResult,
+        compression: str,
+        clickhouse_format: str,
+    ) -> str:
+        """Creates the ClickHouse table function for loading from cloud storage.
+
+        Args:
+            bucket_scheme: The scheme of the bucket URL (e.g., 's3', 'gs', 'azure').
+            bucket_url: The parsed URL of the bucket.
+            compression: The compression type to use ('auto', 'gz', 'none').
+            clickhouse_format: The ClickHouse format to use for loading data.
+
+        Returns:
+            The ClickHouse table function string.
+
+        Raises:
+            LoadJobTerminalException: If the bucket scheme is not supported or if
+                credentials are missing.
+        """
+        if bucket_scheme in ("s3", "gs", "gcs"):
+            if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):
+                raise LoadJobTerminalException(
+                    self._file_path,
+                    dedent(
+                        """
+                        Google Cloud Storage buckets must be configured using the S3 compatible access pattern.
+                        Please provide the necessary S3 credentials (access key ID and secret access key), to access the GCS bucket through the S3 API.
+                        Refer to https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage.
+                    """,
+                    ).strip(),
+                )
+
+            bucket_http_url = convert_storage_to_http_scheme(
+                bucket_url,
+                endpoint=self._staging_credentials.endpoint_url,
+                use_https=self._config.staging_use_https,
+            )
+            access_key_id = self._staging_credentials.aws_access_key_id
+            secret_access_key = self._staging_credentials.aws_secret_access_key
+            auth = "NOSIGN"
+            if self._config.credentials.s3_extra_credentials:
+                # use extra credentials for S3 compatible storage
+                # https://clickhouse.com/docs/sql-reference/table-functions/s3#using-s3-credentials-clickhouse-cloud
+                extra_credential_args = [
+                    f"{k} = {escape_clickhouse_literal(v)}"
+                    for k, v in self._config.credentials.s3_extra_credentials.items()
+                ]
+                auth = f"extra_credentials({', '.join(extra_credential_args)})"
+            elif access_key_id and secret_access_key:
+                session_token = self._staging_credentials.aws_session_token
+                if session_token:
+                    auth = f"'{access_key_id}','{secret_access_key}','{session_token}'"
+                else:
+                    auth = f"'{access_key_id}','{secret_access_key}'"
+
+            return f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
+
+        elif bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
+            if not isinstance(self._staging_credentials, AzureCredentialsWithoutDefaults):
+                raise LoadJobTerminalException(
+                    self._file_path,
+                    "Unsigned Azure Blob Storage access from ClickHouse isn't supported as yet.",
+                )
+
+            # Authenticated access.
+            account_name = self._staging_credentials.azure_storage_account_name
+            account_host = (
+                self._staging_credentials.azure_account_host
+                or f"{account_name}.blob.core.windows.net"
+            )
+            storage_account_url = ensure_canonical_az_url("", "https", account_name, account_host)
+            account_key = self._staging_credentials.azure_storage_account_key
+
+            # build table func
+            return f"azureBlobStorage('{storage_account_url}','{bucket_url.netloc}','{bucket_url.path}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
+
+        else:
+            raise LoadJobTerminalException(
+                self._file_path,
+                f"ClickHouse loader does not support `{bucket_scheme}` filesystem.",
+            )
+
     def run(self) -> None:
         client = self._job_client.sql_client
 
         bucket_path = None
+        bucket_url = None
+        bucket_scheme = None
         file_name = self._file_name
 
         if ReferenceFollowupJobRequest.is_reference_job(self._file_path):
@@ -114,57 +208,17 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         qualified_table_name = client.make_qualified_table_name(self.load_table_name)
 
-        if bucket_scheme in ("s3", "gs", "gcs"):
-            if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):
-                raise LoadJobTerminalException(
-                    self._file_path,
-                    dedent(
-                        """
-                        Google Cloud Storage buckets must be configured using the S3 compatible access pattern.
-                        Please provide the necessary S3 credentials (access key ID and secret access key), to access the GCS bucket through the S3 API.
-                        Refer to https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage.
-                    """,
-                    ).strip(),
-                )
-
-            bucket_http_url = convert_storage_to_http_scheme(
-                bucket_url,
-                endpoint=self._staging_credentials.endpoint_url,
-                use_https=self._config.staging_use_https,
-            )
-            access_key_id = self._staging_credentials.aws_access_key_id
-            secret_access_key = self._staging_credentials.aws_secret_access_key
-            auth = "NOSIGN"
-            if access_key_id and secret_access_key:
-                auth = f"'{access_key_id}','{secret_access_key}'"
-
-            table_function = (
-                f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
-            )
-
-        elif bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
-            if not isinstance(self._staging_credentials, AzureCredentialsWithoutDefaults):
-                raise LoadJobTerminalException(
-                    self._file_path,
-                    "Unsigned Azure Blob Storage access from ClickHouse isn't supported as yet.",
-                )
-
-            # Authenticated access.
-            account_name = self._staging_credentials.azure_storage_account_name
-            account_host = (
-                self._staging_credentials.azure_account_host
-                or f"{account_name}.blob.core.windows.net"
-            )
-            storage_account_url = ensure_canonical_az_url("", "https", account_name, account_host)
-            account_key = self._staging_credentials.azure_storage_account_key
-
-            # build table func
-            table_function = f"azureBlobStorage('{storage_account_url}','{bucket_url.netloc}','{bucket_url.path}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
-        else:
+        if not (bucket_scheme and bucket_url):
             raise LoadJobTerminalException(
-                self._file_path,
-                f"ClickHouse loader does not support `{bucket_scheme}` filesystem.",
+                self._file_path, "Cannot determine bucket scheme and URL from the file path."
             )
+
+        table_function = self._get_table_function(
+            bucket_scheme=bucket_scheme,
+            bucket_url=bucket_url,
+            compression=compression,
+            clickhouse_format=clickhouse_format,
+        )
 
         statement = f"INSERT INTO {qualified_table_name} SELECT * FROM {table_function}"
         with client.begin_transaction():
@@ -174,7 +228,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 class ClickHouseMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
-        # reproducible name so we know which table to drop
+        # Deterministic name for crash recovery - orphaned temp tables can be identified and cleaned up
         with sql_client.with_staging_dataset():
             return sql_client.make_qualified_table_name(
                 cls._shorten_table_name(
@@ -184,8 +238,12 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
 
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+        # Use CREATE OR REPLACE to avoid slow DROP TABLE ... SYNC on replicated ClickHouse clusters.
+        # The Atomic database engine (default since ClickHouse 20.5) handles this via atomic swap
+        # using renameat2(), which is nearly instant. The old table is cleaned up asynchronously.
+        # See: https://github.com/dlt-hub/dlt/issues/3562
         return (
-            f"DROP TABLE IF EXISTS {temp_table_name} SYNC; CREATE TABLE {temp_table_name} ENGINE ="
+            f"CREATE OR REPLACE TABLE {temp_table_name} ENGINE ="
             f" MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
         )
 
@@ -194,9 +252,24 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         cls,
         root_table_name: str,
         staging_root_table_name: str,
-        key_clauses: Sequence[str],
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
+        if for_delete:
+            # ClickHouse lightweight DELETE doesn't support table aliases or
+            # correlated subqueries with qualified column references. Use IN
+            # with one DELETE per key group (like BigQuery's OR-split pattern).
+            sql: List[str] = []
+            for cols in (primary_keys, merge_keys):
+                if cols:
+                    col_tuple = ", ".join(cols)
+                    sql.append(
+                        f"FROM {root_table_name} WHERE ({col_tuple}) IN"
+                        f" (SELECT {col_tuple} FROM {staging_root_table_name})"
+                    )
+            return sql
+        key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
         join_conditions = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
         return [
             f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
@@ -208,7 +281,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
-        return True
+        return False
 
 
 class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
@@ -221,7 +294,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
             schema, config
         )
-        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(
+        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(  # type: ignore[override]
             dataset_name,
             staging_dataset_name,
             list(schema.tables.keys()),
@@ -339,7 +412,39 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                 self.config.table_engine_type,
             ),
         )
-        sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
+        # for ReplacingMergeTree, wire dedup_sort and hard_delete hints as engine params
+        engine_params = ""
+        if table_type == "replacing_merge_tree":
+            if table.get("write_disposition") == "append":
+                dedup_sort = get_dedup_sort_tuple(table)
+                hard_delete_col = get_first_column_name_with_prop(table, "hard_delete")
+                if dedup_sort is not None:
+                    ver_col = self.sql_client.escape_column_name(dedup_sort[0])
+                    if hard_delete_col is not None:
+                        is_deleted = self.sql_client.escape_column_name(hard_delete_col)
+                        engine_params = f"({ver_col}, {is_deleted})"
+                    else:
+                        engine_params = f"({ver_col})"
+                elif hard_delete_col is not None:
+                    logger.warning(
+                        "Table '%s' has hard_delete hint but no dedup_sort column."
+                        " hard_delete requires dedup_sort (ClickHouse requires a"
+                        " version column when is_deleted is used). hard_delete"
+                        " hint will be ignored.",
+                        table_name,
+                    )
+            else:
+                logger.warning(
+                    "Table '%s' uses replacing_merge_tree with '%s' write"
+                    " disposition. ReplacingMergeTree is only supported for"
+                    " append. Falling back to MergeTree.",
+                    table_name,
+                    table.get("write_disposition"),
+                )
+                table_type = "merge_tree"
+
+        engine_name = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)
+        sql[0] = f"{sql[0]}\nENGINE = {engine_name}{engine_params}"
 
         # PRIMARY KEY
         if primary_key_list := [

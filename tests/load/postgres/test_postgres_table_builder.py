@@ -323,7 +323,7 @@ def test_geometry_types(
             geodata_2163_csv_wkb_hex,
         ]
 
-    pipeline = destination_config.setup_pipeline("test_geometry_types", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_geometry_types")
     info = pipeline.run(
         geodata(),
     )

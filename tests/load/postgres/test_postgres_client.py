@@ -11,7 +11,7 @@ from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.postgres.sql_client import psycopg2
 
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy
+from tests.utils import get_test_storage_root, delete_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 from tests.common.configuration.utils import environment
 
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.essential
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.fixture(autouse=True)

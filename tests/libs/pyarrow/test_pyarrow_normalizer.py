@@ -5,13 +5,18 @@ from zoneinfo import ZoneInfo
 import pyarrow as pa
 import pytest
 
+from dlt.common.json import json
 from dlt.common.libs.pyarrow import (
     normalize_py_arrow_item,
     normalize_py_arrow_item_column,
+    remove_null_columns,
     NameNormalizationCollision,
     py_arrow_to_table_schema_columns,
     should_normalize_arrow_schema,
+    add_constant_column,
+    add_dlt_load_id_column,
 )
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 
 from dlt.common.schema.utils import new_column, TColumnSchema
 from dlt.common.schema.normalizers import configured_normalizers, import_normalizers
@@ -87,6 +92,38 @@ def test_quick_return_if_nothing_to_do_param(use_record_batch: bool, with_load_i
     result = _normalize(item, columns)
     # same object returned
     assert result == item
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+@pytest.mark.parametrize("with_load_id", [False, True])
+def test_normalize_drops_null_columns(use_record_batch: bool, with_load_id: bool) -> None:
+    """Null-typed columns are removed by normalize and double-normalization is stable."""
+    rows = _with_load_id([{"a": 1, "b": "x"}], with_load_id)
+    item = _make_item(rows, use_record_batch)
+    # append a pa.null() column
+    null_array = pa.nulls(item.num_rows)
+    if use_record_batch:
+        null_field = pa.field("null_col", pa.null())
+        item = pa.RecordBatch.from_arrays(
+            item.columns + [null_array], schema=item.schema.append(null_field)
+        )
+    else:
+        item = item.append_column("null_col", null_array)
+
+    columns = [new_column("a", "bigint"), new_column("b", "text")]
+    result = _normalize(item, columns)
+
+    # null column is gone, data columns preserved
+    assert "null_col" not in result.column_names
+    expected_cols = ["a", "b"] + (["_dlt_load_id"] if with_load_id else [])
+    assert result.column_names == expected_cols
+    assert _row_at_index(result, 0)[:2] == [1, "x"]
+
+    # dlt.null_columns metadata survives the round-trip
+    assert result.schema.metadata is not None
+    assert b"dlt.null_columns" in result.schema.metadata
+    stored = json.loadb(result.schema.metadata[b"dlt.null_columns"])
+    assert stored == ["null_col"]
 
 
 @pytest.mark.parametrize("use_record_batch", [False, True])
@@ -469,3 +506,236 @@ def test_normalize_py_arrow_item_column_with_multiple_timestamps() -> None:
         converted_ts = modified_column[i].as_py()
         assert converted_ts == original_ts.replace(tzinfo=timezone.utc)
         assert converted_ts.tzinfo.tzname(None) == "UTC"
+
+
+# Tests for supports_dictionary_encoding option
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_constant_column_with_dictionary_encoding(use_record_batch: bool) -> None:
+    """Test add_constant_column creates DictionaryArray when use_dictionary=True."""
+    item = _make_item([{"col1": 1}, {"col1": 2}, {"col1": 3}], use_record_batch)
+
+    result = add_constant_column(
+        item,
+        name="load_id",
+        data_type=pa.string(),
+        value="test_load_123",
+        nullable=True,
+        use_dictionary=True,
+    )
+
+    assert "load_id" in result.column_names
+    load_id_col = result.column("load_id")
+    # Check that the column is dictionary-encoded
+    assert pa.types.is_dictionary(load_id_col.type)
+    # Check all values are correct
+    for i in range(result.num_rows):
+        assert load_id_col[i].as_py() == "test_load_123"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_constant_column_without_dictionary_encoding(use_record_batch: bool) -> None:
+    """Test add_constant_column creates regular array when use_dictionary=False."""
+    item = _make_item([{"col1": 1}, {"col1": 2}, {"col1": 3}], use_record_batch)
+
+    result = add_constant_column(
+        item,
+        name="load_id",
+        data_type=pa.string(),
+        value="test_load_123",
+        nullable=True,
+        use_dictionary=False,
+    )
+
+    assert "load_id" in result.column_names
+    load_id_col = result.column("load_id")
+    # Check that the column is NOT dictionary-encoded (regular string type)
+    assert not pa.types.is_dictionary(load_id_col.type)
+    assert pa.types.is_string(load_id_col.type) or pa.types.is_large_string(load_id_col.type)
+    # Check all values are correct
+    for i in range(result.num_rows):
+        assert load_id_col[i].as_py() == "test_load_123"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_constant_column_at_specific_index(use_record_batch: bool) -> None:
+    """Test add_constant_column inserts column at specified index."""
+    item = _make_item([{"col1": 1, "col2": "a"}], use_record_batch)
+
+    # Insert at index 1 (between col1 and col2)
+    result = add_constant_column(
+        item,
+        name="inserted",
+        data_type=pa.string(),
+        value="middle",
+        index=1,
+        use_dictionary=False,
+    )
+
+    assert result.column_names == ["col1", "inserted", "col2"]
+    assert result.column("inserted")[0].as_py() == "middle"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_dlt_load_id_column_with_dictionary_encoding(use_record_batch: bool) -> None:
+    """Test add_dlt_load_id_column creates DictionaryArray when supports_dictionary_encoding=True."""
+    _, naming, _ = import_normalizers(configured_normalizers())
+    caps = DestinationCapabilitiesContext()
+    # Default: supports_dictionary_encoding=True (no parquet_format set means default behavior)
+
+    item = _make_item([{"col1": 1}, {"col1": 2}], use_record_batch)
+    columns = {"_dlt_load_id": new_column("_dlt_load_id", "text")}
+
+    result = add_dlt_load_id_column(item, columns, caps, naming, "load_123")
+
+    load_id_col = result.column("_dlt_load_id")
+    # Should be dictionary-encoded by default
+    assert pa.types.is_dictionary(load_id_col.type)
+    for i in range(result.num_rows):
+        assert load_id_col[i].as_py() == "load_123"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_dlt_load_id_column_without_dictionary_encoding(use_record_batch: bool) -> None:
+    """Test add_dlt_load_id_column creates regular array when supports_dictionary_encoding=False."""
+    _, naming, _ = import_normalizers(configured_normalizers())
+    caps = DestinationCapabilitiesContext()
+    # Simulate MSSQL-like destination that doesn't support dictionary encoding
+    caps.parquet_format = ParquetFormatConfiguration(supports_dictionary_encoding=False)
+
+    item = _make_item([{"col1": 1}, {"col1": 2}], use_record_batch)
+    columns = {"_dlt_load_id": new_column("_dlt_load_id", "text")}
+
+    result = add_dlt_load_id_column(item, columns, caps, naming, "load_123")
+
+    load_id_col = result.column("_dlt_load_id")
+    # Should NOT be dictionary-encoded
+    assert not pa.types.is_dictionary(load_id_col.type)
+    assert pa.types.is_string(load_id_col.type) or pa.types.is_large_string(load_id_col.type)
+    for i in range(result.num_rows):
+        assert load_id_col[i].as_py() == "load_123"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_dlt_load_id_column_replaces_existing(use_record_batch: bool) -> None:
+    """Test add_dlt_load_id_column replaces existing _dlt_load_id column."""
+    _, naming, _ = import_normalizers(configured_normalizers())
+    caps = DestinationCapabilitiesContext()
+    caps.parquet_format = ParquetFormatConfiguration(supports_dictionary_encoding=False)
+
+    # Create item with existing _dlt_load_id
+    item = _make_item([{"col1": 1, "_dlt_load_id": "old_load"}], use_record_batch)
+    columns = {"_dlt_load_id": new_column("_dlt_load_id", "text")}
+
+    result = add_dlt_load_id_column(item, columns, caps, naming, "new_load_456")
+
+    # Should have replaced the old value
+    load_id_col = result.column("_dlt_load_id")
+    assert load_id_col[0].as_py() == "new_load_456"
+    # Should not be dictionary-encoded
+    assert not pa.types.is_dictionary(load_id_col.type)
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_remove_null_columns_stores_metadata(use_record_batch: bool) -> None:
+    """remove_null_columns should store removed column names in dlt.null_columns metadata."""
+    item = _make_item([{"a": 1, "b": "x"}], use_record_batch)
+    # add a null-typed column
+    null_array = pa.nulls(item.num_rows)
+    if use_record_batch:
+        null_field = pa.field("null_col", pa.null())
+        item = pa.RecordBatch.from_arrays(
+            item.columns + [null_array], schema=item.schema.append(null_field)
+        )
+    else:
+        item = item.append_column("null_col", null_array)
+
+    assert "null_col" in item.column_names
+    result = remove_null_columns(item)
+
+    # null column removed
+    assert "null_col" not in result.column_names
+    assert "a" in result.column_names
+    assert "b" in result.column_names
+
+    # metadata stored
+    metadata = result.schema.metadata
+    assert metadata is not None
+    assert b"dlt.null_columns" in metadata
+    stored_names = json.loadb(metadata[b"dlt.null_columns"])
+    assert stored_names == ["null_col"]
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_remove_null_columns_multiple(use_record_batch: bool) -> None:
+    """remove_null_columns should store all removed null column names."""
+    schema = pa.schema(
+        [
+            pa.field("a", pa.int64()),
+            pa.field("n1", pa.null()),
+            pa.field("b", pa.string()),
+            pa.field("n2", pa.null()),
+        ]
+    )
+    arrays = [
+        pa.array([1]),
+        pa.nulls(1),
+        pa.array(["x"]),
+        pa.nulls(1),
+    ]
+    if use_record_batch:
+        item = pa.RecordBatch.from_arrays(arrays, schema=schema)
+    else:
+        item = pa.Table.from_arrays(arrays, schema=schema)
+
+    result = remove_null_columns(item)
+    assert result.column_names == ["a", "b"]
+    stored_names = json.loadb(result.schema.metadata[b"dlt.null_columns"])
+    assert set(stored_names) == {"n1", "n2"}
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_remove_null_columns_no_nulls(use_record_batch: bool) -> None:
+    """remove_null_columns should return item unchanged when no null columns exist."""
+    item = _make_item([{"a": 1, "b": "x"}], use_record_batch)
+    result = remove_null_columns(item)
+    # same object returned, no metadata added
+    assert result is item
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_normalize_preserves_null_columns_metadata(use_record_batch: bool) -> None:
+    """normalize_py_arrow_item should preserve dlt.null_columns metadata through rebuild."""
+    schema = pa.schema(
+        [
+            pa.field("Col^A", pa.int64()),
+            pa.field("n1", pa.null()),
+            pa.field("col_b", pa.string()),
+        ]
+    )
+    arrays = [pa.array([1]), pa.nulls(1), pa.array(["x"])]
+    if use_record_batch:
+        item = pa.RecordBatch.from_arrays(arrays, schema=schema)
+    else:
+        item = pa.Table.from_arrays(arrays, schema=schema)
+
+    # first remove null columns (which adds metadata)
+    item = remove_null_columns(item)
+    assert b"dlt.null_columns" in item.schema.metadata
+
+    # now normalize (renames Col^A -> col_a, reorders)
+    _, naming, _ = import_normalizers(configured_normalizers())
+    caps = DestinationCapabilitiesContext()
+    columns = [new_column("col_b", "text"), new_column("col_a", "bigint")]
+    columns_schema = {c["name"]: c for c in columns}
+    result = normalize_py_arrow_item(item, columns_schema, naming, caps)
+
+    # columns are reordered/renamed
+    assert result.column_names == ["col_b", "col_a"]
+
+    # metadata is preserved through the rebuild
+    assert result.schema.metadata is not None
+    assert b"dlt.null_columns" in result.schema.metadata
+    stored_names = json.loadb(result.schema.metadata[b"dlt.null_columns"])
+    assert stored_names == ["n1"]

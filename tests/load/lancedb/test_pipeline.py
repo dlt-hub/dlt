@@ -25,7 +25,7 @@ from dlt.extract import DltResource
 from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
 from tests.load.utils import sequence_generator
 from tests.pipeline.utils import assert_load_info
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
@@ -68,6 +68,51 @@ def test_adapter_and_hints() -> None:
     }
 
     assert some_data.compute_table_schema()["columns"]["content"]["merge_key"] is True
+
+
+def test_changing_merge_key() -> None:
+    @dlt.resource
+    def some_data():
+        yield {"id": 1, "other_id": 2, "content": "random"}
+
+    # Initially "id" is set as key
+    lancedb_adapter(
+        some_data,
+        embed=["random"],
+        merge_key="id",
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_changing_merge_key",
+        destination="lancedb",
+        dataset_name=f"test_changing_merge_key{uniq_id()}",
+    )
+    info = pipeline.run(
+        some_data(),
+    )
+    assert_load_info(info)
+
+    assert pipeline.default_schema.tables["some_data"]["columns"]["id"]["merge_key"] is True
+    assert pipeline.default_schema.tables["some_data"]["columns"]["id"]["nullable"] is False
+
+    # We change key to "other_id"
+    lancedb_adapter(
+        some_data,
+        embed=["random"],
+        merge_key="other_id",
+    )
+    info = pipeline.run(
+        some_data(),
+    )
+    assert_load_info(info)
+
+    # "id" should no longer be key
+    assert not pipeline.default_schema.tables["some_data"]["columns"]["id"].get("merge_key")
+    assert pipeline.default_schema.tables["some_data"]["columns"]["id"]["nullable"] is False
+    assert (
+        pipeline.default_schema.tables["some_data"]["columns"]["other_id"].get("merge_key") is True
+    )
+    assert pipeline.default_schema.tables["some_data"]["columns"]["other_id"]["nullable"] is False
 
 
 def test_basic_state_and_schema() -> None:
@@ -310,6 +355,53 @@ def test_pipeline_merge() -> None:
     assert_table(pipeline, "movies_data", items=data)
 
 
+def test_pipeline_insert_only_merge() -> None:
+    data = [
+        {"doc_id": 1, "title": "The Shawshank Redemption"},
+        {"doc_id": 2, "title": "The Godfather"},
+    ]
+
+    @dlt.resource(
+        primary_key=["doc_id"],
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+    )
+    def movies_data() -> Any:
+        yield data
+
+    lancedb_adapter(movies_data, no_remove_orphans=True)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="movies_insert_only",
+        destination="lancedb",
+        dataset_name=f"TestInsertOnly{uniq_id()}",
+    )
+    info = pipeline.run(movies_data())
+    assert_load_info(info)
+    assert_table(pipeline, "movies_data", items=data)
+
+    # second load: existing records should NOT be updated, new record inserted
+    updated_data = [
+        {"doc_id": 1, "title": "Shawshank 2"},
+        {"doc_id": 3, "title": "The Matrix"},
+    ]
+
+    @dlt.resource(
+        primary_key=["doc_id"],
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+    )
+    def movies_update() -> Any:
+        yield updated_data
+
+    lancedb_adapter(movies_update, no_remove_orphans=True)
+
+    info = pipeline.run(movies_update.with_name("movies_data")())
+    assert_load_info(info)
+
+    # should have 3 records: original 2 + The Matrix, Shawshank NOT updated
+    expected = data + [updated_data[1]]
+    assert_table(pipeline, "movies_data", items=expected)
+
+
 def test_pipeline_with_schema_evolution() -> None:
     data = [
         {
@@ -373,7 +465,7 @@ def test_merge_github_nested(lance_location: str) -> None:
     elif lance_location == ":external:":
         import lancedb
 
-        path = os.path.join(TEST_STORAGE_ROOT, "test.lancedb")
+        path = os.path.join(get_test_storage_root(), "test.lancedb")
         destination_ = dlt.destinations.lancedb(credentials=lancedb.connect(path))
     else:
         destination_ = "lancedb"  # type: ignore[assignment]
@@ -511,10 +603,17 @@ def test_empty_dataset_allowed() -> None:
     info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
     # Dataset in load info is empty.
     assert info.dataset_name is None
+    # lancedb is a DWH destination with optional dataset_name — verify metrics reflect None
+    load_id = info.loads_ids[0]
+    assert info.metrics[load_id][0]["dataset_name"] is None
     client = pipe.destination_client()
     assert client.dataset_name is None  # type: ignore
     assert client.sentinel_table == "dltSentinelTable"  # type: ignore
     assert_table(pipe, "content", expected_items_count=3)
+
+    dataset = pipe.dataset()
+    rows = dataset.content.select("value").fetchall()
+    assert len(rows) == 3
 
 
 def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:

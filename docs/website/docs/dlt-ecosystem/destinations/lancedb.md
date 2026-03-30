@@ -91,7 +91,7 @@ read_consistency_interval=2.5
 `read_consistency_interval` is None by default (no read consistency, `dlt` assumes that it is a single writer to particular table.)
 
 :::tip
-You can pass `storage_options` in the credentials collection that allows to [store lancedb data on a bucket](https://docs.lancedb.com/storage). You can try this out but we didn't test that.
+You can pass `storage_options` in the credentials collection that allows you to [store lancedb data on a bucket](https://docs.lancedb.com/storage). You can try this out but we didn't test that.
 :::
 
 ### Define your data source
@@ -293,7 +293,7 @@ info = pipeline.run(
 
 ### Merge
 
-The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination based on a unique identifier. The LanceDB destination merge write disposition only supports upsert strategy. This updates existing records and inserts new ones based on a unique identifier.
+The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination based on a unique identifier. The LanceDB destination supports `upsert` and `insert-only` merge strategies. `upsert` updates existing records and inserts new ones. `insert-only` inserts new records without updating existing ones (see [insert-only strategy](../../general-usage/merge-loading.md#insert-only-strategy)).
 
 You can specify the merge disposition, primary key, and merge key either in a resource or adapter:
 

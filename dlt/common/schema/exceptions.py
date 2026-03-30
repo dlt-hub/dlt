@@ -248,6 +248,15 @@ class TableIdentifiersFrozen(SchemaException):
         super().__init__(schema_name, msg)
 
 
+class IncompatibleSchemaException(SchemaException):
+    def __init__(self, schema_name: str, other_name: str, reason: str) -> None:
+        self.other_name = other_name
+        super().__init__(
+            schema_name,
+            f"Cannot unify with schema `{other_name}`: {reason}",
+        )
+
+
 class ColumnNameConflictException(SchemaException):
     pass
 

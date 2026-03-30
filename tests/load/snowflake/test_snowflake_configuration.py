@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from dlt.common.configuration.utils import add_config_to_env
-from tests.utils import TEST_DICT_CONFIG_PROVIDER, TEST_STORAGE_ROOT, test_storage
+from tests.utils import TEST_DICT_CONFIG_PROVIDER, get_test_storage_root, test_storage
 
 from dlt.common.libs.sql_alchemy_compat import make_url
 from dlt.common.configuration.resolve import resolve_configuration
@@ -364,7 +364,7 @@ def test_snowflake_provided_oauth_token(test_storage: FileStorage) -> None:
 
     # define context managers constants
     SNOWFLAKE_SESSION_TOKEN_PATH_ATTR = "SNOWFLAKE_SESSION_TOKEN_PATH"
-    PATCHED_TOKEN_PATH = os.path.join(TEST_STORAGE_ROOT, token_file_name)
+    PATCHED_TOKEN_PATH = os.path.join(get_test_storage_root(), token_file_name)
     SNOWFLAKE_ENV_VARS = {
         "SNOWFLAKE_ACCOUNT": "host1",
         "SNOWFLAKE_HOST": "host1.snowflakecomputing.com",

@@ -19,6 +19,7 @@ from dlt.common.typing import StrAny
 from dlt.common.data_types import TDataType
 from dlt.common.storages import NormalizeStorage, LoadStorage, ParsedLoadJobFileName, PackageStorage
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.runtime.collector import DictCollector
 from dlt.common.configuration.container import Container
 
 from dlt.extract.extract import ExtractStorage
@@ -45,8 +46,10 @@ from tests.normalize.utils import (
 
 from pytest_mock import MockerFixture
 
+pytestmark = pytest.mark.serial
 
-@pytest.fixture(scope="module", autouse=True)
+
+@pytest.fixture(autouse=True)
 def default_caps() -> Iterator[DestinationCapabilitiesContext]:
     # set the postgres caps as default for the whole module
     with Container().injectable_context(DEFAULT_CAPS()) as caps:
@@ -310,6 +313,40 @@ def test_multiprocessing_row_counting(
         for t, m in step_info.metrics[step_info.loads_ids[0]][0]["table_metrics"].items()
     }
     assert row_counts == step_info.row_counts
+
+
+@pytest.mark.parametrize("pool_workers", (1, 2))
+def test_progress_collector_counters(raw_normalize: Normalize, pool_workers: int) -> None:
+    """Verify that per-table progress counters match final row counts."""
+
+    class KeepCountersCollector(DictCollector):
+        """DictCollector that preserves counters after stop."""
+
+        def _stop(self) -> None:
+            self.final_counters = dict(self.counters) if self.counters else {}
+            super()._stop()
+
+    collector = KeepCountersCollector()
+    raw_normalize.collector = collector
+    extract_cases(raw_normalize, ["github.events.load_page_1_duck"])
+    if pool_workers > 1:
+        executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
+    else:
+        executor = NullExecutor()
+    with executor:
+        raw_normalize.run(executor)
+    step_info = raw_normalize.get_step_info(MockPipeline("progress_pipeline", True))  # type: ignore[abstract]
+    expected_row_counts = step_info.row_counts
+
+    counters = collector.final_counters
+    # Files counter counts extracted input files, not output load files
+    assert counters["Files"] == 1
+    # per-table counts from collector must match the authoritative row counts from metrics
+    for table_name, expected_count in expected_row_counts.items():
+        assert counters.get(table_name, 0) == expected_count, (
+            f"Table {table_name}: collector={counters.get(table_name, 0)}"
+            f" != expected={expected_count}"
+        )
 
 
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
@@ -1019,3 +1056,46 @@ def test_warning_from_json_normalizer_on_null_column(
         assert expected_warning in logger_spy.call_args_list[0][0][0]
     else:
         logger_spy.assert_not_called()
+
+
+def test_warning_null_column_vs_user_defined_incomplete(
+    raw_normalize: Normalize,
+    mocker: MockerFixture,
+) -> None:
+    """Test that two distinct warnings are emitted:
+    - UnboundColumnWithoutTypeException for columns that only received null values
+    - UnboundColumnException for user-defined incomplete columns that never appeared in data
+    """
+    schema = load_or_create_schema(raw_normalize, "test_schema")
+    # pre-define an incomplete column that will receive nulls
+    table = new_table("my_table", columns=[{"name": "predefined_null_col"}])
+    schema.update_table(table)
+    # pre-define an incomplete column that never appears in data
+    table2 = new_table("my_table", columns=[{"name": "predefined_absent_col"}])
+    schema.update_table(table2)
+
+    # data: "new_null_col" and "predefined_null_col" have only None,
+    # "predefined_absent_col" never appears
+    items = [
+        {"id": 1, "new_null_col": None, "predefined_null_col": None},
+        {"id": 2, "new_null_col": None, "predefined_null_col": None},
+    ]
+
+    logger_spy = mocker.spy(logger, "warning")
+    extract_items(raw_normalize.normalize_storage, items, schema, "my_table")
+    with create_pool(PoolRunnerConfiguration(pool_type="thread", workers=1)) as pool:
+        raw_normalize.run(pool)
+
+    warning_messages = [call[0][0] for call in logger_spy.call_args_list]
+
+    # UnboundColumnWithoutTypeException for null-only columns (contains "types inferred")
+    null_warnings = [w for w in warning_messages if "types inferred" in w]
+    assert len(null_warnings) == 1
+    assert "new_null_col" in null_warnings[0]
+    assert "predefined_null_col" in null_warnings[0]
+
+    # UnboundColumnException for user-defined incomplete column absent from data
+    unbound_warnings = [w for w in warning_messages if "predefined_absent_col" in w]
+    assert len(unbound_warnings) == 1
+    # must be a different warning than the null-only one
+    assert "types inferred" not in unbound_warnings[0]

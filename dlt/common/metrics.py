@@ -42,9 +42,19 @@ class DataWriterAndCustomMetrics(DataWriterMetrics):
         return self
 
     def _asdict(self) -> Dict[str, Any]:
-        """Override _asdict to include custom_metrics in serialization"""
+        """Includes custom_metrics in serialization, promoting list-valued
+        metrics to top-level keys for cleaner child table names."""
         result = super()._asdict()
-        result["custom_metrics"] = self.custom_metrics
+        standard_keys = set(result)
+        nested: Dict[str, Any] = {}
+        for key, value in self.custom_metrics.items():
+            # skip list metrics that collide with standard NamedTuple fields
+            if isinstance(value, list) and key not in standard_keys:
+                result[key] = value
+            else:
+                nested[key] = value
+        if nested:
+            result["custom_metrics"] = nested
         return result
 
 
@@ -92,7 +102,9 @@ class LoadJobMetrics(NamedTuple):
     state: str
     remote_url: Optional[str]
     retry_count: int = 0
+    followup_jobs: Optional[List[str]] = None
 
 
 class LoadMetrics(StepMetrics):
     job_metrics: Dict[str, LoadJobMetrics]
+    dataset_name: Optional[str]

@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, List, Dict, Literal
+from typing import Optional, Sequence, List, Dict, Literal, Any
 
 from dlt.common import logger
 from dlt.common.data_writers.escape import escape_snowflake_literal
@@ -14,6 +14,8 @@ from dlt.common.destination.client import (
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages.file_storage import FileStorage
+from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.schema import TColumnSchema, Schema, TColumnHint
 from dlt.common.schema.typing import TColumnType, TTableSchema
 
@@ -37,14 +39,34 @@ class SnowflakeMergeJob(SqlMergeFollowupJob):
         cls,
         root_table_name: str,
         staging_root_table_name: str,
-        key_clauses: Sequence[str],
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
-        sql: List[str] = [
+        key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
+        return [
             f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS"
             f" s WHERE {clause.format(d='d', s='s')})"
             for clause in key_clauses
         ]
+
+
+class SnowflakeStagingReplaceJob(SqlStagingReplaceFollowupJob):
+    @classmethod
+    def generate_sql(
+        cls,
+        table_chain: Sequence[PreparedTableSchema],
+        sql_client: SqlClientBase[Any],
+    ) -> List[str]:
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset():
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            sql.append(
+                f"ALTER TABLE {table_name} SWAP WITH {staging_table_name}",
+            )
+
         return sql
 
 
@@ -138,7 +160,7 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
-        self.type_mapper = self.capabilities.get_type_mapper()
+        self.type_mapper = self.capabilities.get_type_mapper(config.use_decfloat)
         self.active_hints = SUPPORTED_HINTS if self.config.create_indexes else {}
 
     def create_load_job(
@@ -162,6 +184,17 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [SnowflakeMergeJob.from_table_chain(table_chain, self.sql_client)]
+
+    def _create_replace_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
+        root_table = table_chain[0]
+        if (
+            root_table["x-replace-strategy"] == "staging-optimized"  # type: ignore[typeddict-item]
+            and self.config.enable_atomic_swap
+        ):
+            return [SnowflakeStagingReplaceJob.from_table_chain(table_chain, self.sql_client)]
+        return super()._create_replace_followup_jobs(table_chain)
 
     def _make_add_column_sql(
         self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
