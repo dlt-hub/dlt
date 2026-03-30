@@ -1891,9 +1891,9 @@ class Pipeline(SupportsPipeline):
         """Returns a dataset object for querying the destination data.
 
         Args:
-            schema: Schema object(s) or name to use. If None, uses the default
-                schema. When ``use_single_dataset`` is True and the pipeline has
-                multiple schemas, all schemas are included automatically.
+            schema (Union[Schema, str, Sequence[Schema], None]): Schema object(s) or name to use.
+                If None, uses the default schema. When ``use_single_dataset`` is True and the
+                pipeline has multiple schemas, all schemas are included automatically.
 
         Returns:
             dlt.Dataset: A dataset object that supports querying the destination data.
