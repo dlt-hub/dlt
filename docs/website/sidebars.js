@@ -230,6 +230,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/athena',
         'dlt-ecosystem/destinations/sqlalchemy',
         'dlt-ecosystem/destinations/weaviate',
+        'dlt-ecosystem/destinations/lance',
         'dlt-ecosystem/destinations/lancedb',
         'dlt-ecosystem/destinations/qdrant',
         'dlt-ecosystem/destinations/dremio',
