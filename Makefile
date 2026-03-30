@@ -48,7 +48,7 @@ lint-deps: ## Checks dependencies, hub extras, and API breaking changes (informa
 	-uv run python -m tools.check_api_breaking check
 
 lint-core: ## Runs core linting (mypy, ruff, flake8)
-	uv run mypy --config-file mypy.ini dlt tests tools
+	uv run mypy dlt tests tools
 	uv run ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt tools
