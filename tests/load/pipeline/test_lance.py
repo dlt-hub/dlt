@@ -4,7 +4,6 @@ import pytest
 from typing import cast
 
 from dlt.destinations.impl.lance.exceptions import LanceEmbeddingsConfigurationMissing
-from dlt.destinations.impl.lance.lance_client import LanceClient
 from dlt.destinations.impl.lance.lance_adapter import lance_adapter
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
@@ -51,6 +50,8 @@ def test_lance_pipeline_raises_on_embed_column_without_embeddings_config(
 def test_lance_pipeline_branching(
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    from dlt.destinations.impl.lance.lance_client import LanceClient
+
     pipe = destination_config.setup_pipeline(
         pipeline_name="test_lance_branch_isolation",
         dev_mode=True,
@@ -128,6 +129,8 @@ def test_lance_pipeline_branching(
 def test_lance_pipeline_replace_in_branch(
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    from dlt.destinations.impl.lance.lance_client import LanceClient
+
     pipe = destination_config.setup_pipeline(
         pipeline_name="test_lance_pipeline_replace_in_branch",
         dev_mode=True,
