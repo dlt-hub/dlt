@@ -33,7 +33,7 @@ from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
     LOADS_TABLE_NAME,
 )
-from dlt.common.utils import simple_repr, without_none
+from dlt.common.utils import extend_list_deduplicated, simple_repr, without_none
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
@@ -148,13 +148,9 @@ class Dataset:
         execution, tables may exist on the destination, but will only appear on the dataset once
         `pipeline.run()` is done.
         """
-        seen: set[str] = set()
         result: list[str] = []
         for schema in self.schemas:
-            for name in schema.data_table_names() + schema.dlt_table_names():
-                if name not in seen:
-                    seen.add(name)
-                    result.append(name)
+            extend_list_deduplicated(result, schema.data_table_names() + schema.dlt_table_names())
         return result
 
     def _ipython_key_completions_(self) -> list[str]:
@@ -326,19 +322,14 @@ class Dataset:
 
         selected_tables = table_names or []
         if not selected_tables:
-            seen: set[str] = set()
             if data_tables:
                 for schema in self.schemas:
-                    for t in schema.data_table_names(seen_data_only=True):
-                        if t not in seen:
-                            seen.add(t)
-                            selected_tables.append(t)
+                    extend_list_deduplicated(
+                        selected_tables, schema.data_table_names(seen_data_only=True)
+                    )
             if dlt_tables:
                 for schema in self.schemas:
-                    for t in schema.dlt_table_names():
-                        if t not in seen:
-                            seen.add(t)
-                            selected_tables.append(t)
+                    extend_list_deduplicated(selected_tables, schema.dlt_table_names())
 
         # filter tables so only ones with dlt_load_id column are included
         # normalize per-schema since naming conventions may differ
@@ -455,13 +446,9 @@ class Dataset:
             schema_info = f"with tables in dlt schema `{schema_names_str}`:\n"
 
         msg = f"Dataset `{self.dataset_name}` at `{destination_info}` {schema_info}"
-        seen: set[str] = set()
         tables: list[str] = []
         for schema in self.schemas:
-            for name in schema.data_table_names():
-                if name not in seen:
-                    seen.add(name)
-                    tables.append(name)
+            extend_list_deduplicated(tables, schema.data_table_names())
         if tables:
             msg += ", ".join(tables)
         else:
