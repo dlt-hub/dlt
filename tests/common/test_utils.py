@@ -259,6 +259,23 @@ def test_extend_list_deduplicated() -> None:
     ]
     assert extend_list_deduplicated([], ["one", "two", "three"]) == ["one", "two", "three"]
 
+    # duplicates within extending_list
+    assert extend_list_deduplicated(["one"], ["two", "two", "three"]) == [
+        "one",
+        "two",
+        "three",
+    ]
+    # duplicates within extending_list on empty original
+    assert extend_list_deduplicated([], ["one", "one", "two", "two"]) == ["one", "two"]
+
+    # case-insensitive dedup via normalize_f
+    assert extend_list_deduplicated(["One"], ["two", "TWO"], str.lower) == [
+        "One",
+        "two",
+    ]
+    # normalize_f dedup against original
+    assert extend_list_deduplicated(["One"], ["one"], str.lower) == ["One"]
+
 
 def test_exception_traces() -> None:
     from dlt.common.destination.exceptions import IdentifierTooLongException
