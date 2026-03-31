@@ -1925,7 +1925,7 @@ class Pipeline(SupportsPipeline):
                 )
             else:
                 schema = self.schemas[schema]
-        elif isinstance(schema, list):
+        elif isinstance(schema, Sequence) and not isinstance(schema, str):
             schema_name = schema[0].name if schema else None
         elif self.default_schema_name:
             schema_name = self.default_schema_name
