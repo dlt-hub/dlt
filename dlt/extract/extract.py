@@ -359,7 +359,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         data_tables = {t["name"]: t for t in schema.data_tables()}
         tables_by_resources = utils.group_tables_by_resource(data_tables)
 
-        resources_and_tables = {}
+        resources_and_tables: Dict[str, List[str]] = {}
         for resource_name, table_name in tables_with_empty:
             resources_and_tables.setdefault(resource_name, []).append(table_name)
 
