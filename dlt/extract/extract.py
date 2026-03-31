@@ -371,7 +371,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         tables_by_resources = utils.group_tables_by_resource(data_tables)
         for resource_name in resources_with_empty:
             if resource := source.resources.selected.get(resource_name):
-                if tables := tables_by_resources.get("resource_name"):
+                if tables := tables_by_resources.get(resource_name):
                     # write empty tables
                     for table in tables:
                         # we only need to write empty files for the root tables
