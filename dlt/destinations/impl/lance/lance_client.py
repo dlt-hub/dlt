@@ -158,6 +158,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             schema.empty_table(),
             namespace=self.namespace,
             table_id=self.make_table_id(table_name),
+            storage_options=self.config.storage.options,
         )
 
     @raise_destination_error
@@ -229,6 +230,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         return lance.dataset(
             namespace=self.namespace,
             table_id=self.make_table_id(table_name),
+            storage_options=self.config.storage.options,
         ).checkout_version((branch_name, version_number))
 
     def open_lancedb_table(self, table_name: str) -> LanceTable:

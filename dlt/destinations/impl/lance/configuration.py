@@ -55,7 +55,7 @@ class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
     branch_name: Optional[str] = None
     """Name of branch to use for read/write table operations. Uses `main` branch if not set."""
     options: Optional[Dict[str, str]] = None
-    """Options to pass to storage client. Used as `storage.*` properties on `DirectoryNamespace` client.
+    """Options to pass to storage client. See available options at https://lance.org/guide/object_store/#general-configuration.
 
     Will be merged with `credentials`-derived options (if present), with `options` taking precedence in case of conflicts.
     """

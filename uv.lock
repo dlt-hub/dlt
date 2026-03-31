@@ -2845,7 +2845,7 @@ requires-dist = [
     { name = "pydbml", marker = "extra == 'workspace'", specifier = ">=1.2.0" },
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
     { name = "pyiceberg-core", marker = "extra == 'pyiceberg'", specifier = ">=0.6.0" },
-    { name = "pylance", marker = "extra == 'lance'", specifier = ">=2.0.0" },
+    { name = "pylance", marker = "extra == 'lance'", specifier = ">=4.0.0" },
     { name = "pyodbc", marker = "extra == 'fabric'", specifier = ">=4.0.39" },
     { name = "pyodbc", marker = "extra == 'mssql'", specifier = ">=4.0.39" },
     { name = "pyodbc", marker = "extra == 'synapse'", specifier = ">=4.0.39" },
@@ -4869,19 +4869,19 @@ wheels = [
 
 [[package]]
 name = "lance-namespace"
-version = "0.4.5"
+version = "0.6.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lance-namespace-urllib3-client" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b4/b5/0c3c55cf336b1e90392c2e24ac833551659e8bb3c61644b2d94825eb31bd/lance_namespace-0.4.5.tar.gz", hash = "sha256:0aee0abed3a1fa762c2955c7d12bb3004cea5c82ba28f6fcb9fe79d0cc19e317", size = 9827, upload-time = "2026-01-07T19:20:23.005Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/28/9f/7906ba4117df8d965510285eaf07264a77de2fd283b9d44ec7fc63a4a57a/lance_namespace-0.6.1.tar.gz", hash = "sha256:f0deea442bd3f1056a8e2fed056ae2778e3356517ec2e680db049058b824d131", size = 10666, upload-time = "2026-03-17T17:55:44.977Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/34/88/173687dad72baf819223e3b506898e386bc88c26ff8da5e8013291e02daf/lance_namespace-0.4.5-py3-none-any.whl", hash = "sha256:cd1a4f789de03ba23a0c16f100b1464cca572a5d04e428917a54d09db912d548", size = 11703, upload-time = "2026-01-07T19:20:25.394Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/91/aee1c0a04d17f2810173bd304bd444eb78332045df1b0c1b07cebd01f530/lance_namespace-0.6.1-py3-none-any.whl", hash = "sha256:9699c9e3f12236e5e08ea979cc4e036a8e3c67ed2f37ae6f25c5353ab908e1be", size = 12498, upload-time = "2026-03-17T17:55:44.062Z" },
 ]
 
 [[package]]
 name = "lance-namespace-urllib3-client"
-version = "0.4.5"
+version = "0.6.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic", version = "2.11.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
@@ -4891,9 +4891,9 @@ dependencies = [
     { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/97/a9/4e527c2f05704565618b239b0965f829d1a194837f01234af3f8e2f33d92/lance_namespace_urllib3_client-0.4.5.tar.gz", hash = "sha256:184deda8cf8700926d994618187053c644eb1f2866a4479e7b80843cacc92b1c", size = 159726, upload-time = "2026-01-07T19:20:24.025Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/63/a1/8706a2be25bd184acccc411e48f1a42a4cbf3b6556cba15b9fcf4c15cfcc/lance_namespace_urllib3_client-0.6.1.tar.gz", hash = "sha256:31fbd058ce1ea0bf49045cdeaa756360ece0bc61e9e10276f41af6d217debe87", size = 182567, upload-time = "2026-03-17T17:55:46.87Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ca/86/0adee7190408a28dcc5a0562c674537457e3de59ee51d1c724ecdc4a9930/lance_namespace_urllib3_client-0.4.5-py3-none-any.whl", hash = "sha256:2ee154d616ba4721f0bfdf043d33c4fef2e79d380653e2f263058ab00fb4adf4", size = 277969, upload-time = "2026-01-07T19:20:26.597Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/c7/cb9580602dec25f0fdd6005c1c9ba1d4c8c0c3dc8d543107e5a9f248bba8/lance_namespace_urllib3_client-0.6.1-py3-none-any.whl", hash = "sha256:b9c103e1377ad46d2bd70eec894bfec0b1e2133dae0964d7e4de543c6e16293b", size = 317111, upload-time = "2026-03-17T17:55:45.546Z" },
 ]
 
 [[package]]
@@ -9094,7 +9094,7 @@ crypto = [
 
 [[package]]
 name = "pylance"
-version = "2.0.1"
+version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lance-namespace" },
@@ -9105,12 +9105,12 @@ dependencies = [
     { name = "pyarrow", version = "23.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/08/d2/46da0b890b958d9cceec4485de85d69eceab4f8be0144090b18672a94304/pylance-2.0.1-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:bff6452cdb8c56e84102a52291b7a9b4c08c87248d620afef05793b97de32341", size = 51732078, upload-time = "2026-02-13T18:27:23.674Z" },
-    { url = "https://files.pythonhosted.org/packages/00/32/834d2abcff7b26c2acb8f401aa3c198e5b29dcde070af4eb791806de1a23/pylance-2.0.1-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:804fcfb351a97fd3aad532df1fedafbc0109088e7b0ac3051c3512c3100a4a45", size = 54201004, upload-time = "2026-02-13T18:35:08.91Z" },
-    { url = "https://files.pythonhosted.org/packages/10/97/127eb70f6c2eeac986812a889461b8b6627f05bb93021aa9cb77dd92c2c3/pylance-2.0.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:51d089429b40cd81c89d7993191e758059e580dd7239fd2748bedd2e1021b592", size = 57723179, upload-time = "2026-02-13T18:42:11.695Z" },
-    { url = "https://files.pythonhosted.org/packages/8d/a4/e0928a866d45dd2eced31ba84db44ea80c05055c4ff105fc754262c1159d/pylance-2.0.1-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:7fc5ba370514e6ba3e67f49b51e75687534b37e2eefdb91755d4fb20b3f6fe0b", size = 54227900, upload-time = "2026-02-13T18:35:02.269Z" },
-    { url = "https://files.pythonhosted.org/packages/9e/7b/0eb1f7522c8324c3248862d9de308f1f04cc787b53a6a70cb1687498b2c7/pylance-2.0.1-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:d740d7a7ff9905e358a70d2adae2178ab9d6798cf3ef47729371223463c442e6", size = 57675386, upload-time = "2026-02-13T18:41:27.773Z" },
-    { url = "https://files.pythonhosted.org/packages/fb/2e/fff9905866ba91fad883727d482a10b4973a03aed31cb4c726236f6e5716/pylance-2.0.1-cp39-abi3-win_amd64.whl", hash = "sha256:a67f7a96d40a5012b04205879fe7ae50b6bf856fd79e97868582e449cfedbd1b", size = 61882118, upload-time = "2026-02-13T19:06:19.264Z" },
+    { url = "https://files.pythonhosted.org/packages/19/29/5152da1261a628c293876917b6185538bd68f4cf1420da6265b5be79d09b/pylance-4.0.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:7310892f3089eeddb1af1fe5c398b71cc483a3015646caceaa2f62fc92b227b2", size = 54420876, upload-time = "2026-03-30T18:18:37.525Z" },
+    { url = "https://files.pythonhosted.org/packages/99/ae/7edbbfc18c3be43eedb886e74a17826c09fdf35588b35912f2733779ea43/pylance-4.0.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:57f6a521b1b4b77a62d791850213a854093719c7d76b9641e8abcd445eb73e56", size = 56752552, upload-time = "2026-03-30T18:24:21.331Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/88/6d8bda83224bac52806f09d3e211d8886b81500384948a753c4b24c11f35/pylance-4.0.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e433d6bddd66de99c58e472bc3e8ed1590c7ff4ff7948479254c1c2111a601a8", size = 60305704, upload-time = "2026-03-30T18:35:23.425Z" },
+    { url = "https://files.pythonhosted.org/packages/52/f3/8d8369c756c4173ea070f6964213f9b622ac278bd04a058c48d00a549177/pylance-4.0.0-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:f36dce83c11cd5d598cb0f64bad7c51fc21ed43df868b9029184a385c6bf4d84", size = 56771233, upload-time = "2026-03-30T18:25:40.012Z" },
+    { url = "https://files.pythonhosted.org/packages/66/e6/53e0713440685b1c76e20d72755eca2e531cc182ea9a612b4cb6a15abe50/pylance-4.0.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:9ca03f97f22e0b75f06378c4006d587aba26408122fd066f0e43e2b7a019c67e", size = 60260813, upload-time = "2026-03-30T18:36:07.976Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/04/5f22b88c8965d3982f68f67bfe24d756e7b788e10392d2bec6f97f5eb0e3/pylance-4.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:9261c32d3bd6aaab33025a45b20c2f2554804e1bc2a1ec2bfcb06f0c9d2e59b9", size = 65137830, upload-time = "2026-03-30T18:37:33.048Z" },
 ]
 
 [[package]]
