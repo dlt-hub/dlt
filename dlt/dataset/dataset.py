@@ -64,22 +64,10 @@ class Dataset:
         self._pipeline_name: Optional[str] = None
         """If set, used to resolve default schema from pipeline state"""
 
+        self._schema_arg: Union[dlt.Schema, str, Sequence[dlt.Schema], None] = schema
         self._schemas: Dict[str, dlt.Schema] = {}
         self._default_schema_name: Optional[str] = None
-        self._schema_arg: Optional[str] = None
-        """Deferred schema name for lazy resolution from destination"""
-
-        if isinstance(schema, Sequence) and not isinstance(schema, str):
-            if not schema:
-                raise ValueError("schema sequence must not be empty")
-            for s in schema:
-                self._schemas[s.name] = s
-            self._default_schema_name = schema[0].name
-        elif isinstance(schema, dlt.Schema):
-            self._schemas[schema.name] = schema
-            self._default_schema_name = schema.name
-        elif isinstance(schema, str):
-            self._schema_arg = schema
+        self._resolved: bool = False
 
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
@@ -101,30 +89,40 @@ class Dataset:
         )
 
     def _resolve_schemas(self) -> None:
-        """Resolve all schemas on first access.
-
-        Uses ``_default_schema_name`` presence in ``_schemas`` as a marker
-        that resolution already happened.
-        """
-        if self._default_schema_name and self._default_schema_name in self._schemas:
+        """Resolve all schemas on first access."""
+        if self._resolved:
             return
 
-        schemas: Optional[List[dlt.Schema]] = None
+        schema_arg = self._schema_arg
 
-        if self._schema_arg:
-            schema = _get_dataset_schema_from_destination_using_schema_name(self, self._schema_arg)
-            if schema:
-                schemas = [schema]
+        if isinstance(schema_arg, Sequence) and not isinstance(schema_arg, str):
+            if not schema_arg:
+                raise ValueError("schema sequence must not be empty")
+            for s in schema_arg:
+                self._schemas[s.name] = s
+            self._default_schema_name = schema_arg[0].name
+        elif isinstance(schema_arg, dlt.Schema):
+            self._schemas[schema_arg.name] = schema_arg
+            self._default_schema_name = schema_arg.name
+        else:
+            schemas: Optional[List[dlt.Schema]] = None
 
-        if not schemas:
-            schemas = _get_dataset_schemas_from_dataset_dlt_tables(self)
+            if isinstance(schema_arg, str):
+                schema = _get_dataset_schema_from_destination_using_schema_name(self, schema_arg)
+                if schema:
+                    schemas = [schema]
 
-        if not schemas:
-            schemas = [dlt.Schema(self.dataset_name)]
+            if not schemas:
+                schemas = _get_dataset_schemas_from_dataset_dlt_tables(self)
 
-        for s in schemas:
-            self._schemas[s.name] = s
-        self._default_schema_name = schemas[0].name
+            if not schemas:
+                schemas = [dlt.Schema(self.dataset_name)]
+
+            for s in schemas:
+                self._schemas[s.name] = s
+            self._default_schema_name = schemas[0].name
+
+        self._resolved = True
 
     @property
     def schema(self) -> dlt.Schema:

@@ -1,4 +1,3 @@
-import logging
 from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast
 
 import sqlglot.expressions as sge
@@ -29,49 +28,51 @@ def create_sqlglot_schema(
     schema_map: Dict[str, Sequence[dlt.Schema]],
     dialect: TSqlGlotDialect,
 ) -> SQLGlotSchema:
-    """Create an SQLGlot schema from dlt schemas mapped to dataset names.
+    """Create an SQLGlot schema from multiple dlt schemas grouped by dataset name.
 
-    Multiple dlt schemas are kept separate at the data-model level but merged
-    into a single SQLGlot schema so that query qualification and lineage work
-    across all tables regardless of which dlt schema owns them.
+    Each key in `schema_map` becomes a top-level qualifier (SQL schema /
+    catalog) that scopes all tables underneath it. Tables from multiple dlt
+    schemas that share a dataset name are merged via `Schema.unify_schemas`;
+    the first schema in each sequence is treated as the default and wins on
+    column-level collisions.
 
     Args:
-        schema_map: Mapping of dataset_name to dlt schemas. Local schemas
-            all map to the same dataset_name. Foreign schemas (future) map to
-            their own dataset_names.
+        schema_map: Mapping of dataset_name to a list of dlt schemas. The dataset name
+            is used as the qualifying namespace in the generated SQLGlot
+            schema.
         dialect: SQLGlot dialect for the target destination.
     """
     nested_schema: Dict[str, Dict[str, Any]] = {}
 
     for dataset_name, schemas in schema_map.items():
-        tables: Dict[str, Any] = {}
-        for schema in schemas:
-            for table_name in schema.tables.keys():
-                column_mapping = {}
-                # skip not materialized columns
-                for column_name, column in schema.get_table_columns(
-                    table_name, include_incomplete=False
-                ).items():
-                    sqlglot_type = to_sqlglot_type(
-                        dlt_type=column["data_type"],
-                        nullable=column.get("nullable"),
-                        precision=column.get("precision"),
-                        scale=column.get("scale"),
-                        timezone=column.get("timezone"),
-                    )
-                    sqlglot_type = set_metadata(sqlglot_type, column)
-                    column_mapping[column_name] = sqlglot_type
-                # skip tables without columns; first schema (default) wins on collision
-                if column_mapping:
-                    if table_name in tables:
-                        logger.warning(
-                            "Table '%s' exists in multiple schemas; using definition"
-                            " from the default schema for query qualification.",
-                            table_name,
-                        )
-                    else:
-                        tables[table_name] = column_mapping
-        nested_schema[dataset_name] = tables
+        if len(schemas) > 1:
+            unified_schema = schemas[0].unify_schemas(list(schemas[1:]))
+        elif schemas:
+            unified_schema = schemas[0]
+        else:
+            continue
+
+        sqlglot_tables: Dict[str, Any] = {}
+
+        for table_name in unified_schema.tables.keys():
+            column_mapping = {}
+
+            for column_name, column in unified_schema.get_table_columns(
+                table_name, include_incomplete=False
+            ).items():
+                sqlglot_type = to_sqlglot_type(
+                    dlt_type=column["data_type"],
+                    nullable=column.get("nullable"),
+                    precision=column.get("precision"),
+                    scale=column.get("scale"),
+                    timezone=column.get("timezone"),
+                )
+                column_mapping[column_name] = set_metadata(sqlglot_type, column)
+
+            if column_mapping:
+                sqlglot_tables[table_name] = column_mapping
+
+        nested_schema[dataset_name] = sqlglot_tables
 
     return ensure_schema(nested_schema, dialect=dialect, normalize=False)
 
