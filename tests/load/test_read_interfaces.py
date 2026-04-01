@@ -205,8 +205,10 @@ def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> N
     # dataset
     assert (
         _replace_variable_content(str(dataset_))
-        == "Dataset `dataset_name` at `duckdb[<destination_config>]` with tables in dlt schema"
-        " `source`:\nitems, double_items, orderable_in_chain, items__children"
+        == "Dataset `dataset_name` at `duckdb[<destination_config>]` "
+        "with schemas:\n"
+        "  source: items, double_items, orderable_in_chain, items__children\n"
+        "  aleph: digits"
     )
 
     dataset_repr = _replace_variable_content(repr(dataset_))
@@ -446,6 +448,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
             "orderable_in_chain",
             total_records,
         ),
+        (
+            "digits",
+            3,
+        ),
     }
     # get only one data table
     assert set(
@@ -505,6 +511,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         (
             "orderable_in_chain",
             total_records,
+        ),
+        (
+            "digits",
+            3,
         ),
     }
 
@@ -733,6 +743,7 @@ def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipe
     # check that if the schema needs to be fetched, no opened client is left
     dataset_._schemas.clear()
     dataset_._default_schema_name = None
+    dataset_._resolved = False
     assert dataset_.schema
     assert dataset_._opened_sql_client is None
 

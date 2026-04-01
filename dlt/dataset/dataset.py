@@ -434,26 +434,23 @@ class Dataset:
         return simple_repr("dlt.dataset", **without_none(kwargs))
 
     def __str__(self) -> str:
-        # obtain schema. this eventually loads it from destination (if only name was provided)
         _client = self.destination_client
-        # str(config) provides displayable physical location
         destination_info = f"{self._destination.destination_name}[{str(_client.config)}]"
-        # new schema is created if dataset is not found or schema.name is not materialized yet
-        if self.schema.is_new:
-            schema_info = "\nDataset is not available at the destination.\n"
-        else:
-            schema_names_str = "`, `".join(s.name for s in self.schemas)
-            schema_info = f"with tables in dlt schema `{schema_names_str}`:\n"
+        header = f"Dataset `{self.dataset_name}` at `{destination_info}` "
 
-        msg = f"Dataset `{self.dataset_name}` at `{destination_info}` {schema_info}"
-        tables: list[str] = []
-        for schema in self.schemas:
-            extend_list_deduplicated(tables, schema.data_table_names())
-        if tables:
-            msg += ", ".join(tables)
+        if self.schema.is_new:
+            return header + "\nDataset is not available at the destination.\n"
+
+        schemas = self.schemas
+        if len(schemas) == 1:
+            lines = [header + f"with schema `{schemas[0].name}`:"]
         else:
-            msg += "No data tables found in schema."
-        return msg
+            lines = [header + "with schemas:"]
+        for s in schemas:
+            tables = ", ".join(s.data_table_names()) or "No data tables found."
+            prefix = f"  {s.name}: " if len(schemas) > 1 else "  "
+            lines.append(prefix + tables)
+        return "\n".join(lines)
 
 
 def dataset(
