@@ -24,7 +24,7 @@ class LanceEmbeddingsConfigurationMissing(DestinationTerminalException):
     def __init__(self, table_name: str, columns: List[str]) -> None:
         columns_str = ", ".join(f"'{col}'" for col in columns)
         super().__init__(
-            f"Table '{table_name}' has columns marked for embedding ({columns_str}) but is"
+            f"Table `{table_name}` has columns marked for embedding ({columns_str}) but is"
             " missing embeddings configuration. Either configure `embeddings` on the lance"
             " destination or remove the `embed` argument from `lance_adapter()`."
         )
