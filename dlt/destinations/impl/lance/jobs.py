@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -11,6 +13,9 @@ from dlt.destinations.impl.lance.utils import (
 )
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
+if TYPE_CHECKING:
+    from dlt.destinations.impl.lance.lance_client import LanceClient
+
 
 class LanceLoadJob(RunnableLoadJob):
     def __init__(
@@ -18,10 +23,8 @@ class LanceLoadJob(RunnableLoadJob):
         file_path: str,
         table_schema: TTableSchema,
     ) -> None:
-        from dlt.destinations.impl.lance.lance_client import LanceClient
-
         super().__init__(file_path)
-        self._job_client: "LanceClient" = None
+        self._job_client: LanceClient = None
         self._table_schema: TTableSchema = table_schema
 
     def run(self) -> None:
