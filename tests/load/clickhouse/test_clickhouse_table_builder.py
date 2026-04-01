@@ -10,7 +10,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
     ClickHouseClientConfiguration,
 )
-from dlt.common.schema.utils import new_table
+from dlt.common.schema.utils import new_table, pipeline_state_table
 from tests.load.clickhouse.utils import clickhouse_client
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
@@ -129,6 +129,35 @@ def test_clickhouse_alter_table(clickhouse_client: ClickHouseClient) -> None:
 
     assert "`col1`" not in sql
     assert "`col2` Float64" in sql
+
+
+@pytest.mark.parametrize(
+    "schema_table_name,expected_order_by",
+    [
+        ("version_table_name", "(schema_name, inserted_at)"),
+        ("state_table_name", "(pipeline_name, _dlt_load_id)"),
+        ("loads_table_name", "(load_id)"),
+    ],
+    ids=["version", "pipeline_state", "loads"],
+)
+def test_clickhouse_internal_metadata_tables_have_sort_keys(
+    clickhouse_client: ClickHouseClient,
+    schema_table_name: str,
+    expected_order_by: str,
+) -> None:
+    table_name = getattr(clickhouse_client.schema, schema_table_name)
+    if (
+        table_name == clickhouse_client.schema.state_table_name
+        and table_name not in clickhouse_client.schema.tables
+    ):
+        clickhouse_client.schema.update_table(pipeline_state_table())
+
+    new_columns = list(clickhouse_client.schema.tables[table_name]["columns"].values())
+
+    sql = clickhouse_client._get_table_update_sql(table_name, new_columns, False)[0]
+
+    assert f"ORDER BY {expected_order_by}" in sql
+    assert "ORDER BY tuple()" not in sql
 
 
 @pytest.mark.usefixtures("empty_schema")
