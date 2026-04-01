@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Type, TYPE_CHECKING
 
 from dlt.common.destination.configuration import ParquetFormatConfiguration
@@ -57,7 +59,7 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
         return caps
 
     @property
-    def client_class(self) -> Type["LanceClient"]:
+    def client_class(self) -> type[LanceClient]:
         from dlt.destinations.impl.lance.lance_client import LanceClient
 
         return LanceClient
