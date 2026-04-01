@@ -75,6 +75,8 @@ from dlt.destinations.impl.lance.utils import _align_schema
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 
 if TYPE_CHECKING:
+    from dlt.destinations.impl.lance.sql_client import LanceSQLClient
+
     NDArray = numpy.ndarray[Any, Any]
 else:
     NDArray = numpy.ndarray
@@ -106,18 +108,15 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         pass
 
     @property
-    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+    def sql_client_class(self) -> Type[LanceSQLClient]:  # type: ignore[override]
         from dlt.destinations.impl.lance.sql_client import LanceSQLClient
 
         return LanceSQLClient
 
     @property
     def sql_client(self) -> SqlClientBase[Any]:
-        # inner import because `LanceSQLClient` depends on `duckdb` and is optional
-        from dlt.destinations.impl.lance.sql_client import LanceSQLClient
-
         if not self._sql_client:
-            self._sql_client = LanceSQLClient(self)
+            self._sql_client = self.sql_client_class(self)
         return self._sql_client
 
     @sql_client.setter
