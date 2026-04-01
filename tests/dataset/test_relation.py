@@ -84,6 +84,14 @@ def test_transformed_relation_to_ibis_(purchases: dlt.Relation) -> None:
     assert list(out["name"]) == ["charlie"]
 
 
+def test_relation_from_loads_rejects_non_table_relations(dataset: dlt.Dataset) -> None:
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.query("SELECT * FROM purchases").from_loads(["load_1"])
+
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.table("purchases").where("id", "gt", 1).from_loads(["load_1"])
+
+
 def test_dataset_load_ids(dataset_with_loads: TLoadsFixture):
     dataset, load_ids, _ = dataset_with_loads
 

@@ -620,7 +620,7 @@ class Relation(WithSqlClient):
         current relation. `include_load_id` allows to keep the `_dlt_load_id` column
         or exclude it after filtering.
         """
-        if not self._table_name:
+        if not self._table_name or self._query is not None:
             raise ValueError(
                 "`filter_loads()` only works on relations created via .table()."
                 " It can't be applied to arbitrary relation."
