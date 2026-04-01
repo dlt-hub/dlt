@@ -15,7 +15,6 @@ from typing import (
 
 import lance
 import lancedb
-import pyarrow as pa
 from lance import LanceDataset
 from lance.namespace import (
     CreateNamespaceRequest,
@@ -30,6 +29,7 @@ from lancedb.embeddings import EmbeddingFunctionConfig, EmbeddingFunctionRegistr
 
 from dlt.common import json, pendulum, logger
 from dlt.common.libs.numpy import numpy
+from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,

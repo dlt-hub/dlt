@@ -1,9 +1,9 @@
-import pyarrow as pa
 from pyarrow import types as pat
 
 from dlt.common import logger
 from dlt.common.data_writers.escape import escape_lancedb_literal
 from dlt.common.destination.exceptions import DestinationTerminalException
+from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
 

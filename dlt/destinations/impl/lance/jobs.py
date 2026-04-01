@@ -1,9 +1,7 @@
 from typing import TYPE_CHECKING
 
-import pyarrow as pa
-import pyarrow.parquet as pq
-
 from dlt.common.destination.client import RunnableLoadJob
+from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.schema.utils import is_nested_table
 from dlt.destinations.impl.lance.lance_adapter import REMOVE_ORPHANS_HINT
@@ -74,12 +72,12 @@ class LanceLoadJob(RunnableLoadJob):
         )
         # unfortunately we need to load data into memory here before the write, but at least we can
         # scope it to just the key column
-        keys = pq.read_table(self._file_path, columns=[key_col])[key_col]
+        keys = pa.parquet.read_table(self._file_path, columns=[key_col])[key_col]
         return create_in_filter(key_col, keys)
 
     @staticmethod
     def _get_file_reader(file_path: str) -> pa.RecordBatchReader:
-        parquet_file = pq.ParquetFile(file_path)
+        parquet_file = pa.parquet.ParquetFile(file_path)
         return pa.RecordBatchReader.from_batches(
             parquet_file.schema_arrow, parquet_file.iter_batches()
         )
