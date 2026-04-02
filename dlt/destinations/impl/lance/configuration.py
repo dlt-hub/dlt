@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from lancedb.embeddings import EmbeddingFunction, EmbeddingFunctionRegistry
 
 DEFAULT_LANCE_BUCKET_URL = "."  # active run dir
-DEFAULT_LANCE_NAMESPACE_NAME = "dlt_lance_namespace"
+DEFAULT_LANCE_NAMESPACE_NAME = "dlt_lance_root"
 DEFAULT_LANCE_VECTOR_COLUMN_NAME = "vector"
 
 # NOTE: list providers with `EmbeddingFunctionRegistry.get_instance()._functions.keys()`
