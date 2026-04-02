@@ -50,7 +50,7 @@ Snowflake controls outbound network access through [External Access Integrations
 
 The app handles this for you: it creates a specification requesting the EAI, and an admin approves it in the **Connections → Approve** tab.
 
-![Create Connection](https://storage.googlseapis.com/dlt-blog-images/sna_ui.png)
+![Create Connection](https://storage.googleapis.com/dlt-blog-images/sna_ui.png)
 
 ### Create a connection
 
@@ -288,7 +288,7 @@ To schedule a pipeline:
 5. Click Save
 
 
-![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_schedule.png)
+![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_schedul.png)
 
 
 This operation creates or updates a Snowflake task that triggers the pipeline according to the specified schedule. To stop the task, set its status to `SUSPENDED`. You can do this either via SQL:
