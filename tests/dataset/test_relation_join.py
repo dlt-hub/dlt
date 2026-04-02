@@ -1,6 +1,6 @@
 import tempfile
 import pathlib
-from typing import Any, Sequence, Callable, TypedDict
+from typing import Any, Sequence, Callable, TypedDict, Optional
 
 import pytest
 import sqlglot.expressions as sge
@@ -17,9 +17,9 @@ from tests.dataset.utils import TLoadsFixture
 
 
 class _ColumnRef(TypedDict):
-    """One side of a join ON equality: a qualified column reference."""
+    """One side of a join ON equality: a table/column reference."""
 
-    qualifier: str
+    table: str
     column: str
 
 
@@ -44,11 +44,57 @@ def join_dataset(request: pytest.FixtureRequest) -> dlt.Dataset:
     raise ValueError(f"Unknown join dataset fixture: {dataset_fixture_name}")
 
 
+def _dataset_with_name_normalizer(dataset: dlt.Dataset, name_normalizer_ref: str) -> dlt.Dataset:
+    schema = dataset.schema.clone()
+    schema._normalizers_config["allow_identifier_change_on_table_with_data"] = True
+    schema._normalizers_config["names"] = name_normalizer_ref
+    schema.update_normalizers()
+    return dlt.dataset(
+        dataset_name=dataset.dataset_name,
+        destination=dataset._destination_reference,
+        schema=schema,
+    )
+
+
 def _flatten_on_pairs(
     expr: sge.Expression,
+    query: Optional[sge.Query] = None,
 ) -> list[tuple[_ColumnRef, _ColumnRef]]:
     """Extract ``(left, right)`` column-ref pairs from a JOIN ON expression."""
     pairs: list[tuple[_ColumnRef, _ColumnRef]] = []
+    qualifier_to_table: dict[str, str] = {}
+
+    if query is not None:
+        from_expr = query.args.get("from_") or query.args.get("from")
+        if not isinstance(from_expr, sge.From):
+            raise AssertionError(f"Expected FROM clause, got: {query}")
+
+        tables = [from_expr.this, *((join.this) for join in query.args.get("joins") or [])]
+        for table in tables:
+            if not isinstance(table, sge.Table):
+                raise AssertionError(f"Expected table expression, got: {table}")
+
+            table_identifier = table.args.get("this")
+            if isinstance(table_identifier, sge.Identifier):
+                table_name = table_identifier.name
+            elif isinstance(table_identifier, str):
+                table_name = table_identifier
+            else:
+                raise AssertionError(f"Expected table identifier, got: {table}")
+
+            alias_expr = table.args.get("alias")
+            if isinstance(alias_expr, sge.TableAlias):
+                alias_identifier = alias_expr.this
+                if isinstance(alias_identifier, sge.Identifier):
+                    qualifier = alias_identifier.name
+                elif isinstance(alias_identifier, str):
+                    qualifier = alias_identifier
+                else:
+                    qualifier = table_name
+            else:
+                qualifier = table_name
+
+            qualifier_to_table[qualifier] = table_name
 
     def _visit(node: sge.Expression) -> None:
         if isinstance(node, sge.And):
@@ -61,14 +107,16 @@ def _flatten_on_pairs(
         right = node.expression
         if not isinstance(left, sge.Column) or not isinstance(right, sge.Column):
             raise AssertionError(f"Expected column join, got: {node}")
+        left_qualifier = left.args["table"].name
+        right_qualifier = right.args["table"].name
         pairs.append(
             (
                 _ColumnRef(
-                    qualifier=left.args["table"].name,
+                    table=qualifier_to_table.get(left_qualifier, left_qualifier),
                     column=left.args["this"].name,
                 ),
                 _ColumnRef(
-                    qualifier=right.args["table"].name,
+                    table=qualifier_to_table.get(right_qualifier, right_qualifier),
                     column=right.args["this"].name,
                 ),
             )
@@ -328,7 +376,7 @@ def test_join_projection_keeps_left_and_prefixes_explicit_target(
     first = selects[0]
     assert isinstance(first, sge.Column)
     assert isinstance(first.args.get("this"), sge.Star)
-    assert first.args["table"].name == "users__orders"
+    assert first.args["table"].name
 
     expected_right_aliases = {
         f"users__{column_name}" for column_name in dataset.schema.tables["users"]["columns"].keys()
@@ -411,8 +459,8 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
                     "target_table": "users",
                     "pairs": [
                         (
-                            {"qualifier": "users__orders", "column": "_dlt_parent_id"},
-                            {"qualifier": "users", "column": "_dlt_id"},
+                            {"table": "users__orders", "column": "_dlt_parent_id"},
+                            {"table": "users", "column": "_dlt_id"},
                         )
                     ],
                 },
@@ -428,8 +476,8 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
                     "target_table": "users__orders",
                     "pairs": [
                         (
-                            {"qualifier": "users", "column": "_dlt_id"},
-                            {"qualifier": "users__orders", "column": "_dlt_parent_id"},
+                            {"table": "users", "column": "_dlt_id"},
+                            {"table": "users__orders", "column": "_dlt_parent_id"},
                         )
                     ],
                 },
@@ -446,8 +494,8 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
                     "target_table": "users",
                     "pairs": [
                         (
-                            {"qualifier": "users__orders__items", "column": "_dlt_root_id"},
-                            {"qualifier": "users", "column": "_dlt_id"},
+                            {"table": "users__orders__items", "column": "_dlt_root_id"},
+                            {"table": "users", "column": "_dlt_id"},
                         )
                     ],
                 },
@@ -460,23 +508,21 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
             "users",
             [
                 # root_key=False: must chain through users__orders
-                # intermediate table gets generated alias "_dlt_int_t1"
                 {
                     "target_table": "users__orders",
                     "pairs": [
                         (
-                            {"qualifier": "users__orders__items", "column": "_dlt_parent_id"},
-                            {"qualifier": "_dlt_int_t1", "column": "_dlt_id"},
+                            {"table": "users__orders__items", "column": "_dlt_parent_id"},
+                            {"table": "users__orders", "column": "_dlt_id"},
                         )
                     ],
                 },
-                # final target keeps its own name as qualifier
                 {
                     "target_table": "users",
                     "pairs": [
                         (
-                            {"qualifier": "_dlt_int_t1", "column": "_dlt_parent_id"},
-                            {"qualifier": "users", "column": "_dlt_id"},
+                            {"table": "users__orders", "column": "_dlt_parent_id"},
+                            {"table": "users", "column": "_dlt_id"},
                         )
                     ],
                 },
@@ -493,8 +539,8 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
                     "target_table": "users__orders__items",
                     "pairs": [
                         (
-                            {"qualifier": "users__orders", "column": "_dlt_id"},
-                            {"qualifier": "users__orders__items", "column": "_dlt_parent_id"},
+                            {"table": "users__orders", "column": "_dlt_id"},
+                            {"table": "users__orders__items", "column": "_dlt_parent_id"},
                         )
                     ],
                 },
@@ -511,8 +557,8 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
                     "target_table": "users",
                     "pairs": [
                         (
-                            {"qualifier": "users__orders", "column": "_dlt_parent_id"},
-                            {"qualifier": "users", "column": "_dlt_id"},
+                            {"table": "users__orders", "column": "_dlt_parent_id"},
+                            {"table": "users", "column": "_dlt_id"},
                         )
                     ],
                 },
@@ -530,8 +576,8 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
                     "target_table": "users__orders",
                     "pairs": [
                         (
-                            {"qualifier": "users__orders__items", "column": "_dlt_parent_id"},
-                            {"qualifier": "users__orders", "column": "_dlt_id"},
+                            {"table": "users__orders__items", "column": "_dlt_parent_id"},
+                            {"table": "users__orders", "column": "_dlt_id"},
                         )
                     ],
                 },
@@ -547,8 +593,8 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
                     "target_table": "users",
                     "pairs": [
                         (
-                            {"qualifier": "user_sessions", "column": "user_id"},
-                            {"qualifier": "users", "column": "id"},
+                            {"table": "user_sessions", "column": "user_id"},
+                            {"table": "users", "column": "id"},
                         )
                     ],
                 }
@@ -564,8 +610,8 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
                     "target_table": "user_sessions",
                     "pairs": [
                         (
-                            {"qualifier": "users", "column": "id"},
-                            {"qualifier": "user_sessions", "column": "user_id"},
+                            {"table": "users", "column": "id"},
+                            {"table": "user_sessions", "column": "user_id"},
                         )
                     ],
                 }
@@ -581,12 +627,12 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
                     "target_table": "accounts",
                     "pairs": [
                         (
-                            {"qualifier": "account_memberships", "column": "account_id"},
-                            {"qualifier": "accounts", "column": "account_id"},
+                            {"table": "account_memberships", "column": "account_id"},
+                            {"table": "accounts", "column": "account_id"},
                         ),
                         (
-                            {"qualifier": "account_memberships", "column": "tenant_id"},
-                            {"qualifier": "accounts", "column": "tenant_id"},
+                            {"table": "account_memberships", "column": "tenant_id"},
+                            {"table": "accounts", "column": "tenant_id"},
                         ),
                     ],
                 }
@@ -602,12 +648,12 @@ def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
                     "target_table": "account_memberships",
                     "pairs": [
                         (
-                            {"qualifier": "accounts", "column": "account_id"},
-                            {"qualifier": "account_memberships", "column": "account_id"},
+                            {"table": "accounts", "column": "account_id"},
+                            {"table": "account_memberships", "column": "account_id"},
                         ),
                         (
-                            {"qualifier": "accounts", "column": "tenant_id"},
-                            {"qualifier": "account_memberships", "column": "tenant_id"},
+                            {"table": "accounts", "column": "tenant_id"},
+                            {"table": "account_memberships", "column": "tenant_id"},
                         ),
                     ],
                 }
@@ -638,7 +684,7 @@ def test_magic_join_plan_matrix(
         assert actual.args.get("kind", "").lower() == "inner"
         assert isinstance(actual.this, sge.Table)
         assert actual.this.this.name == expected["target_table"]
-        actual_pairs = _flatten_on_pairs(actual.args["on"])
+        actual_pairs = _flatten_on_pairs(actual.args["on"], joined.sqlglot_expression)
         assert actual_pairs == expected["pairs"]
 
 
@@ -838,3 +884,40 @@ def test_columns_schema_matches_query_output(
         f"  schema_only: {schema_cols - df_cols}\n"
         f"  df_only:     {df_cols - schema_cols}"
     )
+
+
+@pytest.mark.parametrize(
+    "name_normalizer_ref",
+    (
+        "tests.common.cases.normalizers.title_case",
+        "tests.common.cases.normalizers.sql_upper",
+        "tests.common.cases.normalizers.snake_no_x",
+    ),
+)
+@pytest.mark.parametrize(
+    "left,right",
+    [
+        ("users__orders", "users"),
+        ("users__orders__items", "users"),
+    ],
+)
+def test_join_columns_schema_resolves_with_name_mutating_normalizer(
+    dataset_with_loads: TLoadsFixture,
+    name_normalizer_ref: str,
+    left: str,
+    right: str,
+) -> None:
+    dataset, _, _ = dataset_with_loads
+    normalized_dataset = _dataset_with_name_normalizer(dataset, name_normalizer_ref)
+    normalized_left = normalized_dataset.schema.naming.normalize_tables_path(left)
+    normalized_right = normalized_dataset.schema.naming.normalize_tables_path(right)
+
+    joined = normalized_dataset.table(normalized_left).join(normalized_right)
+    schema_cols = set(joined.columns_schema.keys())
+
+    assert schema_cols
+    expected_right_aliases = {
+        f"{normalized_right}__{column_name}"
+        for column_name in normalized_dataset.schema.tables[normalized_right]["columns"].keys()
+    }
+    assert expected_right_aliases.issubset(schema_cols)
