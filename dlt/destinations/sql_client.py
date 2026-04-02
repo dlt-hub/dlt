@@ -11,6 +11,7 @@ from typing import (
     Generic,
     Iterator,
     Optional,
+    Protocol,
     Sequence,
     Tuple,
     Type,
@@ -18,10 +19,12 @@ from typing import (
     List,
     Generator,
     cast,
+    runtime_checkable,
 )
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.typing import TFun, TypedDict, Self
+from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
@@ -102,6 +105,10 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
     ) -> None:
         self.close_connection()
+
+    def set_schemas(self, schemas: Sequence[Schema]) -> None:
+        """Register additional schemas for multi-schema datasets."""
+        pass
 
     @property
     @abstractmethod
@@ -348,6 +355,13 @@ class WithSqlClient(ABC):
     @abstractmethod
     def sql_client_class(self) -> Type[SqlClientBase[TNativeConn]]:
         pass
+
+
+@runtime_checkable
+class SupportsMultiSchema(Protocol):
+    """SQL clients that can resolve tables across multiple dlt schemas."""
+
+    def set_schemas(self, schemas: Sequence[Schema]) -> None: ...
 
 
 class DBApiCursorImpl(DBApiCursor):

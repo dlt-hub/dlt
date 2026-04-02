@@ -35,7 +35,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.utils import extend_list_deduplicated, simple_repr, without_none
 from dlt.common.exceptions import ValueErrorWithKnownValues
-from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient, SupportsMultiSchema
 from dlt.dataset import lineage
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
@@ -472,7 +472,10 @@ def get_dataset_destination_client(dataset: dlt.Dataset) -> JobClientBase:
 def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
     client = get_dataset_destination_client(dataset)
     if isinstance(client, WithSqlClient):
-        return client.sql_client
+        sql_client = client.sql_client
+        if isinstance(sql_client, SupportsMultiSchema):
+            sql_client.set_schemas(dataset.schemas)
+        return sql_client
     else:
         raise SqlClientNotAvailable("dataset", dataset.dataset_name, client.config.destination_type)
 

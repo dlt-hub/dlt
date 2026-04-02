@@ -871,18 +871,20 @@ class FilesystemClient(
             table.pop("table_format", None)
         return table
 
-    def get_table_dir(self, table_name: str, remote: bool = False) -> str:
+    def get_table_dir(
+        self, table_name: str, remote: bool = False, schema_name: Optional[str] = None
+    ) -> str:
         """Returns a directory containing table files, ending with separator.
         Note that many tables can share the same table dir
         """
         # dlt tables do not respect layout (for now)
-        table_prefix = self.get_table_prefix(table_name)
+        table_prefix = self.get_table_prefix(table_name, schema_name=schema_name)
         table_dir: str = self.pathlib.dirname(table_prefix) + self.pathlib.sep
         if remote:
             table_dir = self.make_remote_url(table_dir)
         return table_dir
 
-    def get_table_prefix(self, table_name: str) -> str:
+    def get_table_prefix(self, table_name: str, schema_name: Optional[str] = None) -> str:
         """For table prefixes that are folders, trailing separator will be preserved"""
         # dlt tables do not respect layout (for now)
         if self.is_dlt_table(table_name):
@@ -891,7 +893,7 @@ class FilesystemClient(
             table_prefix = self.pathlib.join(table_name, "")
         else:
             table_prefix = self.table_prefix_layout.format(
-                schema_name=self.schema.name, table_name=table_name
+                schema_name=schema_name or self.schema.name, table_name=table_name
             )
         return self.pathlib.join(  # type: ignore[no-any-return]
             self.dataset_path, path_utils.normalize_path_sep(self.pathlib, table_prefix)
@@ -904,11 +906,11 @@ class FilesystemClient(
         """Gets directories where table data is stored."""
         return [self.get_table_dir(t, remote=remote) for t in table_names]
 
-    def list_table_files(self, table_name: str) -> List[str]:
+    def list_table_files(self, table_name: str, schema_name: Optional[str] = None) -> List[str]:
         """gets list of files associated with one table"""
-        table_dir = self.get_table_dir(table_name)
+        table_dir = self.get_table_dir(table_name, schema_name=schema_name)
         # we need the table prefix so we separate table files if in the same folder
-        table_prefix = self.get_table_prefix(table_name)
+        table_prefix = self.get_table_prefix(table_name, schema_name=schema_name)
         try:
             return self.list_files_with_prefixes(table_dir, [table_prefix])
         except FileNotFoundError as file_ex:
@@ -1336,7 +1338,9 @@ class FilesystemClient(
 
         return catalog
 
-    def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
+    def get_open_table_location(
+        self, table_format: TTableFormat, table_name: str, schema_name: Optional[str] = None
+    ) -> str:
         """All tables have location, also those in "native" table format. Native format
         in case of filesystem is a set of parquet/csv/jsonl files where a table may
         be placed in a separate folder or share common prefix define in the layout.
@@ -1344,7 +1348,7 @@ class FilesystemClient(
         if path is a "folder" (includes buckets)
         Note: location is fully formed url
         """
-        prefix = self.get_table_prefix(table_name)
+        prefix = self.get_table_prefix(table_name, schema_name=schema_name)
         location = self.make_remote_url(prefix)
         if self.config.is_local_filesystem and os.name == "nt":
             # pyiceberg cannot deal with windows absolute urls

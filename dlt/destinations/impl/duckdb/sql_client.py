@@ -32,6 +32,8 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.destination.client import JobClientBase
+from dlt.common.destination.utils import prepare_load_table as _prepare_load_table
+from dlt.common.schema import Schema
 from dlt.common.destination.dataset import DBApiCursor
 
 from dlt.common.destination.typing import PreparedTableSchema
@@ -495,6 +497,7 @@ class WithTableScanners(DuckDbSqlClient):
         )
         self.remote_client = remote_client
         self.schema = remote_client.schema
+        self._schemas: Dict[str, Schema] = {remote_client.schema.name: remote_client.schema}
         self.persist_secrets = persist_secrets
         self._global_config.update(
             {
@@ -537,7 +540,9 @@ class WithTableScanners(DuckDbSqlClient):
         pass
 
     @abstractmethod
-    def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
+    def create_view(
+        self, view_name: str, table_schema: PreparedTableSchema, schema: Schema = None
+    ) -> None:
         pass
 
     @abstractmethod
@@ -545,18 +550,33 @@ class WithTableScanners(DuckDbSqlClient):
         """Tells if a view for a table `table_schema` can be created"""
         pass
 
+    def set_schemas(self, schemas: Sequence[Schema]) -> None:
+        """Register schemas for multi-schema view creation."""
+        self._schemas = {s.name: s for s in schemas}
+
+    def _get_schema_for_table(self, table_name: str) -> Schema:
+        """Find which schema contains the given table."""
+        for s in self._schemas.values():
+            if table_name in s.tables:
+                return s
+        return self.schema
+
     def create_views_for_all_tables(self) -> None:
-        self.create_views_for_tables({v: v for v in self.schema.tables.keys()})
+        all_tables: Dict[str, str] = {}
+        for s in self._schemas.values():
+            for table_name in s.tables.keys():
+                all_tables[table_name] = table_name
+        self.create_views_for_tables(all_tables)
 
     def create_views_for_tables(self, tables: Dict[str, str]) -> None:
         """Add the required tables as views to the duckdb in memory instance"""
 
         # this also gets all views
         existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
-        # map only tables with data
-        tables_with_data = self.schema.dlt_table_names() + self.schema.data_table_names(
-            seen_data_only=True
-        )
+        # map only tables with data across all known schemas
+        tables_with_data: List[str] = []
+        for s in self._schemas.values():
+            tables_with_data += s.dlt_table_names() + s.data_table_names(seen_data_only=True)
 
         for table_name in tables.keys():
             view_name = tables[table_name]
@@ -564,9 +584,14 @@ class WithTableScanners(DuckDbSqlClient):
             if table_name not in tables_with_data:
                 # unknown views will not be created
                 continue
-            # NOTE: if this is staging configuration then `prepare_load_table` will remove some info
-            # from table schema, if we ever extend this to handle staging destination, this needs to change
-            schema_table = self.remote_client.prepare_load_table(table_name)
+
+            # resolve the owning schema and prepare the table from it
+            target_schema = self._get_schema_for_table(table_name)
+            schema_table = _prepare_load_table(
+                target_schema.tables,
+                target_schema.get_table(table_name),
+                self.capabilities,
+            )
 
             needs_replace = self.should_replace_view(view_name, schema_table)
             # skip if view already exists and does not need to be replaced each time
@@ -576,7 +601,7 @@ class WithTableScanners(DuckDbSqlClient):
             if not self.can_create_view(schema_table):
                 continue
 
-            self.create_view(view_name, schema_table)
+            self.create_view(view_name, schema_table, target_schema)
 
     @contextmanager
     @raise_database_error
