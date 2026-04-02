@@ -42,15 +42,15 @@ Use the link we provided to you or find and install the app via the [Snowflake M
 
 ## Set up connection
 
-Before creating a pipeline, you need to set up a connection — a secure, approved link between your Snowflake account and your source database.
+Before creating a [pipeline](../../general-usage/pipeline), you need to set up a connection — a secure, approved link between your Snowflake account and your source database.
 
 Go to the Connections tab. It has three sub-tabs: **Create**, **Manage**, and **Approve**.
 
-Snowflake controls outbound network access through External Access Integrations (EAIs). Creating one requires an `ACCOUNTADMIN` to approve the connection before it can be used. Once approved, the connection is available to every role that has access to the app.
+Snowflake controls outbound network access through [External Access Integrations (EAIs)](https://docs.snowflake.com/en/developer-guide/external-network-access/creating-using-external-network-access). Creating one requires an `ACCOUNTADMIN` to approve the connection before it can be used. Once approved, the connection is available to every role that has access to the app.
 
 The app handles this for you: it creates a specification requesting the EAI, and an admin approves it in the **Connections → Approve** tab.
 
-![Create Connection](https://storage.googleapis.com/dlt-blog-images/sna_ui.png)
+![Create Connection](https://storage.googlseapis.com/dlt-blog-images/sna_ui.png)
 
 ### Create a connection
 
@@ -200,7 +200,7 @@ Destination settings define where in Snowflake the data is loaded and allow adva
 - **Check privileges**:
     Validates that the app has access to the destination database. If permissions are missing, the app will request/grant the required access.
 
-![destination settings](https://storage.googleapis.com/dlt-blog-images/sna_destination_settings.png)
+![destination settings](https://storage.googleapis.com/dlt-blog-images/sna_check_privileges.png)
 
 - **Destination JSON configuration**:
     Provide additional destination options not exposed in the UI. Values override UI settings when the same option is set in both places. These are passed as keyword arguments to dlt’s Snowflake destination [factory](../../api_reference/dlt/destinations/impl/snowflake/factory).
@@ -271,7 +271,7 @@ Click the **view logs** tab to see the logs of the job:
 - Progress information for each stage 
 - Performance metrics (processing time, memory usage, CPU, ...)
 
-![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_runs_button.png)
+![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_logs.png)
 
 
 
@@ -288,7 +288,7 @@ To schedule a pipeline:
 5. Click Save
 
 
-![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_scheduling_button.png)
+![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_schedule.png)
 
 
 This operation creates or updates a Snowflake task that triggers the pipeline according to the specified schedule. To stop the task, set its status to `SUSPENDED`. You can do this either via SQL:
