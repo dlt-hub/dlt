@@ -93,7 +93,7 @@ class LanceSQLClient(DuckDbSqlClient):
         storage_options = self.lance_client.config.storage.options
         if not storage_options:
             return
-        scope = self.lance_client.config.storage.namespace_url
+        scope = self.lance_client.config.storage.namespace_uri
         secret_name = self.create_secret_name(scope)
         stmt = _prepare_create_lance_secret_statement(secret_name, scope, storage_options)
         self._conn.execute(stmt)

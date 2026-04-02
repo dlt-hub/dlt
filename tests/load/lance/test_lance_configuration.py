@@ -20,37 +20,37 @@ from tests.utils import capture_dlt_logger
 pytestmark = pytest.mark.essential
 
 
-def test_lance_storage_configuration_namespace_url() -> None:
+def test_lance_storage_configuration_namespace_uri() -> None:
     # falls back to defaults when no values are provided
     config = LanceStorageConfiguration()
-    assert config.namespace_url == f"{DEFAULT_LANCE_BUCKET_URL}/{DEFAULT_LANCE_NAMESPACE_NAME}"
+    assert config.namespace_uri == f"{DEFAULT_LANCE_BUCKET_URL}/{DEFAULT_LANCE_NAMESPACE_NAME}"
     config = LanceStorageConfiguration(bucket_url="s3://my-bucket")
-    assert config.namespace_url == f"s3://my-bucket/{DEFAULT_LANCE_NAMESPACE_NAME}"
+    assert config.namespace_uri == f"s3://my-bucket/{DEFAULT_LANCE_NAMESPACE_NAME}"
     config = LanceStorageConfiguration(namespace_name="my-namespace")
-    assert config.namespace_url == f"{DEFAULT_LANCE_BUCKET_URL}/my-namespace"
+    assert config.namespace_uri == f"{DEFAULT_LANCE_BUCKET_URL}/my-namespace"
 
-    # concatenates bucket_url and namespace_name to form namespace_url
+    # concatenates bucket_url and namespace_name to form namespace_uri
     config = LanceStorageConfiguration(bucket_url="s3://my-bucket", namespace_name="my-namespace")
-    assert config.namespace_url == "s3://my-bucket/my-namespace"
+    assert config.namespace_uri == "s3://my-bucket/my-namespace"
 
     # handles trailing slash
     config = LanceStorageConfiguration(bucket_url="s3://my-bucket/", namespace_name="my-namespace")
-    assert config.namespace_url == "s3://my-bucket/my-namespace"
+    assert config.namespace_uri == "s3://my-bucket/my-namespace"
 
-    # allows empty namespace_name (i.e. namespace_url is just bucket_url)
+    # allows empty namespace_name (i.e. namespace_uri is just bucket_url)
     config = LanceStorageConfiguration(bucket_url="s3://my-bucket/", namespace_name=None)
-    assert config.namespace_url == "s3://my-bucket"
+    assert config.namespace_uri == "s3://my-bucket"
 
     # resolution should turn relative local path into absolute path
     local_dir_uri = f"file://{active().local_dir}"
 
     config = LanceStorageConfiguration(bucket_url=".", namespace_name="bar")
     config.call_method_in_mro("on_partial")  # to resolve config.local_dir
-    assert config.namespace_url == f"{local_dir_uri}/bar"
+    assert config.namespace_uri == f"{local_dir_uri}/bar"
 
     config = LanceStorageConfiguration(bucket_url="foo", namespace_name="bar")
     config.call_method_in_mro("on_partial")  # to resolve config.local_dir
-    assert config.namespace_url == f"{local_dir_uri}/foo/bar"
+    assert config.namespace_uri == f"{local_dir_uri}/foo/bar"
 
 
 def test_lance_storage_configuration_options() -> None:

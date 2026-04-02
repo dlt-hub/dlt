@@ -76,11 +76,11 @@ class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
         self.options = options
 
     @property
-    def namespace_url(self) -> str:
-        namespace_url = self.bucket_url.rstrip("/")
+    def namespace_uri(self) -> str:
+        namespace_uri = self.bucket_url.rstrip("/")
         if self.namespace_name:
-            namespace_url += "/" + self.namespace_name
-        return namespace_url
+            namespace_uri += "/" + self.namespace_name
+        return namespace_uri
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -100,7 +100,7 @@ class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
         from lance.namespace import DirectoryNamespace
 
         storage_props = {f"storage.{k}": v for k, v in (self.options or {}).items()}
-        return DirectoryNamespace(root=self.namespace_url, **storage_props)
+        return DirectoryNamespace(root=self.namespace_uri, **storage_props)
 
 
 @configspec
