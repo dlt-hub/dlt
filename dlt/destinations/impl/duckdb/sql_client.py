@@ -590,7 +590,7 @@ class WithTableScanners(DuckDbSqlClient):
             schema_table = _prepare_load_table(
                 target_schema.tables,
                 target_schema.get_table(table_name),
-                self.capabilities,
+                self.remote_client.capabilities,
             )
 
             needs_replace = self.should_replace_view(view_name, schema_table)

@@ -131,6 +131,10 @@ class FilesystemSqlClient(WithTableScanners):
         # files - newest files
         schema = schema or self.schema
         table_name = table_schema["name"]
+
+        if table_name in schema.dlt_table_names():
+            table_schema.pop("table_format", None)
+
         table_format = table_schema.get("table_format")
         protocol = self.remote_client.config.protocol
         table_location = self.remote_client.get_open_table_location(
