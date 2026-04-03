@@ -1,6 +1,6 @@
 from copy import deepcopy
 from textwrap import dedent
-from typing import Any, Literal, Optional, List, Sequence, cast
+from typing import Any, Literal, Optional, List, Sequence, Tuple, cast
 from urllib.parse import ParseResult, urlparse
 
 import clickhouse_connect
@@ -246,6 +246,69 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
             f"CREATE OR REPLACE TABLE {temp_table_name} ENGINE ="
             f" MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
         )
+
+    @classmethod
+    def _normalize_delete_temp_engine(cls, engine_name: Optional[str]) -> str:
+        if not engine_name:
+            return "MergeTree"
+        if engine_name.startswith("Replicated"):
+            return "ReplicatedMergeTree"
+        if engine_name.startswith("Shared"):
+            return "SharedMergeTree"
+        return "MergeTree"
+
+    @classmethod
+    def _get_delete_temp_engine(cls, table_name: str, sql_client: SqlClientBase[Any]) -> str:
+        # Use a replica-aware engine for delete temp tables when destination tables are replicated.
+        # This keeps delete-key visibility consistent across replicas during merge delete-insert.
+        sql_client_config = getattr(sql_client, "config", None)
+        table_engine = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(
+            cast(TTableEngineType, getattr(sql_client_config, "table_engine_type", None)),
+            "MergeTree",
+        )
+
+        try:
+            database, destination_table_name = sql_client.make_qualified_table_name_path(
+                table_name, quote=False
+            )
+            rows = sql_client.execute_sql(
+                "SELECT engine FROM system.tables WHERE database = %s AND name = %s",
+                database,
+                destination_table_name,
+            )
+            if rows:
+                table_engine = rows[0][0]
+        except Exception as ex:
+            logger.warning(
+                "Could not detect ClickHouse engine for table '%s'. Falling back to '%s' for"
+                " merge delete temp table. Detection failed with: %s",
+                table_name,
+                table_engine,
+                ex,
+            )
+
+        return cls._normalize_delete_temp_engine(table_engine)
+
+    @classmethod
+    def gen_delete_temp_table_sql(
+        cls,
+        table_name: str,
+        unique_column: str,
+        key_table_clauses: Sequence[str],
+        sql_client: SqlClientBase[Any],
+    ) -> Tuple[List[str], str]:
+        temp_table_name = cls._new_temp_table_name(table_name, "delete", sql_client)
+        temp_engine = cls._get_delete_temp_engine(table_name, sql_client)
+        select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
+        sql = [
+            (
+                f"CREATE OR REPLACE TABLE {temp_table_name} ENGINE = {temp_engine}"
+                f" PRIMARY KEY {unique_column} AS {select_statement}"
+            )
+        ]
+        for clause in key_table_clauses[1:]:
+            sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause}")
+        return sql, temp_table_name
 
     @classmethod
     def gen_key_table_clauses(
