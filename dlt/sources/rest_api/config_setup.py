@@ -1,5 +1,5 @@
 import warnings
-from copy import copy
+from copy import copy, deepcopy
 from typing import (
     Generator,
     Type,
@@ -582,7 +582,6 @@ def _handle_response_action(
     if callable(action):
         custom_hooks = [action]
     else:
-        action = cast(ResponseActionDict, action)
         status_code = action.get("status_code")
         content_substr = action.get("content")
         response_action = action.get("action")
@@ -1069,7 +1068,7 @@ def paginate_dependent_resource(
             params=processed_data.params,
             json=processed_data.json,
             data=processed_data.data,
-            paginator=paginator,
+            paginator=deepcopy(paginator),
             data_selector=data_selector,
             hooks=hooks,
         ):

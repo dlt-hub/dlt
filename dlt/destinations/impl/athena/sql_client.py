@@ -9,6 +9,7 @@ from typing import (
     Dict,
     Callable,
     Type,
+    TYPE_CHECKING,
 )
 from copy import deepcopy
 import re
@@ -20,6 +21,13 @@ from datetime import datetime  # noqa: I251
 import pyathena
 from pyathena import connect
 from pyathena.connection import Connection
+
+if TYPE_CHECKING:
+    from pyathena.cursor import Cursor
+
+    AthenaConnection = Connection[Cursor]
+else:
+    AthenaConnection = Any
 from pyathena.error import OperationalError, DatabaseError, ProgrammingError, IntegrityError, Error
 from pyathena.formatter import (
     DefaultParameterFormatter,
@@ -81,7 +89,7 @@ class DLTAthenaFormatter(DefaultParameterFormatter):
         DLTAthenaFormatter._INSTANCE = self
 
 
-class AthenaSQLClient(SqlClientBase[Connection]):
+class AthenaSQLClient(SqlClientBase[AthenaConnection]):
     dbapi: ClassVar[DBApi] = pyathena
 
     def __init__(
@@ -92,12 +100,12 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         super().__init__(None, dataset_name, staging_dataset_name, capabilities)
-        self._conn: Connection = None
+        self._conn: AthenaConnection = None
         self.config = config
         self.credentials = config.credentials
 
     @raise_open_connection_error
-    def open_connection(self) -> Connection:
+    def open_connection(self) -> AthenaConnection:
         # set `use_catalog_name` to False because we use fully qualified table names including
         # catalog in all queries and we may (depending on user config) do cross-catalog queries
         self._conn = connect(
@@ -110,7 +118,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         self._conn = None
 
     @property
-    def native_connection(self) -> Connection:
+    def native_connection(self) -> AthenaConnection:
         return self._conn
 
     def catalog_name(

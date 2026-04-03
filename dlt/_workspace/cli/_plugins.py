@@ -20,7 +20,6 @@ __all__ = [
     "plug_cli_dashboard",
     "plug_cli_telemetry",
     "plug_cli_deploy",
-    "plug_cli_docs",
     "plug_cli_ai",
     "plug_cli_profile",
     "plug_cli_workspace",
@@ -74,13 +73,6 @@ def plug_cli_deploy() -> Type[plugins.SupportsCliCommand]:
     from dlt._workspace.cli.commands import DeployCommand
 
     return DeployCommand
-
-
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_docs() -> Type[plugins.SupportsCliCommand]:
-    from dlt._workspace.cli.commands import CliDocsCommand
-
-    return CliDocsCommand
 
 
 @plugins.hookimpl(specname="plug_cli")

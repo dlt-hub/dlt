@@ -28,7 +28,7 @@ Before you start, make sure you have followed the [installation instructions](..
 [Initialize](../workspace/init) a project:
 
 ```sh
-dlt init dlthub:pokemon_api duckdb
+dlt init pokemon_api duckdb
 ```
 
 Once initialized, the Workspace automatically activates **profile support** and adds new commands such as:

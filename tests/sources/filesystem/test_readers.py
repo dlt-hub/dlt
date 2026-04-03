@@ -1,5 +1,6 @@
+import gzip
 import pathlib
-from typing import Any, Iterator
+from typing import Any, Dict, Iterator
 
 import pytest
 import pandas as pd
@@ -50,12 +51,22 @@ def _create_parquet_file(data: list[dict[str, Any]], tmp_path: pathlib.Path) -> 
     return FileItemDict(mapping=file_item, fsspec=_fsspec_client(tmp_path))
 
 
-def _create_csv_file(data: list[dict[str, Any]], tmp_path: pathlib.Path) -> FileItemDict:
-    file_name = "data.csv"
+def _create_csv_file(
+    data: list[dict[str, Any]],
+    tmp_path: pathlib.Path,
+    encoding: str = "utf-8",
+    use_gzip: bool = False,
+) -> FileItemDict:
+    file_name = "data.csv.gz" if use_gzip else "data.csv"
     full_file_path = tmp_path / file_name
 
     df = pd.DataFrame(data)
-    df.to_csv(full_file_path, index=False)
+    if use_gzip:
+        csv_bytes = df.to_csv(index=False, encoding=encoding).encode(encoding)
+        with gzip.open(full_file_path, "wb") as gz:
+            gz.write(csv_bytes)
+    else:
+        df.to_csv(full_file_path, index=False, encoding=encoding)
 
     file_item = FileItem(
         file_name=file_name,
@@ -65,6 +76,8 @@ def _create_csv_file(data: list[dict[str, Any]], tmp_path: pathlib.Path) -> File
         modification_date=pendulum.DateTime(2025, 1, 1, 0, 0, 0, 0),
         size_in_bytes=111,
     )
+    if use_gzip:
+        file_item["encoding"] = "gzip"
     return FileItemDict(mapping=file_item, fsspec=_fsspec_client(tmp_path))
 
 
@@ -191,6 +204,35 @@ def test_read_csv_metadata(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -
         for record in data
     ]
     assert read_data == [data_with_metadata]
+
+
+@pytest.mark.parametrize(
+    "encoding, use_gzip, extra_kwargs",
+    [
+        (
+            "utf-16",
+            False,
+            {},
+        ),
+        ("utf-16", True, {}),
+        ("utf-8", False, {"encoding_errors": "replace"}),
+    ],
+    ids=["utf16-plain", "utf16-gzip", "utf8-encoding-errors"],
+)
+def test_read_csv_non_utf8_encoding(
+    tmp_path: pathlib.Path,
+    data: list[dict[str, Any]],
+    encoding: str,
+    use_gzip: bool,
+    extra_kwargs: Dict[str, Any],
+) -> None:
+    file_ = _create_csv_file(data=data, tmp_path=tmp_path, encoding=encoding, use_gzip=use_gzip)
+    iterator = _read_csv([file_], encoding=encoding, **extra_kwargs)
+    read_data = list(iterator)
+
+    assert isinstance(iterator, Iterator)
+    assert isinstance(read_data, list)
+    assert read_data == [data]
 
 
 def test_read_jsonl(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:

@@ -290,7 +290,7 @@ class Dataset:
                 if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
             ]
 
-        union_all_expr = None
+        union_all_expr: Optional[sge.Query] = None
 
         for table_name in selected_tables:
             counts_expr = build_row_counts_expr(
@@ -330,6 +330,9 @@ class Dataset:
 
         This proxies `Dataset.table()`.
         """
+        # do not intercept dunder attributes (needed for copy/pickle/deepcopy)
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
         try:
             return self.table(name)
         # TODO: expect TableNotFound in the future

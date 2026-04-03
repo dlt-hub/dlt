@@ -48,10 +48,7 @@ lint-deps: ## Checks dependencies, hub extras, and API breaking changes (informa
 	-uv run python -m tools.check_api_breaking check
 
 lint-core: ## Runs core linting (mypy, ruff, flake8)
-	uv run mypy --config-file mypy.ini dlt tests tools
-	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
-	uv pip uninstall docstring_parser
-	uv pip install docstring_parser_fork --reinstall
+	uv run mypy dlt tests tools
 	uv run ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt tools
@@ -92,6 +89,7 @@ PYTHONHASHSEED := $(shell shuf -i 0-50 -n 1 2>/dev/null || echo $$((RANDOM % 51)
 PYTEST_ARGS        ?=
 PYTEST_MARKERS     ?=
 PYTEST_XDIST_N     ?=
+PYTEST_XDIST_DIST  ?= worksteal
 PYTEST_TARGET_ARGS :=
 
 # Internal marker model
@@ -421,10 +419,10 @@ start-test-containers: ## Starts docker containers for local testing (postgres, 
 	docker compose -f "tests/load/clickhouse/docker-compose.yml" up -d
 
 update-cli-docs: ## Regenerates CLI reference docs
-	uv run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md
+	uv run python docs/tools/check_cli_docs.py docs/website/docs/reference/command-line-interface.md
 
 check-cli-docs: ## Checks CLI reference docs are up to date (CI)
-	uv run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md --compare
+	uv run python docs/tools/check_cli_docs.py docs/website/docs/reference/command-line-interface.md --compare
 
 test-e2e-dashboard: ## Runs dashboard e2e tests with headless chromium
 	uv run pytest --browser chromium tests/e2e

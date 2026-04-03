@@ -322,13 +322,19 @@ def test_athena_partitioned_iceberg_table(destination_config: DestinationTestCon
     with pipeline.sql_client() as sql_client:
         tbl_name = sql_client.make_qualified_table_name("partitioned_table$partitions")
         rows = sql_client.execute_sql(f"SELECT partition FROM {tbl_name}")
-        partition_keys = {r[0] for r in rows}
+        # newer Athena client returns partition as dict, older as formatted string
+        partition_keys = set()
+        for r in rows:
+            val = r[0]
+            if isinstance(val, dict):
+                partition_keys.add(frozenset(val.items()))
+            else:
+                partition_keys.add(val)
 
         data_rows = sql_client.execute_sql(
             "SELECT id, category, created_at FROM"
             f" {sql_client.make_qualified_table_name('partitioned_table')}"
         )
-        # data_rows = [(i, c, d.toisoformat()) for i, c, d in data_rows]
 
     # All data is in table
     assert len(data_rows) == len(data_items)
@@ -337,11 +343,11 @@ def test_athena_partitioned_iceberg_table(destination_config: DestinationTestCon
     # Compare with expected partitions
     # Months are number of months since epoch
     expected_partitions = {
-        "{category=A, created_at_month=612}",
-        "{category=A, created_at_month=613}",
-        "{category=B, created_at_month=612}",
-        "{category=B, created_at_month=613}",
-        "{category=B, created_at_month=614}",
+        frozenset({("category", "A"), ("created_at_month", "612")}),
+        frozenset({("category", "A"), ("created_at_month", "613")}),
+        frozenset({("category", "B"), ("created_at_month", "612")}),
+        frozenset({("category", "B"), ("created_at_month", "613")}),
+        frozenset({("category", "B"), ("created_at_month", "614")}),
     }
 
     assert partition_keys == expected_partitions

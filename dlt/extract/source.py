@@ -632,6 +632,9 @@ class DltSource(Iterable[TDataItem]):
         )
 
     def __getattr__(self, resource_name: str) -> DltResource:
+        # do not intercept dunder attributes (needed for copy/pickle/deepcopy)
+        if resource_name.startswith("__") and resource_name.endswith("__"):
+            raise AttributeError(resource_name)
         try:
             return self._resources[resource_name]
         except KeyError:

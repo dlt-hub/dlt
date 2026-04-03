@@ -486,8 +486,8 @@ All [write dispositions](../../general-usage/incremental-loading.md) are support
 
 ## Merge strategies
 
-The Iceberg destination supports two merge strategies when using `write_disposition="merge"`: `delete-insert` and `upsert`.
-Both strategies use a single Iceberg transaction for delete and insert operations and both support [hard delete](../../general-usage/merge-loading.md#delete-records) functionality.
+The Iceberg destination supports three merge strategies when using `write_disposition="merge"`: `delete-insert`, `upsert`, and `insert-only`.
+All strategies use a single Iceberg transaction for delete and insert operations and support [hard delete](../../general-usage/merge-loading.md#delete-records) functionality.
 
 ### Delete-insert strategy
 
@@ -528,12 +528,22 @@ def my_upsert_resource():
     yield [{"id": 1, "name": "Alice Updated"}, {"id": 3, "name": "Charlie"}]
 ```
 
-:::note
-dltHub is not using PyIceberg's `Table.upsert` but implements its own method using delete and insert operations in a single transaction.
-:::
+### Insert-only strategy
+
+The `insert-only` strategy inserts new records based on primary key without updating existing records. See the [insert-only strategy](../../general-usage/merge-loading.md#insert-only-strategy) docs for details.
+
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "insert-only"},
+    primary_key="id",
+    table_format="iceberg"
+)
+def my_insert_only_resource():
+    yield [{"id": 1, "name": "Alice"}, {"id": 3, "name": "Charlie"}]
+```
 
 :::info Performance Testing
-Both `delete-insert` and `upsert` merge strategies have been stress tested with datasets containing tens of millions of rows without encountering any issues. Memory usage and processing time scale linearly with the size of the updated dataset.
+The `delete-insert`, `upsert`, and `insert-only` merge strategies have been stress tested with datasets containing tens of millions of rows without encountering any issues. Memory usage and processing time scale linearly with the size of the updated dataset.
 :::
 
 #### Known limitations

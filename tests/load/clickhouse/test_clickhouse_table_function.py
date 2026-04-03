@@ -16,24 +16,35 @@ pytestmark = pytest.mark.essential
 
 
 @pytest.mark.parametrize(
-    "s3_extra_credentials,aws_access_key_id,aws_secret_access_key,expected_auth",
+    "s3_extra_credentials,aws_access_key_id,aws_secret_access_key,aws_session_token,expected_auth",
     [
         # standard AWS key/secret auth
         (
             None,
             "access_key",
             "secret_key",
+            None,
             "'access_key','secret_key'",
+        ),
+        # aws key/secret + session token (temporary credentials)
+        (
+            None,
+            "access_key",
+            "secret_key",
+            "session_token_value",
+            "'access_key','secret_key','session_token_value'",
         ),
         # extra_credentials takes precedence over key/secret
         (
             {"role_arn": "my_role_arn"},
             "access_key",
             "secret_key",
+            None,
             "extra_credentials(role_arn = 'my_role_arn')",
         ),
         # NOSIGN fallback when no credentials are provided
         (
+            None,
             None,
             None,
             None,
@@ -44,11 +55,13 @@ pytestmark = pytest.mark.essential
             {"role_arn": "arn:aws:iam::role/it's tricky\\"},
             "access_key",
             "secret_key",
+            None,
             "extra_credentials(role_arn = 'arn:aws:iam::role/it''s tricky\\\\')",
         ),
     ],
     ids=[
         "aws_key_secret",
+        "aws_key_secret_session_token",
         "s3_extra_credentials",
         "nosign_fallback",
         "s3_extra_credentials_escaped",
@@ -58,6 +71,7 @@ def test_clickhouse_s3_table_function(
     s3_extra_credentials: Dict[str, str],
     aws_access_key_id: str,
     aws_secret_access_key: str,
+    aws_session_token: str,
     expected_auth: str,
 ) -> None:
     creds_dict: Dict[str, Any] = {"host": "host"}
@@ -70,6 +84,7 @@ def test_clickhouse_s3_table_function(
     staging_credentials = AwsCredentials(
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
+        aws_session_token=aws_session_token,
     )
     job = ClickHouseLoadJob(
         "s3://bucket-name/path/x.y.1.parquet",

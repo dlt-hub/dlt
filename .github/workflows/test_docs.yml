@@ -66,18 +66,24 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.10"
+          python-version: "3.11"
           activate-environment: true
           enable-cache: true
 
       - name: Start weaviate
         run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 
+
+      - name: Install root project for CLI docs check
+        run: uv sync --extra cli --extra workspace
+
+      - name: Check that CLI docs are up to date
+        run: make check-cli-docs
 
       - name: Install dependencies
         run: cd docs && make dev

@@ -115,17 +115,12 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                         f"Bigquery Load Job failed, reason reported from bigquery: `{reason}`"
                     )
                 )
-            elif reason in ["internalError"]:
-                logger.warning(
-                    f"Got reason `{reason}` for job `{self._file_name}`, job considered still"
-                    f" running. ({self._bq_load_job.error_result})"
-                )
-                continue
             else:
                 raise DatabaseTransientException(
                     Exception(
                         "Bigquery Job needs to be retried, reason reported from bigquery"
-                        f" `{reason}`"
+                        f" `{reason}`, for job `{self._file_name}`."
+                        f" Error details: {self._bq_load_job.error_result}"
                     )
                 )
 
@@ -170,15 +165,16 @@ class BigQueryMergeJob(SqlMergeFollowupJob):
         cls,
         root_table_name: str,
         staging_root_table_name: str,
-        key_clauses: Sequence[str],
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
-        sql: List[str] = [
+        key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
+        return [
             f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS"
             f" s WHERE {clause.format(d='d', s='s')})"
             for clause in key_clauses
         ]
-        return sql
 
 
 class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):

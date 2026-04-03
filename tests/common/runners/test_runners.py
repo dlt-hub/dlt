@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import pytest
 import sys
 import time
@@ -149,10 +151,13 @@ def default_args() -> Iterator[None]:
     signals._received_signal = 0
     global _counter
     _counter = 0
+    saved = Container._INSTANCE
+    Container._INSTANCE = None
     try:
         yield
     finally:
         signals._received_signal = 0
+        Container._INSTANCE = saved
 
 
 # test runner functions
@@ -266,6 +271,78 @@ def test_pool_runner_process_methods_configured(method) -> None:
     runs_count = runner.run_pool(ProcessPoolConfiguration(start_method=method), r)
     assert runs_count == 1
     assert [v[0] for v in r.rv] == list(range(4))
+
+
+def test_spawn_pool_with_non_importable_main(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify #3586: spawn pool works when `__main__.__file__` is a non-importable
+    orchestrator CLI entry point.
+    """
+    import dlt.common.runners.pool_runner as pool_runner_mod
+
+    # create a script that crashes when executed (simulates Airflow CLI entry point)
+    bad_main = tmp_path / "bad_main.py"
+    bad_main.write_text('raise RuntimeError("spawn should not re-execute this script")\n')
+
+    config = resolve_configuration(RuntimeConfiguration())
+    initialize_runtime("dlt", config)
+
+    # simulate orchestrator context and reset one-shot flag
+    monkeypatch.setenv("AIRFLOW_CTX_TASK_ID", "test_task")
+    monkeypatch.setattr(pool_runner_mod, "_MAIN_FIXUP_SUPPRESSED", False)
+
+    main = sys.modules["__main__"]
+    original_file = getattr(main, "__file__", None)
+    original_spec = getattr(main, "__spec__", None)
+    try:
+        main.__file__ = str(bad_main)
+        main.__spec__ = None
+
+        r = _TestRunnableWorker(4)
+        # don't set start_method — let get_default_start_method detect the orchestrator
+        runs_count = runner.run_pool(ProcessPoolConfiguration(workers=2), r)
+        assert runs_count == 1
+        assert [v[0] for v in r.rv] == list(range(4))
+        # __file__ preserved, __spec__ set to suppress re-execution
+        assert main.__file__ == str(bad_main)
+        assert getattr(main.__spec__, "name", None) == "__main__"
+    finally:
+        if original_file is not None:
+            main.__file__ = original_file
+        elif hasattr(main, "__file__"):
+            del main.__file__
+        main.__spec__ = original_spec
+
+
+def test_spawn_pool_no_fixup_without_orchestrator(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify that `_suppress_main_fixup_in_orchestrator` is NOT called when
+    no orchestrator is detected -- `__main__.__spec__` stays `None`.
+    """
+    import dlt.common.runners.pool_runner as pool_runner_mod
+
+    config = resolve_configuration(RuntimeConfiguration())
+    initialize_runtime("dlt", config)
+
+    # ensure no orchestrator env vars are set
+    monkeypatch.delenv("AIRFLOW_CTX_TASK_ID", raising=False)
+    monkeypatch.setattr(pool_runner_mod, "_MAIN_FIXUP_SUPPRESSED", False)
+
+    main = sys.modules["__main__"]
+    original_spec = getattr(main, "__spec__", None)
+    try:
+        main.__spec__ = None
+
+        r = _TestRunnableWorker(4)
+        # explicitly set start_method="spawn" since no orchestrator means
+        # get_default_start_method won't switch from fork to spawn
+        runs_count = runner.run_pool(ProcessPoolConfiguration(workers=2, start_method="spawn"), r)
+        assert runs_count == 1
+        assert [v[0] for v in r.rv] == list(range(4))
+        # fixup was NOT applied: __spec__ is still None
+        assert main.__spec__ is None
+    finally:
+        main.__spec__ = original_spec
 
 
 import threading
@@ -416,20 +493,7 @@ def test_config_section_context_restored_in_worker(
         )
 
 
-@pytest.mark.parametrize(
-    "start_method",
-    [
-        "spawn",
-        pytest.param(
-            "fork",
-            marks=pytest.mark.skipif(
-                "fork" not in multiprocessing.get_all_start_methods(),
-                reason="fork start method not available on this platform",
-            ),
-        ),
-    ],
-)
-def test_worker_contexts_thread_to_process(start_method: str) -> None:
+def test_worker_contexts_thread_to_process() -> None:
     """Test that thread-local contexts are passed to process pools via run_pool.
 
     Simulates parallel dlt pipelines:
@@ -437,6 +501,9 @@ def test_worker_contexts_thread_to_process(start_method: str) -> None:
     - Each thread calls run_pool with ProcessPoolConfiguration
     - Process workers read context via Container
     - Verify workers see parent thread's context value
+
+    Note: only `spawn` is tested because `fork` from a multi-threaded process
+    is fundamentally unsafe (inherits poisoned locks from other threads).
     """
     from concurrent.futures import ThreadPoolExecutor
 
@@ -460,19 +527,18 @@ def test_worker_contexts_thread_to_process(start_method: str) -> None:
         pool_config = PoolRunnerConfiguration(
             pool_type="process",
             workers=3,
-            start_method=start_method,
+            start_method="spawn",
         )
         runner.run_pool(pool_config, runnable)
 
         return runnable.results
 
-    # Create thread pool
     with ThreadPoolExecutor(max_workers=2) as thread_pool:
         future_a = thread_pool.submit(thread_worker_fn, "A")
         future_b = thread_pool.submit(thread_worker_fn, "B")
 
-        results["thread_A"] = future_a.result()
-        results["thread_B"] = future_b.result()
+        results["thread_A"] = future_a.result(timeout=120)
+        results["thread_B"] = future_b.result(timeout=120)
 
     # Verify: all process workers in thread A saw "thread_A"
     assert all(
@@ -485,24 +551,14 @@ def test_worker_contexts_thread_to_process(start_method: str) -> None:
     ), f"Process workers in thread B should see 'thread_B', got {results['thread_B']}"
 
 
-@pytest.mark.parametrize(
-    "start_method",
-    [
-        "spawn",
-        pytest.param(
-            "fork",
-            marks=pytest.mark.skipif(
-                "fork" not in multiprocessing.get_all_start_methods(),
-                reason="fork start method not available on this platform",
-            ),
-        ),
-    ],
-)
-def test_worker_contexts_thread_to_process_global(start_method: str) -> None:
+def test_worker_contexts_thread_to_process_global() -> None:
     """Test that global worker contexts are passed to all process pools.
 
     With WorkerAffinityContext (global_affinity=True), all processes
     should see the same value regardless of parent thread.
+
+    Note: only `spawn` is tested because `fork` from a multi-threaded process
+    is fundamentally unsafe (inherits poisoned locks from other threads).
     """
     from concurrent.futures import ThreadPoolExecutor
 
@@ -523,7 +579,7 @@ def test_worker_contexts_thread_to_process_global(start_method: str) -> None:
         pool_config = PoolRunnerConfiguration(
             pool_type="process",
             workers=3,
-            start_method=start_method,
+            start_method="spawn",
         )
         runner.run_pool(pool_config, runnable)
         return runnable.results
@@ -532,8 +588,8 @@ def test_worker_contexts_thread_to_process_global(start_method: str) -> None:
         future_a = thread_pool.submit(thread_worker_fn, "A")
         future_b = thread_pool.submit(thread_worker_fn, "B")
 
-        results["thread_A"] = future_a.result()
-        results["thread_B"] = future_b.result()
+        results["thread_A"] = future_a.result(timeout=120)
+        results["thread_B"] = future_b.result(timeout=120)
 
     # All processes should see same global value
     all_values = results["thread_A"] + results["thread_B"]

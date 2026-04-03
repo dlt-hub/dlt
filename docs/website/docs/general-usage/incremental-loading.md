@@ -40,7 +40,7 @@ If not, then we need to replace the entire dataset. However, if we can request t
 
 dlt provides several approaches to incremental loading:
 
-1. [Merge strategies](./merge-loading.md#merge-strategies) - Choose between delete-insert, SCD2, and upsert approaches to incrementally update your data
+1. [Merge strategies](./merge-loading.md#merge-strategies) - Choose between delete-insert, SCD2, upsert, and insert-only approaches to incrementally update your data
 2. [Cursor-based incremental loading](./incremental/cursor.md) - Track changes using a cursor field (like timestamp or ID)
 3. [Lag / Attribution window](./incremental/lag.md) - Refresh data within a specific time window
 4. [Advanced state management](./incremental/advanced-state.md) - Custom state tracking

@@ -228,6 +228,16 @@ def test_ducklake_configuration_catalog_credentials() -> None:
     assert credentials.storage_url == str(local_dir / "ducklake.files")
 
 
+def test_ducklake_metadata_schema_config() -> None:
+    configuration = resolve_configuration(
+        DuckLakeClientConfiguration(
+            credentials=DuckLakeCredentials(metadata_schema="bar")
+        )._bind_dataset_name(dataset_name="foo")
+    )
+
+    assert configuration.credentials.metadata_schema == "bar"
+
+
 def test_ducklake_attach_statement() -> None:
     """Low-level method to attach the ducklake catalog to the ducklake client.
 
@@ -264,6 +274,54 @@ def test_attach_statement_doesnt_use_postgresql() -> None:
 
     assert expected_attach_statement == attach_statement
     assert "postgresql" not in expected_attach_statement
+
+
+def test_ducklake_attach_statement_with_override_data_path() -> None:
+    expected_attach_statement = (
+        "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data'"
+        " AS foo (DATA_PATH '/path/to/storage', METADATA_SCHEMA 'foo',"
+        " OVERRIDE_DATA_PATH true)"
+    )
+    attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data"),
+        ducklake_name="foo",
+        storage_url="/path/to/storage",
+        override_data_path=True,
+    )
+    assert expected_attach_statement == attach_statement
+
+
+def test_ducklake_attach_statement_with_metadata_schema() -> None:
+    expected_attach_statement = (
+        "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data'"
+        " AS foo (DATA_PATH '/path/to/storage', METADATA_SCHEMA 'bar')"
+    )
+    attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data"),
+        ducklake_name="foo",
+        metadata_schema="bar",
+        storage_url="/path/to/storage",
+    )
+
+    assert expected_attach_statement == attach_statement
+
+
+def test_ducklake_override_data_path_config() -> None:
+    configuration = resolve_configuration(
+        DuckLakeClientConfiguration(override_data_path=True)._bind_dataset_name(dataset_name="foo")
+    )
+    assert configuration.override_data_path is True
+
+    from dlt.destinations.impl.ducklake.configuration import _get_ducklake_capabilities
+
+    sql_client = DuckLakeSqlClient(
+        dataset_name="foo",
+        staging_dataset_name="foo_staging",
+        credentials=configuration.credentials,
+        capabilities=_get_ducklake_capabilities(),
+        override_data_path=configuration.override_data_path,
+    )
+    assert "OVERRIDE_DATA_PATH true" in sql_client.attach_statement
 
 
 def test_ducklake_conn_pool_always_open() -> None:

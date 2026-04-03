@@ -94,7 +94,7 @@ class ImportTrace(NamedTuple):
 
 def callable_typechecker(o: TAny) -> TAny:
     if callable(o):
-        return o  # type: ignore[no-any-return]
+        return o
     raise TypeErrorWithKnownTypes("attr", o, ["Callable"])
 
 
