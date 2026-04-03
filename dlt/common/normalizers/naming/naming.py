@@ -85,8 +85,6 @@ class NamingConvention(ABC):
     def __str__(self) -> str:
         name = self.name()
         name += "_cs" if self.is_case_sensitive else "_ci"
-        if self.max_length:
-            name += f"_{self.max_length}"
         return name
 
     @staticmethod
