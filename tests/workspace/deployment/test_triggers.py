@@ -1,21 +1,21 @@
 """Tests for trigger parsing, normalization, and selectors."""
 
-from typing import List
+from typing import List, Optional
 
 import pytest
 
+from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment._trigger_helpers import (
-    filter_jobs_by_selectors,
-    matched_triggers,
-    matches_selector,
+    match_triggers_with_selectors,
     normalize_trigger,
     normalize_triggers,
     parse_trigger,
+    pick_trigger,
 )
 from dlt._workspace.deployment.typing import (
     HttpTriggerInfo,
     TEntryPoint,
-    TExecutionSpec,
+    TExecuteSpec,
     TJobDefinition,
     TJobRef,
     TParsedTrigger,
@@ -72,7 +72,7 @@ def test_parse_trigger(trigger: str, expected_type: str, expected_expr: str) -> 
     ids=["no-colon", "empty", "unknown-type"],
 )
 def test_parse_trigger_invalid(trigger: str) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidTrigger):
         parse_trigger(TTrigger(trigger))
 
 
@@ -124,7 +124,7 @@ def test_parse_http_trigger(trigger: str, expected_port: int, expected_path: str
     ],
 )
 def test_parse_http_trigger_invalid(trigger: str, error_fragment: str) -> None:
-    with pytest.raises(ValueError, match=error_fragment):
+    with pytest.raises(InvalidTrigger, match=error_fragment):
         parse_trigger(TTrigger(trigger))
 
 
@@ -170,7 +170,7 @@ def test_normalize_trigger_valid(trigger: str) -> None:
 @pytest.mark.parametrize(
     "trigger,error_fragment",
     [
-        ("unknown:foo", "unknown trigger type"),
+        ("unknown:foo", "unknown type"),
         ("schedule:", "requires a cron"),
         ("every:", "requires a period"),
         ("once:", "requires a timestamp"),
@@ -201,7 +201,7 @@ def test_normalize_trigger_valid(trigger: str) -> None:
     ],
 )
 def test_normalize_trigger_invalid(trigger: str, error_fragment: str) -> None:
-    with pytest.raises(ValueError, match=error_fragment):
+    with pytest.raises(InvalidTrigger, match=error_fragment):
         normalize_trigger(trigger)
 
 
@@ -215,9 +215,11 @@ def test_normalize_trigger_typed() -> None:
 def test_normalize_trigger_bare_type() -> None:
     """normalize_trigger handles bare type names that take no expression."""
     assert normalize_trigger("deployment") == TTrigger("deployment:")
-    assert normalize_trigger("manual") == TTrigger("manual:")
     assert normalize_trigger("http") == TTrigger("http:")
     assert normalize_trigger("webhook") == TTrigger("webhook:")
+    # manual is blocked — users must use expose(manual=True)
+    with pytest.raises(InvalidTrigger, match="expose"):
+        normalize_trigger("manual")
 
 
 def test_normalize_trigger_bare_cron() -> None:
@@ -228,7 +230,7 @@ def test_normalize_trigger_bare_cron() -> None:
 
 
 def test_normalize_trigger_invalid_bare_text() -> None:
-    with pytest.raises(ValueError, match="cannot normalize"):
+    with pytest.raises(InvalidTrigger, match="cannot normalize"):
         normalize_trigger("not a trigger at all")
 
 
@@ -278,8 +280,7 @@ def _job(
         "job_ref": TJobRef(ref),
         "entry_point": TEntryPoint(module="m", function="f", job_type=job_type),  # type: ignore[typeddict-item]
         "triggers": trigger_list,
-        "execution": TExecutionSpec(),
-        "starred": False,
+        "execute": TExecuteSpec(),
     }
 
 
@@ -336,8 +337,9 @@ def _job(
     ],
 )
 def test_selector_trigger_matching(selector: str, job_triggers: List[str], expected: bool) -> None:
-    j = _job("jobs.mod.test", job_triggers)
-    assert matches_selector(selector, j) == expected
+    triggers = [TTrigger(t) for t in job_triggers]
+    result = match_triggers_with_selectors("batch", triggers, [selector])
+    assert bool(result) == expected
 
 
 @pytest.mark.parametrize(
@@ -364,88 +366,9 @@ def test_selector_trigger_matching(selector: str, job_triggers: List[str], expec
     ],
 )
 def test_selector_job_type(selector: str, job_type: str, expected: bool) -> None:
-    j = _job("jobs.mod.test", ["tag:foo"], job_type=job_type)
-    assert matches_selector(selector, j) == expected
-
-
-@pytest.mark.parametrize(
-    "pattern,job_ref,expected",
-    [
-        ("jobs.batch_jobs.*", "jobs.batch_jobs.backfill", True),
-        ("jobs.batch_jobs.backfill", "jobs.batch_jobs.backfill", True),
-        ("jobs.batch_jobs.*", "jobs.other.transform", False),
-        ("*backfill", "jobs.batch_jobs.backfill", True),
-        ("*", "jobs.anything.here", True),
-        ("jobs.mod.specific", "jobs.mod.specific", True),
-        ("jobs.mod.specific", "jobs.mod.other", False),
-    ],
-    ids=[
-        "wildcard-section",
-        "exact-ref",
-        "no-match-section",
-        "suffix-glob",
-        "match-all",
-        "exact-full",
-        "exact-no-match",
-    ],
-)
-def test_selector_manual(pattern: str, job_ref: str, expected: bool) -> None:
-    j = _job(job_ref, [])
-    assert matches_selector(f"manual:{pattern}", j) == expected
-
-
-def test_filter_jobs_no_selectors() -> None:
-    """No selectors returns all jobs."""
-    jobs = [_job("jobs.a", ["tag:x"]), _job("jobs.b", ["http:"])]
-    assert len(filter_jobs_by_selectors(jobs, [])) == 2
-
-
-def test_filter_jobs_single_selector() -> None:
-    jobs = [
-        _job("jobs.a", ["tag:backfill"]),
-        _job("jobs.b", ["http:"]),
-        _job("jobs.c", ["schedule:0 8 * * *"]),
-    ]
-    filtered = filter_jobs_by_selectors(jobs, ["tag"])
-    assert len(filtered) == 1
-    assert filtered[0]["job_ref"] == "jobs.a"
-
-
-def test_filter_jobs_multiple_selectors() -> None:
-    jobs = [
-        _job("jobs.a", ["tag:backfill"]),
-        _job("jobs.b", ["http:"], job_type="interactive"),
-        _job("jobs.c", ["schedule:0 8 * * *"]),
-    ]
-    filtered = filter_jobs_by_selectors(jobs, ["tag", "interactive"])
-    assert len(filtered) == 2
-    refs = {j["job_ref"] for j in filtered}
-    assert refs == {"jobs.a", "jobs.b"}
-
-
-def test_filter_jobs_excludes_event_triggered() -> None:
-    """Event-triggered jobs are NOT included by filter_jobs_by_selectors.
-    The runner handles event trigger inclusion separately.
-    """
-    jobs = [
-        _job("jobs.a", ["tag:backfill"]),
-        _job("jobs.b", ["job.success:jobs.a"]),
-        _job("jobs.c", ["schedule:0 8 * * *"]),
-    ]
-    filtered = filter_jobs_by_selectors(jobs, ["tag:*"])
-    refs = {j["job_ref"] for j in filtered}
-    assert refs == {"jobs.a"}
-
-
-def test_filter_jobs_manual_selector() -> None:
-    jobs = [
-        _job("jobs.batch_jobs.backfill", []),
-        _job("jobs.batch_jobs.transform", []),
-        _job("jobs.other.cleanup", []),
-    ]
-    filtered = filter_jobs_by_selectors(jobs, ["manual:jobs.batch_jobs.*"])
-    assert len(filtered) == 2
-    assert all("batch_jobs" in j["job_ref"] for j in filtered)
+    triggers = [TTrigger("tag:foo")]
+    result = match_triggers_with_selectors(job_type, triggers, [selector])
+    assert bool(result) == expected
 
 
 @pytest.mark.parametrize(
@@ -466,7 +389,7 @@ def test_filter_jobs_manual_selector() -> None:
         # schedule:* does NOT match manual
         (["schedule:*"], ["schedule:0 8 * * *", "manual:jobs.x"], ["schedule:0 8 * * *"]),
         # every:* matches every trigger only
-        (["every:*"], ["every:30s", "manual:jobs.x"], ["every:30s"]),
+        (["every:*"], ["every:1m", "manual:jobs.x"], ["every:1m"]),
         # glob on tag expression
         (["tag:back*"], ["tag:backfill", "tag:deploy"], ["tag:backfill"]),
         # http: matches http
@@ -496,25 +419,74 @@ def test_filter_jobs_manual_selector() -> None:
         "manual-glob-ref",
     ],
 )
-def test_matched_triggers(
+def test_match_triggers_with_selectors(
     selectors: List[str],
     job_triggers: List[str],
     expected_matched: List[str],
 ) -> None:
-    j = _job("jobs.mod.x", job_triggers, manual=False)
-    result = matched_triggers(j, selectors)
+    triggers = [TTrigger(t) for t in job_triggers]
+    result = match_triggers_with_selectors("batch", triggers, selectors)
     assert result == [TTrigger(t) for t in expected_matched]
 
 
-def test_matched_triggers_job_type_returns_all() -> None:
+def test_match_triggers_job_type_returns_all() -> None:
     """Job type selector (batch, interactive) returns ALL triggers."""
-    j = _job("jobs.mod.x", ["tag:daily", "schedule:0 8 * * *"], job_type="batch")
-    result = matched_triggers(j, ["batch"])
-    assert len(result) == len(j["triggers"])
+    triggers = [TTrigger("tag:daily"), TTrigger("schedule:0 8 * * *")]
+    result = match_triggers_with_selectors("batch", triggers, ["batch"])
+    assert len(result) == 2
 
 
-def test_matched_triggers_deduplicates() -> None:
+def test_match_triggers_deduplicates() -> None:
     """Overlapping selectors don't produce duplicate triggers."""
-    j = _job("jobs.mod.x", ["tag:backfill"], manual=False)
-    result = matched_triggers(j, ["tag:*", "tag:backfill"])
+    triggers = [TTrigger("tag:backfill")]
+    result = match_triggers_with_selectors("batch", triggers, ["tag:*", "tag:backfill"])
     assert result == [TTrigger("tag:backfill")]
+
+
+def test_normalize_trigger_rejects_manual() -> None:
+    """Users cannot create manual: triggers directly."""
+    with pytest.raises(InvalidTrigger, match="expose"):
+        normalize_trigger("manual:jobs.mod.x")
+    with pytest.raises(InvalidTrigger, match="expose"):
+        normalize_trigger("manual")
+
+
+@pytest.mark.parametrize(
+    "matched,default,expected",
+    [
+        # default_trigger in matched list — preferred
+        (
+            ["tag:daily", "schedule:0 8 * * *"],
+            "schedule:0 8 * * *",
+            "schedule:0 8 * * *",
+        ),
+        # default_trigger not in matched — first wins
+        (
+            ["tag:daily", "manual:jobs.x"],
+            "schedule:0 8 * * *",
+            "tag:daily",
+        ),
+        # no default — first wins
+        (["tag:daily", "manual:jobs.x"], None, "tag:daily"),
+        # empty list — None
+        ([], "schedule:0 8 * * *", None),
+        # single match — returns it
+        (["every:1h"], None, "every:1h"),
+    ],
+    ids=[
+        "default-in-matched",
+        "default-not-in-matched",
+        "no-default",
+        "empty-matched",
+        "single-match",
+    ],
+)
+def test_pick_trigger(matched: List[str], default: Optional[str], expected: Optional[str]) -> None:
+    result = pick_trigger(
+        [TTrigger(t) for t in matched],
+        TTrigger(default) if default else None,
+    )
+    if expected is None:
+        assert result is None
+    else:
+        assert result == TTrigger(expected)

@@ -10,9 +10,10 @@ from dlt._workspace.deployment._job_ref import (
     resolve_job_ref,
     short_name,
 )
+from dlt._workspace.deployment.exceptions import AmbiguousJobRef, InvalidJobRef, JobRefNotFound
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
-    TExecutionSpec,
+    TExecuteSpec,
     TJobDefinition,
     TJobRef,
     TTrigger,
@@ -24,8 +25,7 @@ def _job(ref: str) -> TJobDefinition:
         "job_ref": TJobRef(ref),
         "entry_point": TEntryPoint(module="m", function="f", job_type="batch"),
         "triggers": [TTrigger(f"manual:{ref}")],
-        "execution": TExecutionSpec(),
-        "starred": False,
+        "execute": TExecuteSpec(),
     }
 
 
@@ -76,7 +76,7 @@ def test_parse_job_ref(ref: str, expected: Tuple[str, str]) -> None:
     ids=["missing-prefix", "too-many-parts"],
 )
 def test_parse_job_ref_invalid(ref: str, error_frag: str) -> None:
-    with pytest.raises(ValueError, match=error_frag):
+    with pytest.raises(InvalidJobRef, match=error_frag):
         parse_job_ref(TJobRef(ref))
 
 
@@ -135,7 +135,7 @@ def test_resolve_job_ref(ref, jobs, expected) -> None:
         # ambiguous bare name
         ("ingest", [_job("jobs.a.ingest"), _job("jobs.b.ingest")], "ambiguous"),
         # not found bare name
-        ("nonexistent", JOBS, "no job matching"),
+        ("nonexistent", JOBS, "not found"),
         # full ref not in jobs list
         ("jobs.batch.missing", JOBS, "not found"),
         # section.name not in jobs list
@@ -153,5 +153,5 @@ def test_resolve_job_ref(ref, jobs, expected) -> None:
     ],
 )
 def test_resolve_job_ref_invalid(ref, jobs, error_frag) -> None:
-    with pytest.raises(ValueError, match=error_frag):
+    with pytest.raises((InvalidJobRef, JobRefNotFound, AmbiguousJobRef), match=error_frag):
         resolve_job_ref(ref, jobs)

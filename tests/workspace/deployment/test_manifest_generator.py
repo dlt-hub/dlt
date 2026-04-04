@@ -1,13 +1,28 @@
 """Tests for manifest generation from deployment modules."""
 
 from importlib import import_module
+from typing import List
 
 import pytest
 
-from dlt._workspace.deployment.manifest import generate_manifest, validate_manifest
-from dlt._workspace.deployment.typing import MANIFEST_ENGINE_VERSION, TJobRef
+from dlt._workspace.deployment.manifest import (
+    DASHBOARD_JOB_REF,
+    generate_manifest,
+    validate_manifest,
+)
+from dlt._workspace.deployment.typing import (
+    MANIFEST_ENGINE_VERSION,
+    TJobDefinition,
+    TJobRef,
+    TTrigger,
+)
 
 WORKSPACE = "tests.workspace.cases.runtime_workspace"
+
+
+def _user_jobs(jobs: List[TJobDefinition]) -> List[TJobDefinition]:
+    """Filter out auto-included workspace jobs (dashboard)."""
+    return [j for j in jobs if j["job_ref"] != DASHBOARD_JOB_REF]
 
 
 def test_full_deployment() -> None:
@@ -37,7 +52,9 @@ def test_full_deployment() -> None:
     assert "jobs.mcp_server" in job_refs
     assert "jobs.streamlit_app" in job_refs
 
-    assert len(manifest["jobs"]) == 9
+    assert len(_user_jobs(manifest["jobs"])) == 9
+    # dashboard is auto-included
+    assert DASHBOARD_JOB_REF in {j["job_ref"] for j in manifest["jobs"]}
     assert warnings == []
 
 
@@ -48,48 +65,49 @@ def test_full_deployment_job_details() -> None:
 
     jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
 
-    # batch job with timeout
+    # batch job with timeout — schedule trigger is default_trigger
     daily = jobs_by_ref[TJobRef("jobs.batch_jobs.daily_ingest")]
     assert daily["entry_point"]["job_type"] == "batch"
-    assert daily["execution"]["timeout"]["timeout"] == 14400.0
+    assert daily["execute"]["timeout"]["timeout"] == 14400.0
+    assert daily["default_trigger"] == TTrigger("schedule:0 8 * * *")
 
-    # batch job with chained triggers + auto manual
+    # batch job with chained triggers — first trigger is default
     transform = jobs_by_ref[TJobRef("jobs.batch_jobs.transform")]
-    non_manual = [t for t in transform["triggers"] if not t.startswith("manual:")]
-    assert len(non_manual) == 2
-    assert all("job.success:" in t for t in non_manual)
-    assert any(t == "manual:jobs.batch_jobs.transform" for t in transform["triggers"])
+    assert len(transform["triggers"]) == 2
+    assert all("job.success:" in t for t in transform["triggers"])
+    assert transform["default_trigger"] == transform["triggers"][0]
     assert transform["description"] == "Transform ingested data."
 
     # starred job with config keys
     maintenance = jobs_by_ref[TJobRef("jobs.batch_jobs.maintenance")]
-    assert maintenance["starred"] is True
-    assert maintenance["tags"] == ["ops"]
+    assert maintenance["expose"]["starred"] is True
+    assert maintenance["expose"]["tags"] == ["ops"]
     assert "cleanup_days" in maintenance.get("config_keys", [])
 
     # interactive rest api
     api = jobs_by_ref[TJobRef("jobs.interactive_jobs.api_server")]
     assert api["entry_point"]["job_type"] == "interactive"
-    assert api["expose"] == {"interface": "rest_api"}
+    assert api["expose"]["interface"] == "rest_api"
+    assert api["expose"]["manual"] is True
     assert "http:" in api["triggers"]
 
     # marimo notebook (detected from module)
     notebook = jobs_by_ref[TJobRef("jobs.marimo_notebook")]
     assert notebook["entry_point"]["job_type"] == "interactive"
     assert notebook["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.marimo"
-    assert notebook["display_name"] == "Test Notebook"
-    assert "notebook" in notebook.get("tags", [])
+    assert "Test Notebook" in notebook.get("description", "")
+    assert "notebook" in notebook.get("expose", {}).get("tags", [])
 
     # mcp server (detected from module)
     mcp = jobs_by_ref[TJobRef("jobs.mcp_server")]
-    assert mcp["expose"] == {"interface": "mcp"}
-    assert mcp["display_name"] == "test-tools"
+    assert mcp["expose"]["interface"] == "mcp"
+    assert "test-tools" in mcp.get("description", "")
 
     # streamlit (detected from module)
     st_app = jobs_by_ref[TJobRef("jobs.streamlit_app")]
-    assert st_app["expose"] == {"interface": "gui"}
+    assert st_app["expose"]["interface"] == "gui"
     assert st_app["description"] == "Test dashboard."
-    assert "dashboard" in st_app.get("tags", [])
+    assert st_app.get("expose", {}).get("category") == "dashboard"
 
 
 def test_batch_only_deployment() -> None:
@@ -97,10 +115,11 @@ def test_batch_only_deployment() -> None:
     mod = import_module(f"{WORKSPACE}.deployment_batch_only")
     manifest, warnings = generate_manifest(mod)
 
-    assert len(manifest["jobs"]) == 3
+    user_jobs = _user_jobs(manifest["jobs"])
+    assert len(user_jobs) == 3
     assert warnings == []
 
-    for j in manifest["jobs"]:
+    for j in user_jobs:
         assert j["entry_point"]["job_type"] == "batch"
 
 
@@ -109,7 +128,7 @@ def test_deployment_with_unknown_warns() -> None:
     mod = import_module(f"{WORKSPACE}.deployment_with_unknown")
     manifest, warnings = generate_manifest(mod)
 
-    assert len(manifest["jobs"]) == 1
+    assert len(_user_jobs(manifest["jobs"])) == 1
     assert any("helper" in w and "not a recognized" in w for w in warnings)
 
 
@@ -161,8 +180,8 @@ def test_ad_hoc_batch_jobs() -> None:
     # ad-hoc scan (no __all__) does not warn about non-job names
     assert not any("not a recognized" in w for w in warnings)
 
-    # all are batch
-    for j in manifest["jobs"]:
+    # all user-defined are batch
+    for j in _user_jobs(manifest["jobs"]):
         assert j["entry_point"]["job_type"] == "batch"
 
 
@@ -176,7 +195,7 @@ def test_ad_hoc_interactive_jobs() -> None:
     assert "jobs.interactive_jobs.mcp_tools" in job_refs
 
     for j in manifest["jobs"]:
-        assert j["entry_point"]["job_type"] == "interactive"
+        assert j["entry_point"]["job_type"] == "interactive"  # includes dashboard
 
 
 def test_ad_hoc_framework_mcp() -> None:
@@ -184,12 +203,12 @@ def test_ad_hoc_framework_mcp() -> None:
     mod = import_module(f"{WORKSPACE}.mcp_server")
     manifest, _ = generate_manifest(mod, use_all=False)
 
-    job_refs = {j["job_ref"] for j in manifest["jobs"]}
-    assert "jobs.mcp_server" in job_refs
+    jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
+    assert "jobs.mcp_server" in jobs_by_ref
 
-    mcp_job = manifest["jobs"][0]
+    mcp_job = jobs_by_ref[TJobRef("jobs.mcp_server")]
     assert mcp_job["expose"]["interface"] == "mcp"
-    assert mcp_job["display_name"] == "test-tools"
+    assert "test-tools" in mcp_job.get("description", "")
 
 
 def test_ad_hoc_framework_marimo() -> None:
@@ -197,12 +216,12 @@ def test_ad_hoc_framework_marimo() -> None:
     mod = import_module(f"{WORKSPACE}.marimo_notebook")
     manifest, _ = generate_manifest(mod, use_all=False)
 
-    job_refs = {j["job_ref"] for j in manifest["jobs"]}
-    assert "jobs.marimo_notebook" in job_refs
+    jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
+    assert "jobs.marimo_notebook" in jobs_by_ref
 
-    nb_job = manifest["jobs"][0]
+    nb_job = jobs_by_ref[TJobRef("jobs.marimo_notebook")]
     assert nb_job["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.marimo"
-    assert nb_job["display_name"] == "Test Notebook"
+    assert "Test Notebook" in nb_job.get("description", "")
 
 
 def test_ad_hoc_framework_streamlit() -> None:
@@ -210,33 +229,33 @@ def test_ad_hoc_framework_streamlit() -> None:
     mod = import_module(f"{WORKSPACE}.streamlit_app")
     manifest, _ = generate_manifest(mod, use_all=False)
 
-    job_refs = {j["job_ref"] for j in manifest["jobs"]}
-    assert "jobs.streamlit_app" in job_refs
+    jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
+    assert "jobs.streamlit_app" in jobs_by_ref
 
-    st_job = manifest["jobs"][0]
+    st_job = jobs_by_ref[TJobRef("jobs.streamlit_app")]
     assert st_job["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.streamlit"
     assert st_job["description"] == "Test dashboard."
 
 
 def test_ad_hoc_plain_module() -> None:
     """Ad-hoc deployment of a plain Python module with no jobs or frameworks.
-    Module itself is not detected — no jobs produced.
+    Module itself is not detected — only auto-included dashboard.
     """
     mod = import_module(f"{WORKSPACE}.plain_module")
     manifest, _ = generate_manifest(mod, use_all=False)
 
-    assert manifest["jobs"] == []
+    assert _user_jobs(manifest["jobs"]) == []
 
 
 def test_ad_hoc_etl_script() -> None:
     """Ad-hoc deployment of a plain Python script — not detected as job
     since it has no JobFactory, no framework, and self-detection as local
-    module requires a parent.
+    module requires a parent. Only auto-included dashboard.
     """
     mod = import_module(f"{WORKSPACE}.etl_script")
     manifest, _ = generate_manifest(mod, use_all=False)
 
-    assert manifest["jobs"] == []
+    assert _user_jobs(manifest["jobs"]) == []
 
 
 def test_ad_hoc_uses_fully_qualified_module_name() -> None:
@@ -252,30 +271,37 @@ def test_all_framework_triggers_use_portless_http() -> None:
     mod = import_module(f"{WORKSPACE}.deployment_full")
     manifest, _ = generate_manifest(mod)
 
-    framework_refs = {"jobs.marimo_notebook", "jobs.mcp_server", "jobs.streamlit_app"}
+    framework_refs = {
+        "jobs.marimo_notebook",
+        "jobs.mcp_server",
+        "jobs.streamlit_app",
+        DASHBOARD_JOB_REF,
+    }
     for j in manifest["jobs"]:
         if j["job_ref"] in framework_refs:
             assert "http:" in j["triggers"], f"{j['job_ref']} should use http: trigger"
 
 
-def test_tags_generate_tag_triggers() -> None:
-    """Job tags produce corresponding tag: triggers in the manifest."""
+def test_tags_in_expose() -> None:
+    """Job tags are stored in expose spec, not as triggers."""
     mod = import_module(f"{WORKSPACE}.deployment_full")
     manifest, _ = generate_manifest(mod)
 
     jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
 
-    # maintenance has tags=["ops"]
+    # maintenance has tags=["ops"] in expose
     maintenance = jobs_by_ref[TJobRef("jobs.batch_jobs.maintenance")]
-    assert "tag:ops" in maintenance["triggers"]
+    assert "ops" in maintenance["expose"]["tags"]
+    assert "tag:ops" not in maintenance["triggers"]
 
-    # marimo notebook has tags=["notebook"]
+    # marimo notebook has tags=["notebook"] in expose
     notebook = jobs_by_ref[TJobRef("jobs.marimo_notebook")]
-    assert "tag:notebook" in notebook["triggers"]
+    assert "notebook" in notebook["expose"]["tags"]
+    assert "tag:notebook" not in notebook["triggers"]
 
-    # streamlit has tags=["dashboard"]
+    # streamlit has category="dashboard" in expose (not a tag)
     st_app = jobs_by_ref[TJobRef("jobs.streamlit_app")]
-    assert "tag:dashboard" in st_app["triggers"]
+    assert st_app["expose"]["category"] == "dashboard"
 
 
 def test_self_detection_before_dict_scan() -> None:
@@ -283,9 +309,9 @@ def test_self_detection_before_dict_scan() -> None:
     mod = import_module(f"{WORKSPACE}.marimo_notebook")
     manifest, _ = generate_manifest(mod, use_all=False)
 
-    # single job from self-detection
-    assert len(manifest["jobs"]) == 1
-    job = manifest["jobs"][0]
+    user_jobs = _user_jobs(manifest["jobs"])
+    assert len(user_jobs) == 1
+    job = user_jobs[0]
     assert job["job_ref"] == "jobs.marimo_notebook"
     assert job["entry_point"]["job_type"] == "interactive"
     assert job["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.marimo"
@@ -300,8 +326,46 @@ def test_ad_hoc_does_not_pick_up_venv_modules() -> None:
     mod = import_module(f"{WORKSPACE}.batch_jobs")
     manifest, _ = generate_manifest(mod, use_all=False)
 
-    refs = {j["job_ref"] for j in manifest["jobs"]}
+    refs = {j["job_ref"] for j in _user_jobs(manifest["jobs"])}
     # batch_jobs imports dlt — should not appear as a job
     assert all(not ref.startswith("jobs.dlt") for ref in refs)
     # only actual JobFactory jobs from this module
     assert "jobs.batch_jobs.backfill" in refs
+
+
+# -- dashboard auto-include and validation --
+
+
+def test_dashboard_auto_included() -> None:
+    """Every manifest includes the workspace dashboard job automatically."""
+    mod = import_module(f"{WORKSPACE}.deployment_batch_only")
+    manifest, _ = generate_manifest(mod)
+
+    jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
+    dashboard = jobs_by_ref[DASHBOARD_JOB_REF]
+    assert dashboard["entry_point"]["job_type"] == "interactive"
+    assert dashboard["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.dashboard"
+    assert dashboard["expose"]["interface"] == "gui"
+    assert dashboard["expose"]["category"] == "dashboard"
+    assert "http:" in dashboard["triggers"]
+
+
+@pytest.mark.parametrize(
+    "mutation,error_frag",
+    [
+        (lambda j: j["entry_point"].__setitem__("job_type", "batch"), "must be interactive"),
+        (lambda j: j["expose"].__setitem__("interface", "mcp"), "must have gui interface"),
+        (lambda j: j["expose"].__setitem__("category", "notebook"), "must have dashboard category"),
+    ],
+    ids=["wrong-type", "wrong-interface", "wrong-category"],
+)
+def test_dashboard_validation_rejects_invalid(
+    mutation: object, error_frag: str
+) -> None:
+    """Dashboard job must be interactive with gui interface and dashboard category."""
+    from dlt._workspace.deployment.manifest import _default_dashboard_job, validate_job_definition
+
+    job = _default_dashboard_job()
+    mutation(job)  # type: ignore[operator]
+    result = validate_job_definition(job)
+    assert any(error_frag in e for e in result.errors), f"expected {error_frag!r} in {result}"

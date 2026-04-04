@@ -61,12 +61,12 @@ def run_mcp_instance(instance: Any, port: int, sections: Tuple[str, ...]) -> Non
     )
 
 
-def run(entry_point: TRuntimeEntryPoint, config: Dict[str, Any]) -> None:
+def run(entry_point: TRuntimeEntryPoint) -> None:
     """Import module, find FastMCP instance, and run it."""
     module_name = entry_point["module"]
     section = module_name.rsplit(".", 1)[-1]
     sections = (ws_known_sections.JOBS, section)
-    set_config_env_vars(sections, config)
+    set_config_env_vars(sections, entry_point.get("config", {}))
 
     port = get_run_args_port(entry_point)
     mod = import_module(module_name)
@@ -76,5 +76,4 @@ def run(entry_point: TRuntimeEntryPoint, config: Dict[str, Any]) -> None:
 
 if __name__ == "__main__":
     args = parse_launcher_args()
-    # let the exception end the process
-    run(args.entry_point, args.config)
+    run(args.entry_point)

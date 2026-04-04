@@ -1,5 +1,6 @@
 """Job launchers for different framework types."""
 
+LAUNCHER_DASHBOARD = "dlt._workspace.deployment.launchers.dashboard"
 LAUNCHER_MARIMO = "dlt._workspace.deployment.launchers.marimo"
 LAUNCHER_MCP = "dlt._workspace.deployment.launchers.mcp"
 LAUNCHER_STREAMLIT = "dlt._workspace.deployment.launchers.streamlit"

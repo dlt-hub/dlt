@@ -127,6 +127,8 @@ TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
 "A single data item or a list as extracted from the data source"
 TAnyDateTime = Union[pendulum.DateTime, pendulum.Date, datetime, date, str, float, int]
 """DateTime represented as pendulum/python object, ISO string or unix timestamp"""
+TTimeInterval = Tuple[datetime, datetime]
+"""Half-open time interval [start, end) as timezone-aware datetimes."""
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"

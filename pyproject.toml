@@ -429,6 +429,7 @@ exclude = [
     "tests/reflection/module_cases/",
     "tests/common/reflection/cases/modules/",
     "dlt/helpers/marimo/_",
+    "tests/workspace/deployment/cases/local_workspace/*",
 ]
 
 [[tool.mypy.overrides]]
@@ -502,6 +503,7 @@ module = [
     "pymongo.*",
     "fastmcp.*",
     "dbt.*",
+    "streamlit.*",
 ]
 follow_imports = "skip"
 ignore_missing_imports = true

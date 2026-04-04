@@ -31,14 +31,12 @@ def test_detect_marimo(module_name: str, expected_display_name: str) -> None:
     assert job_def is not None
     assert job_def["entry_point"]["job_type"] == "interactive"
     assert job_def["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.marimo"
-    assert job_def["expose"] == {"interface": "gui"}
+    assert job_def["expose"]["interface"] == "gui"
     assert job_def["triggers"] == [HTTP_TRIGGER]
-    assert "notebook" in job_def.get("tags", [])
+    assert "notebook" in job_def.get("expose", {}).get("tags", [])
 
     if expected_display_name:
-        assert job_def["display_name"] == expected_display_name
-    else:
-        assert "display_name" not in job_def
+        assert expected_display_name in job_def.get("description", "")
 
     # standard has module docstring
     if module_name == "marimo_standard":
@@ -67,13 +65,11 @@ def test_detect_mcp(
     assert job_def["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.mcp"
     assert job_def["expose"]["interface"] == "mcp"
     assert job_def["triggers"] == [HTTP_TRIGGER]
-    assert job_def["display_name"] == expected_display_name
-
-    # description from module docstring only
+    # display_name merged into description
+    desc = job_def.get("description", "")
+    assert expected_display_name in desc
     if expected_description:
-        assert job_def["description"] == expected_description
-    else:
-        assert "description" not in job_def
+        assert expected_description in desc
 
 
 @pytest.mark.parametrize(
@@ -89,9 +85,9 @@ def test_detect_streamlit(module_name: str) -> None:
     assert job_def is not None
     assert job_def["entry_point"]["job_type"] == "interactive"
     assert job_def["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.streamlit"
-    assert job_def["expose"] == {"interface": "gui"}
+    assert job_def["expose"]["interface"] == "gui"
     assert job_def["triggers"] == [HTTP_TRIGGER]
-    assert "dashboard" in job_def.get("tags", [])
+    assert job_def.get("expose", {}).get("category") == "dashboard"
 
     # full_import has module docstring
     if module_name == "streamlit_full_import":
@@ -111,7 +107,7 @@ def test_mcp_wins_over_streamlit() -> None:
 
     assert job_def is not None
     assert job_def["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.mcp"
-    assert job_def["display_name"] == "mixed-server"
+    assert "mixed-server" in job_def.get("description", "")
 
 
 def test_job_ref_uses_module_name() -> None:

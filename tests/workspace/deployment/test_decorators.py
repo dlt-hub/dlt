@@ -1,12 +1,13 @@
-"""Tests for @job and @interactive decorators."""
+"""Tests for @job, @interactive, and @pipeline_run decorators."""
 
 import asyncio
 import inspect
+from typing import Any, Dict
 
 import pytest
 
 import dlt
-from dlt._workspace.deployment.decorators import JobFactory, interactive, job
+from dlt._workspace.deployment.decorators import JobFactory, interactive, job, pipeline_run
 from dlt._workspace.deployment.typing import TTrigger
 
 
@@ -42,11 +43,11 @@ def test_job_decorator() -> None:
     assert no_parens() == "done"
 
     # with parens and args
-    @job(trigger="0 8 * * *", timeout="4h")
+    @job(trigger="0 8 * * *", execute={"timeout": {"timeout": 14400.0}})
     def with_parens():
         return "scheduled"
 
-    assert with_parens.timeout == "4h"
+    assert with_parens.execute == {"timeout": {"timeout": 14400.0}}
     assert with_parens.trigger == [TTrigger("schedule:0 8 * * *")]
     assert with_parens() == "scheduled"
 
@@ -57,14 +58,14 @@ def test_job_decorator() -> None:
 
     assert ignored_name.job_ref == "jobs.my_section.custom"
 
-    # starred and tags
-    @job(starred=True, tags=["ingestion"])
+    # expose spec
+    @job(expose={"starred": True, "tags": ["ingestion"]})
     def tagged():
         pass
 
     job_def = tagged.to_job_definition()
-    assert job_def["starred"] is True
-    assert job_def["tags"] == ["ingestion"]
+    assert job_def["expose"]["starred"] is True
+    assert job_def["expose"]["tags"] == ["ingestion"]
 
     # async
     @job
@@ -124,7 +125,7 @@ def test_interactive_decorator() -> None:
     assert async_app.job_type == "interactive"
 
     # concurrency defaults to 1 for interactive
-    assert default_app.concurrency == 1
+    assert default_app.execute["concurrency"] == 1
 
 
 def test_trigger_properties_and_chaining() -> None:
@@ -160,7 +161,11 @@ def test_trigger_properties_and_chaining() -> None:
 def test_job_definition_batch() -> None:
     """to_job_definition produces correct TJobDefinition for batch jobs."""
 
-    @job(trigger="0 8 * * *", timeout="4h", starred=True, tags=["etl"])
+    @job(
+        trigger="0 8 * * *",
+        execute={"timeout": {"timeout": 14400.0}},
+        expose={"starred": True, "tags": ["etl"]},
+    )
     def etl():
         """Daily ETL."""
         pass
@@ -170,12 +175,11 @@ def test_job_definition_batch() -> None:
     assert job_def["entry_point"]["job_type"] == "batch"
     assert job_def["entry_point"]["function"] == "etl"
     assert "launcher" not in job_def["entry_point"]
-    assert "expose" not in job_def
     assert job_def["triggers"] == [TTrigger("schedule:0 8 * * *")]
-    assert job_def["execution"]["timeout"] == {"timeout": 14400.0}
-    assert "concurrency" not in job_def["execution"]
-    assert job_def["starred"] is True
-    assert job_def["tags"] == ["etl"]
+    assert job_def["execute"]["timeout"] == {"timeout": 14400.0}
+    assert "concurrency" not in job_def["execute"]
+    assert job_def["expose"]["starred"] is True
+    assert job_def["expose"]["tags"] == ["etl"]
     assert job_def["description"] == "Daily ETL."
 
 
@@ -202,7 +206,7 @@ def test_job_definition_omits_unset_fields() -> None:
 
     job_def = bare.to_job_definition()
     assert "description" not in job_def
-    assert "timeout" not in job_def["execution"]
+    assert "timeout" not in job_def["execute"]
     assert "tags" not in job_def
     assert "deliver" not in job_def
     assert "expose" not in job_def
@@ -290,32 +294,123 @@ def test_deliver_targets() -> None:
 
 
 @pytest.mark.parametrize(
-    "input_val,expected_seconds",
+    "timeout_spec,expected_timeout",
     [
-        ("4h", 14400.0),
-        ("30m", 1800.0),
-        (3600, 3600.0),
-        (3600.0, 3600.0),
+        ({"timeout": 14400.0}, {"timeout": 14400.0}),
+        ({"timeout": 1800.0}, {"timeout": 1800.0}),
+        ({"timeout": 3600.0, "grace_period": 10.0}, {"timeout": 3600.0, "grace_period": 10.0}),
     ],
-    ids=["4h", "30m", "int-3600", "float-3600"],
+    ids=["14400s", "1800s", "with-grace"],
 )
-def test_timeout_smoke(input_val: object, expected_seconds: float) -> None:
-    """Timeout values normalize correctly through to job definition."""
+def test_execute_timeout(timeout_spec: Dict[str, Any], expected_timeout: Dict[str, Any]) -> None:
+    """Execute spec timeout passes through to job definition."""
 
-    @job(timeout=input_val)  # type: ignore[call-overload]
+    @job(execute={"timeout": timeout_spec})  # type: ignore[call-overload]
     def my_job():
         pass
 
     job_def = my_job.to_job_definition()
-    assert job_def["execution"]["timeout"]["timeout"] == expected_seconds
+    assert job_def["execute"]["timeout"] == expected_timeout
 
 
-def test_timeout_dict_passthrough() -> None:
-    """TTimeoutSpec dict with grace_period passes through unchanged."""
+def test_interactive_idle_timeout() -> None:
+    """idle_timeout on interactive builds execute spec with grace_period."""
 
-    @job(timeout={"timeout": 100.0, "grace_period": 10.0})
+    @interactive(idle_timeout="24h")
+    def my_app():
+        pass
+
+    job_def = my_app.to_job_definition()
+    assert job_def["execute"]["timeout"]["timeout"] == 86400.0
+    assert job_def["execute"]["timeout"]["grace_period"] == 5.0
+    assert job_def["execute"]["concurrency"] == 1
+
+
+def test_freshness_single_string() -> None:
+    """Single freshness constraint string is normalized."""
+
+    @job(freshness="job.is_matching_interval_fresh:jobs.upstream")
     def my_job():
         pass
 
     job_def = my_job.to_job_definition()
-    assert job_def["execution"]["timeout"] == {"timeout": 100.0, "grace_period": 10.0}
+    assert job_def["freshness"] == ["job.is_matching_interval_fresh:jobs.upstream"]
+
+
+def test_freshness_single_property() -> None:
+    """Freshness constraint from JobFactory property."""
+
+    @job
+    def upstream():
+        pass
+
+    @job(freshness=upstream.is_matching_interval_fresh)
+    def downstream():
+        pass
+
+    job_def = downstream.to_job_definition()
+    assert len(job_def["freshness"]) == 1
+    assert "job.is_matching_interval_fresh:" in job_def["freshness"][0]
+
+
+def test_freshness_multiple() -> None:
+    """Multiple freshness constraints from mixed sources."""
+
+    @job
+    def up_a():
+        pass
+
+    @job
+    def up_b():
+        pass
+
+    @job(freshness=[up_a.is_matching_interval_fresh, up_b.is_fresh])
+    def downstream():
+        pass
+
+    job_def = downstream.to_job_definition()
+    assert len(job_def["freshness"]) == 2
+    assert any("is_matching_interval_fresh" in f for f in job_def["freshness"])
+    assert any("is_fresh" in f for f in job_def["freshness"])
+
+
+def test_pipeline_run_with_string_name() -> None:
+    """pipeline_run with string pipeline name."""
+
+    @pipeline_run("my_pipeline")
+    def load_data():
+        pass
+
+    assert isinstance(load_data, JobFactory)
+    job_def = load_data.to_job_definition()
+    assert job_def["deliver"]["pipeline_name"] == "my_pipeline"
+    assert job_def["expose"]["category"] == "pipeline"
+    assert job_def["entry_point"]["job_type"] == "batch"
+
+
+def test_pipeline_run_with_trigger() -> None:
+    """pipeline_run with schedule trigger."""
+
+    @pipeline_run("analytics", trigger="0 8 * * *")
+    def daily_analytics():
+        """Load analytics daily."""
+        pass
+
+    job_def = daily_analytics.to_job_definition()
+    assert job_def["deliver"]["pipeline_name"] == "analytics"
+    assert job_def["triggers"] == [TTrigger("schedule:0 8 * * *")]
+    assert job_def["expose"]["category"] == "pipeline"
+    assert job_def["description"] == "Load analytics daily."
+
+
+def test_pipeline_run_with_expose_override() -> None:
+    """pipeline_run with custom expose — category defaults to pipeline."""
+
+    @pipeline_run("etl", expose={"starred": True, "tags": ["daily"]})
+    def starred_etl():
+        pass
+
+    job_def = starred_etl.to_job_definition()
+    assert job_def["expose"]["category"] == "pipeline"
+    assert job_def["expose"]["starred"] is True
+    assert job_def["expose"]["tags"] == ["daily"]

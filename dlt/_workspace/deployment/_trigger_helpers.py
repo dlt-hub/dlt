@@ -1,11 +1,12 @@
 import re
 from fnmatch import fnmatch
-from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 from urllib.parse import urlparse
 
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import TAnyDateTime
 from dlt._workspace.deployment._job_ref import resolve_job_ref
+from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.typing import (
     HttpTriggerInfo,
     TJobDefinition,
@@ -19,35 +20,51 @@ _PERIOD_MULTIPLIERS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 _PERIOD_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*([smhd])$")
 
 
+def parse_period_seconds(value: str) -> float:
+    """Parse a human period string (e.g. '5m', '1h', '30s') into seconds.
+
+    Also accepts bare numeric strings as seconds.
+
+    Raises:
+        ValueError: If the string cannot be parsed.
+    """
+    match = _PERIOD_RE.match(value.strip())
+    if match:
+        return float(match.group(1)) * _PERIOD_MULTIPLIERS[match.group(2)]
+    return float(value)
+
+
 def _parse_schedule(expr: str) -> TParsedTrigger:
     if not expr:
-        raise ValueError("schedule trigger requires a cron expression")
+        raise InvalidTrigger(f"schedule:{expr}", "requires a cron expression")
+    from croniter import croniter
+
+    if not croniter.is_valid(expr):
+        raise InvalidTrigger(f"schedule:{expr}", "invalid cron expression")
     return TParsedTrigger(type="schedule", expr=expr, raw=TTrigger(f"schedule:{expr}"))
 
 
 def _parse_every(expr: str) -> TParsedTrigger:
     if not expr:
-        raise ValueError("every trigger requires a period (e.g. '5h', '30m', '10s')")
-    match = _PERIOD_RE.match(expr.strip())
-    if match:
-        seconds = float(match.group(1)) * _PERIOD_MULTIPLIERS[match.group(2)]
-    else:
-        try:
-            seconds = float(expr)
-        except ValueError:
-            raise ValueError(f"every trigger period must be like '5h', '30m', '10s', got {expr!r}")
+        raise InvalidTrigger(f"every:{expr}", "requires a period (e.g. '5m', '1h')")
+    try:
+        seconds = parse_period_seconds(expr)
+    except ValueError:
+        raise InvalidTrigger(f"every:{expr}", "period must be like '5m', '1h', '1d'")
     if seconds <= 0:
-        raise ValueError(f"every trigger period must be positive, got {expr!r}")
+        raise InvalidTrigger(f"every:{expr}", "period must be positive")
+    if seconds < 60:
+        raise InvalidTrigger(f"every:{expr}", "minimum period is 1 minute")
     return TParsedTrigger(type="every", expr=seconds, raw=TTrigger(f"every:{expr}"))
 
 
 def _parse_once(expr: str) -> TParsedTrigger:
     if not expr:
-        raise ValueError("once trigger requires a timestamp (ISO 8601)")
+        raise InvalidTrigger(f"once:{expr}", "requires a timestamp (ISO 8601)")
     try:
         dt = ensure_pendulum_datetime_utc(expr)
     except (ValueError, TypeError):
-        raise ValueError(f"once trigger requires ISO 8601 timestamp, got {expr!r}")
+        raise InvalidTrigger(f"once:{expr}", "requires ISO 8601 timestamp")
     return TParsedTrigger(type="once", expr=dt, raw=TTrigger(f"once:{expr}"))
 
 
@@ -56,7 +73,7 @@ def _parse_http(expr: str) -> TParsedTrigger:
         return TParsedTrigger(type="http", expr=HttpTriggerInfo(None, ""), raw=TTrigger("http:"))
 
     if expr.startswith("//") or expr.startswith("http"):
-        raise ValueError("http trigger should be http:[port][/path], not a full URL")
+        raise InvalidTrigger(f"http:{expr}", "should be http:[port][/path], not a full URL")
 
     if expr[0] == "/":
         synthetic = f"http://localhost{expr}"
@@ -71,13 +88,13 @@ def _parse_http(expr: str) -> TParsedTrigger:
         try:
             url_port = parsed.port
         except ValueError as e:
-            raise ValueError(f"http trigger port invalid: {e}")
+            raise InvalidTrigger(f"http:{expr}", f"port invalid: {e}")
         if url_port is not None:
             if url_port < 1:
-                raise ValueError(f"http trigger port must be 1-65535, got {url_port}")
+                raise InvalidTrigger(f"http:{expr}", f"port must be 1-65535, got {url_port}")
             port = url_port
         else:
-            raise ValueError(f"http trigger expr must be [port][/path], got {expr!r}")
+            raise InvalidTrigger(f"http:{expr}", "expr must be [port][/path]")
 
     if port is not None and path == "/" and "/" not in expr[len(str(port)) :]:
         path = ""
@@ -97,7 +114,7 @@ def _parse_webhook(expr: str) -> TParsedTrigger:
 
 def _parse_tag(expr: str) -> TParsedTrigger:
     if not expr:
-        raise ValueError("tag trigger requires a name")
+        raise InvalidTrigger("tag:", "requires a name")
     return TParsedTrigger(type="tag", expr=expr, raw=TTrigger(f"tag:{expr}"))
 
 
@@ -107,41 +124,18 @@ def _parse_manual(expr: str) -> TParsedTrigger:
 
 def _parse_job_success(expr: str) -> TParsedTrigger:
     if not expr:
-        raise ValueError("job.success trigger requires a job_ref")
+        raise InvalidTrigger("job.success:", "requires a job_ref")
     if not expr.startswith("jobs."):
-        raise ValueError(f"job.success expression must start with 'jobs.', got {expr!r}")
+        raise InvalidTrigger(f"job.success:{expr}", "expression must start with 'jobs.'")
     return TParsedTrigger(type="job.success", expr=expr, raw=TTrigger(f"job.success:{expr}"))
 
 
 def _parse_job_fail(expr: str) -> TParsedTrigger:
     if not expr:
-        raise ValueError("job.fail trigger requires a job_ref")
+        raise InvalidTrigger("job.fail:", "requires a job_ref")
     if not expr.startswith("jobs."):
-        raise ValueError(f"job.fail expression must start with 'jobs.', got {expr!r}")
+        raise InvalidTrigger(f"job.fail:{expr}", "expression must start with 'jobs.'")
     return TParsedTrigger(type="job.fail", expr=expr, raw=TTrigger(f"job.fail:{expr}"))
-
-
-class TFreshnessConstraintSpec(NamedTuple):
-    type: str  # noqa: A003
-    expr: str
-
-
-def _parse_job_is_matching_interval_fresh(expr: str) -> TFreshnessConstraintSpec:
-    if not expr:
-        raise ValueError("job.is_matching_interval_fresh constraint requires a job_ref")
-    if not expr.startswith("jobs."):
-        raise ValueError(
-            f"job.is_matching_interval_fresh expression must start with 'jobs.', got {expr!r}"
-        )
-    return TFreshnessConstraintSpec(type="job.is_matching_interval_fresh", expr=expr)
-
-
-def _parse_job_is_fresh(expr: str) -> TFreshnessConstraintSpec:
-    if not expr:
-        raise ValueError("job.is_fresh constraint requires a job_ref")
-    if not expr.startswith("jobs."):
-        raise ValueError(f"job.is_fresh expression must start with 'jobs.', got {expr!r}")
-    return TFreshnessConstraintSpec(type="job.is_fresh", expr=expr)
 
 
 PARSERS: Dict[str, Callable[[str], TParsedTrigger]] = {
@@ -157,51 +151,23 @@ PARSERS: Dict[str, Callable[[str], TParsedTrigger]] = {
     "job.fail": _parse_job_fail,
 }
 
-_FRESHNESS_PARSERS = {
-    "job.is_matching_interval_fresh": _parse_job_is_matching_interval_fresh,
-    "job.is_fresh": _parse_job_is_fresh,
-}
-
-
-def parse_freshness_constraint(constraint: str) -> TFreshnessConstraintSpec:
-    """Parse a freshness constraint string. Returns type and upstream job_ref."""
-    if ":" not in constraint:
-        raise ValueError(f"freshness constraint must be in type:expr form, got {constraint!r}")
-    constraint_type, expr = constraint.split(":", 1)
-    parser = _FRESHNESS_PARSERS.get(constraint_type)
-    if parser is None:
-        raise ValueError(f"unknown freshness constraint type {constraint_type!r}")
-    return parser(expr)
-
 
 def parse_trigger(trigger: TTrigger) -> TParsedTrigger:
     """Parse a normalized trigger string into a structured TParsedTrigger."""
     if ":" not in trigger:
-        raise ValueError(f"trigger must be in type:expr form, got {trigger!r}")
+        raise InvalidTrigger(trigger, "must be in type:expr form")
     trigger_type, expr = trigger.split(":", 1)
     parser = PARSERS.get(trigger_type)
     if parser is None:
-        raise ValueError(f"unknown trigger type {trigger_type!r} in {trigger!r}")
+        raise InvalidTrigger(trigger, f"unknown type {trigger_type!r}")
     return parser(expr)
 
 
-_CRON_FIELD_RE = re.compile(r"^[\d*,/\-?LW#]+$")
-
-
-def _looks_like_cron(s: str) -> bool:
-    """Check if string is a valid cron expression."""
-    try:
-        from croniter import croniter
-
-        return croniter.is_valid(s)
-    except ImportError:
-        # fallback: 5 or 6 fields with cron-like characters
-        parts = s.split()
-        return len(parts) in (5, 6) and all(_CRON_FIELD_RE.match(p) for p in parts)
-
-
 def normalize_trigger(trigger: Union[str, TTrigger]) -> TTrigger:
-    """Normalize a single trigger to canonical form."""
+    """Normalize a single user-provided trigger to canonical form.
+
+    Raises InvalidTrigger for ``manual:`` triggers — use ``expose(manual=True)`` instead.
+    """
     # import here to avoid circular import — creators live in triggers.py
     from dlt._workspace.deployment.triggers import schedule
 
@@ -209,20 +175,26 @@ def normalize_trigger(trigger: Union[str, TTrigger]) -> TTrigger:
 
     if ":" in s:
         trigger_type = s.split(":", 1)[0]
+        if trigger_type == "manual":
+            raise InvalidTrigger(s, "use expose(manual=True) instead of manual: trigger")
         if trigger_type in PARSERS:
             return parse_trigger(TTrigger(s)).raw
-        raise ValueError(f"unknown trigger type {trigger_type!r} in {s!r}")
+        raise InvalidTrigger(s, f"unknown type {trigger_type!r}")
 
     if s in PARSERS:
-        if s in ("deployment", "manual", "http", "webhook"):
+        if s == "manual":
+            raise InvalidTrigger(s, "use expose(manual=True) instead of manual: trigger")
+        if s in ("deployment", "http", "webhook"):
             return PARSERS[s]("").raw
-        raise ValueError(f"trigger type {s!r} requires an expression")
+        raise InvalidTrigger(s, "requires an expression")
 
     # detect bare cron expressions
-    if _looks_like_cron(s):
+    from dlt._workspace.deployment.interval import is_cron_expression
+
+    if is_cron_expression(s):
         return schedule(s)
 
-    raise ValueError(f"cannot normalize trigger {trigger!r}")
+    raise InvalidTrigger(s, "cannot normalize")
 
 
 def normalize_triggers(
@@ -259,17 +231,19 @@ def _normalize_selector(selector: str) -> str:
     return selector
 
 
-def matched_triggers(job_def: TJobDefinition, selectors: List[str]) -> List[TTrigger]:
-    """Return triggers from job_def that match any of the selectors.
+def match_triggers_with_selectors(
+    job_type: str,
+    triggers: List[TTrigger],
+    selectors: List[str],
+) -> List[TTrigger]:
+    """Return triggers that match any selector.
 
-    Job-type selectors (batch, interactive) match ALL triggers on the job.
+    Job-type selectors (batch, interactive, stream, job) match ALL triggers.
     """
-    triggers = job_def.get("triggers", [])
     matched: List[TTrigger] = []
 
     for selector in selectors:
         if selector in _JOB_TYPE_SELECTORS:
-            job_type = job_def["entry_point"]["job_type"]
             if (selector == "job" and job_type == "batch") or job_type == selector:
                 return list(triggers)
             continue
@@ -282,18 +256,16 @@ def matched_triggers(job_def: TJobDefinition, selectors: List[str]) -> List[TTri
     return matched
 
 
-def matches_selector(selector: str, job_def: TJobDefinition) -> bool:
-    """Check if a job definition matches a selector."""
-    return bool(matched_triggers(job_def, [selector]))
-
-
-def filter_jobs_by_selectors(
-    jobs: List[TJobDefinition], selectors: List[str]
-) -> List[TJobDefinition]:
-    """Filter jobs matching any of the selectors. Empty = all."""
-    if not selectors:
-        return list(jobs)
-    return [j for j in jobs if matched_triggers(j, selectors)]
+def pick_trigger(
+    matched: List[TTrigger],
+    default_trigger: Optional[TTrigger] = None,
+) -> Optional[TTrigger]:
+    """Pick one trigger from a matched list. Prefer default_trigger if present."""
+    if not matched:
+        return None
+    if default_trigger and default_trigger in matched:
+        return default_trigger
+    return matched[0]
 
 
 def maybe_parse_schedule(job_def: TJobDefinition) -> Optional[str]:
@@ -306,7 +278,7 @@ def maybe_parse_schedule(job_def: TJobDefinition) -> Optional[str]:
     for trigger in job_def.get("triggers", []):
         try:
             parsed = parse_trigger(trigger)
-        except ValueError:
+        except InvalidTrigger:
             continue
         if parsed.type == "schedule":
             return str(parsed.expr)

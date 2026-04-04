@@ -1,8 +1,9 @@
 import argparse
-import os
-from typing import Dict, List, Optional, Tuple
+from importlib import import_module
+from typing import Any, Dict, List, Optional, Tuple
 
 from dlt.common import json
+from dlt.common.configuration.utils import add_config_dict_to_env
 
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint
 
@@ -14,8 +15,7 @@ def parse_launcher_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         uv run python -m dlt._workspace.deployment.launchers.<name> \\
             --run-id <uuid> \\
             --trigger <trigger_string> \\
-            --entry-point <json_TRuntimeEntryPoint> \\
-            [--config KEY=VALUE ...]
+            --entry-point <json_TRuntimeEntryPoint>
     """
     parser = argparse.ArgumentParser(
         description="dlt job launcher",
@@ -27,28 +27,9 @@ def parse_launcher_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         required=True,
         help="JSON-serialized TRuntimeEntryPoint dict",
     )
-    parser.add_argument(
-        "--config",
-        nargs="*",
-        default=[],
-        metavar="KEY=VALUE",
-        help="config key-value pairs",
-    )
     args = parser.parse_args(argv)
     args.entry_point = json.loads(args.entry_point)
-    args.config = _parse_config_pairs(args.config)
     return args
-
-
-def _parse_config_pairs(pairs: List[str]) -> Dict[str, str]:
-    """Parse KEY=VALUE pairs from command line."""
-    config: Dict[str, str] = {}
-    for pair in pairs:
-        if "=" not in pair:
-            raise ValueError(f"config must be KEY=VALUE, got: {pair!r}")
-        key, value = pair.split("=", 1)
-        config[key] = value
-    return config
 
 
 def get_run_args_port(entry_point: TRuntimeEntryPoint) -> int:
@@ -69,8 +50,6 @@ def get_run_args_base_path(entry_point: TRuntimeEntryPoint) -> str:
 
 def resolve_module_path(module_name: str) -> str:
     """Resolve a Python module name to its file path."""
-    from importlib import import_module
-
     mod = import_module(module_name)
     file_path: Optional[str] = getattr(mod, "__file__", None)
     if file_path is None:
@@ -78,10 +57,7 @@ def resolve_module_path(module_name: str) -> str:
     return file_path
 
 
-def set_config_env_vars(sections: Tuple[str, ...], config: Dict[str, str]) -> None:
-    """Set config params as env vars with dlt naming convention."""
-    if not config:
-        return
-    prefix = "__".join(sections).upper()
-    for key, value in config.items():
-        os.environ[f"{prefix}__{key.upper()}"] = value
+def set_config_env_vars(sections: Tuple[str, ...], config: Dict[str, Any]) -> None:
+    """Set config params as env vars using EnvironProvider naming convention."""
+    if config:
+        add_config_dict_to_env(config, sections, overwrite_keys=True)

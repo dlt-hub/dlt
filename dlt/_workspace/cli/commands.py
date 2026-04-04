@@ -1,10 +1,11 @@
 import argparse
 import os
 import sys
-from typing import Optional
+from typing import Dict, List, Optional
 
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
+from dlt._workspace.deployment.typing import DEFAULT_DEPLOYMENT_MODULE
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli.utils import add_mcp_arg_parser, make_mcp_run_flags
 from dlt._workspace.cli._urls import (
@@ -1047,7 +1048,7 @@ workspace info.
         run_parser.add_argument(
             "deployment_module",
             nargs="?",
-            default="__deployment__",
+            default=DEFAULT_DEPLOYMENT_MODULE,
             help=(
                 "File path (e.g. my_jobs.py) or module name (default: __deployment__)."
                 " File paths are resolved relative to the current directory."
@@ -1064,19 +1065,14 @@ workspace info.
             ),
         )
         run_parser.add_argument(
-            "--with-future",
+            "--no-future",
             action="store_true",
-            help="Schedule future jobs (cron, every, once)",
+            help="Suppress timed trigger scheduling (schedule, every, once)",
         )
         run_parser.add_argument(
-            "--with-future-once",
+            "--once",
             action="store_true",
-            help="Schedule future jobs but fire each only once",
-        )
-        run_parser.add_argument(
-            "--without-followup",
-            action="store_true",
-            help="Do not collect event-triggered downstream jobs",
+            help="Fire timed triggers once (don't repeat)",
         )
         run_parser.add_argument(
             "--no-use-all",
@@ -1093,6 +1089,14 @@ workspace info.
             "--verbose",
             action="store_true",
             help="Show full manifest JSON before running",
+        )
+        run_parser.add_argument(
+            "-c",
+            "--config",
+            action="append",
+            default=[],
+            metavar="KEY=VALUE",
+            help="Config key=value pairs passed to all jobs (repeatable)",
         )
 
     def execute(self, args: argparse.Namespace) -> None:
@@ -1119,19 +1123,31 @@ workspace info.
         else:
             self.parser.print_usage()
 
+    @staticmethod
+    def _parse_config_args(pairs: List[str]) -> Dict[str, str]:
+        config: Dict[str, str] = {}
+        for pair in pairs:
+            if "=" not in pair:
+                raise ValueError(f"config must be KEY=VALUE, got: {pair!r}")
+            key, value = pair.split("=", 1)
+            config[key] = value
+        return config
+
     def _execute_run(self, args: argparse.Namespace) -> None:
         from dlt._workspace._runner.runner import run_from_module
+
+        config = self._parse_config_args(args.config) if args.config else None
 
         try:
             exit_code = run_from_module(
                 module_name=args.deployment_module,
-                trigger_selectors=args.select,
+                trigger_selectors=args.select or None,
                 use_all=not args.no_use_all,
-                with_future=args.with_future,
-                with_future_once=args.with_future_once,
-                without_followup=args.without_followup,
+                no_future=args.no_future,
+                once=args.once,
                 dry_run=args.dry_run,
                 verbose=args.verbose,
+                config=config,
                 warn=fmt.warning,
             )
         except ModuleNotFoundError as exc:

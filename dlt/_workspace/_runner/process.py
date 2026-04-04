@@ -38,6 +38,7 @@ class JobProcess:
     def start(self) -> None:
         """Start the subprocess and output reader threads."""
         merged_env = dict(os.environ)
+        merged_env["PYTHONUNBUFFERED"] = "1"
         if self.env:
             merged_env.update(self.env)
 

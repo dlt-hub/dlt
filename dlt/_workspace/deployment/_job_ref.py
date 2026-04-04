@@ -1,5 +1,6 @@
 from typing import List, Optional, Tuple
 
+from dlt._workspace.deployment.exceptions import AmbiguousJobRef, InvalidJobRef, JobRefNotFound
 from dlt._workspace.deployment.typing import TJobDefinition, TJobRef
 
 JOB_REF_PREFIX = "jobs."
@@ -24,17 +25,17 @@ def parse_job_ref(ref: TJobRef) -> Tuple[str, str]:
         Tuple of (section, name). Section is empty for 2-part module-level refs.
 
     Raises:
-        ValueError: If ref is not a valid job_ref.
+        InvalidJobRef: If ref is not a valid job_ref.
     """
     if not ref.startswith(JOB_REF_PREFIX):
-        raise ValueError(f"job_ref must start with {JOB_REF_PREFIX!r}, got {ref!r}")
+        raise InvalidJobRef(ref, f"must start with {JOB_REF_PREFIX!r}")
     rest = ref[len(JOB_REF_PREFIX) :]
     parts = rest.split(".")
     if len(parts) == 1:
         return ("", parts[0])
     if len(parts) == 2:
         return (parts[0], parts[1])
-    raise ValueError(f"job_ref must be jobs.<name> or jobs.<section>.<name>, got {ref!r}")
+    raise InvalidJobRef(ref, "must be jobs.<name> or jobs.<section>.<name>")
 
 
 def short_name(ref: str) -> str:
@@ -59,11 +60,13 @@ def resolve_job_ref(
         jobs: Optional list of job definitions for bare name resolution.
 
     Raises:
-        ValueError: If ref is ambiguous, not found, or invalid.
+        InvalidJobRef: If ref format is invalid.
+        JobRefNotFound: If ref not found in jobs list.
+        AmbiguousJobRef: If bare name matches multiple jobs.
     """
     ref = ref.strip()
     if not ref:
-        raise ValueError("job ref must not be empty")
+        raise InvalidJobRef(ref, "must not be empty")
 
     if ref.startswith(JOB_REF_PREFIX):
         result = TJobRef(ref)
@@ -83,13 +86,14 @@ def resolve_job_ref(
     if len(parts) == 1:
         # bare name — requires jobs list
         if jobs is None:
-            raise ValueError(
-                f"bare job name {ref!r} requires a jobs list for resolution;"
-                " use section.name or jobs.section.name form"
+            raise InvalidJobRef(
+                ref,
+                "bare job name requires a jobs list for resolution;"
+                " use section.name or jobs.section.name form",
             )
         return _resolve_bare_name(ref, jobs)
 
-    raise ValueError(f"invalid job ref {ref!r}")
+    raise InvalidJobRef(ref, "use name, section.name, or jobs.section.name form")
 
 
 def _check_exists(ref: TJobRef, jobs: List[TJobDefinition]) -> None:
@@ -97,7 +101,7 @@ def _check_exists(ref: TJobRef, jobs: List[TJobDefinition]) -> None:
     for j in jobs:
         if j["job_ref"] == ref:
             return
-    raise ValueError(f"job ref {ref!r} not found in manifest")
+    raise JobRefNotFound(ref)
 
 
 def _resolve_bare_name(name: str, jobs: List[TJobDefinition]) -> TJobRef:
@@ -109,5 +113,5 @@ def _resolve_bare_name(name: str, jobs: List[TJobDefinition]) -> TJobRef:
     if len(matches) == 1:
         return matches[0]
     if not matches:
-        raise ValueError(f"no job matching name {name!r}")
-    raise ValueError(f"ambiguous job name {name!r}, matches: {', '.join(matches)}")
+        raise JobRefNotFound(TJobRef(name))
+    raise AmbiguousJobRef(name, [str(m) for m in matches])

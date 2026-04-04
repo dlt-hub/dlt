@@ -13,11 +13,9 @@ from dlt._workspace.deployment._trigger_helpers import (
     _parse_tag,
     _parse_webhook,
     _parse_job_fail,
-    _parse_job_is_fresh,
-    _parse_job_is_matching_interval_fresh,
     _parse_job_success,
 )
-from dlt._workspace.deployment.typing import TFreshnessConstraint, TTrigger
+from dlt._workspace.deployment.typing import TTrigger
 
 __all__ = [
     "schedule",
@@ -30,8 +28,6 @@ __all__ = [
     "manual",
     "job_success",
     "job_fail",
-    "job_is_matching_interval_fresh",
-    "job_is_fresh",
 ]
 
 
@@ -108,17 +104,3 @@ def job_fail(job_ref: str) -> TTrigger:
             or `"jobs.section.name"`.
     """
     return _parse_job_fail(resolve_job_ref(job_ref)).raw
-
-
-def job_is_matching_interval_fresh(job_ref: str) -> TFreshnessConstraint:
-    """Downstream interval must be fully covered by upstream completed intervals."""
-    ref = resolve_job_ref(job_ref)
-    _parse_job_is_matching_interval_fresh(ref)
-    return TFreshnessConstraint(f"job.is_matching_interval_fresh:{ref}")
-
-
-def job_is_fresh(job_ref: str) -> TFreshnessConstraint:
-    """Upstream overall interval (intersected with downstream) must be complete."""
-    ref = resolve_job_ref(job_ref)
-    _parse_job_is_fresh(ref)
-    return TFreshnessConstraint(f"job.is_fresh:{ref}")

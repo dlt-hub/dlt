@@ -5,13 +5,13 @@ from dlt._workspace.deployment.decorators import job
 from dlt._workspace.deployment.typing import TJobRunContext
 
 
-@job(timeout="24h")
+@job(execute={"timeout": {"timeout": 86400.0}})
 def backfill():
     """Backfill historical data."""
     return "backfill_done"
 
 
-@job(trigger="0 8 * * *", timeout="4h")
+@job(trigger="0 8 * * *", execute={"timeout": {"timeout": 14400.0}})
 def daily_ingest():
     return "ingested"
 
@@ -22,7 +22,7 @@ def transform():
     return "transformed"
 
 
-@job(starred=True, tags=["ops"])
+@job(expose={"starred": True, "tags": ["ops"]})
 def maintenance(cleanup_days=dlt.config.value):
     """Run maintenance tasks."""
     pass
@@ -40,3 +40,44 @@ def context_optional(run_context: TJobRunContext = None):
     if run_context is not None:
         return f"got_context:{run_context['run_id']}"
     return "no_context"
+
+
+@job
+def interval_aware(run_context: TJobRunContext):
+    """Job that reads interval from run_context and dlt.current.interval()."""
+    import dlt
+
+    ctx_start = run_context.get("interval_start")
+    iv_from_current = dlt.current.interval()
+    parts = []
+    if ctx_start:
+        parts.append(f"ctx_start={ctx_start.isoformat()}")
+    if iv_from_current:
+        parts.append(f"current_start={iv_from_current[0].isoformat()}")
+    return ",".join(parts) if parts else "no_interval"
+
+
+@job
+def incremental_interval_job(run_context: TJobRunContext):
+    """Job that creates an incremental resource and checks scheduler join."""
+    from datetime import datetime  # noqa: I251
+    from dlt.common.pendulum import pendulum
+
+    @dlt.resource()
+    def my_events(
+        updated_at: dlt.sources.incremental[datetime] = dlt.sources.incremental("updated_at"),
+    ):
+        yield {"updated_at": pendulum.datetime(2024, 1, 15, 12, tz="UTC")}
+
+    r = my_events()
+    items = list(r)
+    inc = r.incremental._incremental
+    return f"iv={inc.initial_value},end={inc.end_value},items={len(items)}"
+
+
+@job
+def profile_aware(run_context: TJobRunContext):
+    """Job that reads the workspace profile env var set by the launcher."""
+    import os
+
+    return f"profile={os.environ.get('WORKSPACE__PROFILE', '')}"

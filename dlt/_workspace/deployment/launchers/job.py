@@ -1,16 +1,22 @@
 """System launcher for function-based jobs."""
 
-
 import asyncio
 import inspect
+import os
 import sys
 from typing import Any, Dict, List, Optional
 
+from dlt.common.configuration.container import Container
 from dlt.common.reflection.ref import object_from_ref
+from dlt.common.time import ensure_pendulum_datetime_non_utc
+from dlt.common.typing import TTimeInterval
 
 from dlt._workspace import known_sections as ws_known_sections
+from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace.deployment.decorators import JobFactory
+from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.typing import TJobRunContext, TRuntimeEntryPoint, TTrigger
+from dlt.extract.incremental.context import TimeIntervalContext
 from dlt._workspace.deployment.launchers._launcher import (
     get_run_args_port,
     parse_launcher_args,
@@ -22,22 +28,20 @@ def _resolve_job(entry_point: TRuntimeEntryPoint) -> JobFactory[Any, Any]:
     """Import module and resolve the JobFactory from entry point."""
     function = entry_point.get("function")
     if not function:
-        raise ValueError(
-            "job launcher requires entry_point.function to be set. "
-            "Use a module launcher for module-level jobs."
+        raise JobResolutionError(
+            entry_point["module"],
+            "entry_point.function must be set; use a module launcher for module-level jobs",
         )
     ref = f"{entry_point['module']}.{function}"
 
     def _typechecker(obj: Any) -> JobFactory[Any, Any]:
         if isinstance(obj, JobFactory):
             return obj
-        raise TypeError(f"expected JobFactory, got {type(obj).__name__}")
+        raise JobResolutionError(ref, f"expected JobFactory, got {type(obj).__name__}")
 
     result, trace = object_from_ref(ref, _typechecker, raise_exec_errors=True)
     if result is None:
-        raise ImportError(
-            f"cannot resolve job {ref!r}: {trace.reason}" + (f" ({trace.exc})" if trace.exc else "")
-        )
+        raise JobResolutionError(ref, f"{trace.reason}" + (f" ({trace.exc})" if trace.exc else ""))
     return result  # type: ignore[no-any-return]
 
 
@@ -146,7 +150,6 @@ def run(
     entry_point: TRuntimeEntryPoint,
     run_id: str,
     trigger: str,
-    config: Optional[Dict[str, str]] = None,
 ) -> Any:
     """Execute a function job from its entry point definition.
 
@@ -154,14 +157,29 @@ def run(
         entry_point (TRuntimeEntryPoint): What to run (module + function + run_args).
         run_id (str): Unique run identifier.
         trigger (str): Trigger string that fired this run.
-        config (Dict[str, str]): Config key-value pairs to inject as env vars.
 
     Returns:
         Any: The return value of the job function.
     """
     job = _resolve_job(entry_point)
     sections = (ws_known_sections.JOBS, job.section, job.name)
-    set_config_env_vars(sections, config or {})
+    set_config_env_vars(sections, entry_point.get("config", {}))
+
+    # activate workspace profile via env var — subprocess launchers inherit it,
+    # the workspace plugin reads it on init
+    profile = entry_point.get("profile")
+    if profile:
+        os.environ[WORKSPACE__PROFILE] = profile
+
+    # parse interval from entry point
+    iv_start_str = entry_point.get("interval_start")
+    iv_end_str = entry_point.get("interval_end")
+    iv: Optional[TTimeInterval] = None
+    if iv_start_str and iv_end_str:
+        iv = (
+            ensure_pendulum_datetime_non_utc(iv_start_str),
+            ensure_pendulum_datetime_non_utc(iv_end_str),
+        )
 
     # inject run_context if the function signature declares it
     kwargs: Dict[str, Any] = {}
@@ -170,14 +188,26 @@ def run(
         run_args = entry_point.get("run_args")
         if run_args:
             ctx["run_args"] = run_args
-        interval = entry_point.get("interval")
-        if interval:
-            ctx["interval"] = interval
+        if iv is not None:
+            ctx["interval_start"] = iv[0]
+            ctx["interval_end"] = iv[1]
         kwargs["run_context"] = ctx
 
-    result = job(**kwargs)
-    if asyncio.iscoroutine(result):
-        result = asyncio.run(result)
+    # inject interval context into Container so dlt.current.interval() works
+    if iv is not None:
+        iv_ctx = TimeIntervalContext(
+            interval=iv,
+            allow_external_schedulers=True,
+        )
+        with Container().injectable_context(iv_ctx):
+            result = job(**kwargs)
+            if asyncio.iscoroutine(result):
+                result = asyncio.run(result)
+    else:
+        result = job(**kwargs)
+        if asyncio.iscoroutine(result):
+            result = asyncio.run(result)
+
     _check_return_value(result, job, entry_point)
     return result
 
@@ -189,7 +219,6 @@ if __name__ == "__main__":
         entry_point=args.entry_point,
         run_id=args.run_id,
         trigger=args.trigger,
-        config=args.config,
     )
     if result is not None:
         print(result)  # noqa: T201

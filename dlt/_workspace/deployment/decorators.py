@@ -1,6 +1,6 @@
 import inspect
 from functools import update_wrapper, wraps
-from typing import Any, Callable, List, Optional, Sequence, Type, Union, overload
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Sequence, Type, Union, overload
 
 from typing_extensions import TypeVar
 
@@ -10,33 +10,38 @@ from dlt.common.reflection.inspect import iscoroutinefunction
 from dlt.common.typing import AnyFun, Generic, ParamSpec
 from dlt.common.utils import get_callable_name, get_module_name
 
+if TYPE_CHECKING:
+    from dlt.common.pipeline import SupportsPipeline
+
 from dlt._workspace import known_sections as ws_known_sections
+from dlt._workspace.deployment import freshness as _freshness
 from dlt._workspace.deployment import triggers as _triggers
-from dlt._workspace.deployment._trigger_helpers import normalize_triggers
-from dlt.extract.reference import SourceFactory as AnySourceFactory, SourceReference
+from dlt._workspace.deployment._trigger_helpers import normalize_triggers, parse_period_seconds
+from dlt._workspace.deployment.freshness import normalize_freshness_constraints
+from dlt.extract.reference import SourceFactory as AnySourceFactory
 from dlt.extract.resource import DltResource
 from dlt.extract.source import DltSource
 
-from dlt._workspace.deployment._job_ref import make_job_ref, short_name as job_short_name
+from dlt._workspace.deployment._job_ref import make_job_ref
 from dlt._workspace.deployment.typing import (
-    TDeliveryRef,
+    TDeliverSpec,
     TEntryPoint,
-    TExecutionSpec,
+    TExecuteSpec,
     TExposeSpec,
     TFreshnessConstraint,
     TInterfaceType,
     TIntervalSpec,
     TJobDefinition,
+    TJobExposeSpec,
     TJobRef,
     TJobType,
+    TRequireSpec,
     TTimeoutSpec,
     TTrigger,
 )
 
 TJobFunParams = ParamSpec("TJobFunParams")
 TJobResult = TypeVar("TJobResult", default=Any)
-
-_INTERVAL_MULTIPLIERS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 
 
 def _normalize_timeout(
@@ -46,12 +51,7 @@ def _normalize_timeout(
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
-        suffix = value[-1].lower()
-        if suffix in _INTERVAL_MULTIPLIERS:
-            seconds = float(value[:-1]) * _INTERVAL_MULTIPLIERS[suffix]
-        else:
-            seconds = float(value)
-        return {"timeout": seconds}
+        return {"timeout": parse_period_seconds(value)}
     return {"timeout": float(value)}
 
 
@@ -96,13 +96,10 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         self.section: str = None
         self.job_type: TJobType = "batch"
         self.trigger: List[TTrigger] = []
-        self.manual: bool = True
-        self.timeout: Union[None, float, str, TTimeoutSpec] = None
-        self.concurrency: Optional[int] = None
-        self.starred: bool = False
-        self.tags: Sequence[str] = None
+        self.execute: Optional[TExecuteSpec] = None
+        self.expose: Optional[TJobExposeSpec] = None
+        self.require: Optional[TRequireSpec] = None
         self.deliver: Optional[TDeliverTarget] = None
-        self.expose: Optional[TExposeSpec] = None
         self.interval: Optional[TIntervalSpec] = None
         self.freshness: List[TFreshnessConstraint] = []
         self.allow_external_schedulers: bool = False
@@ -127,12 +124,12 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
     @property
     def is_matching_interval_fresh(self) -> TFreshnessConstraint:
         """Downstream interval must be fully covered by this job's completed intervals."""
-        return _triggers.job_is_matching_interval_fresh(self.job_ref)
+        return _freshness.is_matching_interval_fresh(self.job_ref)
 
     @property
     def is_fresh(self) -> TFreshnessConstraint:
         """This job's overall interval (intersected with downstream's) must be complete."""
-        return _triggers.job_is_fresh(self.job_ref)
+        return _freshness.is_fresh(self.job_ref)
 
     def __call__(self, *args: TJobFunParams.args, **kwargs: TJobFunParams.kwargs) -> TJobResult:
         rv: TJobResult = self._deco_f(*args, **kwargs)
@@ -179,30 +176,15 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
             "job_type": self.job_type,
         }
 
-        execution: TExecutionSpec = {}
-        if self.concurrency is not None:
-            execution["concurrency"] = self.concurrency
-        if self.timeout is not None:
-            execution["timeout"] = _normalize_timeout(self.timeout)
-        if self.job_type == "interactive":
-            timeout: TTimeoutSpec = execution.get("timeout") or {}
-            if "grace_period" not in timeout:
-                timeout["grace_period"] = 5.0
-                execution["timeout"] = timeout
-
         job_def: TJobDefinition = {
             "job_ref": self.job_ref,
             "entry_point": entry_point,
             "triggers": list(self.trigger),
-            "execution": execution,
-            "starred": self.starred,
+            "execute": self.execute or TExecuteSpec(),
         }
 
-        if not self.manual:
-            job_def["manual_disabled"] = True
-
-        if self.expose is not None:
-            job_def["expose"] = self.expose
+        if self.expose:
+            job_def["expose"] = self.expose  # type: ignore[typeddict-item]
 
         description = (self._f.__doc__ or "").strip()
         if description:
@@ -213,9 +195,6 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
             if config_keys:
                 job_def["config_keys"] = config_keys
 
-        if self.tags:
-            job_def["tags"] = list(self.tags)
-
         if self.interval is not None:
             job_def["interval"] = self.interval
         if self.freshness:
@@ -224,7 +203,13 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
             job_def["allow_external_schedulers"] = True
 
         if self.deliver is not None:
-            job_def["deliver"] = TDeliveryRef(source_ref=_source_ref_from_deliver(self.deliver))
+            if isinstance(self.deliver, dict):
+                job_def["deliver"] = self.deliver  # type: ignore[typeddict-item]
+            else:
+                job_def["deliver"] = TDeliverSpec(source_ref=_source_ref_from_deliver(self.deliver))
+
+        if self.require is not None:
+            job_def["require"] = self.require
 
         return job_def
 
@@ -236,15 +221,14 @@ def _job(
     section: str = None,
     job_type: TJobType = "batch",
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
-    manual: bool = True,
-    timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: Optional[int] = None,
-    starred: bool = False,
-    tags: Sequence[str] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
     deliver: Optional[TDeliverTarget] = None,
-    expose: Optional[TExposeSpec] = None,
     interval: Optional[TIntervalSpec] = None,
-    freshness: Optional[Sequence[TFreshnessConstraint]] = None,
+    freshness: Union[
+        None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
+    ] = None,
     allow_external_schedulers: bool = False,
     spec: Type[BaseConfiguration] = None,
 ) -> Any:
@@ -254,15 +238,12 @@ def _job(
     wrapper.section = section
     wrapper.job_type = job_type
     wrapper.trigger = normalize_triggers(trigger)
-    wrapper.manual = manual
-    wrapper.timeout = timeout
-    wrapper.concurrency = concurrency
-    wrapper.starred = starred
-    wrapper.tags = tags
-    wrapper.deliver = deliver
+    wrapper.execute = execute
     wrapper.expose = expose
+    wrapper.require = require
+    wrapper.deliver = deliver
     wrapper.interval = interval
-    wrapper.freshness = list(freshness) if freshness else []
+    wrapper.freshness = normalize_freshness_constraints(freshness)
     wrapper.allow_external_schedulers = allow_external_schedulers
     wrapper._user_spec = spec
 
@@ -278,14 +259,14 @@ def job(
     name: str = None,
     section: str = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
-    manual: bool = True,
-    timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: Optional[int] = None,
-    starred: bool = False,
-    tags: Sequence[str] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
     deliver: Optional[TDeliverTarget] = None,
     interval: Optional[TIntervalSpec] = None,
-    freshness: Optional[Sequence[TFreshnessConstraint]] = None,
+    freshness: Union[
+        None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
+    ] = None,
     allow_external_schedulers: bool = False,
     spec: Type[BaseConfiguration] = None,
 ) -> JobFactory[TJobFunParams, TJobResult]: ...
@@ -298,14 +279,14 @@ def job(
     name: str = None,
     section: str = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
-    manual: bool = True,
-    timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: Optional[int] = None,
-    starred: bool = False,
-    tags: Sequence[str] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
     deliver: Optional[TDeliverTarget] = None,
     interval: Optional[TIntervalSpec] = None,
-    freshness: Optional[Sequence[TFreshnessConstraint]] = None,
+    freshness: Union[
+        None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
+    ] = None,
     allow_external_schedulers: bool = False,
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]: ...
@@ -317,34 +298,52 @@ def job(
     name: str = None,
     section: str = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
-    manual: bool = True,
-    timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: Optional[int] = None,
-    starred: bool = False,
-    tags: Sequence[str] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
     deliver: Optional[TDeliverTarget] = None,
     interval: Optional[TIntervalSpec] = None,
-    freshness: Optional[Sequence[TFreshnessConstraint]] = None,
+    freshness: Union[
+        None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
+    ] = None,
     allow_external_schedulers: bool = False,
     spec: Type[BaseConfiguration] = None,
 ) -> Any:
     """Marks a function as a deployable batch job.
 
     Args:
-        func (Optional[AnyFun]): The function to decorate.
-        name (str): Job name. Defaults to the function name.
-        section (str): Config section. Defaults to the module name.
+        func: The function to decorate.
+
+        name: Job name. Defaults to the function name.
+
+        section: Config section. Defaults to the module name.
+
         trigger: One or more trigger strings or TTrigger values.
-        manual (bool): Whether the job can be triggered manually.
-            Defaults to `True`. Set to `False` to prevent ad-hoc runs.
-        timeout: Max wall-clock duration as seconds, human string (e.g. `"4h"`),
-            or `TTimeoutSpec` dict.
-        concurrency (Optional[int]): Max concurrent runs. None = no limit.
-        starred (bool): Whether this job is starred in the UI.
-        tags (List[str]): Optional list of tags.
-        deliver (TDeliverTarget): A `@dlt.source`, standalone `@dlt.resource`, or
-            called source instance for delivery association.
-        spec (Type[BaseConfiguration]): Optional configuration spec class.
+
+        execute: Execution constraints. Accepts `TExecuteSpec` with:
+            `timeout` (seconds, human string like `"4h"`, or `TTimeoutSpec` dict),
+            `concurrency` (max concurrent runs, `None` = no limit).
+
+        expose: UI presentation. Accepts `TJobExposeSpec` with:
+            `tags` (grouping labels), `starred` (top-level UI visibility),
+            `manual` (`False` to disable manual triggering).
+
+        require: Runtime resource requirements. Accepts `TRequireSpec` with:
+            `extras` (pyproject.toml extras for venv), `profile` (workspace profile),
+            `machine` (machine spec), `region` (runner placement).
+
+        deliver: A `@dlt.source`, standalone `@dlt.resource`, or called source
+            instance for delivery association.
+
+        interval: Overall time range for interval-based scheduling.
+
+        freshness: Upstream freshness constraints. Accepts a single constraint
+            string, `TFreshnessConstraint`, or a list of them.
+
+        allow_external_schedulers: When `True`, intervals and state are managed
+            by the scheduler rather than the job itself.
+
+        spec: Optional configuration spec class.
 
     Returns:
         JobFactory: Preserves the original function's signature and return type.
@@ -355,11 +354,9 @@ def job(
         section=section,
         job_type="batch",
         trigger=trigger,
-        manual=manual,
-        timeout=timeout,
-        concurrency=concurrency,
-        starred=starred,
-        tags=tags,
+        execute=execute,
+        expose=expose,
+        require=require,
         deliver=deliver,
         interval=interval,
         freshness=freshness,
@@ -375,10 +372,10 @@ def interactive(
     name: str = None,
     section: str = None,
     interface: TInterfaceType = "gui",
-    timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: Optional[int] = 1,
-    starred: bool = False,
-    tags: Sequence[str] = None,
+    idle_timeout: Union[None, float, str] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> JobFactory[TJobFunParams, TJobResult]: ...
 
@@ -390,10 +387,10 @@ def interactive(
     name: str = None,
     section: str = None,
     interface: TInterfaceType = "gui",
-    timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: Optional[int] = 1,
-    starred: bool = False,
-    tags: Sequence[str] = None,
+    idle_timeout: Union[None, float, str] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]: ...
 
@@ -404,10 +401,10 @@ def interactive(
     name: str = None,
     section: str = None,
     interface: TInterfaceType = "gui",
-    timeout: Union[None, float, str, TTimeoutSpec] = None,
-    concurrency: Optional[int] = 1,
-    starred: bool = False,
-    tags: Sequence[str] = None,
+    idle_timeout: Union[None, float, str] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> Any:
     """Marks a function as a deployable interactive job.
@@ -416,22 +413,39 @@ def interactive(
     The runtime assigns a port and proxies traffic to the job.
 
     Args:
-        func (Optional[AnyFun]): The function to decorate.
-        name (str): Job name. Defaults to the function name.
-        section (str): Config section. Defaults to the module name.
-        interface (TInterfaceType): What the job exposes: `"gui"`, `"rest_api"`,
-            or `"mcp"`. Defaults to `"gui"`.
-        timeout: Max wall-clock duration as seconds, human string (e.g. `"24h"`),
-            or `TTimeoutSpec` dict.
-        concurrency (Optional[int]): Max concurrent runs. Defaults to 1.
-        starred (bool): Whether this job is starred in the UI.
-        tags (List[str]): Optional list of tags (e.g. `"notebook"`, `"dashboard"`).
-        spec (Type[BaseConfiguration]): Optional configuration spec class.
+        func: The function to decorate.
+        name: Job name. Defaults to the function name.
+        section: Config section. Defaults to the module name.
+        interface: What the job exposes: `"gui"`, `"rest_api"`, or `"mcp"`.
+        idle_timeout: Idle timeout as seconds or human string (e.g. `"24h"`).
+            Sets `execute.timeout` with `grace_period=5`.
+        execute: Execution constraints. Accepts `TExecuteSpec` with:
+            `timeout` and `concurrency`. Concurrency defaults to `1` for
+            interactive jobs.
+        expose: UI presentation. Accepts `TJobExposeSpec` with:
+            `tags`, `starred`, `manual`. The `interface` argument is merged
+            into expose automatically.
+        require: Runtime resource requirements. Accepts `TRequireSpec` with:
+            `extras`, `profile`, `machine`, `region`.
+        spec: Optional configuration spec class.
 
     Returns:
         JobFactory: Preserves the original function's signature and return type.
     """
-    expose: TExposeSpec = {"interface": interface}
+    # build expose with required interface
+    full_expose: TExposeSpec = {"interface": interface}
+    if expose:
+        full_expose.update(expose)
+
+    # build execute: concurrency=1 default, idle_timeout overrides
+    exec_spec: TExecuteSpec = dict(execute) if execute else {}  # type: ignore[assignment]
+    exec_spec.setdefault("concurrency", 1)
+    if idle_timeout is not None:
+        timeout = _normalize_timeout(idle_timeout)
+        timeout.setdefault("grace_period", 5.0)
+        exec_spec["timeout"] = timeout
+    elif "timeout" not in exec_spec:
+        exec_spec["timeout"] = {"grace_period": 5.0}
 
     return _job(
         func,
@@ -439,10 +453,85 @@ def interactive(
         section=section,
         job_type="interactive",
         trigger=_triggers.http(),
-        timeout=timeout,
-        concurrency=concurrency,
-        starred=starred,
-        tags=tags,
-        expose=expose,
+        execute=exec_spec,
+        expose=full_expose,
+        require=require,
         spec=spec,
     )
+
+
+def pipeline_run(
+    pipeline: Union[str, "SupportsPipeline"],
+    /,
+    name: str = None,
+    section: str = None,
+    trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
+    interval: Optional[TIntervalSpec] = None,
+    freshness: Union[
+        None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
+    ] = None,
+    allow_external_schedulers: bool = False,
+    spec: Type[BaseConfiguration] = None,
+) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]:
+    """Creates a job bound to a specific pipeline.
+
+    The decorated function runs as a batch job that operates on the named
+    pipeline. The pipeline association is stored in the manifest's deliver
+    spec, and the job is categorized as `"pipeline"` in the UI.
+
+    Args:
+        pipeline: Pipeline name (str) or `SupportsPipeline` instance.
+
+        name: Pipeline run name. Defaults to the function name.
+
+        section: Config section for pipeline run. Defaults to the module name.
+
+        trigger: One or more trigger strings or TTrigger values.
+
+        execute: Execution constraints (`TExecuteSpec`): `timeout`, `concurrency`.
+
+        expose: UI presentation (`TJobExposeSpec`): `tags`, `starred`, `manual`.
+
+        require: Resource requirements (`TRequireSpec`): `extras`, `profile`,
+            `machine`, `region`.
+
+        interval: Overall time range for interval-based scheduling.
+
+        freshness: Upstream freshness constraints.
+
+        allow_external_schedulers: When `True`, intervals managed by scheduler.
+
+        spec: Optional configuration spec class.
+
+    Returns:
+        A decorator that wraps the function in a `JobFactory`.
+    """
+    pipeline_name = pipeline if isinstance(pipeline, str) else pipeline.pipeline_name
+
+    deliver: TDeliverSpec = {"pipeline_name": pipeline_name}
+    full_expose: TExposeSpec = dict(expose) if expose else {}  # type: ignore[assignment]
+    full_expose.setdefault("category", "pipeline")
+
+    def decorator(
+        func: Callable[TJobFunParams, TJobResult]
+    ) -> JobFactory[TJobFunParams, TJobResult]:
+        return _job(  # type: ignore[no-any-return]
+            func,
+            name=name,
+            section=section,
+            job_type="batch",
+            trigger=trigger,
+            execute=execute,
+            expose=full_expose,
+            require=require,
+            deliver=deliver,  # type: ignore[arg-type]
+            interval=interval,
+            freshness=freshness,
+            allow_external_schedulers=allow_external_schedulers,
+            spec=spec,
+        )
+
+    return decorator

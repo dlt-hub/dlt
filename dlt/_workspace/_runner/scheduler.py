@@ -6,12 +6,13 @@ from typing import Dict, List, Optional, Set, Tuple
 from dlt.common.pendulum import pendulum
 
 from dlt._workspace.deployment._job_ref import short_name as job_short_name
+from dlt._workspace.deployment.exceptions import InvalidFreshnessConstraint, InvalidTrigger
 from dlt._workspace.deployment._trigger_helpers import (
-    maybe_parse_schedule,
-    parse_freshness_constraint,
     parse_trigger,
 )
+from dlt._workspace.deployment.freshness import parse_freshness_constraint
 from dlt._workspace.deployment.typing import TJobDefinition, TTrigger
+from dlt._workspace.deployment.interval import next_scheduled_run
 
 
 class ScheduledItem:
@@ -39,6 +40,8 @@ class TriggerScheduler:
         self._event_triggers: Dict[str, List[Tuple[TJobDefinition, TTrigger]]] = {}
         self._timed: List[ScheduledItem] = []
         self._warnings: List[str] = []
+        self._last_scheduled: Dict[str, pendulum.DateTime] = {}
+        """Tracks last scheduled_at per (job_ref, trigger) for every: rescheduling."""
 
     def register_triggers(
         self,
@@ -51,38 +54,19 @@ class TriggerScheduler:
         for trigger in triggers:
             try:
                 parsed = parse_trigger(trigger)
-            except ValueError:
+            except InvalidTrigger:
                 continue
 
             tt = parsed.type
 
             if tt in ("http", "deployment", "manual", "tag"):
                 immediate.append((job_def, trigger))
-            elif tt == "every":
-                immediate.append((job_def, trigger))
-                if self.with_future:
-                    period = parsed.expr
-                    if isinstance(period, (int, float)):
-                        self._timed.append(
-                            ScheduledItem(
-                                job_def,
-                                trigger,
-                                fire_at=time.time() + period,
-                                repeating=not self.with_future_once,
-                            )
-                        )
+            elif tt == "every" and self.with_future:
+                self._schedule_timed(job_def, trigger)
             elif tt == "schedule" and self.with_future:
-                self._schedule_cron(job_def, trigger, str(parsed.expr))
+                self._schedule_timed(job_def, trigger)
             elif tt == "once" and self.with_future:
-                if isinstance(parsed.expr, pendulum.DateTime):
-                    self._timed.append(
-                        ScheduledItem(
-                            job_def,
-                            trigger,
-                            fire_at=parsed.expr.timestamp(),
-                            repeating=False,
-                        )
-                    )
+                self._schedule_timed(job_def, trigger)
             elif tt in ("job.success", "job.fail"):
                 event_key = f"{tt}:{parsed.expr}"
                 self._event_triggers.setdefault(event_key, []).append((job_def, trigger))
@@ -92,20 +76,19 @@ class TriggerScheduler:
     def register_freshness_listeners(self, job_def: TJobDefinition) -> None:
         """Register internal job.success listeners for freshness constraints.
 
-        When an upstream job completes, the downstream interval job is
-        re-evaluated. These listeners are runtime-only, not in the manifest.
+        When an upstream job completes, the downstream is re-dispatched
+        using its default_trigger. These listeners are runtime-only.
         """
-        cron = maybe_parse_schedule(job_def)
-        if cron is None:
+        default_trigger = job_def.get("default_trigger")
+        if not default_trigger:
             return
-        schedule_trigger = TTrigger(f"schedule:{cron}")
         for constraint in job_def.get("freshness", []):
             try:
                 fc = parse_freshness_constraint(constraint)
-            except ValueError:
+            except InvalidFreshnessConstraint:
                 continue
             event_key = f"job.success:{fc.expr}"
-            self._event_triggers.setdefault(event_key, []).append((job_def, schedule_trigger))
+            self._event_triggers.setdefault(event_key, []).append((job_def, default_trigger))
 
     def fire_event(self, event: str) -> List[Tuple[TJobDefinition, TTrigger]]:
         """Fire a job event (e.g. 'job.success:jobs.mod.name'). Returns triggered jobs.
@@ -124,23 +107,10 @@ class TriggerScheduler:
             if item.fire_at <= now:
                 due.append((item.job_def, item.trigger))
                 if item.repeating:
-                    try:
-                        parsed = parse_trigger(item.trigger)
-                    except ValueError:
-                        continue
-                    if parsed.type == "every" and isinstance(parsed.expr, (int, float)):
-                        remaining.append(
-                            ScheduledItem(
-                                item.job_def,
-                                item.trigger,
-                                fire_at=now + parsed.expr,
-                                repeating=True,
-                            )
-                        )
-                    elif parsed.type == "schedule":
-                        self._schedule_cron(
-                            item.job_def, item.trigger, str(parsed.expr), into=remaining
-                        )
+                    # record this fire time for every: rescheduling
+                    key = f"{item.job_def['job_ref']}:{item.trigger}"
+                    self._last_scheduled[key] = pendulum.from_timestamp(item.fire_at, tz="UTC")
+                    self._schedule_timed(item.job_def, item.trigger, into=remaining)
                 else:
                     short = job_short_name(item.job_def["job_ref"])
                     self._warnings.append(
@@ -184,33 +154,30 @@ class TriggerScheduler:
                     refs.append(ref)
         return refs
 
-    def _schedule_cron(
+    def _schedule_timed(
         self,
         job_def: TJobDefinition,
         trigger: TTrigger,
-        cron_expr: str,
         into: Optional[List[ScheduledItem]] = None,
     ) -> None:
-        """Schedule a cron job using croniter if available."""
-        try:
-            from croniter import croniter
-        except ImportError:
-            import sys
+        """Schedule a timed trigger using next_scheduled_run."""
+        tz = job_def.get("require", {}).get("timezone", "UTC")
+        key = f"{job_def['job_ref']}:{trigger}"
+        prev = self._last_scheduled.get(key)
 
-            print(  # noqa: T201
-                "warning: croniter not installed, skipping schedule trigger"
-                f" for {job_def['job_ref']}",
-                file=sys.stderr,
+        try:
+            result = next_scheduled_run(
+                trigger, pendulum.now("UTC"), tz=tz, prev_scheduled_run=prev
             )
+        except InvalidTrigger:
             return
-        c = croniter(cron_expr, pendulum.now("UTC"))
-        next_dt = c.get_next(pendulum.DateTime)
+
         target = into if into is not None else self._timed
         target.append(
             ScheduledItem(
                 job_def,
                 trigger,
-                fire_at=next_dt.timestamp(),
+                fire_at=result.scheduled_at.timestamp(),
                 repeating=not self.with_future_once,
             )
         )

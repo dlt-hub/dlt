@@ -20,7 +20,7 @@ from dlt._workspace.deployment.launchers import get_launcher_for_framework
 from dlt._workspace.deployment import triggers as _triggers
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
-    TExecutionSpec,
+    TExecuteSpec,
     TExposeSpec,
     TJobDefinition,
     TJobRef,
@@ -28,7 +28,7 @@ from dlt._workspace.deployment.typing import (
 )
 
 _HTTP_TRIGGER = _triggers.http()
-_INTERACTIVE_EXECUTION = TExecutionSpec(concurrency=1, timeout={"grace_period": 5.0})
+_INTERACTIVE_EXECUTION = TExecuteSpec(concurrency=1, timeout={"grace_period": 5.0})
 
 
 def detect_module_job(module: ModuleType) -> Optional[TJobDefinition]:
@@ -117,17 +117,16 @@ def _detect_marimo(module: ModuleType) -> Optional[TJobDefinition]:
     job_def: TJobDefinition = {
         "job_ref": _module_job_ref(module),
         "entry_point": entry_point,
-        "expose": TExposeSpec(interface="gui"),
+        "expose": TExposeSpec(interface="gui", category="notebook", tags=["notebook"]),
         "triggers": [_HTTP_TRIGGER],
-        "execution": _INTERACTIVE_EXECUTION,
-        "starred": False,
-        "tags": ["notebook"],
+        "execute": _INTERACTIVE_EXECUTION,
     }
-    if display_name:
-        job_def["display_name"] = display_name
-
     description = _module_description(module)
-    if description:
+    if display_name and description:
+        job_def["description"] = f"{display_name}: {description}"
+    elif display_name:
+        job_def["description"] = display_name
+    elif description:
         job_def["description"] = description
 
     _apply_module_dunders(module, job_def)
@@ -157,16 +156,16 @@ def _detect_mcp(module: ModuleType) -> Optional[TJobDefinition]:
     job_def: TJobDefinition = {
         "job_ref": _module_job_ref(module),
         "entry_point": entry_point,
-        "expose": TExposeSpec(interface="mcp"),
+        "expose": TExposeSpec(interface="mcp", category="mcp"),
         "triggers": [_HTTP_TRIGGER],
-        "execution": _INTERACTIVE_EXECUTION,
-        "starred": False,
+        "execute": _INTERACTIVE_EXECUTION,
     }
-    if server_name:
-        job_def["display_name"] = server_name
-
     description = _module_description(module)
-    if description:
+    if server_name and description:
+        job_def["description"] = f"{server_name}: {description}"
+    elif server_name:
+        job_def["description"] = server_name
+    elif description:
         job_def["description"] = description
 
     _apply_module_dunders(module, job_def)
@@ -190,11 +189,9 @@ def _detect_streamlit(module: ModuleType) -> Optional[TJobDefinition]:
     job_def: TJobDefinition = {
         "job_ref": _module_job_ref(module),
         "entry_point": entry_point,
-        "expose": TExposeSpec(interface="gui"),
+        "expose": TExposeSpec(interface="gui", category="dashboard"),
         "triggers": [_HTTP_TRIGGER],
-        "execution": _INTERACTIVE_EXECUTION,
-        "starred": False,
-        "tags": ["dashboard"],
+        "execute": _INTERACTIVE_EXECUTION,
     }
     description = _module_description(module)
     if description:
@@ -251,8 +248,7 @@ def detect_local_module(module: ModuleType, parent_module: ModuleType) -> Option
         "job_ref": _module_job_ref(module),
         "entry_point": entry_point,
         "triggers": [],
-        "execution": TExecutionSpec(),
-        "starred": False,
+        "execute": TExecuteSpec(),
     }
     description = _module_description(module)
     if description:

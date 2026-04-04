@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.launchers.job import run as job_run
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint
 
@@ -68,19 +69,90 @@ def test_job_launcher_run_context_with_default() -> None:
     assert "got_context:ctx-test-3" in result
 
 
-def test_job_launcher_with_config() -> None:
-    """Job launcher injects config via env vars."""
+def test_job_launcher_interval_injection() -> None:
+    """Job with interval in entry_point gets it in run_context and dlt.current.interval()."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "interval_aware")
+    ep["interval_start"] = "2024-01-15T00:00:00Z"
+    ep["interval_end"] = "2024-01-16T00:00:00Z"
+    result = job_run(ep, run_id="iv-test-1", trigger="schedule:0 0 * * *")
+    assert "ctx_start=2024-01-15" in result
+    assert "current_start=2024-01-15T00:00:00" in result
+
+
+def test_job_launcher_no_interval() -> None:
+    """Job without interval in entry_point gets no interval."""
     result = job_run(
-        _entry(f"{WORKSPACE}.batch_jobs", "maintenance"),
-        run_id="test-2",
+        _entry(f"{WORKSPACE}.batch_jobs", "interval_aware"),
+        run_id="iv-test-2",
         trigger="manual:",
-        config={"cleanup_days": "30"},
     )
+    assert result == "no_interval"
+
+
+def test_job_launcher_interval_forces_incremental_join() -> None:
+    """Launcher passes allow_external_schedulers=True so incrementals join without opt-in."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job")
+    ep["interval_start"] = "2024-01-15T00:00:00Z"
+    ep["interval_end"] = "2024-01-16T00:00:00Z"
+    result = job_run(ep, run_id="inc-iv-1", trigger="schedule:0 0 * * *")
+    # incremental joined the scheduler: initial_value and end_value come from the interval
+    assert "iv=2024-01-15" in result
+    assert "end=2024-01-16" in result
+    assert "items=1" in result
+
+
+def test_job_launcher_profile_injection() -> None:
+    """Job launcher sets WORKSPACE__PROFILE env var from entry_point.profile."""
+    old = os.environ.pop("WORKSPACE__PROFILE", None)
+    try:
+        ep = _entry(f"{WORKSPACE}.batch_jobs", "profile_aware")
+        ep["profile"] = "staging"
+        result = job_run(ep, run_id="profile-1", trigger="manual:")
+        assert "profile=staging" in result
+    finally:
+        if old is not None:
+            os.environ["WORKSPACE__PROFILE"] = old
+        else:
+            os.environ.pop("WORKSPACE__PROFILE", None)
+
+
+def test_job_launcher_no_profile() -> None:
+    """Job without profile in entry_point does not set WORKSPACE__PROFILE."""
+    old = os.environ.pop("WORKSPACE__PROFILE", None)
+    try:
+        result = job_run(
+            _entry(f"{WORKSPACE}.batch_jobs", "profile_aware"),
+            run_id="profile-2",
+            trigger="manual:",
+        )
+        assert "profile=" in result  # empty — no profile set
+    finally:
+        if old is not None:
+            os.environ["WORKSPACE__PROFILE"] = old
+
+
+def test_job_launcher_with_config() -> None:
+    """Job launcher injects config via entry_point.config."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "maintenance")
+    ep["config"] = {"cleanup_days": "30"}
+    result = job_run(ep, run_id="test-2", trigger="manual:")
     assert result is None
 
 
+def test_job_launcher_missing_config_fails() -> None:
+    """Job with required config but no value raises ConfigFieldMissingException."""
+    from dlt.common.configuration.exceptions import ConfigFieldMissingException
+
+    with pytest.raises(ConfigFieldMissingException):
+        job_run(
+            _entry(f"{WORKSPACE}.batch_jobs", "maintenance"),
+            run_id="test-missing-cfg",
+            trigger="manual:",
+        )
+
+
 def test_job_launcher_function_not_found() -> None:
-    with pytest.raises(ImportError, match="cannot resolve"):
+    with pytest.raises(JobResolutionError, match="(?i)cannot resolve"):
         job_run(
             _entry(f"{WORKSPACE}.batch_jobs", "nonexistent"),
             run_id="test-3",
@@ -89,7 +161,7 @@ def test_job_launcher_function_not_found() -> None:
 
 
 def test_job_launcher_module_not_found() -> None:
-    with pytest.raises((ImportError, ModuleNotFoundError)):
+    with pytest.raises((JobResolutionError, ModuleNotFoundError)):
         job_run(
             _entry("nonexistent.module", "foo"),
             run_id="test-4",
@@ -98,7 +170,7 @@ def test_job_launcher_module_not_found() -> None:
 
 
 def test_job_launcher_requires_function() -> None:
-    with pytest.raises(ValueError, match="function"):
+    with pytest.raises(JobResolutionError, match="function"):
         job_run(
             _entry(f"{WORKSPACE}.batch_jobs"),
             run_id="test-5",
@@ -134,7 +206,8 @@ def test_module_launcher_builds_correct_args() -> None:
     with patch("os.execvp") as mock_exec:
         from dlt._workspace.deployment.launchers.module import run
 
-        run(f"{WORKSPACE}.etl_script", config={})
+        ep = _entry(f"{WORKSPACE}.etl_script")
+        run(ep)
         mock_exec.assert_called_once_with(
             "uv",
             ["uv", "run", "python", "-m", f"{WORKSPACE}.etl_script"],
@@ -153,7 +226,7 @@ def test_marimo_launcher_builds_correct_args() -> None:
     ):
         from dlt._workspace.deployment.launchers.marimo import run
 
-        run(entry_point, config={})
+        run(entry_point)
 
         args = mock_exec.call_args[0]
         assert args[0] == "uv"
@@ -183,7 +256,7 @@ def test_marimo_launcher_with_token() -> None:
         try:
             from dlt._workspace.deployment.launchers.marimo import run
 
-            run(entry_point, config={})
+            run(entry_point)
         finally:
             del os.environ["JOBS__MARIMO_NOTEBOOK__MARIMO__TOKEN"]
 
@@ -205,7 +278,7 @@ def test_marimo_launcher_with_base_path() -> None:
     ):
         from dlt._workspace.deployment.launchers.marimo import run
 
-        run(entry_point, config={})
+        run(entry_point)
 
         cmd = mock_exec.call_args[0][1]
         assert "--base-url" in cmd
@@ -224,7 +297,7 @@ def test_streamlit_launcher_builds_correct_args() -> None:
     ):
         from dlt._workspace.deployment.launchers.streamlit import run
 
-        run(entry_point, config={})
+        run(entry_point)
 
         args = mock_exec.call_args[0]
         assert args[0] == "uv"
@@ -245,7 +318,7 @@ def test_mcp_launcher_calls_run() -> None:
     with patch("fastmcp.FastMCP.run") as mock_run:
         from dlt._workspace.deployment.launchers.mcp import run
 
-        run(entry_point, config={})
+        run(entry_point)
 
         mock_run.assert_called_once()
         call_kwargs = mock_run.call_args[1]
@@ -265,7 +338,7 @@ def test_mcp_config_override() -> None:
         with patch("fastmcp.FastMCP.run") as mock_run:
             from dlt._workspace.deployment.launchers.mcp import run
 
-            run(entry_point, config={})
+            run(entry_point)
 
             call_kwargs = mock_run.call_args[1]
             assert call_kwargs["transport"] == "streamable-http"
@@ -284,7 +357,7 @@ def test_launcher_fails_without_port() -> None:
         with patch("fastmcp.FastMCP.run"):
             from dlt._workspace.deployment.launchers.mcp import run
 
-            run(entry_point, config={})
+            run(entry_point)
 
 
 def test_job_launcher_via_cli() -> None:

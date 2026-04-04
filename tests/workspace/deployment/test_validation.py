@@ -5,19 +5,24 @@ from typing import Any, List, Optional
 
 import pytest
 
+from dlt._workspace.deployment.exceptions import InvalidJobDefinition, JobValidationResult
 from dlt._workspace.deployment.manifest import (
+    DASHBOARD_JOB_REF,
+    InvalidManifest,
     bump_manifest_version,
+    compute_default_trigger,
     generate_manifest_hash,
     load_manifest,
     migrate_manifest,
     save_manifest,
+    validate_job_definition,
     validate_manifest,
 )
 from dlt._workspace.deployment.typing import (
     MANIFEST_ENGINE_VERSION,
-    TDeploymentManifest,
+    TJobsDeploymentManifest,
     TEntryPoint,
-    TExecutionSpec,
+    TExecuteSpec,
     TJobDefinition,
     TJobRef,
     TJobType,
@@ -40,17 +45,15 @@ def _make_job(
         "job_ref": TJobRef(job_ref),
         "entry_point": entry_point,
         "triggers": [TTrigger(t) for t in triggers] if triggers else [],
-        "execution": TExecutionSpec(concurrency=1),
-        "starred": False,
+        "execute": TExecuteSpec(concurrency=1),
     }
     job.update(kwargs)  # type: ignore[typeddict-item]
     return job
 
 
-def _make_manifest(jobs: List[TJobDefinition], **kwargs: Any) -> TDeploymentManifest:
-    manifest: TDeploymentManifest = {
+def _make_manifest(jobs: List[TJobDefinition], **kwargs: Any) -> TJobsDeploymentManifest:
+    manifest: TJobsDeploymentManifest = {
         "engine_version": MANIFEST_ENGINE_VERSION,
-        "files": [],
         "created_at": "2026-03-10T00:00:00Z",
         "deployment_module": "test",
         "jobs": jobs,
@@ -152,10 +155,10 @@ def test_unresolved_job_triggers() -> None:
         ]
     )
     result = validate_manifest(manifest)
-    assert result.is_valid
+    assert not result.is_valid
     assert "jobs.mod.b" in result.unresolved_triggers
     assert "jobs.mod.missing" in result.unresolved_triggers["jobs.mod.b"]
-    assert any("unknown jobs" in w for w in result.warnings)
+    assert any("unknown jobs" in e for e in result.errors)
 
 
 def test_resolved_job_triggers() -> None:
@@ -200,27 +203,6 @@ def test_freshness_constraint_on_non_interval_upstream() -> None:
     assert any("upstream has no interval" in e for e in result.errors)
 
 
-def test_downstream_starts_before_upstream_warns() -> None:
-    manifest = _make_manifest(
-        [
-            _make_job(
-                "jobs.mod.up",
-                triggers=["schedule:0 0 * * *"],
-                interval={"start": "2025-01-01"},
-            ),
-            _make_job(
-                "jobs.mod.down",
-                triggers=["schedule:0 0 * * *"],
-                interval={"start": "2024-01-01"},
-                freshness=["job.is_matching_interval_fresh:jobs.mod.up"],
-            ),
-        ]
-    )
-    result = validate_manifest(manifest)
-    assert result.is_valid
-    assert any("before upstream" in w for w in result.warnings)
-
-
 def test_allow_external_schedulers_without_interval_warns() -> None:
     manifest = _make_manifest(
         [
@@ -232,6 +214,54 @@ def test_allow_external_schedulers_without_interval_warns() -> None:
     result = validate_manifest(manifest)
     assert result.is_valid
     assert any("allow_external_schedulers" in w and "no interval" in w for w in result.warnings)
+
+
+def test_misaligned_interval_start_warns() -> None:
+    """Start not on a cron tick produces a warning."""
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.a",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01T06:30:00Z"},
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid
+    assert any("start" in w and "snapped backward" in w for w in result.warnings)
+
+
+def test_misaligned_interval_end_warns() -> None:
+    """End not on a cron tick produces a warning."""
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.a",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01T00:00:00Z", "end": "2024-01-05T06:30:00Z"},
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid
+    assert any("end" in w and "snapped backward" in w for w in result.warnings)
+
+
+def test_aligned_interval_no_warning() -> None:
+    """Aligned start and end produce no snap warnings."""
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.a",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01T00:00:00Z", "end": "2024-01-05T00:00:00Z"},
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid
+    assert not any("snapped" in w for w in result.warnings)
 
 
 def test_valid_interval_job_with_freshness() -> None:
@@ -353,3 +383,380 @@ def test_migrate_manifest(from_v, to_v, input_dict, check) -> None:
 def test_migrate_invalid_path() -> None:
     with pytest.raises(ValueError, match="no manifest migration path"):
         migrate_manifest({"engine_version": 99}, 99, 2)
+
+
+def test_load_manifest_raises_invalid_manifest() -> None:
+    """load_manifest raises InvalidManifest with validation field on bad manifest."""
+    manifest = _make_manifest([_make_job("jobs.mod.a"), _make_job("jobs.mod.a")])  # duplicate ref
+    buf = BytesIO()
+    save_manifest(manifest, buf)
+    buf.seek(0)
+    with pytest.raises(InvalidManifest) as exc_info:
+        load_manifest(buf)
+    assert not exc_info.value.validation.is_valid
+    assert any("duplicate" in e for e in exc_info.value.validation.errors)
+
+
+def test_freshness_on_upstream_without_schedule_trigger() -> None:
+    """Freshness constraint on upstream that has interval but no schedule trigger."""
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.up",
+                triggers=["manual:jobs.mod.up"],
+                interval={"start": "2024-01-01"},
+            ),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01"},
+                freshness=["job.is_matching_interval_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert not result.is_valid
+    assert any("no schedule trigger" in e for e in result.errors)
+
+
+def test_multiple_interval_triggers_rejected() -> None:
+    """Job with both schedule and every triggers is invalid."""
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.a",
+                triggers=["schedule:0 0 * * *", "every:5m"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert not result.is_valid
+    assert any("multiple interval" in e for e in result.errors)
+
+
+def test_two_schedule_triggers_rejected() -> None:
+    """Job with two schedule triggers is invalid."""
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.a",
+                triggers=["schedule:0 0 * * *", "schedule:0 8 * * *"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert not result.is_valid
+    assert any("multiple interval" in e for e in result.errors)
+
+
+# generalized freshness validation
+
+
+def test_is_fresh_on_every_upstream_valid() -> None:
+    """job.is_fresh constraint on every:-triggered upstream is valid."""
+    manifest = _make_manifest(
+        [
+            _make_job("jobs.mod.up", triggers=["every:5m"]),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                freshness=["job.is_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid, f"errors: {result.errors}"
+
+
+def test_is_fresh_on_schedule_no_interval_upstream_valid() -> None:
+    """job.is_fresh constraint on schedule: upstream without interval is valid."""
+    manifest = _make_manifest(
+        [
+            _make_job("jobs.mod.up", triggers=["schedule:0 0 * * *"]),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                freshness=["job.is_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid, f"errors: {result.errors}"
+
+
+def test_is_matching_interval_fresh_on_every_upstream_invalid() -> None:
+    """job.is_matching_interval_fresh on every: upstream without interval is invalid."""
+    manifest = _make_manifest(
+        [
+            _make_job("jobs.mod.up", triggers=["every:5m"]),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                freshness=["job.is_matching_interval_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert not result.is_valid
+    assert any("no interval" in e for e in result.errors)
+
+
+def test_is_matching_interval_fresh_on_schedule_no_interval_invalid() -> None:
+    """job.is_matching_interval_fresh on schedule: upstream without interval is invalid."""
+    manifest = _make_manifest(
+        [
+            _make_job("jobs.mod.up", triggers=["schedule:0 0 * * *"]),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                freshness=["job.is_matching_interval_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert not result.is_valid
+    assert any("no interval" in e for e in result.errors)
+
+
+def test_is_fresh_on_interactive_upstream_invalid() -> None:
+    """job.is_fresh on interactive upstream is invalid."""
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.up",
+                job_type="interactive",
+                triggers=["http:"],
+                expose={"interface": "gui"},
+            ),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                freshness=["job.is_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert not result.is_valid
+    assert any("interactive" in e for e in result.errors)
+
+
+def test_is_fresh_on_event_upstream_valid() -> None:
+    """job.is_fresh on event-triggered upstream is valid."""
+    manifest = _make_manifest(
+        [
+            _make_job("jobs.mod.other"),
+            _make_job("jobs.mod.up", triggers=["job.success:jobs.mod.other"]),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                freshness=["job.is_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid, f"errors: {result.errors}"
+
+
+@pytest.mark.parametrize(
+    "job_def,error_frag,warning_frag",
+    [
+        # valid batch job — no errors
+        (
+            _make_job("jobs.mod.ok", triggers=["schedule:0 8 * * *"]),
+            None,
+            None,
+        ),
+        # invalid trigger format
+        (
+            _make_job("jobs.mod.bad", triggers=["not_a_trigger"]),
+            "Invalid trigger",
+            None,
+        ),
+        # invalid freshness constraint format
+        (
+            _make_job("jobs.mod.bad", triggers=["schedule:0 0 * * *"], freshness=["bogus"]),
+            "Invalid freshness",
+            None,
+        ),
+        # batch + http trigger
+        (
+            _make_job("jobs.mod.bad", job_type="batch", triggers=["http:"]),
+            "http trigger",
+            None,
+        ),
+        # interactive without http
+        (
+            _make_job(
+                "jobs.mod.odd",
+                job_type="interactive",
+                triggers=["schedule:0 8 * * *"],
+                expose={"interface": "gui"},
+            ),
+            None,
+            "no http trigger",
+        ),
+        # multiple interval-generating triggers
+        (
+            _make_job("jobs.mod.bad", triggers=["schedule:0 * * * *", "every:5m"]),
+            "multiple interval-generating",
+            None,
+        ),
+        # interval without schedule
+        (
+            _make_job(
+                "jobs.mod.bad",
+                triggers=["manual:jobs.mod.bad"],
+                interval={"start": "2024-01-01"},
+            ),
+            "no schedule trigger",
+            None,
+        ),
+        # interval with every trigger
+        (
+            _make_job(
+                "jobs.mod.bad",
+                triggers=["every:5m"],
+                interval={"start": "2024-01-01"},
+            ),
+            "intervals require a schedule",
+            None,
+        ),
+        # allow_external_schedulers without interval
+        (
+            _make_job(
+                "jobs.mod.warn",
+                triggers=["schedule:0 0 * * *"],
+                allow_external_schedulers=True,
+            ),
+            None,
+            "allow_external_schedulers",
+        ),
+        # misaligned interval start
+        (
+            _make_job(
+                "jobs.mod.warn",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01T06:30:00Z"},
+            ),
+            None,
+            "snapped backward",
+        ),
+        # dashboard: wrong job type
+        (
+            {
+                **_make_job(DASHBOARD_JOB_REF, job_type="batch", triggers=["http:"]),
+                "expose": {"interface": "gui", "category": "dashboard"},
+            },
+            "must be interactive",
+            None,
+        ),
+        # dashboard: wrong interface
+        (
+            {
+                **_make_job(DASHBOARD_JOB_REF, job_type="interactive", triggers=["http:"]),
+                "expose": {"interface": "mcp", "category": "dashboard"},
+            },
+            "must have gui interface",
+            None,
+        ),
+        # dashboard: wrong category
+        (
+            {
+                **_make_job(DASHBOARD_JOB_REF, job_type="interactive", triggers=["http:"]),
+                "expose": {"interface": "gui", "category": "notebook"},
+            },
+            "must have dashboard category",
+            None,
+        ),
+    ],
+    ids=[
+        "valid-batch",
+        "invalid-trigger",
+        "invalid-freshness",
+        "batch-http",
+        "interactive-no-http",
+        "multiple-interval-triggers",
+        "interval-no-schedule",
+        "interval-with-every",
+        "external-schedulers-no-interval",
+        "misaligned-interval-start",
+        "dashboard-wrong-type",
+        "dashboard-wrong-interface",
+        "dashboard-wrong-category",
+    ],
+)
+def test_validate_job_definition(
+    job_def: TJobDefinition, error_frag: Optional[str], warning_frag: Optional[str]
+) -> None:
+    result = validate_job_definition(job_def)
+    if error_frag:
+        assert any(error_frag in e for e in result.errors), f"expected {error_frag!r} in {result}"
+    else:
+        assert result.errors == [], f"unexpected errors: {result.errors}"
+    if warning_frag:
+        assert any(
+            warning_frag in w for w in result.warnings
+        ), f"expected {warning_frag!r} in {result}"
+
+
+def test_validate_job_definition_raises() -> None:
+    """raise_on_error=True raises InvalidJobDefinition with job_ref and warnings."""
+    job = _make_job("jobs.mod.bad", job_type="batch", triggers=["http:"])
+    with pytest.raises(InvalidJobDefinition) as exc_info:
+        validate_job_definition(job, raise_on_error=True)
+    assert exc_info.value.job_ref == "jobs.mod.bad"
+    assert "batch job" in str(exc_info.value)
+    assert exc_info.value.validation.errors
+
+
+def test_validate_job_definition_no_raise_on_valid() -> None:
+    """raise_on_error=True does not raise for valid job."""
+    job = _make_job("jobs.mod.ok", triggers=["schedule:0 8 * * *"])
+    result = validate_job_definition(job, raise_on_error=True)
+    assert result.errors == []
+
+
+@pytest.mark.parametrize(
+    "triggers,expected",
+    [
+        # schedule preferred over others
+        (
+            ["manual:jobs.mod.a", "schedule:0 8 * * *", "tag:daily"],
+            "schedule:0 8 * * *",
+        ),
+        # every preferred over non-timed
+        (
+            ["manual:jobs.mod.a", "every:1h"],
+            "every:1h",
+        ),
+        # schedule wins over every (first match)
+        (
+            ["schedule:0 0 * * *", "every:1h"],
+            "schedule:0 0 * * *",
+        ),
+        # no schedule/every — first trigger wins
+        (
+            ["job.success:jobs.mod.up", "manual:jobs.mod.a"],
+            "job.success:jobs.mod.up",
+        ),
+        # no triggers — None
+        ([], None),
+        # only manual
+        (["manual:jobs.mod.a"], "manual:jobs.mod.a"),
+    ],
+    ids=[
+        "schedule-preferred",
+        "every-preferred",
+        "schedule-over-every",
+        "first-trigger-fallback",
+        "empty-triggers",
+        "manual-only",
+    ],
+)
+def test_compute_default_trigger(triggers: List[str], expected: Optional[str]) -> None:
+    job = _make_job("jobs.mod.a", triggers=triggers)
+    result = compute_default_trigger(job)
+    if expected is None:
+        assert result is None
+    else:
+        assert result == TTrigger(expected)

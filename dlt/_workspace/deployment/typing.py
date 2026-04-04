@@ -1,10 +1,13 @@
-from typing import List, Literal, NamedTuple, NewType, Optional, Union
+from datetime import datetime  # noqa: I251
+from typing import Any, Dict, List, Literal, NamedTuple, NewType, Optional, Union
 
-from dlt.common.pendulum import pendulum
 from dlt.common.typing import NotRequired, TypedDict
 
 
 MANIFEST_ENGINE_VERSION = 2
+
+DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
+"""Default deployment module name for manifest generation."""
 
 TJobRef = NewType("TJobRef", str)
 """Resolved job reference in `jobs.<section>.<name>` or `jobs.<name>` form."""
@@ -39,7 +42,7 @@ class HttpTriggerInfo(NamedTuple):
 
 class TParsedTrigger(NamedTuple):
     type: TTriggerType  # noqa: A003
-    expr: Union[None, str, float, pendulum.DateTime, HttpTriggerInfo]
+    expr: Union[None, str, float, datetime, HttpTriggerInfo]
     raw: TTrigger
 
 
@@ -50,10 +53,47 @@ TInterfaceType = Literal["gui", "rest_api", "mcp"]
 """What an interactive job exposes: web UI, programmatic API, or MCP tool server."""
 
 
-class TExposeSpec(TypedDict, total=False):
-    """How the runtime presents a running interactive job."""
+TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook"]
+"""UI category for grouping jobs in the runtime interface."""
 
-    interface: TInterfaceType
+
+class TJobExposeSpec(TypedDict, total=False):
+    """User-facing UI presentation metadata, accepted by decorators."""
+
+    tags: List[str]
+    """Grouping labels. Runner creates `tag:` triggers from these."""
+    starred: bool
+    """Show in top-level runtime UI."""
+    manual: bool
+    """When `True` (default), runner creates a `manual:` trigger for this job."""
+
+
+class TExposeSpec(TJobExposeSpec):
+    """Full expose spec stored in the manifest.
+
+    Extends `TJobExposeSpec` with `interface` and `category` which are set
+    by decorators and detectors — not directly by users.
+    """
+
+    interface: NotRequired[TInterfaceType]
+    """What an interactive job exposes: `"gui"`, `"rest_api"`, or `"mcp"`."""
+    category: NotRequired[TJobExposeCategory]
+    """UI grouping category (e.g. `"pipeline"`, `"notebook"`)."""
+
+
+class TRequireSpec(TypedDict, total=False):
+    """Runtime resource requirements for a job."""
+
+    extras: List[str]
+    """pyproject.toml extras to install when creating the job's venv."""
+    profile: str
+    """Workspace profile name to activate for this job."""
+    machine: str
+    """Machine spec identifier (e.g. `"gpu-a100"`, `"2xlarge"`)."""
+    region: str
+    """Runner region for placement (e.g. `"us-east-1"`, `"eu-west"`)."""
+    timezone: str
+    """IANA timezone for cron ticks and intervals (e.g. `"America/New_York"`). Default: UTC."""
 
 
 class TEntryPoint(TypedDict):
@@ -81,7 +121,7 @@ class TRunArgs(TypedDict, total=False):
     """Reverse proxy subpath prefix (e.g. `"/workspace/123/notebook"`)."""
 
 
-class TIntervalSpec(TypedDict, total=False):
+class TIntervalSpec(TypedDict):
     """Overall time range for interval-based job scheduling.
 
     Stored in the manifest. Together with the job's cron schedule, defines
@@ -89,16 +129,13 @@ class TIntervalSpec(TypedDict, total=False):
     """
 
     start: str
-    """ISO 8601 start of the range. Defaults to "now" semantically if omitted."""
-    end: str
-    """ISO 8601 end of the range. Open-ended if omitted."""
+    """ISO 8601 start of the range. Required."""
+    end: NotRequired[str]
+    """ISO 8601 end of the range. Defaults to now if omitted."""
 
 
 class TJobRunContext(TypedDict):
-    """Runtime context injected into job functions that declare a `run_context` parameter.
-
-    Built by the launcher at run time — never stored in the manifest.
-    """
+    """Runtime context injected into job functions that declare a `run_context` parameter."""
 
     run_id: str
     """Unique identifier for this job run."""
@@ -106,8 +143,10 @@ class TJobRunContext(TypedDict):
     """The trigger string that fired this run."""
     run_args: NotRequired[TRunArgs]
     """Runtime-provided launch arguments (port, base_path), if available."""
-    interval: NotRequired[TIntervalSpec]
-    """The interval being processed, for interval-based jobs."""
+    interval_start: NotRequired[datetime]
+    """Start of the interval being processed."""
+    interval_end: NotRequired[datetime]
+    """End of the interval being processed."""
 
 
 class TRuntimeEntryPoint(TEntryPoint):
@@ -119,8 +158,14 @@ class TRuntimeEntryPoint(TEntryPoint):
     """
 
     run_args: NotRequired[TRunArgs]
-    interval: NotRequired[TIntervalSpec]
-    """Current interval being processed, for interval-based jobs."""
+    interval_start: NotRequired[str]
+    """ISO 8601 start of the interval being processed."""
+    interval_end: NotRequired[str]
+    """ISO 8601 end of the interval being processed."""
+    profile: NotRequired[str]
+    """Active workspace profile, resolved from require.profile."""
+    config: NotRequired[Dict[str, Any]]
+    """Config key-value pairs injected as env vars before job execution."""
 
 
 class TTimeoutSpec(TypedDict):
@@ -132,7 +177,7 @@ class TTimeoutSpec(TypedDict):
     """Seconds for graceful shutdown before hard kill. Default: 30 (batch), 5 (interactive)."""
 
 
-class TExecutionSpec(TypedDict):
+class TExecuteSpec(TypedDict):
     """Runtime execution constraints for a job."""
 
     timeout: NotRequired[Optional[TTimeoutSpec]]
@@ -140,20 +185,15 @@ class TExecutionSpec(TypedDict):
     """Max concurrent runs. None = no limit (batch default), 1 = single instance (interactive default)."""
 
 
-class TDeliveryRef(TypedDict):
-    """Associates a job with a data source it is supposed to deliver."""
+class TDeliverSpec(TypedDict, total=False):
+    """Associates a job with a data delivery target."""
 
     source_ref: str
     """Source rel_ref, e.g. `"sources.job_runs.chat_analytics"`."""
-    deadline: NotRequired[str]
+    pipeline_name: str
+    """Pipeline name this job operates on."""
+    deadline: str
     """Human-readable delivery deadline, e.g. `"8am on Mondays"`."""
-
-
-class TDeliverySpec(TDeliveryRef):
-    """Links a data source to its delivery deadline and responsible jobs."""
-
-    job_refs: List[TJobRef]
-    """Job rel_refs that deliver this source."""
 
 
 class TJobDefinition(TypedDict):
@@ -161,29 +201,26 @@ class TJobDefinition(TypedDict):
 
     job_ref: TJobRef
     """Unique job identity: `"jobs.<section>.<name>"` or `"jobs.<name>"` for module-level jobs."""
-    display_name: NotRequired[str]
-    """Inferred by launcher when possible (e.g. notebook title from marimo)."""
     description: NotRequired[str]
     entry_point: TEntryPoint
     expose: NotRequired[TExposeSpec]
-    """Exposure configuration for interactive jobs."""
+    """UI presentation and scheduling metadata."""
     triggers: List[TTrigger]
     """When to run: 0, 1, or many trigger strings."""
-    execution: TExecutionSpec
+    execute: TExecuteSpec
     config_keys: NotRequired[List[str]]
     """Config keys discovered from function signature (`dlt.config.value` defaults)."""
-    deliver: NotRequired[TDeliveryRef]
+    deliver: NotRequired[TDeliverSpec]
     interval: NotRequired[TIntervalSpec]
     """Overall time range for interval-based scheduling."""
     freshness: NotRequired[List[TFreshnessConstraint]]
     """Upstream freshness constraints for interval eligibility."""
     allow_external_schedulers: NotRequired[bool]
     """When `True`, intervals and state are managed by the scheduler."""
-    manual_disabled: NotRequired[bool]
-    """When `True`, manifest generation skips adding the automatic `manual:` trigger."""
-    starred: bool
-    """Show in top-level runtime UI."""
-    tags: NotRequired[List[str]]
+    require: NotRequired[TRequireSpec]
+    """Runtime resource requirements."""
+    default_trigger: NotRequired[TTrigger]
+    """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
 
 
 class TDeploymentFileItem(TypedDict, total=False):
@@ -201,14 +238,14 @@ class TFilesManifest(TypedDict):
     files: List[TDeploymentFileItem]
 
 
-class TDeploymentManifest(TFilesManifest):
+class TJobsDeploymentManifest(TypedDict):
     """Full deployment manifest with job definitions.
 
-    Extends TFilesManifest with deployment module metadata, job definitions,
-    and delivery specs. Produced by importing `__deployment__.py` and running
-    launcher detectors. The runtime reconciles jobs from this manifest.
+    Produced by importing `__deployment__.py` and running launcher detectors.
+    The runtime reconciles jobs from this manifest.
     """
 
+    engine_version: int
     version: NotRequired[int]
     """Auto-incremented on content change."""
     version_hash: NotRequired[str]
@@ -224,4 +261,3 @@ class TDeploymentManifest(TFilesManifest):
     tags: NotRequired[List[str]]
     """From `__tags__` of the deployment module."""
     jobs: List[TJobDefinition]
-    delivery_specs: NotRequired[List[TDeliverySpec]]

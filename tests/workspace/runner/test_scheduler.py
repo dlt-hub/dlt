@@ -6,10 +6,10 @@ from typing import List, Tuple
 import pytest
 
 from dlt._workspace._runner.scheduler import TriggerScheduler
-from dlt._workspace.deployment._trigger_helpers import filter_jobs_by_selectors, matches_selector
+from dlt._workspace.deployment._trigger_helpers import match_triggers_with_selectors
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
-    TExecutionSpec,
+    TExecuteSpec,
     TJobDefinition,
     TJobRef,
     TTrigger,
@@ -21,8 +21,7 @@ def _job(ref: str, triggers: List[str]) -> TJobDefinition:
         "job_ref": TJobRef(ref),
         "entry_point": TEntryPoint(module="m", function="f", job_type="batch"),
         "triggers": [TTrigger(t) for t in triggers],
-        "execution": TExecutionSpec(),
-        "starred": False,
+        "execute": TExecuteSpec(),
     }
 
 
@@ -48,24 +47,24 @@ def test_manual_trigger_fires_immediately() -> None:
     assert len(immediate) == 1
 
 
-def test_every_fires_immediately_and_schedules() -> None:
-    """every trigger fires immediately and enters future schedule."""
+def test_every_schedules_not_immediate() -> None:
+    """every trigger schedules for future, does not fire immediately."""
     sched = TriggerScheduler(with_future=True)
-    job = _job("jobs.mod.poll", ["every:1s"])
+    job = _job("jobs.mod.poll", ["every:1m"])
     immediate = _register(sched, job)
 
-    assert len(immediate) == 1
+    assert len(immediate) == 0
     assert not sched.is_empty()
     assert sched.get_next_fire_time() is not None
 
 
 def test_every_without_future_no_schedule() -> None:
-    """every trigger fires immediately but nothing scheduled without --with-future."""
+    """every trigger does nothing without --with-future."""
     sched = TriggerScheduler(with_future=False)
-    job = _job("jobs.mod.poll", ["every:1s"])
+    job = _job("jobs.mod.poll", ["every:1m"])
     immediate = _register(sched, job)
 
-    assert len(immediate) == 1
+    assert len(immediate) == 0
     assert sched.is_empty()
 
 
@@ -90,29 +89,32 @@ def test_job_event_triggers() -> None:
 def test_pop_due_jobs() -> None:
     """Timed jobs fire when their time arrives."""
     sched = TriggerScheduler(with_future=True)
-    job = _job("jobs.mod.poll", ["every:0.01s"])
-    immediate = _register(sched, job)
-    assert len(immediate) == 1
+    job = _job("jobs.mod.poll", ["every:1m"])
+    _register(sched, job)
+    assert not sched.is_empty()
 
-    time.sleep(0.05)
+    # force the scheduled item to be due now
+    for item in sched._timed:
+        item.fire_at = time.time() - 1
     due = sched.pop_due_jobs()
-    assert len(due) >= 1
+    assert len(due) == 1
 
 
 def test_repeated_timed_job_fires_followup_each_time() -> None:
     """Followup fires every time the timed upstream completes."""
     sched = TriggerScheduler(with_future=True)
-    upstream = _job("jobs.mod.poll", ["every:0.01s"])
+    upstream = _job("jobs.mod.poll", ["every:1m"])
     downstream = _job("jobs.mod.process", ["job.success:jobs.mod.poll"])
 
     _register(sched, upstream)
-    # register only event triggers for followup
     sched.register_triggers(downstream, [TTrigger("job.success:jobs.mod.poll")])
 
     triggered = sched.fire_event("job.success:jobs.mod.poll")
     assert len(triggered) == 1
 
-    time.sleep(0.05)
+    # force the re-scheduled item to be due
+    for item in sched._timed:
+        item.fire_at = time.time() - 1
     due = sched.pop_due_jobs()
     assert len(due) >= 1
 
@@ -123,14 +125,16 @@ def test_repeated_timed_job_fires_followup_each_time() -> None:
 
 def test_with_future_once_no_repeat() -> None:
     sched = TriggerScheduler(with_future_once=True)
-    job = _job("jobs.mod.poll", ["every:0.01s"])
+    job = _job("jobs.mod.poll", ["every:1m"])
     _register(sched, job)
 
-    time.sleep(0.05)
+    # force due
+    for item in sched._timed:
+        item.fire_at = time.time() - 1
     due = sched.pop_due_jobs()
     assert len(due) >= 1
 
-    time.sleep(0.05)
+    # no repeat for future_once
     due = sched.pop_due_jobs()
     assert len(due) == 0
     assert sched.is_empty()
@@ -138,10 +142,11 @@ def test_with_future_once_no_repeat() -> None:
 
 def test_with_future_once_warning() -> None:
     sched = TriggerScheduler(with_future_once=True)
-    job = _job("jobs.mod.poll", ["every:0.01s"])
+    job = _job("jobs.mod.poll", ["every:1m"])
     _register(sched, job)
 
-    time.sleep(0.05)
+    for item in sched._timed:
+        item.fire_at = time.time() - 1
     sched.pop_due_jobs()
     warnings = sched.pop_warnings()
     assert len(warnings) >= 1
@@ -168,18 +173,17 @@ def test_empty_scheduler() -> None:
     assert sched.get_next_fire_time() is None
 
 
-def test_filter_jobs_by_selectors() -> None:
-    jobs = [
-        _job("jobs.a", ["tag:backfill"]),
-        _job("jobs.b", ["http:"]),
-        _job("jobs.c", ["schedule:0 8 * * *"]),
-    ]
+def test_match_triggers_with_selectors() -> None:
+    triggers = [TTrigger("tag:backfill"), TTrigger("schedule:0 8 * * *")]
 
-    assert len(filter_jobs_by_selectors(jobs, [])) == 3
+    # tag selector matches tag trigger
+    matched = match_triggers_with_selectors("batch", triggers, ["tag:*"])
+    assert matched == [TTrigger("tag:backfill")]
 
-    filtered = filter_jobs_by_selectors(jobs, ["tag:*"])
-    assert len(filtered) == 1
-    assert filtered[0]["job_ref"] == "jobs.a"
+    # multiple selectors OR-ed
+    matched = match_triggers_with_selectors("batch", triggers, ["tag:*", "schedule:*"])
+    assert len(matched) == 2
 
-    filtered = filter_jobs_by_selectors(jobs, ["tag:*", "http:*"])
-    assert len(filtered) == 2
+    # job type selector returns all
+    matched = match_triggers_with_selectors("batch", triggers, ["batch"])
+    assert len(matched) == 2

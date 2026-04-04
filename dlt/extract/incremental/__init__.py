@@ -1,5 +1,3 @@
-import os
-from datetime import datetime  # noqa: I251
 from typing import (
     Generic,
     ClassVar,
@@ -17,8 +15,8 @@ import inspect
 from functools import wraps
 
 from dlt.common import logger
+from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
-from dlt.common.pendulum import pendulum
 from dlt.common.jsonpath import compile_path, extract_simple_field_name
 from dlt.common.typing import (
     TDataItem,
@@ -46,7 +44,9 @@ from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
+    JoinSchedulerError,
 )
+from dlt.extract.incremental.context import TimeIntervalContext, get_interval_context
 from dlt.common.incremental.typing import (
     IncrementalColumnState,
     TCursorValue,
@@ -464,77 +464,89 @@ class Incremental(
         """Infers the type of incremental value from a class of an instance if those preserve the Generic arguments information."""
         return get_generic_type_argument_from_instance(self, self.initial_value)
 
-    def _join_external_scheduler(self) -> None:
-        """Detects existence of external scheduler from which `start_value` and `end_value` are taken. Detects Airflow and environment variables.
-        The logical "start date" coming from external scheduler will set the `initial_value` in incremental. if additionally logical "end date" is
-        present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
-        """
-        # fit the pendulum into incremental type
+    def _join_external_scheduler(self, ctx: TimeIntervalContext) -> None:
+        """Joins external scheduler interval from TimeIntervalContext."""
+
+        if ctx.interval is None:
+            from dlt.extract.incremental.exceptions import ExternalSchedulerNotAvailable
+
+            raise ExternalSchedulerNotAvailable(self.resource_name)
+
         param_type = self.get_incremental_value_type()
 
-        try:
-            if param_type is not Any:
-                data_type = py_type_to_sc_type(param_type)
-        except Exception as ex:
-            logger.warning(
-                f"Specified Incremental last value type {param_type} is not supported. Please use"
-                f" DateTime, Date, float, int or str to join external schedulers.({ex})"
-            )
-            return
-
         if param_type is Any:
-            logger.warning(
-                "Could not find the last value type of Incremental class participating in external"
-                " schedule. Please add typing when declaring incremental argument in your resource"
-                " or pass initial_value from which the type can be inferred."
+            raise JoinSchedulerError(
+                self.resource_name,
+                "Could not find the Python data type of Incremental class participating in external"
+                " schedule. Please add type hint when declaring incremental argument in your"
+                " resource or pass default value or initial_value from which the type can be"
+                " inferred.",
             )
-            return
 
-        def _ensure_airflow_end_date(
-            start_date: pendulum.DateTime, end_date: pendulum.DateTime
-        ) -> Optional[pendulum.DateTime]:
-            """if end_date is in the future or same as start date (manual run), set it to None so dlt state is used for incremental loading"""
-            now = pendulum.now()
-            if end_date is None or end_date > now or start_date == end_date:
-                return now
-            return end_date
+        time_coercable_types: Tuple[TDataType, ...] = ("timestamp", "date", "double", "bigint")
+
+        data_type = py_type_to_sc_type(param_type)
+        if data_type not in time_coercable_types:
+            if data_type == "text":
+                str_info = (
+                    " Please convert your cursor field from str to datetime using ie. add_map"
+                    " on resource. dlt "
+                    "will not coerce cursor fields to datetime automatically for comparison. "
+                )
+            else:
+                str_info = ""
+            raise JoinSchedulerError(
+                self.resource_name,
+                "Declared data type of Incremental class must be safely coercable to"
+                f" datetime so they can be compared.{str_info}"
+                f"Incremental data type is {data_type}, coercable data types are"
+                f" {time_coercable_types}. ",
+            )
+
+        # save configured bounds before overwriting with scheduler values
+        configured_initial = self.initial_value
+        configured_end = self.end_value
 
         try:
-            # we can move it to separate module when we have more of those
-            try:
-                from airflow.operators.python import get_current_context  # noqa
-            except ImportError:
-                from airflow.sdk import get_current_context  # type: ignore[no-redef,unused-ignore]
+            start, end = ctx.interval
 
-            context = get_current_context()
-            start_date = context["data_interval_start"]
-            end_date = _ensure_airflow_end_date(start_date, context["data_interval_end"])
-            self.initial_value = coerce_from_date_types(data_type, start_date)
-            if end_date is not None:
-                self.end_value = coerce_from_date_types(data_type, end_date)
-            else:
-                self.end_value = None
+            self.initial_value = coerce_from_date_types(data_type, start)
+            self.end_value = coerce_from_date_types(data_type, end)  # end_value must be set
+
+            # adapt scheduler values tz-awareness to match configured bounds
+            from datetime import datetime as _datetime  # noqa: I251
+
+            if configured_initial is not None and isinstance(self.initial_value, _datetime):
+                self.initial_value = IncrementalTransform._adapt_timezone(
+                    configured_initial, self.initial_value, "initial_value", self.resource_name
+                )
+            if configured_end is not None and isinstance(self.end_value, _datetime):
+                self.end_value = IncrementalTransform._adapt_timezone(
+                    configured_end, self.end_value, "end_value", self.resource_name
+                )
+
+            # clip scheduler range against configured bounds using last_value_func
+            # same pattern as lag.apply_lag: func((a, b)) == a means a "wins"
+            if configured_initial is not None:
+                if (
+                    self.last_value_func((configured_initial, self.initial_value))
+                    == configured_initial
+                ):
+                    self.initial_value = configured_initial
+            if configured_end is not None:
+                if self.last_value_func((configured_end, self.end_value)) == self.end_value:
+                    self.end_value = configured_end
+
             logger.info(
-                f"Found Airflow scheduler: initial value: {self.initial_value} from"
-                f" data_interval_start {context['data_interval_start']}, end value:"
-                f" {self.end_value} from data_interval_end {context['data_interval_end']}"
+                f"Joined external scheduler: initial value: {self.initial_value},"
+                f" end value: {self.end_value} (raw: {start}, {end})"
             )
-            return
-        except TypeError as te:
-            logger.warning(
-                f"Could not coerce Airflow execution dates into the last value type {param_type}."
-                f" ({te})"
-            )
-        except Exception:
-            pass
-
-        if start_value := os.environ.get("DLT_START_VALUE"):
-            self.initial_value = coerce_value(data_type, "text", start_value)
-            if end_value := os.environ.get("DLT_END_VALUE"):
-                self.end_value = coerce_value(data_type, "text", end_value)
-            else:
-                self.end_value = None
-            return
+        except (TypeError, ValueError) as ex:
+            raise JoinSchedulerError(
+                self.resource_name,
+                "Could not coerce external scheduler dates into last value type"
+                f" {param_type}. ({ex})",
+            ) from ex
 
     def bind(self, pipe: SupportsPipe) -> "Incremental[TCursorValue]":
         """Called by pipe just before evaluation"""
@@ -543,9 +555,13 @@ class Incremental(
             raise IncrementalCursorPathMissing(pipe.name, None, None)
         self.resource_name = pipe.name
         self._bound_pipe = pipe
-        # try to join external scheduler
-        if self.allow_external_schedulers:
-            self._join_external_scheduler()
+        # try to join external scheduler: context flag overrides per-incremental setting
+        ctx = get_interval_context()
+        should_join = self.allow_external_schedulers
+        if ctx.allow_external_schedulers is not None:
+            should_join = ctx.allow_external_schedulers
+        if should_join:
+            self._join_external_scheduler(ctx)
         # set initial value from last value, in case of a new state those are equal
         self.start_value = self.last_value
         logger.info(
@@ -788,6 +804,11 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem, IncrementalCustomMetri
             new_incremental: Incremental[Any] = None
             bound_args = sig.bind(*args, **kwargs)
 
+            # self._incremental is passed via apply_hints or via decorator
+            # and it is used as explicit value if not provided by user
+            if self._incremental and p.name not in bound_args.arguments:
+                bound_args.arguments[p.name] = self._incremental
+
             if p.name in bound_args.arguments:
                 explicit_value = bound_args.arguments[p.name]
                 if explicit_value is Incremental.EMPTY or p.default is Incremental.EMPTY:
@@ -817,14 +838,15 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem, IncrementalCustomMetri
                     f"`{p.name}` incremental argument has no default. Please wrap its typing in"
                     " `Optional[]` to allow no incremental"
                 )
-            # pass Generic information from annotation to new_incremental
+            # pass Generic information from annotation
+            target = new_incremental or self._incremental
             if (
-                new_incremental
-                and not hasattr(new_incremental, "__orig_class__")
+                target
+                and not hasattr(target, "__orig_class__")
                 and p.annotation
                 and get_args(p.annotation)
             ):
-                new_incremental.__orig_class__ = p.annotation
+                target.__orig_class__ = p.annotation
 
             # set the incremental only if not yet set or if it was passed explicitly
             # NOTE: the _incremental may be also set by applying hints to the resource see `set_template` in `DltResource`

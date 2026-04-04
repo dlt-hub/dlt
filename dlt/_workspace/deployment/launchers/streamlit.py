@@ -15,12 +15,12 @@ from dlt._workspace.deployment.launchers._launcher import (
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint
 
 
-def run(entry_point: TRuntimeEntryPoint, config: Dict[str, Any]) -> None:
+def run(entry_point: TRuntimeEntryPoint) -> None:
     """Resolve config and exec streamlit run."""
     module_name = entry_point["module"]
     section = module_name.rsplit(".", 1)[-1]
     sections = (ws_known_sections.JOBS, section)
-    set_config_env_vars(sections, config)
+    set_config_env_vars(sections, entry_point.get("config", {}))
 
     port = get_run_args_port(entry_point)
     base_path = get_run_args_base_path(entry_point)
@@ -51,4 +51,4 @@ def run(entry_point: TRuntimeEntryPoint, config: Dict[str, Any]) -> None:
 
 if __name__ == "__main__":
     args = parse_launcher_args()
-    run(args.entry_point, args.config)
+    run(args.entry_point)

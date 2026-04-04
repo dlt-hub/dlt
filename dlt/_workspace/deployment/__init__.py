@@ -1,8 +1,10 @@
-from dlt._workspace.deployment.decorators import job, interactive, JobFactory
+from dlt._workspace.deployment.decorators import job, interactive, pipeline_run, JobFactory
 from dlt._workspace.deployment.manifest import (
     generate_manifest,
+    manifest_from_module,
     validate_manifest,
-    ManifestValidation,
+    validate_job_definition,
+    ManifestValidationResult,
     generate_manifest_hash,
     bump_manifest_version,
     migrate_manifest,
@@ -12,14 +14,15 @@ from dlt._workspace.deployment.manifest import (
 )
 from dlt._workspace.deployment._trigger_helpers import (
     parse_trigger,
-    parse_freshness_constraint,
-    TFreshnessConstraintSpec,
     normalize_trigger,
     normalize_triggers,
     maybe_parse_schedule,
-    matched_triggers,
-    matches_selector,
-    filter_jobs_by_selectors,
+    match_triggers_with_selectors,
+    pick_trigger,
+)
+from dlt._workspace.deployment.freshness import (
+    parse_freshness_constraint,
+    TFreshnessConstraintSpec,
 )
 from dlt._workspace.deployment._job_ref import (
     make_job_ref,
@@ -27,8 +30,10 @@ from dlt._workspace.deployment._job_ref import (
     resolve_job_ref,
     short_name as job_short_name,
 )
+from dlt._workspace.deployment import freshness
 from dlt._workspace.deployment import triggers
 from dlt._workspace.deployment.typing import (
+    DEFAULT_DEPLOYMENT_MODULE,
     MANIFEST_ENGINE_VERSION,
     TJobRef,
     TTrigger,
@@ -37,7 +42,10 @@ from dlt._workspace.deployment.typing import (
     HttpTriggerInfo,
     TJobType,
     TInterfaceType,
+    TJobExposeSpec,
+    TJobExposeCategory,
     TExposeSpec,
+    TRequireSpec,
     TEntryPoint,
     TFreshnessConstraint,
     TFreshnessType,
@@ -46,11 +54,10 @@ from dlt._workspace.deployment.typing import (
     TRunArgs,
     TRuntimeEntryPoint,
     TTimeoutSpec,
-    TExecutionSpec,
-    TDeliveryRef,
-    TDeliverySpec,
+    TExecuteSpec,
+    TDeliverSpec,
     TJobDefinition,
     TDeploymentFileItem,
     TFilesManifest,
-    TDeploymentManifest,
+    TJobsDeploymentManifest,
 )

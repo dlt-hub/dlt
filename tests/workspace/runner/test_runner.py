@@ -6,10 +6,11 @@ import pytest
 
 from dlt._workspace._runner.runner import run, _log, _log_job
 from dlt._workspace.deployment.typing import (
+    TFreshnessConstraint,
     TJobDefinition,
     TJobRef,
     TEntryPoint,
-    TExecutionSpec,
+    TExecuteSpec,
     TTrigger,
 )
 
@@ -31,8 +32,7 @@ def _batch_job(
             job_type="batch",
         ),
         "triggers": [TTrigger(t) for t in triggers],
-        "execution": TExecutionSpec(),
-        "starred": False,
+        "execute": TExecuteSpec(),
     }
 
 
@@ -75,12 +75,13 @@ def test_run_chained_jobs() -> None:
 
 
 def test_run_with_no_matching_selectors(capsys: pytest.CaptureFixture[str]) -> None:
-    """No matching selectors returns 0 with no jobs run."""
+    """Non-matching selectors still show all jobs; manual-only are idle."""
     jobs = [_batch_job("jobs.batch_jobs.backfill")]
     exit_code = run(jobs, trigger_selectors=["tag:nonexistent"])
     assert exit_code == 0
     captured = capsys.readouterr()
-    assert "no jobs matched" in captured.err
+    assert "idle" in captured.err
+    assert "nothing to run" in captured.err
 
 
 def test_run_with_tag_selector() -> None:
@@ -105,8 +106,7 @@ def test_run_failing_job() -> None:
                 job_type="batch",
             ),
             "triggers": [TTrigger("manual:jobs.test.failing")],
-            "execution": TExecutionSpec(),
-            "starred": False,
+            "execute": TExecuteSpec(),
         }
     ]
     exit_code = run(jobs, trigger_selectors=["manual:*"])
@@ -123,8 +123,7 @@ def test_orphaned_event_trigger_exits() -> None:
             job_type="batch",
         ),
         "triggers": [TTrigger("manual:jobs.test.upstream")],
-        "execution": TExecutionSpec(),
-        "starred": False,
+        "execute": TExecuteSpec(),
     }
     downstream = _batch_job(
         "jobs.test.downstream",
@@ -192,7 +191,6 @@ def test_dry_run(capsys: pytest.CaptureFixture[str]) -> None:
     assert exit_code == 0
     captured = capsys.readouterr()
     assert "run now" in captured.err
-    assert "waiting" in captured.err
     assert "dry run" in captured.err
 
 
@@ -205,6 +203,83 @@ def test_manifest_always_shown(capsys: pytest.CaptureFixture[str]) -> None:
     assert "backfill" in captured.err
 
 
+def test_freshness_blocks_when_upstream_not_run(capsys: pytest.CaptureFixture[str]) -> None:
+    """Non-interval job with freshness constraint is skipped when upstream never ran."""
+    upstream = _batch_job("jobs.batch_jobs.backfill")
+    downstream = _batch_job(
+        "jobs.batch_jobs.transform",
+        triggers=["manual:jobs.batch_jobs.transform"],
+        function="transform",
+    )
+    downstream["freshness"] = [TFreshnessConstraint("job.is_fresh:jobs.batch_jobs.backfill")]
+    # only select downstream — upstream never runs, so freshness blocks
+    exit_code = run([upstream, downstream], trigger_selectors=["manual:jobs.batch_jobs.transform"])
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "skipped" in captured.err
+    assert "no completed runs" in captured.err
+
+
+def test_freshness_passes_after_upstream_completes() -> None:
+    """Non-interval job with freshness runs after upstream completes via event chain."""
+    upstream = _batch_job("jobs.batch_jobs.backfill")
+    downstream = _batch_job(
+        "jobs.batch_jobs.transform",
+        triggers=["job.success:jobs.batch_jobs.backfill"],
+        function="transform",
+    )
+    downstream["freshness"] = [TFreshnessConstraint("job.is_fresh:jobs.batch_jobs.backfill")]
+    # upstream runs, succeeds, fires event → downstream checks freshness → passes
+    exit_code = run([upstream, downstream], trigger_selectors=["manual:*"])
+    assert exit_code == 0
+
+
+def test_freshness_blocks_interval_job_when_upstream_not_fresh(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Interval job with freshness constraint is skipped when upstream hasn't completed."""
+    upstream: TJobDefinition = {
+        "job_ref": TJobRef("jobs.batch_jobs.backfill"),
+        "entry_point": TEntryPoint(
+            module=f"{WORKSPACE}.batch_jobs",
+            function="backfill",
+            job_type="batch",
+        ),
+        "triggers": [TTrigger("schedule:* * * * *")],
+        "execute": TExecuteSpec(),
+        "interval": {"start": "2020-01-01T00:00:00Z"},
+        "allow_external_schedulers": True,
+        "default_trigger": TTrigger("schedule:* * * * *"),
+    }
+    downstream: TJobDefinition = {
+        "job_ref": TJobRef("jobs.batch_jobs.transform"),
+        "entry_point": TEntryPoint(
+            module=f"{WORKSPACE}.batch_jobs",
+            function="transform",
+            job_type="batch",
+        ),
+        "triggers": [
+            TTrigger("schedule:* * * * *"),
+            TTrigger("manual:jobs.batch_jobs.transform"),
+        ],
+        "execute": TExecuteSpec(),
+        "interval": {"start": "2020-01-01T00:00:00Z"},
+        "allow_external_schedulers": True,
+        "freshness": [TFreshnessConstraint("job.is_fresh:jobs.batch_jobs.backfill")],
+        "default_trigger": TTrigger("schedule:* * * * *"),
+    }
+    # only select downstream — suppress scheduling so upstream never runs
+    exit_code = run(
+        [upstream, downstream],
+        trigger_selectors=["manual:jobs.batch_jobs.transform"],
+        no_future=True,
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "skipped" in captured.err
+    assert "not fully fresh" in captured.err
+
+
 def test_log_formatting(capsys: pytest.CaptureFixture[str]) -> None:
     """_log goes to stderr, _log_job prefixes with job name."""
     _log("generic message")
@@ -212,14 +287,60 @@ def test_log_formatting(capsys: pytest.CaptureFixture[str]) -> None:
     assert "generic message" in captured.err
 
     # stream_no=1: subprocess stdout goes to stdout
-    _log_job("backfill", 12, 1, "output line")
+    _log_job("backfill", 1, "output line")
     captured = capsys.readouterr()
     assert "backfill" in captured.out
     assert "output line" in captured.out
     assert "|" in captured.out
 
     # stream_no=2: runner messages about jobs go to stderr
-    _log_job("backfill", 12, 2, "starting")
+    _log_job("backfill", 2, "starting")
     captured = capsys.readouterr()
     assert "backfill" in captured.err
     assert "starting" in captured.err
+
+
+def test_config_passed_to_job() -> None:
+    """Config dict is passed through to job subprocess and resolves required params."""
+    jobs = [
+        _batch_job("jobs.batch_jobs.maintenance", function="maintenance"),
+    ]
+    # maintenance requires cleanup_days — pass via config
+    exit_code = run(
+        jobs,
+        trigger_selectors=["manual:*"],
+        config={"cleanup_days": "30"},
+    )
+    assert exit_code == 0
+
+
+def test_config_missing_causes_failure() -> None:
+    """Job fails when required config is not provided."""
+    jobs = [
+        _batch_job("jobs.batch_jobs.maintenance", function="maintenance"),
+    ]
+    # maintenance requires cleanup_days — omit config, job should fail
+    exit_code = run(jobs, trigger_selectors=["manual:*"])
+    assert exit_code == 1
+
+
+def test_freshness_retry_after_upstream_completes() -> None:
+    """Non-interval job blocked by freshness retries when upstream completes.
+
+    Upstream and downstream both selected via manual:*. Downstream has
+    freshness constraint on upstream. Both are dispatched immediately —
+    downstream is skipped (upstream hasn't completed yet). When upstream
+    completes, freshness listener fires, downstream retries and succeeds.
+    """
+    upstream = _batch_job("jobs.batch_jobs.backfill")
+    upstream["default_trigger"] = TTrigger("manual:jobs.batch_jobs.backfill")
+    downstream = _batch_job(
+        "jobs.batch_jobs.transform",
+        triggers=["manual:jobs.batch_jobs.transform"],
+        function="transform",
+    )
+    downstream["freshness"] = [TFreshnessConstraint("job.is_fresh:jobs.batch_jobs.backfill")]
+    downstream["default_trigger"] = TTrigger("manual:jobs.batch_jobs.transform")
+    # both selected — upstream runs, downstream initially blocked, retries on upstream success
+    exit_code = run([upstream, downstream], trigger_selectors=["manual:*"])
+    assert exit_code == 0

@@ -7,7 +7,7 @@ import pytest
 from dlt._workspace._runner.runner import run, select_jobs, _resolve_selectors
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
-    TExecutionSpec,
+    TExecuteSpec,
     TJobDefinition,
     TJobRef,
     TTrigger,
@@ -31,8 +31,7 @@ def _batch_job(
             job_type="batch",
         ),
         "triggers": [TTrigger(t) for t in triggers],
-        "execution": TExecutionSpec(),
-        "starred": False,
+        "execute": TExecuteSpec(),
     }
 
 
@@ -129,7 +128,7 @@ def test_with_future_selects_only_timed_triggers() -> None:
 
 def test_with_future_and_followup() -> None:
     """Followup of timed jobs is collected."""
-    every_job = _batch_job("jobs.mod.poll", triggers=["every:30s", "manual:jobs.mod.poll"])
+    every_job = _batch_job("jobs.mod.poll", triggers=["every:1m", "manual:jobs.mod.poll"])
     downstream = _batch_job(
         "jobs.mod.process",
         triggers=["job.success:jobs.mod.poll", "manual:jobs.mod.process"],
@@ -137,7 +136,7 @@ def test_with_future_and_followup() -> None:
     selected, followup = select_jobs([every_job, downstream], ["every:*"])
     assert len(selected) == 1
     assert selected[0][0]["job_ref"] == "jobs.mod.poll"
-    assert selected[0][1] == [TTrigger("every:30s")]
+    assert selected[0][1] == [TTrigger("every:1m")]
     assert len(followup) == 1
     assert followup[0][0]["job_ref"] == "jobs.mod.process"
 
@@ -159,48 +158,37 @@ def test_with_future_followup_of_direct_and_timed() -> None:
     assert followup_refs == {"jobs.mod.after_manual", "jobs.mod.after_cron"}
 
 
-def test_with_future_flag_integration(capsys: pytest.CaptureFixture[str]) -> None:
-    """--with-future flag causes every: job to be selected and shown in plan."""
-    every_job = _batch_job(
+@pytest.mark.parametrize(
+    "trigger",
+    ["every:1h", "schedule:0 8 * * *"],
+    ids=["every", "schedule"],
+)
+def test_timed_triggers_auto_scheduled(capsys: pytest.CaptureFixture[str], trigger: str) -> None:
+    """Timed triggers are scheduled automatically, none fire immediately."""
+    job = _batch_job(
         "jobs.batch_jobs.poll",
-        triggers=["every:1h", "manual:jobs.batch_jobs.poll"],
+        triggers=[trigger, "manual:jobs.batch_jobs.poll"],
         function="backfill",
     )
-    exit_code = run([every_job], with_future=True, dry_run=True)
+    exit_code = run([job], dry_run=True)
     assert exit_code == 0
     captured = capsys.readouterr()
-    assert "selected" in captured.err
-    assert "run now" in captured.err
+    assert "run now" not in captured.err
 
 
-def test_with_future_does_not_fire_manual(capsys: pytest.CaptureFixture[str]) -> None:
-    """--with-future selects timed jobs but does not fire their manual trigger."""
+def test_manual_only_job_is_idle(capsys: pytest.CaptureFixture[str]) -> None:
+    """Manual-only jobs are idle without --select."""
     scheduled = _batch_job(
         "jobs.mod.cron_job",
         triggers=["schedule:0 8 * * *", "manual:jobs.mod.cron_job"],
     )
     manual_only = _batch_job("jobs.mod.manual_only")
 
-    exit_code = run([scheduled, manual_only], with_future=True, dry_run=True)
+    exit_code = run([scheduled, manual_only], dry_run=True)
     assert exit_code == 0
     captured = capsys.readouterr()
     assert "cron_job" in captured.err
-    assert "scheduled" in captured.err
-    assert "manual_only" not in captured.err or "run now" not in captured.err
-
-
-def test_with_future_alone_no_selectors(capsys: pytest.CaptureFixture[str]) -> None:
-    """--with-future without --select or --run-manual only runs timed jobs."""
-    scheduled = _batch_job(
-        "jobs.mod.cron_job",
-        triggers=["schedule:0 8 * * *", "manual:jobs.mod.cron_job"],
-    )
-    manual_only = _batch_job("jobs.mod.manual_only")
-
-    exit_code = run([scheduled, manual_only], with_future=True, dry_run=True)
-    assert exit_code == 0
-    captured = capsys.readouterr()
-    assert "selected 1 job(s)" in captured.err
+    assert "idle" in captured.err
 
 
 @pytest.mark.parametrize(
@@ -219,14 +207,17 @@ def test_resolve_selectors_passthrough(selectors, expected) -> None:
     assert _resolve_selectors(selectors, jobs) == expected
 
 
-def test_resolve_selectors_converts_bare_name() -> None:
+@pytest.mark.parametrize(
+    "selector,expected",
+    [
+        ("backfill", "manual:jobs.mod.backfill"),
+        ("mod.backfill", "manual:jobs.mod.backfill"),
+    ],
+    ids=["bare-name", "section-name"],
+)
+def test_resolve_selectors_converts_job_ref(selector: str, expected: str) -> None:
     jobs = [_batch_job("jobs.mod.backfill")]
-    assert _resolve_selectors(["backfill"], jobs) == ["manual:jobs.mod.backfill"]
-
-
-def test_resolve_selectors_converts_section_name() -> None:
-    jobs = [_batch_job("jobs.mod.backfill")]
-    assert _resolve_selectors(["mod.backfill"], jobs) == ["manual:jobs.mod.backfill"]
+    assert _resolve_selectors([selector], jobs) == [expected]
 
 
 def test_followup_runs_via_event_not_manual(capsys: pytest.CaptureFixture[str]) -> None:
@@ -244,8 +235,50 @@ def test_followup_runs_via_event_not_manual(capsys: pytest.CaptureFixture[str]) 
     assert exit_code == 0
 
 
-def test_followup_excluded_when_unreachable(capsys: pytest.CaptureFixture[str]) -> None:
-    """Event-triggered job not reachable from selected jobs is excluded."""
+@pytest.mark.parametrize(
+    "trigger",
+    ["tag:backfill", "deployment:", "manual:jobs.batch_jobs.backfill"],
+    ids=["tag", "deployment", "manual"],
+)
+def test_selection_only_trigger_does_not_auto_fire(
+    capsys: pytest.CaptureFixture[str], trigger: str
+) -> None:
+    """Tag, deployment, and manual triggers only fire via --select."""
+    job = _batch_job(
+        "jobs.batch_jobs.backfill",
+        triggers=[trigger, "manual:jobs.batch_jobs.backfill"],
+    )
+    exit_code = run([job], no_future=True, dry_run=True)
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "run now" not in captured.err
+    assert "nothing to run" in captured.err
+
+
+@pytest.mark.parametrize(
+    "trigger,selector",
+    [
+        ("tag:backfill", "tag:*"),
+        ("manual:jobs.batch_jobs.backfill", "manual:*"),
+    ],
+    ids=["tag", "manual"],
+)
+def test_selection_only_trigger_fires_via_select(
+    capsys: pytest.CaptureFixture[str], trigger: str, selector: str
+) -> None:
+    """Tag and manual triggers fire when matched by --select."""
+    job = _batch_job(
+        "jobs.batch_jobs.backfill",
+        triggers=[trigger, "manual:jobs.batch_jobs.backfill"],
+    )
+    exit_code = run([job], trigger_selectors=[selector], no_future=True, dry_run=True)
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "run now" in captured.err
+
+
+def test_unreachable_event_job_shows_as_waiting(capsys: pytest.CaptureFixture[str]) -> None:
+    """Event-triggered job whose upstream won't fire still shows as 'waiting'."""
     job_a = _batch_job("jobs.mod.backfill")
     job_b = _batch_job("jobs.mod.daily", triggers=["tag:daily"])
     job_b["entry_point"]["function"] = "backfill"
@@ -257,7 +290,10 @@ def test_followup_excluded_when_unreachable(capsys: pytest.CaptureFixture[str]) 
     exit_code = run(
         [job_a, job_b, downstream],
         trigger_selectors=["manual:jobs.mod.backfill"],
+        no_future=True,
     )
     assert exit_code == 0
     captured = capsys.readouterr()
-    assert "downstream" not in captured.err or "waiting" not in captured.err
+    # all jobs registered — downstream shows as waiting
+    assert "downstream" in captured.err
+    assert "waiting" in captured.err
