@@ -398,6 +398,36 @@ ignore = [
     "F841",
     "F811",
 ]
+select = ["I251", "T20", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["T20", "I251"]
+"tools/tests/*" = ["T20", "I251"]
+"docs/*" = ["T20", "I251"]
+"dlt/common/typing.py" = ["I251"]
+"dlt/_workspace/_templates/*" = ["I251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"datetime".msg = "use dlt.common.pendulum"
+"json".msg = "use dlt.common.json"
+"decimal".msg = "use dlt.common.decimal"
+"decimal.Decimal".msg = "use dlt.common.Decimal"
+"open".msg = "use dlt.common.open"
+"pendulum".msg = "use dlt.common.pendulum"
+"ibis".msg = "use dlt.common.libs.ibis"
+"sqlalchemy".msg = "use dlt.common.libs.sql_alchemy"
+"typing.TypedDict".msg = "use dlt.common.typing.TypedDict"
+"typing.ParamSpec".msg = "use dlt.common.typing.ParamSpec"
+"typing.Concatenate".msg = "use dlt.common.typing.Concatenate"
+"typing.TypeAlias".msg = "use dlt.common.typing.TypeAlias"
+"typing.Self".msg = "use dlt.common.typing.Self"
+"typing.Never".msg = "use dlt.common.typing.Never"
+"typing.Unpack".msg = "use dlt.common.typing.Unpack"
+"typing.Annotated".msg = "use dlt.common.typing.Annotated"
+"typing.get_original_bases".msg = "use dlt.common.typing.get_original_bases"
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["dlt.sources.incremental"]
 
 [tool.black]
 line-length = 100
