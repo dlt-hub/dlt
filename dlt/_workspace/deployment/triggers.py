@@ -9,6 +9,7 @@ from dlt._workspace.deployment._trigger_helpers import (
     _parse_http,
     _parse_manual,
     _parse_once,
+    _parse_pipeline_name,
     _parse_schedule,
     _parse_tag,
     _parse_webhook,
@@ -26,6 +27,7 @@ __all__ = [
     "webhook",
     "tag",
     "manual",
+    "pipeline_name",
     "job_success",
     "job_fail",
 ]
@@ -84,6 +86,11 @@ def tag(name: str) -> TTrigger:
 def manual(job_ref: str = "") -> TTrigger:
     """Create a manual trigger."""
     return _parse_manual(job_ref).raw
+
+
+def pipeline_name(name: str) -> TTrigger:
+    """Create a pipeline name trigger."""
+    return _parse_pipeline_name(name.strip() if name else "").raw
 
 
 def job_success(job_ref: str) -> TTrigger:

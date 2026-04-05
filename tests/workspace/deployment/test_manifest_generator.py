@@ -359,13 +359,11 @@ def test_dashboard_auto_included() -> None:
     ],
     ids=["wrong-type", "wrong-interface", "wrong-category"],
 )
-def test_dashboard_validation_rejects_invalid(
-    mutation: object, error_frag: str
-) -> None:
+def test_dashboard_validation_rejects_invalid(mutation: object, error_frag: str) -> None:
     """Dashboard job must be interactive with gui interface and dashboard category."""
-    from dlt._workspace.deployment.manifest import _default_dashboard_job, validate_job_definition
+    from dlt._workspace.deployment.manifest import default_dashboard_job, validate_job_definition
 
-    job = _default_dashboard_job()
+    job = default_dashboard_job()
     mutation(job)  # type: ignore[operator]
     result = validate_job_definition(job)
     assert any(error_frag in e for e in result.errors), f"expected {error_frag!r} in {result}"

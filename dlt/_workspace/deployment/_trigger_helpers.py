@@ -138,6 +138,12 @@ def _parse_job_fail(expr: str) -> TParsedTrigger:
     return TParsedTrigger(type="job.fail", expr=expr, raw=TTrigger(f"job.fail:{expr}"))
 
 
+def _parse_pipeline_name(expr: str) -> TParsedTrigger:
+    if not expr:
+        raise InvalidTrigger("pipeline_name:", "requires a pipeline name")
+    return TParsedTrigger(type="pipeline_name", expr=expr, raw=TTrigger(f"pipeline_name:{expr}"))
+
+
 PARSERS: Dict[str, Callable[[str], TParsedTrigger]] = {
     "schedule": _parse_schedule,
     "every": _parse_every,
@@ -149,6 +155,7 @@ PARSERS: Dict[str, Callable[[str], TParsedTrigger]] = {
     "manual": _parse_manual,
     "job.success": _parse_job_success,
     "job.fail": _parse_job_fail,
+    "pipeline_name": _parse_pipeline_name,
 }
 
 
@@ -166,8 +173,11 @@ def parse_trigger(trigger: TTrigger) -> TParsedTrigger:
 def normalize_trigger(trigger: Union[str, TTrigger]) -> TTrigger:
     """Normalize a single user-provided trigger to canonical form.
 
-    Raises InvalidTrigger for ``manual:`` triggers — use ``expose(manual=True)`` instead.
+    Raises InvalidTrigger for ``manual:`` and ``pipeline_name:`` triggers which are
+    synthetic (added automatically from expose and deliver specs).
     """
+    _SYNTHETIC_TYPES = {"manual", "pipeline_name"}
+
     # import here to avoid circular import — creators live in triggers.py
     from dlt._workspace.deployment.triggers import schedule
 
@@ -175,15 +185,15 @@ def normalize_trigger(trigger: Union[str, TTrigger]) -> TTrigger:
 
     if ":" in s:
         trigger_type = s.split(":", 1)[0]
-        if trigger_type == "manual":
-            raise InvalidTrigger(s, "use expose(manual=True) instead of manual: trigger")
+        if trigger_type in _SYNTHETIC_TYPES:
+            raise InvalidTrigger(s, f"{trigger_type}: triggers are added automatically")
         if trigger_type in PARSERS:
             return parse_trigger(TTrigger(s)).raw
         raise InvalidTrigger(s, f"unknown type {trigger_type!r}")
 
     if s in PARSERS:
-        if s == "manual":
-            raise InvalidTrigger(s, "use expose(manual=True) instead of manual: trigger")
+        if s in _SYNTHETIC_TYPES:
+            raise InvalidTrigger(s, f"{s}: triggers are added automatically")
         if s in ("deployment", "http", "webhook"):
             return PARSERS[s]("").raw
         raise InvalidTrigger(s, "requires an expression")

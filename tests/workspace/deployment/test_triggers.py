@@ -218,7 +218,7 @@ def test_normalize_trigger_bare_type() -> None:
     assert normalize_trigger("http") == TTrigger("http:")
     assert normalize_trigger("webhook") == TTrigger("webhook:")
     # manual is blocked — users must use expose(manual=True)
-    with pytest.raises(InvalidTrigger, match="expose"):
+    with pytest.raises(InvalidTrigger, match="added automatically"):
         normalize_trigger("manual")
 
 
@@ -443,12 +443,27 @@ def test_match_triggers_deduplicates() -> None:
     assert result == [TTrigger("tag:backfill")]
 
 
-def test_normalize_trigger_rejects_manual() -> None:
-    """Users cannot create manual: triggers directly."""
-    with pytest.raises(InvalidTrigger, match="expose"):
+def test_normalize_trigger_rejects_synthetic() -> None:
+    """Users cannot create manual: or pipeline_name: triggers directly."""
+    with pytest.raises(InvalidTrigger, match="added automatically"):
         normalize_trigger("manual:jobs.mod.x")
-    with pytest.raises(InvalidTrigger, match="expose"):
+    with pytest.raises(InvalidTrigger, match="added automatically"):
         normalize_trigger("manual")
+    with pytest.raises(InvalidTrigger, match="added automatically"):
+        normalize_trigger("pipeline_name:analytics")
+
+
+def test_parse_pipeline_name_trigger() -> None:
+    parsed = parse_trigger(TTrigger("pipeline_name:my_pipeline"))
+    assert parsed.type == "pipeline_name"
+    assert parsed.expr == "my_pipeline"
+    assert parsed.raw == TTrigger("pipeline_name:my_pipeline")
+
+
+def test_pipeline_name_trigger_creator() -> None:
+    from dlt._workspace.deployment.triggers import pipeline_name
+
+    assert pipeline_name("analytics") == TTrigger("pipeline_name:analytics")
 
 
 @pytest.mark.parametrize(

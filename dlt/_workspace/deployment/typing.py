@@ -26,6 +26,7 @@ TTriggerType = Literal[
     "webhook",
     "tag",
     "manual",
+    "pipeline_name",
 ]
 
 TFreshnessConstraint = NewType("TFreshnessConstraint", str)

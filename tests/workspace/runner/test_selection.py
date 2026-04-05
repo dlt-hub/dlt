@@ -277,6 +277,41 @@ def test_selection_only_trigger_fires_via_select(
     assert "run now" in captured.err
 
 
+def test_pipeline_name_selector(capsys: pytest.CaptureFixture[str]) -> None:
+    """Jobs with pipeline_name in deliver are matched by pipeline_name: selector."""
+    job = _batch_job("jobs.batch_jobs.backfill")
+    job["deliver"] = {"pipeline_name": "analytics"}
+    exit_code = run(
+        [job],
+        trigger_selectors=["pipeline_name:analytics"],
+        no_future=True,
+        dry_run=True,
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "run now" in captured.err
+
+
+def test_pipeline_name_wildcard_selector(capsys: pytest.CaptureFixture[str]) -> None:
+    """pipeline_name:* matches all jobs with a pipeline_name set."""
+    job_a = _batch_job("jobs.batch_jobs.backfill")
+    job_a["deliver"] = {"pipeline_name": "analytics"}
+    job_b = _batch_job("jobs.batch_jobs.transform", function="transform")
+    job_b["deliver"] = {"pipeline_name": "reporting"}
+    job_c = _batch_job("jobs.batch_jobs.cleanup", function="backfill")
+    # job_c has no pipeline_name
+    exit_code = run(
+        [job_a, job_b, job_c],
+        trigger_selectors=["pipeline_name:*"],
+        no_future=True,
+        dry_run=True,
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "backfill" in captured.err and "run now" in captured.err
+    assert "transform" in captured.err
+
+
 def test_unreachable_event_job_shows_as_waiting(capsys: pytest.CaptureFixture[str]) -> None:
     """Event-triggered job whose upstream won't fire still shows as 'waiting'."""
     job_a = _batch_job("jobs.mod.backfill")

@@ -435,6 +435,8 @@ def _describe_trigger(trigger: TTrigger) -> str:
         return f"after {job_short_name(str(expr))} fails"
     if tt == "webhook":
         return f"webhook {expr}" if expr else "webhook"
+    if tt == "pipeline_name":
+        return f"pipeline {expr}"
     return str(trigger)
 
 

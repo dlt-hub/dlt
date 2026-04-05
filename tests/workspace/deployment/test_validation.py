@@ -760,3 +760,23 @@ def test_compute_default_trigger(triggers: List[str], expected: Optional[str]) -
         assert result is None
     else:
         assert result == TTrigger(expected)
+
+
+def test_expand_triggers_adds_pipeline_name() -> None:
+    """expand_triggers adds pipeline_name: trigger from deliver spec."""
+    from dlt._workspace.deployment.manifest import expand_triggers
+
+    job = _make_job("jobs.mod.a", triggers=["schedule:0 8 * * *"])
+    job["deliver"] = {"pipeline_name": "analytics"}
+    expanded = expand_triggers(job)
+    assert TTrigger("pipeline_name:analytics") in expanded
+    assert TTrigger("manual:jobs.mod.a") in expanded  # manual also added
+
+
+def test_expand_triggers_no_pipeline_name() -> None:
+    """expand_triggers skips pipeline_name when deliver has no pipeline_name."""
+    from dlt._workspace.deployment.manifest import expand_triggers
+
+    job = _make_job("jobs.mod.a", triggers=["schedule:0 8 * * *"])
+    expanded = expand_triggers(job)
+    assert not any(str(t).startswith("pipeline_name:") for t in expanded)

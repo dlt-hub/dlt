@@ -172,8 +172,9 @@ def _newtype_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
 
 
 def expand_triggers(job_def: TJobDefinition) -> List[TTrigger]:
-    """Expand triggers with manual and tag triggers from expose spec.
+    """Expand triggers with synthetic triggers from expose and deliver specs.
 
+    Adds ``manual:``, ``tag:``, and ``pipeline_name:`` triggers.
     Returns a new list — does not modify job_def.
     """
     triggers = list(job_def.get("triggers", []))
@@ -186,6 +187,11 @@ def expand_triggers(job_def: TJobDefinition) -> List[TTrigger]:
         tag_trigger = _triggers.tag(t)
         if tag_trigger not in triggers:
             triggers.append(tag_trigger)
+    pipeline = job_def.get("deliver", {}).get("pipeline_name")
+    if pipeline:
+        pn_trigger = _triggers.pipeline_name(pipeline)
+        if pn_trigger not in triggers:
+            triggers.append(pn_trigger)
     return triggers
 
 
@@ -422,7 +428,7 @@ def import_deployment_module(module_name: str) -> ModuleType:
         return import_module(module_name)
 
 
-def _default_dashboard_job() -> TJobDefinition:
+def default_dashboard_job() -> TJobDefinition:
     """Default workspace dashboard job definition."""
     return {
         "job_ref": DASHBOARD_JOB_REF,
@@ -505,7 +511,7 @@ def generate_manifest(
 
     # auto-include workspace dashboard if not user-defined
     if not any(j["job_ref"] == DASHBOARD_JOB_REF for j in jobs):
-        jobs.append(_default_dashboard_job())
+        jobs.append(default_dashboard_job())
 
     # set expose.manual default and compute default_trigger
     for job_def in jobs:
@@ -566,11 +572,15 @@ def manifest_from_module(
 
     module_name = _resolve_module_name(name_or_path)
 
-    cwd = os.getcwd()
-    if cwd not in sys.path:
-        sys.path.insert(0, cwd)
-
-    mod = import_deployment_module(module_name)
+    # try importing as-is first (works for proper packages with relative imports),
+    # fall back to adding cwd to sys.path for standalone modules
+    try:
+        mod = import_deployment_module(module_name)
+    except ModuleNotFoundError:
+        cwd = os.getcwd()
+        if cwd not in sys.path:
+            sys.path.insert(0, cwd)
+        mod = import_deployment_module(module_name)
     manifest, gen_warnings = generate_manifest(mod, use_all=use_all)
 
     result = validate_manifest(manifest)
