@@ -229,12 +229,19 @@ def normalize_triggers(
 
 
 _JOB_TYPE_SELECTORS = {"batch", "interactive", "stream", "job"}
-_TRIGGER_TYPE_NAMES = set(PARSERS.keys())
+_SELECTOR_KEYWORDS = _JOB_TYPE_SELECTORS | set(PARSERS.keys())
+
+
+def is_selector(s: str) -> bool:
+    """Check if string looks like a trigger selector vs a bare job ref."""
+    if ":" in s:
+        return True
+    return s in _SELECTOR_KEYWORDS
 
 
 def _normalize_selector(selector: str) -> str:
     """Expand shorthand selectors to glob form."""
-    if selector in _TRIGGER_TYPE_NAMES:
+    if selector in PARSERS:
         return f"{selector}:*"
     if ":" in selector and selector.endswith(":"):
         return f"{selector}*"

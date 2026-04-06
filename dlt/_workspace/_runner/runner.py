@@ -15,6 +15,7 @@ from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.manifest import expand_triggers, manifest_from_module
 from dlt._workspace.deployment.typing import (
     TJobDefinition,
+    TJobRef,
     TRuntimeEntryPoint,
     TTrigger,
 )
@@ -40,6 +41,7 @@ from dlt._workspace._runner.scheduler import TriggerScheduler
 from dlt._workspace.deployment.exceptions import InvalidJobRef, InvalidTrigger
 from dlt._workspace.deployment import triggers as _triggers
 from dlt._workspace.deployment._trigger_helpers import (
+    is_selector,
     match_triggers_with_selectors,
     maybe_parse_schedule,
     parse_trigger,
@@ -440,17 +442,16 @@ def _describe_trigger(trigger: TTrigger) -> str:
     return str(trigger)
 
 
-def _resolve_selectors(selectors: List[str], jobs: List[TJobDefinition]) -> List[str]:
+def _resolve_selectors(selectors: List[str], job_refs: List[TJobRef]) -> List[str]:
     """Resolve selectors: job refs become manual: selectors, others pass through."""
     resolved: List[str] = []
     for sel in selectors:
-        # already a trigger selector (has : or is a known type keyword)
-        if ":" in sel or sel in ("batch", "interactive", "stream", "job"):
+        if is_selector(sel):
             resolved.append(sel)
             continue
         # try resolving as job ref
         try:
-            ref = resolve_job_ref(sel, jobs)
+            ref = resolve_job_ref(sel, job_refs)
             resolved.append(f"manual:{ref}")
         except (InvalidJobRef, KeyError):
             # might be a glob pattern for manual refs (e.g. "batch_jobs.*")
@@ -622,7 +623,7 @@ def run(
     selected_refs: Set[str] = set()
     selected_immediate: List[Tuple[TJobDefinition, TTrigger]] = []
     if trigger_selectors:
-        selectors = _resolve_selectors(list(trigger_selectors), jobs)
+        selectors = _resolve_selectors(list(trigger_selectors), [j["job_ref"] for j in jobs])
         for job_def in jobs:
             ref = job_def["job_ref"]
             matched = match_triggers_with_selectors(

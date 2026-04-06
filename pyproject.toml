@@ -430,6 +430,8 @@ exclude = [
     "tests/common/reflection/cases/modules/",
     "dlt/helpers/marimo/_",
     "tests/workspace/deployment/cases/local_workspace/*",
+    "tests/workspace/cases/workspaces/launcher_flat/*",
+    "tests/workspace/cases/workspaces/launcher_package/*",
 ]
 
 [[tool.mypy.overrides]]

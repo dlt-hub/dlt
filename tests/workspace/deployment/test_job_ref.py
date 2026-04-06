@@ -1,6 +1,6 @@
 """Tests for job reference construction, parsing, and resolution."""
 
-from typing import Tuple
+from typing import List, Optional, Tuple
 
 import pytest
 
@@ -11,33 +11,15 @@ from dlt._workspace.deployment._job_ref import (
     short_name,
 )
 from dlt._workspace.deployment.exceptions import AmbiguousJobRef, InvalidJobRef, JobRefNotFound
-from dlt._workspace.deployment.typing import (
-    TEntryPoint,
-    TExecuteSpec,
-    TJobDefinition,
-    TJobRef,
-    TTrigger,
-)
+from dlt._workspace.deployment.typing import TJobRef
 
 
-def _job(ref: str) -> TJobDefinition:
-    return {
-        "job_ref": TJobRef(ref),
-        "entry_point": TEntryPoint(module="m", function="f", job_type="batch"),
-        "triggers": [TTrigger(f"manual:{ref}")],
-        "execute": TExecuteSpec(),
-    }
-
-
-JOBS = [
-    _job("jobs.batch.backfill"),
-    _job("jobs.batch.transform"),
-    _job("jobs.stream.ingest"),
-    _job("jobs.marimo_notebook"),
+JOB_REFS: List[TJobRef] = [
+    TJobRef("jobs.batch.backfill"),
+    TJobRef("jobs.batch.transform"),
+    TJobRef("jobs.stream.ingest"),
+    TJobRef("jobs.marimo_notebook"),
 ]
-
-
-# ---- make_job_ref ----
 
 
 @pytest.mark.parametrize(
@@ -50,9 +32,6 @@ JOBS = [
 )
 def test_make_job_ref(section: str, name: str, expected: str) -> None:
     assert make_job_ref(section, name) == expected
-
-
-# ---- parse_job_ref ----
 
 
 @pytest.mark.parametrize(
@@ -80,9 +59,6 @@ def test_parse_job_ref_invalid(ref: str, error_frag: str) -> None:
         parse_job_ref(TJobRef(ref))
 
 
-# ---- short_name ----
-
-
 @pytest.mark.parametrize(
     "ref,expected",
     [
@@ -95,11 +71,8 @@ def test_short_name(ref: str, expected: str) -> None:
     assert short_name(ref) == expected
 
 
-# ---- resolve_job_ref ----
-
-
 @pytest.mark.parametrize(
-    "ref,jobs,expected",
+    "ref,job_refs,expected",
     [
         # full ref passthrough
         ("jobs.batch.backfill", None, "jobs.batch.backfill"),
@@ -107,10 +80,10 @@ def test_short_name(ref: str, expected: str) -> None:
         ("jobs.marimo_notebook", None, "jobs.marimo_notebook"),
         # section.name -> prepend jobs.
         ("batch.backfill", None, "jobs.batch.backfill"),
-        # bare name with jobs list
-        ("backfill", JOBS, "jobs.batch.backfill"),
+        # bare name with job_refs list
+        ("backfill", JOB_REFS, "jobs.batch.backfill"),
         # module-level bare name
-        ("marimo_notebook", JOBS, "jobs.marimo_notebook"),
+        ("marimo_notebook", JOB_REFS, "jobs.marimo_notebook"),
         # whitespace stripped
         ("  jobs.batch.backfill  ", None, "jobs.batch.backfill"),
     ],
@@ -123,28 +96,32 @@ def test_short_name(ref: str, expected: str) -> None:
         "whitespace",
     ],
 )
-def test_resolve_job_ref(ref, jobs, expected) -> None:
-    assert resolve_job_ref(ref, jobs) == expected
+def test_resolve_job_ref(ref: str, job_refs: Optional[List[TJobRef]], expected: str) -> None:
+    assert resolve_job_ref(ref, job_refs) == expected
 
 
 @pytest.mark.parametrize(
-    "ref,jobs,error_frag",
+    "ref,job_refs,error_frag",
     [
-        # bare name without jobs list
-        ("backfill", None, "requires a jobs list"),
+        # bare name without job_refs list
+        ("backfill", None, "requires a job_refs list"),
         # ambiguous bare name
-        ("ingest", [_job("jobs.a.ingest"), _job("jobs.b.ingest")], "ambiguous"),
+        (
+            "ingest",
+            [TJobRef("jobs.a.ingest"), TJobRef("jobs.b.ingest")],
+            "ambiguous",
+        ),
         # not found bare name
-        ("nonexistent", JOBS, "not found"),
-        # full ref not in jobs list
-        ("jobs.batch.missing", JOBS, "not found"),
-        # section.name not in jobs list
-        ("batch.missing", JOBS, "not found"),
+        ("nonexistent", JOB_REFS, "not found"),
+        # full ref not in job_refs list
+        ("jobs.batch.missing", JOB_REFS, "not found"),
+        # section.name not in job_refs list
+        ("batch.missing", JOB_REFS, "not found"),
         # empty ref
         ("", None, "must not be empty"),
     ],
     ids=[
-        "bare-no-jobs",
+        "bare-no-refs",
         "ambiguous",
         "not-found",
         "full-ref-missing",
@@ -152,6 +129,8 @@ def test_resolve_job_ref(ref, jobs, expected) -> None:
         "empty",
     ],
 )
-def test_resolve_job_ref_invalid(ref, jobs, error_frag) -> None:
+def test_resolve_job_ref_invalid(
+    ref: str, job_refs: Optional[List[TJobRef]], error_frag: str
+) -> None:
     with pytest.raises((InvalidJobRef, JobRefNotFound, AmbiguousJobRef), match=error_frag):
-        resolve_job_ref(ref, jobs)
+        resolve_job_ref(ref, job_refs)

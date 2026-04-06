@@ -179,14 +179,14 @@ def expand_triggers(job_def: TJobDefinition) -> List[TTrigger]:
     """
     triggers = list(job_def.get("triggers", []))
     expose = job_def.get("expose", {})
-    if expose.get("manual", True):
-        manual_trigger = _triggers.manual(job_def["job_ref"])
-        if manual_trigger not in triggers:
-            triggers.append(manual_trigger)
     for t in expose.get("tags", []):
         tag_trigger = _triggers.tag(t)
         if tag_trigger not in triggers:
             triggers.append(tag_trigger)
+    if expose.get("manual", True):
+        manual_trigger = _triggers.manual(job_def["job_ref"])
+        if manual_trigger not in triggers:
+            triggers.append(manual_trigger)
     pipeline = job_def.get("deliver", {}).get("pipeline_name")
     if pipeline:
         pn_trigger = _triggers.pipeline_name(pipeline)

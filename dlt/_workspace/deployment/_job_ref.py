@@ -1,7 +1,7 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from dlt._workspace.deployment.exceptions import AmbiguousJobRef, InvalidJobRef, JobRefNotFound
-from dlt._workspace.deployment.typing import TJobDefinition, TJobRef
+from dlt._workspace.deployment.typing import TJobRef
 
 JOB_REF_PREFIX = "jobs."
 
@@ -45,23 +45,23 @@ def short_name(ref: str) -> str:
 
 def resolve_job_ref(
     ref: str,
-    jobs: Optional[List[TJobDefinition]] = None,
+    job_refs: Optional[Sequence[TJobRef]] = None,
 ) -> TJobRef:
     """Resolve a user-provided ref to canonical job_ref form.
 
     Accepts:
-      - `"name"` — resolve via jobs list (raises without it)
+      - `"name"` — resolve via job_refs list (raises without it)
       - `"section.name"` — prepend `"jobs."`
       - `"jobs.section.name"` — validate and pass through
       - `"jobs.name"` — validate and pass through (module-level)
 
     Args:
         ref: User-provided job reference string.
-        jobs: Optional list of job definitions for bare name resolution.
+        job_refs: Optional list of known job refs for bare name resolution.
 
     Raises:
         InvalidJobRef: If ref format is invalid.
-        JobRefNotFound: If ref not found in jobs list.
+        JobRefNotFound: If ref not found in job_refs list.
         AmbiguousJobRef: If bare name matches multiple jobs.
     """
     ref = ref.strip()
@@ -71,45 +71,43 @@ def resolve_job_ref(
     if ref.startswith(JOB_REF_PREFIX):
         result = TJobRef(ref)
         parse_job_ref(result)
-        if jobs is not None:
-            _check_exists(result, jobs)
+        if job_refs is not None:
+            _check_exists(result, job_refs)
         return result
 
     parts = ref.split(".")
     if len(parts) == 2:
         # section.name
         result = TJobRef(f"jobs.{ref}")
-        if jobs is not None:
-            _check_exists(result, jobs)
+        if job_refs is not None:
+            _check_exists(result, job_refs)
         return result
 
     if len(parts) == 1:
-        # bare name — requires jobs list
-        if jobs is None:
+        # bare name — requires job_refs list
+        if job_refs is None:
             raise InvalidJobRef(
                 ref,
-                "bare job name requires a jobs list for resolution;"
+                "bare job name requires a job_refs list for resolution;"
                 " use section.name or jobs.section.name form",
             )
-        return _resolve_bare_name(ref, jobs)
+        return _resolve_bare_name(ref, job_refs)
 
     raise InvalidJobRef(ref, "use name, section.name, or jobs.section.name form")
 
 
-def _check_exists(ref: TJobRef, jobs: List[TJobDefinition]) -> None:
-    """Raise if ref not found in the jobs list."""
-    for j in jobs:
-        if j["job_ref"] == ref:
-            return
-    raise JobRefNotFound(ref)
+def _check_exists(ref: TJobRef, job_refs: Sequence[TJobRef]) -> None:
+    """Raise if ref not found in the job_refs list."""
+    if ref not in job_refs:
+        raise JobRefNotFound(ref)
 
 
-def _resolve_bare_name(name: str, jobs: List[TJobDefinition]) -> TJobRef:
-    """Resolve a bare name against a jobs list. Raises on ambiguity or miss."""
+def _resolve_bare_name(name: str, job_refs: Sequence[TJobRef]) -> TJobRef:
+    """Resolve a bare name against a job_refs list. Raises on ambiguity or miss."""
     matches: List[TJobRef] = []
-    for j in jobs:
-        if short_name(j["job_ref"]) == name:
-            matches.append(j["job_ref"])
+    for r in job_refs:
+        if short_name(r) == name:
+            matches.append(r)
     if len(matches) == 1:
         return matches[0]
     if not matches:

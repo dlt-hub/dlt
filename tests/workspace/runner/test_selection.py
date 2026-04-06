@@ -203,8 +203,8 @@ def test_manual_only_job_is_idle(capsys: pytest.CaptureFixture[str]) -> None:
     ids=["trigger-patterns", "type-keywords"],
 )
 def test_resolve_selectors_passthrough(selectors, expected) -> None:
-    jobs = [_batch_job("jobs.mod.a")]
-    assert _resolve_selectors(selectors, jobs) == expected
+    job_refs = [TJobRef("jobs.mod.a")]
+    assert _resolve_selectors(selectors, job_refs) == expected
 
 
 @pytest.mark.parametrize(
@@ -216,8 +216,8 @@ def test_resolve_selectors_passthrough(selectors, expected) -> None:
     ids=["bare-name", "section-name"],
 )
 def test_resolve_selectors_converts_job_ref(selector: str, expected: str) -> None:
-    jobs = [_batch_job("jobs.mod.backfill")]
-    assert _resolve_selectors([selector], jobs) == [expected]
+    job_refs = [TJobRef("jobs.mod.backfill")]
+    assert _resolve_selectors([selector], job_refs) == [expected]
 
 
 def test_followup_runs_via_event_not_manual(capsys: pytest.CaptureFixture[str]) -> None:

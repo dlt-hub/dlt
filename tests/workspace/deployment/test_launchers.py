@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,6 +12,8 @@ import pytest
 from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.launchers.job import run as job_run
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint
+
+from tests.workspace.utils import isolated_workspace
 
 WORKSPACE = "tests.workspace.cases.runtime_workspace"
 
@@ -473,3 +476,89 @@ def test_job_launcher_cli_error_exit_code() -> None:
     )
     assert result.returncode != 0
     assert "error" in result.stderr.lower()
+
+
+@pytest.fixture(
+    params=["launcher_flat", "launcher_package"],
+    ids=["flat", "package"],
+)
+def launcher_workspace(request: pytest.FixtureRequest):
+    """Isolated workspace with batch jobs — flat or package layout."""
+    with isolated_workspace(request.param) as ctx:
+        yield ctx
+
+
+@pytest.fixture(
+    params=[
+        [sys.executable],
+        ["uv", "run", "python"],
+    ],
+    ids=["python", "uv-run-python"],
+)
+def python_cmd(request: pytest.FixtureRequest) -> List[str]:
+    return request.param
+
+
+def _module_prefix(workspace_name: str) -> str:
+    """Module prefix for batch_jobs depending on workspace layout."""
+    if workspace_name == "launcher_package":
+        return "app.batch_jobs"
+    return "batch_jobs"
+
+
+def _hello_module(workspace_name: str) -> str:
+    if workspace_name == "launcher_package":
+        return "app.hello_module"
+    return "hello_module"
+
+
+def test_isolated_job_launcher_via_cli(launcher_workspace: object, python_cmd: List[str]) -> None:
+    """Job launcher runs batch job in isolated workspace with python or uv run python."""
+    workspace_name = os.path.basename(os.getcwd())
+    module = _module_prefix(workspace_name)
+    entry_point = json.dumps({"module": module, "function": "backfill", "job_type": "batch"})
+    result = subprocess.run(
+        [
+            *python_cmd,
+            "-m",
+            "dlt._workspace.deployment.launchers.job",
+            "--run-id",
+            "iso-test",
+            "--trigger",
+            "manual:",
+            "--entry-point",
+            entry_point,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, f"stderr: {result.stderr}"
+    assert "backfill_done" in result.stdout
+
+
+def test_isolated_module_launcher_via_cli(
+    launcher_workspace: object, python_cmd: List[str]
+) -> None:
+    """Module launcher runs plain module in isolated workspace."""
+    workspace_name = os.path.basename(os.getcwd())
+    module = _hello_module(workspace_name)
+    entry_point = json.dumps({"module": module, "function": None, "job_type": "batch"})
+    result = subprocess.run(
+        [
+            *python_cmd,
+            "-m",
+            "dlt._workspace.deployment.launchers.module",
+            "--run-id",
+            "iso-mod-test",
+            "--trigger",
+            "manual:",
+            "--entry-point",
+            entry_point,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, f"stderr: {result.stderr}"
+    assert "hello_module_ok" in result.stdout

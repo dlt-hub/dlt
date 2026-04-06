@@ -69,7 +69,7 @@ class WorkspaceFileSelector(BaseFileSelector):
         # Add caller-provided excludes
         patterns.extend(additional_excludes)
 
-        return PathSpec.from_lines("gitwildmatch", patterns)
+        return PathSpec.from_lines("gitignore", patterns)
 
     def __iter__(self) -> Iterator[Tuple[Path, Path]]:
         """Yield paths of files eligible for deployment"""

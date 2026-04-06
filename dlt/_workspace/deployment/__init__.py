@@ -14,6 +14,7 @@ from dlt._workspace.deployment.manifest import (
     import_deployment_module,
 )
 from dlt._workspace.deployment._trigger_helpers import (
+    is_selector,
     parse_trigger,
     normalize_trigger,
     normalize_triggers,
