@@ -48,6 +48,7 @@ from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
+    WithSchemas,
     raise_database_error,
     raise_open_connection_error,
 )
@@ -458,7 +459,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         return isinstance(ex, duckdb.Error)
 
 
-class WithTableScanners(DuckDbSqlClient):
+class WithTableScanners(DuckDbSqlClient, WithSchemas):
     memory_db: duckdb.DuckDBPyConnection = None
     """Internally created in-mem database in case external is not provided"""
 
@@ -497,7 +498,7 @@ class WithTableScanners(DuckDbSqlClient):
         )
         self.remote_client = remote_client
         self.schema = remote_client.schema
-        self._schemas: Dict[str, Schema] = {remote_client.schema.name: remote_client.schema}
+        self.schemas: Dict[str, Schema] = {remote_client.schema.name: remote_client.schema}
         self.persist_secrets = persist_secrets
         self._global_config.update(
             {
@@ -552,18 +553,18 @@ class WithTableScanners(DuckDbSqlClient):
 
     def set_schemas(self, schemas: Sequence[Schema]) -> None:
         """Register schemas for multi-schema view creation."""
-        self._schemas = {s.name: s for s in schemas}
+        self.schemas = {s.name: s for s in schemas}
 
     def _get_schema_for_table(self, table_name: str) -> Schema:
         """Find which schema contains the given table."""
-        for s in self._schemas.values():
+        for s in self.schemas.values():
             if table_name in s.tables:
                 return s
         return self.schema
 
     def create_views_for_all_tables(self) -> None:
         all_tables: Dict[str, str] = {}
-        for s in self._schemas.values():
+        for s in self.schemas.values():
             for table_name in s.tables.keys():
                 all_tables[table_name] = table_name
         self.create_views_for_tables(all_tables)
@@ -575,7 +576,7 @@ class WithTableScanners(DuckDbSqlClient):
         existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
         # map only tables with data across all known schemas
         tables_with_data: List[str] = []
-        for s in self._schemas.values():
+        for s in self.schemas.values():
             tables_with_data += s.dlt_table_names() + s.data_table_names(seen_data_only=True)
 
         for table_name in tables.keys():
