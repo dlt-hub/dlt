@@ -32,7 +32,10 @@ def test_full_deployment() -> None:
 
     assert manifest["engine_version"] == MANIFEST_ENGINE_VERSION
     assert manifest["deployment_module"] == f"{WORKSPACE}.deployment_full"
+    # only the first line of the multi-line docstring is used as the manifest description
     assert manifest["description"] == "Full workspace deployment with all job types."
+    assert "second line" not in manifest["description"]
+    assert "\n" not in manifest["description"]
     assert manifest["tags"] == ["production", "team:data"]
 
     job_refs = {j["job_ref"] for j in manifest["jobs"]}
@@ -53,8 +56,8 @@ def test_full_deployment() -> None:
     assert "jobs.streamlit_app" in job_refs
 
     assert len(_user_jobs(manifest["jobs"])) == 9
-    # dashboard is auto-included
-    assert DASHBOARD_JOB_REF in {j["job_ref"] for j in manifest["jobs"]}
+    # dashboard is only auto-included for the canonical `__deployment__` module
+    assert DASHBOARD_JOB_REF not in {j["job_ref"] for j in manifest["jobs"]}
     assert warnings == []
 
 
@@ -166,6 +169,43 @@ def test_missing_all_falls_back_to_dict() -> None:
     assert len(manifest["jobs"]) > 0
 
 
+def test_use_all_false_with_all_present() -> None:
+    """`use_all=False` on a module that has `__all__` scans `__dict__` ad-hoc.
+
+    Third-party imports must be filtered by `is_local_module`, helpers/constants
+    must not produce "not a recognized" warnings, and the no-`__all__` advisory
+    must not fire (the module does have `__all__`).
+    """
+    from unittest.mock import patch
+
+    import dlt._workspace.deployment.manifest as M
+
+    mod = import_module(f"{WORKSPACE}.deployment_with_extras")
+
+    detect_calls: List[str] = []
+    original_detect = M.detect_module_job
+
+    def spy_detect_module_job(m: object) -> object:
+        detect_calls.append(getattr(m, "__name__", repr(m)))
+        return original_detect(m)  # type: ignore[arg-type]
+
+    with patch.object(M, "detect_module_job", side_effect=spy_detect_module_job):
+        manifest, warnings = generate_manifest(mod, use_all=False)
+
+    job_refs = {j["job_ref"] for j in manifest["jobs"]}
+    assert "jobs.batch_jobs.backfill" in job_refs
+
+    # third-party / stdlib imports must be filtered out before framework detection
+    assert "pendulum" not in detect_calls
+    assert "os" not in detect_calls
+
+    # no spurious "not a recognized" warnings for helpers/constants in __dict__
+    assert not any("not a recognized" in w for w in warnings)
+
+    # no advisory about missing __all__ — the module does have one
+    assert not any("no __all__" in w for w in warnings)
+
+
 def test_ad_hoc_batch_jobs() -> None:
     """Ad-hoc deployment scans __dict__ and finds all JobFactory instances."""
     mod = import_module(f"{WORKSPACE}.batch_jobs")
@@ -195,7 +235,7 @@ def test_ad_hoc_interactive_jobs() -> None:
     assert "jobs.interactive_jobs.mcp_tools" in job_refs
 
     for j in manifest["jobs"]:
-        assert j["entry_point"]["job_type"] == "interactive"  # includes dashboard
+        assert j["entry_point"]["job_type"] == "interactive"
 
 
 def test_ad_hoc_framework_mcp() -> None:
@@ -238,23 +278,43 @@ def test_ad_hoc_framework_streamlit() -> None:
 
 
 def test_ad_hoc_plain_module() -> None:
-    """Ad-hoc deployment of a plain Python module with no jobs or frameworks.
-    Module itself is not detected — only auto-included dashboard.
-    """
+    """Ad-hoc deployment promotes a plain local Python module to a batch job."""
     mod = import_module(f"{WORKSPACE}.plain_module")
     manifest, _ = generate_manifest(mod, use_all=False)
 
-    assert _user_jobs(manifest["jobs"]) == []
+    user_jobs = _user_jobs(manifest["jobs"])
+    assert len(user_jobs) == 1
+    job = user_jobs[0]
+    assert job["job_ref"] == "jobs.plain_module"
+    assert job["entry_point"]["job_type"] == "batch"
+    assert job["entry_point"]["function"] is None
+    assert job["entry_point"]["module"] == f"{WORKSPACE}.plain_module"
+    assert job["description"] == "A plain module with no jobs."
 
 
 def test_ad_hoc_etl_script() -> None:
-    """Ad-hoc deployment of a plain Python script — not detected as job
-    since it has no JobFactory, no framework, and self-detection as local
-    module requires a parent. Only auto-included dashboard.
-    """
+    """Ad-hoc deployment promotes a plain Python script (no JobFactory, no framework)."""
     mod = import_module(f"{WORKSPACE}.etl_script")
     manifest, _ = generate_manifest(mod, use_all=False)
 
+    user_jobs = _user_jobs(manifest["jobs"])
+    assert len(user_jobs) == 1
+    job = user_jobs[0]
+    assert job["job_ref"] == "jobs.etl_script"
+    assert job["entry_point"]["job_type"] == "batch"
+    assert job["entry_point"]["function"] is None
+    assert job["entry_point"]["module"] == f"{WORKSPACE}.etl_script"
+    assert job["description"] == "ETL script that runs as __main__."
+
+
+def test_ad_hoc_plain_module_not_promoted_with_use_all() -> None:
+    """The self-promotion fallback only fires in ad-hoc (`use_all=False`) mode.
+
+    A `__deployment__.py` that legitimately declares no jobs in `__all__` must
+    not be accidentally promoted to a job.
+    """
+    mod = import_module(f"{WORKSPACE}.plain_module")
+    manifest, _ = generate_manifest(mod, use_all=True)
     assert _user_jobs(manifest["jobs"]) == []
 
 
@@ -275,7 +335,6 @@ def test_all_framework_triggers_use_portless_http() -> None:
         "jobs.marimo_notebook",
         "jobs.mcp_server",
         "jobs.streamlit_app",
-        DASHBOARD_JOB_REF,
     }
     for j in manifest["jobs"]:
         if j["job_ref"] in framework_refs:
@@ -336,9 +395,9 @@ def test_ad_hoc_does_not_pick_up_venv_modules() -> None:
 # -- dashboard auto-include and validation --
 
 
-def test_dashboard_auto_included() -> None:
-    """Every manifest includes the workspace dashboard job automatically."""
-    mod = import_module(f"{WORKSPACE}.deployment_batch_only")
+def test_dashboard_auto_included_for_canonical_deployment() -> None:
+    """The canonical `__deployment__` module gets a dashboard auto-included."""
+    mod = import_module(f"{WORKSPACE}.__deployment__")
     manifest, _ = generate_manifest(mod)
 
     jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
@@ -348,6 +407,17 @@ def test_dashboard_auto_included() -> None:
     assert dashboard["expose"]["interface"] == "gui"
     assert dashboard["expose"]["category"] == "dashboard"
     assert "http:" in dashboard["triggers"]
+
+
+def test_dashboard_not_auto_included_for_non_canonical_module() -> None:
+    """Non-`__deployment__` modules do not get a dashboard — ad-hoc deployments
+    (`--file foo.py`, framework apps imported by name, etc.) should never have
+    a workspace dashboard tagged on by the manifest generator.
+    """
+    mod = import_module(f"{WORKSPACE}.deployment_batch_only")
+    manifest, _ = generate_manifest(mod)
+
+    assert DASHBOARD_JOB_REF not in {j["job_ref"] for j in manifest["jobs"]}
 
 
 @pytest.mark.parametrize(

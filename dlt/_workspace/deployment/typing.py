@@ -61,6 +61,8 @@ TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook"]
 class TJobExposeSpec(TypedDict, total=False):
     """User-facing UI presentation metadata, accepted by decorators."""
 
+    display_name: str
+    """Human-friendly label shown in the UI. May contain spaces and punctuation."""
     tags: List[str]
     """Grouping labels. Runner creates `tag:` triggers from these."""
     starred: bool
@@ -83,7 +85,7 @@ class TExposeSpec(TJobExposeSpec):
 
 
 class TRequireSpec(TypedDict, total=False):
-    """Runtime resource requirements for a job."""
+    """Runner (machine, environment) requirements for a job."""
 
     extras: List[str]
     """pyproject.toml extras to install when creating the job's venv."""
@@ -136,7 +138,7 @@ class TIntervalSpec(TypedDict):
 
 
 class TJobRunContext(TypedDict):
-    """Runtime context injected into job functions that declare a `run_context` parameter."""
+    """Job run context injected into job functions that declare a `run_context` argument."""
 
     run_id: str
     """Unique identifier for this job run."""
@@ -258,7 +260,7 @@ class TJobsDeploymentManifest(TypedDict):
     deployment_module: str
     """Module name, default `"__deployment__"`."""
     description: NotRequired[str]
-    """From `__doc__` of the deployment module."""
+    """First line of the deployment module's `__doc__`."""
     tags: NotRequired[List[str]]
     """From `__tags__` of the deployment module."""
     jobs: List[TJobDefinition]

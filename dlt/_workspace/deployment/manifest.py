@@ -32,7 +32,7 @@ from dlt._workspace.deployment.exceptions import (
     ManifestValidationResult,
 )
 from dlt._workspace.deployment._job_ref import parse_job_ref
-from dlt._workspace.deployment import triggers as _triggers
+from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment._trigger_helpers import (
     maybe_parse_schedule,
     parse_trigger,
@@ -40,6 +40,7 @@ from dlt._workspace.deployment._trigger_helpers import (
 from dlt._workspace.deployment.freshness import parse_freshness_constraint
 from dlt._workspace.deployment.launchers import LAUNCHER_DASHBOARD
 from dlt._workspace.deployment.typing import (
+    DEFAULT_DEPLOYMENT_MODULE,
     MANIFEST_ENGINE_VERSION,
     TEntryPoint,
     TExecuteSpec,
@@ -67,6 +68,17 @@ def generate_manifest_hash(manifest: TJobsDeploymentManifest) -> str:
     content = json.typed_dumpb(manifest_copy, sort_keys=True)
     h = hashlib.sha3_256(content)
     return base64.b64encode(h.digest()).decode("ascii")
+
+
+def hash_job_definition(job_def: TJobDefinition) -> str:
+    """SHA3-256 content hash of a single job definition (canonical, sorted).
+
+    Uses the same serialization and algorithm as generate_manifest_hash so a
+    caller can derive per-job hashes for change detection without recomputing
+    the whole manifest hash.
+    """
+    content = json.typed_dumpb(job_def, sort_keys=True)
+    return base64.b64encode(hashlib.sha3_256(content).digest()).decode("ascii")
 
 
 def bump_manifest_version(
@@ -196,13 +208,16 @@ def expand_triggers(job_def: TJobDefinition) -> List[TTrigger]:
 
 
 def compute_default_trigger(job_def: TJobDefinition) -> Optional[TTrigger]:
-    """Pick the default trigger for a job: prefer schedule/every, else first trigger."""
+    """Pick the default trigger for a job: prefer schedule/every, else first eligible trigger.
+
+    `manual` and `deployment` triggers are never selected as the default.
+    """
     default: Optional[TTrigger] = None
     for t in job_def.get("triggers", []):
         parsed = parse_trigger(t)
         if parsed.type in ("schedule", "every"):
             return t
-        if default is None:
+        if default is None and parsed.type not in ("manual", "deployment"):
             default = t
     return default
 
@@ -229,9 +244,16 @@ def validate_job_definition(
 
     # validate job_ref format
     try:
-        parse_job_ref(ref)
+        section, name_part = parse_job_ref(ref)
     except InvalidJobRef as e:
         errors.append(str(e))
+    else:
+        # 'py' is reserved to avoid clashes with .py file extensions in
+        # filesystem-mapped paths and module imports
+        if section == "py":
+            errors.append(f"job {ref!r}: section 'py' is reserved")
+        if name_part == "py":
+            errors.append(f"job {ref!r}: name 'py' is reserved")
 
     # parse triggers — collect format errors and trigger types
     trigger_types: Set[str] = set()
@@ -475,20 +497,23 @@ def generate_manifest(
         jobs.append(self_job)
     else:
         # scan module contents for JobFactory instances and sub-modules
-        has_all = use_all and hasattr(deployment_module, "__all__")
-        if has_all:
+        has_all = hasattr(deployment_module, "__all__")
+        iterate_all = has_all and use_all
+        if iterate_all:
             names = list(deployment_module.__all__)
         else:
-            if use_all:
+            if not has_all and use_all:
                 warnings.append(
-                    f"module {deployment_module.__name__!r} has no __all__,"
-                    " scanning __dict__ instead"
+                    f"module {deployment_module.__name__!r} has no __all__, scanning full"
+                    " dictionary instead. Consider adding all jobs and modules you want to deploy"
+                    " to __all__ this prevents accidental deployments and avoids costly detection"
+                    " for all elements of the module."
                 )
             names = list(deployment_module.__dict__.keys())
 
         for name in names:
             obj = deployment_module.__dict__.get(name)
-            if obj is None:
+            if obj is None and iterate_all:
                 warnings.append(f"name {name!r} listed in __all__ but not found in module")
                 continue
 
@@ -496,7 +521,7 @@ def generate_manifest(
                 jobs.append(obj.to_job_definition())
             elif isinstance(obj, ModuleType):
                 # __all__: trust the user; __dict__ scan: filter to local modules
-                if not has_all and not is_local_module(obj, deployment_module):
+                if not iterate_all and not is_local_module(obj, deployment_module):
                     continue
                 framework_job = detect_module_job(obj)
                 if framework_job is not None:
@@ -506,11 +531,22 @@ def generate_manifest(
                     if local_job is not None:
                         jobs.append(local_job)
             else:
-                if has_all and not name.startswith("_"):
+                if iterate_all and not name.startswith("_"):
                     warnings.append(f"name {name!r} is not a recognized job or framework module")
 
-    # auto-include workspace dashboard if not user-defined
-    if not any(j["job_ref"] == DASHBOARD_JOB_REF for j in jobs):
+        # Ad-hoc fallback: if scanning produced no user jobs and the deployment
+        # module is itself a plain local Python file, promote it as a batch job.
+        if not jobs and not use_all:
+            self_local = detect_local_module(deployment_module, deployment_module)
+            if self_local is not None:
+                jobs.append(self_local)
+
+    # auto-include workspace dashboard only when processing the canonical
+    # `__deployment__` module — ad-hoc / single-file deployments don't get one
+    is_workspace_deployment = (
+        deployment_module.__name__.rsplit(".", 1)[-1] == DEFAULT_DEPLOYMENT_MODULE
+    )
+    if is_workspace_deployment and not any(j["job_ref"] == DASHBOARD_JOB_REF for j in jobs):
         jobs.append(default_dashboard_job())
 
     # set expose.manual default and compute default_trigger
@@ -529,9 +565,11 @@ def generate_manifest(
         "jobs": jobs,
     }
 
-    description = getattr(deployment_module, "__doc__", None)
-    if description and description.strip():
-        manifest["description"] = description.strip()
+    # use only the first non-empty line of the module docstring as the workspace description
+    raw_doc = getattr(deployment_module, "__doc__", None) or ""
+    first_line = raw_doc.strip().split("\n", 1)[0].strip()
+    if first_line:
+        manifest["description"] = first_line
 
     tags = getattr(deployment_module, "__tags__", None)
     if tags:

@@ -21,6 +21,7 @@ from dlt._workspace.deployment.typing import (
     TParsedTrigger,
     TTrigger,
 )
+from dlt._workspace.deployment.trigger import pipeline_name
 
 
 @pytest.mark.parametrize(
@@ -461,8 +462,6 @@ def test_parse_pipeline_name_trigger() -> None:
 
 
 def test_pipeline_name_trigger_creator() -> None:
-    from dlt._workspace.deployment.triggers import pipeline_name
-
     assert pipeline_name("analytics") == TTrigger("pipeline_name:analytics")
 
 

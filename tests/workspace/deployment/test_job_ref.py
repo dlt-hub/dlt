@@ -1,17 +1,18 @@
-"""Tests for job reference construction, parsing, and resolution."""
+"""Tests for job reference construction, parsing, resolution, and display."""
 
 from typing import List, Optional, Tuple
 
 import pytest
 
 from dlt._workspace.deployment._job_ref import (
+    format_job_label,
     make_job_ref,
     parse_job_ref,
     resolve_job_ref,
     short_name,
 )
 from dlt._workspace.deployment.exceptions import AmbiguousJobRef, InvalidJobRef, JobRefNotFound
-from dlt._workspace.deployment.typing import TJobRef
+from dlt._workspace.deployment.typing import TDeliverSpec, TExposeSpec, TJobRef
 
 
 JOB_REFS: List[TJobRef] = [
@@ -134,3 +135,41 @@ def test_resolve_job_ref_invalid(
 ) -> None:
     with pytest.raises((InvalidJobRef, JobRefNotFound, AmbiguousJobRef), match=error_frag):
         resolve_job_ref(ref, job_refs)
+
+
+@pytest.mark.parametrize(
+    ("job_ref", "display_name", "pipeline_name", "expected"),
+    [
+        # sectioned, no pipeline
+        ("jobs.batch_jobs.backfill", None, None, "backfill (batch_jobs)"),
+        ("jobs.batch_jobs.backfill", "Daily ETL", None, "Daily ETL (batch_jobs)"),
+        # module-level, no pipeline
+        ("jobs.notebook", None, None, "notebook"),
+        ("jobs.notebook", "Customer Dashboard", None, "Customer Dashboard"),
+        # pipeline overrides section
+        ("jobs.batch_jobs.transform", None, "analytics", "transform (analytics)"),
+        ("jobs.batch_jobs.transform", "Transform step", "analytics", "Transform step (analytics)"),
+        # section equals name part -> deduplicated
+        ("jobs.dashboard.dashboard", None, None, "dashboard"),
+        ("jobs.dashboard.dashboard", "Workspace dashboard", None, "Workspace dashboard"),
+    ],
+    ids=[
+        "sectioned",
+        "sectioned+display",
+        "module",
+        "module+display",
+        "pipeline",
+        "pipeline+display",
+        "section_eq_name",
+        "section_eq_name+display",
+    ],
+)
+def test_format_job_label(
+    job_ref: str,
+    display_name: Optional[str],
+    pipeline_name: Optional[str],
+    expected: str,
+) -> None:
+    expose: Optional[TExposeSpec] = {"display_name": display_name} if display_name else None
+    deliver: Optional[TDeliverSpec] = {"pipeline_name": pipeline_name} if pipeline_name else None
+    assert format_job_label(job_ref, expose, deliver) == expected

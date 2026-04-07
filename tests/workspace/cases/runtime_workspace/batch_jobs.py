@@ -1,8 +1,7 @@
 """Batch jobs for the test workspace."""
 
 import dlt
-from dlt._workspace.deployment.decorators import job
-from dlt._workspace.deployment.typing import TJobRunContext
+from dlt.hub.run import job, TJobRunContext
 
 
 @job(execute={"timeout": {"timeout": 86400.0}})

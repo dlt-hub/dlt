@@ -44,6 +44,29 @@ class InvalidJobRef(DeploymentException, ValueError):
         super().__init__(f"Invalid job ref {ref!r}: {reason}")
 
 
+class InvalidJobName(DeploymentException, ValueError):
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(
+            f"Job name {name!r} is not a valid Python identifier. Job names become"
+            " parts of job references and configuration sections, so they must use"
+            " only letters, digits and underscores and may not start with a digit."
+            " If you want a human-friendly label for the UI, set it via"
+            " `expose={'display_name': '...'}` and keep `name` a Python identifier."
+        )
+
+
+class InvalidJobSection(DeploymentException, ValueError):
+    def __init__(self, section: str) -> None:
+        self.section = section
+        super().__init__(
+            f"Job section {section!r} is not a valid Python identifier. Sections"
+            " become parts of job references and configuration sections, so they"
+            " must use only letters, digits and underscores and may not start with"
+            " a digit. Sections default to the module name when not provided."
+        )
+
+
 class JobRefNotFound(DeploymentException, KeyError):
     def __init__(self, ref: str) -> None:
         self.ref = ref

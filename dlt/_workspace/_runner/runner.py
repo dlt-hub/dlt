@@ -39,7 +39,7 @@ from dlt._workspace._runner.run_store import (
 )
 from dlt._workspace._runner.scheduler import TriggerScheduler
 from dlt._workspace.deployment.exceptions import InvalidJobRef, InvalidTrigger
-from dlt._workspace.deployment import triggers as _triggers
+from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment._trigger_helpers import (
     is_selector,
     match_triggers_with_selectors,

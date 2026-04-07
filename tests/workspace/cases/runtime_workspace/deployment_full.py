@@ -1,4 +1,8 @@
-"""Full workspace deployment with all job types."""
+"""Full workspace deployment with all job types.
+
+This second line and the rest of the docstring should be excluded from the
+manifest description -- only the first line is used.
+"""
 
 __tags__ = ["production", "team:data"]
 

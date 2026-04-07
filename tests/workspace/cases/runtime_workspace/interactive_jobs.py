@@ -1,6 +1,6 @@
 """Interactive jobs for the test workspace."""
 
-from dlt._workspace.deployment.decorators import interactive
+from dlt.hub.run import interactive
 
 
 @interactive(interface="rest_api")

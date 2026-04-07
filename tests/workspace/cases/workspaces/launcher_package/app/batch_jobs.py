@@ -1,6 +1,6 @@
 """Batch jobs for launcher tests."""
 
-from dlt._workspace.deployment.decorators import job
+from dlt.hub.run import job
 
 
 @job

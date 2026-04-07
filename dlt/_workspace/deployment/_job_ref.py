@@ -1,7 +1,7 @@
 from typing import List, Optional, Sequence, Tuple
 
 from dlt._workspace.deployment.exceptions import AmbiguousJobRef, InvalidJobRef, JobRefNotFound
-from dlt._workspace.deployment.typing import TJobRef
+from dlt._workspace.deployment.typing import TDeliverSpec, TExposeSpec, TJobRef
 
 JOB_REF_PREFIX = "jobs."
 
@@ -41,6 +41,37 @@ def parse_job_ref(ref: TJobRef) -> Tuple[str, str]:
 def short_name(ref: str) -> str:
     """Extract the name (last component) from a job_ref."""
     return ref.rsplit(".", 1)[-1]
+
+
+def format_job_label(
+    job_ref: str,
+    expose: Optional[TExposeSpec] = None,
+    deliver: Optional[TDeliverSpec] = None,
+) -> str:
+    """Format a job_ref for consistent human-facing display.
+
+    Args:
+        job_ref (str): Canonical job reference (e.g. `"jobs.batch.backfill"`).
+        expose (Optional[TExposeSpec]): Optional expose spec for `display_name`.
+        deliver (Optional[TDeliverSpec]): Optional deliver spec for `pipeline_name`.
+
+    Returns:
+        str: Display label suitable for tables, logs, and CLI output.
+    """
+    section, name_part = parse_job_ref(TJobRef(job_ref))
+
+    display_name = expose.get("display_name") if expose else None
+    pipeline_name = deliver.get("pipeline_name") if deliver else None
+
+    label = display_name or name_part
+
+    if pipeline_name:
+        return f"{label} ({pipeline_name})"
+
+    if not section or section == name_part:
+        return label
+
+    return f"{label} ({section})"
 
 
 def resolve_job_ref(

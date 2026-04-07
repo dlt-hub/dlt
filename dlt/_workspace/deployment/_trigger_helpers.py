@@ -179,7 +179,7 @@ def normalize_trigger(trigger: Union[str, TTrigger]) -> TTrigger:
     _SYNTHETIC_TYPES = {"manual", "pipeline_name"}
 
     # import here to avoid circular import — creators live in triggers.py
-    from dlt._workspace.deployment.triggers import schedule
+    from dlt._workspace.deployment.trigger import schedule
 
     s = str(trigger).strip()
 

@@ -12,6 +12,7 @@ from dlt._workspace.deployment.manifest import (
     bump_manifest_version,
     compute_default_trigger,
     generate_manifest_hash,
+    hash_job_definition,
     load_manifest,
     migrate_manifest,
     save_manifest,
@@ -123,8 +124,37 @@ def test_empty_manifest() -> None:
             None,
             None,
         ),
+        # 'py' as section is reserved
+        (
+            lambda: [_make_job("jobs.py.foo")],
+            False,
+            "section 'py' is reserved",
+            None,
+        ),
+        # 'py' as sectioned name is reserved
+        (
+            lambda: [_make_job("jobs.mod.py")],
+            False,
+            "name 'py' is reserved",
+            None,
+        ),
+        # 'py' as module-level name is reserved
+        (
+            lambda: [_make_job("jobs.py")],
+            False,
+            "name 'py' is reserved",
+            None,
+        ),
     ],
-    ids=["duplicate-ref", "batch-http", "interactive-no-http", "invalid-trigger"],
+    ids=[
+        "duplicate-ref",
+        "batch-http",
+        "interactive-no-http",
+        "invalid-trigger",
+        "py-section-reserved",
+        "py-sectioned-name-reserved",
+        "py-module-name-reserved",
+    ],
 )
 def test_validation_errors_and_warnings(jobs_fn, expect_valid, error_frag, warning_frag) -> None:
     result = validate_manifest(_make_manifest(jobs_fn()))
@@ -305,6 +335,53 @@ def test_manifest_hash_changes_on_content() -> None:
     m1 = _make_manifest([_make_job("jobs.mod.a")])
     m2 = _make_manifest([_make_job("jobs.mod.b")])
     assert generate_manifest_hash(m1) != generate_manifest_hash(m2)
+
+
+def test_job_hash_stable() -> None:
+    j1 = _make_job("jobs.mod.a", triggers=["schedule:0 8 * * *"])
+    j2 = _make_job("jobs.mod.a", triggers=["schedule:0 8 * * *"])
+    assert hash_job_definition(j1) == hash_job_definition(j2)
+
+
+def test_job_hash_canonical_key_order() -> None:
+    """Dict key order inside nested sub-structures must not affect the hash."""
+    j1 = _make_job("jobs.mod.a")
+    j2 = _make_job("jobs.mod.a")
+    # Rebuild entry_point with reversed key order — sort_keys must normalize it.
+    ep = j2["entry_point"]
+    j2["entry_point"] = {  # type: ignore[typeddict-item]
+        k: ep[k] for k in reversed(list(ep.keys()))  # type: ignore[literal-required]
+    }
+    assert hash_job_definition(j1) == hash_job_definition(j2)
+
+
+def test_job_hash_changes_on_description() -> None:
+    j1 = _make_job("jobs.mod.a")
+    j2 = _make_job("jobs.mod.a", description="a different description")
+    assert hash_job_definition(j1) != hash_job_definition(j2)
+
+
+def test_job_hash_changes_on_triggers() -> None:
+    j1 = _make_job("jobs.mod.a", triggers=["schedule:0 8 * * *"])
+    j2 = _make_job("jobs.mod.a", triggers=["schedule:0 9 * * *"])
+    assert hash_job_definition(j1) != hash_job_definition(j2)
+
+
+def test_job_hash_changes_on_entry_point() -> None:
+    j1 = _make_job("jobs.mod.a")
+    j2 = _make_job("jobs.mod.a")
+    j2["entry_point"] = {**j2["entry_point"], "module": "other_module"}
+    assert hash_job_definition(j1) != hash_job_definition(j2)
+
+
+def test_job_hash_independent_per_job() -> None:
+    """Changing one job must not change another job's hash — the core invariant
+    that prevents the 'single-change invalidates everything' bug in reconciliation."""
+    j_a = _make_job("jobs.mod.a")
+    j_b_v1 = _make_job("jobs.mod.b")
+    j_b_v2 = _make_job("jobs.mod.b", triggers=["schedule:0 8 * * *"])
+    assert hash_job_definition(j_a) == hash_job_definition(_make_job("jobs.mod.a"))
+    assert hash_job_definition(j_b_v1) != hash_job_definition(j_b_v2)
 
 
 def test_bump_version_initial() -> None:
@@ -734,23 +811,35 @@ def test_validate_job_definition_no_raise_on_valid() -> None:
             ["schedule:0 0 * * *", "every:1h"],
             "schedule:0 0 * * *",
         ),
-        # no schedule/every — first trigger wins
+        # no schedule/every — first eligible trigger wins
         (
             ["job.success:jobs.mod.up", "manual:jobs.mod.a"],
             "job.success:jobs.mod.up",
         ),
+        # manual/deployment skipped, next eligible wins
+        (
+            ["manual:jobs.mod.a", "deployment:prod", "tag:daily"],
+            "tag:daily",
+        ),
         # no triggers — None
         ([], None),
-        # only manual
-        (["manual:jobs.mod.a"], "manual:jobs.mod.a"),
+        # only manual — None (manual cannot be default)
+        (["manual:jobs.mod.a"], None),
+        # only deployment — None (deployment cannot be default)
+        (["deployment:prod"], None),
+        # only manual + deployment — None
+        (["manual:jobs.mod.a", "deployment:prod"], None),
     ],
     ids=[
         "schedule-preferred",
         "every-preferred",
         "schedule-over-every",
-        "first-trigger-fallback",
+        "first-eligible-fallback",
+        "skip-manual-and-deployment",
         "empty-triggers",
         "manual-only",
+        "deployment-only",
+        "manual-and-deployment-only",
     ],
 )
 def test_compute_default_trigger(triggers: List[str], expected: Optional[str]) -> None:

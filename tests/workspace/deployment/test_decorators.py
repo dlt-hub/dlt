@@ -8,6 +8,7 @@ import pytest
 
 import dlt
 from dlt._workspace.deployment.decorators import JobFactory, interactive, job, pipeline_run
+from dlt._workspace.deployment.exceptions import InvalidJobName, InvalidJobSection
 from dlt._workspace.deployment.typing import TTrigger
 
 
@@ -83,6 +84,115 @@ def test_job_decorator() -> None:
     sig = inspect.signature(with_params)
     assert "x" in sig.parameters
     assert "y" in sig.parameters
+
+
+@pytest.mark.parametrize(
+    "decorator_factory",
+    [
+        lambda name: job(name=name),
+        lambda name: interactive(name=name),
+        lambda name: pipeline_run("p", name=name),
+    ],
+    ids=["job", "interactive", "pipeline_run"],
+)
+@pytest.mark.parametrize(
+    "bad_name",
+    ["with space", "with-dash", "with.dot", "1leading_digit", "", "name!"],
+    ids=["space", "dash", "dot", "leading-digit", "empty", "punctuation"],
+)
+def test_decorator_rejects_non_identifier_name(decorator_factory: Any, bad_name: str) -> None:
+    """Decorator-supplied name must be a valid Python identifier."""
+    with pytest.raises(InvalidJobName) as exc_info:
+        decorator_factory(bad_name)
+
+    msg = str(exc_info.value)
+    assert bad_name in msg or repr(bad_name) in msg
+    # error nudges the user toward expose.display_name
+    assert "display_name" in msg
+    assert exc_info.value.name == bad_name
+
+
+@pytest.mark.parametrize(
+    "good_name",
+    ["snake_case", "_underscore_prefix", "camelCase", "with_digits_123", "x"],
+    ids=["snake", "underscore", "camel", "digits", "single-letter"],
+)
+def test_decorator_accepts_valid_identifier_name(good_name: str) -> None:
+    """Valid Python identifiers are accepted as decorator names."""
+
+    @job(name=good_name, section="sec")
+    def fn():
+        pass
+
+    assert fn.name == good_name
+    assert fn.job_ref == f"jobs.sec.{good_name}"
+
+
+@pytest.mark.parametrize(
+    "decorator_factory",
+    [
+        lambda section: job(section=section),
+        lambda section: interactive(section=section),
+        lambda section: pipeline_run("p", section=section),
+    ],
+    ids=["job", "interactive", "pipeline_run"],
+)
+@pytest.mark.parametrize(
+    "bad_section",
+    ["with space", "with-dash", "with.dot", "1leading_digit", "", "section!"],
+    ids=["space", "dash", "dot", "leading-digit", "empty", "punctuation"],
+)
+def test_decorator_rejects_non_identifier_section(decorator_factory: Any, bad_section: str) -> None:
+    """Decorator-supplied section must be a valid Python identifier."""
+    with pytest.raises(InvalidJobSection) as exc_info:
+        decorator_factory(bad_section)
+
+    msg = str(exc_info.value)
+    assert bad_section in msg or repr(bad_section) in msg
+    assert "section" in msg.lower()
+    assert exc_info.value.section == bad_section
+
+
+@pytest.mark.parametrize(
+    "good_section",
+    ["snake_case", "_underscore_prefix", "camelCase", "with_digits_123", "x"],
+    ids=["snake", "underscore", "camel", "digits", "single-letter"],
+)
+def test_decorator_accepts_valid_identifier_section(good_section: str) -> None:
+    """Valid Python identifiers are accepted as decorator sections."""
+
+    @job(name="my_job", section=good_section)
+    def fn():
+        pass
+
+    assert fn.section == good_section
+    assert fn.job_ref == f"jobs.{good_section}.my_job"
+
+
+def test_decorator_display_name_in_expose() -> None:
+    """`expose.display_name` is preserved on the job definition."""
+
+    @job(name="daily_etl", expose={"display_name": "Daily ETL (production)"})
+    def fn():
+        pass
+
+    job_def = fn.to_job_definition()
+    assert job_def["expose"]["display_name"] == "Daily ETL (production)"
+    # technical name is unchanged
+    assert fn.name == "daily_etl"
+
+    # display_name passes through interactive and pipeline_run too
+    @interactive(expose={"display_name": "My API"})
+    def api():
+        pass
+
+    assert api.to_job_definition()["expose"]["display_name"] == "My API"
+
+    @pipeline_run("analytics", expose={"display_name": "Analytics loader"})
+    def loader():
+        pass
+
+    assert loader.to_job_definition()["expose"]["display_name"] == "Analytics loader"
 
 
 def test_interactive_decorator() -> None:

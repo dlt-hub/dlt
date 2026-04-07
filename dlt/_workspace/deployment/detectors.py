@@ -17,7 +17,7 @@ from dlt.common.utils import get_module_name
 from dlt._workspace.deployment._job_ref import make_job_ref
 from dlt._workspace.deployment._trigger_helpers import normalize_triggers
 from dlt._workspace.deployment.launchers import get_launcher_for_framework
-from dlt._workspace.deployment import triggers as _triggers
+from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
     TExecuteSpec,

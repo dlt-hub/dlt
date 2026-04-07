@@ -33,7 +33,7 @@ from dlt._workspace.deployment._job_ref import (
     short_name as job_short_name,
 )
 from dlt._workspace.deployment import freshness
-from dlt._workspace.deployment import triggers
+from dlt._workspace.deployment import trigger
 from dlt._workspace.deployment.typing import (
     DEFAULT_DEPLOYMENT_MODULE,
     MANIFEST_ENGINE_VERSION,

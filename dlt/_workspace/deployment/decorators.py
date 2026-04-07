@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment import freshness as _freshness
-from dlt._workspace.deployment import triggers as _triggers
+from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment._trigger_helpers import normalize_triggers, parse_period_seconds
 from dlt._workspace.deployment.freshness import normalize_freshness_constraints
 from dlt.extract.reference import SourceFactory as AnySourceFactory
@@ -23,6 +23,7 @@ from dlt.extract.resource import DltResource
 from dlt.extract.source import DltSource
 
 from dlt._workspace.deployment._job_ref import make_job_ref
+from dlt._workspace.deployment.exceptions import InvalidJobName, InvalidJobSection
 from dlt._workspace.deployment.typing import (
     TDeliverSpec,
     TEntryPoint,
@@ -53,6 +54,18 @@ def _normalize_timeout(
     if isinstance(value, str):
         return {"timeout": parse_period_seconds(value)}
     return {"timeout": float(value)}
+
+
+def _validate_job_name(name: Optional[str]) -> None:
+    """Reject decorator names that are not valid Python identifiers."""
+    if name is not None and not name.isidentifier():
+        raise InvalidJobName(name)
+
+
+def _validate_job_section(section: Optional[str]) -> None:
+    """Reject decorator sections that are not valid Python identifiers."""
+    if section is not None and not section.isidentifier():
+        raise InvalidJobSection(section)
 
 
 TDeliverTarget = Union[AnySourceFactory[Any, DltSource], DltSource, DltResource]
@@ -233,6 +246,8 @@ def _job(
     spec: Type[BaseConfiguration] = None,
 ) -> Any:
     """Common decorator implementation for all job types."""
+    _validate_job_name(name)
+    _validate_job_section(section)
     wrapper: JobFactory[Any, Any] = JobFactory()
     wrapper.name = name
     wrapper.section = section
@@ -509,6 +524,8 @@ def pipeline_run(
     Returns:
         A decorator that wraps the function in a `JobFactory`.
     """
+    _validate_job_name(name)
+    _validate_job_section(section)
     pipeline_name = pipeline if isinstance(pipeline, str) else pipeline.pipeline_name
 
     deliver: TDeliverSpec = {"pipeline_name": pipeline_name}
