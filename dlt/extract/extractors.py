@@ -43,6 +43,11 @@ try:
 except MissingDependencyException:
     pandas = None
 
+try:
+    from dlt.common.libs.polars import polars, polars_to_arrow
+except MissingDependencyException:
+    polars = None
+
 
 class MaterializedEmptyList(List[Any]):
     """A list variant that will materialize tables even if empty list was yielded"""
@@ -388,9 +393,14 @@ class ArrowExtractor(Extractor):
             self._apply_contract_filters(tbl, resource, static_table_name)
             for tbl in (
                 (
-                    # 1. Convert pandas frame(s) to arrow Table, remove indexes because we store
+                    # 1. Convert pandas/polars frame(s) to arrow Table
                     pandas_to_arrow(item)
                     if (pandas and isinstance(item, pandas.DataFrame))
+                    else polars_to_arrow(item)
+                    if (
+                        polars
+                        and isinstance(item, (polars.DataFrame, polars.LazyFrame))
+                    )
                     else item
                 )
                 for item in items_list

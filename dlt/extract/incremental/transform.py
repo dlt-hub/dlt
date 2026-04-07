@@ -38,11 +38,16 @@ try:
 except MissingDependencyException:
     numpy = None
 
-# NOTE: always import pandas independently from pyarrow
+# NOTE: always import pandas/polars independently from pyarrow
 try:
     from dlt.common.libs.pandas import pandas, pandas_to_arrow
 except MissingDependencyException:
     pandas = None
+
+try:
+    from dlt.common.libs.polars import polars, polars_to_arrow
+except MissingDependencyException:
+    polars = None
 
 
 class IncrementalTransform:
@@ -426,6 +431,11 @@ class ArrowIncremental(IncrementalTransform):
         is_pandas = pandas is not None and isinstance(tbl, pandas.DataFrame)
         if is_pandas:
             tbl = pandas_to_arrow(tbl)
+        is_polars = polars is not None and isinstance(
+            tbl, (polars.DataFrame, polars.LazyFrame)
+        )
+        if is_polars:
+            tbl = polars_to_arrow(tbl)
 
         primary_key = self._primary_key(tbl) if callable(self._primary_key) else self._primary_key
         if primary_key:
@@ -593,6 +603,8 @@ class ArrowIncremental(IncrementalTransform):
             return None, start_out_of_range, end_out_of_range
         if is_pandas:
             tbl = tbl.to_pandas()
+        elif is_polars:
+            tbl = polars.from_arrow(tbl)
         return tbl, start_out_of_range, end_out_of_range
 
     def _process_null_at_cursor_path(self, tbl: "pa.Table") -> Tuple["pa.Table", "pa.Table"]:

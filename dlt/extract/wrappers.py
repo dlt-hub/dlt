@@ -18,6 +18,15 @@ try:
 except MissingDependencyException:
     ArrowTable, ArrowRecords = NoneType, NoneType
 
+try:
+    from dlt.common.libs.polars import polars
+
+    PolarsFrame = polars.DataFrame
+    PolarsLazyFrame = polars.LazyFrame
+except MissingDependencyException:
+    PolarsFrame = NoneType
+    PolarsLazyFrame = NoneType
+
 
 def wrap_additional_type(data: Any) -> Any:
     """Wraps any known additional type so it is accepted by DltResource"""
@@ -25,7 +34,7 @@ def wrap_additional_type(data: Any) -> Any:
     if data is None:
         return data
 
-    if isinstance(data, (PandaFrame, ArrowTable, ArrowRecords)):
+    if isinstance(data, (PandaFrame, ArrowTable, ArrowRecords, PolarsFrame, PolarsLazyFrame)):
         return [data]
 
     return data
