@@ -1,5 +1,5 @@
 import os
-import json
+import sqlite3
 import subprocess
 import tempfile
 import time
@@ -64,7 +64,6 @@ def main():
         env["AIRFLOW__CORE__EXECUTOR"] = "SequentialExecutor"
         env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = f"sqlite:///{airflow_home / 'airflow.db'}"
         env["AIRFLOW__API__BASE_URL"] = "http://127.0.0.1:8080"
-        env["AIRFLOW__LOGGING__LOGGING_LEVEL"] = "WARNING"
         env["DLT_SMOKE_DB_PATH"] = db_path
         # use 2 normalize workers to exercise spawn pool inside Airflow (#3586)
         env["NORMALIZE__WORKERS"] = "2"
@@ -120,32 +119,33 @@ def main():
                 env,
             )
 
-        print("=== Waiting for terminal state ===")
+        airflow_db = str(airflow_home / "airflow.db")
+
+        print("Waiting for terminal state", flush=True)
         deadline = time.time() + TIMEOUT_SECONDS
         while time.time() < deadline:
-            result = run_airflow(["dags", "state", DAG_ID, run_id], env, check=False)
-            state = result.stdout.strip().lower()
+            conn = sqlite3.connect(airflow_db)
+            try:
+                row = conn.execute(
+                    "SELECT state FROM dag_run WHERE dag_id = ? AND run_id = ?",
+                    (DAG_ID, run_id),
+                ).fetchone()
+            finally:
+                conn.close()
+            state = row[0] if row else None
             if state == "success":
-                print("DAG run succeeded")
+                print("DAG run succeeded", flush=True)
                 break
             if state == "failed":
-                res = run_airflow(
-                    ["tasks", "states-for-dag-run", DAG_ID, run_id, "--output", "json"],
-                    env,
-                    check=False,
-                )
-                print("=== Task states ===")
-                print(res.stdout)
-
-                failed_tasks = []
+                conn = sqlite3.connect(airflow_db)
                 try:
-                    rows = json.loads(res.stdout)
-                    for row in rows:
-                        if str(row.get("state", "")).lower() == "failed":
-                            failed_tasks.append((row["task_id"], int(row.get("try_number") or 1)))
-                except Exception:
-                    pass
-
+                    failed_tasks = conn.execute(
+                        "SELECT task_id, try_number FROM task_instance"
+                        " WHERE dag_id = ? AND run_id = ? AND state = 'failed'",
+                        (DAG_ID, run_id),
+                    ).fetchall()
+                finally:
+                    conn.close()
                 for task_id, try_number in failed_tasks:
                     log_path = (
                         airflow_home
@@ -163,6 +163,11 @@ def main():
                 raise RuntimeError("DAG run failed")
             time.sleep(POLL_SECONDS)
         else:
+            sched_log = work_dir / "scheduler.log"
+            if sched_log.exists():
+                print("Scheduler log")
+                lines = sched_log.read_text(errors="replace").splitlines()
+                print("\n".join(lines[-100:]))
             raise TimeoutError("Timed out waiting for DAG run to finish")
 
         print("=== Verifying results ===")
