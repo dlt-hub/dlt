@@ -354,6 +354,8 @@ class WithSqlClient(ABC):
 class WithSchemas(ABC):
     """Mixin for SQL clients that can manage tables across multiple dlt schemas."""
 
+    schemas: Dict[str, Schema]
+
     @abstractmethod
     def set_schemas(self, schemas: Sequence[Schema]) -> None: ...
 
