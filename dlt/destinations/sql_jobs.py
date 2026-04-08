@@ -1007,9 +1007,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     )
                 )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
+                columns = map(escape_column_id, list(table["columns"].keys()))
+                col_str = ", ".join([c for c in columns if c])
                 sql.append(f"""
-                    INSERT INTO {table_name}
-                    SELECT *
+                    INSERT INTO {table_name} ({col_str})
+                    SELECT {col_str}
                     FROM {staging_table_name}
                     WHERE {row_key_column} NOT IN (SELECT {row_key_column} FROM {table_name});
                 """)
