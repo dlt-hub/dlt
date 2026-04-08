@@ -198,8 +198,6 @@ class TableFormatLoadFilesystemJob(ReferenceFollowupJob):
     def _partition_columns(self) -> List[str]:
         return get_columns_names_with_prop(self._load_table, "partition")
 
-
-class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def _get_previous_load_id(self) -> Optional[str]:
         """Returns the most recently completed load_id from the loads table, or None."""
         loads_table_name = self._job_client.schema.loads_table_name
@@ -217,6 +215,9 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
         if not load_ids:
             return None
         return max(load_ids, key=float)
+
+
+class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
     def run(self) -> None:
         # create Arrow dataset from Parquet files
@@ -339,11 +340,15 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             return
 
         if self._load_table["write_disposition"] == "merge" and table is not None:
+            previous_load_id: Optional[str] = None
+            if self._load_table.get("x-insert-only-scope") == "previous_load":
+                previous_load_id = self._get_previous_load_id()
             merge_iceberg_table(
                 table=table,
                 data=self.arrow_dataset.to_table(),
                 schema=self._load_table,
                 load_table_name=self.load_table_name,
+                previous_load_id=previous_load_id,
             )
         else:
             write_iceberg_table(

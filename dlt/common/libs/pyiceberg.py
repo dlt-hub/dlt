@@ -94,19 +94,21 @@ def _filter_by_previous_load_iceberg(
     table: IcebergTable,
     source_data: pa.Table,
     key_cols: List[str],
+    previous_load_id: Optional[str] = None,
 ) -> pa.Table:
     """Remove from source rows whose keys exist in the previous load's target data."""
-    target_load_ids = table.scan(selected_fields=("_dlt_load_id",)).to_arrow()
-    if target_load_ids.num_rows == 0:
-        return source_data
-
-    max_load_id = pc.max(target_load_ids.column("_dlt_load_id")).as_py()
-    if max_load_id is None:
+    if previous_load_id is None:
+        # fall back to max _dlt_load_id from target
+        target_load_ids = table.scan(selected_fields=("_dlt_load_id",)).to_arrow()
+        if target_load_ids.num_rows == 0:
+            return source_data
+        previous_load_id = pc.max(target_load_ids.column("_dlt_load_id")).as_py()
+    if previous_load_id is None:
         return source_data
 
     prev_load_keys = table.scan(
         selected_fields=tuple(key_cols),
-        row_filter=EqualTo("_dlt_load_id", max_load_id),
+        row_filter=EqualTo("_dlt_load_id", previous_load_id),
     ).to_arrow()
 
     if prev_load_keys.num_rows == 0:
@@ -135,6 +137,7 @@ def merge_iceberg_table(
     data: pa.Table,
     schema: TTableSchema,
     load_table_name: str,
+    previous_load_id: Optional[str] = None,
 ) -> None:
     """Merges in-memory Arrow data into on-disk Iceberg table."""
     strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
@@ -149,9 +152,12 @@ def merge_iceberg_table(
             join_cols = get_columns_names_with_prop(schema, "primary_key")
 
         if strategy == "insert-only" and schema.get("x-insert-only-scope") == "previous_load":
-            data = _filter_by_previous_load_iceberg(table, data, join_cols)
+            data = _filter_by_previous_load_iceberg(table, data, join_cols, previous_load_id)
             if data.num_rows == 0:
                 return
+            # append directly — upsert would match keys against all history
+            table.append(ensure_iceberg_compatible_arrow_data(data))
+            return
 
         # TODO: replace the batching method with transaction with pyiceberg's release after 0.9.1
         for rb in data.to_batches(max_chunksize=1_000):
