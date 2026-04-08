@@ -1,5 +1,5 @@
 import os
-import sqlite3
+import json
 import subprocess
 import tempfile
 import time
@@ -64,7 +64,9 @@ def main():
         env["AIRFLOW__CORE__EXECUTOR"] = "SequentialExecutor"
         env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = f"sqlite:///{airflow_home / 'airflow.db'}"
         env["AIRFLOW__API__BASE_URL"] = "http://127.0.0.1:8080"
-        env["AIRFLOW__LOGGING__LOGGING_LEVEL"] = "WARNING"
+        # Airflow >=3.2 routes log messages and warnings to stdout, polluting
+        # CLI output we parse (e.g. `dags state`). Use ERROR to suppress them.
+        env["AIRFLOW__LOGGING__LOGGING_LEVEL"] = "ERROR"
         env["DLT_SMOKE_DB_PATH"] = db_path
         # use 2 normalize workers to exercise spawn pool inside Airflow (#3586)
         env["NORMALIZE__WORKERS"] = "2"
@@ -120,44 +122,32 @@ def main():
                 env,
             )
 
-        airflow_db = str(airflow_home / "airflow.db")
-
-        print("Waiting for terminal state", flush=True)
+        print("=== Waiting for terminal state ===")
         deadline = time.time() + TIMEOUT_SECONDS
-        poll_count = 0
         while time.time() < deadline:
-            conn = sqlite3.connect(airflow_db)
-            try:
-                row = conn.execute(
-                    "SELECT state FROM dag_run WHERE dag_id = ? AND run_id = ?",
-                    (DAG_ID, run_id),
-                ).fetchone()
-            finally:
-                conn.close()
-            state = row[0] if row else None
-            poll_count += 1
-            # also probe CLI output on first 3 polls to diagnose stdout noise
-            if poll_count <= 3:
-                cli = run_airflow(["dags", "state", DAG_ID, run_id], env, check=False)
-                print(
-                    f"  poll {poll_count}: db_state={state!r}"
-                    f" cli_stdout={cli.stdout.strip()!r}"
-                    f" cli_stderr={cli.stderr.strip()[:200]!r}",
-                    flush=True,
-                )
+            result = run_airflow(["dags", "state", DAG_ID, run_id], env, check=False)
+            state = result.stdout.strip().lower()
             if state == "success":
-                print("DAG run succeeded", flush=True)
+                print("DAG run succeeded")
                 break
             if state == "failed":
-                conn = sqlite3.connect(airflow_db)
+                res = run_airflow(
+                    ["tasks", "states-for-dag-run", DAG_ID, run_id, "--output", "json"],
+                    env,
+                    check=False,
+                )
+                print("=== Task states ===")
+                print(res.stdout)
+
+                failed_tasks = []
                 try:
-                    failed_tasks = conn.execute(
-                        "SELECT task_id, try_number FROM task_instance"
-                        " WHERE dag_id = ? AND run_id = ? AND state = 'failed'",
-                        (DAG_ID, run_id),
-                    ).fetchall()
-                finally:
-                    conn.close()
+                    rows = json.loads(res.stdout)
+                    for row in rows:
+                        if str(row.get("state", "")).lower() == "failed":
+                            failed_tasks.append((row["task_id"], int(row.get("try_number") or 1)))
+                except Exception:
+                    pass
+
                 for task_id, try_number in failed_tasks:
                     log_path = (
                         airflow_home
@@ -175,11 +165,6 @@ def main():
                 raise RuntimeError("DAG run failed")
             time.sleep(POLL_SECONDS)
         else:
-            sched_log = work_dir / "scheduler.log"
-            if sched_log.exists():
-                print("Scheduler log")
-                lines = sched_log.read_text(errors="replace").splitlines()
-                print("\n".join(lines[-100:]))
             raise TimeoutError("Timed out waiting for DAG run to finish")
 
         print("=== Verifying results ===")
