@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime  # noqa: I251
 from typing import Any, Optional, Set, Tuple, List, Type
 from pendulum.tz import UTC
@@ -22,32 +24,25 @@ from dlt.common.incremental.typing import (
     OnCursorValueMissing,
     TIncrementalRange,
 )
+from dlt.common.libs.narwhals import narwhals as nw
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.items import TTableHintTemplate
 
 try:
-    from dlt.common.libs import pyarrow
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
-    from dlt.common.libs.pyarrow import from_arrow_scalar, to_arrow_scalar
 except MissingDependencyException:
     pa = None
-    pyarrow = None
 
 try:
     from dlt.common.libs.numpy import numpy
 except MissingDependencyException:
     numpy = None
 
-# NOTE: always import pandas/polars independently from pyarrow
+# NOTE: always import pandas independently from pyarrow
 try:
-    from dlt.common.libs.pandas import pandas, pandas_to_arrow
+    from dlt.common.libs.pandas import pandas
 except MissingDependencyException:
     pandas = None
-
-try:
-    from dlt.common.libs.narwhals import polars, df_to_arrow
-except MissingDependencyException:
-    polars = None
 
 
 class IncrementalTransform:
@@ -374,244 +369,303 @@ class ArrowIncremental(IncrementalTransform):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        if self.last_value_func is max:
-            self.compute = pa.compute.max
-            self.end_compare = (
-                pa.compute.less if self.range_end == "open" else pa.compute.less_equal
-            )
-            self.last_value_compare = (
-                pa.compute.greater_equal if self.range_start == "closed" else pa.compute.greater
-            )
-            self.new_value_compare = pa.compute.greater
-        elif self.last_value_func is min:
-            self.compute = pa.compute.min
-            self.end_compare = (
-                pa.compute.greater if self.range_end == "open" else pa.compute.greater_equal
-            )
-            self.last_value_compare = (
-                pa.compute.less_equal if self.range_start == "closed" else pa.compute.less
-            )
-            self.new_value_compare = pa.compute.less
-        else:
+        if self.last_value_func not in (min, max):
             raise NotImplementedError(
                 "Only `min` or `max` of `last_value_func` is supported for arrow tables"
             )
 
-    def compute_unique_values(self, item: "TAnyArrowItem", unique_columns: List[str]) -> List[str]:
+    def compute_unique_values(
+        self, item: nw.DataFrame, unique_columns: List[str]
+    ) -> List[str]:
+        """Return a list of unique hash values for rows in a narwhals DataFrame."""
         if not unique_columns:
             return []
-        rows = item.select(unique_columns).to_pylist()
+        rows = item.select(unique_columns).rows(named=True)
         return [self.compute_unique_value(row, self._primary_key) for row in rows]
 
     def compute_unique_values_with_index(
-        self, item: "TAnyArrowItem", unique_columns: List[str]
+        self, item: nw.DataFrame, unique_columns: List[str]
     ) -> List[Tuple[Any, str]]:
+        """Return (index_value, unique_hash) pairs for rows in a narwhals DataFrame."""
         if not unique_columns:
             return []
-        indices = item[self._dlt_index].to_pylist()
-        rows = item.select(unique_columns).to_pylist()
+        indices = item[self._dlt_index].to_list()
+        rows = item.select(unique_columns).rows(named=True)
         return [
             (index, self.compute_unique_value(row, self._primary_key))
             for index, row in zip(indices, rows)
         ]
 
-    def _add_unique_index(self, tbl: "pa.Table") -> "pa.Table":
-        """Creates unique index if necessary."""
-        # create unique index if necessary
-        if self._dlt_index not in tbl.schema.names:
-            # indices = pa.compute.sequence(start=0, step=1, length=tbl.num_rows,
-            indices = pa.array(range(tbl.num_rows))
-            tbl = pyarrow.append_column(tbl, self._dlt_index, indices)
-        return tbl
-
     def __call__(
         self,
-        tbl: "TAnyArrowItem",
+        tbl: TDataItem,
     ) -> Tuple[TDataItem, bool, bool]:
-        is_pandas = pandas is not None and isinstance(tbl, pandas.DataFrame)
-        if is_pandas:
-            tbl = pandas_to_arrow(tbl)
-        is_polars = polars is not None and isinstance(
-            tbl, (polars.DataFrame, polars.LazyFrame)
-        )
-        if is_polars:
-            tbl = df_to_arrow(tbl)
+        return process_arrow_incremental(self, tbl)
 
-        primary_key = self._primary_key(tbl) if callable(self._primary_key) else self._primary_key
-        if primary_key:
-            # create a list of unique columns
-            if isinstance(primary_key, str):
-                unique_columns = [primary_key]
-            else:
-                unique_columns = list(primary_key)
-            # check if primary key components are in the table
-            for pk in unique_columns:
-                if pk not in tbl.schema.names:
-                    raise IncrementalPrimaryKeyMissing(self.resource_name, pk, tbl)
-            # use primary key as unique index
-            if isinstance(primary_key, str):
-                self._dlt_index = primary_key
-        elif primary_key is None:
-            unique_columns = tbl.schema.names
 
-        start_out_of_range = end_out_of_range = False
-        if not tbl:  # row is None or empty arrow table
-            return tbl, start_out_of_range, end_out_of_range
+def process_arrow_incremental(
+    self: ArrowIncremental,
+    tbl: TDataItem,
+) -> Tuple[TDataItem, bool, bool]:
+    """Process incremental filtering and deduplication on a dataframe-like input.
 
-        # TODO: Json path support. For now assume the cursor_path is a column name
-        cursor_path = self.cursor_path
-        try:
-            cursor_data_type = tbl.schema.field(cursor_path).type
-        except KeyError as e:
-            raise IncrementalCursorPathMissing(
-                self.resource_name,
-                cursor_path,
-                tbl,
-                f"Column name `{cursor_path}` was not found in the arrow table. Nested JSON paths"
-                " are not supported for arrow tables and dataframes, the incremental `cursor_path`"
-                " must be a column name.",
-            ) from e
+    Accepts any narwhals-compatible eager or lazy frame (pyarrow Table/RecordBatch,
+    pandas DataFrame, polars DataFrame/LazyFrame) and returns the same native type
+    (after filtering), so callers never need to track the backend themselves.
 
-        # The new max/min value
-        row_value_scalar = self.compute(tbl[cursor_path])
-        row_value = from_arrow_scalar(row_value_scalar)
-        # correct tz-awareness
-        if not self.seen_data and self.start_value_is_datetime and isinstance(row_value, datetime):
-            # NOTE: we are making sure that last_value == start_value here (self.seen_data)
-            assert self.last_value == self.start_value
-            self.start_value = self.last_value = self._adapt_timezone(
-                row_value, self.last_value, "last_value", self.resource_name
-            )
+    Returns:
+        Tuple of (filtered_table_or_None, start_out_of_range, end_out_of_range)
+    """
+    # pa.RecordBatch is not supported by narwhals; promote to Table upfront.
+    # The result will be a pa.Table, which is a lossless promotion.
+    is_record_batch = False
+    if pa is not None and isinstance(tbl, pa.RecordBatch):
+        is_record_batch = True
+        tbl = pa.Table.from_batches([tbl])
 
-        if tbl.schema.field(cursor_path).nullable:
-            tbl_without_null, tbl_with_null = self._process_null_at_cursor_path(tbl)
-            tbl = tbl_without_null
+    # Wrap in narwhals, collecting lazy frames (e.g. polars.LazyFrame) eagerly.
+    # narwhals.from_native preserves the backend so to_native() later returns
+    # the original type (pyarrow Table → pyarrow Table, pandas → pandas, etc.).
+    df = nw.from_native(tbl, allow_series=False)
+    if isinstance(df, nw.LazyFrame):
+        df = df.collect()
 
-        # If end_value is provided, filter to include table rows that are "less" than end_value
-        if self.end_value is not None:
-            # correct tz-awareness of end value
-            if (
-                not self.seen_data
-                and self.end_value_is_datetime
-                and isinstance(row_value, datetime)
-            ):
-                self.end_value = self._adapt_timezone(
-                    row_value, self.end_value, "end_value", self.resource_name
-                )
-            try:
-                end_value_scalar = to_arrow_scalar(self.end_value, cursor_data_type)
-            except Exception as ex:
-                raise IncrementalCursorInvalidCoercion(
-                    self.resource_name,
-                    cursor_path,
-                    self.end_value,
-                    "end_value",
-                    "<arrow column>",
-                    cursor_data_type,
-                    str(ex),
-                ) from ex
-            # Is max row value higher than end value?
-            # NOTE: pyarrow bool *always* evaluates to python True. `as_py()` is necessary
-            end_out_of_range = not self.end_compare(row_value_scalar, end_value_scalar).as_py()
-            if end_out_of_range:
-                tbl = tbl.filter(self.end_compare(tbl[cursor_path], end_value_scalar))
-                # NOTE: here we should recalculate row_value_scalar and row_value because it was out of range!
-                # right now we don't do that because self.last_value is not saved into state so this value will
-                # be discarded anyway. If we ever start saving state when end_value is present then we must able that
-                # row_value_scalar = self.compute(
-                #     tbl[cursor_path]
-                # )
-                # row_value = from_arrow_scalar(row_value_scalar)
+    # Resolve primary key (may be a callable that inspects the native table).
+    primary_key = self._primary_key(df.to_native()) if callable(self._primary_key) else self._primary_key
+    if primary_key:
+        unique_columns: List[str] = [primary_key] if isinstance(primary_key, str) else list(primary_key)
+        for pk in unique_columns:
+            if pk not in df.columns:
+                raise IncrementalPrimaryKeyMissing(self.resource_name, pk, df.to_native())
+        # A single-column primary key doubles as the dedup row index.
+        if isinstance(primary_key, str):
+            self._dlt_index = primary_key
+    elif primary_key is None:
+        unique_columns = list(df.columns)
+    else:
+        unique_columns = []
 
-        self.seen_data = True
-
-        if self.start_value is not None:
-            try:
-                start_value_scalar = to_arrow_scalar(self.start_value, cursor_data_type)
-            except Exception as ex:
-                raise IncrementalCursorInvalidCoercion(
-                    self.resource_name,
-                    cursor_path,
-                    self.start_value,
-                    "start_value/initial_value",
-                    "<arrow column>",
-                    cursor_data_type,
-                    str(ex),
-                ) from ex
-            # Remove rows lower or equal than the last start value
-            keep_filter = self.last_value_compare(tbl[cursor_path], start_value_scalar)
-            start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
-            tbl = tbl.filter(keep_filter)
-            if self.boundary_deduplication:
-                # Deduplicate after filtering old values
-                tbl = self._add_unique_index(tbl)
-                # Remove already processed rows where the cursor is equal to the start value
-                eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], start_value_scalar))
-                # compute index, unique hash mapping
-                unique_values_index = self.compute_unique_values_with_index(eq_rows, unique_columns)
-                unique_values_index = [
-                    (i, uq_val)
-                    for i, uq_val in unique_values_index
-                    if uq_val in self.start_unique_hashes
-                ]
-                if len(unique_values_index) > 0:
-                    # find rows with unique ids that were stored from previous run
-                    remove_idx = pa.array(i for i, _ in unique_values_index)
-                    tbl = tbl.filter(
-                        pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx))
-                    )
-
-        if (
-            self.last_value is None
-            or self.new_value_compare(
-                row_value_scalar, to_arrow_scalar(self.last_value, cursor_data_type)
-            ).as_py()
-        ):  # Last value has changed
-            self.last_value = row_value
-            if self.boundary_deduplication:
-                # Compute unique hashes for all rows equal to row value
-                self.unique_hashes = set(
-                    self.compute_unique_values(
-                        tbl.filter(pa.compute.equal(tbl[cursor_path], row_value_scalar)),
-                        unique_columns,
-                    )
-                )
-        elif self.last_value == row_value and self.boundary_deduplication:
-            # last value is unchanged, add the hashes
-            self.unique_hashes.update(
-                set(
-                    self.compute_unique_values(
-                        tbl.filter(pa.compute.equal(tbl[cursor_path], row_value_scalar)),
-                        unique_columns,
-                    )
-                )
-            )
-
-        # drop the temp unique index before concat and returning
-        if "_dlt_index" in tbl.schema.names:
-            tbl = pyarrow.remove_columns(tbl, ["_dlt_index"])
-
-        if self.on_cursor_value_missing == "include":
-            if tbl.schema.field(cursor_path).nullable:
-                if isinstance(tbl, pa.RecordBatch):
-                    assert isinstance(tbl_with_null, pa.RecordBatch)
-                    tbl = pa.Table.from_batches([tbl, tbl_with_null])
-                else:
-                    tbl = pa.concat_tables([tbl, tbl_with_null], promote_options="none")
-
-        if len(tbl) == 0:
-            return None, start_out_of_range, end_out_of_range
-        if is_pandas:
-            tbl = tbl.to_pandas()
-        elif is_polars:
-            tbl = polars.from_arrow(tbl)
+    start_out_of_range = end_out_of_range = False
+    if len(df) == 0:
         return tbl, start_out_of_range, end_out_of_range
 
-    def _process_null_at_cursor_path(self, tbl: "pa.Table") -> Tuple["pa.Table", "pa.Table"]:
-        mask = pa.compute.is_valid(tbl[self.cursor_path])
-        rows_without_null = tbl.filter(mask)
-        rows_with_null = tbl.filter(pa.compute.invert(mask))
+    cursor_path = self.cursor_path
+    if cursor_path not in df.columns:
+        raise IncrementalCursorPathMissing(
+            self.resource_name,
+            cursor_path,
+            df.to_native(),
+            f"Column name `{cursor_path}` was not found in the table. Nested JSON paths"
+            " are not supported for arrow tables and dataframes, the incremental"
+            " `cursor_path` must be a column name.",
+        )
+
+    # ---------------------------------------------------------------------------
+    # Build backend-agnostic comparison helpers from last_value_func.
+    #
+    # Series-level operators (series >= value) delegate directly to the native
+    # backend, which can raise type-mismatch errors (e.g. pyarrow refuses to
+    # compare timestamp[ns,UTC] with timestamp[us,+00:00]).
+    #
+    # Using narwhals *expressions* (nw.col / nw.lit) instead lets narwhals
+    # resolve types before handing off to the backend.  nw.lit(value).cast(dtype)
+    # ensures the scalar is cast to exactly the same dtype as the column, so
+    # pyarrow (and every other backend) sees a compatible pair.
+    # ---------------------------------------------------------------------------
+    col_dtype = df[cursor_path].dtype
+
+    if self.last_value_func is max:
+        def _compute_agg(series: "nw.Series") -> Any:
+            return series.max()
+
+        def _end_compare_expr(col: str, dtype: "nw.DType", value: Any) -> "nw.Expr":
+            lit = nw.lit(value).cast(dtype)
+            return nw.col(col) < lit if self.range_end == "open" else nw.col(col) <= lit
+
+        def _end_compare_scalar(a: Any, b: Any) -> bool:
+            return a < b if self.range_end == "open" else a <= b
+
+        def _last_value_compare_expr(col: str, dtype: "nw.DType", value: Any) -> "nw.Expr":
+            lit = nw.lit(value).cast(dtype)
+            return nw.col(col) >= lit if self.range_start == "closed" else nw.col(col) > lit
+
+        def _new_value_compare(a: Any, b: Any) -> bool:
+            return a > b
+    else:  # min
+        def _compute_agg(series: "nw.Series") -> Any:
+            return series.min()
+
+        def _end_compare_expr(col: str, dtype: "nw.DType", value: Any) -> "nw.Expr":
+            lit = nw.lit(value).cast(dtype)
+            return nw.col(col) > lit if self.range_end == "open" else nw.col(col) >= lit
+
+        def _end_compare_scalar(a: Any, b: Any) -> bool:
+            return a > b if self.range_end == "open" else a >= b
+
+        def _last_value_compare_expr(col: str, dtype: "nw.DType", value: Any) -> "nw.Expr":
+            lit = nw.lit(value).cast(dtype)
+            return nw.col(col) <= lit if self.range_start == "closed" else nw.col(col) < lit
+
+        def _new_value_compare(a: Any, b: Any) -> bool:
+            return a < b
+
+    # ---------------------------------------------------------------------------
+    # Compute the max/min cursor value across the whole batch (Python scalar).
+    #
+    # Narwhals may return backend-specific scalars depending on the frame type:
+    #   - pandas-backed frames: numpy.generic (e.g. np.int64) or pandas.Timestamp
+    #   - pyarrow / polars: plain Python types
+    #
+    # We normalise to plain Python so the value is:
+    #   (a) JSON-serialisable for state persistence, and
+    #   (b) safely comparable with the pendulum.DateTime values restored from
+    #       state — pendulum.__eq__(pandas.Timestamp) internally calls
+    #       Timestamp.toordinal() which raises NotImplementedError for
+    #       nanosecond-precision timestamps.
+    # ---------------------------------------------------------------------------
+    row_value = _compute_agg(df[cursor_path])
+    if numpy is not None and isinstance(row_value, numpy.generic):
+        # Covers np.int64, np.float64, np.datetime64, … from pandas int/float cols
+        row_value = row_value.item()
+    if pandas is not None and isinstance(row_value, pandas.Timestamp):
+        # pandas datetime columns return Timestamp from .max()/.min()
+        row_value = row_value.to_pydatetime()
+
+    # Adapt tz-awareness of start/last value to match the incoming data on
+    # the very first batch (only fires once per instance lifetime).
+    if not self.seen_data and self.start_value_is_datetime and isinstance(row_value, datetime):
+        assert self.last_value == self.start_value
+        self.start_value = self.last_value = self._adapt_timezone(
+            row_value, self.last_value, "last_value", self.resource_name
+        )
+
+    # ---------------------------------------------------------------------------
+    # Separate rows where cursor is NULL.
+    # We always check null_count (rather than relying on schema-level nullable
+    # flag) so the logic is uniform across all backends.
+    # ---------------------------------------------------------------------------
+    df_with_null: Optional["nw.DataFrame"] = None
+    has_nulls = df[cursor_path].null_count() > 0
+    if has_nulls:
+        df_with_null = df.filter(nw.col(cursor_path).is_null())
+        df = df.filter(~nw.col(cursor_path).is_null())
         if self.on_cursor_value_missing == "raise":
-            if rows_with_null.num_rows > 0:
-                raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path)
-        return rows_without_null, rows_with_null
+            raise IncrementalCursorPathHasValueNone(self.resource_name, cursor_path)
+
+    # ---------------------------------------------------------------------------
+    # Filter: exclude rows beyond end_value.
+    # ---------------------------------------------------------------------------
+    if self.end_value is not None:
+        if not self.seen_data and self.end_value_is_datetime and isinstance(row_value, datetime):
+            self.end_value = self._adapt_timezone(
+                row_value, self.end_value, "end_value", self.resource_name
+            )
+        try:
+            # Scalar check: is the batch max/min already within range?
+            end_out_of_range = not _end_compare_scalar(row_value, self.end_value)
+            if end_out_of_range:
+                # Expression evaluation is lazy in narwhals: the cast/comparison
+                # is only executed here inside filter, so we catch type errors here.
+                df = df.filter(_end_compare_expr(cursor_path, col_dtype, self.end_value))
+                # NOTE: row_value is intentionally NOT recalculated here — when
+                # end_value is set, self.last_value is never persisted to state.
+        except IncrementalCursorInvalidCoercion:
+            raise
+        except Exception as ex:
+            raise IncrementalCursorInvalidCoercion(
+                self.resource_name,
+                cursor_path,
+                self.end_value,
+                "end_value",
+                "<column>",
+                str(col_dtype),
+                str(ex),
+            ) from ex
+
+    self.seen_data = True
+
+    # ---------------------------------------------------------------------------
+    # Filter: exclude rows below/at start_value (already-processed boundary).
+    # ---------------------------------------------------------------------------
+    need_temp_index = False  # tracks whether we injected a temporary row index
+    if self.start_value is not None:
+        try:
+            keep_expr = _last_value_compare_expr(cursor_path, col_dtype, self.start_value)
+            # Expression evaluation is lazy in narwhals: the cast/comparison
+            # is only executed here inside filter, so we catch type errors here.
+            n_before = len(df)
+            df = df.filter(keep_expr)
+        except IncrementalCursorInvalidCoercion:
+            raise
+        except Exception as ex:
+            raise IncrementalCursorInvalidCoercion(
+                self.resource_name,
+                cursor_path,
+                self.start_value,
+                "start_value/initial_value",
+                "<column>",
+                str(col_dtype),
+                str(ex),
+            ) from ex
+        # Detect whether any rows were filtered out (= start boundary was hit).
+        start_out_of_range = len(df) < n_before
+
+        if self.boundary_deduplication:
+            # Add a temporary integer row index when no single-column PK is
+            # acting as the index already.
+            need_temp_index = ArrowIncremental._dlt_index not in df.columns
+            if need_temp_index:
+                df = df.with_row_index(ArrowIncremental._dlt_index)
+
+            # Among the kept rows, find those sitting exactly on the boundary
+            # (cursor == start_value) and remove any that we already processed
+            # in the previous run (tracked via start_unique_hashes).
+            eq_expr = nw.col(cursor_path) == nw.lit(self.start_value).cast(col_dtype)
+            eq_df = df.filter(eq_expr)
+            unique_values_index = self.compute_unique_values_with_index(eq_df, unique_columns)
+            to_remove = [i for i, v in unique_values_index if v in self.start_unique_hashes]
+            if to_remove:
+                df = df.filter(~df[self._dlt_index].is_in(to_remove))
+
+    # ---------------------------------------------------------------------------
+    # Update last_value and unique_hashes for the next run.
+    # ---------------------------------------------------------------------------
+    eq_row_expr = nw.col(cursor_path) == nw.lit(row_value).cast(col_dtype)
+    if self.last_value is None or _new_value_compare(row_value, self.last_value):
+        # The batch contains a new extreme — reset tracked hashes.
+        self.last_value = row_value
+        if self.boundary_deduplication:
+            self.unique_hashes = set(
+                self.compute_unique_values(
+                    df.filter(eq_row_expr),
+                    unique_columns,
+                )
+            )
+    elif self.last_value == row_value and self.boundary_deduplication:
+        # Same extreme as before — accumulate hashes.
+        self.unique_hashes.update(
+            self.compute_unique_values(
+                df.filter(eq_row_expr),
+                unique_columns,
+            )
+        )
+
+    # Drop the temporary row index before returning (never drop a real PK column).
+    if need_temp_index and ArrowIncremental._dlt_index in df.columns:
+        df = df.drop(ArrowIncremental._dlt_index)
+
+    # ---------------------------------------------------------------------------
+    # Re-attach rows with NULL cursor values when mode is "include".
+    # ---------------------------------------------------------------------------
+    if self.on_cursor_value_missing == "include" and has_nulls and df_with_null is not None:
+        df = nw.concat([df, df_with_null])
+
+    if len(df) == 0:
+        return None, start_out_of_range, end_out_of_range
+
+    native_tbl = df.to_native()
+    if is_record_batch:
+        # TODO test that this never drops data
+        native_tbl = native_tbl.combine_chunks().to_batches()[0]
+
+    return native_tbl, start_out_of_range, end_out_of_range
