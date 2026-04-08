@@ -98,12 +98,6 @@ def _filter_by_previous_load_iceberg(
 ) -> pa.Table:
     """Remove from source rows whose keys exist in the previous load's target data."""
     if previous_load_id is None:
-        # fall back to max _dlt_load_id from target
-        target_load_ids = table.scan(selected_fields=("_dlt_load_id",)).to_arrow()
-        if target_load_ids.num_rows == 0:
-            return source_data
-        previous_load_id = pc.max(target_load_ids.column("_dlt_load_id")).as_py()
-    if previous_load_id is None:
         return source_data
 
     prev_load_keys = table.scan(
@@ -123,7 +117,7 @@ def _filter_by_previous_load_iceberg(
         arrays = [pc.cast(tbl.column(c), pa.string()) for c in cols]
         result = arrays[0]
         for arr in arrays[1:]:
-            result = pc.binary_join_element_wise(result, arr, "|")
+            result = pc.binary_join_element_wise(result, arr, "\x00")
         return result
 
     prev_concat = concat_keys(prev_load_keys, key_cols)

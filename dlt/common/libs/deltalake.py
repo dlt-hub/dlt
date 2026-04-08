@@ -154,7 +154,7 @@ def _filter_by_previous_load(
         arrays = [pa.compute.cast(tbl.column(c), pa.string()) for c in cols]
         result = arrays[0]
         for arr in arrays[1:]:
-            result = pa.compute.binary_join_element_wise(result, arr, "|")
+            result = pa.compute.binary_join_element_wise(result, arr, "\x00")
         return result
 
     prev_concat = concat_keys(prev_load_keys, key_cols)
