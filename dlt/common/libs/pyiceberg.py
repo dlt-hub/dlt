@@ -29,11 +29,13 @@ try:
     from pyiceberg.table import Table as IcebergTable
     from pyiceberg.catalog import Catalog as IcebergCatalog
     from pyiceberg.exceptions import NoSuchTableError
+    from pyiceberg.expressions import EqualTo
     from pyiceberg.partitioning import (
         UNPARTITIONED_PARTITION_SPEC,
         PartitionSpec as IcebergPartitionSpec,
     )
     import pyarrow as pa
+    import pyarrow.compute as pc
     from pydantic import BaseModel, ConfigDict, Field
 except ModuleNotFoundError:
     raise MissingDependencyException(
@@ -88,6 +90,46 @@ def write_iceberg_table(
     )
 
 
+def _filter_by_previous_load_iceberg(
+    table: IcebergTable,
+    source_data: pa.Table,
+    key_cols: List[str],
+) -> pa.Table:
+    """Remove from source rows whose keys exist in the previous load's target data."""
+    target_load_ids = table.scan(selected_fields=("_dlt_load_id",)).to_arrow()
+    if target_load_ids.num_rows == 0:
+        return source_data
+
+    max_load_id = pc.max(target_load_ids.column("_dlt_load_id")).as_py()
+    if max_load_id is None:
+        return source_data
+
+    prev_load_keys = table.scan(
+        selected_fields=tuple(key_cols),
+        row_filter=EqualTo("_dlt_load_id", max_load_id),
+    ).to_arrow()
+
+    if prev_load_keys.num_rows == 0:
+        return source_data
+
+    if len(key_cols) == 1:
+        col = key_cols[0]
+        mask = pc.invert(pc.is_in(source_data.column(col), value_set=prev_load_keys.column(col)))
+        return source_data.filter(mask)
+
+    def concat_keys(tbl: pa.Table, cols: List[str]) -> pa.Array:
+        arrays = [pc.cast(tbl.column(c), pa.string()) for c in cols]
+        result = arrays[0]
+        for arr in arrays[1:]:
+            result = pc.binary_join_element_wise(result, arr, "|")
+        return result
+
+    prev_concat = concat_keys(prev_load_keys, key_cols)
+    source_concat = concat_keys(source_data, key_cols)
+    mask = pc.invert(pc.is_in(source_concat, value_set=prev_concat))
+    return source_data.filter(mask)
+
+
 def merge_iceberg_table(
     table: IcebergTable,
     data: pa.Table,
@@ -105,6 +147,11 @@ def merge_iceberg_table(
             join_cols = [get_first_column_name_with_prop(schema, "unique")]
         else:
             join_cols = get_columns_names_with_prop(schema, "primary_key")
+
+        if strategy == "insert-only" and schema.get("x-insert-only-scope") == "previous_load":
+            data = _filter_by_previous_load_iceberg(table, data, join_cols)
+            if data.num_rows == 0:
+                return
 
         # TODO: replace the batching method with transaction with pyiceberg's release after 0.9.1
         for rb in data.to_batches(max_chunksize=1_000):
