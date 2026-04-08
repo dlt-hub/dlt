@@ -211,6 +211,10 @@ class TableFormatLoadFilesystemJob(ReferenceFollowupJob):
             filename = os.path.splitext(os.path.basename(filepath))[0]
             parts = filename.rsplit(FILENAME_SEPARATOR, maxsplit=1)
             if len(parts) == 2:
+                try:
+                    float(parts[1])
+                except ValueError:
+                    continue
                 load_ids.append(parts[1])
         if not load_ids:
             return None
