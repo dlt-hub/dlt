@@ -8,6 +8,7 @@ from dlt.common.typing import TAnyDateTime, TypedDict
 
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
+    LOADS_TABLE_NAME,
     TSortOrder,
     TColumnProp,
 )
@@ -752,6 +753,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         not_deleted_cond: Optional[str] = None,
         scope: Optional[str] = None,
         dlt_load_id_col: Optional[str] = None,
+        loads_table_name: Optional[str] = None,
     ) -> List[str]:
         """Generate MERGE statement for upsert/insert-only on root table.
 
@@ -768,18 +770,34 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 staging_source = (
                     f"(SELECT * FROM {staging_root_table_name} WHERE {not_deleted_cond})"
                 )
-            scope_filter = ""
-            if scope == "previous_load" and dlt_load_id_col is not None:
-                scope_filter = (
-                    f" AND d.{dlt_load_id_col} = "
-                    f"(SELECT MAX({dlt_load_id_col}) FROM {root_table_name})"
-                )
-            sql.append(f"""
-                MERGE INTO {root_table_name} d USING {staging_source} s
-                ON {on_str}{scope_filter}
-                WHEN NOT MATCHED
-                    THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
-            """)
+            if scope == "previous_load" and dlt_load_id_col is not None and loads_table_name:
+                # insert staging rows whose primary keys did not appear in the previous load;
+                # use INSERT ... SELECT ... WHERE NOT EXISTS instead of MERGE because we need to
+                # check the previous load only (not all history), and MERGE ON cannot contain
+                # subqueries against the target table on several engines (DuckDB, Spark, etc.);
+                # use _dlt_loads to find the previous load ID (not MAX from target table, which
+                # would miss loads that produced no rows)
+                pk_join = " AND ".join([f"__prev.{c} = __stg.{c}" for c in primary_keys])
+                col_str_plain = col_str.format(alias="")
+                col_str_stg = col_str.format(alias="__stg.")
+                sql.append(f"""
+                    INSERT INTO {root_table_name} ({col_str_plain})
+                    SELECT {col_str_stg} FROM {staging_source} __stg
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM {root_table_name} __prev
+                        WHERE __prev.{dlt_load_id_col} = (
+                            SELECT MAX(load_id) FROM {loads_table_name} WHERE status = 0
+                        )
+                        AND {pk_join}
+                    );
+                """)
+            else:
+                sql.append(f"""
+                    MERGE INTO {root_table_name} d USING {staging_source} s
+                    ON {on_str}
+                    WHEN NOT MATCHED
+                        THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+                """)
         else:
             update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
             delete_str = (
@@ -827,6 +845,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         # read insert-only scope hint
         scope: Optional[str] = root_table.get("x-insert-only-scope") if insert_only else None  # type: ignore[assignment]
         dlt_load_id_col = escape_column_id(C_DLT_LOAD_ID) if scope else None
+        loads_table_name = sql_client.make_qualified_table_name(LOADS_TABLE_NAME) if scope else None
 
         # generate merge statement for root table
         root_table_column_names = list(map(escape_column_id, root_table["columns"]))
@@ -848,6 +867,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 not_deleted_cond=not_deleted_cond,
                 scope=scope,
                 dlt_load_id_col=dlt_load_id_col,
+                loads_table_name=loads_table_name,
             )
         )
 
@@ -880,19 +900,28 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     update_str = f"WHEN MATCHED THEN UPDATE SET {update_str}"
                 col_str = ", ".join(["{alias}" + c for c in table_column_names])
 
-                scope_filter = ""
-                if scope == "previous_load" and dlt_load_id_col is not None:
-                    scope_filter = (
-                        f" AND d.{dlt_load_id_col} = "
-                        f"(SELECT MAX({dlt_load_id_col}) FROM {table_name})"
-                    )
-                sql.append(f"""
-                    MERGE INTO {table_name} d USING {staging_table_name} s
-                    ON d.{nested_row_key_column} = s.{nested_row_key_column}{scope_filter}
-                    {update_str}
-                    WHEN NOT MATCHED
-                        THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
-                """)
+                if scope == "previous_load" and dlt_load_id_col is not None and loads_table_name:
+                    col_str_plain = col_str.format(alias="")
+                    col_str_stg = col_str.format(alias="__stg.")
+                    sql.append(f"""
+                        INSERT INTO {table_name} ({col_str_plain})
+                        SELECT {col_str_stg} FROM {staging_table_name} __stg
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM {table_name} __prev
+                            WHERE __prev.{dlt_load_id_col} = (
+                                SELECT MAX(load_id) FROM {loads_table_name} WHERE status = 0
+                            )
+                            AND __prev.{nested_row_key_column} = __stg.{nested_row_key_column}
+                        );
+                    """)
+                else:
+                    sql.append(f"""
+                        MERGE INTO {table_name} d USING {staging_table_name} s
+                        ON d.{nested_row_key_column} = s.{nested_row_key_column}
+                        {update_str}
+                        WHEN NOT MATCHED
+                            THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+                    """)
 
                 if not insert_only:
                     root_key_column = escape_column_id(
