@@ -1,6 +1,7 @@
 import os
 
 import pytest
+import pyarrow
 
 import dlt
 from dlt.extract.utils import get_data_item_format
@@ -47,10 +48,12 @@ def test_wrap_additional_type_polars():
     from dlt.extract.wrappers import wrap_additional_type
 
     df = polars.DataFrame({"id": [1]})
-    assert wrap_additional_type(df) == [df]
+    wrapped_df = wrap_additional_type(df)
+    assert isinstance(wrapped_df[0], pyarrow.Table)
 
     lf = df.lazy()
-    assert wrap_additional_type(lf) == [lf]
+    wrapped_lf = wrap_additional_type(lf)
+    assert isinstance(wrapped_lf[0], pyarrow.Table)
 
 
 def test_resource_yields_polars_dataframe():
