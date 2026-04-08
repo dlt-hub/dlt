@@ -18,6 +18,7 @@ from functools import wraps
 
 from dlt.common.data_writers import TDataItemFormat
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.libs.narwhals import df_to_arrow
 from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.schema.utils import normalize_schema_name
@@ -55,11 +56,6 @@ try:
 except MissingDependencyException:
     pandas = None
 
-try:
-    from dlt.common.libs.narwhals import polars
-except MissingDependencyException:
-    polars = None
-
 
 def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     """Detect the format of the data item from `items`.
@@ -76,19 +72,22 @@ def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     if isinstance(items, ReadableDBAPIRelation):
         return "model"
 
-    if not pyarrow and not pandas and not polars:
-        return "object"
-
     # Assume all items in list are the same type
     try:
         if isinstance(items, list):
             items = items[0]
-        if (
-            (pyarrow and pyarrow.is_arrow_item(items))
-            or (pandas and isinstance(items, pandas.DataFrame))
-            or (polars and isinstance(items, (polars.DataFrame, polars.LazyFrame)))
-        ):
+
+        # handles native arrow tables and record batch
+        if pyarrow and pyarrow.is_arrow_item(items):
             return "arrow"
+
+        # handles any narwhals-compatible dataframe / lazyframe
+        try:
+            df_to_arrow(items)
+            return "arrow"
+        except TypeError:
+            pass
+
     except IndexError:
         pass
     return "object"

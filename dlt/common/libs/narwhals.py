@@ -15,7 +15,7 @@ def df_to_arrow(df: IntoDataFrame) -> pyarrow.Table:
 
     lazy frames are eagerly collected.
     """
-    nw_df = narwhals.from_native(df)
+    nw_df = narwhals.from_native(df, allow_series=False)
     if isinstance(nw_df, narwhals.LazyFrame):
         nw_df = nw_df.collect()
 
