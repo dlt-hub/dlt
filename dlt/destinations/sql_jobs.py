@@ -754,6 +754,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         scope: Optional[str] = None,
         dlt_load_id_col: Optional[str] = None,
         loads_table_name: Optional[str] = None,
+        escaped_load_id: Optional[str] = None,
+        escaped_status: Optional[str] = None,
     ) -> List[str]:
         """Generate MERGE statement for upsert/insert-only on root table.
 
@@ -765,33 +767,35 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
 
         if insert_only:
-            staging_source = staging_root_table_name
-            if hard_delete_col is not None and not_deleted_cond is not None:
-                staging_source = (
-                    f"(SELECT * FROM {staging_root_table_name} WHERE {not_deleted_cond})"
-                )
             if scope == "previous_load" and dlt_load_id_col is not None and loads_table_name:
-                # insert staging rows whose primary keys did not appear in the previous load;
-                # use INSERT ... SELECT ... WHERE NOT EXISTS instead of MERGE because we need to
-                # check the previous load only (not all history), and MERGE ON cannot contain
-                # subqueries against the target table on several engines (DuckDB, Spark, etc.);
-                # use _dlt_loads to find the previous load ID (not MAX from target table, which
-                # would miss loads that produced no rows)
-                pk_join = " AND ".join([f"__prev.{c} = __stg.{c}" for c in primary_keys])
-                col_str_plain = col_str.format(alias="")
-                col_str_stg = col_str.format(alias="__stg.")
+                # pre-filter hard-deleted records from staging before scope filter
+                if hard_delete_col is not None and not_deleted_cond is not None:
+                    sql.append(
+                        f"DELETE FROM {staging_root_table_name}"
+                        f" WHERE NOT ({not_deleted_cond});"
+                    )
+                # remove from staging keys already present in the previous load
+                pk_cols = ", ".join(primary_keys)
+                sql.append(
+                    f"DELETE FROM {staging_root_table_name} WHERE ({pk_cols}) IN ("
+                    f"SELECT {pk_cols} FROM {root_table_name}"
+                    f" WHERE {dlt_load_id_col} = ("
+                    f"SELECT MAX({escaped_load_id}) FROM {loads_table_name}"
+                    f" WHERE {escaped_status} = 0));"
+                )
+                # merge remaining staging rows — all are NOT MATCHED by construction
                 sql.append(f"""
-                    INSERT INTO {root_table_name} ({col_str_plain})
-                    SELECT {col_str_stg} FROM {staging_source} __stg
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM {root_table_name} __prev
-                        WHERE __prev.{dlt_load_id_col} = (
-                            SELECT MAX(load_id) FROM {loads_table_name} WHERE status = 0
-                        )
-                        AND {pk_join}
-                    );
+                    MERGE INTO {root_table_name} d USING {staging_root_table_name} s
+                    ON FALSE
+                    WHEN NOT MATCHED
+                        THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
                 """)
             else:
+                staging_source = staging_root_table_name
+                if hard_delete_col is not None and not_deleted_cond is not None:
+                    staging_source = (
+                        f"(SELECT * FROM {staging_root_table_name} WHERE {not_deleted_cond})"
+                    )
                 sql.append(f"""
                     MERGE INTO {root_table_name} d USING {staging_source} s
                     ON {on_str}
@@ -846,6 +850,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         scope: Optional[str] = root_table.get("x-insert-only-scope") if insert_only else None  # type: ignore[assignment]
         dlt_load_id_col = escape_column_id(C_DLT_LOAD_ID) if scope else None
         loads_table_name = sql_client.make_qualified_table_name(LOADS_TABLE_NAME) if scope else None
+        escaped_load_id = escape_column_id("load_id") if scope else None
+        escaped_status = escape_column_id("status") if scope else None
 
         # generate merge statement for root table
         root_table_column_names = list(map(escape_column_id, root_table["columns"]))
@@ -868,6 +874,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 scope=scope,
                 dlt_load_id_col=dlt_load_id_col,
                 loads_table_name=loads_table_name,
+                escaped_load_id=escaped_load_id,
+                escaped_status=escaped_status,
             )
         )
 
@@ -901,18 +909,20 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 col_str = ", ".join(["{alias}" + c for c in table_column_names])
 
                 if scope == "previous_load" and dlt_load_id_col is not None and loads_table_name:
-                    col_str_plain = col_str.format(alias="")
-                    col_str_stg = col_str.format(alias="__stg.")
+                    # remove from staging nested rows whose key already exists in previous load
+                    sql.append(
+                        f"DELETE FROM {staging_table_name}"
+                        f" WHERE ({nested_row_key_column}) IN ("
+                        f"SELECT {nested_row_key_column} FROM {table_name}"
+                        f" WHERE {dlt_load_id_col} = ("
+                        f"SELECT MAX({escaped_load_id}) FROM {loads_table_name}"
+                        f" WHERE {escaped_status} = 0));"
+                    )
                     sql.append(f"""
-                        INSERT INTO {table_name} ({col_str_plain})
-                        SELECT {col_str_stg} FROM {staging_table_name} __stg
-                        WHERE NOT EXISTS (
-                            SELECT 1 FROM {table_name} __prev
-                            WHERE __prev.{dlt_load_id_col} = (
-                                SELECT MAX(load_id) FROM {loads_table_name} WHERE status = 0
-                            )
-                            AND __prev.{nested_row_key_column} = __stg.{nested_row_key_column}
-                        );
+                        MERGE INTO {table_name} d USING {staging_table_name} s
+                        ON FALSE
+                        WHEN NOT MATCHED
+                            THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
                     """)
                 else:
                     sql.append(f"""
