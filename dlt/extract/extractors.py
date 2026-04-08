@@ -22,6 +22,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TPartialTableSchema,
 )
+from dlt.common.libs.narwhals import df_to_arrow
 from dlt.common.libs.sqlglot import filter_select_column_names
 from dlt.common.normalizers.json import helpers as normalize_helpers
 
@@ -37,16 +38,6 @@ try:
 except MissingDependencyException:
     pyarrow = None
     pa = None
-
-try:
-    from dlt.common.libs.pandas import pandas, pandas_to_arrow
-except MissingDependencyException:
-    pandas = None
-
-try:
-    from dlt.common.libs.narwhals import polars, df_to_arrow
-except MissingDependencyException:
-    polars = None
 
 
 class MaterializedEmptyList(List[Any]):
@@ -385,28 +376,21 @@ class ArrowExtractor(Extractor):
         )
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
+        static_table_name = self._get_static_table_name(resource, meta)
+
         items_list = items if isinstance(items, list) else [items]
 
-        static_table_name = self._get_static_table_name(resource, meta)
-        items = [
-            # 2. remove columns and rows in data contract filters
-            self._apply_contract_filters(tbl, resource, static_table_name)
-            for tbl in (
-                (
-                    # 1. Convert pandas/polars frame(s) to arrow Table
-                    pandas_to_arrow(item)
-                    if (pandas and isinstance(item, pandas.DataFrame))
-                    else df_to_arrow(item)
-                    if (
-                        polars
-                        and isinstance(item, (polars.DataFrame, polars.LazyFrame))
-                    )
-                    else item
-                )
-                for item in items_list
-            )
-        ]
-        super().write_items(resource, items, meta)
+        tables = []
+        for item in items_list:
+            try:
+                table = df_to_arrow(item)
+            except TypeError:
+                table = item
+
+            self._apply_contract_filters(table, resource, static_table_name)
+            tables.append(table)
+
+        super().write_items(resource, tables, meta)
 
     def _write_to_static_table(
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
