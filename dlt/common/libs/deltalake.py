@@ -120,7 +120,10 @@ def _filter_by_previous_load(
     schema: TTableSchema,
     previous_load_id: Optional[str],
 ) -> pa.Table:
-    """Remove from source rows whose keys exist in the previous load's target data."""
+    """Remove from source rows whose keys exist in the previous load's target data.
+
+    Only called for root tables — x-insert-only-scope does not propagate to child tables.
+    """
     if isinstance(source_data, pa.RecordBatchReader):
         source_data = source_data.read_all()
 

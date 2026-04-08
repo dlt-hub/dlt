@@ -14,7 +14,7 @@ from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
 from dlt.common.pipeline import SupportsPipeline
-from dlt.common.schema.typing import TWriteDisposition, TTableSchema
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TWriteDisposition, TTableSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
@@ -96,13 +96,16 @@ def _filter_by_previous_load_iceberg(
     key_cols: List[str],
     previous_load_id: Optional[str] = None,
 ) -> pa.Table:
-    """Remove from source rows whose keys exist in the previous load's target data."""
+    """Remove from source rows whose keys exist in the previous load's target data.
+
+    Only called for root tables — x-insert-only-scope does not propagate to child tables.
+    """
     if previous_load_id is None:
         return source_data
 
     prev_load_keys = table.scan(
         selected_fields=tuple(key_cols),
-        row_filter=EqualTo("_dlt_load_id", previous_load_id),
+        row_filter=EqualTo(C_DLT_LOAD_ID, previous_load_id),
     ).to_arrow()
 
     if prev_load_keys.num_rows == 0:
