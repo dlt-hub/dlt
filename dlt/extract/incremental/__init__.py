@@ -18,6 +18,7 @@ from functools import wraps
 
 from dlt.common import logger
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
+from dlt.common.libs.narwhals import df_to_arrow
 from dlt.common.pendulum import pendulum
 from dlt.common.jsonpath import compile_path, extract_simple_field_name
 from dlt.common.typing import (
@@ -619,12 +620,11 @@ class Incremental(
         for item in items if isinstance(items, list) else [items]:
             if is_arrow_item(item):
                 return self._make_or_get_transformer(ArrowIncremental)
-            elif pandas is not None and isinstance(item, pandas.DataFrame):
+            try:
+                df_to_arrow(item)
                 return self._make_or_get_transformer(ArrowIncremental)
-            elif polars is not None and isinstance(
-                item, (polars.DataFrame, polars.LazyFrame)
-            ):
-                return self._make_or_get_transformer(ArrowIncremental)
+            except TypeError:
+                pass
             return self._make_or_get_transformer(JsonIncremental)
         return self._make_or_get_transformer(JsonIncremental)
 
