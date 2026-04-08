@@ -22,6 +22,7 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TMergeDispositionDict,
     TScd2StrategyDict,
+    TInsertOnlyStrategyDict,
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
@@ -703,6 +704,10 @@ class DltResourceHints:
                 "unique": False,
                 "row_key": False,
             }
+        elif merge_strategy == "insert-only":
+            md_dict = cast(TInsertOnlyStrategyDict, md_dict)
+            if scope := md_dict.get("scope"):
+                dict_["x-insert-only-scope"] = scope
 
     @staticmethod
     def _merge_incremental_column_hint(dict_: Dict[str, Any]) -> None:
