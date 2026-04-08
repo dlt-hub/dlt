@@ -64,6 +64,7 @@ def main():
         env["AIRFLOW__CORE__EXECUTOR"] = "SequentialExecutor"
         env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = f"sqlite:///{airflow_home / 'airflow.db'}"
         env["AIRFLOW__API__BASE_URL"] = "http://127.0.0.1:8080"
+        env["AIRFLOW__LOGGING__LOGGING_LEVEL"] = "WARNING"
         env["DLT_SMOKE_DB_PATH"] = db_path
         # use 2 normalize workers to exercise spawn pool inside Airflow (#3586)
         env["NORMALIZE__WORKERS"] = "2"
@@ -123,6 +124,7 @@ def main():
 
         print("Waiting for terminal state", flush=True)
         deadline = time.time() + TIMEOUT_SECONDS
+        poll_count = 0
         while time.time() < deadline:
             conn = sqlite3.connect(airflow_db)
             try:
@@ -133,6 +135,16 @@ def main():
             finally:
                 conn.close()
             state = row[0] if row else None
+            poll_count += 1
+            # also probe CLI output on first 3 polls to diagnose stdout noise
+            if poll_count <= 3:
+                cli = run_airflow(["dags", "state", DAG_ID, run_id], env, check=False)
+                print(
+                    f"  poll {poll_count}: db_state={state!r}"
+                    f" cli_stdout={cli.stdout.strip()!r}"
+                    f" cli_stderr={cli.stderr.strip()[:200]!r}",
+                    flush=True,
+                )
             if state == "success":
                 print("DAG run succeeded", flush=True)
                 break
