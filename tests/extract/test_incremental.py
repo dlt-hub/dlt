@@ -1726,53 +1726,53 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
         yield source_items
 
     # the incremental wrapper is created for a resource and the incremental value is provided via apply hints
-    r = some_data()
-    assert r is not some_data
-    assert r.incremental is not None
-    assert r.incremental.incremental is None
-    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    resource = some_data()
+    assert resource is not some_data
+    assert resource.incremental is not None
+    assert resource.incremental.incremental is None
+    resource.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
     if item_type == "pandas":
-        assert list(r)[0].equals(source_items[0])
+        assert list(resource)[0].equals(source_items[0])
     else:
-        assert list(r) == source_items
-    p.extract(r)
-    assert "incremental" in r.state
-    assert r.incremental.incremental is not None
-    assert len(r._pipe) == 2
+        assert list(resource) == source_items
+    p.extract(resource)
+    assert "incremental" in resource.state
+    assert resource.incremental.incremental is not None
+    assert len(resource._pipe) == 2
     # no more elements
-    assert list(r) == []
+    assert list(resource) == []
 
     # same thing with explicit None
-    r = some_data(created_at=None).with_name("copy")
-    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    resource = some_data(created_at=None).with_name("copy")
+    resource.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
     if item_type == "pandas":
-        assert list(r)[0].equals(source_items[0])
+        assert list(resource)[0].equals(source_items[0])
     else:
-        assert list(r) == source_items
-    p.extract(r)
-    assert "incremental" in r.state
-    assert list(r) == []
+        assert list(resource) == source_items
+    p.extract(resource)
+    assert "incremental" in resource.state
+    assert list(resource) == []
 
     # remove incremental
     should_have_arg = False
-    r.apply_hints(incremental=dlt.sources.incremental.EMPTY)
-    assert r.incremental is not None
-    assert r.incremental.incremental is None
+    resource.apply_hints(incremental=dlt.sources.incremental.EMPTY)
+    assert resource.incremental is not None
+    assert resource.incremental.incremental is None
     if item_type == "pandas":
-        assert list(r)[0].equals(source_items[0])
+        assert list(resource)[0].equals(source_items[0])
     else:
-        assert list(r) == source_items
+        assert list(resource) == source_items
 
     # as above but we provide explicit incremental when creating resource
     p = p.drop()
     should_have_arg = True
-    r = some_data(created_at=dlt.sources.incremental("created_at", last_value_func=min))
+    resource = some_data(created_at=dlt.sources.incremental("created_at", last_value_func=min))
     # hints have precedence, as expected
-    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
-    p.extract(r)
-    assert "incremental" in r.state
+    resource.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    p.extract(resource)
+    assert "incremental" in resource.state
     # max value
-    assert r.state["incremental"]["created_at"]["last_value"] == 3
+    assert resource.state["incremental"]["created_at"]["last_value"] == 3
 
     @dlt.resource
     def some_data_w_default(created_at=dlt.sources.incremental("created_at", last_value_func=min)):
@@ -1783,12 +1783,12 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
 
     # default is overridden by apply hints
     p = p.drop()
-    r = some_data_w_default()
-    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
-    p.extract(r)
-    assert "incremental" in r.state
+    resource = some_data_w_default()
+    resource.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    p.extract(resource)
+    assert "incremental" in resource.state
     # min value
-    assert r.state["incremental"]["created_at"]["last_value"] == 3
+    assert resource.state["incremental"]["created_at"]["last_value"] == 3
 
     @dlt.resource
     def some_data_no_incremental():
@@ -1796,37 +1796,37 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
 
     # we add incremental as a step
     p = p.drop()
-    r = some_data_no_incremental()
-    print(r._pipe)
+    resource = some_data_no_incremental()
+    print(resource._pipe)
     incr_instance = dlt.sources.incremental("created_at", last_value_func=max)
-    r.apply_hints(incremental=incr_instance)
-    print(r._pipe)
-    assert r.incremental is incr_instance
-    p.extract(r)
-    assert "incremental" in r.state
+    resource.apply_hints(incremental=incr_instance)
+    print(resource._pipe)
+    assert resource.incremental is incr_instance
+    p.extract(resource)
+    assert "incremental" in resource.state
     info = p.normalize()
     assert info.row_counts["some_data_no_incremental"] == 3
     # make sure we can override incremental
     incr_instance = dlt.sources.incremental("created_at", last_value_func=max, row_order="desc")
-    r.apply_hints(incremental=incr_instance)
-    assert r.incremental is incr_instance
-    p.extract(r)
+    resource.apply_hints(incremental=incr_instance)
+    assert resource.incremental is incr_instance
+    p.extract(resource)
     info = p.normalize()
     assert "some_data_no_incremental" not in info.row_counts
     # we switch last value func to min
     incr_instance = dlt.sources.incremental(
         "created_at", last_value_func=min, row_order="desc", primary_key=()
     )
-    r.apply_hints(incremental=incr_instance)
-    assert r.incremental is incr_instance
-    p.extract(r)
+    resource.apply_hints(incremental=incr_instance)
+    assert resource.incremental is incr_instance
+    p.extract(resource)
     info = p.normalize()
     # we have three elements due to min function (equal element NOT is eliminated due to primary_key==())
     assert info.row_counts["some_data_no_incremental"] == 3
 
     # remove incremental
-    r.apply_hints(incremental=dlt.sources.incremental.EMPTY)
-    assert r.incremental is None
+    resource.apply_hints(incremental=dlt.sources.incremental.EMPTY)
+    assert resource.incremental is None
 
 
 def test_set_hints_does_not_desync_wrapper_from_inner() -> None:
@@ -2957,17 +2957,17 @@ def test_allow_external_schedulers(item_type: TestDataItemFormat) -> None:
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
-    r = test_type_3()
-    r.add_step(dlt.sources.incremental[int]("updated_at"))
-    r.incremental.allow_external_schedulers = True
-    result = data_item_to_list(item_type, list(r))
+    resource = test_type_3()
+    resource.add_step(dlt.sources.incremental[int]("updated_at"))
+    resource.incremental.allow_external_schedulers = True
+    result = data_item_to_list(item_type, list(resource))
     assert len(result) == 2
 
     # if type of incremental cannot be inferred, external scheduler will be ignored
-    r = test_type_3()
-    r.add_step(dlt.sources.incremental("updated_at"))
-    r.incremental.allow_external_schedulers = True
-    result = data_item_to_list(item_type, list(r))
+    resource = test_type_3()
+    resource.add_step(dlt.sources.incremental("updated_at"))
+    resource.incremental.allow_external_schedulers = True
+    result = data_item_to_list(item_type, list(resource))
     assert len(result) == 3
 
 
