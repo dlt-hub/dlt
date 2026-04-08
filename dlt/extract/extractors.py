@@ -44,7 +44,7 @@ except MissingDependencyException:
     pandas = None
 
 try:
-    from dlt.common.libs.polars import polars, polars_to_arrow
+    from dlt.common.libs.narwhals import polars, df_to_arrow
 except MissingDependencyException:
     polars = None
 
@@ -396,7 +396,7 @@ class ArrowExtractor(Extractor):
                     # 1. Convert pandas/polars frame(s) to arrow Table
                     pandas_to_arrow(item)
                     if (pandas and isinstance(item, pandas.DataFrame))
-                    else polars_to_arrow(item)
+                    else df_to_arrow(item)
                     if (
                         polars
                         and isinstance(item, (polars.DataFrame, polars.LazyFrame))

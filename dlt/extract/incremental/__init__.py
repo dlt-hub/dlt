@@ -76,7 +76,7 @@ except MissingDependencyException:
     pandas = None
 
 try:
-    from dlt.common.libs.polars import polars
+    from dlt.common.libs.narwhals import polars
 except MissingDependencyException:
     polars = None
 

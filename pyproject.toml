@@ -60,6 +60,7 @@ dependencies = [
     "sqlglot>=25.4.0",
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0",
+    "narwhals>=1.41.0",
 ]
 
 [project.optional-dependencies]

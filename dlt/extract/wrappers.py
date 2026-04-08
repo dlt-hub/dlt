@@ -19,7 +19,7 @@ except MissingDependencyException:
     ArrowTable, ArrowRecords = NoneType, NoneType
 
 try:
-    from dlt.common.libs.polars import polars
+    from dlt.common.libs.narwhals import polars
 
     PolarsFrame = polars.DataFrame
     PolarsLazyFrame = polars.LazyFrame

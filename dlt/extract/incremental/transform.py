@@ -45,7 +45,7 @@ except MissingDependencyException:
     pandas = None
 
 try:
-    from dlt.common.libs.polars import polars, polars_to_arrow
+    from dlt.common.libs.narwhals import polars, df_to_arrow
 except MissingDependencyException:
     polars = None
 
@@ -435,7 +435,7 @@ class ArrowIncremental(IncrementalTransform):
             tbl, (polars.DataFrame, polars.LazyFrame)
         )
         if is_polars:
-            tbl = polars_to_arrow(tbl)
+            tbl = df_to_arrow(tbl)
 
         primary_key = self._primary_key(tbl) if callable(self._primary_key) else self._primary_key
         if primary_key:

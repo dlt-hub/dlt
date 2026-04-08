@@ -18,16 +18,16 @@ def switch_to_fifo():
 
 def test_polars_to_arrow_conversion():
     """polars_to_arrow converts both DataFrame and LazyFrame"""
-    from dlt.common.libs.polars import polars_to_arrow
+    from dlt.common.libs.narwhals import df_to_arrow
 
     df = polars.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
-    arrow_tbl = polars_to_arrow(df)
+    arrow_tbl = df_to_arrow(df)
     assert arrow_tbl.num_rows == 3
     assert arrow_tbl.column_names == ["a", "b"]
 
     # LazyFrame auto-collected
     lf = df.lazy().filter(polars.col("a") > 1)
-    arrow_tbl = polars_to_arrow(lf)
+    arrow_tbl = df_to_arrow(lf)
     assert arrow_tbl.num_rows == 2
 
 
