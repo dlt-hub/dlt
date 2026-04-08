@@ -411,7 +411,7 @@ def test_relation_from_loads_query(
 
 
 @pytest.fixture(scope="module")
-def multi_schema_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
+def multi_schema_pipeline(module_tmp_path: pathlib.Path) -> dlt.Pipeline:
     pipeline = dlt.pipeline(
         pipeline_name="multi_schema",
         pipelines_dir=str(module_tmp_path / "pipelines_dir"),
@@ -420,7 +420,12 @@ def multi_schema_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
     )
     pipeline.run(crm(0))
     pipeline.run(inventory())
-    ds = pipeline.dataset()
+    return pipeline
+
+
+@pytest.fixture(scope="module")
+def multi_schema_dataset(multi_schema_pipeline: dlt.Pipeline) -> dlt.Dataset:
+    ds = multi_schema_pipeline.dataset()
     # we need to reset max_length here to avoid IncompatibleSchemaException
     # down the line in unify_schemas: max_length is resolved from
     # DestinationCapabilitiesContext at schema construction time
@@ -543,14 +548,142 @@ def test_use_single_dataset_false_stays_single_schema(
     assert ds.schema.name == "crm"
 
 
-def test_explicit_schema_stays_single(module_tmp_path: pathlib.Path) -> None:
+@pytest.mark.parametrize(
+    "schema_arg_fn, expected_names",
+    [
+        pytest.param(lambda a, b: [a, b], ["crm", "inventory"], id="list-input"),
+        pytest.param(lambda a, b: (b, a), ["inventory", "crm"], id="tuple-input-reversed"),
+        pytest.param(lambda a, b: [b, a], ["inventory", "crm"], id="caller-ordering"),
+        pytest.param(lambda a, b: [a], ["crm"], id="single-in-list"),
+    ],
+)
+def test_dataset_with_schema_sequence(
+    multi_schema_pipeline: dlt.Pipeline,
+    schema_arg_fn: Any,
+    expected_names: list[str],
+) -> None:
+    schema_a = multi_schema_pipeline.schemas["crm"]
+    schema_b = multi_schema_pipeline.schemas["inventory"]
+    schema_arg = schema_arg_fn(schema_a, schema_b)
+
+    ds = dlt.dataset(
+        destination=multi_schema_pipeline._destination,
+        dataset_name=multi_schema_pipeline.dataset_name,
+        schema=schema_arg,
+    )
+    assert [s.name for s in ds.schemas] == expected_names
+    assert ds.schema.name == expected_names[0]
+
+
+def test_dataset_with_empty_schema_sequence(
+    multi_schema_pipeline: dlt.Pipeline,
+) -> None:
+    ds = dlt.dataset(
+        destination=multi_schema_pipeline._destination,
+        dataset_name=multi_schema_pipeline.dataset_name,
+        schema=[],
+    )
+    with pytest.raises(ValueError, match="must not be empty"):
+        ds.schema
+
+
+@pytest.mark.parametrize(
+    "schema_fn, expected_names",
+    [
+        pytest.param(lambda a, b: [a, b], ["crm", "inventory"], id="sequence"),
+        pytest.param(lambda a, b: a, ["crm"], id="schema-object"),
+        pytest.param(lambda a, b: "crm", ["crm"], id="str-name"),
+        pytest.param(lambda a, b: None, ["crm", "inventory"], id="none-default"),
+    ],
+)
+def test_pipeline_dataset_with_explicit_schema(
+    multi_schema_pipeline: dlt.Pipeline,
+    schema_fn: Any,
+    expected_names: list[str],
+) -> None:
+    schema_a = multi_schema_pipeline.schemas["crm"]
+    schema_b = multi_schema_pipeline.schemas["inventory"]
+    schema_arg = schema_fn(schema_a, schema_b)
+
+    ds = multi_schema_pipeline.dataset(schema=schema_arg)
+    assert [s.name for s in ds.schemas] == expected_names
+    assert ds.schema.name == expected_names[0]
+    assert ds._pipeline_name == multi_schema_pipeline.pipeline_name
+
+
+def test_pipeline_dataset_with_empty_schema_sequence(
+    multi_schema_pipeline: dlt.Pipeline,
+) -> None:
+    ds = multi_schema_pipeline.dataset(schema=[])
+    with pytest.raises(ValueError, match="must not be empty"):
+        ds.schema
+
+
+@dlt.source
+def src_a():
+    @dlt.resource(name="shared_users")
+    def shared_users_a():
+        yield [{"id": 1, "name": "Alice"}]
+
+    return [shared_users_a]
+
+
+@dlt.source
+def src_b():
+    @dlt.resource(name="shared_users")
+    def shared_users_b():
+        yield [{"id": 2, "email": "bob@example.com"}]
+
+    return [shared_users_b]
+
+
+@pytest.fixture(scope="module")
+def overlapping_tables_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
     pipeline = dlt.pipeline(
-        pipeline_name="explicit_schema",
+        pipeline_name="overlapping_tables",
         pipelines_dir=str(module_tmp_path / "pipelines_dir"),
-        destination=dlt.destinations.duckdb(str(module_tmp_path / "explicit_schema.db")),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "overlapping_tables.db")),
         dev_mode=True,
     )
-    pipeline.run(crm(0))
-    pipeline.run(inventory())
-    ds = pipeline.dataset(schema="crm")
-    assert len(ds.schemas) == 1
+    pipeline.run(src_a())
+    pipeline.run(src_b())
+    ds = pipeline.dataset()
+    for s in ds.schemas:
+        s.naming.max_length = None
+    return ds
+
+
+def test_shared_table_merge(overlapping_tables_dataset: dlt.Dataset) -> None:
+    ds = overlapping_tables_dataset
+
+    sg_columns = ds.sqlglot_schema.column_names(sge.Table(this=sge.to_identifier("shared_users")))
+    assert sorted(sg_columns) == sorted(["id", "name", "_dlt_load_id", "_dlt_id", "email"])
+
+    rel_columns = ds["shared_users"].columns
+    assert sorted(rel_columns) == sorted(["id", "name", "_dlt_load_id", "_dlt_id", "email"])
+
+    rows = ds.query("SELECT id, name, email FROM shared_users ORDER BY id").fetchall()
+    assert rows == [(1, "Alice", None), (2, None, "bob@example.com")]
+
+
+def test_multi_schema_row_counts_by_load_id(
+    multi_schema_dataset: dlt.Dataset,
+) -> None:
+    ds = multi_schema_dataset
+    crm_load_id = ds.load_ids()[0]
+    inventory_load_id = ds.load_ids(schema_name="inventory")[0]
+
+    crm_counts = dict(ds.row_counts(load_id=crm_load_id).fetchall())
+    assert crm_counts == {
+        "users": 2,
+        "products": 2,
+        "items": 0,
+        "warehouses": 0,
+    }
+    inventory_counts = dict(ds.row_counts(load_id=inventory_load_id).fetchall())
+    assert inventory_counts == {
+        "users": 0,
+        "products": 0,
+        "items": 2,
+        "warehouses": 1,
+    }
