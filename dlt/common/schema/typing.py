@@ -279,12 +279,17 @@ class TScd2StrategyDict(TMergeDispositionDict, total=False):
     row_version_column_name: Optional[str]
 
 
+class TInsertOnlyStrategyDict(TMergeDispositionDict, total=False):
+    scope: Optional[Literal["previous_load"]]
+
+
 TWriteDispositionConfig = Union[
     TWriteDisposition,
     TWriteDispositionDict,
     TMergeDispositionDict,
     TScd2StrategyDict,
     TDeleteInsertStrategyDict,
+    TInsertOnlyStrategyDict,
 ]
 
 
