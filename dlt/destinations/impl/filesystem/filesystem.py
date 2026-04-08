@@ -200,6 +200,24 @@ class TableFormatLoadFilesystemJob(ReferenceFollowupJob):
 
 
 class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
+    def _get_previous_load_id(self) -> Optional[str]:
+        """Returns the most recently completed load_id from the loads table, or None."""
+        loads_table_name = self._job_client.schema.loads_table_name
+        try:
+            files = self._job_client.list_table_files(loads_table_name)
+        except DestinationUndefinedEntity:
+            return None
+        # filename format: {schema_name}__{load_id}.jsonl — load_id is a float timestamp string
+        load_ids: List[str] = []
+        for filepath in files:
+            filename = os.path.splitext(os.path.basename(filepath))[0]
+            parts = filename.rsplit(FILENAME_SEPARATOR, maxsplit=1)
+            if len(parts) == 2:
+                load_ids.append(parts[1])
+        if not load_ids:
+            return None
+        return max(load_ids, key=float)
+
     def run(self) -> None:
         # create Arrow dataset from Parquet files
         from dlt.common.libs.pyarrow import pyarrow as pa
@@ -226,6 +244,13 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
         except DestinationUndefinedEntity:
             delta_table = None
 
+        previous_load_id: Optional[str] = None
+        if (
+            delta_table is not None
+            and self._load_table.get("x-insert-only-scope") == "previous_load"
+        ):
+            previous_load_id = self._get_previous_load_id()
+
         with source_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
             if self._load_table["write_disposition"] == "merge" and delta_table is not None:
                 merge_delta_table(
@@ -234,6 +259,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     schema=self._load_table,
                     load_table_name=self.load_table_name,
                     streamed_exec=self._job_client.config.deltalake_streamed_exec,
+                    previous_load_id=previous_load_id,
                 )
             else:
                 location = self._job_client.get_open_table_location("delta", self.load_table_name)
