@@ -7,6 +7,7 @@ from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.typing import TAnyDateTime, TypedDict
 
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
     TSortOrder,
     TColumnProp,
 )
@@ -749,6 +750,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         deleted_cond: Optional[str],
         insert_only: bool = False,
         not_deleted_cond: Optional[str] = None,
+        scope: Optional[str] = None,
+        dlt_load_id_col: Optional[str] = None,
     ) -> List[str]:
         """Generate MERGE statement for upsert/insert-only on root table.
 
@@ -765,9 +768,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 staging_source = (
                     f"(SELECT * FROM {staging_root_table_name} WHERE {not_deleted_cond})"
                 )
+            scope_filter = ""
+            if scope == "previous_load" and dlt_load_id_col is not None:
+                scope_filter = (
+                    f" AND d.{dlt_load_id_col} = "
+                    f"(SELECT MAX({dlt_load_id_col}) FROM {root_table_name})"
+                )
             sql.append(f"""
                 MERGE INTO {root_table_name} d USING {staging_source} s
-                ON {on_str}
+                ON {on_str}{scope_filter}
                 WHEN NOT MATCHED
                     THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
             """)
@@ -815,6 +824,10 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             escape_lit,
         )
 
+        # read insert-only scope hint
+        scope: Optional[str] = root_table.get("x-insert-only-scope") if insert_only else None  # type: ignore[assignment]
+        dlt_load_id_col = escape_column_id(C_DLT_LOAD_ID) if scope else None
+
         # generate merge statement for root table
         root_table_column_names = list(map(escape_column_id, root_table["columns"]))
         # we need not_deleted_cond to filter out hard deleted rows before insert
@@ -833,6 +846,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 deleted_cond,
                 insert_only=insert_only,
                 not_deleted_cond=not_deleted_cond,
+                scope=scope,
+                dlt_load_id_col=dlt_load_id_col,
             )
         )
 
@@ -865,9 +880,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     update_str = f"WHEN MATCHED THEN UPDATE SET {update_str}"
                 col_str = ", ".join(["{alias}" + c for c in table_column_names])
 
+                scope_filter = ""
+                if scope == "previous_load" and dlt_load_id_col is not None:
+                    scope_filter = (
+                        f" AND d.{dlt_load_id_col} = "
+                        f"(SELECT MAX({dlt_load_id_col}) FROM {table_name})"
+                    )
                 sql.append(f"""
                     MERGE INTO {table_name} d USING {staging_table_name} s
-                    ON d.{nested_row_key_column} = s.{nested_row_key_column}
+                    ON d.{nested_row_key_column} = s.{nested_row_key_column}{scope_filter}
                     {update_str}
                     WHEN NOT MATCHED
                         THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
