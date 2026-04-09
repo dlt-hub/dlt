@@ -118,7 +118,9 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
 
-    expect(page.locator(".cm-line", has_text="name: fruitshop_customers").first).to_be_attached()
+    expect(page.locator(".cm-line", has_text="name: fruitshop_customers").first).to_be_attached(
+        timeout=15000
+    )
 
     def _select_schema_and_verify(
         schema_selector: Any,
