@@ -15,6 +15,7 @@ __all__ = [
     "normalize_freshness_constraints",
     "get_direct_freshness_downstream",
     "get_transitive_freshness_downstream",
+    "get_refresh_cascade_targets",
 ]
 
 
@@ -160,4 +161,56 @@ def get_transitive_freshness_downstream(
                 seen.add(ds)
                 result.append(ds)
                 queue.append(ds)
+    return result
+
+
+def get_refresh_cascade_targets(
+    root_ref: str,
+    all_jobs: Mapping[str, TJobDefinition],
+) -> List[str]:
+    """BFS the freshness graph from `root_ref`, stopping at `block` nodes.
+
+    Returns the list of `job_ref`s whose `prev_completed_run` should be
+    cleared when an eager refresh cascade is initiated for `root_ref`.
+    The root itself is **excluded** from the result — callers handle the
+    root separately (the block-on-root override is enforced by the caller).
+
+    Walk rules, applied per visited node (root excluded):
+
+    - `refresh == "block"` → stop this branch. The block node is NOT
+      included in the result and its downstream is NOT recursed into.
+      The freshness chain is severed at the block boundary.
+    - `refresh == "always"` or `"auto"` (default) → include in the
+      result, recurse into `get_direct_freshness_downstream`.
+    - Interval-store-eligible jobs (`"interval" in job_def AND
+      `allow_external_schedulers=True`) → excluded from the result and
+      the walk. They manage their own watermark via `IntervalStore` and
+      do not have a `prev_completed_run` to clear.
+
+    Args:
+        root_ref: The job ref initiating the cascade.
+        all_jobs: Map of `job_ref` to `TJobDefinition`.
+
+    Returns:
+        List[str]: BFS-ordered refs to clear, excluding root, blocks,
+        and interval-store-eligible jobs.
+    """
+    seen: Set[str] = {root_ref}
+    result: List[str] = []
+    queue: List[str] = [root_ref]
+    while queue:
+        cur = queue.pop(0)
+        for ds_ref in get_direct_freshness_downstream(cur, all_jobs):
+            if ds_ref in seen:
+                continue
+            ds_def = all_jobs.get(ds_ref)
+            if ds_def is None:
+                continue
+            if ds_def.get("refresh") == "block":
+                continue
+            if "interval" in ds_def and ds_def.get("allow_external_schedulers", False):
+                continue
+            seen.add(ds_ref)
+            result.append(ds_ref)
+            queue.append(ds_ref)
     return result

@@ -1,6 +1,6 @@
 """Tests for runner refresh-signal wiring (`_on_non_interval_success` and friends)."""
 
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set
 
 import pytest
 
@@ -74,13 +74,11 @@ def runner_state() -> Iterator[Dict[str, TJobDefinition]]:
     saved_jobs = runner_mod._all_jobs_map
     saved_processes = runner_mod._processes
     saved_run_ids = runner_mod._running_run_ids
-    saved_refresh_flags = runner_mod._running_refresh_flags
     runner_mod._freshness_store = DuckDBJobFreshnessStore()
     runner_mod._runs_store = DuckDBJobRunsStore()
     runner_mod._all_jobs_map = {}
     runner_mod._processes = {}
     runner_mod._running_run_ids = {}
-    runner_mod._running_refresh_flags = {}
     try:
         yield runner_mod._all_jobs_map
     finally:
@@ -91,10 +89,6 @@ def runner_state() -> Iterator[Dict[str, TJobDefinition]]:
         runner_mod._all_jobs_map = saved_jobs
         runner_mod._processes = saved_processes
         runner_mod._running_run_ids = saved_run_ids
-        runner_mod._running_refresh_flags = saved_refresh_flags
-
-
-# _on_non_interval_success — prev_completed_run update
 
 
 def test_prev_completed_run_set_from_started_at(
@@ -110,7 +104,7 @@ def test_prev_completed_run_set_from_started_at(
     started_at = _dt("2024-06-15T12:30:00Z")
     iv_start = _dt("2024-06-15T12:00:00Z")
     record = _run_record("jobs.a", started_at, interval_start=iv_start)
-    runner_mod._on_non_interval_success("jobs.a", runner_state["jobs.a"], record, False)
+    runner_mod._on_non_interval_success("jobs.a", record)
     assert runner_mod._freshness_store.get_prev_completed_run("jobs.a") == started_at
 
 
@@ -134,7 +128,7 @@ def test_prev_completed_run_advances_across_consecutive_runs(
         run1_started,
         interval_start=_dt("2026-04-08T23:38:00Z"),
     )
-    runner_mod._on_non_interval_success("jobs.a", runner_state["jobs.a"], rec1, True)
+    runner_mod._on_non_interval_success("jobs.a", rec1)
     assert runner_mod._freshness_store.get_prev_completed_run("jobs.a") == run1_started
 
     # simulate run 2: dispatched at 23:40:30. Its interval_start would be the
@@ -145,7 +139,7 @@ def test_prev_completed_run_advances_across_consecutive_runs(
         run2_started,
         interval_start=run1_started,  # this is what compute_run_interval would produce
     )
-    runner_mod._on_non_interval_success("jobs.a", runner_state["jobs.a"], rec2, False)
+    runner_mod._on_non_interval_success("jobs.a", rec2)
     assert runner_mod._freshness_store.get_prev_completed_run("jobs.a") == run2_started
 
     # simulate run 3 — same pattern
@@ -155,101 +149,40 @@ def test_prev_completed_run_advances_across_consecutive_runs(
         run3_started,
         interval_start=run2_started,
     )
-    runner_mod._on_non_interval_success("jobs.a", runner_state["jobs.a"], rec3, False)
+    runner_mod._on_non_interval_success("jobs.a", rec3)
     assert runner_mod._freshness_store.get_prev_completed_run("jobs.a") == run3_started
 
 
 def test_no_run_record_is_noop(runner_state: Dict[str, TJobDefinition]) -> None:
     """Missing run record leaves the freshness store untouched."""
     runner_state["jobs.a"] = _job("jobs.a")
-    runner_mod._on_non_interval_success("jobs.a", runner_state["jobs.a"], None, False)
+    runner_mod._on_non_interval_success("jobs.a", None)
     assert runner_mod._freshness_store.get_prev_completed_run("jobs.a") is None
 
 
-# _on_non_interval_success — policy propagation to direct downstream
-
-
-@pytest.mark.parametrize(
-    "policy,this_run_was_refresh,should_propagate",
-    [
-        # auto: propagate only when this run had refresh=True
-        ("auto", True, True),
-        ("auto", False, False),
-        # always: propagate regardless of input refresh signal
-        ("always", True, True),
-        ("always", False, True),
-        # block: never propagate
-        ("block", True, False),
-        ("block", False, False),
-    ],
-    ids=[
-        "auto-with-refresh",
-        "auto-without-refresh",
-        "always-with-refresh",
-        "always-without-refresh",
-        "block-with-refresh",
-        "block-without-refresh",
-    ],
-)
-def test_policy_propagation(
-    runner_state: Dict[str, TJobDefinition],
-    policy: TRefreshPolicy,
-    this_run_was_refresh: bool,
-    should_propagate: bool,
-) -> None:
-    """Refresh policy decides whether to clear direct downstream prev_completed_run."""
-    runner_state["jobs.a"] = _job("jobs.a", refresh=policy)
-    runner_state["jobs.b"] = _job("jobs.b", freshness=["job.is_fresh:jobs.a"])
-    # seed downstream with a non-None value so we can detect a clear
-    runner_mod._freshness_store.set_prev_completed_run("jobs.b", _dt("2024-06-01T00:00:00Z"))
-
-    record = _run_record("jobs.a", _dt("2024-06-15T12:00:00Z"))
-    runner_mod._on_non_interval_success(
-        "jobs.a", runner_state["jobs.a"], record, this_run_was_refresh
-    )
-
-    if should_propagate:
-        assert runner_mod._freshness_store.get_prev_completed_run("jobs.b") is None
-    else:
-        assert runner_mod._freshness_store.get_prev_completed_run("jobs.b") == _dt(
-            "2024-06-01T00:00:00Z"
-        )
-
-
-def test_default_policy_is_auto(runner_state: Dict[str, TJobDefinition]) -> None:
-    """Job without explicit refresh policy is treated as auto."""
-    runner_state["jobs.a"] = _job("jobs.a")  # no refresh field → default
-    runner_state["jobs.b"] = _job("jobs.b", freshness=["job.is_fresh:jobs.a"])
-    runner_mod._freshness_store.set_prev_completed_run("jobs.b", _dt("2024-06-01T00:00:00Z"))
-
-    record = _run_record("jobs.a", _dt("2024-06-15T12:00:00Z"))
-    # this run had refresh=True → auto should propagate
-    runner_mod._on_non_interval_success("jobs.a", runner_state["jobs.a"], record, True)
-    assert runner_mod._freshness_store.get_prev_completed_run("jobs.b") is None
-
-
-def test_propagation_only_to_direct_downstream(
+def test_set_prev_completed_run_is_monotonic(
     runner_state: Dict[str, TJobDefinition],
 ) -> None:
-    """Policy only clears DIRECT downstream — transitive nodes are not touched here."""
-    runner_state["jobs.a"] = _job("jobs.a", refresh="always")
-    runner_state["jobs.b"] = _job("jobs.b", freshness=["job.is_fresh:jobs.a"])
-    runner_state["jobs.c"] = _job("jobs.c", freshness=["job.is_fresh:jobs.b"])
-    runner_mod._freshness_store.set_prev_completed_run("jobs.b", _dt("2024-06-01T00:00:00Z"))
-    runner_mod._freshness_store.set_prev_completed_run("jobs.c", _dt("2024-06-01T00:00:00Z"))
+    """Out-of-order completions cannot move the watermark backward.
 
-    record = _run_record("jobs.a", _dt("2024-06-15T12:00:00Z"))
-    runner_mod._on_non_interval_success("jobs.a", runner_state["jobs.a"], record, False)
+    Two concurrent runs of the same script can complete out of order
+    (e.g. an older interactive instance finishing after a newer one).
+    Only the strictly-greater value should win.
+    """
+    runner_state["jobs.a"] = _job("jobs.a")
+    later = _dt("2026-04-08T23:42:00Z")
+    earlier = _dt("2026-04-08T23:38:00Z")
 
-    # b is direct downstream → cleared
-    assert runner_mod._freshness_store.get_prev_completed_run("jobs.b") is None
-    # c is transitive → untouched (will be cleared when b runs and applies its own policy)
-    assert runner_mod._freshness_store.get_prev_completed_run("jobs.c") == _dt(
-        "2024-06-01T00:00:00Z"
-    )
+    # the later watermark wins even though it's set first
+    runner_mod._freshness_store.set_prev_completed_run("jobs.a", later)
+    runner_mod._freshness_store.set_prev_completed_run("jobs.a", earlier)
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.a") == later
 
-
-# _eager_refresh_cascade — --refresh CLI cascade
+    # explicit clears bypass the monotonic guard
+    runner_mod._freshness_store.clear_prev_completed_run("jobs.a")
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.a") is None
+    runner_mod._freshness_store.set_prev_completed_run("jobs.a", earlier)
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.a") == earlier
 
 
 def _interval_job(ref: str) -> TJobDefinition:
@@ -284,18 +217,25 @@ def test_cascade_clears_target_and_transitive_downstream(
         assert runner_mod._freshness_store.get_prev_completed_run(ref) is None, ref
 
 
-def test_cascade_skips_interval_store_jobs_in_downstream(
+def test_cascade_severs_at_interval_store_jobs_in_downstream(
     runner_state: Dict[str, TJobDefinition],
 ) -> None:
-    """Interval-store jobs in the downstream subgraph are silently excluded from clearing."""
+    """Interval-store jobs are excluded from the walk AND sever the chain past them.
+
+    Interval-store jobs are "their own world" — they manage their watermarks
+    via `IntervalStore`, not via `prev_completed_run`. The cascade walker
+    treats them as opaque cuts: it neither clears them nor recurses into
+    their freshness-downstream via this branch.
+    """
     runner_state["jobs.a"] = _job("jobs.a")
     # b is an interval-store job (has interval + allow_external_schedulers)
     runner_state["jobs.b"] = _interval_job("jobs.b")
     runner_state["jobs.b"]["freshness"] = [TFreshnessConstraint("job.is_fresh:jobs.a")]
     runner_state["jobs.c"] = _job("jobs.c", freshness=["job.is_fresh:jobs.b"])
-    runner_mod._freshness_store.set_prev_completed_run("jobs.a", _dt("2024-06-01T00:00:00Z"))
-    runner_mod._freshness_store.set_prev_completed_run("jobs.b", _dt("2024-06-01T00:00:00Z"))
-    runner_mod._freshness_store.set_prev_completed_run("jobs.c", _dt("2024-06-01T00:00:00Z"))
+    seed_ts = _dt("2024-06-01T00:00:00Z")
+    runner_mod._freshness_store.set_prev_completed_run("jobs.a", seed_ts)
+    runner_mod._freshness_store.set_prev_completed_run("jobs.b", seed_ts)
+    runner_mod._freshness_store.set_prev_completed_run("jobs.c", seed_ts)
 
     runner_mod._eager_refresh_cascade(
         [(runner_state["jobs.a"], TTrigger("manual:jobs.a"))],
@@ -304,12 +244,10 @@ def test_cascade_skips_interval_store_jobs_in_downstream(
 
     # a is non-interval → cleared
     assert runner_mod._freshness_store.get_prev_completed_run("jobs.a") is None
-    # b is interval-store → NOT cleared (not in scope of the new feature)
-    assert runner_mod._freshness_store.get_prev_completed_run("jobs.b") == _dt(
-        "2024-06-01T00:00:00Z"
-    )
-    # c is non-interval transitive downstream → still cleared
-    assert runner_mod._freshness_store.get_prev_completed_run("jobs.c") is None
+    # b is interval-store → not cleared
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.b") == seed_ts
+    # c is reachable only via b → walk severs at b, c is NOT cleared
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.c") == seed_ts
 
 
 def test_cascade_skips_interval_store_seed(
@@ -420,4 +358,256 @@ def test_cascade_skipped_when_seed_blocked_by_freshness(
     )
     assert runner_mod._freshness_store.get_prev_completed_run("jobs.c") == _dt(
         "2024-06-01T00:00:00Z"
+    )
+
+
+@pytest.fixture
+def stubbed_job_process() -> Iterator[List[List[str]]]:
+    """Replace `JobProcess` with a fake that captures cmd args without forking."""
+    captured_cmds: List[List[str]] = []
+
+    class _FakeProc:
+        DEFAULT_GRACE_PERIOD = 30.0
+
+        def __init__(self, job_ref: str, cmd: List[str], grace_period: float = 30.0) -> None:
+            self.job_ref = job_ref
+            self.cmd = cmd
+            captured_cmds.append(cmd)
+
+        def start(self) -> None:
+            pass
+
+        def is_alive(self) -> bool:
+            return False
+
+    saved_cls = runner_mod.JobProcess
+    runner_mod.JobProcess = _FakeProc  # type: ignore[misc,assignment]
+    try:
+        yield captured_cmds
+    finally:
+        runner_mod.JobProcess = saved_cls  # type: ignore[misc]
+
+
+def _block_root_graph() -> Dict[str, TJobDefinition]:
+    return {
+        "jobs.a": _job("jobs.a", refresh="block"),
+        "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
+    }
+
+
+def _block_in_chain_graph() -> Dict[str, TJobDefinition]:
+    return {
+        "jobs.a": _job("jobs.a"),
+        "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
+        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.b"], refresh="block"),
+        "jobs.d": _job("jobs.d", freshness=["job.is_fresh:jobs.c"]),
+    }
+
+
+def _block_in_diamond_graph() -> Dict[str, TJobDefinition]:
+    return {
+        "jobs.a": _job("jobs.a"),
+        "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
+        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.a"], refresh="block"),
+        "jobs.d": _job("jobs.d", freshness=["job.is_fresh:jobs.b", "job.is_fresh:jobs.c"]),
+    }
+
+
+@pytest.mark.parametrize(
+    "graph_factory,seed_root,expected_cleared,expected_warn_substr",
+    [
+        # block on root: warning, no clears (block wins)
+        (_block_root_graph, "jobs.a", set(), "block"),
+        # block in chain: a and b cleared, c (block) and d (unreachable) untouched
+        (_block_in_chain_graph, "jobs.a", {"jobs.a", "jobs.b"}, None),
+        # block in diamond: d still reached via the auto branch
+        (_block_in_diamond_graph, "jobs.a", {"jobs.a", "jobs.b", "jobs.d"}, None),
+    ],
+    ids=["block-on-root", "block-in-chain", "block-in-diamond"],
+)
+def test_eager_cascade_block_semantics(
+    runner_state: Dict[str, TJobDefinition],
+    graph_factory: Callable[[], Dict[str, TJobDefinition]],
+    seed_root: str,
+    expected_cleared: Set[str],
+    expected_warn_substr: Optional[str],
+) -> None:
+    """`_eager_refresh_cascade` honors `block` policy on roots and mid-walk."""
+    graph = graph_factory()
+    runner_state.update(graph)
+    seed_ts = _dt("2024-06-01T00:00:00Z")
+    for ref in graph:
+        runner_mod._freshness_store.set_prev_completed_run(ref, seed_ts)
+
+    warnings: List[str] = []
+    runner_mod._eager_refresh_cascade(
+        [(graph[seed_root], TTrigger(f"manual:{seed_root}"))],
+        warn=warnings.append,
+    )
+
+    if expected_warn_substr is None:
+        assert warnings == []
+    else:
+        assert len(warnings) == 1
+        assert expected_warn_substr in warnings[0]
+    for ref in graph:
+        actual = runner_mod._freshness_store.get_prev_completed_run(ref)
+        if ref in expected_cleared:
+            assert actual is None, f"{ref} should have been cleared"
+        else:
+            assert actual == seed_ts, f"{ref} should have been left alone"
+
+
+def _always_chain_graph() -> Dict[str, TJobDefinition]:
+    return {
+        "jobs.a": _job("jobs.a", refresh="always"),
+        "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
+        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.b"]),
+    }
+
+
+def _always_then_block_graph() -> Dict[str, TJobDefinition]:
+    return {
+        "jobs.a": _job("jobs.a", refresh="always"),
+        "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"], refresh="block"),
+    }
+
+
+def _auto_chain_graph() -> Dict[str, TJobDefinition]:
+    return {
+        "jobs.a": _job("jobs.a"),
+        "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
+    }
+
+
+@pytest.mark.parametrize(
+    "graph_factory,start_ref,expected_cleared",
+    [
+        # always upstream clears its transitive downstream at start
+        (_always_chain_graph, "jobs.a", {"jobs.b", "jobs.c"}),
+        # always upstream + block downstream: block wins, b untouched
+        (_always_then_block_graph, "jobs.a", set()),
+        # auto upstream is transparent — no cascade fires at start
+        (_auto_chain_graph, "jobs.a", set()),
+    ],
+    ids=["always-chain", "always-then-block", "auto-no-cascade"],
+)
+def test_start_job_policy_cascade(
+    runner_state: Dict[str, TJobDefinition],
+    stubbed_job_process: List[List[str]],
+    graph_factory: Callable[[], Dict[str, TJobDefinition]],
+    start_ref: str,
+    expected_cleared: Set[str],
+) -> None:
+    """`_start_job` fires the always-cascade and never touches the root itself."""
+    graph = graph_factory()
+    runner_state.update(graph)
+    seed_ts = _dt("2024-06-01T00:00:00Z")
+    for ref in graph:
+        runner_mod._freshness_store.set_prev_completed_run(ref, seed_ts)
+
+    runner_mod._start_job(
+        graph[start_ref],
+        TTrigger(f"manual:{start_ref}"),
+        port_counter=[8000],
+    )
+
+    for ref in graph:
+        actual = runner_mod._freshness_store.get_prev_completed_run(ref)
+        if ref in expected_cleared:
+            assert actual is None, f"{ref} should have been cleared by cascade"
+        else:
+            assert actual == seed_ts, f"{ref} should have been left alone"
+
+
+def test_pokemon_chain_settles_after_one_cascade(
+    runner_state: Dict[str, TJobDefinition],
+    stubbed_job_process: List[List[str]],
+) -> None:
+    """Regression: `always → auto → auto` chain must not re-fire on each completion.
+
+    Reproduces the `pokemon_pipeline.py` bug where the OLD completion-time
+    `auto + was_refresh` propagation kept clearing the downstream
+    `prev_completed_run` on every completion of the `always` root, leaving
+    the leaf permanently in `refresh=True` state. Under the new
+    eager-only design, `_on_non_interval_success` only advances the
+    completing job's watermark and never touches downstream — so the
+    chain settles after each cascade fires.
+    """
+    runner_state["jobs.backfill"] = _job("jobs.backfill", refresh="always")
+    runner_state["jobs.daily"] = _job("jobs.daily", freshness=["job.is_fresh:jobs.backfill"])
+    runner_state["jobs.transform"] = _job("jobs.transform", freshness=["job.is_fresh:jobs.daily"])
+
+    # cycle 1: backfill starts → cascade clears daily and transform
+    runner_mod._start_job(
+        runner_state["jobs.backfill"],
+        TTrigger("manual:jobs.backfill"),
+        port_counter=[8000],
+    )
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.daily") is None
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.transform") is None
+
+    # backfill completes → only its own watermark advances
+    runner_mod._on_non_interval_success(
+        "jobs.backfill", _run_record("jobs.backfill", _dt("2024-06-15T12:00:00Z"))
+    )
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.backfill") == _dt(
+        "2024-06-15T12:00:00Z"
+    )
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.daily") is None
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.transform") is None
+
+    # daily runs and completes — its policy is auto, no cascade fires
+    runner_mod._start_job(
+        runner_state["jobs.daily"],
+        TTrigger("manual:jobs.daily"),
+        port_counter=[8000],
+    )
+    runner_mod._on_non_interval_success(
+        "jobs.daily", _run_record("jobs.daily", _dt("2024-06-15T12:05:00Z"))
+    )
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.daily") == _dt(
+        "2024-06-15T12:05:00Z"
+    )
+    # transform was cleared by the cascade in step 1; daily's auto policy
+    # does NOT re-clear it on completion
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.transform") is None
+
+    # transform runs and completes
+    runner_mod._start_job(
+        runner_state["jobs.transform"],
+        TTrigger("manual:jobs.transform"),
+        port_counter=[8000],
+    )
+    runner_mod._on_non_interval_success(
+        "jobs.transform",
+        _run_record("jobs.transform", _dt("2024-06-15T12:10:00Z")),
+    )
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.transform") == _dt(
+        "2024-06-15T12:10:00Z"
+    )
+
+    # cycle 2: backfill restarts → cascade re-clears daily and transform
+    # (this IS expected — every start of an always job re-cascades)
+    runner_mod._start_job(
+        runner_state["jobs.backfill"],
+        TTrigger("manual:jobs.backfill"),
+        port_counter=[8000],
+    )
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.daily") is None
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.transform") is None
+
+    # the regression: under the OLD design, daily completing as a refresh run
+    # would re-clear transform via the auto+was_refresh propagation, looping
+    # forever. Under the new design, daily's completion only advances daily.
+    # Pre-set transform to a known watermark and verify daily's completion
+    # leaves it untouched.
+    runner_mod._freshness_store.set_prev_completed_run(
+        "jobs.transform", _dt("2024-06-15T13:08:00Z")
+    )
+    runner_mod._on_non_interval_success(
+        "jobs.daily", _run_record("jobs.daily", _dt("2024-06-15T13:05:00Z"))
+    )
+    assert runner_mod._freshness_store.get_prev_completed_run("jobs.transform") == _dt(
+        "2024-06-15T13:08:00Z"
     )

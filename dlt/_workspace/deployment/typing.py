@@ -36,9 +36,11 @@ TFreshnessType = Literal["job.is_matching_interval_fresh", "job.is_fresh"]
 """Constraint types for interval freshness checks — not triggers."""
 
 TRefreshPolicy = Literal["always", "auto", "block"]
-"""How a non-interval job propagates the `refresh` signal to direct downstream
-on successful completion. `auto` (default) passes through if this run had
-`refresh=True`. `always` always propagates. `block` never propagates."""
+"""Refresh-signal policy of a job
+- `auto` - if received, propagates refresh signal to downstream jobs
+- `always` - sends refresh signal to downstream jobs when started
+- `block` - blocks refresh signal, prevents downstream jobs from receiving it.
+"""
 
 
 class HttpTriggerInfo(NamedTuple):
@@ -64,18 +66,12 @@ TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook"]
 
 
 class TJobExposeSpec(TypedDict, total=False):
-    """User-facing UI presentation metadata, accepted by decorators.
-
-    Decorators normalize this into the canonical manifest form before storing —
-    in particular `tags` may be passed as either a single string or a list and
-    is stored as `List[str]`.
-    """
+    """User-facing UI presentation metadata, accepted by decorators."""
 
     display_name: str
     """Human-friendly label shown in the UI. May contain spaces and punctuation."""
     tags: Union[str, List[str]]
-    """Grouping labels. Accepts a single string or list; runner creates `tag:`
-    triggers from these. Stored as `List[str]` after decorator normalization."""
+    """Job tags that can also be used to trigger group of jobs."""
     starred: bool
     """Show in top-level runtime UI."""
     manual: bool
@@ -83,11 +79,7 @@ class TJobExposeSpec(TypedDict, total=False):
 
 
 class TExposeSpec(TJobExposeSpec):
-    """Full expose spec stored in the manifest.
-
-    Extends `TJobExposeSpec` with `interface` and `category` which are set
-    by decorators and detectors — not directly by users.
-    """
+    """Extends TJobExposeSpec will elements not directly set by users."""
 
     interface: NotRequired[TInterfaceType]
     """What an interactive job exposes: `"gui"`, `"rest_api"`, or `"mcp"`."""
@@ -166,12 +158,7 @@ class TJobRunContext(TypedDict):
 
 
 class TRuntimeEntryPoint(TEntryPoint):
-    """Entry point enriched with runtime-assigned launch arguments.
-
-    Extends TEntryPoint with `run_args` that the runtime provides when
-    invoking the launcher. This is what launchers receive — not stored
-    in the deployment manifest.
-    """
+    """Entry point enriched with runtime-assigned launch arguments."""
 
     run_args: NotRequired[TRunArgs]
     interval_start: NotRequired[str]
@@ -244,10 +231,7 @@ class TJobDefinition(TypedDict):
     default_trigger: NotRequired[TTrigger]
     """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
     refresh: NotRequired[TRefreshPolicy]
-    """Refresh-signal propagation policy for non-interval jobs.
-    `auto` (default): pass through if this run had `refresh=True`.
-    `always`: always clear direct downstream `prev_completed_run` on success.
-    `block`: never propagate. Ignored for interval-store jobs."""
+    """Controls refresh policy of the job"""
 
 
 class TDeploymentFileItem(TypedDict, total=False):
@@ -266,11 +250,7 @@ class TFilesManifest(TypedDict):
 
 
 class TJobsDeploymentManifest(TypedDict):
-    """Full deployment manifest with job definitions.
-
-    Produced by importing `__deployment__.py` and running launcher detectors.
-    The runtime reconciles jobs from this manifest.
-    """
+    """Full deployment manifest with job definitions."""
 
     engine_version: int
     version: NotRequired[int]

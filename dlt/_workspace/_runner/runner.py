@@ -13,8 +13,7 @@ from dlt.common import json
 from dlt.common.pendulum import pendulum
 from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name as job_short_name
 from dlt._workspace.deployment.freshness import (
-    get_direct_freshness_downstream,
-    get_transitive_freshness_downstream,
+    get_refresh_cascade_targets,
 )
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.manifest import expand_triggers, manifest_from_module
@@ -91,9 +90,6 @@ _interval_store: Optional[TIntervalStore] = None
 _runs_store: Optional[TJobRunsStore] = None
 _freshness_store: Optional[TJobFreshnessStore] = None
 _running_run_ids: Dict[str, str] = {}
-_running_refresh_flags: Dict[str, bool] = {}
-"""Per-job-ref flag captured at dispatch — `True` if the run started with `refresh=True`.
-Consumed by `_collect_completions` to decide whether the `auto` policy propagates."""
 _all_jobs_map: Dict[str, TJobDefinition] = {}
 _config: Dict[str, Any] = {}
 _display_names: Dict[str, str] = {}
@@ -128,35 +124,25 @@ def _close_stores() -> None:
 
 def _on_non_interval_success(
     job_ref: str,
-    job_def: TJobDefinition,
     run_record: Optional[TJobRun],
-    this_run_was_refresh: bool,
 ) -> None:
-    """Update `prev_completed_run` and apply the refresh policy after a successful run.
+    """Advance `prev_completed_run` after a successful non-interval run.
 
-    Sets the job's `prev_completed_run` to the run's `started_at` so the watermark
-    advances incrementally — using `interval_start` would freeze the watermark at
-    the first cron tick because `compute_run_interval(prev_set, now)` returns
-    `(prev, now)`, making `interval_start == prev` for every subsequent run.
+    Uses `started_at` (NOT `interval_start`): for non-refresh runs
+    `compute_run_interval(prev_set, now)` returns `(prev, now)`, so
+    `interval_start == prev` and using it would freeze the watermark
+    at the first cron tick.
 
-    Then evaluates `TJobDefinition.refresh`:
-
-    - `auto` (default) clears direct downstream `prev_completed_run` only if
-      this run itself was a refresh run.
-    - `always` clears direct downstream unconditionally.
-    - `block` does nothing.
+    No propagation — all cascade clearing happens eagerly at start time
+    (in `_start_job` for `always`-policy jobs and in
+    `_eager_refresh_cascade` for explicit `--refresh`). The freshness
+    store's monotonic guard handles out-of-order completions.
     """
     if run_record is None:
         return
     new_prev = run_record.get("started_at")
     if new_prev is not None:
         _freshness_store.set_prev_completed_run(job_ref, new_prev)
-
-    policy = job_def.get("refresh", "auto")
-    should_propagate = policy == "always" or (policy == "auto" and this_run_was_refresh)
-    if should_propagate:
-        for ds_ref in get_direct_freshness_downstream(job_ref, _all_jobs_map):
-            _freshness_store.clear_prev_completed_run(ds_ref)
 
 
 def _eager_refresh_cascade(
@@ -165,27 +151,32 @@ def _eager_refresh_cascade(
 ) -> None:
     """Eager `--refresh` reset for the given dispatch targets.
 
-    For each non-interval target whose pre-flight check would pass, clears
-    `prev_completed_run` for the target and all transitively-reachable
-    downstream jobs (via the freshness graph). Skips interval-store targets
-    silently. Skips with a warning when constraints would block dispatch.
+    For each target whose pre-flight check passes:
+      - Skip interval-store jobs silently.
+      - If the target's policy is `block`, skip with a warning
+        (block-on-root override — the declared policy wins over the
+        explicit `--refresh` flag).
+      - Otherwise clear `prev_completed_run` for the target and the
+        result of `get_refresh_cascade_targets` (which walks the
+        freshness graph stopping at `block` and excluding
+        interval-store-eligible jobs).
     """
     cleared: Set[str] = set()
     for job_def, _trigger in targets:
         if _is_interval_job(job_def):
             continue
         job_ref = job_def["job_ref"]
+        if job_def.get("refresh") == "block":
+            warn(f"{_short(job_ref)}: --refresh ignored (refresh=block)")
+            continue
         ok, reasons = _can_dispatch_now(job_def)
         if not ok:
             short = _short(job_ref)
             reason_text = "; ".join(reasons) if reasons else "constraints not met"
             warn(f"{short}: --refresh skipped ({reason_text})")
             continue
-        for ref in [job_ref, *get_transitive_freshness_downstream(job_ref, _all_jobs_map)]:
+        for ref in [job_ref, *get_refresh_cascade_targets(job_ref, _all_jobs_map)]:
             if ref in cleared:
-                continue
-            downstream = _all_jobs_map.get(ref)
-            if downstream is not None and _is_interval_job(downstream):
                 continue
             _freshness_store.clear_prev_completed_run(ref)
             cleared.add(ref)
@@ -380,6 +371,18 @@ def _start_job(
     if job_ref in _processes and _processes[job_ref].is_alive():
         return
 
+    # always-policy auto-cascade. When an `always`-policy non-interval
+    # job starts (any trigger — cron, manual, event), eagerly clear
+    # the transitive freshness downstream so they observe a refresh
+    # signal on their next start. The walker stops at `block` nodes.
+    # The cascade does NOT clear `job_ref` itself — whether THIS run is
+    # a refresh run is determined by the current `prev_completed_run`
+    # value (cleared earlier by an explicit `--refresh` or by an
+    # upstream cascade if applicable).
+    if not _is_interval_job(job_def) and job_def.get("refresh") == "always":
+        for ds_ref in get_refresh_cascade_targets(job_ref, _all_jobs_map):
+            _freshness_store.clear_prev_completed_run(ds_ref)
+
     entry_point: TRuntimeEntryPoint = dict(job_def["entry_point"])  # type: ignore[assignment]
 
     if _config:
@@ -473,7 +476,6 @@ def _start_job(
         run["interval_end"] = eff_interval[1]
     _runs_store.create_run(run)
     _running_run_ids[job_ref] = run_id
-    _running_refresh_flags[job_ref] = refresh_signal
 
 
 def _drain_all_output() -> None:
@@ -500,7 +502,6 @@ def _collect_completions(
 
             # retrieve run record (contains interval if any)
             run_id = _running_run_ids.pop(job_ref, None)
-            this_run_was_refresh = _running_refresh_flags.pop(job_ref, False)
             iv: Optional[TInterval] = None
             run_record: Optional[TJobRun] = None
             if run_id:
@@ -520,7 +521,7 @@ def _collect_completions(
                 else:
                     _log_job(short, 2, "completed successfully")
                 if not is_interval and job_def is not None:
-                    _on_non_interval_success(job_ref, job_def, run_record, this_run_was_refresh)
+                    _on_non_interval_success(job_ref, run_record)
                 event = f"job.success:{job_ref}"
             else:
                 if is_interval and iv is not None:
@@ -759,22 +760,24 @@ def run(
         verbose: Show full manifest JSON before running.
         config: Config key=value pairs passed to all jobs.
         refresh: When `True`, clear `prev_completed_run` for each immediate
-            non-interval target and its transitive freshness-downstream before
-            dispatch. Targets whose pre-flight check fails are skipped with a
-            warning. Interval-store jobs are silently excluded.
+            non-interval target and its freshness-downstream cascade before
+            dispatch. The cascade stops at `block` nodes and excludes
+            interval-store-eligible jobs. Targets whose pre-flight check
+            fails are skipped with a warning. Targets whose own policy is
+            `block` are also skipped with a warning (block wins over
+            `--refresh`).
 
     Returns:
         Exit code (0 = all jobs succeeded, 1 = any job failed).
     """
     global _processes, _shutting_down, _interval_store, _runs_store, _freshness_store
-    global _running_run_ids, _running_refresh_flags
+    global _running_run_ids
     global _all_jobs_map, _config, _display_names, _max_name_len
 
     _processes = {}
     _shutting_down = False
     _config = dict(config) if config else {}
     _running_run_ids = {}
-    _running_refresh_flags = {}
     _interval_store = DuckDBIntervalStore()
     _runs_store = DuckDBJobRunsStore()
     _freshness_store = DuckDBJobFreshnessStore()

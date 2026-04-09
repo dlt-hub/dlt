@@ -25,6 +25,7 @@ from dlt._workspace.deployment.interval import (
 from dlt._workspace._runner.interval_store import DuckDBIntervalStore
 from dlt._workspace.deployment.freshness import (
     get_direct_freshness_downstream,
+    get_refresh_cascade_targets,
     get_transitive_freshness_downstream,
 )
 from dlt._workspace.deployment.typing import (
@@ -35,6 +36,7 @@ from dlt._workspace.deployment.typing import (
     TJobDefinition,
     TJobRef,
     TJobType,
+    TRefreshPolicy,
     TTrigger,
 )
 
@@ -54,6 +56,8 @@ def _job(
     default_trigger: Optional[str] = None,
     job_type: TJobType = "batch",
     freshness: Optional[List[str]] = None,
+    refresh: Optional[TRefreshPolicy] = None,
+    allow_external_schedulers: Optional[bool] = None,
 ) -> TJobDefinition:
     job: TJobDefinition = {
         "job_ref": TJobRef(ref),
@@ -67,6 +71,10 @@ def _job(
         job["default_trigger"] = TTrigger(default_trigger)
     if freshness is not None:
         job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
+    if refresh is not None:
+        job["refresh"] = refresh
+    if allow_external_schedulers is not None:
+        job["allow_external_schedulers"] = allow_external_schedulers
     return job
 
 
@@ -1248,3 +1256,120 @@ def test_get_transitive_freshness_downstream(
     expected: List[str],
 ) -> None:
     assert get_transitive_freshness_downstream(query_ref, jobs) == expected
+
+
+def _chain_with_block_middle() -> Dict[str, TJobDefinition]:
+    """A → B(auto) → C(block) → D(auto). The walk severs at C."""
+    return {
+        "jobs.a": _job("jobs.a", ["manual:jobs.a"]),
+        "jobs.b": _job("jobs.b", ["manual:jobs.b"], freshness=["job.is_fresh:jobs.a"]),
+        "jobs.c": _job(
+            "jobs.c",
+            ["manual:jobs.c"],
+            freshness=["job.is_fresh:jobs.b"],
+            refresh="block",
+        ),
+        "jobs.d": _job("jobs.d", ["manual:jobs.d"], freshness=["job.is_fresh:jobs.c"]),
+    }
+
+
+def _diamond_with_blocked_branch() -> Dict[str, TJobDefinition]:
+    """A → {B(auto), C(block)} → D(auto). D is reachable via B."""
+    return {
+        "jobs.a": _job("jobs.a", ["manual:jobs.a"]),
+        "jobs.b": _job("jobs.b", ["manual:jobs.b"], freshness=["job.is_fresh:jobs.a"]),
+        "jobs.c": _job(
+            "jobs.c",
+            ["manual:jobs.c"],
+            freshness=["job.is_fresh:jobs.a"],
+            refresh="block",
+        ),
+        "jobs.d": _job(
+            "jobs.d",
+            ["manual:jobs.d"],
+            freshness=["job.is_fresh:jobs.b", "job.is_fresh:jobs.c"],
+        ),
+    }
+
+
+def _chain_with_always_middle() -> Dict[str, TJobDefinition]:
+    """A → B(always) → C(auto). always mid-walk is treated as auto."""
+    return {
+        "jobs.a": _job("jobs.a", ["manual:jobs.a"]),
+        "jobs.b": _job(
+            "jobs.b",
+            ["manual:jobs.b"],
+            freshness=["job.is_fresh:jobs.a"],
+            refresh="always",
+        ),
+        "jobs.c": _job("jobs.c", ["manual:jobs.c"], freshness=["job.is_fresh:jobs.b"]),
+    }
+
+
+def _chain_with_interval_middle() -> Dict[str, TJobDefinition]:
+    """A → B(interval-store) → C(auto). B is excluded; the walk does not pass through it."""
+    return {
+        "jobs.a": _job("jobs.a", ["manual:jobs.a"]),
+        "jobs.b": _job(
+            "jobs.b",
+            ["schedule:0 * * * *"],
+            interval={"start": "2024-01-01T00:00:00Z"},
+            allow_external_schedulers=True,
+            freshness=["job.is_fresh:jobs.a"],
+        ),
+        "jobs.c": _job("jobs.c", ["manual:jobs.c"], freshness=["job.is_fresh:jobs.b"]),
+    }
+
+
+def _self_cycle_two_jobs() -> Dict[str, TJobDefinition]:
+    """A → B → A — verifies the seen-set prevents infinite loops."""
+    return {
+        "jobs.a": _job("jobs.a", ["manual:jobs.a"], freshness=["job.is_fresh:jobs.b"]),
+        "jobs.b": _job("jobs.b", ["manual:jobs.b"], freshness=["job.is_fresh:jobs.a"]),
+    }
+
+
+@pytest.mark.parametrize(
+    "jobs,query_ref,expected",
+    [
+        # empty graph
+        ({}, "jobs.a", []),
+        # singleton root, no downstream
+        ({"jobs.a": _job("jobs.a", ["manual:jobs.a"])}, "jobs.a", []),
+        # linear all-auto chain — full BFS order
+        (
+            _make_chain("jobs.a", "jobs.b", "jobs.c", "jobs.d"),
+            "jobs.a",
+            ["jobs.b", "jobs.c", "jobs.d"],
+        ),
+        # block in middle of a chain — walk severed
+        (_chain_with_block_middle(), "jobs.a", ["jobs.b"]),
+        # diamond around a blocked branch — D still reached via B
+        (_diamond_with_blocked_branch(), "jobs.a", ["jobs.b", "jobs.d"]),
+        # always mid-walk is treated as auto (no amplification)
+        (_chain_with_always_middle(), "jobs.a", ["jobs.b", "jobs.c"]),
+        # interval-store mid-walk excludes the node and severs the walk
+        (_chain_with_interval_middle(), "jobs.a", []),
+        # cycle safety — A → B → A
+        (_self_cycle_two_jobs(), "jobs.a", ["jobs.b"]),
+        # root not in all_jobs — no error, empty list
+        ({}, "jobs.nope", []),
+    ],
+    ids=[
+        "empty-graph",
+        "singleton-no-downstream",
+        "linear-chain-all-auto",
+        "block-in-middle",
+        "diamond-around-block",
+        "always-mid-walk-is-auto",
+        "interval-store-mid-walk",
+        "cycle-safety",
+        "root-not-in-all-jobs",
+    ],
+)
+def test_get_refresh_cascade_targets(
+    jobs: Dict[str, TJobDefinition],
+    query_ref: str,
+    expected: List[str],
+) -> None:
+    assert get_refresh_cascade_targets(query_ref, jobs) == expected

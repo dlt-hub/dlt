@@ -57,10 +57,27 @@ class DuckDBJobFreshnessStore:
         return ensure_pendulum_datetime_utc(rows[0][0])
 
     def set_prev_completed_run(self, job_ref: str, value: Optional[datetime]) -> None:
-        """Upsert the timestamp for `job_ref`. `None` clears it."""
+        """Upsert the timestamp for `job_ref`.
+
+        `None` clears unconditionally. A non-`None` value only overwrites
+        an existing entry when it is strictly greater than the current
+        value (monotonic advance) — protects against concurrent runs
+        of the same script completing out of order.
+        """
+        if value is None:
+            self._conn.execute(
+                "INSERT INTO job_freshness (job_ref, prev_completed_run) VALUES (?, NULL)"
+                " ON CONFLICT (job_ref) DO UPDATE SET prev_completed_run = NULL",
+                [job_ref],
+            )
+            return
         self._conn.execute(
             "INSERT INTO job_freshness (job_ref, prev_completed_run) VALUES (?, ?)"
-            " ON CONFLICT (job_ref) DO UPDATE SET prev_completed_run = EXCLUDED.prev_completed_run",
+            " ON CONFLICT (job_ref) DO UPDATE SET prev_completed_run ="
+            " CASE WHEN job_freshness.prev_completed_run IS NULL"
+            "      OR EXCLUDED.prev_completed_run > job_freshness.prev_completed_run"
+            " THEN EXCLUDED.prev_completed_run"
+            " ELSE job_freshness.prev_completed_run END",
             [job_ref, value],
         )
 
