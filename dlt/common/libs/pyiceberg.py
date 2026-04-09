@@ -95,22 +95,63 @@ def _filter_by_previous_load_iceberg(
     source_data: pa.Table,
     key_cols: List[str],
     previous_load_id: Optional[str] = None,
+    root_table: Optional[IcebergTable] = None,
+    root_key_col: Optional[str] = None,
 ) -> pa.Table:
-    """Remove from source rows whose keys exist in the previous load's target data.
-
-    Only called for root tables — x-insert-only-scope does not propagate to child tables.
-    """
+    """Remove from source rows whose keys exist in the previous load's target data."""
     if previous_load_id is None:
         return source_data
 
-    prev_load_keys = table.scan(
-        selected_fields=tuple(key_cols),
-        row_filter=EqualTo(C_DLT_LOAD_ID, previous_load_id),
-    ).to_arrow()
+    if root_table is not None and root_key_col is not None:
+        # child tables lack _dlt_load_id; join through root table via root_key
+        prev_load_keys = _get_child_keys_from_previous_load_iceberg(
+            table, root_table, key_cols, root_key_col, previous_load_id
+        )
+    else:
+        prev_load_keys = table.scan(
+            selected_fields=tuple(key_cols),
+            row_filter=EqualTo(C_DLT_LOAD_ID, previous_load_id),
+        ).to_arrow()
 
     if prev_load_keys.num_rows == 0:
         return source_data
 
+    return _anti_join_iceberg(source_data, prev_load_keys, key_cols)
+
+
+def _get_child_keys_from_previous_load_iceberg(
+    child_table: IcebergTable,
+    root_table: IcebergTable,
+    key_cols: List[str],
+    root_key_col: str,
+    previous_load_id: str,
+) -> pa.Table:
+    """Get child table keys that belong to root rows from the previous load."""
+    from dlt.common.schema.typing import C_DLT_ID
+
+    prev_root_ids = root_table.scan(
+        selected_fields=(C_DLT_ID,),
+        row_filter=EqualTo(C_DLT_LOAD_ID, previous_load_id),
+    ).to_arrow().column(C_DLT_ID)
+
+    if len(prev_root_ids) == 0:
+        return pa.table({c: pa.array([], type=pa.string()) for c in key_cols})
+
+    child_arrow = child_table.scan(
+        selected_fields=tuple(key_cols) + (root_key_col,),
+    ).to_arrow()
+
+    if child_arrow.num_rows == 0:
+        return pa.table({c: pa.array([], type=pa.string()) for c in key_cols})
+
+    mask = pc.is_in(child_arrow.column(root_key_col), value_set=prev_root_ids)
+    return child_arrow.filter(mask).select(key_cols)
+
+
+def _anti_join_iceberg(
+    source_data: pa.Table, prev_load_keys: pa.Table, key_cols: List[str]
+) -> pa.Table:
+    """Remove rows from source_data whose key columns match prev_load_keys."""
     if len(key_cols) == 1:
         col = key_cols[0]
         mask = pc.invert(pc.is_in(source_data.column(col), value_set=prev_load_keys.column(col)))
@@ -135,6 +176,7 @@ def merge_iceberg_table(
     schema: TTableSchema,
     load_table_name: str,
     previous_load_id: Optional[str] = None,
+    root_table: Optional[IcebergTable] = None,
 ) -> None:
     """Merges in-memory Arrow data into on-disk Iceberg table."""
     strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
@@ -149,7 +191,14 @@ def merge_iceberg_table(
             join_cols = get_columns_names_with_prop(schema, "primary_key")
 
         if strategy == "insert-only" and schema.get("x-insert-only-scope") == "previous_load":
-            data = _filter_by_previous_load_iceberg(table, data, join_cols, previous_load_id)
+            root_key_col = (
+                get_first_column_name_with_prop(schema, "root_key")
+                if "parent" in schema
+                else None
+            )
+            data = _filter_by_previous_load_iceberg(
+                table, data, join_cols, previous_load_id, root_table, root_key_col
+            )
             if data.num_rows == 0:
                 return
             # append directly — upsert would match keys against all history

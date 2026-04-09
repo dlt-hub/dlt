@@ -119,33 +119,74 @@ def _filter_by_previous_load(
     source_data: Union[pa.Table, pa.RecordBatchReader],
     schema: TTableSchema,
     previous_load_id: Optional[str],
+    root_table: Optional[DeltaTable] = None,
 ) -> pa.Table:
-    """Remove from source rows whose keys exist in the previous load's target data.
-
-    Only called for root tables — x-insert-only-scope does not propagate to child tables.
-    """
+    """Remove from source rows whose keys exist in the previous load's target data."""
     if isinstance(source_data, pa.RecordBatchReader):
         source_data = source_data.read_all()
 
     if previous_load_id is None:
         return source_data
 
+    key_cols: List[str]
     if "parent" in schema:
         key_cols = [get_first_column_name_with_prop(schema, "unique")]
     else:
         key_cols = get_columns_names_with_prop(schema, "primary_key")
 
-    target_arrow = table.to_pyarrow_table(columns=key_cols + [C_DLT_LOAD_ID])
-    if target_arrow.num_rows == 0:
-        return source_data
-
-    prev_load_keys = target_arrow.filter(
-        pa.compute.equal(target_arrow.column(C_DLT_LOAD_ID), previous_load_id)
-    ).select(key_cols)
+    if "parent" in schema and root_table is not None:
+        # child tables lack _dlt_load_id; join through root table via root_key
+        root_key_col = get_first_column_name_with_prop(schema, "root_key")
+        prev_load_keys = _get_child_keys_from_previous_load(
+            table, root_table, key_cols, root_key_col, previous_load_id
+        )
+    else:
+        target_arrow = table.to_pyarrow_table(columns=key_cols + [C_DLT_LOAD_ID])
+        if target_arrow.num_rows == 0:
+            return source_data
+        prev_load_keys = target_arrow.filter(
+            pa.compute.equal(target_arrow.column(C_DLT_LOAD_ID), previous_load_id)
+        ).select(key_cols)
 
     if prev_load_keys.num_rows == 0:
         return source_data
 
+    return _anti_join(source_data, prev_load_keys, key_cols)
+
+
+def _get_child_keys_from_previous_load(
+    child_table: DeltaTable,
+    root_table: DeltaTable,
+    key_cols: List[str],
+    root_key_col: str,
+    previous_load_id: str,
+) -> pa.Table:
+    """Get child table keys that belong to root rows from the previous load."""
+    from dlt.common.schema.typing import C_DLT_ID
+
+    root_arrow = root_table.to_pyarrow_table(columns=[C_DLT_ID, C_DLT_LOAD_ID])
+    if root_arrow.num_rows == 0:
+        return pa.table({c: pa.array([], type=pa.string()) for c in key_cols})
+
+    prev_root_ids = root_arrow.filter(
+        pa.compute.equal(root_arrow.column(C_DLT_LOAD_ID), previous_load_id)
+    ).column(C_DLT_ID)
+
+    if len(prev_root_ids) == 0:
+        return pa.table({c: pa.array([], type=pa.string()) for c in key_cols})
+
+    child_arrow = child_table.to_pyarrow_table(columns=key_cols + [root_key_col])
+    if child_arrow.num_rows == 0:
+        return pa.table({c: pa.array([], type=pa.string()) for c in key_cols})
+
+    mask = pa.compute.is_in(child_arrow.column(root_key_col), value_set=prev_root_ids)
+    return child_arrow.filter(mask).select(key_cols)
+
+
+def _anti_join(
+    source_data: pa.Table, prev_load_keys: pa.Table, key_cols: List[str]
+) -> pa.Table:
+    """Remove rows from source_data whose key columns match prev_load_keys."""
     if len(key_cols) == 1:
         col = key_cols[0]
         mask = pa.compute.invert(
@@ -173,6 +214,7 @@ def merge_delta_table(
     load_table_name: str,
     streamed_exec: bool,
     previous_load_id: Optional[str] = None,
+    root_table: Optional[DeltaTable] = None,
 ) -> None:
     """Merges in-memory Arrow data into on-disk Delta table."""
 
@@ -191,7 +233,9 @@ def merge_delta_table(
         source_data = ensure_delta_compatible_arrow_data(data, partition_by)
 
         if strategy == "insert-only" and schema.get("x-insert-only-scope") == "previous_load":
-            source_data = _filter_by_previous_load(table, source_data, schema, previous_load_id)
+            source_data = _filter_by_previous_load(
+                table, source_data, schema, previous_load_id, root_table
+            )
             if source_data.num_rows == 0:
                 return
             # force-insert all remaining rows without dedup: equivalent to SQL's "MERGE ON FALSE"
