@@ -15,8 +15,8 @@ from tests.workspace.cli.utils import (
 )
 
 
-def test_non_interactive_drop_command(repo_dir: str) -> None:
-    """Test that --non-interactive flag makes drop command proceed without prompts."""
+def test_yes_flag_drop_command(repo_dir: str) -> None:
+    """Test that --yes/-y flag makes drop command proceed without prompts."""
     # init_command will use auto_echo_default_choice from the fixture
     _init_command.init_command("chess", "duckdb", repo_dir)
 
@@ -41,7 +41,7 @@ def test_non_interactive_drop_command(repo_dir: str) -> None:
     pipeline = dlt.attach(pipeline_name="chess_pipeline")
     assert "players_games" in pipeline.default_schema.tables
 
-    # test drop command with non-interactive mode (simulates --non-interactive flag)
+    # test drop command with --yes flag (simulates --yes/-y behavior)
     # We use echo.always_choose to set ALWAYS_CHOOSE_VALUE = True
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         with echo.always_choose(False, True):
@@ -58,8 +58,8 @@ def test_non_interactive_drop_command(repo_dir: str) -> None:
     assert "players_games" not in pipeline.default_schema.tables
 
 
-def test_non_interactive_sync_command(repo_dir: str) -> None:
-    """Test that --non-interactive flag makes sync command proceed without prompts."""
+def test_yes_flag_sync_command(repo_dir: str) -> None:
+    """Test that --yes/-y flag makes sync command proceed without prompts."""
     _init_command.init_command("chess", "duckdb", repo_dir)
 
     # clean up any existing pipeline
@@ -79,7 +79,7 @@ def test_non_interactive_sync_command(repo_dir: str) -> None:
         print(cpe.stderr)
         raise
 
-    # test sync command with non-interactive mode
+    # test sync command with --yes flag
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         with echo.always_choose(False, True):
             _pipeline_command.pipeline_command("sync", "chess_pipeline", None, 0)
@@ -96,8 +96,8 @@ def test_non_interactive_sync_command(repo_dir: str) -> None:
         assert "Pipeline does not have last run trace." in _out
 
 
-def test_non_interactive_drop_pending_packages(repo_dir: str) -> None:
-    """Test that --non-interactive flag makes drop-pending-packages command proceed."""
+def test_yes_flag_drop_pending_packages(repo_dir: str) -> None:
+    """Test that --yes/-y flag makes drop-pending-packages command proceed."""
     _init_command.init_command("chess", "dummy", repo_dir)
     os.environ["EXCEPTION_PROB"] = "1.0"
 
@@ -124,7 +124,7 @@ def test_non_interactive_drop_pending_packages(repo_dir: str) -> None:
             or "normalized packages ready to be loaded" in _out
         )
 
-    # test drop-pending-packages with non-interactive mode
+    # test drop-pending-packages with --yes flag
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         with echo.always_choose(False, True):
             _pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
