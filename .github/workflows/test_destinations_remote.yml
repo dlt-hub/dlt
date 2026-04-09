@@ -208,7 +208,18 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Check secrets availability
+        id: check_secrets
+        run: |
+          if [ -z "$DLT_SECRETS_TOML" ]; then
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "DLT_SECRETS_TOML is not available, skipping remote destination tests."
+          else
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install uv
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.11"
@@ -216,27 +227,30 @@ jobs:
           enable-cache: true
 
       - name: Run pre install commands
+        if: ${{ steps.check_secrets.outputs.has_secrets == 'true' && matrix.pre_install_commands }}
         run: ${{ matrix.pre_install_commands }}
-        if: ${{ matrix.pre_install_commands }}
 
       - name: Install dependencies
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }}
 
       - name: Run post install commands
+        if: ${{ steps.check_secrets.outputs.has_secrets == 'true' && matrix.post_install_commands }}
         run: ${{ matrix.post_install_commands }}
-        if: ${{ matrix.post_install_commands }}
 
       - name: create secrets.toml
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       # NOTE: essential tests are always run
       - name: Run essential tests Linux
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: make test-dest-remote-essential
         env:
           PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}
 
       - name: Run non-essential tests Linux
-        if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
+        if: ${{ steps.check_secrets.outputs.has_secrets == 'true' && always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
         run: make test-dest-remote-nonessential
         env:
           PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}

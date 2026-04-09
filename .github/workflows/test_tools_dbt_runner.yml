@@ -30,7 +30,18 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Check secrets availability
+        id: check_secrets
+        run: |
+          if [ -z "$DLT_SECRETS_TOML" ]; then
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "DLT_SECRETS_TOML is not available, skipping dbt runner tests."
+          else
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install uv
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.11"
@@ -38,21 +49,26 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         # install dlt with postgres support
         run: uv sync --extra postgres --extra postgis --group dbt --group providers
 
       - name: create secrets.toml
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Run dbt tests
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: make test-dbt-no-venv
         env:
           PYTEST_XDIST_N: 3
 
       - name: Remove dbt-core
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: uv run pip uninstall dbt-core -y
 
       - name: Run dbt runner with venv - Linux/MAC
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: make test-dbt-runner-venv
         env:
           PYTEST_XDIST_N: 3
