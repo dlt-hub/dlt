@@ -9,7 +9,11 @@ from typing import (
     Union,
     Literal,
     Tuple,
+    TYPE_CHECKING,
 )
+
+if TYPE_CHECKING:
+    from dlt.common.libs.sqlglot import sge
 
 import inspect
 from functools import wraps
@@ -36,17 +40,9 @@ from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.data_types.type_helpers import (
     coerce_from_date_types,
-    coerce_value,
     py_type_to_sc_type,
 )
 from dlt.common.data_writers.writers import count_rows_in_items
-from dlt.extract.exceptions import IncrementalUnboundError
-from dlt.extract.incremental.exceptions import (
-    IncrementalCursorPathMissing,
-    IncrementalPrimaryKeyMissing,
-    JoinSchedulerError,
-)
-from dlt.extract.incremental.context import TimeIntervalContext, get_interval_context
 from dlt.common.incremental.typing import (
     IncrementalColumnState,
     TCursorValue,
@@ -55,8 +51,17 @@ from dlt.common.incremental.typing import (
     IncrementalArgs,
     TIncrementalRange,
 )
+
+from dlt.extract.exceptions import IncrementalUnboundError
+from dlt.extract.incremental.exceptions import (
+    ExternalSchedulerNotAvailable,
+    IncrementalCursorPathMissing,
+    IncrementalPrimaryKeyMissing,
+    JoinSchedulerError,
+)
+from dlt.extract.incremental.context import TimeIntervalContext, get_interval_context
 from dlt.extract.items import SupportsPipe, TTableHintTemplate
-from dlt.extract.items_transform import BaseItemTransform, ItemTransform
+from dlt.extract.items_transform import ItemTransform
 from dlt.extract.state import resource_state
 from dlt.extract.incremental.transform import (
     JsonIncremental,
@@ -64,6 +69,7 @@ from dlt.extract.incremental.transform import (
     IncrementalTransform,
 )
 from dlt.extract.incremental.lag import apply_lag
+from dlt.extract.incremental.sql import to_sqlglot_filter as _to_sqlglot_filter
 
 try:
     from dlt.common.libs.pyarrow import is_arrow_item
@@ -316,6 +322,25 @@ class Incremental(
         """Return the name of the cursor column if the cursor path resolves to a single column"""
         return extract_simple_field_name(self.cursor_path)
 
+    def to_sqlglot_filter(self, apply_lag: bool = True) -> Optional["sge.Expression"]:
+        """Build a sqlglot WHERE expression that filters rows to the current incremental window.
+
+        See `dlt.extract.incremental.sql.to_sqlglot_filter` for full semantics.
+
+        Args:
+            apply_lag (bool): When True (default) use the lag-adjusted instance `start_value`
+                as the lower bound. When False, use the raw `start_value` from cached state;
+                requires the incremental to have been bound.
+
+        Returns:
+            Optional[sge.Expression]: A sqlglot boolean expression suitable for use as a
+                WHERE clause, or `None` when filtering is not possible.
+
+        Raises:
+            IncrementalUnboundError: If `apply_lag=False` and the incremental is unbound.
+        """
+        return _to_sqlglot_filter(self, apply_lag=apply_lag)
+
     def on_resolved(self) -> None:
         compile_path(self.cursor_path)
         if self.end_value is not None and self.initial_value is None:
@@ -397,6 +422,7 @@ class Incremental(
                 "initial_value": self.initial_value,
                 "last_value": self.initial_value,
                 "unique_hashes": [],
+                "start_value": self.initial_value,
             }
 
         if not self.resource_name:
@@ -410,13 +436,14 @@ class Incremental(
                     "initial_value": self.initial_value,
                     "last_value": self.initial_value,
                     "unique_hashes": [],
+                    "start_value": self.initial_value,
                 }
             )
         return self._cached_state
 
     @staticmethod
     def _get_state(resource_name: str, cursor_path: str) -> IncrementalColumnState:
-        """Retrieve the sate from currently active pipeline"""
+        """Retrieve the state from currently active pipeline"""
         state: IncrementalColumnState = (
             resource_state(resource_name).setdefault("incremental", {}).setdefault(cursor_path, {})
         )
@@ -468,8 +495,6 @@ class Incremental(
         """Joins external scheduler interval from TimeIntervalContext."""
 
         if ctx.interval is None:
-            from dlt.extract.incremental.exceptions import ExternalSchedulerNotAvailable
-
             raise ExternalSchedulerNotAvailable(self.resource_name)
 
         param_type = self.get_incremental_value_type()
@@ -573,6 +598,8 @@ class Incremental(
         )
         # cache state
         self._cached_state = self.get_state()
+        # now cached state is available
+        self._cached_state["start_value"] = self._cached_state["last_value"]
         # Clear transforms so we get new instances
         self._transformers.clear()
         return self

@@ -184,7 +184,11 @@ def run(
     # inject run_context if the function signature declares it
     kwargs: Dict[str, Any] = {}
     if _wants_run_context(job._f):
-        ctx: TJobRunContext = {"run_id": run_id, "trigger": TTrigger(trigger)}
+        ctx: TJobRunContext = {
+            "run_id": run_id,
+            "trigger": TTrigger(trigger),
+            "refresh": entry_point.get("refresh", False),
+        }
         run_args = entry_point.get("run_args")
         if run_args:
             ctx["run_args"] = run_args
@@ -193,11 +197,13 @@ def run(
             ctx["interval_end"] = iv[1]
         kwargs["run_context"] = ctx
 
-    # inject interval context into Container so dlt.current.interval() works
+    # inject interval context into Container so dlt.current.interval() works.
+    # `allow_external_schedulers` is propagated from the manifest via entry_point —
+    # the runner sets it from job_def["allow_external_schedulers"] in `_start_job`.
     if iv is not None:
         iv_ctx = TimeIntervalContext(
             interval=iv,
-            allow_external_schedulers=True,
+            allow_external_schedulers=entry_point.get("allow_external_schedulers", False),
         )
         with Container().injectable_context(iv_ctx):
             result = job(**kwargs)

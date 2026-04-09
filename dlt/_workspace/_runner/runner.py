@@ -5,12 +5,17 @@ import signal
 import sys
 import time
 import zlib
+from datetime import datetime  # noqa: I251
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from uuid import uuid4
 
 from dlt.common import json
 from dlt.common.pendulum import pendulum
 from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name as job_short_name
+from dlt._workspace.deployment.freshness import (
+    get_direct_freshness_downstream,
+    get_transitive_freshness_downstream,
+)
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.manifest import expand_triggers, manifest_from_module
 from dlt._workspace.deployment.typing import (
@@ -21,13 +26,17 @@ from dlt._workspace.deployment.typing import (
 )
 from dlt._workspace.deployment.interval import (
     TInterval,
-    TLastRunInfo,
     check_all_upstream_interval_fresh,
     check_all_upstream_run_fresh,
+    compute_run_interval,
     next_eligible_interval,
     resolve_interval_freshness_checks,
     resolve_interval_spec,
     resolve_run_freshness_refs,
+)
+from dlt._workspace._runner.freshness_store import (
+    DuckDBJobFreshnessStore,
+    TJobFreshnessStore,
 )
 from dlt._workspace._runner.interval_store import DuckDBIntervalStore, TIntervalStore
 from dlt._workspace._runner.process import JobProcess
@@ -80,7 +89,11 @@ _processes: Dict[str, JobProcess] = {}
 _shutting_down = False
 _interval_store: Optional[TIntervalStore] = None
 _runs_store: Optional[TJobRunsStore] = None
+_freshness_store: Optional[TJobFreshnessStore] = None
 _running_run_ids: Dict[str, str] = {}
+_running_refresh_flags: Dict[str, bool] = {}
+"""Per-job-ref flag captured at dispatch — `True` if the run started with `refresh=True`.
+Consumed by `_collect_completions` to decide whether the `auto` policy propagates."""
 _all_jobs_map: Dict[str, TJobDefinition] = {}
 _config: Dict[str, Any] = {}
 _display_names: Dict[str, str] = {}
@@ -101,6 +114,81 @@ def _build_display_names(jobs: List[TJobDefinition]) -> Dict[str, str]:
 def _short(job_ref: str) -> str:
     """Display name for a job_ref, using pipeline prefix when available."""
     return _display_names.get(job_ref, job_short_name(job_ref))
+
+
+def _close_stores() -> None:
+    """Close all per-runner stores. Safe to call repeatedly."""
+    if _interval_store is not None:
+        _interval_store.close()
+    if _runs_store is not None:
+        _runs_store.close()
+    if _freshness_store is not None:
+        _freshness_store.close()
+
+
+def _on_non_interval_success(
+    job_ref: str,
+    job_def: TJobDefinition,
+    run_record: Optional[TJobRun],
+    this_run_was_refresh: bool,
+) -> None:
+    """Update `prev_completed_run` and apply the refresh policy after a successful run.
+
+    Sets the job's `prev_completed_run` to the run's `started_at` so the watermark
+    advances incrementally — using `interval_start` would freeze the watermark at
+    the first cron tick because `compute_run_interval(prev_set, now)` returns
+    `(prev, now)`, making `interval_start == prev` for every subsequent run.
+
+    Then evaluates `TJobDefinition.refresh`:
+
+    - `auto` (default) clears direct downstream `prev_completed_run` only if
+      this run itself was a refresh run.
+    - `always` clears direct downstream unconditionally.
+    - `block` does nothing.
+    """
+    if run_record is None:
+        return
+    new_prev = run_record.get("started_at")
+    if new_prev is not None:
+        _freshness_store.set_prev_completed_run(job_ref, new_prev)
+
+    policy = job_def.get("refresh", "auto")
+    should_propagate = policy == "always" or (policy == "auto" and this_run_was_refresh)
+    if should_propagate:
+        for ds_ref in get_direct_freshness_downstream(job_ref, _all_jobs_map):
+            _freshness_store.clear_prev_completed_run(ds_ref)
+
+
+def _eager_refresh_cascade(
+    targets: List[Tuple[TJobDefinition, TTrigger]],
+    warn: Callable[[str], None],
+) -> None:
+    """Eager `--refresh` reset for the given dispatch targets.
+
+    For each non-interval target whose pre-flight check would pass, clears
+    `prev_completed_run` for the target and all transitively-reachable
+    downstream jobs (via the freshness graph). Skips interval-store targets
+    silently. Skips with a warning when constraints would block dispatch.
+    """
+    cleared: Set[str] = set()
+    for job_def, _trigger in targets:
+        if _is_interval_job(job_def):
+            continue
+        job_ref = job_def["job_ref"]
+        ok, reasons = _can_dispatch_now(job_def)
+        if not ok:
+            short = _short(job_ref)
+            reason_text = "; ".join(reasons) if reasons else "constraints not met"
+            warn(f"{short}: --refresh skipped ({reason_text})")
+            continue
+        for ref in [job_ref, *get_transitive_freshness_downstream(job_ref, _all_jobs_map)]:
+            if ref in cleared:
+                continue
+            downstream = _all_jobs_map.get(ref)
+            if downstream is not None and _is_interval_job(downstream):
+                continue
+            _freshness_store.clear_prev_completed_run(ref)
+            cleared.add(ref)
 
 
 def _timestamp() -> str:
@@ -193,6 +281,45 @@ def _try_start_interval_job(
     return True
 
 
+def _check_run_freshness_for(job_def: TJobDefinition) -> List[str]:
+    """Evaluate the run-based freshness constraints for `job_def` (no side effects).
+
+    Returns the list of failure reasons (empty if fresh / no constraints). Sources
+    `prev_completed_run` from `_freshness_store` for non-interval upstreams and falls
+    back to `_runs_store.get_last_run()` for interval upstreams.
+    """
+    freshness = job_def.get("freshness", [])
+    if not freshness:
+        return []
+    refs, reasons = resolve_run_freshness_refs(freshness, _all_jobs_map)
+    if reasons:
+        return reasons
+    prev_runs: Dict[str, Optional[datetime]] = {}
+    for ref in refs:
+        upstream = _all_jobs_map.get(ref)
+        if upstream is not None and _is_interval_job(upstream):
+            # interval upstreams have no prev_completed_run — derive from runs_store
+            run = _runs_store.get_last_run(ref)
+            prev_runs[ref] = run["scheduled_at"] if run and run["status"] == "completed" else None
+        else:
+            prev_runs[ref] = _freshness_store.get_prev_completed_run(ref)
+    _, reasons = check_all_upstream_run_fresh(freshness, _all_jobs_map, prev_runs)
+    return reasons
+
+
+def _can_dispatch_now(job_def: TJobDefinition) -> Tuple[bool, List[str]]:
+    """Pre-flight check: would `_try_start_job` actually start this job right now?
+
+    No side effects. Returns `(ok, reasons)` — `reasons` is non-empty when blocked.
+    Used by `--refresh` to gate the eager `prev_completed_run` reset.
+    """
+    job_ref = job_def["job_ref"]
+    if job_ref in _processes and _processes[job_ref].is_alive():
+        return False, ["already running"]
+    reasons = _check_run_freshness_for(job_def)
+    return (len(reasons) == 0, reasons)
+
+
 def _try_start_job(
     job_def: TJobDefinition,
     trigger: TTrigger,
@@ -204,22 +331,12 @@ def _try_start_job(
         last = _runs_store.get_last_run(job_def["job_ref"])
         if last and last["status"] == "completed":
             return False
-    freshness = job_def.get("freshness", [])
-    if freshness:
-        refs, reasons = resolve_run_freshness_refs(freshness, _all_jobs_map)
-        if not reasons:
-            last_runs: Dict[str, TLastRunInfo] = {}
-            for ref in refs:
-                run = _runs_store.get_last_run(ref)
-                last_runs[ref] = (
-                    (run["status"] == "completed", run["scheduled_at"]) if run else None
-                )
-            _, reasons = check_all_upstream_run_fresh(freshness, _all_jobs_map, last_runs)
-        if reasons:
-            short = _short(job_def["job_ref"])
-            for reason in reasons:
-                _log_job(short, 2, f"skipped: {reason}")
-            return False
+    reasons = _check_run_freshness_for(job_def)
+    if reasons:
+        short = _short(job_def["job_ref"])
+        for reason in reasons:
+            _log_job(short, 2, f"skipped: {reason}")
+        return False
     _start_job(job_def, trigger, port_counter)
     return True
 
@@ -273,9 +390,32 @@ def _start_job(
         entry_point["run_args"] = {"port": port_counter[0]}
         port_counter[0] += 1
 
+    now = pendulum.now("UTC")
+    refresh_signal = False
+    eff_interval: Optional[TInterval] = interval
+
     if interval is not None:
+        # interval-store path: caller computed the interval, no refresh signal
         entry_point["interval_start"] = interval[0].isoformat()
         entry_point["interval_end"] = interval[1].isoformat()
+    elif not _is_interval_job(job_def):
+        # non-interval path: derive refresh signal + interval from prev_completed_run.
+        # use default_trigger when present so an event-dispatched job (job.success,
+        # manual, etc.) still computes its interval against its scheduling cron rather
+        # than against the event trigger.
+        tz = job_def.get("require", {}).get("timezone", "UTC")
+        prev = _freshness_store.get_prev_completed_run(job_ref)
+        refresh_signal = prev is None
+        entry_point["refresh"] = refresh_signal
+        interval_trigger = job_def.get("default_trigger") or trigger
+        eff_interval = compute_run_interval(interval_trigger, now, prev, tz=tz)
+        entry_point["interval_start"] = eff_interval[0].isoformat()
+        entry_point["interval_end"] = eff_interval[1].isoformat()
+
+    # propagate allow_external_schedulers from manifest to launcher (only meaningful
+    # when an interval is provided)
+    if "interval_start" in entry_point:
+        entry_point["allow_external_schedulers"] = job_def.get("allow_external_schedulers", False)
 
     # pass profile from require spec
     require = job_def.get("require", {})
@@ -320,7 +460,6 @@ def _start_job(
     _processes[job_ref] = proc
 
     # record run in storage
-    now = pendulum.now("UTC")
     run: TJobRun = {
         "run_id": run_id,
         "job_ref": job_ref,
@@ -329,11 +468,12 @@ def _start_job(
         "started_at": now,
         "status": "running",
     }
-    if interval is not None:
-        run["interval_start"] = interval[0]
-        run["interval_end"] = interval[1]
+    if eff_interval is not None:
+        run["interval_start"] = eff_interval[0]
+        run["interval_end"] = eff_interval[1]
     _runs_store.create_run(run)
     _running_run_ids[job_ref] = run_id
+    _running_refresh_flags[job_ref] = refresh_signal
 
 
 def _drain_all_output() -> None:
@@ -355,9 +495,14 @@ def _collect_completions(
             exit_code = proc.poll()
             short = _short(job_ref)
 
+            job_def = _all_jobs_map.get(job_ref)
+            is_interval = job_def is not None and _is_interval_job(job_def)
+
             # retrieve run record (contains interval if any)
             run_id = _running_run_ids.pop(job_ref, None)
+            this_run_was_refresh = _running_refresh_flags.pop(job_ref, False)
             iv: Optional[TInterval] = None
+            run_record: Optional[TJobRun] = None
             if run_id:
                 run_record = _runs_store.get_run(run_id)
                 if run_record and "interval_start" in run_record:
@@ -369,14 +514,16 @@ def _collect_completions(
                 _runs_store.update_run(run_id, run_status, finished_at=finished_at)
 
             if exit_code == 0:
-                if iv is not None:
+                if is_interval and iv is not None:
                     _interval_store.mark_interval_completed(job_ref, iv)
                     _log_job(short, 2, f"interval [{iv[0]}, {iv[1]}) completed")
                 else:
                     _log_job(short, 2, "completed successfully")
+                if not is_interval and job_def is not None:
+                    _on_non_interval_success(job_ref, job_def, run_record, this_run_was_refresh)
                 event = f"job.success:{job_ref}"
             else:
-                if iv is not None:
+                if is_interval and iv is not None:
                     _log_job(short, 2, f"interval [{iv[0]}, {iv[1]}) failed")
                 else:
                     _log_job(short, 2, f"failed (exit code {exit_code})")
@@ -388,7 +535,7 @@ def _collect_completions(
             triggered = scheduler.fire_event(event)
             for jd, trig in triggered:
                 if not _shutting_down:
-                    if iv is not None:
+                    if is_interval and iv is not None:
                         ds_short = _short(jd["job_ref"])
                         _log_job(
                             ds_short,
@@ -397,8 +544,7 @@ def _collect_completions(
                         )
                     _dispatch_job(jd, trig, port_counter)
 
-            if exit_code == 0 and iv is not None:
-                job_def = _all_jobs_map.get(job_ref)
+            if exit_code == 0 and is_interval and iv is not None:
                 if job_def is not None and not _shutting_down:
                     cron = maybe_parse_schedule(job_def)
                     if cron:
@@ -527,20 +673,44 @@ def select_jobs(
     return selected, followup
 
 
-def _display_manifest(jobs: List[TJobDefinition]) -> None:
-    """Display manifest job summary to stderr."""
+_DEFAULT_TRIGGER_MARK = "🎯 "
+
+
+def _display_manifest(
+    jobs: List[TJobDefinition],
+    expanded_map: Dict[str, List[TTrigger]],
+) -> None:
+    """Display manifest job summary to stderr.
+
+    Uses post-expansion triggers so synthetic `tag:`, `manual:`, and
+    `pipeline_name:` triggers from `expose`/`deliver` are visible. The job's
+    `default_trigger` is shown first with a 🎯 marker.
+    """
     for j in jobs:
-        short = _short(j["job_ref"])
-        triggers = j.get("triggers", [])
-        display: List[str] = [t for t in triggers if not t.startswith("manual:")]
-        if not display:
-            display = ["(manual only)"]
+        ref = j["job_ref"]
+        short = _short(ref)
+        expanded = expanded_map.get(ref, list(j.get("triggers", [])))
+        default = j.get("default_trigger")
+
+        # default first (marked), then everything else excluding manual:
+        ordered: List[str] = []
+        if default and default in expanded:
+            ordered.append(f"{_DEFAULT_TRIGGER_MARK}{default}")
+        for t in expanded:
+            if t == default:
+                continue
+            if t.startswith("manual:"):
+                continue
+            ordered.append(t)
+
+        if not ordered:
+            ordered = ["(manual only)"]
         if _use_color:
             color = _job_color(short)
             name = f"{color}{_BOLD}{short:<{_max_name_len}}{_RESET}"
         else:
             name = f"{short:<{_max_name_len}}"
-        _log(f"  {name}  {', '.join(display)}")
+        _log(f"  {name}  {', '.join(ordered)}")
 
 
 def _is_interactive_job(job_def: TJobDefinition) -> bool:
@@ -572,6 +742,7 @@ def run(
     dry_run: bool = False,
     verbose: bool = False,
     config: Optional[Dict[str, Any]] = None,
+    refresh: bool = False,
 ) -> int:
     """Simulate the runtime scheduler for a deployment manifest.
 
@@ -587,36 +758,49 @@ def run(
         dry_run: Display plan without launching jobs.
         verbose: Show full manifest JSON before running.
         config: Config key=value pairs passed to all jobs.
+        refresh: When `True`, clear `prev_completed_run` for each immediate
+            non-interval target and its transitive freshness-downstream before
+            dispatch. Targets whose pre-flight check fails are skipped with a
+            warning. Interval-store jobs are silently excluded.
 
     Returns:
         Exit code (0 = all jobs succeeded, 1 = any job failed).
     """
-    global _processes, _shutting_down, _interval_store, _runs_store
-    global _running_run_ids, _all_jobs_map, _config, _display_names, _max_name_len
+    global _processes, _shutting_down, _interval_store, _runs_store, _freshness_store
+    global _running_run_ids, _running_refresh_flags
+    global _all_jobs_map, _config, _display_names, _max_name_len
 
     _processes = {}
     _shutting_down = False
     _config = dict(config) if config else {}
     _running_run_ids = {}
+    _running_refresh_flags = {}
     _interval_store = DuckDBIntervalStore()
     _runs_store = DuckDBJobRunsStore()
+    _freshness_store = DuckDBJobFreshnessStore()
     _all_jobs_map = {j["job_ref"]: j for j in jobs}
     _display_names = _build_display_names(jobs)
-
-    if verbose:
-        _log(json.dumps(jobs, pretty=True))
-        _log("")
 
     # expand triggers (manual/tag from expose) without mutating job defs
     expanded_map: Dict[str, List[TTrigger]] = {}
     for j in jobs:
         expanded_map[j["job_ref"]] = expand_triggers(j)
 
+    if verbose:
+        # show post-expansion form so synthetic triggers from expose/deliver are visible
+        expanded_jobs: List[Dict[str, Any]] = []
+        for j in jobs:
+            j_copy = dict(j)
+            j_copy["triggers"] = expanded_map[j["job_ref"]]
+            expanded_jobs.append(j_copy)
+        _log(json.dumps(expanded_jobs, pretty=True))
+        _log("")
+
     _max_name_len = max((len(_short(j["job_ref"])) for j in jobs), default=8)
 
     # always show manifest
     _log(f"manifest: {len(jobs)} job(s)")
-    _display_manifest(jobs)
+    _display_manifest(jobs, expanded_map)
     _log("")
 
     # resolve --select to one trigger per matched job
@@ -700,22 +884,19 @@ def run(
 
     if not immediate and scheduler.is_empty() and not scheduler.has_only_event_triggers():
         _log("nothing to run")
-        if _interval_store is not None:
-            _interval_store.close()
-        if _runs_store is not None:
-            _runs_store.close()
+        _close_stores()
         return 0
 
     if dry_run:
         _log("dry run — no jobs launched")
-        if _interval_store is not None:
-            _interval_store.close()
-        if _runs_store is not None:
-            _runs_store.close()
+        _close_stores()
         return 0
 
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
+
+    if refresh and immediate:
+        _eager_refresh_cascade(immediate, warn=lambda m: _log(f"warning: {m}"))
 
     # start immediate jobs with random stagger
     for job_def, trigger in immediate:
@@ -753,10 +934,7 @@ def run(
 
     _drain_all_output()
 
-    if _interval_store is not None:
-        _interval_store.close()
-    if _runs_store is not None:
-        _runs_store.close()
+    _close_stores()
 
     if failed_refs:
         _log(f"{len(failed_refs)} job(s) failed: {', '.join(failed_refs)}")
@@ -773,6 +951,7 @@ def run_from_module(
     dry_run: bool = False,
     verbose: bool = False,
     config: Optional[Dict[str, Any]] = None,
+    refresh: bool = False,
     warn: Callable[[str], None] = lambda msg: print(  # noqa: T201,T202
         f"warning: {msg}", file=sys.stderr
     ),
@@ -788,6 +967,9 @@ def run_from_module(
         dry_run: Display plan without launching jobs.
         verbose: Show full manifest JSON before running.
         config: Config key=value pairs passed to all jobs.
+        refresh: When `True`, clear `prev_completed_run` for each immediate
+            non-interval target and its transitive freshness-downstream before
+            dispatch (see `run`).
         warn: Output function for warnings.
 
     Returns:
@@ -810,4 +992,5 @@ def run_from_module(
         dry_run=dry_run,
         verbose=verbose,
         config=config,
+        refresh=refresh,
     )

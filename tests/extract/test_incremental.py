@@ -32,6 +32,7 @@ from dlt.common.utils import chunks, digest128, uniq_id
 
 from dlt.extract import DltSource
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
+from dlt.extract.incremental.context import TimeIntervalContext
 from dlt.extract.pipe import Pipe
 from dlt.extract.state import resource_state
 from dlt.extract.incremental.exceptions import (
@@ -609,6 +610,8 @@ def test_cursor_datetime_type(item_type: TestDataItemFormat) -> None:
         "created_at"
     ]
     assert s["last_value"] == initial_value + timedelta(minutes=4)
+    # fresh state: start_value snapshots the configured initial_value
+    assert s["start_value"] == initial_value
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -1455,6 +1458,9 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     info = p.run(standalone_some_data(item_type, now))
     print(p.last_trace.last_normalize_info)
     print(info)
+    # generated empty state (start_value updated to last_value)
+    assert len(info.loads_ids) == 1
+    info = p.run(standalone_some_data(item_type, now))
     assert len(info.loads_ids) == 0
     info = p.run(standalone_some_data(item_type, now), write_disposition="replace")
     assert len(info.loads_ids) == 1
@@ -1471,6 +1477,9 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     print(parent_r._pipe._steps)
     print(child._pipe._steps)
 
+    # generated empty state (start_value updated to last_value)
+    info = p.run(child)
+    assert len(info.loads_ids) == 1
     # also transformer will not receive new data
     info = p.run(child)
     assert len(info.loads_ids) == 0
@@ -1543,6 +1552,8 @@ def test_incremental_as_transform(item_type: TestDataItemFormat) -> None:
     p = dlt.pipeline(pipeline_name="p" + uniq_id())
     info = p.run(r, destination="duckdb")
     assert len(info.loads_ids) == 1
+    # persisted state has start_value snapshotted at the initial_value (fresh state)
+    assert r.state["incremental"]["ts"]["start_value"] == now
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -2075,6 +2086,11 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
         resource.incremental.incremental._cached_state["last_value"]
         == pendulum_start_dt.add(hours=3).naive()
     )
+    # start_value snapshots the previous run's last_value (h2.naive())
+    assert (
+        resource.state["incremental"]["updated_at"]["start_value"]
+        == pendulum_start_dt.add(hours=2).naive()
+    )
 
     # end value tz-awareness conflict
     with pytest.raises(ConfigurationValueError):
@@ -2212,6 +2228,11 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     assert resource.state["incremental"]["updated_at"]["last_value"] == pendulum_start_dt.add(
         hours=5
     )
+    # start_value snapshots the previous run's last_value (h4.naive(), preserved as raw)
+    assert (
+        resource.state["incremental"]["updated_at"]["start_value"]
+        == pendulum_start_dt.add(hours=4).naive()
+    )
 
     # switch from UTC to naive
     resource = some_data(max_hours=4, tz="UTC").with_name("copy_5")  # also make new resource state
@@ -2240,6 +2261,10 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     assert (
         resource.state["incremental"]["updated_at"]["last_value"]
         == pendulum_start_dt.add(hours=5).naive()
+    )
+    # start_value snapshots the previous run's last_value (h4 tz-aware, preserved as raw)
+    assert resource.state["incremental"]["updated_at"]["start_value"] == pendulum_start_dt.add(
+        hours=4
     )
 
 
@@ -2371,6 +2396,13 @@ def test_load_with_end_value_does_not_write_state(item_type: TestDataItemFormat)
     )
 
     assert pipeline.state.get("sources") is None
+
+    # end_value path returns mock state — start_value must be present and equal to initial_value
+    inc = dlt.sources.incremental("updated_at", initial_value=20, end_value=30)
+    mock_state = inc.get_state()
+    assert mock_state["start_value"] == 20
+    assert mock_state["last_value"] == 20
+    assert mock_state["initial_value"] == 20
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -2790,6 +2822,11 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
     # typing has precedence
     assert dlt.sources.incremental[pendulum.DateTime]("id", initial_value=1).get_incremental_value_type() is pendulum.DateTime  # type: ignore[arg-type]
 
+    # context with allow_external_schedulers=False overrides per-incremental True so the
+    # join path is skipped entirely; this lets the resource bodies below test type
+    # inference without triggering ExternalSchedulerNotAvailable
+    no_join_ctx = TimeIntervalContext(allow_external_schedulers=False)
+
     # pass default value
     @dlt.resource
     def test_type(
@@ -2800,8 +2837,9 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
-    r = test_type()
-    list(r)
+    with Container().injectable_context(no_join_ctx):
+        r = test_type()
+        list(r)
     assert r.incremental.incremental.get_incremental_value_type() is str
 
     # use annotation
@@ -2814,8 +2852,9 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
-    r = test_type_2()
-    list(r)
+    with Container().injectable_context(no_join_ctx):
+        r = test_type_2()
+        list(r)
     assert r.incremental.incremental.get_incremental_value_type() is int
 
     # pass in explicit value
@@ -2824,10 +2863,11 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
-    r = test_type_3(
-        dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True)  # type: ignore[arg-type]
-    )
-    list(r)
+    with Container().injectable_context(no_join_ctx):
+        r = test_type_3(
+            dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True)  # type: ignore[arg-type]
+        )
+        list(r)
     assert r.incremental.incremental.get_incremental_value_type() is float
 
     # pass explicit value overriding default that is typed
@@ -2877,18 +2917,17 @@ def test_join_env_scheduler(item_type: TestDataItemFormat) -> None:
         data = [{"updated_at": d} for d in [d1, d2, d3]]
         yield data_to_item_format(item_type, data)
 
-    # no env → all items
-    result = list(test_type_2())
-    assert len(data_item_to_list(item_type, result)) == 3
-
-    # set start value → filters to >= start
+    # wide range [d2, d4) over [d1, d2, d3] → d2, d3
     os.environ["DLT_START_VALUE"] = "2024-01-02T00:00:00Z"
-    result = list(test_type_2())
+    os.environ["DLT_END_VALUE"] = "2024-01-04T00:00:00Z"
+    with Container().injectable_context(TimeIntervalContext()):
+        result = list(test_type_2())
     assert len(data_item_to_list(item_type, result)) == 2
 
-    # set end value → filters to < end
+    # narrower range [d2, d3) → d2
     os.environ["DLT_END_VALUE"] = "2024-01-03T00:00:00Z"
-    result = list(test_type_2())
+    with Container().injectable_context(TimeIntervalContext()):
+        result = list(test_type_2())
     assert len(data_item_to_list(item_type, result)) == 1
 
 
@@ -2910,23 +2949,26 @@ def test_join_env_scheduler_pipeline(item_type: TestDataItemFormat) -> None:
     pip_1_name = "incremental_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pip_1_name, destination="duckdb")
 
-    # with both start and end, extract uses mock state (not persisted)
+    # range [d2, d3) → d2; mock state (end_value set)
     os.environ["DLT_START_VALUE"] = "2024-01-02T00:00:00Z"
     os.environ["DLT_END_VALUE"] = "2024-01-03T00:00:00Z"
-    r = test_type_2()
-    r.add_step(AssertItems([{"updated_at": d2}], item_type))
-    pipeline.extract(r)
+    with Container().injectable_context(TimeIntervalContext()):
+        r = test_type_2()
+        r.add_step(AssertItems([{"updated_at": d2}], item_type))
+        pipeline.extract(r)
 
-    # same range extracts same items (mock state, not persisted)
-    r = test_type_2()
-    r.add_step(AssertItems([{"updated_at": d2}], item_type))
-    pipeline.extract(r)
+    # same range, fresh injection extracts same items (mock state, not persisted)
+    with Container().injectable_context(TimeIntervalContext()):
+        r = test_type_2()
+        r.add_step(AssertItems([{"updated_at": d2}], item_type))
+        pipeline.extract(r)
 
-    # shift start earlier, widen range
+    # shift start earlier, widen range to [d1, d3) → d1, d2
     os.environ["DLT_START_VALUE"] = "2024-01-01T00:00:00Z"
-    r = test_type_2()
-    r.add_step(AssertItems([{"updated_at": d1}, {"updated_at": d2}], item_type))
-    pipeline.extract(r)
+    with Container().injectable_context(TimeIntervalContext()):
+        r = test_type_2()
+        r.add_step(AssertItems([{"updated_at": d1}, {"updated_at": d2}], item_type))
+        pipeline.extract(r)
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -2942,20 +2984,23 @@ def test_allow_external_schedulers(item_type: TestDataItemFormat) -> None:
         data = [{"updated_at": d} for d in [d1, d2, d3]]
         yield data_to_item_format(item_type, data)
 
-    # add incremental dynamically with datetime type
+    # add incremental dynamically with datetime type; range [d2, d4) → d2, d3
     os.environ["DLT_START_VALUE"] = "2024-01-02T00:00:00Z"
-    r = test_type_dt()
-    r.add_step(dlt.sources.incremental[datetime]("updated_at"))
-    r.incremental.allow_external_schedulers = True
-    result = data_item_to_list(item_type, list(r))
+    os.environ["DLT_END_VALUE"] = "2024-01-04T00:00:00Z"
+    with Container().injectable_context(TimeIntervalContext()):
+        r = test_type_dt()
+        r.add_step(dlt.sources.incremental[datetime]("updated_at"))
+        r.incremental.allow_external_schedulers = True
+        result = data_item_to_list(item_type, list(r))
     assert len(result) == 2
 
-    # untyped incremental raises JoinSchedulerError
-    r = test_type_dt()
-    r.add_step(dlt.sources.incremental("updated_at"))
-    r.incremental.allow_external_schedulers = True
-    with pytest.raises(JoinSchedulerError):
-        list(r)
+    # untyped incremental raises JoinSchedulerError during type validation
+    with Container().injectable_context(TimeIntervalContext()):
+        r = test_type_dt()
+        r.add_step(dlt.sources.incremental("updated_at"))
+        r.incremental.allow_external_schedulers = True
+        with pytest.raises(JoinSchedulerError):
+            list(r)
 
 
 @pytest.mark.parametrize("yield_pydantic", (True, False))
@@ -4409,7 +4454,12 @@ def test_start_range_open_no_deduplication(item_type: TestDataItemFormat) -> Non
 
 def test_primary_key_disables_deduplication() -> None:
     incremental = dlt.sources.incremental[int]("updated_at")
-    incremental._cached_state = {"unique_hashes": [], "initial_value": None, "last_value": None}
+    incremental._cached_state = {
+        "unique_hashes": [],
+        "initial_value": None,
+        "last_value": None,
+        "start_value": None,
+    }
     assert incremental._get_transform({}).boundary_deduplication is True
     incremental.set_deduplication_key((), False)
     assert incremental._get_transform({}).boundary_deduplication is False
@@ -4760,6 +4810,9 @@ def test_incremental_hints_in_extract_trace() -> None:
     assert p.last_trace.last_extract_info.metrics
     # second run yields same items — all filtered out
     load_info = p.run(static_data)
+    # but state updated (start_value = last_value from prev run)
+    assert len(load_info.loads_ids) == 1
+    load_info = p.run(static_data)
     assert load_info.loads_ids == []
     inc_hint = _get_incremental_hint("static_data")
     assert inc_hint["cursor_path"] == "updated_at"
@@ -4784,8 +4837,11 @@ def test_decorator_incremental_fallback_none_default() -> None:
     ):
         yield {"updated_at": "2024-01-15T12:00:00Z", "state": updated_at.get_state()}
 
-    r = fallback_test()
-    items = list(r)
+    # ctx.allow_external_schedulers=False overrides the per-incremental True so the join
+    # path is skipped — this test verifies decorator->param fallback, not scheduler join
+    with Container().injectable_context(TimeIntervalContext(allow_external_schedulers=False)):
+        r = fallback_test()
+        items = list(r)
 
     assert len(items) == 1
     state = items[0]["state"]

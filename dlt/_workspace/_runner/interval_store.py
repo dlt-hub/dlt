@@ -31,6 +31,10 @@ class TIntervalStore(Protocol):
         """Remove all completed data overlapping `interval`."""
         ...
 
+    def close(self) -> None:
+        """Release any resources held by the store."""
+        ...
+
 
 class DuckDBIntervalStore:
     """Tracks completed job intervals using in-memory DuckDB."""

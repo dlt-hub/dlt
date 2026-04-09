@@ -177,7 +177,7 @@ def test_incremental_with_explicit_context() -> None:
 
 
 def test_incremental_raises_when_no_interval() -> None:
-    """Incremental with allow_external_schedulers raises when no interval available."""
+    """Context with `allow_external_schedulers=True` and no interval forces a strict raise."""
 
     @dlt.resource()
     def my_resource(
@@ -187,7 +187,8 @@ def test_incremental_raises_when_no_interval() -> None:
     ):
         yield {"updated_at": pendulum.datetime(2024, 1, 15, 12, tz="UTC")}
 
-    ctx = TimeIntervalContext()  # no interval
+    # ctx.allow_external_schedulers=True forces strict mode: missing interval must raise
+    ctx = TimeIntervalContext(allow_external_schedulers=True)
     with Container().injectable_context(ctx):
         r = my_resource()
         with pytest.raises(ExternalSchedulerNotAvailable):

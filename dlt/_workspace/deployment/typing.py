@@ -35,6 +35,11 @@ TFreshnessConstraint = NewType("TFreshnessConstraint", str)
 TFreshnessType = Literal["job.is_matching_interval_fresh", "job.is_fresh"]
 """Constraint types for interval freshness checks — not triggers."""
 
+TRefreshPolicy = Literal["always", "auto", "block"]
+"""How a non-interval job propagates the `refresh` signal to direct downstream
+on successful completion. `auto` (default) passes through if this run had
+`refresh=True`. `always` always propagates. `block` never propagates."""
+
 
 class HttpTriggerInfo(NamedTuple):
     port: Optional[int]
@@ -59,12 +64,18 @@ TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook"]
 
 
 class TJobExposeSpec(TypedDict, total=False):
-    """User-facing UI presentation metadata, accepted by decorators."""
+    """User-facing UI presentation metadata, accepted by decorators.
+
+    Decorators normalize this into the canonical manifest form before storing —
+    in particular `tags` may be passed as either a single string or a list and
+    is stored as `List[str]`.
+    """
 
     display_name: str
     """Human-friendly label shown in the UI. May contain spaces and punctuation."""
-    tags: List[str]
-    """Grouping labels. Runner creates `tag:` triggers from these."""
+    tags: Union[str, List[str]]
+    """Grouping labels. Accepts a single string or list; runner creates `tag:`
+    triggers from these. Stored as `List[str]` after decorator normalization."""
     starred: bool
     """Show in top-level runtime UI."""
     manual: bool
@@ -150,6 +161,8 @@ class TJobRunContext(TypedDict):
     """Start of the interval being processed."""
     interval_end: NotRequired[datetime]
     """End of the interval being processed."""
+    refresh: bool
+    """Refresh signal with request to refresh (reload) the data"""
 
 
 class TRuntimeEntryPoint(TEntryPoint):
@@ -165,10 +178,16 @@ class TRuntimeEntryPoint(TEntryPoint):
     """ISO 8601 start of the interval being processed."""
     interval_end: NotRequired[str]
     """ISO 8601 end of the interval being processed."""
+    allow_external_schedulers: NotRequired[bool]
+    """Propagated from `TJobDefinition.allow_external_schedulers`. Tells the
+    launcher whether to inject `TimeIntervalContext(allow_external_schedulers=True)`
+    so dlt incrementals join the runner-provided interval without per-resource opt-in."""
     profile: NotRequired[str]
     """Active workspace profile, resolved from require.profile."""
     config: NotRequired[Dict[str, Any]]
     """Config key-value pairs injected as env vars before job execution."""
+    refresh: NotRequired[bool]
+    """Refresh signal with request to refresh (reload) the data"""
 
 
 class TTimeoutSpec(TypedDict):
@@ -224,6 +243,11 @@ class TJobDefinition(TypedDict):
     """Runtime resource requirements."""
     default_trigger: NotRequired[TTrigger]
     """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
+    refresh: NotRequired[TRefreshPolicy]
+    """Refresh-signal propagation policy for non-interval jobs.
+    `auto` (default): pass through if this run had `refresh=True`.
+    `always`: always clear direct downstream `prev_completed_run` on success.
+    `block`: never propagate. Ignored for interval-store jobs."""
 
 
 class TDeploymentFileItem(TypedDict, total=False):

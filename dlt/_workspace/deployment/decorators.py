@@ -1,17 +1,15 @@
 import inspect
 from functools import update_wrapper, wraps
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Sequence, Type, Union, overload
+from typing import Any, Callable, List, Optional, Sequence, Type, Union, overload
 
 from typing_extensions import TypeVar
 
 from dlt.common.configuration import get_fun_spec, with_config
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
+from dlt.common.pipeline import SupportsPipeline
 from dlt.common.reflection.inspect import iscoroutinefunction
 from dlt.common.typing import AnyFun, Generic, ParamSpec
 from dlt.common.utils import get_callable_name, get_module_name
-
-if TYPE_CHECKING:
-    from dlt.common.pipeline import SupportsPipeline
 
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment import freshness as _freshness
@@ -36,6 +34,7 @@ from dlt._workspace.deployment.typing import (
     TJobExposeSpec,
     TJobRef,
     TJobType,
+    TRefreshPolicy,
     TRequireSpec,
     TTimeoutSpec,
     TTrigger,
@@ -54,6 +53,24 @@ def _normalize_timeout(
     if isinstance(value, str):
         return {"timeout": parse_period_seconds(value)}
     return {"timeout": float(value)}
+
+
+def _normalize_expose(
+    expose: Optional[TJobExposeSpec],
+) -> Optional[TJobExposeSpec]:
+    """Normalize an expose spec for storage. Wraps single-string `tags` into a list.
+
+    Returns a shallow copy when normalization changes anything; otherwise returns
+    `expose` unchanged. Returns `None` if `expose` is `None`.
+    """
+    if expose is None:
+        return None
+    tags = expose.get("tags")
+    if isinstance(tags, str):
+        normalized: TJobExposeSpec = dict(expose)  # type: ignore[assignment]
+        normalized["tags"] = [tags]
+        return normalized
+    return expose
 
 
 def _validate_job_name(name: Optional[str]) -> None:
@@ -116,6 +133,7 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         self.interval: Optional[TIntervalSpec] = None
         self.freshness: List[TFreshnessConstraint] = []
         self.allow_external_schedulers: bool = False
+        self.refresh: TRefreshPolicy = "auto"
 
     @property
     def job_ref(self) -> TJobRef:
@@ -214,6 +232,8 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
             job_def["freshness"] = list(self.freshness)
         if self.allow_external_schedulers:
             job_def["allow_external_schedulers"] = True
+        if self.refresh != "auto":
+            job_def["refresh"] = self.refresh
 
         if self.deliver is not None:
             if isinstance(self.deliver, dict):
@@ -243,6 +263,7 @@ def _job(
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
     ] = None,
     allow_external_schedulers: bool = False,
+    refresh: TRefreshPolicy = "auto",
     spec: Type[BaseConfiguration] = None,
 ) -> Any:
     """Common decorator implementation for all job types."""
@@ -254,12 +275,13 @@ def _job(
     wrapper.job_type = job_type
     wrapper.trigger = normalize_triggers(trigger)
     wrapper.execute = execute
-    wrapper.expose = expose
+    wrapper.expose = _normalize_expose(expose)
     wrapper.require = require
     wrapper.deliver = deliver
     wrapper.interval = interval
     wrapper.freshness = normalize_freshness_constraints(freshness)
     wrapper.allow_external_schedulers = allow_external_schedulers
+    wrapper.refresh = refresh
     wrapper._user_spec = spec
 
     if func is None:
@@ -283,6 +305,7 @@ def job(
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
     ] = None,
     allow_external_schedulers: bool = False,
+    refresh: TRefreshPolicy = "auto",
     spec: Type[BaseConfiguration] = None,
 ) -> JobFactory[TJobFunParams, TJobResult]: ...
 
@@ -303,6 +326,7 @@ def job(
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
     ] = None,
     allow_external_schedulers: bool = False,
+    refresh: TRefreshPolicy = "auto",
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]: ...
 
@@ -322,6 +346,7 @@ def job(
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
     ] = None,
     allow_external_schedulers: bool = False,
+    refresh: TRefreshPolicy = "auto",
     spec: Type[BaseConfiguration] = None,
 ) -> Any:
     """Marks a function as a deployable batch job.
@@ -358,6 +383,11 @@ def job(
         allow_external_schedulers: When `True`, intervals and state are managed
             by the scheduler rather than the job itself.
 
+        refresh: Refresh-signal propagation policy. `auto` (default) passes
+            through if this run had `refresh=True`. `always` always clears
+            direct downstream `prev_completed_run` on success. `block` never
+            propagates. Ignored for interval-store jobs.
+
         spec: Optional configuration spec class.
 
     Returns:
@@ -376,6 +406,7 @@ def job(
         interval=interval,
         freshness=freshness,
         allow_external_schedulers=allow_external_schedulers,
+        refresh=refresh,
         spec=spec,
     )
 
@@ -476,7 +507,7 @@ def interactive(
 
 
 def pipeline_run(
-    pipeline: Union[str, "SupportsPipeline"],
+    pipeline: Union[str, SupportsPipeline],
     /,
     name: str = None,
     section: str = None,
@@ -489,6 +520,7 @@ def pipeline_run(
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
     ] = None,
     allow_external_schedulers: bool = False,
+    refresh: TRefreshPolicy = "auto",
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]:
     """Creates a job bound to a specific pipeline.
@@ -519,6 +551,11 @@ def pipeline_run(
 
         allow_external_schedulers: When `True`, intervals managed by scheduler.
 
+        refresh: Refresh-signal propagation policy. `auto` (default) passes
+            through if this run had `refresh=True`. `always` always clears
+            direct downstream `prev_completed_run` on success. `block` never
+            propagates. Ignored for interval-store jobs.
+
         spec: Optional configuration spec class.
 
     Returns:
@@ -548,6 +585,7 @@ def pipeline_run(
             interval=interval,
             freshness=freshness,
             allow_external_schedulers=allow_external_schedulers,
+            refresh=refresh,
             spec=spec,
         )
 

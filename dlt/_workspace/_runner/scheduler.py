@@ -166,7 +166,7 @@ class TriggerScheduler:
         prev = self._last_scheduled.get(key)
 
         try:
-            result = next_scheduled_run(
+            scheduled_at = next_scheduled_run(
                 trigger, pendulum.now("UTC"), tz=tz, prev_scheduled_run=prev
             )
         except InvalidTrigger:
@@ -177,7 +177,7 @@ class TriggerScheduler:
             ScheduledItem(
                 job_def,
                 trigger,
-                fire_at=result.scheduled_at.timestamp(),
+                fire_at=scheduled_at.timestamp(),
                 repeating=not self.with_future_once,
             )
         )

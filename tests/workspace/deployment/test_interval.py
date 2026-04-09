@@ -1,5 +1,6 @@
 """Tests for interval computation, eligibility, and upstream freshness checks."""
 
+from datetime import datetime  # noqa: I251
 from typing import Dict, List, Optional, Tuple
 
 import pytest
@@ -9,9 +10,9 @@ from dlt.common.time import ensure_pendulum_datetime_utc
 
 from dlt._workspace.deployment.interval import (
     TInterval,
-    TLastRunInfo,
     check_all_upstream_interval_fresh,
     check_all_upstream_run_fresh,
+    compute_run_interval,
     cron_floor,
     get_eligible_intervals,
     iter_intervals,
@@ -22,6 +23,10 @@ from dlt._workspace.deployment.interval import (
     sort_and_coalesce,
 )
 from dlt._workspace._runner.interval_store import DuckDBIntervalStore
+from dlt._workspace.deployment.freshness import (
+    get_direct_freshness_downstream,
+    get_transitive_freshness_downstream,
+)
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
     TExecuteSpec,
@@ -48,6 +53,7 @@ def _job(
     interval: Optional[TIntervalSpec] = None,
     default_trigger: Optional[str] = None,
     job_type: TJobType = "batch",
+    freshness: Optional[List[str]] = None,
 ) -> TJobDefinition:
     job: TJobDefinition = {
         "job_ref": TJobRef(ref),
@@ -59,6 +65,8 @@ def _job(
         job["interval"] = interval
     if default_trigger is not None:
         job["default_trigger"] = TTrigger(default_trigger)
+    if freshness is not None:
+        job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
     return job
 
 
@@ -286,16 +294,15 @@ def test_next_eligible_with_gap_in_middle() -> None:
 
 
 @pytest.mark.parametrize(
-    "trigger,tz,prev,now_ref,expected_at,expected_iv",
+    "trigger,tz,prev,now_ref,expected_at",
     [
-        # schedule: next cron tick after now, interval = [prev_tick, next_tick)
+        # schedule: next cron tick after now
         (
             "schedule:0 0 * * *",
             "UTC",
             None,
             "2024-06-15T12:00:00Z",
             "2024-06-16T00:00:00Z",
-            ("2024-06-15T00:00:00Z", "2024-06-16T00:00:00Z"),
         ),
         # schedule: exactly on a tick — next is the following tick
         (
@@ -304,7 +311,6 @@ def test_next_eligible_with_gap_in_middle() -> None:
             None,
             "2024-06-15T00:00:00Z",
             "2024-06-16T00:00:00Z",
-            ("2024-06-15T00:00:00Z", "2024-06-16T00:00:00Z"),
         ),
         # schedule: with timezone
         (
@@ -313,7 +319,6 @@ def test_next_eligible_with_gap_in_middle() -> None:
             None,
             "2024-06-15T11:00:00Z",  # 07:00 ET, before 08:00
             "2024-06-15T12:00:00Z",  # 08:00 ET
-            ("2024-06-14T12:00:00Z", "2024-06-15T12:00:00Z"),  # prev 08:00 ET, next 08:00 ET
         ),
         # every: first run (no prev), waits one period
         (
@@ -322,7 +327,6 @@ def test_next_eligible_with_gap_in_middle() -> None:
             None,
             "2024-06-15T10:30:00Z",
             "2024-06-15T11:30:00Z",
-            ("2024-06-15T11:30:00Z", "2024-06-15T12:30:00Z"),
         ),
         # every: prev exists, next = prev + period
         (
@@ -331,7 +335,6 @@ def test_next_eligible_with_gap_in_middle() -> None:
             "2024-06-15T10:00:00Z",
             "2024-06-15T10:30:00Z",
             "2024-06-15T11:00:00Z",
-            ("2024-06-15T11:00:00Z", "2024-06-15T12:00:00Z"),
         ),
         # every: prev + period is in the past — clamp to now + period
         (
@@ -340,7 +343,6 @@ def test_next_eligible_with_gap_in_middle() -> None:
             "2024-06-15T08:00:00Z",
             "2024-06-15T12:00:00Z",
             "2024-06-15T13:00:00Z",
-            ("2024-06-15T13:00:00Z", "2024-06-15T14:00:00Z"),
         ),
         # once: future datetime
         (
@@ -349,7 +351,6 @@ def test_next_eligible_with_gap_in_middle() -> None:
             None,
             "2024-06-15T00:00:00Z",
             "2024-12-31T23:59:59Z",
-            None,
         ),
         # once: past datetime — clamp to now
         (
@@ -358,7 +359,6 @@ def test_next_eligible_with_gap_in_middle() -> None:
             None,
             "2024-06-15T00:00:00Z",
             "2024-06-15T00:00:00Z",
-            None,
         ),
     ],
     ids=[
@@ -378,45 +378,36 @@ def test_next_scheduled_run(
     prev: Optional[str],
     now_ref: str,
     expected_at: str,
-    expected_iv: Optional[Tuple[str, str]],
 ) -> None:
-    result = next_scheduled_run(
+    scheduled_at = next_scheduled_run(
         TTrigger(trigger),
         _dt(now_ref),
         tz=tz,
         prev_scheduled_run=_dt(prev) if prev else None,
     )
-    assert result.scheduled_at == _dt(expected_at)
-    if expected_iv is None:
-        assert result.interval is None
-    else:
-        assert result.interval == (_dt(expected_iv[0]), _dt(expected_iv[1]))
+    assert scheduled_at == _dt(expected_at)
 
 
 def test_next_scheduled_run_returns_utc() -> None:
     """All returned datetimes are UTC regardless of tz parameter."""
-    result = next_scheduled_run(
+    scheduled_at = next_scheduled_run(
         TTrigger("schedule:0 8 * * *"),
         _dt("2024-06-15T11:00:00Z"),
         tz="US/Eastern",
     )
-    assert result.scheduled_at.tzname() == "UTC"
-    assert result.interval[0].tzname() == "UTC"
-    assert result.interval[1].tzname() == "UTC"
+    assert scheduled_at.tzname() == "UTC"
 
-    result_every = next_scheduled_run(
+    scheduled_every = next_scheduled_run(
         TTrigger("every:1h"),
         _dt("2024-06-15T10:00:00Z"),
     )
-    assert result_every.scheduled_at.tzname() == "UTC"
-    assert result_every.interval[0].tzname() == "UTC"
-    assert result_every.interval[1].tzname() == "UTC"
+    assert scheduled_every.tzname() == "UTC"
 
-    result_once = next_scheduled_run(
+    scheduled_once = next_scheduled_run(
         TTrigger("once:2025-01-01T00:00:00Z"),
         _dt("2024-06-15T00:00:00Z"),
     )
-    assert result_once.scheduled_at.tzname() == "UTC"
+    assert scheduled_once.tzname() == "UTC"
 
 
 def test_next_scheduled_run_rejects_non_timed() -> None:
@@ -425,6 +416,174 @@ def test_next_scheduled_run_rejects_non_timed() -> None:
 
     with pytest.raises(IT, match="not a timed trigger"):
         next_scheduled_run(TTrigger("manual:jobs.mod.a"), _dt("2024-06-15T00:00:00Z"))
+
+
+@pytest.mark.parametrize(
+    "trigger,prev,now,expected_start,expected_end",
+    [
+        # prev=None synthesizes start by trigger type
+        # schedule: previous cron tick
+        (
+            "schedule:0 * * * *",
+            None,
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:00:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # schedule: now exactly on a tick — that tick is the start (cron_floor includes equality)
+        (
+            "schedule:0 * * * *",
+            None,
+            "2024-06-15T12:00:00Z",
+            "2024-06-15T12:00:00Z",
+            "2024-06-15T12:00:00Z",
+        ),
+        # every: now - period
+        (
+            "every:1h",
+            None,
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T11:30:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # every: 5-minute period
+        (
+            "every:5m",
+            None,
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:25:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # once: zero-length at the once time, regardless of now
+        (
+            "once:2030-01-01T00:00:00Z",
+            None,
+            "2024-06-15T12:30:00Z",
+            "2030-01-01T00:00:00Z",
+            "2030-01-01T00:00:00Z",
+        ),
+        # manual: zero-length at now
+        (
+            "manual:jobs.mod.a",
+            None,
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # tag: zero-length at now
+        (
+            "tag:nightly",
+            None,
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # job.success: zero-length at now
+        (
+            "job.success:jobs.mod.upstream",
+            None,
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # prev set + schedule → prev wins, end is now (not the cron tick)
+        (
+            "schedule:0 * * * *",
+            "2024-06-15T10:15:23Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T10:15:23Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # prev set + every → prev wins
+        (
+            "every:1h",
+            "2024-06-15T10:00:00Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T10:00:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # prev set + once → prev wins (overrides zero-length default)
+        (
+            "once:2030-01-01T00:00:00Z",
+            "2024-06-15T10:00:00Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T10:00:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # prev set + manual → prev wins
+        (
+            "manual:jobs.mod.a",
+            "2024-06-15T10:00:00Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T10:00:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+    ],
+    ids=[
+        "schedule-prev=None-midhour",
+        "schedule-prev=None-on-tick",
+        "every-prev=None-1h",
+        "every-prev=None-5m",
+        "once-prev=None",
+        "manual-prev=None",
+        "tag-prev=None",
+        "job.success-prev=None",
+        "schedule-prev-set",
+        "every-prev-set",
+        "once-prev-set",
+        "manual-prev-set",
+    ],
+)
+def test_compute_run_interval(
+    trigger: str,
+    prev: Optional[str],
+    now: str,
+    expected_start: str,
+    expected_end: str,
+) -> None:
+    iv = compute_run_interval(
+        TTrigger(trigger),
+        _dt(now),
+        prev_completed_run=_dt(prev) if prev else None,
+    )
+    assert iv == (_dt(expected_start), _dt(expected_end))
+
+
+def test_compute_run_interval_returns_utc() -> None:
+    """All returned datetimes are UTC."""
+    iv = compute_run_interval(
+        TTrigger("schedule:0 8 * * *"),
+        _dt("2024-06-15T11:00:00Z"),
+        prev_completed_run=None,
+        tz="US/Eastern",
+    )
+    assert iv[0].tzname() == "UTC"
+    assert iv[1].tzname() == "UTC"
+
+
+def test_compute_run_interval_schedule_with_timezone() -> None:
+    """Cron tick is computed in target tz then converted to UTC."""
+    # 08:00 ET = 12:00 UTC (DST). At now=11:00 UTC (07:00 ET), the previous
+    # 08:00 ET tick is yesterday's 08:00 ET = previous day 12:00 UTC.
+    iv = compute_run_interval(
+        TTrigger("schedule:0 8 * * *"),
+        _dt("2024-06-15T11:00:00Z"),
+        prev_completed_run=None,
+        tz="US/Eastern",
+    )
+    assert iv == (_dt("2024-06-14T12:00:00Z"), _dt("2024-06-15T11:00:00Z"))
+
+
+def test_compute_run_interval_invalid_trigger() -> None:
+    """Unparseable triggers raise InvalidTrigger."""
+    from dlt._workspace.deployment.exceptions import InvalidTrigger as IT
+
+    with pytest.raises(IT):
+        compute_run_interval(
+            TTrigger("not-a-trigger"),
+            _dt("2024-06-15T12:00:00Z"),
+            prev_completed_run=None,
+        )
 
 
 # freshness checks
@@ -722,101 +881,86 @@ def test_freshness_via_resolve_and_check_with_misaligned_cron() -> None:
 
 def _check_run_freshness(
     upstream_job: TJobDefinition,
-    last_run: TLastRunInfo,
+    prev: Optional[pendulum.DateTime],
     constraint: str = "job.is_fresh",
 ) -> Tuple[bool, List[str]]:
     """Run check_all_upstream_run_fresh with a single upstream."""
     ref = upstream_job["job_ref"]
     all_jobs: Dict[str, TJobDefinition] = {ref: upstream_job}
     freshness = [TFreshnessConstraint(f"{constraint}:{ref}")]
-    return check_all_upstream_run_fresh(freshness, all_jobs, {ref: last_run})
+    return check_all_upstream_run_fresh(freshness, all_jobs, {ref: prev})
 
 
 @pytest.mark.parametrize(
-    "trigger,default_trigger,run_status,scheduled_offset,expected_fresh,reason_frag",
+    "trigger,default_trigger,prev_offset,expected_fresh,reason_frag",
     [
-        # schedule: without interval — current cron tick, completed → fresh
-        ("schedule:0 * * * *", "schedule:0 * * * *", "completed", "current_tick", True, None),
-        # schedule: without interval — old cron tick → stale
-        ("schedule:0 * * * *", "schedule:0 * * * *", "completed", "old_tick", False, "missing run"),
-        # schedule: without interval — current tick but failed → stale
-        (
-            "schedule:0 * * * *",
-            "schedule:0 * * * *",
-            "failed",
-            "current_tick",
-            False,
-            "not completed",
-        ),
-        # every:5m — recent (2m ago) → fresh
-        ("every:5m", "every:5m", "completed", "recent", True, None),
-        # every:5m — stale (10m ago) → missing run
-        ("every:5m", "every:5m", "completed", "stale", False, "missing run"),
-        # every:5m — recent but failed → stale
-        ("every:5m", "every:5m", "failed", "recent", False, "not completed"),
-        # every:5m — no runs → stale
-        ("every:5m", "every:5m", None, None, False, "no completed runs"),
-        # event — completed → fresh
-        ("job.success:jobs.other", "job.success:jobs.other", "completed", "recent", True, None),
-        # event — failed → stale
-        (
-            "job.success:jobs.other",
-            "job.success:jobs.other",
-            "failed",
-            "recent",
-            False,
-            "not completed",
-        ),
-        # event — no runs → stale
-        (
-            "job.success:jobs.other",
-            "job.success:jobs.other",
-            None,
-            None,
-            False,
-            "no completed runs",
-        ),
+        # schedule: prev covers the current cron tick → fresh
+        ("schedule:0 * * * *", "schedule:0 * * * *", "current_tick", True, None),
+        # schedule: prev covers the previous cron tick (the most recently completed
+        # period) → fresh under the relaxed semantic
+        ("schedule:0 * * * *", "schedule:0 * * * *", "previous_tick", True, None),
+        # schedule: prev is two ticks behind → stale
+        ("schedule:0 * * * *", "schedule:0 * * * *", "two_ticks_behind", False, "missing run"),
+        # schedule: no prev_completed_run → not in usable state
+        ("schedule:0 * * * *", "schedule:0 * * * *", None, False, "no usable completion"),
+        # every:5m — prev 2m ago → fresh (within current period)
+        ("every:5m", "every:5m", "recent", True, None),
+        # every:5m — prev 8m ago → fresh (within previous period)
+        ("every:5m", "every:5m", "previous_period", True, None),
+        # every:5m — prev 12m ago → stale (older than 2 periods)
+        ("every:5m", "every:5m", "two_periods_old", False, "missing run"),
+        # every:5m — no prev_completed_run → not in usable state
+        ("every:5m", "every:5m", None, False, "no usable completion"),
+        # event — prev set → fresh
+        ("job.success:jobs.other", "job.success:jobs.other", "recent", True, None),
+        # event — no prev_completed_run → not in usable state
+        ("job.success:jobs.other", "job.success:jobs.other", None, False, "no usable completion"),
     ],
     ids=[
         "schedule-no-iv-fresh",
-        "schedule-no-iv-old-tick",
-        "schedule-no-iv-failed",
+        "schedule-no-iv-previous-tick",
+        "schedule-no-iv-two-ticks-behind",
+        "schedule-no-iv-no-prev",
         "every-recent-fresh",
-        "every-stale-period",
-        "every-failed",
-        "every-no-runs",
-        "event-completed",
-        "event-failed",
-        "event-no-runs",
+        "every-previous-period",
+        "every-two-periods-old",
+        "every-no-prev",
+        "event-prev-set",
+        "event-no-prev",
     ],
 )
 def test_run_based_freshness(
     trigger: str,
     default_trigger: str,
-    run_status: Optional[str],
-    scheduled_offset: Optional[str],
+    prev_offset: Optional[str],
     expected_fresh: bool,
     reason_frag: Optional[str],
 ) -> None:
     """Parametrized test for run-based freshness: schedule-no-interval, every, event."""
-    last_run: TLastRunInfo = None
+    prev: Optional[pendulum.DateTime] = None
 
-    if run_status is not None:
+    if prev_offset is not None:
         now: pendulum.DateTime = pendulum.now("UTC")
-        if scheduled_offset == "current_tick":
-            scheduled_at = cron_floor("0 * * * *", now)
-        elif scheduled_offset == "old_tick":
-            scheduled_at = now.subtract(hours=2)
-        elif scheduled_offset == "recent":
-            scheduled_at = now.subtract(minutes=2)
-        elif scheduled_offset == "stale":
-            scheduled_at = now.subtract(minutes=10)
+        if prev_offset == "current_tick":
+            prev = pendulum.instance(cron_floor("0 * * * *", now))
+        elif prev_offset == "previous_tick":
+            # one cron tick before the current floor (the most recently completed period)
+            prev = pendulum.instance(cron_floor("0 * * * *", now)).subtract(hours=1)
+        elif prev_offset == "two_ticks_behind":
+            prev = pendulum.instance(cron_floor("0 * * * *", now)).subtract(hours=2)
+        elif prev_offset == "recent":
+            prev = now.subtract(minutes=2)
+        elif prev_offset == "previous_period":
+            # within 2*period: relaxed check still considers fresh
+            prev = now.subtract(minutes=8)
+        elif prev_offset == "two_periods_old":
+            # > 2*period: stale
+            prev = now.subtract(minutes=12)
         else:
-            scheduled_at = now
-        last_run = (run_status == "completed", scheduled_at)
+            prev = now
 
     up = _job("jobs.up", [trigger], default_trigger=default_trigger)
-    fresh, reasons = _check_run_freshness(up, last_run)
+    fresh, reasons = _check_run_freshness(up, prev)
 
     assert fresh == expected_fresh
     if reason_frag:
@@ -829,6 +973,31 @@ def test_freshness_interactive_upstream_always_not_fresh() -> None:
     fresh, reasons = _check_run_freshness(up, None)
     assert not fresh
     assert "interactive" in reasons[0]
+
+
+def test_schedule_freshness_handles_minute_boundary_crossing() -> None:
+    """Regression: a job that started at 22:49:55 and is checked at 22:50:01 should be fresh.
+
+    Without the relaxed check (`expected = previous tick`), this would fail because
+    the upstream's `prev_completed_run` is anchored to the 22:49 tick (start of the
+    minute it ran in) while the strict `expected = current tick` would be 22:50.
+    """
+    # prev_completed_run = cron_floor of started_at = 22:49:00
+    prev = ensure_pendulum_datetime_utc("2026-04-08T22:49:00Z")
+    # downstream is checking ~6s later, after the minute has rolled over
+    check_now = ensure_pendulum_datetime_utc("2026-04-08T22:50:01Z")
+    import dlt._workspace.deployment.interval as iv_mod
+
+    orig_now = iv_mod.pendulum.now
+    try:
+        iv_mod.pendulum.now = lambda *a, **kw: check_now
+        fresh, reason = _check_run_freshness(
+            _job("jobs.up", ["schedule:* * * * *"], default_trigger="schedule:* * * * *"),
+            prev,
+        )
+    finally:
+        iv_mod.pendulum.now = orig_now
+    assert fresh, f"expected fresh, got reason: {reason}"
 
 
 @pytest.mark.parametrize(
@@ -885,7 +1054,7 @@ def test_interval_fresh_rejects_invalid_upstream(
 
 
 @pytest.mark.parametrize(
-    "trigger,default_trigger,job_type_,constraint,has_run,reason_frag",
+    "trigger,default_trigger,job_type_,constraint,has_prev,reason_frag",
     [
         # is_matching_interval_fresh rejected in run mode
         (
@@ -898,16 +1067,16 @@ def test_interval_fresh_rejects_invalid_upstream(
         ),
         # interactive upstream rejected
         ("http:", "http:", "interactive", "job.is_fresh", False, "interactive"),
-        # no default_trigger, no runs → event path, stale
-        ("manual:jobs.up", None, "batch", "job.is_fresh", False, "no completed runs"),
-        # no default_trigger, completed run → event path, fresh
+        # no default_trigger, no prev → event path, stale
+        ("manual:jobs.up", None, "batch", "job.is_fresh", False, "no usable completion"),
+        # no default_trigger, prev set → event path, fresh
         ("manual:jobs.up", None, "batch", "job.is_fresh", True, None),
     ],
     ids=[
         "rejects-is-matching-interval-fresh",
         "rejects-interactive",
-        "no-trigger-no-runs",
-        "no-trigger-with-run",
+        "no-trigger-no-prev",
+        "no-trigger-with-prev",
     ],
 )
 def test_run_fresh_edge_cases(
@@ -915,13 +1084,13 @@ def test_run_fresh_edge_cases(
     default_trigger: Optional[str],
     job_type_: str,
     constraint: str,
-    has_run: bool,
+    has_prev: bool,
     reason_frag: Optional[str],
 ) -> None:
     """Parametrized edge cases for check_all_upstream_run_fresh."""
-    last_run: TLastRunInfo = (True, pendulum.now("UTC")) if has_run else None
+    prev: Optional[pendulum.DateTime] = pendulum.now("UTC") if has_prev else None
     up = _job("jobs.up", [trigger], default_trigger=default_trigger, job_type=job_type_)  # type: ignore[arg-type]
-    fresh, reasons = _check_run_freshness(up, last_run, constraint=constraint)
+    fresh, reasons = _check_run_freshness(up, prev, constraint=constraint)
     if reason_frag is None:
         assert fresh, f"should be fresh: {reasons}"
     else:
@@ -939,11 +1108,143 @@ def test_run_fresh_mixed_upstreams() -> None:
         TFreshnessConstraint("job.is_fresh:jobs.a"),
         TFreshnessConstraint("job.is_fresh:jobs.b"),
     ]
-    last_runs: Dict[str, TLastRunInfo] = {
-        "jobs.a": (True, now),
+    prev_runs: Dict[str, Optional[datetime]] = {
+        "jobs.a": now,
         "jobs.b": None,
     }
-    fresh, reasons = check_all_upstream_run_fresh(freshness, all_jobs, last_runs)
+    fresh, reasons = check_all_upstream_run_fresh(freshness, all_jobs, prev_runs)
     assert not fresh
     assert len(reasons) == 1
     assert "jobs.b" in reasons[0]
+
+
+def _make_chain(*refs: str) -> Dict[str, TJobDefinition]:
+    """Linear chain a → b → c → ... where each downstream has freshness on its predecessor."""
+    jobs: Dict[str, TJobDefinition] = {}
+    prev: Optional[str] = None
+    for ref in refs:
+        jobs[ref] = _job(
+            ref,
+            ["manual:" + ref],
+            freshness=[f"job.is_fresh:{prev}"] if prev else None,
+        )
+        prev = ref
+    return jobs
+
+
+def _diamond_jobs() -> Dict[str, TJobDefinition]:
+    """a → {b, c} → d (b and c both downstream of a, d downstream of both)."""
+    return {
+        "jobs.a": _job("jobs.a", ["manual:jobs.a"]),
+        "jobs.b": _job("jobs.b", ["manual:jobs.b"], freshness=["job.is_fresh:jobs.a"]),
+        "jobs.c": _job("jobs.c", ["manual:jobs.c"], freshness=["job.is_fresh:jobs.a"]),
+        "jobs.d": _job(
+            "jobs.d",
+            ["manual:jobs.d"],
+            freshness=["job.is_fresh:jobs.b", "job.is_fresh:jobs.c"],
+        ),
+    }
+
+
+def _self_loop_jobs() -> Dict[str, TJobDefinition]:
+    """Single job with freshness pointing at itself."""
+    return {
+        "jobs.a": _job("jobs.a", ["manual:jobs.a"], freshness=["job.is_fresh:jobs.a"]),
+    }
+
+
+def _invalid_constraint_jobs() -> Dict[str, TJobDefinition]:
+    """jobs.b has one malformed constraint and one valid constraint on jobs.a."""
+    return {
+        "jobs.a": _job("jobs.a", ["manual:jobs.a"]),
+        "jobs.b": _job(
+            "jobs.b",
+            ["manual:jobs.b"],
+            freshness=["not-a-constraint", "job.is_fresh:jobs.a"],
+        ),
+    }
+
+
+def _cycle_jobs() -> Dict[str, TJobDefinition]:
+    """Cycle a → b → c → a (each freshness points back one hop)."""
+    return {
+        "jobs.a": _job("jobs.a", ["manual:jobs.a"], freshness=["job.is_fresh:jobs.c"]),
+        "jobs.b": _job("jobs.b", ["manual:jobs.b"], freshness=["job.is_fresh:jobs.a"]),
+        "jobs.c": _job("jobs.c", ["manual:jobs.c"], freshness=["job.is_fresh:jobs.b"]),
+    }
+
+
+def _disconnected_jobs() -> Dict[str, TJobDefinition]:
+    """Two jobs with no freshness edges between them."""
+    return {
+        "jobs.a": _job("jobs.a", ["manual:jobs.a"]),
+        "jobs.b": _job("jobs.b", ["manual:jobs.b"]),
+    }
+
+
+@pytest.mark.parametrize(
+    "jobs,query_ref,expected",
+    [
+        # chain: a → b → c
+        (_make_chain("jobs.a", "jobs.b", "jobs.c"), "jobs.a", ["jobs.b"]),
+        (_make_chain("jobs.a", "jobs.b", "jobs.c"), "jobs.b", ["jobs.c"]),
+        (_make_chain("jobs.a", "jobs.b", "jobs.c"), "jobs.c", []),
+        # self-loop: a → a is suppressed
+        (_self_loop_jobs(), "jobs.a", []),
+        # diamond: a → {b, c} → d
+        (_diamond_jobs(), "jobs.a", ["jobs.b", "jobs.c"]),
+        (_diamond_jobs(), "jobs.b", ["jobs.d"]),
+        (_diamond_jobs(), "jobs.c", ["jobs.d"]),
+        (_diamond_jobs(), "jobs.d", []),
+        # malformed constraints are silently ignored, valid ones still match
+        (_invalid_constraint_jobs(), "jobs.a", ["jobs.b"]),
+        # disconnected
+        (_disconnected_jobs(), "jobs.a", []),
+    ],
+    ids=[
+        "chain-from-a",
+        "chain-from-b",
+        "chain-leaf",
+        "self-loop",
+        "diamond-from-a",
+        "diamond-from-b",
+        "diamond-from-c",
+        "diamond-leaf",
+        "invalid-constraint-ignored",
+        "disconnected",
+    ],
+)
+def test_get_direct_freshness_downstream(
+    jobs: Dict[str, TJobDefinition],
+    query_ref: str,
+    expected: List[str],
+) -> None:
+    assert get_direct_freshness_downstream(query_ref, jobs) == expected
+
+
+@pytest.mark.parametrize(
+    "jobs,query_ref,expected",
+    [
+        # chain (4 nodes): full BFS order
+        (
+            _make_chain("jobs.a", "jobs.b", "jobs.c", "jobs.d"),
+            "jobs.a",
+            ["jobs.b", "jobs.c", "jobs.d"],
+        ),
+        # diamond: d appears exactly once even though both b and c reach it
+        (_diamond_jobs(), "jobs.a", ["jobs.b", "jobs.c", "jobs.d"]),
+        # cycle a → b → c → a: seed is excluded even when reachable via the cycle
+        (_cycle_jobs(), "jobs.a", ["jobs.b", "jobs.c"]),
+        # disconnected
+        (_disconnected_jobs(), "jobs.a", []),
+        # leaf in chain has no downstream
+        (_make_chain("jobs.a", "jobs.b", "jobs.c"), "jobs.c", []),
+    ],
+    ids=["chain", "diamond", "cycle-seed-excluded", "disconnected", "leaf"],
+)
+def test_get_transitive_freshness_downstream(
+    jobs: Dict[str, TJobDefinition],
+    query_ref: str,
+    expected: List[str],
+) -> None:
+    assert get_transitive_freshness_downstream(query_ref, jobs) == expected

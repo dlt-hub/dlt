@@ -1098,6 +1098,17 @@ workspace info.
             metavar="KEY=VALUE",
             help="Config key=value pairs passed to all jobs (repeatable)",
         )
+        run_parser.add_argument(
+            "--refresh",
+            action="store_true",
+            help=(
+                "Clear `prev_completed_run` for selected non-interval targets and"
+                " their transitive freshness-downstream before dispatch, forcing a"
+                " refresh-mode run. Targets blocked by constraints (concurrency,"
+                " freshness) are skipped with a warning. Interval-store jobs are"
+                " unaffected."
+            ),
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace._workspace_context import active
@@ -1148,6 +1159,7 @@ workspace info.
                 dry_run=args.dry_run,
                 verbose=args.verbose,
                 config=config,
+                refresh=args.refresh,
                 warn=fmt.warning,
             )
         except ModuleNotFoundError as exc:

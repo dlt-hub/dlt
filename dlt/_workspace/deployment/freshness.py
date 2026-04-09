@@ -1,10 +1,10 @@
 """Freshness constraint parsing, creators, and normalization."""
 
-from typing import Callable, Dict, List, NamedTuple, Sequence, Union
+from typing import Callable, Dict, List, Mapping, NamedTuple, Sequence, Set, Union
 
 from dlt._workspace.deployment._job_ref import resolve_job_ref
 from dlt._workspace.deployment.exceptions import InvalidFreshnessConstraint
-from dlt._workspace.deployment.typing import TFreshnessConstraint
+from dlt._workspace.deployment.typing import TFreshnessConstraint, TJobDefinition
 
 __all__ = [
     "TFreshnessConstraintSpec",
@@ -13,6 +13,8 @@ __all__ = [
     "is_fresh",
     "normalize_freshness_constraint",
     "normalize_freshness_constraints",
+    "get_direct_freshness_downstream",
+    "get_transitive_freshness_downstream",
 ]
 
 
@@ -103,3 +105,59 @@ def normalize_freshness_constraints(
     if isinstance(constraints, str):
         constraints = [constraints]
     return [normalize_freshness_constraint(c) for c in constraints]
+
+
+def get_direct_freshness_downstream(
+    upstream_ref: str,
+    all_jobs: Mapping[str, TJobDefinition],
+) -> List[str]:
+    """All `job_ref`s whose `freshness` list mentions `upstream_ref`.
+
+    Args:
+        upstream_ref: The upstream job reference to look up.
+        all_jobs: Map of `job_ref` to job definition.
+
+    Returns:
+        List[str]: Direct downstream job refs in `all_jobs` iteration order.
+        `upstream_ref` itself is never included.
+    """
+    out: List[str] = []
+    for ref, job_def in all_jobs.items():
+        if ref == upstream_ref:
+            continue
+        for constraint in job_def.get("freshness", []):
+            try:
+                fc = parse_freshness_constraint(constraint)
+            except InvalidFreshnessConstraint:
+                continue
+            if fc.expr == upstream_ref:
+                out.append(ref)
+                break
+    return out
+
+
+def get_transitive_freshness_downstream(
+    upstream_ref: str,
+    all_jobs: Mapping[str, TJobDefinition],
+) -> List[str]:
+    """BFS through `freshness` edges from `upstream_ref`.
+
+    Args:
+        upstream_ref: The upstream job reference to start the walk from.
+        all_jobs: Map of `job_ref` to job definition.
+
+    Returns:
+        List[str]: All transitively reachable downstream job refs, BFS order.
+        `upstream_ref` itself is excluded even if reachable via a cycle.
+    """
+    seen: Set[str] = {upstream_ref}
+    result: List[str] = []
+    queue: List[str] = [upstream_ref]
+    while queue:
+        cur = queue.pop(0)
+        for ds in get_direct_freshness_downstream(cur, all_jobs):
+            if ds not in seen:
+                seen.add(ds)
+                result.append(ds)
+                queue.append(ds)
+    return result

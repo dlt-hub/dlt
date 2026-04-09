@@ -2,7 +2,7 @@
 
 import asyncio
 import inspect
-from typing import Any, Dict
+from typing import Any, Dict, List, Literal, cast
 
 import pytest
 
@@ -524,3 +524,112 @@ def test_pipeline_run_with_expose_override() -> None:
     assert job_def["expose"]["category"] == "pipeline"
     assert job_def["expose"]["starred"] is True
     assert job_def["expose"]["tags"] == ["daily"]
+
+
+def test_job_refresh_default_auto_omitted_from_manifest() -> None:
+    """Default `refresh="auto"` is not written to the manifest dict."""
+
+    @job
+    def default_job():
+        pass
+
+    assert default_job.refresh == "auto"
+    job_def = default_job.to_job_definition()
+    assert "refresh" not in job_def
+
+
+@pytest.mark.parametrize("policy", ["always", "block"])
+def test_job_refresh_non_default_written_to_manifest(policy: str) -> None:
+    """Non-default refresh values are written to the manifest dict."""
+    refresh_policy = cast(Literal["always", "auto", "block"], policy)
+
+    @job(refresh=refresh_policy)
+    def explicit_job():
+        pass
+
+    assert explicit_job.refresh == policy
+    job_def = explicit_job.to_job_definition()
+    assert job_def["refresh"] == policy
+
+
+def test_job_refresh_explicit_auto_omitted() -> None:
+    """Explicitly passing `refresh="auto"` still results in no manifest field."""
+
+    @job(refresh="auto")
+    def explicit_auto():
+        pass
+
+    job_def = explicit_auto.to_job_definition()
+    assert "refresh" not in job_def
+
+
+def test_pipeline_run_refresh() -> None:
+    """`pipeline_run` accepts and propagates the refresh policy."""
+
+    @pipeline_run("analytics", refresh="always")
+    def loader():
+        pass
+
+    assert loader.refresh == "always"
+    job_def = loader.to_job_definition()
+    assert job_def["refresh"] == "always"
+
+
+@pytest.mark.parametrize(
+    "decorator_id,tags_input,expected",
+    [
+        ("job", "ingestion", ["ingestion"]),
+        ("job", ["ingestion"], ["ingestion"]),
+        ("job", ["ingestion", "daily"], ["ingestion", "daily"]),
+        ("job", [], []),
+        ("pipeline_run", "daily", ["daily"]),
+        ("pipeline_run", ["daily", "etl"], ["daily", "etl"]),
+        ("interactive", "ops", ["ops"]),
+        ("interactive", ["ops", "ui"], ["ops", "ui"]),
+    ],
+    ids=[
+        "job-single-string",
+        "job-single-element-list",
+        "job-multi-list",
+        "job-empty-list",
+        "pipeline_run-single-string",
+        "pipeline_run-multi-list",
+        "interactive-single-string",
+        "interactive-multi-list",
+    ],
+)
+def test_decorator_expose_tags_normalize(
+    decorator_id: str, tags_input: Any, expected: List[str]
+) -> None:
+    """All decorators accept `tags` as a single string or list; manifest stores list."""
+    if decorator_id == "job":
+
+        @job(expose={"tags": tags_input})
+        def fn():
+            pass
+
+    elif decorator_id == "pipeline_run":
+
+        @pipeline_run("analytics", expose={"tags": tags_input})
+        def fn():
+            pass
+
+    else:
+
+        @interactive(expose={"tags": tags_input})
+        def fn():
+            pass
+
+    assert fn.to_job_definition()["expose"]["tags"] == expected
+
+
+def test_expose_tags_string_drives_tag_trigger() -> None:
+    """A string `tags` value still produces a single `tag:` trigger via expand_triggers."""
+    from dlt._workspace.deployment.manifest import expand_triggers
+
+    @job(expose={"tags": "nightly"})
+    def tagged():
+        pass
+
+    triggers = expand_triggers(tagged.to_job_definition())
+    assert "tag:nightly" in triggers

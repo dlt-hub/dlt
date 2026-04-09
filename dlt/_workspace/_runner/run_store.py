@@ -50,6 +50,10 @@ class TJobRunsStore(Protocol):
         """Return the most recent run for a job, or `None`."""
         ...
 
+    def close(self) -> None:
+        """Release any resources held by the store."""
+        ...
+
 
 class DuckDBJobRunsStore:
     """Tracks job executions using in-memory DuckDB."""

@@ -80,3 +80,20 @@ def profile_aware(run_context: TJobRunContext):
     import os
 
     return f"profile={os.environ.get('WORKSPACE__PROFILE', '')}"
+
+
+@job
+def refresh_observer(run_context: TJobRunContext):
+    """Test job: prints observed refresh signal and interval bounds to stdout."""
+    print(f"REFRESH_FLAG={run_context.get('refresh', False)}")  # noqa: T201
+    iv_start = run_context.get("interval_start")
+    iv_end = run_context.get("interval_end")
+    if iv_start is not None:
+        print(f"INTERVAL_START={iv_start.isoformat()}")  # noqa: T201
+    else:
+        print("INTERVAL_START=<unset>")  # noqa: T201
+    if iv_end is not None:
+        print(f"INTERVAL_END={iv_end.isoformat()}")  # noqa: T201
+    else:
+        print("INTERVAL_END=<unset>")  # noqa: T201
+    return "observed"

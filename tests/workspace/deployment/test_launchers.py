@@ -93,15 +93,28 @@ def test_job_launcher_no_interval() -> None:
 
 
 def test_job_launcher_interval_forces_incremental_join() -> None:
-    """Launcher passes allow_external_schedulers=True so incrementals join without opt-in."""
+    """Launcher honors `entry_point["allow_external_schedulers"]` so incrementals join."""
     ep = _entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job")
     ep["interval_start"] = "2024-01-15T00:00:00Z"
     ep["interval_end"] = "2024-01-16T00:00:00Z"
+    ep["allow_external_schedulers"] = True
     result = job_run(ep, run_id="inc-iv-1", trigger="schedule:0 0 * * *")
     # incremental joined the scheduler: initial_value and end_value come from the interval
     assert "iv=2024-01-15" in result
     assert "end=2024-01-16" in result
     assert "items=1" in result
+
+
+def test_job_launcher_interval_without_allow_external_schedulers_does_not_force_join() -> None:
+    """Without `allow_external_schedulers`, incrementals do NOT auto-join the runner interval."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job")
+    ep["interval_start"] = "2024-01-15T00:00:00Z"
+    ep["interval_end"] = "2024-01-16T00:00:00Z"
+    # allow_external_schedulers omitted — defaults to False
+    result = job_run(ep, run_id="inc-iv-2", trigger="schedule:0 0 * * *")
+    # incremental did NOT join: initial_value/end_value are not the interval bounds
+    assert "iv=2024-01-15" not in result
+    assert "end=2024-01-16" not in result
 
 
 def test_job_launcher_profile_injection() -> None:
