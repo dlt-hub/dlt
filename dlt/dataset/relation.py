@@ -589,6 +589,8 @@ class Relation(WithSqlClient):
     def with_load_id_col(self) -> dlt.Relation:
         """Return the relation with the `_dlt_load_id` included.
 
+        This only works on relations created via ``.table()``.
+
         There are 3 cases:
         - If the relation is a root table, this is a no-op
         - If the relation has a root key, join relation to root table
@@ -598,6 +600,12 @@ class Relation(WithSqlClient):
         This should only raise if the `dlt.Schema` was tempered, breaking the
         dlt-generated root and parent relationships.
         """
+        if not self._table_name or self._query is not None:
+            raise ValueError(
+                "`with_load_id_col()` only works on relations created via .table()."
+                " It can't be applied to arbitrary relation."
+            )
+
         table_schema = self._dataset.schema.tables[self._table_name]
 
         if self._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID) in self.columns:
@@ -622,7 +630,7 @@ class Relation(WithSqlClient):
         """
         if not self._table_name or self._query is not None:
             raise ValueError(
-                "`filter_loads()` only works on relations created via .table()."
+                "`from_loads()` only works on relations created via .table()."
                 " It can't be applied to arbitrary relation."
             )
 

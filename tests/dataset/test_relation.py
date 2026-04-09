@@ -92,6 +92,18 @@ def test_relation_from_loads_rejects_non_table_relations(dataset: dlt.Dataset) -
         dataset.table("purchases").where("id", "gt", 1).from_loads(["load_1"])
 
 
+def test_relation_with_load_id_rejects_non_table_relations(
+    dataset_with_loads: TLoadsFixture,
+) -> None:
+    dataset, _, _ = dataset_with_loads
+
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.query("SELECT * FROM users").with_load_id_col()
+
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.table("users__orders").where("order_id", "gt", 1).with_load_id_col()
+
+
 def test_dataset_load_ids(dataset_with_loads: TLoadsFixture):
     dataset, load_ids, _ = dataset_with_loads
 
