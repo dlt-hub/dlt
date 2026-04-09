@@ -89,7 +89,12 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             yield self.native_cursor.fetch_arrow_table()
             return
         # iterate
-        for item in self.native_cursor.fetch_record_batch(chunk_size):
+        method = (
+            "to_arrow_reader"
+            if Version(duckdb.__version__) >= Version("1.5.0")
+            else "fetch_record_batch"
+        )
+        for item in getattr(self.native_cursor, method)(chunk_size):
             yield ArrowTable.from_batches([item])
 
     def close(self, *args: Any, **kwargs: Any) -> None:
