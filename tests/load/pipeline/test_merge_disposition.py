@@ -2335,6 +2335,7 @@ def test_insert_only_scope_empty_target(
         ],
     )
 
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(

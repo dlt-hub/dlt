@@ -771,8 +771,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 # pre-filter hard-deleted records from staging before scope filter
                 if hard_delete_col is not None and not_deleted_cond is not None:
                     sql.append(
-                        f"DELETE FROM {staging_root_table_name}"
-                        f" WHERE NOT ({not_deleted_cond});"
+                        f"DELETE FROM {staging_root_table_name} WHERE NOT ({not_deleted_cond});"
                     )
                 # remove from staging keys already present in the previous load
                 pk_cols = ", ".join(primary_keys)

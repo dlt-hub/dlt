@@ -222,7 +222,6 @@ class TableFormatLoadFilesystemJob(ReferenceFollowupJob):
 
 
 class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
-
     def run(self) -> None:
         # create Arrow dataset from Parquet files
         from dlt.common.libs.pyarrow import pyarrow as pa
