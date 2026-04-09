@@ -14,7 +14,11 @@ from dlt.common.configuration.inject import get_fun_last_config, get_fun_spec
 from dlt.common.configuration.plugins import PluginContext
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.exceptions import ArgumentsOverloadException, DictValidationException
+from dlt.common.exceptions import (
+    ArgumentsOverloadException,
+    DictValidationException,
+    ValueErrorWithKnownValues,
+)
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table, new_column
@@ -1146,6 +1150,41 @@ def test_resource_sets_invalid_write_disposition() -> None:
     with pytest.raises(DictValidationException) as py_ex:
         r.compute_table_schema()
     assert "write_disposition" in str(py_ex.value)
+
+
+def test_resource_sets_invalid_insert_only_scope() -> None:
+    with pytest.raises(ValueErrorWithKnownValues) as py_ex:
+
+        @dlt.resource(
+            merge_key="id",
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "insert-only",
+                "scope": "prev_load",
+            },
+        )
+        def invalid_scope():
+            yield from [{"id": 1}]
+
+    assert "scope" in str(py_ex.value)
+    assert "prev_load" in str(py_ex.value)
+
+
+def test_resource_sets_valid_insert_only_scope() -> None:
+    @dlt.resource(
+        merge_key="id",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "scope": "previous_load",
+        },
+    )
+    def valid_scope():
+        yield from [{"id": 1}]
+
+    r = valid_scope()
+    schema = r.compute_table_schema()
+    assert schema["x-insert-only-scope"] == "previous_load"
 
 
 def test_custom_source_impl() -> None:
