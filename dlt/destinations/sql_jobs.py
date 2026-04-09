@@ -774,18 +774,20 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                         f"DELETE FROM {staging_root_table_name} WHERE NOT ({not_deleted_cond});"
                     )
                 # remove from staging keys already present in the previous load
-                pk_cols = ", ".join(primary_keys)
+                pk_join = " AND ".join([f"s.{c} = prev.{c}" for c in primary_keys])
                 sql.append(
-                    f"DELETE FROM {staging_root_table_name} WHERE ({pk_cols}) IN ("
-                    f"SELECT {pk_cols} FROM {root_table_name}"
-                    f" WHERE {dlt_load_id_col} = ("
+                    f"DELETE FROM {staging_root_table_name} s"
+                    " WHERE EXISTS ("
+                    f"SELECT 1 FROM {root_table_name} prev"
+                    f" WHERE {pk_join}"
+                    f" AND prev.{dlt_load_id_col} = ("
                     f"SELECT MAX({escaped_load_id}) FROM {loads_table_name}"
                     f" WHERE {escaped_status} = 0));"
                 )
                 # merge remaining staging rows — all are NOT MATCHED by construction
                 sql.append(f"""
                     MERGE INTO {root_table_name} d USING {staging_root_table_name} s
-                    ON FALSE
+                    ON 1 = 0
                     WHEN NOT MATCHED
                         THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
                 """)
@@ -918,18 +920,19 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                         )
                     )
                     sql.append(
-                        f"DELETE FROM {staging_table_name}"
-                        f" WHERE ({nested_row_key_column}) IN ("
-                        f"SELECT n.{nested_row_key_column} FROM {table_name} n"
+                        f"DELETE FROM {staging_table_name} s"
+                        " WHERE EXISTS ("
+                        f"SELECT 1 FROM {table_name} n"
                         f" INNER JOIN {root_table_name} r"
                         f" ON n.{root_key_column} = r.{root_row_key_column}"
-                        f" WHERE r.{dlt_load_id_col} = ("
+                        f" WHERE n.{nested_row_key_column} = s.{nested_row_key_column}"
+                        f" AND r.{dlt_load_id_col} = ("
                         f"SELECT MAX({escaped_load_id}) FROM {loads_table_name}"
                         f" WHERE {escaped_status} = 0));"
                     )
                     sql.append(f"""
                         MERGE INTO {table_name} d USING {staging_table_name} s
-                        ON FALSE
+                        ON 1 = 0
                         WHEN NOT MATCHED
                             THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
                     """)
