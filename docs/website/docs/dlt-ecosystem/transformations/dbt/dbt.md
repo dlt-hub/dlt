@@ -85,10 +85,6 @@ It assumes that dbt is installed in the current Python environment and the `prof
 
 Here's an example **duckdb** profile:
 ```yaml
-config:
-  # Do not track usage, do not create .user.yml
-  send_anonymous_usage_stats: False
-
 duckdb_dlt_dbt_test:
   target: analytics
   outputs:

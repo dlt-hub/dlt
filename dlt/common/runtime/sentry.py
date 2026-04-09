@@ -52,7 +52,7 @@ def init_sentry(config: RuntimeConfiguration) -> None:
 
 
 def disable_sentry() -> None:
-    sentry_sdk.Hub.current.bind_client(None)
+    sentry_sdk.Scope.get_current_scope().set_client(None)
 
 
 def before_send(event: DictStrAny, _unused_hint: Optional[StrAny] = None) -> Optional[DictStrAny]:

@@ -38,6 +38,7 @@ const sidebars = {
       items: [
         'reference/installation',
         "dlt-ecosystem/llm-tooling/llm-native-workflow",
+        "dlt-ecosystem/llm-tooling/explore-and-transform",
         'tutorial/rest-api',
         'tutorial/sql-database',
         'tutorial/filesystem',
@@ -582,6 +583,7 @@ const sidebars = {
 for (const item of sidebars.docsSidebar) {
     if (item.label === 'Code examples') {
       for (let examplePath of walkSync("./docs_processed/examples")) {
+        examplePath = examplePath.replace(/\\/g, "/");
         examplePath = examplePath.replace("docs_processed/", "");
         examplePath = examplePath.replace(".mdx", "");
         examplePath = examplePath.replace(".md", "");
