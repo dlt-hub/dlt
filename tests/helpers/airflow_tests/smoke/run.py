@@ -10,7 +10,7 @@ DAG_ID = "dlt_smoke"
 LOGICAL_DATE = "2024-01-01"
 DATASET_NAME = "smoke_data"
 POLL_SECONDS = 2
-TIMEOUT_SECONDS = 180
+TIMEOUT_SECONDS = int(os.environ.get("AIRFLOW_SMOKE_TIMEOUT_SECONDS", "180"))
 
 EXPECTED_TABLES = {("users", 9), ("events", 12)}
 
@@ -24,6 +24,20 @@ def run_airflow(args, env, check=True, capture_output=True):
         check=check,
         capture_output=capture_output,
     )
+
+
+def _print_process_log(log_path: Path, title: str, tail_lines: int = 200) -> None:
+    print(f"=== {title} ({log_path}) ===")
+    if not log_path.exists():
+        print("Log not found")
+        return
+    try:
+        lines = log_path.read_text(errors="replace").splitlines()
+    except Exception as ex:
+        print(f"Failed to read log: {ex}")
+        return
+    for line in lines[-tail_lines:]:
+        print(line)
 
 
 def verify(db_path: str) -> None:
@@ -162,7 +176,17 @@ def main():
                 raise RuntimeError("DAG run failed")
             time.sleep(POLL_SECONDS)
         else:
-            raise TimeoutError("Timed out waiting for DAG run to finish")
+            print("=== DAG run timed out, collecting diagnostics ===")
+            res = run_airflow(
+                ["tasks", "states-for-dag-run", DAG_ID, run_id, "--output", "json"],
+                env,
+                check=False,
+            )
+            print("=== Task states at timeout ===")
+            print(res.stdout)
+            _print_process_log(work_dir / "scheduler.log", "Scheduler log")
+            _print_process_log(work_dir / "api-server.log", "API server log")
+            raise TimeoutError(f"Timed out waiting for DAG run to finish after {TIMEOUT_SECONDS}s")
 
         print("=== Verifying results ===")
         verify(db_path)

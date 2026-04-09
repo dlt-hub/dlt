@@ -53,3 +53,5 @@ jobs:
       - name: Run smoke test
         if: matrix.run-smoke-test
         run: cd tests/helpers/airflow_tests/smoke && uv run python run.py
+        env:
+          AIRFLOW_SMOKE_TIMEOUT_SECONDS: "420"
