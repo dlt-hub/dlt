@@ -334,7 +334,6 @@ def test_resolve_reference_chain_rejects_unrelated_tables(
             id="subquery-hides-base-table",
         ),
     ],
-    ids=lambda v: v if isinstance(v, str) else None,
 )
 def test_magic_join_rejection_matrix(
     dataset_with_loads: TLoadsFixture,
