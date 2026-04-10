@@ -507,6 +507,7 @@ const sidebars = {
       label: 'Getting started',
       items: [
         'hub/intro',
+        'hub/oss-and-dlthub',
         'hub/getting-started/installation',
         { type: 'ref', id: 'dlt-ecosystem/llm-tooling/llm-native-workflow' },
         'hub/getting-started/runtime-tutorial',
