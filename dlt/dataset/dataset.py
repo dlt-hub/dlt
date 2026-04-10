@@ -44,6 +44,8 @@ class Dataset:
         self._destination_reference = destination
         self._destination: AnyDestination = Destination.from_reference(destination)
         self._dataset_name = dataset_name
+        # store original input to allow refresh()
+        self._schema_input: Union[dlt.Schema, str, None] = schema
         self._schema: Union[dlt.Schema, str, None] = schema
         self._pipeline_name: Optional[str] = None
         """If _schema not provided, used to get default schema from state"""
@@ -105,6 +107,24 @@ class Dataset:
         """
         # return only completed tables
         return self.schema.data_table_names() + self.schema.dlt_table_names()
+
+    def refresh(self) -> "Dataset":
+        """Return a new ``Dataset`` instance with a refreshed schema.
+
+        Only valid when the dataset was created with a schema name string or ``None``.
+        Raises ``TypeError`` if a ``dlt.Schema`` instance was passed at construction time,
+        since there is no name to re-fetch the schema from.
+        """
+        if isinstance(self._schema_input, dlt.Schema):
+            raise TypeError(
+                "refresh() is not supported when the Dataset was created with a Schema instance."
+                " Use a schema name string or None instead so the schema can be re-fetched."
+            )
+        return Dataset(
+            destination=self._destination_reference,
+            dataset_name=self._dataset_name,
+            schema=self._schema_input,
+        )
 
     def _ipython_key_completions_(self) -> list[str]:
         """Provide table names as completion suggestion in interactive environments."""
