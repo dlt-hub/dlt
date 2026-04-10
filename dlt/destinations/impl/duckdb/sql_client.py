@@ -18,6 +18,7 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Tuple,
     Generator,
     Type,
     cast,
@@ -34,6 +35,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.destination.client import JobClientBase
 from dlt.common.destination.utils import prepare_load_table as _prepare_load_table
 from dlt.common.schema import Schema
+from dlt.common.schema.utils import merge_columns
 from dlt.common.destination.dataset import DBApiCursor
 
 from dlt.common.destination.typing import PreparedTableSchema
@@ -546,9 +548,14 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         pass
 
     @abstractmethod
-    def create_view(
-        self, view_name: str, table_schema: PreparedTableSchema, schema: Schema = None
-    ) -> None:
+    def create_view_select(
+        self, table_schema: PreparedTableSchema, schema: Schema = None
+    ) -> Optional[Tuple[str, str]]:
+        """Build the SELECT SQL for a view backed by destination data.
+
+        Returns ``(data_location, select_sql)`` or ``None`` when the view
+        cannot be created (e.g. unsupported file format).
+        """
         pass
 
     @abstractmethod
@@ -560,54 +567,91 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         """Register schemas for multi-schema view creation."""
         self.schemas = {s.name: s for s in schemas}
 
-    def _get_schema_for_table(self, table_name: str) -> Schema:
-        """Find which schema contains the given table."""
-        for s in self.schemas.values():
-            if table_name in s.tables:
-                return s
-        return self.schema
+    def _schemas_for_table(self, table_name: str) -> List[Schema]:
+        """Return all schemas that contain `table_name`, in dict order."""
+        return [s for s in self.schemas.values() if table_name in s.tables]
 
     def create_views_for_all_tables(self) -> None:
         all_tables: Dict[str, str] = {}
         for s in self.schemas.values():
             for table_name in s.tables.keys():
-                all_tables[table_name] = table_name
+                all_tables.setdefault(table_name, table_name)
         self.create_views_for_tables(all_tables)
 
     def create_views_for_tables(self, tables: Dict[str, str]) -> None:
-        """Add the required tables as views to the duckdb in memory instance"""
+        """Add the required tables as views to the duckdb in memory instance.
 
-        # this also gets all views
-        existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
-        # map only tables with data across all known schemas
-        tables_with_data: List[str] = []
+        When a table name appears in multiple schemas, views are grouped by
+        physical data location.  Co-located schemas get their columns merged
+        into a single SELECT; different locations are combined with
+        ``UNION ALL BY NAME``.
+        """
+        existing_tables = set(tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall())
+        tables_with_data: set[str] = set()
         for s in self.schemas.values():
-            tables_with_data += s.dlt_table_names() + s.data_table_names(seen_data_only=True)
+            tables_with_data.update(s.dlt_table_names())
+            tables_with_data.update(s.data_table_names(seen_data_only=True))
 
-        for table_name in tables.keys():
-            view_name = tables[table_name]
+        # first pass: build SELECT SQL for every table, grouped by location
+        pending_views: List[Tuple[str, str]] = []  # (qualified_view_name, final_sql)
 
+        for table_name, view_name in tables.items():
             if table_name not in tables_with_data:
-                # unknown views will not be created
                 continue
 
-            # resolve the owning schema and prepare the table from it
-            target_schema = self._get_schema_for_table(table_name)
-            schema_table = _prepare_load_table(
-                target_schema.tables,
-                target_schema.get_table(table_name),
-                self.remote_client.capabilities,
-            )
+            owning_schemas = self._schemas_for_table(table_name)
+            if not owning_schemas:
+                continue
 
-            needs_replace = self.should_replace_view(view_name, schema_table)
-            # skip if view already exists and does not need to be replaced each time
+            location_sql: Dict[str, str] = {}
+            location_schema: Dict[str, Schema] = {}
+            location_table: Dict[str, PreparedTableSchema] = {}
+
+            for s in owning_schemas:
+                schema_table = _prepare_load_table(
+                    s.tables,
+                    s.get_table(table_name),
+                    self.remote_client.capabilities,
+                )
+                if not self.can_create_view(schema_table):
+                    continue
+
+                result = self.create_view_select(schema_table, s)
+                if result is None:
+                    continue
+                location, select_sql = result
+
+                if location in location_sql:
+                    # same physical data — merge columns and regenerate SELECT
+                    merge_columns(
+                        location_table[location]["columns"],
+                        schema_table.get("columns", {}),
+                    )
+                    regen = self.create_view_select(
+                        location_table[location], location_schema[location]
+                    )
+                    if regen:
+                        location_sql[location] = regen[1]
+                else:
+                    location_sql[location] = select_sql
+                    location_schema[location] = s
+                    location_table[location] = schema_table
+
+            if not location_sql:
+                continue
+
+            any_table = next(iter(location_table.values()))
+            needs_replace = self.should_replace_view(view_name, any_table)
             if view_name in existing_tables and not needs_replace:
                 continue
 
-            if not self.can_create_view(schema_table):
-                continue
+            final_sql = " UNION ALL BY NAME ".join(location_sql.values())
+            q_view = self.make_qualified_table_name(view_name)
+            pending_views.append((q_view, final_sql))
 
-            self.create_view(view_name, schema_table, target_schema)
+        # second pass: execute all CREATE VIEW statements
+        for q_view, final_sql in pending_views:
+            self._conn.execute(f"CREATE OR REPLACE VIEW {q_view} AS {final_sql}")
 
     @contextmanager
     @raise_database_error

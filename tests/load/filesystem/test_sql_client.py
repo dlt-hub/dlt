@@ -200,7 +200,7 @@ def _run_dataset_checks(
     # and recreate views because autorefresh is not enabled by default
     with fs_sql_client as sql_client:
         sql_client.create_view(
-            "arrow_all_types", pipeline.default_schema.get_table("arrow_all_types")  # type: ignore
+            "arrow_all_types", pipeline.default_schema.get_table("arrow_all_types")
         )
 
     # duckdb changed the return type of `.arrow()` from pyarrow.Table to pyarrow.RecordBatchReader

@@ -1143,6 +1143,14 @@ def test_multi_schema_read_with_schema_in_layout(
     assert ds.alpha_only.fetchall()[0][0] == 1
     assert ds.beta_only.fetchall()[0][0] == 2
 
+    # load_ids must work per-schema even when _dlt_loads files live under
+    # separate {schema_name}/ prefixes on the filesystem
+    alpha_ids = ds.load_ids()
+    assert len(alpha_ids) >= 1
+    beta_ids = ds.load_ids(schema_name="beta")
+    assert len(beta_ids) >= 1
+    assert set(alpha_ids).isdisjoint(set(beta_ids))
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -1166,3 +1174,32 @@ def test_explicit_schema_reads_same_table_name_from_correct_schema(
 
     assert p.dataset(schema="s1").shared.fetchall()[0][0] == 1
     assert p.dataset(schema="s2").shared.fetchall()[0][0] == 2
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(local_filesystem_configs=True, table_format_local_configs=True),
+    ids=lambda x: x.name,
+)
+def test_multi_schema_dataset_shared_table_sees_all_schemas(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """With {schema_name} layout, a multi-schema dataset must see rows from
+    all schemas when two schemas share the same user table name."""
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = (
+        "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}"
+    )
+    p = destination_config.setup_pipeline(
+        "fs_shared_table_multi",
+        dataset_name="fs_shared_table_multi",
+        dev_mode=True,
+    )
+
+    p.run([{"id": 1}], table_name="shared", schema=dlt.Schema("s1"))
+    p.run([{"id": 2}], table_name="shared", schema=dlt.Schema("s2"))
+
+    # multi-schema dataset — the view for "shared" must include files from
+    # both s1/ and s2/ prefixes, not just whichever schema is found first
+    ds = p.dataset()
+    ids = sorted(row[0] for row in ds.shared.fetchall())
+    assert ids == [1, 2]
