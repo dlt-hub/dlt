@@ -321,12 +321,14 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         return table
 
     def _set_internal_table_sort_hints(self, table: PreparedTableSchema) -> None:
-        # Match dlt metadata access patterns to avoid ORDER BY tuple() full scans.
-        if table["name"] == self.schema.version_table_name and SORT_HINT not in table:
+        # Match dlt metadata access patterns to avoid ORDER BY tuple() full scans
+        if SORT_HINT in table:
+            return
+        if table["name"] == self.schema.version_table_name:
             table[SORT_HINT] = ["schema_name", "inserted_at"]  # type: ignore[typeddict-unknown-key]
-        elif table["name"] == self.schema.state_table_name and SORT_HINT not in table:
+        elif table["name"] == self.schema.state_table_name:
             table[SORT_HINT] = ["pipeline_name", C_DLT_LOAD_ID]  # type: ignore[typeddict-unknown-key]
-        elif table["name"] == self.schema.loads_table_name and SORT_HINT not in table:
+        elif table["name"] == self.schema.loads_table_name:
             table[SORT_HINT] = [C_DLT_LOADS_TABLE_LOAD_ID]  # type: ignore[typeddict-unknown-key]
 
     def _create_merge_followup_jobs(

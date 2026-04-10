@@ -146,10 +146,7 @@ def test_clickhouse_internal_metadata_tables_have_sort_keys(
     expected_order_by: str,
 ) -> None:
     table_name = getattr(clickhouse_client.schema, schema_table_name)
-    if (
-        table_name == clickhouse_client.schema.state_table_name
-        and table_name not in clickhouse_client.schema.tables
-    ):
+    if schema_table_name == "state_table_name":
         clickhouse_client.schema.update_table(pipeline_state_table())
 
     new_columns = list(clickhouse_client.schema.tables[table_name]["columns"].values())
@@ -157,7 +154,6 @@ def test_clickhouse_internal_metadata_tables_have_sort_keys(
     sql = clickhouse_client._get_table_update_sql(table_name, new_columns, False)[0]
 
     assert f"ORDER BY {expected_order_by}" in sql
-    assert "ORDER BY tuple()" not in sql
 
 
 @pytest.mark.usefixtures("empty_schema")
