@@ -1,5 +1,5 @@
 from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
-from typing import cast, Any
+from typing import cast, Any, Sequence, Tuple
 
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.destination import TDestinationReferenceArg, Destination
@@ -50,7 +50,10 @@ DATA_TYPE_MAP = {
 
 
 def create_ibis_backend(
-    destination: TDestinationReferenceArg, client: JobClientBase, read_only: bool = False
+    destination: TDestinationReferenceArg,
+    client: JobClientBase,
+    read_only: bool = False,
+    schemas: Sequence[Schema] = (),
 ) -> BaseBackend:
     """Create a given ibis backend for a destination client and dataset."""
 
@@ -190,6 +193,8 @@ def create_ibis_backend(
         fs_client = cast(FilesystemClient, client)
         sql_client = fs_client.sql_client
         assert isinstance(sql_client, FilesystemSqlClient)
+        if schemas:
+            sql_client.set_schemas(schemas)
         # do not use context manager to not return and close the cloned connection
         duckdb_conn = sql_client.open_connection()
         # make all tables available here

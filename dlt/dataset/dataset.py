@@ -86,6 +86,7 @@ class Dataset:
             destination=self._destination,
             client=self.destination_client,
             read_only=read_only,
+            schemas=self.schemas,
         )
 
     def _resolve_schemas(self) -> None:
