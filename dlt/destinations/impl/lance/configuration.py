@@ -16,6 +16,7 @@ from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.storages.configuration import (
     FileSystemCredentials,
     FilesystemConfigurationWithLocalFiles,
+    WithLocalFiles,
 )
 
 if TYPE_CHECKING:
@@ -167,7 +168,7 @@ class LanceEmbeddingsConfiguration(BaseConfiguration):
 
 
 @configspec
-class LanceClientConfiguration(DestinationClientDwhConfiguration):
+class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lance", init=False, repr=False, compare=False
     )
@@ -175,6 +176,15 @@ class LanceClientConfiguration(DestinationClientDwhConfiguration):
     """Storage configuration including URI and cloud credentials."""
     embeddings: Optional[LanceEmbeddingsConfiguration] = None
     """Optional embeddings configuration to add a vector embedding column. Leave empty to skip embedding generation."""
+
+    def on_resolved(self) -> None:
+        # propagate pipeline context (local_dir, pipeline_name, etc.) to nested storage
+        if isinstance(self.storage, WithLocalFiles):
+            self.storage.attach_from(self)
+            if not self.storage.is_resolved():
+                self.storage.resolve()
+            else:
+                self.storage.normalize_bucket_url()
 
     def fingerprint(self) -> str:
         return self.storage.fingerprint()
