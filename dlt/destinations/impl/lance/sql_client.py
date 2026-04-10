@@ -1,50 +1,27 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
-from typing import Any, Dict, Iterator, TYPE_CHECKING
-
-import sqlglot
-import sqlglot.expressions as exp
-import duckdb
+from typing import Any, Dict, TYPE_CHECKING
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.common.destination.dataset import DBApiCursor
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.destinations.sql_client import raise_database_error, raise_open_connection_error
-from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
-from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
+from dlt.destinations.sql_client import raise_database_error
+from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.lance.exceptions import is_lance_undefined_entity_exception
 
 if TYPE_CHECKING:
-    from sqlglot import expressions as sge
     from duckdb import DuckDBPyConnection
 
+    from dlt.common.destination.typing import PreparedTableSchema
     from dlt.destinations.impl.lance.lance_client import LanceClient
-
-
-def _get_lancedb_sql_capabilities() -> DestinationCapabilitiesContext:
-    caps = DestinationCapabilitiesContext()
-    caps = _set_duckdb_raw_capabilities(caps)
-    caps.preferred_loader_file_format = "parquet"
-    return caps
 
 
 def _install_and_load_lance_duckdb_extension(duckdb_con: DuckDBPyConnection) -> None:
     """Ensure the `lance-duckdb` extension is loaded.
 
     DuckDB ensures installation is only done once per system.
-    Extension loading must be done on every connection
+    Extension loading must be done on every connection.
     """
     duckdb_con.execute("INSTALL lance;")
     duckdb_con.execute("LOAD lance;")
-
-
-def _create_and_use_duckdb_dataset(
-    duckdb_con: DuckDBPyConnection, dataset_qualified_name: str
-) -> None:
-    """Create a schema in the ephemeral DuckDB client that matches the `dlt` dataset name."""
-    create_schema_sql = f"CREATE SCHEMA IF NOT EXISTS {dataset_qualified_name}"
-    duckdb_con.execute(f"{create_schema_sql}; USE {dataset_qualified_name}")
 
 
 def _prepare_create_view_statement(lance_table_uri: str, view_name: str) -> str:
@@ -66,28 +43,39 @@ def _prepare_create_lance_secret_statement(
         )"""
 
 
-class LanceSQLClient(DuckDbSqlClient):
+class LanceSQLClient(WithTableScanners):
     def __init__(self, lance_client: LanceClient) -> None:
         self.lance_client = lance_client
         super().__init__(
-            dataset_name=self.lance_client.dataset_name,
-            staging_dataset_name=None,
-            credentials=None,  # duckdb doesn't need special credentials
-            capabilities=_get_lancedb_sql_capabilities(),
+            remote_client=lance_client,
+            dataset_name=lance_client.dataset_name,
         )
-        self._conn: DuckDBPyConnection | None = None
 
-    @raise_open_connection_error
     def open_connection(self) -> DuckDBPyConnection:
-        if self._conn:
-            return self._conn
+        with self.credentials.conn_pool._conn_lock:
+            first_connection = self.credentials.conn_pool.never_borrowed
+            super().open_connection()
 
-        self._conn = duckdb.connect(":memory:")
-        _install_and_load_lance_duckdb_extension(self._conn)
-        _create_and_use_duckdb_dataset(self._conn, self.fully_qualified_dataset_name())
-        self._create_lance_secret()
+        if first_connection:
+            _install_and_load_lance_duckdb_extension(self._conn)
+            self._create_lance_secret()
 
         return self._conn
+
+    def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
+        return True
+
+    def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
+        # lance datasets are versioned, always refresh to get latest data
+        return True
+
+    @raise_database_error
+    def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
+        table_name = table_schema["name"]
+        lance_table_uri = self.lance_client.get_table_uri(table_name)
+        qualified_view = self.make_qualified_table_name(table_name)
+        sql = _prepare_create_view_statement(lance_table_uri, qualified_view)
+        self._conn.execute(sql)
 
     def _create_lance_secret(self) -> None:
         storage_options = self.lance_client.config.storage.options
@@ -97,37 +85,6 @@ class LanceSQLClient(DuckDbSqlClient):
         secret_name = self.create_secret_name(scope)
         stmt = _prepare_create_lance_secret_statement(secret_name, scope, storage_options)
         self._conn.execute(stmt)
-
-    def close_connection(self) -> None:
-        if self._conn:
-            self._conn = None
-
-    @contextmanager
-    @raise_database_error
-    def execute_query(  # type: ignore[override]
-        self, query: str, *args: Any, **kwargs: Any
-    ) -> Iterator[DBApiCursor]:
-        # replace generic string placeholder by DuckDB placeholders
-        if args or kwargs:
-            query = query.replace("%s", "?")
-
-        expression: sge.Expression = sqlglot.maybe_parse(query)
-        for table in expression.find_all(exp.Table):
-            if not table.this:
-                continue
-
-            self.create_view(table.name)
-
-        with super().execute_query(query, *args, **kwargs) as cursor:
-            yield cursor
-
-    @raise_database_error
-    def create_view(self, table_name: str) -> None:
-        create_view_sql = _prepare_create_view_statement(
-            lance_table_uri=self.lance_client.get_table_uri(table_name),
-            view_name=self.make_qualified_table_name(table_name),
-        )
-        self.open_connection().execute(create_view_sql)
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
