@@ -1814,6 +1814,19 @@ def test_three_schema_overlap(overlap_pipeline: Pipeline) -> None:
     ids = sorted(row[0] for row in rows)
     assert ids == [1, 2, 3, 4, 5, 6]
 
+    # row_counts per load_id: filtering by each schema's load_ids must
+    # partition the events — no double-counting, sum equals total
+    total_events = 0
+    all_load_ids: set[str] = set()
+    for s in ds.schemas:
+        for lid in ds.load_ids(schema_name=s.name):
+            # load_ids across schemas must be disjoint
+            assert lid not in all_load_ids, f"load_id {lid} appears in multiple schemas"
+            all_load_ids.add(lid)
+            counts = dict(ds.row_counts(load_id=lid).fetchall())
+            total_events += counts.get("events", 0)
+    assert total_events == 6
+
 
 @pytest.mark.no_load
 @pytest.mark.essential
