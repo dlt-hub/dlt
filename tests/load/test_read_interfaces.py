@@ -1350,7 +1350,9 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
             additional_tables += ["dlt_sentinel_table"]
 
         # all destinations now see tables from all schemas (including aleph's digits)
-        additional_tables += ["digits"]
+        # except lancedb whose ibis backend only iterates the default schema
+        if populated_pipeline.destination.destination_type != "dlt.destinations.lancedb":
+            additional_tables += ["digits"]
 
         add_table_prefix = lambda x: table_name_prefix + x
 

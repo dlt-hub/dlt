@@ -120,7 +120,6 @@ class FilesystemSqlClient(WithTableScanners):
                 return False
         return self.remote_client.config.always_refresh_views
 
-    @raise_database_error
     def create_view_select(
         self, table_schema: PreparedTableSchema, schema: Schema = None
     ) -> Optional[Tuple[str, str]]:

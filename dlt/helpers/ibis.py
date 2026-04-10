@@ -232,10 +232,11 @@ def _create_ibis_backend_lancedb(client: JobClientBase) -> BaseBackend:
     assert isinstance(client, LanceDBClient)
     # open connection but do not close it, ducklake always creates a separate connection
     # and will not close it in destructor
+    native_con = client.sql_client.open_connection()
+    
     for table_name in client.schema.tables:
         client.sql_client.create_view(table_name)
 
-    native_con = client.sql_client.open_connection()
     return ibis.duckdb.from_connection(native_con)
 
 

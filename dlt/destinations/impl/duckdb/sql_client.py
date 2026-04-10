@@ -578,6 +578,7 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
                 all_tables.setdefault(table_name, table_name)
         self.create_views_for_tables(all_tables)
 
+    @raise_database_error
     def create_views_for_tables(self, tables: Dict[str, str]) -> None:
         """Add the required tables as views to the duckdb in memory instance.
 
