@@ -1,5 +1,3 @@
-from pyarrow import types as pat
-
 from dlt.common import logger
 from dlt.common.data_writers.escape import escape_lancedb_literal
 from dlt.common.destination.exceptions import DestinationTerminalException
@@ -32,7 +30,7 @@ def create_in_filter(field_name: str, array: pa.Array) -> str:
     If `array` is dictionary-encoded (pa.DictionaryType) we emit the
      *distinct* values stored in its dictionary.
     """
-    if pat.is_dictionary(array.type):
+    if pa.types.is_dictionary(array.type):
         # use the dictionary payload (unique categorical values).
         values_py = array.dictionary.to_pylist()
     else:

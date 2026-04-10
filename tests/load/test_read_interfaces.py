@@ -1340,6 +1340,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         # all available tables so both schemas tables are visible
         if populated_pipeline.destination.destination_type not in [
             "dlt.destinations.filesystem",
+            "dlt.destinations.lance",
             "dlt.destinations.lancedb",
         ]:
             # from aleph schema

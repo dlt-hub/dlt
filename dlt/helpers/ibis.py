@@ -1,3 +1,4 @@
+from dlt.destinations.impl.lance.configuration import LanceClientConfiguration
 from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
 from typing import cast, Any
 
@@ -201,6 +202,20 @@ def create_ibis_backend(
         con = ibis.duckdb.from_connection(duckdb_conn)
         # disable destructor
         fs_client.sql_client = None
+        sql_client.memory_db = None
+        del sql_client
+    elif issubclass(destination.spec, LanceClientConfiguration):
+        from dlt.destinations.impl.lance.lance_client import LanceClient
+        from dlt.destinations.impl.lance.sql_client import LanceSQLClient
+
+        assert isinstance(client, LanceClient)
+        sql_client = client.sql_client
+        assert isinstance(sql_client, LanceSQLClient)
+        duckdb_conn = sql_client.open_connection()
+        sql_client.create_views_for_all_tables()
+        con = ibis.duckdb.from_connection(duckdb_conn)
+        # disable destructor so connection survives
+        client.sql_client = None
         sql_client.memory_db = None
         del sql_client
     elif issubclass(destination.spec, LanceDBClientConfiguration):
