@@ -304,13 +304,13 @@ def _preserve_environ() -> Iterator[None]:
     try:
         yield
     finally:
-        environ.clear()
+        environ.clear()  # clear Python-level env vars
         environ.update(saved_environ)
         for key_, value_ in known_environ.items():
-            if value_ is not None:
+            if value_ is None:
+                os.unsetenv(key_)  # unset C-level env var
+            else:
                 environ[key_] = value_
-            elif key_ in environ:
-                del environ[key_]
 
 
 @pytest.fixture(autouse=True)
