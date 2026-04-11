@@ -24,6 +24,7 @@ PARTITION_EXPIRATION_DAYS_HINT: Literal["x-bigquery-partition-expiration-days"] 
     "x-bigquery-partition-expiration-days"
 )
 CLUSTER_COLUMNS_HINT: Literal["x-bigquery-cluster-columns"] = "x-bigquery-cluster-columns"
+GEOGRAPHY_HINT: Literal["x-bigquery-geography"] = "x-bigquery-geography"
 
 
 class PartitionTransformation:
@@ -82,6 +83,7 @@ def bigquery_adapter(
     insert_api: Optional[Literal["streaming", "default"]] = None,
     autodetect_schema: Optional[bool] = None,
     partition_expiration_days: Optional[int] = None,
+    geography: TColumnNames = None,
 ) -> DltResource:
     """
     Prepares data for loading into BigQuery.
@@ -119,6 +121,9 @@ def bigquery_adapter(
             allows to create structured types from nested data.
         partition_expiration_days (int, optional): For date/time based partitions it tells when partition is expired and removed.
             Partitions are expired based on a partitioned column value. (https://cloud.google.com/bigquery/docs/managing-partitioned-tables#partition-expiration)
+        geography (TColumnNames, optional): A column name or list of column names to be stored as BigQuery GEOGRAPHY type.
+            The column data should contain WKT (e.g. ``POINT(-118.4 33.9)``) or GeoJSON strings.
+            Coordinates must use the WGS84 (EPSG:4326) reference system.
 
     Returns:
         A `DltResource` object that is ready to be loaded into BigQuery.
@@ -237,13 +242,23 @@ def bigquery_adapter(
             )
         additional_table_hints["x-insert-api"] = insert_api
 
+    if geography:
+        if isinstance(geography, str):
+            geography = [geography]
+        if not isinstance(geography, list):
+            raise ValueError(
+                "`geography` must be a list of column names or a single column name as a string."
+            )
+        for column_name in geography:
+            _set_column_hint(column_hints, column_name, GEOGRAPHY_HINT)
+
     if column_hints or additional_table_hints:
         resource.apply_hints(columns=column_hints, additional_table_hints=additional_table_hints)
     else:
         raise ValueError(
             "AT LEAST one of `partition`, `cluster`, `round_half_away_from_zero`,"
-            " `round_half_even`, `table_description` or `table_expiration_datetime` must be"
-            " specified."
+            " `round_half_even`, `table_description`, `table_expiration_datetime`,"
+            " or `geography` must be specified."
         )
     return resource
 
