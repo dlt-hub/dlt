@@ -284,7 +284,7 @@ def test_job_definition_batch() -> None:
     assert job_def["job_ref"] == f"jobs.{etl.section}.etl"
     assert job_def["entry_point"]["job_type"] == "batch"
     assert job_def["entry_point"]["function"] == "etl"
-    assert "launcher" not in job_def["entry_point"]
+    assert job_def["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.job"
     assert job_def["triggers"] == [TTrigger("schedule:0 8 * * *")]
     assert job_def["execute"]["timeout"] == {"timeout": 14400.0}
     assert "concurrency" not in job_def["execute"]
@@ -424,15 +424,26 @@ def test_execute_timeout(timeout_spec: Dict[str, Any], expected_timeout: Dict[st
 
 
 def test_interactive_idle_timeout() -> None:
-    """idle_timeout on interactive builds execute spec with grace_period."""
+    """idle_timeout on interactive builds execute spec without touching grace_period."""
 
     @interactive(idle_timeout="24h")
     def my_app():
         pass
 
     job_def = my_app.to_job_definition()
-    assert job_def["execute"]["timeout"]["timeout"] == 86400.0
-    assert job_def["execute"]["timeout"]["grace_period"] == 5.0
+    assert job_def["execute"]["timeout"] == {"timeout": 86400.0}
+    assert job_def["execute"]["concurrency"] == 1
+
+
+def test_interactive_no_timeout_leaves_timeout_unset() -> None:
+    """interactive without idle_timeout leaves `timeout` absent — runtime fills defaults."""
+
+    @interactive()
+    def my_app():
+        pass
+
+    job_def = my_app.to_job_definition()
+    assert "timeout" not in job_def["execute"]
     assert job_def["execute"]["concurrency"] == 1
 
 

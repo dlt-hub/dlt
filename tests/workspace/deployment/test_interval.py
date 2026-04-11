@@ -61,7 +61,12 @@ def _job(
 ) -> TJobDefinition:
     job: TJobDefinition = {
         "job_ref": TJobRef(ref),
-        "entry_point": TEntryPoint(module="m", function="f", job_type=job_type),
+        "entry_point": TEntryPoint(
+            module="m",
+            function="f",
+            job_type=job_type,
+            launcher="dlt._workspace.deployment.launchers.job",
+        ),
         "triggers": [TTrigger(t) for t in (triggers or [])],
         "execute": TExecuteSpec(),
     }

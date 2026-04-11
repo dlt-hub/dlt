@@ -108,25 +108,10 @@ def bump_manifest_version(
 def migrate_manifest(
     manifest_dict: DictStrAny, from_engine: int, to_engine: int
 ) -> TJobsDeploymentManifest:
-    """Migrate a manifest dict from one engine version to another.
-
-    Raises:
-        ValueError: If no migration path exists.
-    """
+    """Migrate a manifest dict between engine versions."""
     if from_engine == to_engine:
         return manifest_dict  # type: ignore[return-value]
-
-    if from_engine == 1 and to_engine >= 2:
-        # v1 → v2: add job definitions structure
-        manifest_dict.setdefault("jobs", [])
-        manifest_dict.setdefault("created_at", "")
-        manifest_dict.setdefault("deployment_module", "")
-        manifest_dict["engine_version"] = 2
-        from_engine = 2
-
-    if from_engine != to_engine:
-        raise ValueError(f"no manifest migration path from engine {from_engine} to {to_engine}")
-    return manifest_dict  # type: ignore[return-value]
+    raise ValueError(f"no manifest migration path from engine {from_engine} to {to_engine}")
 
 
 def save_manifest(manifest: TJobsDeploymentManifest, f: BinaryIO) -> str:
@@ -465,7 +450,7 @@ def default_dashboard_job() -> TJobDefinition:
             manual=True,
         ),
         "triggers": [TTrigger("http:")],
-        "execute": TExecuteSpec(concurrency=1, timeout={"grace_period": 5.0}),
+        "execute": TExecuteSpec(concurrency=1),
         "require": {"dependency_groups": [DASHBOARD_JOB_REF]},
         "description": "Workspace dashboard",
     }

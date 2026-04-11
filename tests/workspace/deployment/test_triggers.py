@@ -279,7 +279,12 @@ def _job(
         trigger_list.append(TTrigger(f"manual:{ref}"))
     return {
         "job_ref": TJobRef(ref),
-        "entry_point": TEntryPoint(module="m", function="f", job_type=job_type),  # type: ignore[typeddict-item]
+        "entry_point": TEntryPoint(
+            module="m",
+            function="f",
+            job_type=job_type,  # type: ignore[typeddict-item]
+            launcher="dlt._workspace.deployment.launchers.job",
+        ),
         "triggers": trigger_list,
         "execute": TExecuteSpec(),
     }

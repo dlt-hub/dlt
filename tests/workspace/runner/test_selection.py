@@ -29,6 +29,7 @@ def _batch_job(
             module=f"{WORKSPACE}.batch_jobs",
             function=function,
             job_type="batch",
+            launcher="dlt._workspace.deployment.launchers.job",
         ),
         "triggers": [TTrigger(t) for t in triggers],
         "execute": TExecuteSpec(),

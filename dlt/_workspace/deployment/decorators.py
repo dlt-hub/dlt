@@ -22,6 +22,7 @@ from dlt.extract.source import DltSource
 
 from dlt._workspace.deployment._job_ref import make_job_ref
 from dlt._workspace.deployment.exceptions import InvalidJobName, InvalidJobSection
+from dlt._workspace.deployment.launchers import LAUNCHER_JOB
 from dlt._workspace.deployment.typing import (
     TDeliverSpec,
     TEntryPoint,
@@ -205,6 +206,7 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
             "module": self._f.__module__,
             "function": get_callable_name(self._f),
             "job_type": self.job_type,
+            "launcher": LAUNCHER_JOB,
         }
 
         job_def: TJobDefinition = {
@@ -464,7 +466,6 @@ def interactive(
         section: Config section. Defaults to the module name.
         interface: What the job exposes: `"gui"`, `"rest_api"`, or `"mcp"`.
         idle_timeout: Idle timeout as seconds or human string (e.g. `"24h"`).
-            Sets `execute.timeout` with `grace_period=5`.
         execute: Execution constraints. Accepts `TExecuteSpec` with:
             `timeout` and `concurrency`. Concurrency defaults to `1` for
             interactive jobs.
@@ -487,11 +488,7 @@ def interactive(
     exec_spec: TExecuteSpec = dict(execute) if execute else {}  # type: ignore[assignment]
     exec_spec.setdefault("concurrency", 1)
     if idle_timeout is not None:
-        timeout = _normalize_timeout(idle_timeout)
-        timeout.setdefault("grace_period", 5.0)
-        exec_spec["timeout"] = timeout
-    elif "timeout" not in exec_spec:
-        exec_spec["timeout"] = {"grace_period": 5.0}
+        exec_spec["timeout"] = _normalize_timeout(idle_timeout)
 
     return _job(
         func,

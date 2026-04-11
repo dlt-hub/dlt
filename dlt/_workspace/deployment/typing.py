@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Literal, NamedTuple, NewType, Optional, Unio
 from dlt.common.typing import NotRequired, TypedDict
 
 
-MANIFEST_ENGINE_VERSION = 2
+MANIFEST_ENGINE_VERSION = 1
 
 REQUIREMENTS_ENGINE_VERSION = 1
 
@@ -120,8 +120,8 @@ class TEntryPoint(TypedDict):
     function: Optional[str]
     """Function name within the module, or `None` for module-level jobs."""
     job_type: TJobType
-    launcher: NotRequired[Optional[str]]
-    """Fully qualified launcher module path, or `None` for system default."""
+    launcher: str
+    """Fully qualified launcher module path."""
 
 
 class TRunArgs(TypedDict, total=False):
@@ -250,6 +250,9 @@ class TDeploymentFileItem(TypedDict, total=False):
     relative_path: str
     size_in_bytes: int
     sha3_256: str
+    """Set for regular file entries only."""
+    linkname: str
+    """Set for symlink entries only."""
 
 
 class TFilesManifest(TypedDict):

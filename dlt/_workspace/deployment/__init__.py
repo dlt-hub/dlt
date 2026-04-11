@@ -13,6 +13,7 @@ from dlt._workspace.deployment.manifest import (
     load_manifest,
     import_deployment_module,
 )
+from dlt._workspace.deployment.package_builder import compute_package_content_hash
 from dlt._workspace.deployment.requirements import (
     WorkspaceRequirementsError,
     build_dashboard_group,

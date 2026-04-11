@@ -16,7 +16,7 @@ from dlt.common.utils import get_module_name
 
 from dlt._workspace.deployment._job_ref import make_job_ref
 from dlt._workspace.deployment._trigger_helpers import normalize_triggers
-from dlt._workspace.deployment.launchers import get_launcher_for_framework
+from dlt._workspace.deployment.launchers import LAUNCHER_MODULE, get_launcher_for_framework
 from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
@@ -28,7 +28,7 @@ from dlt._workspace.deployment.typing import (
 )
 
 _HTTP_TRIGGER = _triggers.http()
-_INTERACTIVE_EXECUTION = TExecuteSpec(concurrency=1, timeout={"grace_period": 5.0})
+_INTERACTIVE_EXECUTION = TExecuteSpec(concurrency=1)
 
 
 def detect_module_job(module: ModuleType) -> Optional[TJobDefinition]:
@@ -243,6 +243,7 @@ def detect_local_module(module: ModuleType, parent_module: ModuleType) -> Option
         "module": module.__name__,
         "function": None,
         "job_type": "batch",
+        "launcher": LAUNCHER_MODULE,
     }
     job_def: TJobDefinition = {
         "job_ref": _module_job_ref(module),

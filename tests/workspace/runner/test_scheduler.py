@@ -19,7 +19,12 @@ from dlt._workspace.deployment.typing import (
 def _job(ref: str, triggers: List[str]) -> TJobDefinition:
     return {
         "job_ref": TJobRef(ref),
-        "entry_point": TEntryPoint(module="m", function="f", job_type="batch"),
+        "entry_point": TEntryPoint(
+            module="m",
+            function="f",
+            job_type="batch",
+            launcher="dlt._workspace.deployment.launchers.job",
+        ),
         "triggers": [TTrigger(t) for t in triggers],
         "execute": TExecuteSpec(),
     }

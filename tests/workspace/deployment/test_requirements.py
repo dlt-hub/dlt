@@ -323,11 +323,13 @@ def test_export_skips_dlt_injection_when_present_in_default_group() -> None:
 def test_dashboard_group_always_present() -> None:
     dashboard_specs = build_dashboard_group()
     assert dashboard_specs == [
+        "botocore",
         "ibis-framework",
         "marimo",
         "numpy",
         "pandas",
         "pyarrow",
+        "s3fs",
         "uvicorn",
     ]
 

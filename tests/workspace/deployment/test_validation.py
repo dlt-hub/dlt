@@ -1,7 +1,7 @@
 """Tests for manifest validation, hashing, versioning, and IO."""
 
 from io import BytesIO
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -41,6 +41,7 @@ def _make_job(
         "module": "test_module",
         "function": job_ref.split(".")[-1],
         "job_type": job_type,
+        "launcher": "dlt._workspace.deployment.launchers.job",
     }
     job: TJobDefinition = {
         "job_ref": TJobRef(job_ref),
@@ -430,36 +431,14 @@ def test_manifest_roundtrip_io() -> None:
     assert "version_hash" in loaded
 
 
-@pytest.mark.parametrize(
-    "from_v,to_v,input_dict,check",
-    [
-        # v1 -> v2 adds defaults
-        (
-            1,
-            2,
-            {"engine_version": 1, "files": []},
-            lambda r: r["engine_version"] == 2 and r["jobs"] == [] and "created_at" in r,
-        ),
-        # same version = noop
-        (
-            2,
-            2,
-            None,
-            lambda r: True,
-        ),
-    ],
-    ids=["v1-to-v2", "same-version"],
-)
-def test_migrate_manifest(from_v, to_v, input_dict, check) -> None:
-    if input_dict is None:
-        input_dict = _make_manifest([])
-    result = migrate_manifest(input_dict, from_v, to_v)
-    assert check(result)
+def test_migrate_manifest_same_version_is_noop() -> None:
+    manifest: Dict[str, Any] = dict(_make_manifest([]))
+    assert migrate_manifest(manifest, 1, 1) is manifest
 
 
 def test_migrate_invalid_path() -> None:
     with pytest.raises(ValueError, match="no manifest migration path"):
-        migrate_manifest({"engine_version": 99}, 99, 2)
+        migrate_manifest({"engine_version": 99}, 99, 1)
 
 
 def test_load_manifest_raises_invalid_manifest() -> None:

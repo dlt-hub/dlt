@@ -115,7 +115,16 @@ def build_launcher_requirements() -> Dict[str, List[str]]:
 
 def build_dashboard_group() -> List[str]:
     """Specs for the `DASHBOARD_JOB_REF` group."""
-    return ["ibis-framework", "marimo", "numpy", "pandas", "pyarrow", "uvicorn"]
+    return [
+        "botocore",
+        "ibis-framework",
+        "marimo",
+        "numpy",
+        "pandas",
+        "pyarrow",
+        "s3fs",
+        "uvicorn",
+    ]
 
 
 def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]]) -> None:
