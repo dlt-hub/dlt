@@ -446,25 +446,31 @@ class RunnableLoadJob(LoadJob, ABC):
         self._done_event = done_event
 
         # filepath is now moved to running
+        # Use a local variable to track the terminal state. We must NOT publish
+        # to self._state until _on_completed() has finished persisting the
+        # pending-transition marker to disk. Otherwise the main thread can see
+        # "completed" via job.state(), finalize the package (rename the directory),
+        # and race against the worker still writing inside it. See #3849.
+        terminal_state: TLoadJobState = "running"
         try:
             self._state = "running"
             self._job_client.prepare_load_job_execution(self)
             self.run()
-            self._state = "completed"
+            terminal_state = "completed"
         except (TerminalException, AssertionError) as e:
-            self._state = "failed"
+            terminal_state = "failed"
             self._exception = e
             logger.exception(f"Terminal exception in job {self.job_id()} in file {self._file_path}")
         except (DestinationTransientException, Exception) as e:
-            self._state = "retry"
+            terminal_state = "retry"
             self._exception = e
             logger.exception(
                 f"Transient exception in job {self.job_id()} in file {self._file_path}"
             )
         finally:
             # sanity check
-            assert self._state in ("completed", "retry", "failed")
-            if self._state != "retry":
+            assert terminal_state in ("completed", "retry", "failed")
+            if terminal_state != "retry":
                 # persist terminal state so resume can skip re-execution
                 if self._on_completed:
                     if self._exception:
@@ -477,12 +483,15 @@ class RunnableLoadJob(LoadJob, ABC):
                         )
                     else:
                         failed_message = None
-                    self._on_completed(self._state, failed_message)
+                    self._on_completed(terminal_state, failed_message)
                 self._finished_at = pendulum.now()
-                # wake up waiting threads
-                if self._done_event:
-                    with contextlib.suppress(ValueError):
-                        self._done_event.release()
+            # Publish state only AFTER the marker is persisted and timestamp set.
+            # This is the moment the main thread is allowed to see the terminal state.
+            self._state = terminal_state
+            # wake up waiting threads for terminal (non-retry) states
+            if terminal_state != "retry" and self._done_event:
+                with contextlib.suppress(ValueError):
+                    self._done_event.release()
 
     @abstractmethod
     def run(self) -> None:
