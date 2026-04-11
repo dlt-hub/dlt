@@ -40,6 +40,7 @@ from dlt._workspace.deployment._trigger_helpers import (
 from dlt._workspace.deployment.freshness import parse_freshness_constraint
 from dlt._workspace.deployment.launchers import LAUNCHER_DASHBOARD
 from dlt._workspace.deployment.typing import (
+    DASHBOARD_JOB_REF,
     DEFAULT_DEPLOYMENT_MODULE,
     MANIFEST_ENGINE_VERSION,
     TEntryPoint,
@@ -53,8 +54,6 @@ from dlt._workspace.deployment.typing import (
 )
 
 DEPLOYMENT_ENGINE_VERSION = MANIFEST_ENGINE_VERSION
-
-DASHBOARD_JOB_REF = TJobRef("jobs.workspace.dashboard")
 
 _HASH_EXCLUDE_KEYS = ("version", "version_hash", "previous_hashes", "created_at")
 _MAX_PREVIOUS_HASHES = 10
@@ -467,6 +466,7 @@ def default_dashboard_job() -> TJobDefinition:
         ),
         "triggers": [TTrigger("http:")],
         "execute": TExecuteSpec(concurrency=1, timeout={"grace_period": 5.0}),
+        "require": {"dependency_groups": [DASHBOARD_JOB_REF]},
         "description": "Workspace dashboard",
     }
 

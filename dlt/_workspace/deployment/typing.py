@@ -6,11 +6,19 @@ from dlt.common.typing import NotRequired, TypedDict
 
 MANIFEST_ENGINE_VERSION = 2
 
+REQUIREMENTS_ENGINE_VERSION = 1
+
+MAIN_GROUP = "main"
+"""Conventional group name for top-level workspace dependencies."""
+
 DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
 """Default deployment module name for manifest generation."""
 
 TJobRef = NewType("TJobRef", str)
 """Resolved job reference in `jobs.<section>.<name>` or `jobs.<name>` form."""
+
+DASHBOARD_JOB_REF = TJobRef("jobs.workspace.dashboard")
+"""job_ref of the synthesized dashboard; doubles as its requirements group name."""
 
 TTrigger = NewType("TTrigger", str)
 """Normalized trigger string in `type:expr` form, e.g. `"schedule:0 8 * * *"`."""
@@ -90,10 +98,12 @@ class TExposeSpec(TJobExposeSpec):
 class TRequireSpec(TypedDict, total=False):
     """Runner (machine, environment) requirements for a job."""
 
-    extras: List[str]
-    """pyproject.toml extras to install when creating the job's venv."""
+    dependency_groups: List[str]
+    """PEP 735 groups to install on top of the workspace's `default_groups`."""
     profile: str
     """Workspace profile name to activate for this job."""
+    provider: str
+    """Infra provider identifier (e.g. `"modal"`). Runtime default when unset."""
     machine: str
     """Machine spec identifier (e.g. `"gpu-a100"`, `"2xlarge"`)."""
     region: str
@@ -268,3 +278,17 @@ class TJobsDeploymentManifest(TypedDict):
     tags: NotRequired[List[str]]
     """From `__tags__` of the deployment module."""
     jobs: List[TJobDefinition]
+
+
+class TWorkspaceRequirementsManifest(TypedDict):
+    """Workspace Python dependencies exported per dependency group."""
+
+    engine_version: int
+    python_version: str
+    """Client-side `major.minor` Python version captured at export time."""
+    default_groups: List[str]
+    """Groups installed on top of any job-declared `dependency_groups`."""
+    groups: Dict[str, List[str]]
+    """Group name to sorted PEP 508 specs. Always contains `"main"`."""
+    launcher_requirements: Dict[str, List[str]]
+    """Launcher module path to mandatory specs installed for jobs of that launcher."""

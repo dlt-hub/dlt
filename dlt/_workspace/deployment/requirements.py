@@ -1,31 +1,59 @@
-"""Export a workspace's Python dependencies as a platform-independent
-group-keyed dict that can be embedded in a deployment manifest.
-
-The output shape is `Dict[str, List[str]]` where keys are dependency group
-names (`main` + any PEP 735 `[dependency-groups]` entries) and values are
-sorted lists of PEP 508 requirement specs. Downstream runtime code (Modal)
-composes an image from `result["main"]` plus each group named in a job's
-`TRequireSpec.extras`.
-"""
+"""Export, save, load, and migrate `TWorkspaceRequirementsManifest` — the
+wire format for workspace dependencies shipped to the runtime."""
 
 import importlib.metadata
+import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, BinaryIO, Dict, List, Optional, Sequence
 
 import tomlkit
 from packaging.requirements import Requirement
 
 from dlt.common import json
+from dlt.common.exceptions import DictValidationException
+from dlt.common.typing import DictStrAny
+from dlt.common.validation import validate_dict
 from dlt.version import DLT_PKG_NAME
+
+from dlt._workspace.deployment.launchers import (
+    LAUNCHER_DASHBOARD,
+    LAUNCHER_JOB,
+    LAUNCHER_MARIMO,
+    LAUNCHER_MCP,
+    LAUNCHER_MODULE,
+    LAUNCHER_STREAMLIT,
+)
+from dlt._workspace.deployment.typing import (
+    DASHBOARD_JOB_REF,
+    MAIN_GROUP,
+    REQUIREMENTS_ENGINE_VERSION,
+    TWorkspaceRequirementsManifest,
+)
 
 
 PYPROJECT_TOML = "pyproject.toml"
 REQUIREMENTS_TXT = "requirements.txt"
 REQUIREMENTS_IN = "requirements.in"
 UV_LOCK = "uv.lock"
-MAIN_GROUP = "main"
+
+__all__ = [
+    "MAIN_GROUP",
+    "REQUIREMENTS_ENGINE_VERSION",
+    "TWorkspaceRequirementsManifest",
+    "WorkspaceRequirementsError",
+    "build_dashboard_group",
+    "build_launcher_requirements",
+    "default_requirements_manifest",
+    "export_workspace_requirements",
+    "get_dlt_requirement_spec",
+    "load_requirements",
+    "migrate_requirements",
+    "python_version",
+    "save_requirements",
+]
 
 _UV_MISSING_MESSAGE = (
     "`uv` is required to export dependencies from this workspace but was not found"
@@ -40,12 +68,6 @@ _UV_MISSING_MESSAGE = (
     "    pipx install uv                                                 # cross-platform\n\n"
     "Docs: https://docs.astral.sh/uv/"
 )
-
-DEFAULT_REQUIREMENTS: List[str] = []
-"""Extra packages for the `main` group when a workspace has no dep management
-files. Tests can append to this list or pass `default_dependencies=` per call.
-The locally installed dlt is **always** added to the fallback — resolved via
-`get_dlt_requirement_spec()` — so callers don't need to repeat it here."""
 
 
 class WorkspaceRequirementsError(Exception):
@@ -72,37 +94,68 @@ def get_dlt_requirement_spec() -> str:
     return f"{DLT_PKG_NAME}=={dist.metadata['Version']}"
 
 
+def python_version() -> str:
+    """Current interpreter's `major.minor` version, e.g. `"3.12"`."""
+    return f"{sys.version_info.major}.{sys.version_info.minor}"
+
+
+def build_launcher_requirements() -> Dict[str, List[str]]:
+    """Per-launcher mandatory specs. dlt is injected separately at build time."""
+    # only batch launchers (job, module) pull botocore/s3fs; dashboard extras
+    # travel via the DASHBOARD_JOB_REF group and leave the entry empty
+    return {
+        LAUNCHER_JOB: ["botocore", "s3fs"],
+        LAUNCHER_MODULE: ["botocore", "s3fs"],
+        LAUNCHER_MARIMO: ["marimo", "uvicorn"],
+        LAUNCHER_MCP: ["fastmcp", "uvicorn"],
+        LAUNCHER_STREAMLIT: ["streamlit"],
+        LAUNCHER_DASHBOARD: [],
+    }
+
+
+def build_dashboard_group() -> List[str]:
+    """Specs for the `DASHBOARD_JOB_REF` group."""
+    return ["ibis-framework", "marimo", "numpy", "pandas", "pyarrow", "uvicorn"]
+
+
+def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]]) -> None:
+    dlt_spec = get_dlt_requirement_spec()
+    for launcher in launcher_requirements:
+        launcher_requirements[launcher] = sorted(launcher_requirements[launcher] + [dlt_spec])
+
+
+def default_requirements_manifest() -> TWorkspaceRequirementsManifest:
+    """Minimal manifest: empty `main`, dashboard group, launcher specs with dlt injected."""
+    launcher_requirements = build_launcher_requirements()
+    _inject_dlt_into_launchers(launcher_requirements)
+    return {
+        "engine_version": REQUIREMENTS_ENGINE_VERSION,
+        "python_version": python_version(),
+        "default_groups": [MAIN_GROUP],
+        "groups": {MAIN_GROUP: [], DASHBOARD_JOB_REF: build_dashboard_group()},
+        "launcher_requirements": launcher_requirements,
+    }
+
+
 def export_workspace_requirements(
     workspace_root: Path,
-    default_dependencies: Optional[List[str]] = None,
-) -> Dict[str, List[str]]:
-    """Export a workspace's Python dependencies as a platform-independent,
-    group-keyed dict.
+    default_groups: Optional[List[str]] = None,
+) -> TWorkspaceRequirementsManifest:
+    """Export a workspace's dependencies as a `TWorkspaceRequirementsManifest`.
 
-    Detection order (first match wins):
-      1. `pyproject.toml` (+ optional `uv.lock`)
-      2. `requirements.txt` or `requirements.in` (uniformly via `uv pip compile --universal`)
-      3. Nothing → `{MAIN_GROUP: default_dependencies or DEFAULT_REQUIREMENTS}`
-         with the locally installed dlt spec always appended if missing.
+    If no default group names dlt, the installed dlt spec is injected into the
+    launcher baseline so every job gets it.
 
     Args:
-        workspace_root (Path): Directory to scan for dependency files.
-        default_dependencies (Optional[List[str]]): Fallback for the `main`
-            group when no dep management files exist. When `None`, the
-            module-level `DEFAULT_REQUIREMENTS` is used. The locally
-            installed dlt is always added to the result if not already
-            present.
+        workspace_root (Path): Workspace directory.
+        default_groups (Optional[List[str]]): Manifest-level `default_groups`.
+            Defaults to `["main"]`.
 
     Returns:
-        Dict[str, List[str]]: `{group_name: [pep508_spec, ...]}`. Always
-        contains a `main` group. Keys beyond `main` come from
-        `[dependency-groups]` in `pyproject.toml`. Both the top-level keys
-        and the spec lists are sorted so the result is byte-stable.
+        TWorkspaceRequirementsManifest: Always contains a `main` entry in `groups`.
 
     Raises:
-        WorkspaceRequirementsError: If `uv.lock` is out of sync with
-            `pyproject.toml`, a `uv` subprocess fails, or a file cannot be
-            parsed.
+        WorkspaceRequirementsError: `uv.lock` out of sync, `uv` failure, or parse error.
     """
     workspace_root = Path(workspace_root)
 
@@ -111,21 +164,65 @@ def export_workspace_requirements(
     requirements_txt_path = workspace_root / REQUIREMENTS_TXT
     requirements_in_path = workspace_root / REQUIREMENTS_IN
 
+    # detection order: pyproject → requirements.txt → requirements.in → empty main
     if pyproject_path.exists():
-        return _export_from_pyproject(workspace_root, pyproject_path, uv_lock_path)
+        groups = _export_from_pyproject(workspace_root, pyproject_path, uv_lock_path)
+    elif requirements_txt_path.exists():
+        groups = {MAIN_GROUP: _compile_requirements_file(workspace_root, requirements_txt_path)}
+    elif requirements_in_path.exists():
+        groups = {MAIN_GROUP: _compile_requirements_file(workspace_root, requirements_in_path)}
+    else:
+        groups = {MAIN_GROUP: []}
 
-    if requirements_txt_path.exists():
-        return {MAIN_GROUP: _compile_requirements_file(workspace_root, requirements_txt_path)}
+    groups[DASHBOARD_JOB_REF] = build_dashboard_group()
 
-    if requirements_in_path.exists():
-        return {MAIN_GROUP: _compile_requirements_file(workspace_root, requirements_in_path)}
+    resolved_default_groups = list(default_groups) if default_groups else [MAIN_GROUP]
 
-    defaults = list(
-        default_dependencies if default_dependencies is not None else DEFAULT_REQUIREMENTS
+    launcher_requirements = build_launcher_requirements()
+    # inject dlt into every launcher entry unless a default group already names it
+    default_has_dlt = any(
+        _contains_package(groups.get(name, []), DLT_PKG_NAME) for name in resolved_default_groups
     )
-    if not _contains_package(defaults, DLT_PKG_NAME):
-        defaults.append(get_dlt_requirement_spec())
-    return {MAIN_GROUP: sorted(set(defaults))}
+    if not default_has_dlt:
+        _inject_dlt_into_launchers(launcher_requirements)
+
+    return {
+        "engine_version": REQUIREMENTS_ENGINE_VERSION,
+        "python_version": python_version(),
+        "default_groups": resolved_default_groups,
+        "groups": dict(sorted(groups.items())),
+        "launcher_requirements": launcher_requirements,
+    }
+
+
+def migrate_requirements(
+    manifest_dict: DictStrAny, from_engine: int, to_engine: int
+) -> TWorkspaceRequirementsManifest:
+    """Migrate a requirements manifest dict between engine versions."""
+    if from_engine == to_engine:
+        return manifest_dict  # type: ignore[return-value]
+    raise ValueError(f"no requirements migration path from engine {from_engine} to {to_engine}")
+
+
+def save_requirements(req: TWorkspaceRequirementsManifest, f: BinaryIO) -> None:
+    """Serialize a requirements manifest as typed JSON."""
+    f.write(json.typed_dumpb(req))
+
+
+def load_requirements(f: BinaryIO) -> TWorkspaceRequirementsManifest:
+    """Read, migrate, and validate a requirements manifest."""
+    data = f.read()
+    manifest_dict: DictStrAny = json.typed_loadb(data)
+    engine_version = manifest_dict.get("engine_version", 1)
+    try:
+        manifest = migrate_requirements(manifest_dict, engine_version, REQUIREMENTS_ENGINE_VERSION)
+    except ValueError as ex:
+        raise WorkspaceRequirementsError(str(ex)) from ex
+    try:
+        validate_dict(TWorkspaceRequirementsManifest, manifest, ".")
+    except DictValidationException as ex:
+        raise WorkspaceRequirementsError(f"invalid requirements manifest: {ex}") from ex
+    return manifest
 
 
 def _export_from_pyproject(
@@ -267,15 +364,22 @@ def _parse_uv_output(text: str) -> List[str]:
     )
 
 
+# PEP 508 leading identifier: first letter/digit then letters/digits/_/-/.
+_LEADING_NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9_.\-]*)")
+# PEP 503 normalization: lowercase, runs of `-_.` collapsed to single `-`
+_PEP503_SEP_RE = re.compile(r"[-_.]+")
+
+
+def _normalize_name(name: str) -> str:
+    return _PEP503_SEP_RE.sub("-", name.lower())
+
+
 def _contains_package(specs: Sequence[str], pkg_name: str) -> bool:
     """Check whether any PEP 508 spec in `specs` names `pkg_name` (PEP 503 normalized)."""
-    target = pkg_name.lower().replace("-", "_").replace(".", "_")
+    target = _normalize_name(pkg_name)
     for s in specs:
-        try:
-            name = Requirement(s).name
-        except Exception:
-            continue
-        if name.lower().replace("-", "_").replace(".", "_") == target:
+        m = _LEADING_NAME_RE.match(s)
+        if m and _normalize_name(m.group(1)) == target:
             return True
     return False
 

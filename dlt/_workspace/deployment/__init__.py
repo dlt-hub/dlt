@@ -13,6 +13,18 @@ from dlt._workspace.deployment.manifest import (
     load_manifest,
     import_deployment_module,
 )
+from dlt._workspace.deployment.requirements import (
+    WorkspaceRequirementsError,
+    build_dashboard_group,
+    build_launcher_requirements,
+    default_requirements_manifest,
+    export_workspace_requirements,
+    get_dlt_requirement_spec,
+    load_requirements,
+    migrate_requirements,
+    python_version,
+    save_requirements,
+)
 from dlt._workspace.deployment._trigger_helpers import (
     is_selector,
     parse_trigger,
@@ -35,8 +47,11 @@ from dlt._workspace.deployment._job_ref import (
 from dlt._workspace.deployment import freshness
 from dlt._workspace.deployment import trigger
 from dlt._workspace.deployment.typing import (
+    DASHBOARD_JOB_REF,
     DEFAULT_DEPLOYMENT_MODULE,
+    MAIN_GROUP,
     MANIFEST_ENGINE_VERSION,
+    REQUIREMENTS_ENGINE_VERSION,
     TJobRef,
     TTrigger,
     TTriggerType,
@@ -62,4 +77,5 @@ from dlt._workspace.deployment.typing import (
     TDeploymentFileItem,
     TFilesManifest,
     TJobsDeploymentManifest,
+    TWorkspaceRequirementsManifest,
 )
