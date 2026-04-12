@@ -94,6 +94,10 @@ class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
             if isinstance(self.credentials, WithObjectStoreRsCredentials)
             else {}
         )
+        # set default timeouts for cloud storage to prevent infinite hangs in the Rust object_store
+        if not self.is_local_filesystem:
+            defaults = {"connect_timeout": "30s", "timeout": "120s"}
+            self.options = defaults | (self.options or {})
         if credentials or self.options:
             self.options = credentials | (self.options or {})
 

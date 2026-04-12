@@ -34,8 +34,10 @@ def _prepare_create_lance_secret_statement(
     secret_name: str, scope: str, storage_options: Dict[str, str]
 ) -> str:
     storage_options_str = "{" + ", ".join(f"'{k}': '{v}'" for k, v in storage_options.items()) + "}"
+    # TODO: never_borrowed resets to True after every borrow/return cycle for external connections
+    #  (WithTableScanners.memory_db). All open_connection first-time setup must be idempotent.
     return f"""
-        CREATE SECRET {secret_name} (
+        CREATE OR REPLACE SECRET {secret_name} (
             TYPE LANCE,
             PROVIDER config,
             SCOPE '{scope}',
@@ -77,6 +79,7 @@ class LanceSQLClient(WithTableScanners):
         sql = _prepare_create_view_statement(lance_table_uri, qualified_view)
         self._conn.execute(sql)
 
+    @raise_database_error
     def _create_lance_secret(self) -> None:
         storage_options = self.lance_client.config.storage.options
         if not storage_options:

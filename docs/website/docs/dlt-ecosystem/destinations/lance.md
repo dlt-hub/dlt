@@ -106,7 +106,16 @@ azure_storage_account_key = "..."
 
 ### Additional storage options
 
-You can pass storage-specific options (e.g. endpoint overrides, timeouts) via the `options` dict. See the [Lance Object Store Configuration](https://lance.org/guide/object_store/) docs for all available options.
+You can pass storage-specific options via the `options` dict. These are forwarded to the [object_store](https://docs.rs/object_store/latest/object_store/) Rust crate. See the [Lance Object Store Configuration](https://lance.org/guide/object_store/) docs for all available options.
+
+For cloud storage, the following defaults are set automatically to prevent connection hangs:
+
+| Option | Default | Description |
+|---|---|---|
+| `connect_timeout` | `30s` | TCP connection timeout |
+| `timeout` | `120s` | Overall request timeout |
+
+You can override these or add additional options:
 
 ```toml
 [destination.lance.storage]
@@ -114,6 +123,7 @@ bucket_url = "s3://my-bucket"
 
 [destination.lance.storage.options]
 allow_http = "true"
+timeout = "300s"
 ```
 
 ## Namespace architecture
