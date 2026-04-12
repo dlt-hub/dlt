@@ -23,6 +23,7 @@ from dlt._workspace.deployment.requirements import (
     MAIN_GROUP,
     REQUIREMENTS_ENGINE_VERSION,
     WorkspaceRequirementsError,
+    _BASE_LAUNCHER_SPECS,
     build_dashboard_group,
     build_launcher_requirements,
     default_requirements_manifest,
@@ -284,22 +285,27 @@ def test_launcher_requirements_shape() -> None:
         LAUNCHER_STREAMLIT,
         LAUNCHER_DASHBOARD,
     }
+    # every launcher gets the base specs
+    for specs in lreq.values():
+        for base in _BASE_LAUNCHER_SPECS:
+            assert base in specs
+        assert specs == sorted(specs)
     # dlt is NOT in the bare launcher dict — it's injected conditionally
     # by export_workspace_requirements / default_requirements_manifest
-    assert lreq[LAUNCHER_JOB] == ["botocore", "s3fs"]
-    assert lreq[LAUNCHER_MODULE] == ["botocore", "s3fs"]
-    assert lreq[LAUNCHER_MARIMO] == ["marimo", "uvicorn"]
-    assert lreq[LAUNCHER_MCP] == ["fastmcp", "uvicorn"]
-    assert lreq[LAUNCHER_STREAMLIT] == ["streamlit"]
-    # dashboard is empty — its extras travel via the DASHBOARD_JOB_REF group
-    assert lreq[LAUNCHER_DASHBOARD] == []
+    assert lreq[LAUNCHER_JOB] == sorted(set(["botocore", "s3fs"] + _BASE_LAUNCHER_SPECS))
+    assert lreq[LAUNCHER_MODULE] == sorted(set(["botocore", "s3fs"] + _BASE_LAUNCHER_SPECS))
+    assert lreq[LAUNCHER_MARIMO] == sorted(set(["marimo", "uvicorn"] + _BASE_LAUNCHER_SPECS))
+    assert lreq[LAUNCHER_MCP] == sorted(set(["fastmcp", "uvicorn"] + _BASE_LAUNCHER_SPECS))
+    assert lreq[LAUNCHER_STREAMLIT] == sorted(set(["streamlit"] + _BASE_LAUNCHER_SPECS))
+    assert lreq[LAUNCHER_DASHBOARD] == sorted(_BASE_LAUNCHER_SPECS)
 
 
 def test_interactive_launchers_omit_botocore_and_s3fs() -> None:
     lreq = build_launcher_requirements()
     for launcher in (LAUNCHER_MARIMO, LAUNCHER_MCP, LAUNCHER_STREAMLIT, LAUNCHER_DASHBOARD):
-        assert "botocore" not in lreq[launcher]
-        assert "s3fs" not in lreq[launcher]
+        per_launcher = [s for s in lreq[launcher] if s not in _BASE_LAUNCHER_SPECS]
+        assert "botocore" not in per_launcher
+        assert "s3fs" not in per_launcher
 
 
 def test_export_injects_dlt_when_absent_from_default_group() -> None:
@@ -322,16 +328,22 @@ def test_export_skips_dlt_injection_when_present_in_default_group() -> None:
 
 def test_dashboard_group_always_present() -> None:
     dashboard_specs = build_dashboard_group()
-    assert dashboard_specs == [
-        "botocore",
-        "ibis-framework",
-        "marimo",
-        "numpy",
-        "pandas",
-        "pyarrow",
-        "s3fs",
-        "uvicorn",
-    ]
+    expected = sorted(
+        set(
+            _BASE_LAUNCHER_SPECS
+            + [
+                "botocore",
+                "ibis-framework",
+                "marimo",
+                "numpy",
+                "pandas",
+                "pyarrow",
+                "s3fs",
+                "uvicorn",
+            ]
+        )
+    )
+    assert dashboard_specs == expected
 
     # present in every export path
     with isolated_workspace("deps_none") as ctx:
@@ -364,12 +376,16 @@ def test_default_requirements_manifest_shape() -> None:
     for specs in lreq.values():
         assert dlt_spec in specs
         assert specs == sorted(specs)
+    # base specs in every launcher
+    for base in _BASE_LAUNCHER_SPECS:
+        for specs in lreq.values():
+            assert base in specs
     # batch launchers still carry botocore/s3fs; interactive don't
     assert "botocore" in lreq[LAUNCHER_JOB]
     assert "s3fs" in lreq[LAUNCHER_JOB]
     assert "botocore" not in lreq[LAUNCHER_MARIMO]
-    # dashboard has dlt only (extras come from DASHBOARD_JOB_REF group)
-    assert lreq[LAUNCHER_DASHBOARD] == [dlt_spec]
+    # dashboard has base specs + dlt (extras come from DASHBOARD_JOB_REF group)
+    assert lreq[LAUNCHER_DASHBOARD] == sorted(set(_BASE_LAUNCHER_SPECS + [dlt_spec]))
 
 
 def test_default_requirements_manifest_is_save_load_stable() -> None:

@@ -99,11 +99,13 @@ def python_version() -> str:
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
 
+_BASE_LAUNCHER_SPECS: List[str] = ["croniter", "dlthub"]
+"""Specs added to every launcher group and the dashboard group."""
+
+
 def build_launcher_requirements() -> Dict[str, List[str]]:
     """Per-launcher mandatory specs. dlt is injected separately at build time."""
-    # only batch launchers (job, module) pull botocore/s3fs; dashboard extras
-    # travel via the DASHBOARD_JOB_REF group and leave the entry empty
-    return {
+    per_launcher: Dict[str, List[str]] = {
         LAUNCHER_JOB: ["botocore", "s3fs"],
         LAUNCHER_MODULE: ["botocore", "s3fs"],
         LAUNCHER_MARIMO: ["marimo", "uvicorn"],
@@ -111,20 +113,26 @@ def build_launcher_requirements() -> Dict[str, List[str]]:
         LAUNCHER_STREAMLIT: ["streamlit"],
         LAUNCHER_DASHBOARD: [],
     }
+    return {k: sorted(set(v + _BASE_LAUNCHER_SPECS)) for k, v in per_launcher.items()}
 
 
 def build_dashboard_group() -> List[str]:
     """Specs for the `DASHBOARD_JOB_REF` group."""
-    return [
-        "botocore",
-        "ibis-framework",
-        "marimo",
-        "numpy",
-        "pandas",
-        "pyarrow",
-        "s3fs",
-        "uvicorn",
-    ]
+    return sorted(
+        set(
+            _BASE_LAUNCHER_SPECS
+            + [
+                "botocore",
+                "ibis-framework",
+                "marimo",
+                "numpy",
+                "pandas",
+                "pyarrow",
+                "s3fs",
+                "uvicorn",
+            ]
+        )
+    )
 
 
 def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]]) -> None:
@@ -309,8 +317,6 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
                 "--universal",
                 "--no-header",
                 "--no-annotate",
-                "-o",
-                "-",
                 file_path.name,
             ],
             cwd=workspace_root,
