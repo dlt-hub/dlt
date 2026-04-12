@@ -27,7 +27,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     mc = resolve_configuration(MarimoConfiguration(), sections=sections)
     script_path = resolve_module_path(module_name)
 
-    args = ["uv", "run", "marimo", "run", script_path]
+    args = ["marimo", "run", script_path]
     args.extend(["--port", str(port)])
     args.extend(["--host", "0.0.0.0"])
     args.append("--headless")
@@ -40,7 +40,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     if base_path:
         args.extend(["--base-url", base_path])
 
-    os.execvp("uv", args)
+    os.execvp("marimo", args)
 
 
 if __name__ == "__main__":

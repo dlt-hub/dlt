@@ -12,7 +12,7 @@ def parse_launcher_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     """Parse the standard launcher command line.
 
     All launchers share the same CLI interface:
-        uv run python -m dlt._workspace.deployment.launchers.<name> \\
+        python -m dlt._workspace.deployment.launchers.<name> \\
             --run-id <uuid> \\
             --trigger <trigger_string> \\
             --entry-point <json_TRuntimeEntryPoint>

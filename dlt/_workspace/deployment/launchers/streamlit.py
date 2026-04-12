@@ -28,8 +28,6 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     script_path = resolve_module_path(module_name)
 
     args = [
-        "uv",
-        "run",
         "streamlit",
         "run",
         script_path,
@@ -46,7 +44,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     if base_path:
         args.append(f"--server.baseUrlPath={base_path}")
 
-    os.execvp("uv", args)
+    os.execvp("streamlit", args)
 
 
 if __name__ == "__main__":

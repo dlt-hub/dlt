@@ -13,14 +13,14 @@ from dlt._workspace.deployment.typing import TRuntimeEntryPoint
 
 
 def run(entry_point: TRuntimeEntryPoint) -> None:
-    """Replace current process with uv run python -m <module_name>."""
+    """Replace current process with python -m <module_name>."""
     module_name = entry_point["module"]
     section = module_name.rsplit(".", 1)[-1]
     set_config_env_vars((ws_known_sections.JOBS, section), entry_point.get("config", {}))
     profile = entry_point.get("profile")
     if profile:
         os.environ[WORKSPACE__PROFILE] = profile
-    os.execvp("uv", ["uv", "run", "python", "-m", module_name])
+    os.execvp("python", ["python", "-m", module_name])
 
 
 if __name__ == "__main__":
