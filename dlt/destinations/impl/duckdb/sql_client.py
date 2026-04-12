@@ -309,9 +309,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         # add secrets required for creating views
         if protocol == "s3":
             aws_creds = cast(AwsCredentials, credentials)
-            session_token = (
-                "" if aws_creds.aws_session_token is None else aws_creds.aws_session_token
-            )
 
             use_ssl = "true"
             endpoint = aws_creds.endpoint_url or "s3.amazonaws.com"
@@ -322,11 +319,27 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 endpoint = aws_creds.endpoint_url.replace("https://", "")
 
             s3_url_style = aws_creds.s3_url_style or "path"
-            sql.append(f"""
+
+            if isinstance(aws_creds, AwsCredentials) and aws_creds.has_default_credentials():
+                # let DuckDB resolve credentials from botocore's default chain
+                sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE S3,
-                    KEY_ID '{aws_creds.aws_access_key_id}',
-                    SECRET '{aws_creds.aws_secret_access_key}',
+                    PROVIDER credential_chain,
+                    REGION '{aws_creds.region_name}',
+                    ENDPOINT '{endpoint}',
+                    SCOPE '{scope}',
+                    URL_STYLE '{s3_url_style}',
+                    USE_SSL {use_ssl}
+                )""")
+            else:
+                sess_creds = aws_creds.to_session_credentials()
+                session_token = sess_creds["aws_session_token"] or ""
+                sql.append(f"""
+                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                    TYPE S3,
+                    KEY_ID '{sess_creds["aws_access_key_id"]}',
+                    SECRET '{sess_creds["aws_secret_access_key"]}',
                     SESSION_TOKEN '{session_token}',
                     REGION '{aws_creds.region_name}',
                     ENDPOINT '{endpoint}',
