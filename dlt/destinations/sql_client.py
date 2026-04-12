@@ -22,6 +22,7 @@ from typing import (
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.typing import TFun, TypedDict, Self
+from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
@@ -348,6 +349,15 @@ class WithSqlClient(ABC):
     @abstractmethod
     def sql_client_class(self) -> Type[SqlClientBase[TNativeConn]]:
         pass
+
+
+class WithSchemas(ABC):
+    """Mixin for SQL clients that can manage tables across multiple dlt schemas."""
+
+    schemas: Dict[str, Schema]
+
+    @abstractmethod
+    def set_schemas(self, schemas: Sequence[Schema]) -> None: ...
 
 
 class DBApiCursorImpl(DBApiCursor):

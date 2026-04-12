@@ -156,7 +156,8 @@ class RedshiftMergeJob(SqlMergeFollowupJob):
         cls,
         root_table_name: str,
         staging_root_table_name: str,
-        key_clauses: Sequence[str],
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
         """Generate sql clauses that may be used to select or delete rows in root table of destination dataset
@@ -164,13 +165,14 @@ class RedshiftMergeJob(SqlMergeFollowupJob):
         A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
         if for_delete:
+            key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
             return [
                 f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM"
                 f" {staging_root_table_name} WHERE"
                 f" {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"
             ]
         return SqlMergeFollowupJob.gen_key_table_clauses(
-            root_table_name, staging_root_table_name, key_clauses, for_delete
+            root_table_name, staging_root_table_name, primary_keys, merge_keys, for_delete
         )
 
 
