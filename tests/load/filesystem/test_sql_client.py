@@ -198,10 +198,10 @@ def _run_dataset_checks(
         loader_file_format=destination_config.file_format,
     )
     # and recreate views because autorefresh is not enabled by default
+    fs_sql_client.remote_client.config.always_refresh_views = True
     with fs_sql_client as sql_client:
-        sql_client.create_view(
-            "arrow_all_types", pipeline.default_schema.get_table("arrow_all_types")
-        )
+        sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
+    fs_sql_client.remote_client.config.always_refresh_views = False
 
     # duckdb changed the return type of `.arrow()` from pyarrow.Table to pyarrow.RecordBatchReader
     # between 1.3.2 and 1.4.3. We need to catch this explicitly
