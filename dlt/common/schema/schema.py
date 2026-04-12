@@ -432,6 +432,11 @@ class Schema:
                     for chain_table in utils.get_nested_tables(
                         schema._schema_tables, table["name"]
                     ):
+                        existing = unified._schema_tables.get(chain_table["name"])
+                        if existing:
+                            utils.ensure_compatible_tables(
+                                unified.name, existing, chain_table, ensure_columns=True
+                            )
                         unified.update_table(chain_table, normalize_identifiers=False)
         return unified
 
