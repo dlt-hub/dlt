@@ -1741,10 +1741,9 @@ def overlap_pipeline(
     pipeline = destination_config.setup_pipeline(
         "overlap_pipeline", dataset_name="overlap_test", dev_mode=True
     )
-    fmt = destination_config.file_format or "parquet"
-    pipeline.run(_src_alpha(), loader_file_format=fmt)
-    pipeline.run(_src_beta(), loader_file_format=fmt)
-    pipeline.run(_src_gamma(), loader_file_format=fmt)
+    pipeline.run(_src_alpha())
+    pipeline.run(_src_beta())
+    pipeline.run(_src_gamma())
 
     try:
         yield pipeline
