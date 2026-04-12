@@ -121,8 +121,9 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 endpoint=self._staging_credentials.endpoint_url,
                 use_https=self._config.staging_use_https,
             )
-            access_key_id = self._staging_credentials.aws_access_key_id
-            secret_access_key = self._staging_credentials.aws_secret_access_key
+            sess_creds = self._staging_credentials.to_session_credentials()
+            access_key_id = sess_creds["aws_access_key_id"]
+            secret_access_key = sess_creds["aws_secret_access_key"]
             auth = "NOSIGN"
             if self._config.credentials.s3_extra_credentials:
                 # use extra credentials for S3 compatible storage
@@ -133,7 +134,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 ]
                 auth = f"extra_credentials({', '.join(extra_credential_args)})"
             elif access_key_id and secret_access_key:
-                session_token = self._staging_credentials.aws_session_token
+                session_token = sess_creds["aws_session_token"]
                 if session_token:
                     auth = f"'{access_key_id}','{secret_access_key}','{session_token}'"
                 else:

@@ -2,11 +2,12 @@ import decimal
 from copy import deepcopy
 import os
 import pytest
-from typing import cast
+from typing import Any, cast
 from pytest_mock import MockerFixture
 
 import dlt
 from dlt.common import pendulum
+from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -20,6 +21,7 @@ from tests.load.utils import (
     assert_all_data_types_row,
     destinations_configs,
     DestinationTestConfiguration,
+    AWS_BUCKET,
 )
 from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES, table_update_and_row
 
@@ -740,3 +742,49 @@ def test_snowflake_decfloat_python_default_precision_warning(
         rows = pipeline.dataset().decfloat_defprec.select("val").fetchall()
         retrieved_extended = rows[0][0]
         assert retrieved_extended == val_36_digits
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        all_staging_configs=True, subset=["snowflake"], with_file_format="parquet"
+    ),
+    ids=lambda x: x.name,
+)
+def test_snowflake_staging_with_default_chain_credentials(
+    destination_config: DestinationTestConfiguration,
+    mocker: Any,
+) -> None:
+    """Snowflake loads data via S3 staging using frozen credentials from botocore default chain."""
+    fs_creds = dlt.secrets.get("destination.filesystem.credentials", AwsCredentials)
+    if not fs_creds or not hasattr(fs_creds, "aws_access_key_id"):
+        pytest.skip("S3 filesystem credentials not configured")
+
+    sts_creds = fs_creds.to_sts_credentials()
+    fs_creds.aws_access_key_id = sts_creds["aws_access_key_id"]
+    fs_creds.aws_secret_access_key = sts_creds["aws_secret_access_key"]
+    fs_creds.aws_session_token = sts_creds["aws_session_token"]
+    boto_session = fs_creds._to_botocore_session()
+    assert boto_session.get_credentials().token == fs_creds.aws_session_token
+
+    spy = mocker.spy(AwsCredentials, "to_session_credentials")
+
+    staging_destination = dlt.destinations.filesystem(AWS_BUCKET, credentials=boto_session)
+    pipeline = destination_config.setup_pipeline(
+        "snowflake_staging_" + uniq_id(), dev_mode=True, staging=staging_destination
+    )
+    pipeline.run(
+        [{"id": i, "value": f"row_{i}"} for i in range(5)],
+        table_name="default_chain_test",
+        loader_file_format="parquet",
+    )
+
+    with pipeline.sql_client() as c:
+        rows = c.execute_sql("SELECT count(*) FROM default_chain_test")
+        assert rows[0][0] == 5
+
+    # verify to_session_credentials was called and returned frozen STS credentials with token
+    assert spy.call_count > 0
+    for call in spy.spy_return_list:
+        assert call["aws_session_token"] is not None
+        assert call["aws_session_token"] == fs_creds.aws_session_token
