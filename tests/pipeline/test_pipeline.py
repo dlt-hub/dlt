@@ -38,6 +38,7 @@ from dlt.common.destination.exceptions import (
     UnknownDestinationModule,
 )
 from dlt.common.exceptions import PipelineStateNotAvailable, SignalReceivedException
+from dlt.common.normalizers.typing import TNormalizersConfig
 from dlt.common.pipeline import ExtractInfo, LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import DictCollector, LogCollector
@@ -3500,6 +3501,22 @@ def test_load_info_dataset_name_per_load_id(use_single_dataset: bool) -> None:
     step_dict = load_step.asdict()
     assert "dataset_name" in step_dict["load_info"]
 
+    # verify dataset_name is propagated into serialized job_metrics
+    asdict_job_metrics = load_info.asdict()["job_metrics"]
+    assert all("dataset_name" in jm for jm in asdict_job_metrics)
+    # each job's dataset_name must match the per-load-id value from LoadMetrics
+    for jm in asdict_job_metrics:
+        assert jm["dataset_name"] == ds_names[jm["load_id"]]
+
+    # same for the trace step dict
+    trace_job_metrics = step_dict["load_info"]["job_metrics"]
+    assert all("dataset_name" in jm for jm in trace_job_metrics)
+    trace_ds_names = {jm["dataset_name"] for jm in trace_job_metrics}
+    if use_single_dataset:
+        assert trace_ds_names == {"test_data"}
+    else:
+        assert trace_ds_names == {"test_data", "test_data_schema_b"}
+
 
 def test_load_info_dataset_name_none_for_non_dwh_destination() -> None:
     """Destinations without DestinationClientDwhConfiguration (e.g. dummy, custom)
@@ -5428,6 +5445,60 @@ def test_merge_no_child_duplicates_on_duplicate_staging_data(skip_dedup: bool) -
     else:
         # dedup enabled: nested table deduplicated by _dlt_id
         assert_table_counts(p, {"items": 2, "items__nested": 2})
+
+
+def test_no_coercion_normalizer_creates_variant_columns() -> None:
+    """relational_no_coercion normalizer produces variant columns on type mismatch
+    instead of coercing values. Also verifies ensure_this_normalizer accepts the subclass
+    so update/get_normalizer_config work correctly.
+    """
+    no_coercion: TNormalizersConfig = {
+        "names": "snake_case",
+        "json": {"module": "relational_no_coercion"},
+    }
+    schema = Schema("no_coercion", no_coercion)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_no_coercion_variants",
+        destination="duckdb",
+    )
+    # first batch establishes column types: double and text
+    pipeline.run(
+        [{"id": 1, "score": 3.14, "value": 100}],
+        table_name="items",
+        schema=schema,
+        schema_contract={"data_type": "evolve"},
+    )
+    # second batch: int into double column (relational would coerce), text into bigint column
+    pipeline.run(
+        [{"id": 2, "score": 42, "value": "not_a_number"}],
+        table_name="items",
+    )
+
+    columns = pipeline.default_schema.tables["items"]["columns"]
+    # int into double creates variant (relational normalizer would coerce this)
+    assert "score__v_bigint" in columns
+    assert columns["score__v_bigint"]["data_type"] == "bigint"
+    assert columns["score__v_bigint"]["variant"] is True
+    # text into bigint creates variant
+    assert "value__v_text" in columns
+    assert columns["value__v_text"]["data_type"] == "text"
+    assert columns["value__v_text"]["variant"] is True
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            "SELECT id, score, score__v_bigint, value, value__v_text FROM items ORDER BY id"
+        )
+    # row 1: original columns populated, variants NULL
+    assert rows[0][1] == 3.14
+    assert rows[0][2] is None
+    assert rows[0][3] == 100
+    assert rows[0][4] is None
+    # row 2: originals NULL, values in variant columns
+    assert rows[1][1] is None
+    assert rows[1][2] == 42
+    assert rows[1][3] is None
+    assert rows[1][4] == "not_a_number"
 
 
 def test_cleanup() -> None:

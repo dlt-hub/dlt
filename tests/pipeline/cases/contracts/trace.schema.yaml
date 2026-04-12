@@ -660,6 +660,10 @@ tables:
       load_id:
         data_type: text
         nullable: true
+      dataset_name:
+        description: Dataset name targeted by this load package
+        data_type: text
+        nullable: true
       job_id:
         data_type: text
         nullable: true

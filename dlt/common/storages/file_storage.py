@@ -1,7 +1,9 @@
 import gzip
 import os
 import re
+import sys
 import stat
+import time
 import errno
 import shutil
 import pathvalidate
@@ -208,14 +210,32 @@ class FileStorage:
     def rename_tree(self, from_relative_path: str, to_relative_path: str) -> None:
         """Renames a tree using os.rename if possible making it atomic
 
-        If we get 'too many open files': in that case `rename_tree_files is used
+        Falls back to `rename_tree_files` on too many open files. On Windows,
+        retries on PermissionError (0.25s wait, 1s deadline) caused by NTFS
+        holding a transient directory handle after recent file operations
+        within the tree.
         """
 
         try:
             self.atomic_rename(from_relative_path, to_relative_path)
             return
         except OSError as ex:
-            if ex.errno != errno.EMFILE:
+            if ex.errno == errno.EMFILE:
+                pass
+            elif isinstance(ex, PermissionError) and sys.platform == "win32":
+                # NTFS may briefly hold directory handles after file operations
+                # inside the tree, causing os.rename to fail. retry for up to
+                # 1s with 0.25s wait, same strategy as pip.
+                deadline = time.monotonic() + 1.0
+                while True:
+                    time.sleep(0.25)
+                    try:
+                        self.atomic_rename(from_relative_path, to_relative_path)
+                        return
+                    except PermissionError:
+                        if time.monotonic() > deadline:
+                            raise
+            else:
                 raise
         self.rename_tree_files(from_relative_path, to_relative_path)
 
