@@ -26,6 +26,10 @@ pip install ibis-framework[duckdb]
 
 `dlt` datasets have a helper method to return an Ibis connection to the destination they live on. The returned object is a native Ibis connection to the destination, which you can use to read and even transform data. Please consult the [Ibis documentation](https://ibis-project.org) to learn more about what you can do with Ibis.
 
+:::caution Breaking change in dlt 1.25.0
+`dataset.ibis()` now passes all schemas from the dataset to the Ibis backend. On filesystem destinations, this means Ibis will see tables from every schema in the dataset and not just the default one. If two schemas define the same table name, the Ibis table will contain rows from both schemas combined. To get the previous single-schema behavior, create the dataset with an explicit schema: `pipeline.dataset(schema="my_schema").ibis()`.
+:::
+
 ```py
 # get the dataset from the pipeline
 dataset = pipeline.dataset()

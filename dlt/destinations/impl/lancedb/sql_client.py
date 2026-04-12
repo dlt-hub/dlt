@@ -128,6 +128,7 @@ class LanceDBSQLClient(DuckDbSqlClient):
         with super().execute_query(query, *args, **kwargs) as cursor:
             yield cursor
 
+    @raise_database_error
     def create_view(self, table_name: str) -> None:
         lance_table_uri = get_lance_table_uri(self.lancedb_client, table_name)
 
@@ -145,7 +146,7 @@ class LanceDBSQLClient(DuckDbSqlClient):
             view_name=view_name,
         )
         try:
-            self.open_connection().execute(create_view_sql)
+            self._conn.execute(create_view_sql)
         # Creating a DuckDB view will fail if the table doesn't exist in lance
         # potential edge case: a table only exists in the ephemeral DuckDB
         except duckdb.IOException as e:
