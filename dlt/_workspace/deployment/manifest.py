@@ -3,6 +3,8 @@ import contextlib
 import hashlib
 import io
 import os
+import subprocess
+import sys
 from contextlib import contextmanager
 from copy import copy
 from importlib import import_module
@@ -575,15 +577,14 @@ def _resolve_module_name(name_or_path: str) -> str:
 def manifest_from_module(
     name_or_path: str,
     use_all: bool = True,
+    isolated: bool = False,
 ) -> Tuple[TJobsDeploymentManifest, List[str]]:
     """Import a module, generate a manifest, and validate it.
-
-    Resolves file paths to module names, ensures cwd is importable,
-    and raises `InvalidManifest` on validation errors.
 
     Args:
         name_or_path: Python module name or file path.
         use_all: Use `__all__` for job discovery.
+        isolated: Run in a subprocess to avoid polluting the current interpreter.
 
     Returns:
         Tuple of (manifest, warnings).
@@ -591,8 +592,67 @@ def manifest_from_module(
     Raises:
         InvalidManifest: If the generated manifest fails validation.
     """
-    import sys
+    if isolated:
+        return _manifest_from_module_isolated(name_or_path, use_all)
+    return _manifest_from_module_inprocess(name_or_path, use_all)
 
+
+def _manifest_from_module_isolated(
+    name_or_path: str,
+    use_all: bool,
+) -> Tuple[TJobsDeploymentManifest, List[str]]:
+    worker = "dlt._workspace.deployment._manifest_worker"
+    cmd = [sys.executable, "-m", worker, name_or_path]
+    if not use_all:
+        cmd.append("--no-use-all")
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    return _parse_worker_result(proc.stdout, proc.stderr, proc.returncode)
+
+
+_WORKER_ERROR_TYPES: Dict[str, type] = {
+    "ModuleNotFoundError": ModuleNotFoundError,
+    "ImportError": ImportError,
+    "SyntaxError": SyntaxError,
+    "InvalidManifest": InvalidManifest,
+    "InvalidTrigger": InvalidTrigger,
+    "InvalidFreshnessConstraint": InvalidFreshnessConstraint,
+    "InvalidJobDefinition": InvalidJobDefinition,
+    "InvalidJobRef": InvalidJobRef,
+}
+
+
+def _raise_from_worker_payload(payload: Dict[str, Any]) -> None:
+    msg = payload.get("error", "unknown error")
+    exc_cls = _WORKER_ERROR_TYPES.get(payload.get("error_type", ""))
+    if exc_cls is InvalidManifest:
+        raise InvalidManifest.from_message(msg)
+    if exc_cls is not None:
+        raise exc_cls(msg)
+    raise InvalidManifest.from_message(msg)
+
+
+def _parse_worker_result(
+    stdout: str, stderr: str, returncode: int
+) -> Tuple[TJobsDeploymentManifest, List[str]]:
+    if returncode != 0:
+        try:
+            _raise_from_worker_payload(json.typed_loads(stdout.strip()))
+        except (ValueError, KeyError):
+            pass
+        raise InvalidManifest.from_message(
+            stderr.strip() or stdout.strip() or f"worker exited with code {returncode}"
+        )
+
+    payload = json.typed_loads(stdout)
+    if "error" in payload:
+        _raise_from_worker_payload(payload)
+    return payload["manifest"], payload["warnings"]
+
+
+def _manifest_from_module_inprocess(
+    name_or_path: str,
+    use_all: bool,
+) -> Tuple[TJobsDeploymentManifest, List[str]]:
     module_name = _resolve_module_name(name_or_path)
 
     # try importing as-is first (works for proper packages with relative imports),

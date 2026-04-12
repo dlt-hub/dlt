@@ -1,13 +1,16 @@
 """Tests for manifest generation from deployment modules."""
 
+import sys
 from importlib import import_module
 from typing import List
 
 import pytest
 
+from dlt._workspace.deployment.exceptions import InvalidManifest
 from dlt._workspace.deployment.manifest import (
     DASHBOARD_JOB_REF,
     generate_manifest,
+    manifest_from_module,
     validate_manifest,
 )
 from dlt._workspace.deployment.typing import (
@@ -437,3 +440,56 @@ def test_dashboard_validation_rejects_invalid(mutation: object, error_frag: str)
     mutation(job)  # type: ignore[operator]
     result = validate_job_definition(job)
     assert any(error_frag in e for e in result.errors), f"expected {error_frag!r} in {result}"
+
+
+# -- manifest_from_module (isolated and inprocess) --
+
+
+@pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])
+def test_manifest_from_module_full_deployment(isolated: bool) -> None:
+    """manifest_from_module discovers all jobs and returns valid manifest."""
+    manifest, warnings = manifest_from_module(f"{WORKSPACE}.deployment_full", isolated=isolated)
+
+    assert manifest["engine_version"] == MANIFEST_ENGINE_VERSION
+    assert manifest["deployment_module"] == f"{WORKSPACE}.deployment_full"
+    assert len(_user_jobs(manifest["jobs"])) == 9
+    assert warnings == []
+
+    job_refs = {j["job_ref"] for j in manifest["jobs"]}
+    assert "jobs.batch_jobs.daily_ingest" in job_refs
+    assert "jobs.marimo_notebook" in job_refs
+
+
+@pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])
+def test_manifest_from_module_use_all_false(isolated: bool) -> None:
+    """manifest_from_module with use_all=False scans __dict__ ad-hoc."""
+    manifest, warnings = manifest_from_module(
+        f"{WORKSPACE}.batch_jobs", use_all=False, isolated=isolated
+    )
+
+    job_refs = {j["job_ref"] for j in manifest["jobs"]}
+    assert "jobs.batch_jobs.backfill" in job_refs
+    assert "jobs.batch_jobs.daily_ingest" in job_refs
+
+
+@pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])
+def test_manifest_from_module_invalid_module(isolated: bool) -> None:
+    """Both modes raise ModuleNotFoundError for a bad module name."""
+    with pytest.raises(ModuleNotFoundError, match="nonexistent_module_xyz_123"):
+        manifest_from_module("nonexistent_module_xyz_123", isolated=isolated)
+
+
+def test_manifest_from_module_isolated_no_pollution() -> None:
+    """Isolated mode does not leak the deployment module into the parent process."""
+    module_path = f"{WORKSPACE}.deployment_full"
+    marker = "deployment_full"
+
+    # clean up any prior import of this module
+    leaked_before = [k for k in sys.modules if marker in k]
+    for k in leaked_before:
+        del sys.modules[k]
+
+    manifest_from_module(module_path, isolated=True)
+
+    leaked = [k for k in sys.modules if marker in k]
+    assert not leaked, f"isolated mode leaked modules: {leaked}"

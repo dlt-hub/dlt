@@ -37,6 +37,13 @@ class InvalidManifest(DeploymentException):
         msg = "Invalid deployment manifest:\n" + "\n".join(f"  - {e}" for e in validation.errors)
         super().__init__(msg)
 
+    @classmethod
+    def from_message(cls, message: str) -> "InvalidManifest":
+        result = ManifestValidationResult(
+            is_valid=False, errors=[message], warnings=[], unresolved_triggers={}
+        )
+        return cls(result)
+
 
 class InvalidJobRef(DeploymentException, ValueError):
     def __init__(self, ref: str, reason: str) -> None:
