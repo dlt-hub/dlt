@@ -635,7 +635,9 @@ def extend_list_deduplicated(
     """extends the first list by the second, but does not add duplicates"""
     list_keys = set(normalize_f(s) for s in original_list)
     for item in extending_list:
-        if normalize_f(item) not in list_keys:
+        key = normalize_f(item)
+        if key not in list_keys:
+            list_keys.add(key)
             original_list.append(item)
     return original_list
 

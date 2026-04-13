@@ -3449,6 +3449,75 @@ def test_pipeline_load_info_metrics_schema_is_not_changing() -> None:
     assert len(schema_hashset) == 1
 
 
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_load_info_dataset_name_per_load_id(use_single_dataset: bool) -> None:
+    """Verify that dataset_name in load metrics is correct per load_id.
+
+    With use_single_dataset=True both schemas share the same dataset name.
+    With use_single_dataset=False each schema gets a suffixed dataset name.
+    """
+    schema_a = dlt.Schema("schema_a")
+    schema_b = dlt.Schema("schema_b")
+
+    s1 = _create_simple_source(schema_a, "resource_1", [{"id": 1}])
+    s2 = _create_simple_source(schema_b, "resource_2", [{"id": 2}])
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_dataset_per_load",
+        destination="duckdb",
+        dataset_name="test_data",
+    )
+    pipeline.config.use_single_dataset = use_single_dataset
+
+    load_info = pipeline.run([s1, s2])
+
+    # each schema produces a separate load package
+    assert len(load_info.loads_ids) == 2
+
+    ds_names = {}
+    for load_id in load_info.loads_ids:
+        metrics_list = load_info.metrics[load_id]
+        assert len(metrics_list) == 1
+        ds_names[load_id] = metrics_list[0]["dataset_name"]
+
+    if use_single_dataset:
+        # both packages target the same dataset (no schema suffix)
+        assert all(ds == "test_data" for ds in ds_names.values())
+    else:
+        # schema_a is the default schema so it gets no suffix
+        assert set(ds_names.values()) == {"test_data", "test_data_schema_b"}
+
+    # top-level dataset_name is backward-compat scalar (last load_id's value)
+    assert load_info.dataset_name == ds_names[load_info.loads_ids[-1]]
+
+    # verify dataset_name appears in trace asdict under load_info
+    trace = pipeline.last_trace
+    load_step = next(s for s in trace.steps if s.step == "load")
+    step_dict = load_step.asdict()
+    assert "dataset_name" in step_dict["load_info"]
+
+
+def test_load_info_dataset_name_none_for_non_dwh_destination() -> None:
+    """Destinations without DestinationClientDwhConfiguration (e.g. dummy, custom)
+    produce dataset_name=None in metrics."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_dataset_none",
+        destination="dummy",
+    )
+    load_info = pipeline.run([{"id": 1}], table_name="items")
+
+    assert len(load_info.loads_ids) == 1
+    load_id = load_info.loads_ids[0]
+    assert load_info.metrics[load_id][0]["dataset_name"] is None
+    assert load_info.dataset_name is None
+
+
 def test_yielding_empty_list_creates_table() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="empty_start",
@@ -5297,6 +5366,68 @@ def test_staging_tables_recreated_after_staging_dataset_dropped() -> None:
             f"SELECT val FROM {pipeline.dataset_name}.resource_b ORDER BY val"
         )
         assert [r[0] for r in rows] == ["b1", "b2"]
+
+
+@pytest.mark.parametrize("skip_dedup", [False, True], ids=["dedup_enabled", "dedup_skipped"])
+def test_merge_no_child_duplicates_on_duplicate_staging_data(skip_dedup: bool) -> None:
+    """When a child table's data file is duplicated in staging (simulating
+    crash+retry), the merge SQL deduplicates nested tables by _dlt_id.
+
+    With `deduplicated=True` the safety net is disabled and duplicates
+    pass through — verifying the flag is respected.
+    """
+    wd: Any = {"disposition": "merge", "deduplicated": True} if skip_dedup else "merge"
+
+    @dlt.resource(primary_key="id", write_disposition=wd)
+    def items():
+        yield [
+            {"id": 1, "val": "a", "nested": [{"x": 10}]},
+            {"id": 2, "val": "b", "nested": [{"x": 20}]},
+        ]
+
+    p = dlt.pipeline(
+        pipeline_name="test_merge_child_dedup",
+        destination="duckdb",
+        dataset_name="child_dedup",
+    )
+
+    # initial load to create tables
+    info = p.run(items())
+    assert_load_info(info)
+    assert_table_counts(p, {"items": 2, "items__nested": 2})
+
+    # extract + normalize a second batch (same data)
+    p.extract(items())
+    p.normalize()
+
+    # duplicate the child table's job file in the normalized package
+    load_id = p.list_normalized_load_packages()[0]
+    package_info = p.get_load_package_info(load_id)
+    child_jobs = [
+        j for j in package_info.jobs["new_jobs"] if j.job_file_info.table_name == "items__nested"
+    ]
+    assert len(child_jobs) >= 1
+    for child_job in child_jobs:
+        src_path = child_job.file_path
+        parsed = child_job.job_file_info
+        new_name = ParsedLoadJobFileName(
+            parsed.table_name,
+            ParsedLoadJobFileName.new_file_id(),
+            parsed.retry_count,
+            parsed.file_format,
+        ).file_name()
+        dst_path = os.path.join(os.path.dirname(src_path), new_name)
+        shutil.copy(src_path, dst_path)
+
+    info = p.load()
+    assert_load_info(info)
+
+    if skip_dedup:
+        # dedup disabled: duplicates pass through
+        assert_table_counts(p, {"items": 2, "items__nested": 4})
+    else:
+        # dedup enabled: nested table deduplicated by _dlt_id
+        assert_table_counts(p, {"items": 2, "items__nested": 2})
 
 
 def test_cleanup() -> None:

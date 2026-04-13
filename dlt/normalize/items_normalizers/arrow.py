@@ -15,6 +15,7 @@ from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.exceptions import MissingDependencyException
 
+from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.items_normalizers.base import ItemsNormalizer
 
@@ -37,8 +38,19 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
+        report_progress: bool = False,
+        collector: Collector = NULL_COLLECTOR,
     ) -> None:
-        super().__init__(item_storage, load_storage, normalize_storage, schema, load_id, config)
+        super().__init__(
+            item_storage,
+            load_storage,
+            normalize_storage,
+            schema,
+            load_id,
+            config,
+            report_progress=report_progress,
+            collector=collector,
+        )
         self._null_only_columns: Dict[str, Set[str]] = {}
 
     @property
@@ -109,6 +121,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
             ):
                 self._maybe_cancel()
                 items_count += batch.num_rows
+                self._report_progress(root_table_name, batch.num_rows)
                 # we may need to normalize
                 if is_native_arrow_writer and should_normalize is None:
                     should_normalize = pyarrow.should_normalize_arrow_schema(
@@ -192,5 +205,6 @@ class ArrowItemsNormalizer(ItemsNormalizer):
             self.normalize_storage.extracted_packages.storage.make_full_path(extracted_items_file),
             file_metrics,
         )
+        self._report_progress(root_table_name, num_rows)
 
         return []

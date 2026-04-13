@@ -19,6 +19,7 @@ from dlt.common.typing import StrAny
 from dlt.common.data_types import TDataType
 from dlt.common.storages import NormalizeStorage, LoadStorage, ParsedLoadJobFileName, PackageStorage
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.runtime.collector import DictCollector
 from dlt.common.configuration.container import Container
 
 from dlt.extract.extract import ExtractStorage
@@ -312,6 +313,40 @@ def test_multiprocessing_row_counting(
         for t, m in step_info.metrics[step_info.loads_ids[0]][0]["table_metrics"].items()
     }
     assert row_counts == step_info.row_counts
+
+
+@pytest.mark.parametrize("pool_workers", (1, 2))
+def test_progress_collector_counters(raw_normalize: Normalize, pool_workers: int) -> None:
+    """Verify that per-table progress counters match final row counts."""
+
+    class KeepCountersCollector(DictCollector):
+        """DictCollector that preserves counters after stop."""
+
+        def _stop(self) -> None:
+            self.final_counters = dict(self.counters) if self.counters else {}
+            super()._stop()
+
+    collector = KeepCountersCollector()
+    raw_normalize.collector = collector
+    extract_cases(raw_normalize, ["github.events.load_page_1_duck"])
+    if pool_workers > 1:
+        executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
+    else:
+        executor = NullExecutor()
+    with executor:
+        raw_normalize.run(executor)
+    step_info = raw_normalize.get_step_info(MockPipeline("progress_pipeline", True))  # type: ignore[abstract]
+    expected_row_counts = step_info.row_counts
+
+    counters = collector.final_counters
+    # Files counter counts extracted input files, not output load files
+    assert counters["Files"] == 1
+    # per-table counts from collector must match the authoritative row counts from metrics
+    for table_name, expected_count in expected_row_counts.items():
+        assert counters.get(table_name, 0) == expected_count, (
+            f"Table {table_name}: collector={counters.get(table_name, 0)}"
+            f" != expected={expected_count}"
+        )
 
 
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)

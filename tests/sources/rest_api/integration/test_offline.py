@@ -1880,6 +1880,50 @@ def test_post_data_param_with_list_of_tuples(mock_api_server):
         }
 
 
+def test_dependent_resource_paginated_child(mock_api_server):
+    """Test that child resources load all pages when the parent has multiple pages.
+
+    Reproduces #3772: when PipeIterator round-robins between generators for
+    different parent pages, the shared paginator state was corrupted, causing
+    child pagination to stop early and lose records.
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        dev_mode=True,
+    )
+
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "endpoint": {
+                        "path": "posts/{resources.posts.id}/comments",
+                        "paginator": {
+                            "type": "page_number",
+                            "base_page": 1,
+                            "total_path": "total_pages",
+                        },
+                    },
+                },
+            ],
+        }
+    )
+
+    load_info = pipeline.run(mock_source)
+    assert_load_info(load_info)
+    table_counts = load_table_counts(pipeline)
+
+    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_comments"] == (
+        DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * DEFAULT_COMMENTS_COUNT
+    )
+
+
 def test_dependent_resource_parallelized(mock_api_server):
     """Test that parallelized flag on dependent resources yields correct data."""
     pipeline = dlt.pipeline(
