@@ -1,6 +1,6 @@
 ---
 title: Transform data in Python with Arrow tables or DataFrames
-description: Transforming data loaded by a dlt pipeline with pandas dataframes, arrow tables, or polars
+description: Transforming data loaded by a dlt pipeline with Pandas or Polars DataFrames and Arrow tables
 keywords: [transform, pandas, polars, arrow]
 ---
 
@@ -44,7 +44,7 @@ reactions = github_issues.select(
 
 ## Persisting your transformed data
 
-Since dlt supports DataFrames, Arrow tables, and Polars DataFrames from resources directly, you can use the same pipeline to load the transformed data back into the destination.
+Since dlt supports Arrow tables, Pandas or Polars DataFrames from resources directly, you can use the same pipeline to load the transformed data back into the destination.
 
 
 ### A simple example

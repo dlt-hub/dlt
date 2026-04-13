@@ -211,7 +211,7 @@ When an item's discriminator value does not match any variant in the union (e.g.
 
 ### Set contracts on Arrow tables, Pandas, and Polars
 
-All contract settings apply to [Arrow tables, pandas frames, and Polars DataFrames](../dlt-ecosystem/verified-sources/arrow-pandas.md) as well.
+All contract settings apply to [Arrow tables, Pandas or Polars DataFrames](../dlt-ecosystem/verified-sources/arrow-pandas.md) as well.
 1. **tables** mode is the same - no matter what the data item type is.
 2. **columns** will allow new columns, raise an exception, or modify tables/frames still in the extract step to avoid rewriting Parquet files.
 3. **data_type** applies to variant columns and to changes in type properties (`data_type`, `nullable`, `precision`, `scale`, `timezone`) on existing complete columns. The contract will raise an exception, discard the column, or discard the row depending on the mode.

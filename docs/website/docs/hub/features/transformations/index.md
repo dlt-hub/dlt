@@ -118,9 +118,9 @@ If you prefer to write your queries in SQL, you can omit ibis expressions by sim
 
 The identifiers (table and column names) used in these raw SQL expressions must correspond to the identifiers as they are present in your dlt schema, NOT in your destination database schema.
 
-## Using pandas dataframes, arrow tables, or polars
+## Using Pandas or Polars DataFrames and Arrow tables
 
-You can also write transformations directly using pandas, arrow, or polars. Note that in this case your transformation resource behaves like a regular resource: column-level hints will not be propagated, and `dlt` will simply treat the yielded dataframes or arrow tables like data from any other resource. This behavior may change in the future.
+You can also write transformations directly using Pandas or Polars DataFrames and Arrow tables. Note that in this case your transformation resource behaves like a regular resource: column-level hints will not be propagated, and `dlt` will simply treat the yielded DataFrames or Arrow tables like data from any other resource. This behavior may change in the future.
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::arrow_dataframe_operations-->
 

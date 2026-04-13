@@ -614,7 +614,7 @@ def dim_customer():
 If your source data contains nested fields (like lists or arrays) that may return in different order across API calls, the automatically generated row hash will differ even when the actual data hasn't changed. Using `row_version_column_name` to provide your own hash based on stable fields is a good solution for this.
 :::
 
-### 🧪 Use scd2 with Arrow tables, pandas DataFrames, and Polars
+### 🧪 Use scd2 with Arrow tables, Pandas or Polars DataFrames
 `dlt` will not add a **row hash** column to the tabular data automatically (we are working on it).
 You need to do that yourself by adding a transform function to the `scd2` resource that computes row hashes (using pandas.util, should be fairly fast).
 ```py
