@@ -409,11 +409,23 @@ def test_deliver_targets() -> None:
         ({"timeout": 14400.0}, {"timeout": 14400.0}),
         ({"timeout": 1800.0}, {"timeout": 1800.0}),
         ({"timeout": 3600.0, "grace_period": 10.0}, {"timeout": 3600.0, "grace_period": 10.0}),
+        ("4h", {"timeout": 14400.0}),
+        ("30m", {"timeout": 1800.0}),
+        (600, {"timeout": 600.0}),
+        (3600.0, {"timeout": 3600.0}),
     ],
-    ids=["14400s", "1800s", "with-grace"],
+    ids=[
+        "dict-14400s",
+        "dict-1800s",
+        "dict-with-grace",
+        "str-4h",
+        "str-30m",
+        "int-600",
+        "float-3600",
+    ],
 )
 def test_execute_timeout(timeout_spec: Dict[str, Any], expected_timeout: Dict[str, Any]) -> None:
-    """Execute spec timeout passes through to job definition."""
+    """Execute spec timeout accepts TTimeoutSpec, str, int, or float."""
 
     @job(execute={"timeout": timeout_spec})  # type: ignore[call-overload]
     def my_job():

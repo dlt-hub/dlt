@@ -81,6 +81,23 @@ def test_valid_manifest() -> None:
     assert result.errors == []
 
 
+@pytest.mark.parametrize(
+    "timeout_spec",
+    [
+        {"timeout": 7200, "grace_period": 30},
+        {"timeout": 7200.0, "grace_period": 30.0},
+        {"timeout": 7200},
+        {"grace_period": 10},
+    ],
+    ids=["int-both", "float-both", "int-timeout-only", "int-grace-only"],
+)
+def test_valid_manifest_timeout_accepts_int_and_float(timeout_spec: Dict[str, Any]) -> None:
+    """TTimeoutSpec fields accept both int and float."""
+    manifest = _make_manifest([_make_job("jobs.mod.j", execute={"timeout": timeout_spec})])
+    result = validate_manifest(manifest)
+    assert result.is_valid, result.errors
+
+
 def test_empty_manifest() -> None:
     result = validate_manifest(_make_manifest([]))
     assert result.is_valid

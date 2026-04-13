@@ -10,6 +10,7 @@ from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.typing import (
     HttpTriggerInfo,
     TJobDefinition,
+    TTimeoutSpec,
     TParsedTrigger,
     TTrigger,
     TTriggerType,
@@ -32,6 +33,15 @@ def parse_period_seconds(value: str) -> float:
     if match:
         return float(match.group(1)) * _PERIOD_MULTIPLIERS[match.group(2)]
     return float(value)
+
+
+def normalize_timeout(value: Union[int, float, str, TTimeoutSpec]) -> TTimeoutSpec:
+    """Normalize timeout input to TTimeoutSpec for the manifest."""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        return {"timeout": parse_period_seconds(value)}
+    return {"timeout": float(value)}
 
 
 def _parse_schedule(expr: str) -> TParsedTrigger:

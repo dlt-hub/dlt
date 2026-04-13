@@ -211,3 +211,12 @@ def test_module_expose_overrides() -> None:
 
     assert job_def is not None
     assert job_def["expose"] == {"interface": "rest_api"}
+
+
+def test_module_requires_sets_require() -> None:
+    """__requires__ sets job require spec."""
+    mod = import_module(f"{CASES}.marimo_with_requires")
+    job_def = detect_module_job(mod)
+
+    assert job_def is not None
+    assert job_def["require"] == {"dependency_groups": ["heavy-ml"], "machine": "gpu-a100"}

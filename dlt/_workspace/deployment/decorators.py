@@ -14,7 +14,10 @@ from dlt.common.utils import get_callable_name, get_module_name
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment import freshness as _freshness
 from dlt._workspace.deployment import trigger as _triggers
-from dlt._workspace.deployment._trigger_helpers import normalize_triggers, parse_period_seconds
+from dlt._workspace.deployment._trigger_helpers import (
+    normalize_timeout,
+    normalize_triggers,
+)
 from dlt._workspace.deployment.freshness import normalize_freshness_constraints
 from dlt.extract.reference import SourceFactory as AnySourceFactory
 from dlt.extract.resource import DltResource
@@ -45,15 +48,7 @@ TJobFunParams = ParamSpec("TJobFunParams")
 TJobResult = TypeVar("TJobResult", default=Any)
 
 
-def _normalize_timeout(
-    value: Union[float, str, TTimeoutSpec],
-) -> TTimeoutSpec:
-    """Normalize timeout input to TTimeoutSpec for the manifest."""
-    if isinstance(value, dict):
-        return value
-    if isinstance(value, str):
-        return {"timeout": parse_period_seconds(value)}
-    return {"timeout": float(value)}
+_normalize_timeout = normalize_timeout
 
 
 def _normalize_expose(
@@ -276,6 +271,9 @@ def _job(
     wrapper.section = section
     wrapper.job_type = job_type
     wrapper.trigger = normalize_triggers(trigger)
+    if execute is not None and "timeout" in execute:
+        execute = dict(execute)  # type: ignore[assignment]
+        execute["timeout"] = normalize_timeout(execute["timeout"])
     wrapper.execute = execute
     wrapper.expose = _normalize_expose(expose)
     wrapper.require = require

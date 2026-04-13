@@ -190,9 +190,9 @@ class TRuntimeEntryPoint(TEntryPoint):
 class TTimeoutSpec(TypedDict):
     """Expanded timeout specification stored in the manifest."""
 
-    timeout: NotRequired[float]
+    timeout: NotRequired[Union[int, float]]
     """Max wall-clock duration in seconds."""
-    grace_period: NotRequired[float]
+    grace_period: NotRequired[Union[int, float]]
     """Seconds for graceful shutdown before hard kill. Default: 30 (batch), 5 (interactive)."""
 
 

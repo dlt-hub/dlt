@@ -76,8 +76,8 @@ def _module_description(module: ModuleType) -> Optional[str]:
 def _apply_module_dunders(module: ModuleType, job_def: TJobDefinition) -> None:
     """Apply module-level dunders to a detected job definition.
 
-    Reads `__trigger__` and `__expose__` from the module and merges them
-    into the job definition produced by a detector.
+    Reads `__trigger__`, `__expose__`, and `__requires__` from the module and
+    merges them into the job definition produced by a detector.
     """
     # __trigger__: append to detector triggers
     raw_trigger = getattr(module, "__trigger__", None)
@@ -89,6 +89,11 @@ def _apply_module_dunders(module: ModuleType, job_def: TJobDefinition) -> None:
     expose = getattr(module, "__expose__", None)
     if expose is not None:
         job_def["expose"] = expose
+
+    # __requires__: set job requirements
+    requires = getattr(module, "__requires__", None)
+    if requires is not None:
+        job_def["require"] = requires
 
 
 def _detect_marimo(module: ModuleType) -> Optional[TJobDefinition]:
