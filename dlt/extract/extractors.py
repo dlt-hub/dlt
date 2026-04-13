@@ -22,6 +22,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TPartialTableSchema,
 )
+from dlt.common.libs.narwhals import df_to_arrow
 from dlt.common.libs.sqlglot import filter_select_column_names
 from dlt.common.normalizers.json import helpers as normalize_helpers
 
@@ -37,11 +38,6 @@ try:
 except MissingDependencyException:
     pyarrow = None
     pa = None
-
-try:
-    from dlt.common.libs.pandas import pandas, pandas_to_arrow
-except MissingDependencyException:
-    pandas = None
 
 
 class MaterializedEmptyList(List[Any]):
@@ -383,20 +379,17 @@ class ArrowExtractor(Extractor):
         items_list = items if isinstance(items, list) else [items]
 
         static_table_name = self._get_static_table_name(resource, meta)
-        items = [
-            # 2. remove columns and rows in data contract filters
-            self._apply_contract_filters(tbl, resource, static_table_name)
-            for tbl in (
-                (
-                    # 1. Convert pandas frame(s) to arrow Table, remove indexes because we store
-                    pandas_to_arrow(item)
-                    if (pandas and isinstance(item, pandas.DataFrame))
-                    else item
-                )
-                for item in items_list
-            )
-        ]
-        super().write_items(resource, items, meta)
+        tables = []
+        for item in items_list:
+            try:
+                table = df_to_arrow(item)
+            except TypeError:
+                table = item
+
+            self._apply_contract_filters(table, resource, static_table_name)
+            tables.append(table)
+
+        super().write_items(resource, tables, meta)
 
     def _write_to_static_table(
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
