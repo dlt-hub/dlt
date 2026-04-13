@@ -118,9 +118,9 @@ If you prefer to write your queries in SQL, you can omit ibis expressions by sim
 
 The identifiers (table and column names) used in these raw SQL expressions must correspond to the identifiers as they are present in your dlt schema, NOT in your destination database schema.
 
-## Using pandas dataframes or arrow tables
+## Using pandas dataframes, arrow tables, or polars
 
-You can also write transformations directly using pandas or arrow. Note that in this case your transformation resource behaves like a regular resource: column-level hints will not be propagated, and `dlt` will simply treat the yielded dataframes or arrow tables like data from any other resource. This behavior may change in the future.
+You can also write transformations directly using pandas, arrow, or polars. Note that in this case your transformation resource behaves like a regular resource: column-level hints will not be propagated, and `dlt` will simply treat the yielded dataframes or arrow tables like data from any other resource. This behavior may change in the future.
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::arrow_dataframe_operations-->
 
@@ -157,7 +157,7 @@ Downstream of the transformation layer, we may want to know which columns origin
 
 ## Lifecycle of a SQL transformation
 
-In this section, we focus on the lifecycle of transformations that yield a `Relation` object, which we call SQL transformations here. This is in contrast to Python-based transformations that yield dataframes or arrow tables, which go through the regular extract, normalize, and load lifecycle of a `dlt` resource.
+In this section, we focus on the lifecycle of transformations that yield a `Relation` object, which we call SQL transformations here. This is in contrast to Python-based transformations that yield dataframes, arrow tables, or polars frames, which go through the regular extract, normalize, and load lifecycle of a `dlt` resource.
 
 ### Extract
 
@@ -169,7 +169,7 @@ At this stage, the SQL string is just the user's original query — either the s
 In the normalize stage, `.model` files are read and processed. The normalization process modifies your SQL queries to ensure they execute correctly and integrate with `dlt`'s features.
 
 :::info
-The normalization described here applies only to SQL-based transformations. Python-based transformations, such as those using dataframes or arrow tables, follow the [regular normalization process](../../../reference/explainers/how-dlt-works.md#normalize).
+The normalization described here applies only to SQL-based transformations. Python-based transformations, such as those using dataframes, arrow tables, or polars frames, follow the [regular normalization process](../../../reference/explainers/how-dlt-works.md#normalize).
 :::
 
 #### Adding `dlt` columns
