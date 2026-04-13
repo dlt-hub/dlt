@@ -1,4 +1,3 @@
-from dlt.common.storages.load_package import load_package_state, CurrentLoadPackageStateNotAvailable
 import os
 from abc import abstractmethod
 import base64
@@ -45,7 +44,7 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import FileStorage
-from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
+from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName, load_package_state, CurrentLoadPackageStateNotAvailable
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.schema import TColumnHint
 from dlt.common.destination.client import (
