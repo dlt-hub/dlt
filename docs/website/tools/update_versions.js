@@ -79,6 +79,48 @@ if (branch != "devel") {
     process.exit(1)
 }
 
+/**
+ * Backfills sidebar keys that exist in the current sidebars config but are absent
+ * from versioned sidebar snapshots (i.e. sidebars added after a version was tagged).
+ *
+ * Docusaurus requires every sidebar referenced in navbar items to exist in every
+ * versioned snapshot. When a new sidebar is introduced in `devel`, older snapshots
+ * won't have it, causing build failures. This function patches each snapshot JSON
+ * file by adding missing keys as empty arrays, which satisfies Docusaurus without
+ * altering the content of those older versions.
+ *
+ * @param {string} versionedSidebarsFolder - Path to the versioned_sidebars directory.
+ * @param {Object} currentSidebars - The sidebar config object exported from sidebars.js.
+ */
+function backfillVersionedSidebars(versionedSidebarsFolder, currentSidebars) {
+    const files = fs.readdirSync(versionedSidebarsFolder).filter(f => f.endsWith('.json'));
+    for (const file of files) {
+        const filePath = `${versionedSidebarsFolder}/${file}`;
+        const snapshot = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        let patched = false;
+        for (const key of Object.keys(currentSidebars)) {
+            if (!snapshot[key]) {
+              snapshot[key] = [
+                {
+                  type: 'category',
+                  label: 'Cookbook',
+                  link: {
+                    type: 'doc',
+                    id: 'examples/index',
+                  },
+                  items: []
+                },
+              ];
+                patched = true;
+            }
+        }
+        if (patched) {
+            fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf8');
+            console.log(`Patched ${file}: added missing sidebar keys`);
+        }
+    }
+}
+
 selectedVersions.reverse()
 for (const version of selectedVersions) {
 
@@ -104,7 +146,9 @@ for (const version of selectedVersions) {
 
     console.log(`Moving snapshot`)
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_DOCS_FOLDER, VERSIONED_DOCS_FOLDER, {recursive: true})
-    fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_SIDEBARS_FOLDER, VERSIONED_SIDEBARS_FOLDER, {recursive: true})    
+    fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_SIDEBARS_FOLDER, VERSIONED_SIDEBARS_FOLDER, {recursive: true})
+
+    backfillVersionedSidebars(VERSIONED_SIDEBARS_FOLDER, require('../sidebars.js'));
 }
 
 fs.cpSync(REPO_DOCS_DIR+"/versions.json", "versions.json")
