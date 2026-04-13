@@ -16,11 +16,11 @@ jobs:
     name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
 
-  # if the PR is from a fork, we need to authorize the secrets access and remote destinations run with a lable
-  authorize_run_from_fork:
-    name: check if fork and if so wether secrets are available
-    # run when label is assigned OR when we are not a fork
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'ci from fork') || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
+  # gate for secret-requiring jobs: secrets are only available for internal (same-repo) PRs under pull_request.
+  # fork PRs with the `ci from fork` label are handled separately by fork_tests_with_secrets.yml (pull_request_target).
+  authorize_secrets:
+    name: secrets available (internal PRs only)
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize') }}
     runs-on: ubuntu-latest
     steps:
       - run: true
@@ -89,7 +89,7 @@ jobs:
 
   test_destinations_remote:
     name: test remote destinations with secrets
-    needs: [authorize_run_from_fork, test_common]
+    needs: [authorize_secrets, test_common]
     uses: ./.github/workflows/test_destinations_remote.yml
     secrets: inherit
     with:
@@ -100,12 +100,12 @@ jobs:
   #
   test_tools_dbt_runner:
     name: test dbt runner
-    needs: [test_common, authorize_run_from_fork]
+    needs: [test_common, authorize_secrets]
     uses: ./.github/workflows/test_tools_dbt_runner.yml
     secrets: inherit
   
   # dbt cloud tests currently are disabled, TODO: explain why
   # test_tools_dbt_cloud:
-  #   needs: [test_common, authorize_run_from_fork]
+  #   needs: [test_common, authorize_secrets]
   #   uses: ./.github/workflows/test_tools_dbt_cloud.yml
   #   secrets: inherit
