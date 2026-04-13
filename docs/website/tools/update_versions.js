@@ -80,37 +80,40 @@ if (branch != "devel") {
 }
 
 /**
- * Backfills sidebar keys that exist in the current sidebars config but are absent
- * from versioned sidebar snapshots (i.e. sidebars added after a version was tagged).
+ * Backfills sidebar keys that are absent from versioned sidebar snapshots.
  *
  * Docusaurus requires every sidebar referenced in navbar items to exist in every
- * versioned snapshot. When a new sidebar is introduced in `devel`, older snapshots
- * won't have it, causing build failures. This function patches each snapshot JSON
- * file by adding missing keys as empty arrays, which satisfies Docusaurus without
- * altering the content of those older versions.
+ * versioned snapshot. When a new sidebar is introduced in `devel` after a version
+ * was tagged, older snapshots won't have it, causing build failures. This function
+ * patches each snapshot JSON file by inserting a fallback entry for each missing
+ * sidebar ID, pointing back to the docs root so the navbar tab remains functional.
+ *
+ * Note: sidebars.js is intentionally NOT required here — it calls walkSync on
+ * docs_processed/ at load time, which does not exist during update_versions.js
+ * execution in CI.
  *
  * @param {string} versionedSidebarsFolder - Path to the versioned_sidebars directory.
- * @param {Object} currentSidebars - The sidebar config object exported from sidebars.js.
+ * @param {string[]} sidebarIds - Sidebar IDs to backfill if absent from a snapshot.
  */
-function backfillVersionedSidebars(versionedSidebarsFolder, currentSidebars) {
+function backfillVersionedSidebars(versionedSidebarsFolder, sidebarIds) {
     const files = fs.readdirSync(versionedSidebarsFolder).filter(f => f.endsWith('.json'));
     for (const file of files) {
         const filePath = `${versionedSidebarsFolder}/${file}`;
         const snapshot = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         let patched = false;
-        for (const key of Object.keys(currentSidebars)) {
-            if (!snapshot[key]) {
-              snapshot[key] = [
-                {
-                  type: 'category',
-                  label: 'Cookbook',
-                  link: {
-                    type: 'doc',
-                    id: 'examples/index',
-                  },
-                  items: []
-                },
-              ];
+        for (const id of sidebarIds) {
+            if (!snapshot[id]) {
+                snapshot[id] = [
+                    {
+                        type: 'category',
+                        label: 'Cookbook',
+                        link: {
+                            type: 'doc',
+                            id: 'examples/index',
+                        },
+                        items: [],
+                    },
+                ];
                 patched = true;
             }
         }
@@ -148,7 +151,7 @@ for (const version of selectedVersions) {
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_DOCS_FOLDER, VERSIONED_DOCS_FOLDER, {recursive: true})
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_SIDEBARS_FOLDER, VERSIONED_SIDEBARS_FOLDER, {recursive: true})
 
-    backfillVersionedSidebars(VERSIONED_SIDEBARS_FOLDER, require('../sidebars.js'));
+    backfillVersionedSidebars(VERSIONED_SIDEBARS_FOLDER, ['cookbookSidebar']);
 }
 
 fs.cpSync(REPO_DOCS_DIR+"/versions.json", "versions.json")
