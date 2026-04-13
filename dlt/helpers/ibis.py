@@ -1,3 +1,4 @@
+from dlt.destinations.impl.lance.configuration import LanceClientConfiguration
 from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
 from typing import cast, Any, Sequence, Tuple
 
@@ -208,6 +209,22 @@ def create_ibis_backend(
         fs_client.sql_client = None
         sql_client.memory_db = None
         del sql_client
+    elif issubclass(destination.spec, LanceClientConfiguration):
+        from dlt.destinations.impl.lance.lance_client import LanceClient
+        from dlt.destinations.impl.lance.sql_client import LanceSQLClient
+
+        assert isinstance(client, LanceClient)
+        sql_client = client.sql_client
+        assert isinstance(sql_client, LanceSQLClient)
+        if schemas:
+            sql_client.set_schemas(schemas)
+        duckdb_conn = sql_client.open_connection()
+        sql_client.create_views_for_all_tables()
+        con = ibis.duckdb.from_connection(duckdb_conn)
+        # disable destructor so connection survives
+        client.sql_client = None
+        sql_client.memory_db = None
+        del sql_client
     elif issubclass(destination.spec, LanceDBClientConfiguration):
         con = _create_ibis_backend_lancedb(client)
     else:
@@ -224,10 +241,6 @@ def create_ibis_backend(
 
 def _create_ibis_backend_lancedb(client: JobClientBase) -> BaseBackend:
     from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-    from dlt.destinations.impl.lancedb.sql_client import (
-        get_lance_table_uri,
-        _prepare_create_view_statement,
-    )
 
     assert isinstance(client, LanceDBClient)
     # open connection but do not close it, ducklake always creates a separate connection

@@ -55,6 +55,7 @@ from dlt.common.schema.typing import TTableFormat, TTableSchema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import LoadJobInfo, create_load_id
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
@@ -134,6 +135,14 @@ WITH_GDRIVE_BUCKETS = [
 # temporary solution to include gdrive bucket in tests,
 # while gdrive is not working as a destination
 DEFAULT_BUCKETS = [bucket for bucket in WITH_GDRIVE_BUCKETS if bucket != GDRIVE_BUCKET]
+
+# NOTE: we can't include MEMORY_BUCKET here — unlike fsspec, `object_store`'s memory impl does
+# not use a global singleton storage as required by dlt
+OBJECT_STORE_RS_BUCKETS = [
+    bucket
+    for bucket in (FILE_BUCKET, AWS_BUCKET, GCS_BUCKET, AZ_BUCKET)
+    if FilesystemDestinationClientConfiguration.parse_protocol(bucket) in ALL_FILESYSTEM_DRIVERS
+]
 
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
@@ -556,9 +565,9 @@ def destinations_configs(
     if default_vector_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type="weaviate"),
-            DestinationTestConfiguration(
-                destination_type="lancedb",
-            ),
+            DestinationTestConfiguration(destination_type="lancedb"),
+        ]
+        destination_configs += [
             DestinationTestConfiguration(
                 destination_type="qdrant",
                 credentials=dict(path="qdrant_data"),
@@ -570,6 +579,14 @@ def destinations_configs(
                 extra_info="server",
             ),
         ]
+        for bucket in OBJECT_STORE_RS_BUCKETS:
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="lance",
+                    extra_info=FilesystemConfiguration.parse_protocol(bucket),
+                    env_vars={"DESTINATION__STORAGE__BUCKET_URL": bucket},
+                ),
+            ]
 
     if (default_sql_configs or all_staging_configs) and not default_sql_configs:
         # athena default configs not added yet
@@ -863,6 +880,14 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination_type="lancedb"),
         ]
+        for bucket in OBJECT_STORE_RS_BUCKETS:
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="lance",
+                    extra_info=FilesystemConfiguration.parse_protocol(bucket),
+                    env_vars={"DESTINATION__STORAGE__BUCKET_URL": bucket},
+                ),
+            ]
 
     try:
         # register additional destinations from _addons.py which must be placed in the same folder
