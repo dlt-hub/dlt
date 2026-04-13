@@ -62,6 +62,8 @@ def test_lance_storage_configuration_namespace_uri() -> None:
 def test_lance_storage_configuration_options() -> None:
     CREDS_PROVIDED_OPTS = {"creds_opt": "foo", "another_creds_opt": "bar"}
     USER_PROVIDED_OPTS = {"user_opt": "foo", "another_user_opt": "bar"}
+    # cloud storage gets default timeouts to prevent infinite hangs in the Rust object_store
+    CLOUD_DEFAULTS = {"connect_timeout": "30s", "timeout": "120s"}
 
     @configspec
     class DummyObjectStoreRsCredentials(CredentialsConfiguration, WithObjectStoreRsCredentials):
@@ -72,13 +74,22 @@ def test_lance_storage_configuration_options() -> None:
     class DummyNonObjectStoreRsCredentials(CredentialsConfiguration):
         token: str = "some-token"
 
-    # user-provided options are set
+    # user-provided options are set (merged on top of cloud defaults)
     config = LanceStorageConfiguration(
         bucket_url="s3://my-bucket",
         options=USER_PROVIDED_OPTS,
     )
     config.resolve()
-    assert config.options == USER_PROVIDED_OPTS
+    assert config.options == CLOUD_DEFAULTS | USER_PROVIDED_OPTS
+
+    # user can override default timeouts
+    config = LanceStorageConfiguration(
+        bucket_url="s3://my-bucket",
+        options={"timeout": "300s"},
+    )
+    config.resolve()
+    assert config.options["timeout"] == "300s"
+    assert config.options["connect_timeout"] == "30s"
 
     # credential-derived options are set when credentials implement WithObjectStoreRsCredentials
     config = LanceStorageConfiguration(
@@ -86,11 +97,20 @@ def test_lance_storage_configuration_options() -> None:
         credentials=DummyObjectStoreRsCredentials(),  # type: ignore[arg-type]
     )
     config.resolve()
-    assert config.options == CREDS_PROVIDED_OPTS
+    assert config.options == CLOUD_DEFAULTS | CREDS_PROVIDED_OPTS
 
-    # no credential-derived options are set when credentials do not implement WithObjectStoreRsCredentials
+    # no credential-derived options when credentials do not implement WithObjectStoreRsCredentials
+    # but cloud defaults are still set
     config = LanceStorageConfiguration(
         bucket_url="s3://my-bucket",
+        credentials=DummyNonObjectStoreRsCredentials(),  # type: ignore[arg-type]
+    )
+    config.resolve()
+    assert config.options == CLOUD_DEFAULTS
+
+    # local filesystem gets no default timeouts
+    config = LanceStorageConfiguration(
+        bucket_url="/tmp/local",
         credentials=DummyNonObjectStoreRsCredentials(),  # type: ignore[arg-type]
     )
     config.resolve()
@@ -103,7 +123,11 @@ def test_lance_storage_configuration_options() -> None:
         options={"creds_opt": "user_foo"} | USER_PROVIDED_OPTS,
     )
     config.resolve()
-    assert config.options == CREDS_PROVIDED_OPTS | {"creds_opt": "user_foo"} | USER_PROVIDED_OPTS
+    # merge order: credentials | defaults | user_options (user wins over creds on overlap)
+    assert (
+        config.options
+        == CREDS_PROVIDED_OPTS | CLOUD_DEFAULTS | {"creds_opt": "user_foo"} | USER_PROVIDED_OPTS
+    )
 
 
 def test_lance_embeddings_configuration_create_embedding_function() -> None:
