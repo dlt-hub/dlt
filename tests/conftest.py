@@ -67,6 +67,7 @@ def pytest_xdist_setupnodes(config, specs):
 
     extensions = [
         "avro",
+        "aws",
         "azure",
         "delta",
         "ducklake",
