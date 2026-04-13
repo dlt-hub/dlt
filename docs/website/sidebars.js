@@ -419,17 +419,6 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Code examples',
-      link: {
-        type: 'doc',
-        id: 'examples/index',
-      },
-      items: [
-        'walkthroughs/dispatch-to-multiple-tables',
-      ],
-    },
-    {
-      type: 'category',
       label: 'Reference',
       link: {
         type: 'generated-index',
@@ -576,12 +565,25 @@ const sidebars = {
     },
     'hub/command-line-interface',
     'hub/EULA',
-    ],
+  ],
+  cookbookSidebar: [
+    {
+      type: 'category',
+      label: 'Cookbook',
+      link: {
+        type: 'doc',
+        id: 'examples/index',
+      },
+      items: [
+        'walkthroughs/dispatch-to-multiple-tables',
+      ],
+    },
+  ]
 };
 
  // insert examples
-for (const item of sidebars.docsSidebar) {
-    if (item.label === 'Code examples') {
+for (const item of sidebars.cookbookSidebar) {
+    if (item.label === 'Cookbook') {
       for (let examplePath of walkSync("./docs_processed/examples")) {
         examplePath = examplePath.replace(/\\/g, "/");
         examplePath = examplePath.replace("docs_processed/", "");

@@ -150,17 +150,27 @@ const config = {
           {
             type: 'docsVersionDropdown',
           },
-          { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
+          {
+            type: 'docSidebar',
+            sidebarId: 'docsSidebar',
+            position: 'left',
+            label: 'dlt',
+          },
+          {
+            type: 'docSidebar',
+            sidebarId: 'cookbookSidebar',
+            position: 'left',
+            label: 'Cookbook',
+          },
           { to: '/release-highlights', label: "What's new?", position: 'left' },
+          { to: 'https://dlthub.com/blog', label: 'Blog', position: 'right' },
           {
             href: 'https://dlthub.com/community',
-            label: 'Join community',
             position: 'right',
             className: 'slack-navbar',
           },
           {
             href: 'https://github.com/dlt-hub/dlt',
-            label: 'Star us',
             position: 'right',
             className: 'github-navbar',
             "aria-label": "GitHub repository",
