@@ -24,6 +24,30 @@ def get_canonical_vector_database_doc_id_merge_key(
         )
 
 
+def _cast_to_target_types(
+    source: pa.RecordBatchReader, target_schema: pa.Schema
+) -> pa.RecordBatchReader:
+    """Casts source columns whose types differ from `target_schema`. Columns missing from
+    `target_schema` or `source` are left untouched — `ds.insert()` handles those natively.
+    """
+    target_types = {field.name: field.type for field in target_schema}
+    cols_to_cast = {
+        field.name: target_types[field.name]
+        for field in source.schema
+        if field.name in target_types and field.type != target_types[field.name]
+    }
+    if not cols_to_cast:
+        return source
+
+    cast_schema = pa.schema(
+        [
+            pa.field(f.name, cols_to_cast[f.name], f.nullable) if f.name in cols_to_cast else f
+            for f in source.schema
+        ]
+    )
+    return pa.RecordBatchReader.from_batches(cast_schema, (b.cast(cast_schema) for b in source))
+
+
 def create_in_filter(field_name: str, array: pa.Array) -> str:
     """Filters all rows where `field_name` is one of the values in the `array`
 
@@ -36,17 +60,3 @@ def create_in_filter(field_name: str, array: pa.Array) -> str:
     else:
         values_py = array.to_pylist()
     return f"{field_name} IN ({', '.join(map(escape_lancedb_literal, values_py))})"
-
-
-def _align_schema(source: pa.RecordBatchReader, target_schema: pa.Schema) -> pa.RecordBatchReader:
-    """Aligns schema of `source` to match `target_schema`.
-
-    No-op if schemas are identical. Else, reorders columns and casts `source` to match `target_schema`.
-
-    Assumes all columns in `target_schema` are present in `source`.
-    """
-    if source.schema != target_schema:
-        return pa.RecordBatchReader.from_batches(
-            target_schema, (b.select(target_schema.names).cast(target_schema) for b in source)
-        )
-    return source

@@ -1353,8 +1353,6 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         # filesystem uses duckdb and views to map know tables. for other ibis will list
         # all available tables so both schemas tables are visible
         if populated_pipeline.destination.destination_type not in [
-            "dlt.destinations.filesystem",
-            "dlt.destinations.lance",
             "dlt.destinations.lancedb",
         ]:
             # from aleph schema
@@ -1384,6 +1382,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                     + additional_tables
                 )
             }
+            print(table_names_in_ibis)
             assert set(table_names_in_ibis) == expected_table_names
 
         table_name = add_table_prefix(map_i("items"))

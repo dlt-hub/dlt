@@ -71,7 +71,7 @@ from dlt.destinations.impl.lance.lance_adapter import (
     REMOVE_ORPHANS_HINT,
 )
 from dlt.common.libs.pyarrow import columns_to_arrow, dlt_column_to_arrow_field
-from dlt.destinations.impl.lance.utils import _align_schema
+from dlt.destinations.impl.lance.utils import _cast_to_target_types
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 
 if TYPE_CHECKING:
@@ -280,7 +280,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         if isinstance(records, pa.RecordBatchReader):
             records = _append_vector_columns(records, schema=ds.schema)
-            records = _align_schema(records, ds.schema)
+            records = _cast_to_target_types(records, ds.schema)
 
         self._write_records(
             ds,

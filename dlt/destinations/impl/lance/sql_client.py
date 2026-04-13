@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING, Optional, Tuple
 
+from dlt.common.schema.schema import Schema
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.sql_client import raise_database_error
 from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
@@ -22,12 +23,6 @@ def _install_and_load_lance_duckdb_extension(duckdb_con: DuckDBPyConnection) -> 
     """
     duckdb_con.execute("INSTALL lance;")
     duckdb_con.execute("LOAD lance;")
-
-
-def _prepare_create_view_statement(lance_table_uri: str, view_name: str) -> str:
-    # NOTE: direct querying fails with our Lance Directory Namespace Catalog Spec V2 table URIs, but
-    # going through __lance_scan() does work
-    return f"CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM __lance_scan('{lance_table_uri}')"
 
 
 def _prepare_create_lance_secret_statement(
@@ -71,13 +66,15 @@ class LanceSQLClient(WithTableScanners):
         # lance datasets are versioned, always refresh to get latest data
         return True
 
-    @raise_database_error
-    def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
+    def create_view_select(
+        self, table_schema: PreparedTableSchema, schema: Schema = None
+    ) -> Optional[Tuple[str, str]]:
         table_name = table_schema["name"]
         lance_table_uri = self.lance_client.get_table_uri(table_name)
-        qualified_view = self.make_qualified_table_name(table_name)
-        sql = _prepare_create_view_statement(lance_table_uri, qualified_view)
-        self._conn.execute(sql)
+        # qualified_view = self.make_qualified_table_name(table_name)
+        # NOTE: direct querying fails with our Lance Directory Namespace Catalog Spec V2 table URIs, but
+        # going through __lance_scan() does work
+        return lance_table_uri, f"SELECT * FROM __lance_scan('{lance_table_uri}')"
 
     @raise_database_error
     def _create_lance_secret(self) -> None:

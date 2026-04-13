@@ -216,6 +216,8 @@ def create_ibis_backend(
         assert isinstance(client, LanceClient)
         sql_client = client.sql_client
         assert isinstance(sql_client, LanceSQLClient)
+        if schemas:
+            sql_client.set_schemas(schemas)
         duckdb_conn = sql_client.open_connection()
         sql_client.create_views_for_all_tables()
         con = ibis.duckdb.from_connection(duckdb_conn)
