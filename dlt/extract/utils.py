@@ -55,6 +55,11 @@ try:
 except MissingDependencyException:
     pandas = None
 
+try:
+    from dlt.common.libs.polars import polars
+except MissingDependencyException:
+    polars = None
+
 
 def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     """Detect the format of the data item from `items`.
@@ -71,15 +76,17 @@ def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     if isinstance(items, ReadableDBAPIRelation):
         return "model"
 
-    if not pyarrow and not pandas:
+    if not pyarrow and not pandas and not polars:
         return "object"
 
     # Assume all items in list are the same type
     try:
         if isinstance(items, list):
             items = items[0]
-        if (pyarrow and pyarrow.is_arrow_item(items)) or (
-            pandas and isinstance(items, pandas.DataFrame)
+        if (
+            (pyarrow and pyarrow.is_arrow_item(items))
+            or (pandas and isinstance(items, pandas.DataFrame))
+            or (polars and isinstance(items, (polars.DataFrame, polars.LazyFrame)))
         ):
             return "arrow"
     except IndexError:
