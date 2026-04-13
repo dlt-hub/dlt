@@ -1264,24 +1264,29 @@ def test_insert_at_ordering_preserved_after_clone() -> None:
     r.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=2))
     r.add_metrics(count_rows, insert_at=len(r._pipe))
 
+    # verify step layout is preserved across clone
+    layout_before = [type(s).__name__ for s in r._pipe._steps]
+    incr_idx_before = r._pipe.find(Incremental, IncrementalResourceWrapper)
+
+    cloned = r._clone()
+
+    layout_after = [type(s).__name__ for s in cloned._pipe._steps]
+    incr_idx_after = cloned._pipe.find(Incremental, IncrementalResourceWrapper)
+    assert layout_after == layout_before
+    assert incr_idx_after == incr_idx_before
+
     p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination="duckdb", dev_mode=True)
     p.run(r)
 
-    for step in p.last_trace.steps:
-        if step.step == "extract":
-            for load_id, metrics_list in step.step_info.metrics.items():
-                for m in metrics_list:
-                    for resource_name, resource_m in m["resource_metrics"].items():
-                        if resource_m.custom_metrics:
-                            # metrics step ran after incremental, so only 2 rows pass
-                            assert resource_m.custom_metrics["row_count"] == 2, (
-                                f"Expected 2 rows after incremental filter, "
-                                f"got {resource_m.custom_metrics['row_count']}"
-                            )
+    extract_info = p.last_trace.last_extract_info
+    resource_metrics = extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+        "events"
+    ]
+    assert resource_metrics.custom_metrics["row_count"] == 2
 
 
-def test_insert_at_ordering_preserved_signature_incremental() -> None:
-    """Step ordering via insert_at must survive clone with signature-based incremental"""
+def test_insert_at_ordering_preserved_after_clone_arg_based() -> None:
+    """Step ordering via insert_at must survive clone with argument-based incremental"""
 
     @dlt.source
     def my_source():
@@ -1298,27 +1303,19 @@ def test_insert_at_ordering_preserved_signature_incremental() -> None:
     source = my_source()
     r = source.events
 
-    # verify step ordering before clone: incremental should be the last step
-    from dlt.extract.incremental import IncrementalResourceWrapper
-
-    incr_idx = r._pipe.find(IncrementalResourceWrapper)
-    assert incr_idx > 0
-    original_steps_count = len(r._pipe)
-
-    # add a filter after incremental
+    # add a filter after the incremental step
     r.add_filter(lambda item: item["id"] != 999, insert_at=len(r._pipe))
 
-    # the filter should be after the incremental
-    assert len(r._pipe) == original_steps_count + 1
+    # verify step layout is preserved across clone
+    layout_before = [type(s).__name__ for s in r._pipe._steps]
+    incr_idx_before = r._pipe.find(Incremental, IncrementalResourceWrapper)
 
-    p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination="duckdb", dev_mode=True)
-    p.run(r)
+    cloned = r._clone()
 
-    # the incremental wrapper filters at generator level for signature-based,
-    # but step order should still be preserved after clone
-    with p.sql_client() as c:
-        rows = c.execute_sql("SELECT count(*) FROM events")
-        assert rows[0][0] == 2
+    layout_after = [type(s).__name__ for s in cloned._pipe._steps]
+    incr_idx_after = cloned._pipe.find(Incremental, IncrementalResourceWrapper)
+    assert layout_after == layout_before
+    assert incr_idx_after == incr_idx_before
 
 
 def test_json_path_cursor() -> None:
