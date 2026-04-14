@@ -1,6 +1,7 @@
 from dlt._workspace.deployment.decorators import job, interactive, pipeline_run, JobFactory
 from dlt._workspace.deployment.manifest import (
     default_dashboard_job,
+    default_dashboard_manifest,
     generate_manifest,
     manifest_from_module,
     validate_manifest,

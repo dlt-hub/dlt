@@ -458,6 +458,14 @@ def default_dashboard_job() -> TJobDefinition:
     }
 
 
+def default_dashboard_manifest() -> TJobsDeploymentManifest:
+    """Build a manifest containing only the default workspace dashboard job."""
+    module = ModuleType(DEFAULT_DEPLOYMENT_MODULE)
+    module.__all__ = []  # type: ignore[attr-defined]
+    manifest, _ = generate_manifest(module)
+    return manifest
+
+
 def generate_manifest(
     deployment_module: ModuleType,
     use_all: bool = True,
