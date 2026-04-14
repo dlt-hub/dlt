@@ -47,6 +47,7 @@ from dlt.common.libs.pydantic import (
 )
 from dlt.common.warnings import Dlt100DeprecationWarning
 from pydantic import (
+    AfterValidator,
     UUID4,
     BaseModel,
     Field,
@@ -1124,6 +1125,40 @@ def test_apply_contract_root_model_discriminator_preserved() -> None:
     assert purchase.model_dump() == {"kind": "purchase", "id": 2, "amount": 9.99}
     with pytest.raises(ValidationError):
         mutated.model_validate({"kind": "unknown", "id": 3})
+
+
+def test_apply_contract_root_model_preserves_root_after_validator() -> None:
+    """Root-level validator metadata must survive RootModel reconstruction."""
+
+    def validate_click(value: Any) -> Any:
+        if isinstance(value, Click) and value.element_id == "forbidden":
+            raise ValueError("forbidden element")
+        return value
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[
+        Union[Click, Purchase],
+        Field(discriminator="kind"),
+        AfterValidator(validate_click),
+    ]
+
+    class Event(RootModel[U]):
+        pass
+
+    mutated: Any = apply_schema_contract_to_model(Event, "freeze", "freeze")
+    validated = mutated.model_validate({"kind": "click", "element_id": "btn_1"})
+
+    assert isinstance(validated.root, Click)
+    assert validated.root.kind == "click"
+    with pytest.raises(ValidationError, match="forbidden element"):
+        mutated.model_validate({"kind": "click", "element_id": "forbidden"})
 
 
 def test_extra_schema_contract_conflict_warning() -> None:
