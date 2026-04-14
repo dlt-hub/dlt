@@ -47,7 +47,7 @@ class LanceLoadJob(RunnableLoadJob):
         self._job_client.write_records(
             self._get_file_reader(self._file_path),
             table_name,
-            branch_name=self._job_client.config.storage.branch_name,
+            branch_name=self._job_client.config.branch_name,
             write_disposition=write_disposition,
             merge_key=merge_key,
             when_not_matched_by_source_delete_expr=when_not_matched_by_source_delete_expr,

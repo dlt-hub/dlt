@@ -61,14 +61,14 @@ def test_lance_pipeline_branching(
     pipe.run([{"id": 1, "text": "main-record"}], table_name="items")
 
     # second run: write to "staging" branch
-    pipe.destination.config_params["storage"] = {"branch_name": "staging"}
+    pipe.destination.config_params["branch_name"] = "staging"
     pipe.run(
         [{"id": 2, "text": "branch-record-1"}, {"id": 3, "text": "branch-record-2"}],
         table_name="items",
     )
 
     # third run: write to "dev" branch with schema evolution (extra column)
-    pipe.destination.config_params["storage"] = {"branch_name": "dev"}
+    pipe.destination.config_params["branch_name"] = "dev"
     pipe.run(
         [{"id": 4, "text": "dev-record-1", "a_new_column": 1}],
         table_name="items",
@@ -103,7 +103,7 @@ def test_lance_pipeline_branching(
         assert "a_new_column" not in staging_ds.schema.names
 
         # get_table_schema respects configured branch
-        assert client.config.storage.branch_name == "dev"
+        assert client.config.branch_name == "dev"
         assert "a_new_column" in client.get_table_schema("items").names
 
         # 1 load into main, 2 loads into staging (1 main + 1 staging), 3 loads into dev (1 main + 2 dev)
@@ -140,7 +140,7 @@ def test_lance_pipeline_replace_in_branch(
     pipe.run([{"id": 1, "text": "main-record"}], table_name="items")
 
     # second run: write to "dev" branch
-    pipe.destination.config_params["storage"] = {"branch_name": "dev"}
+    pipe.destination.config_params["branch_name"] = "dev"
     pipe.run(
         [{"id": 2, "text": "dev-record-1"}, {"id": 3, "text": "dev-record-2"}],
         table_name="items",
