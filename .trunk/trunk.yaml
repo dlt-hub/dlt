@@ -1,0 +1,23 @@
+version: 0.1
+cli:
+  version: 1.25.0
+plugins:
+  sources:
+    - id: trunk
+      ref: v1.7.6
+      uri: https://github.com/trunk-io/plugins
+lint:
+  enabled: true
+  linters:
+    - name: vale
+      version: 3.14.1
+      paths:
+        - docs
+actions:
+  enabled:
+    - trunk-announce
+    - trunk-cache-prune
+    - trunk-upgrade-available
+    - trunk-pre-push
+  disabled:
+    - trunk-fmt-pre-commit
