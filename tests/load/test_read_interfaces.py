@@ -311,6 +311,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         "dlt.destinations.snowflake",
         "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
         "dlt.destinations.lancedb",  # default is 200
+        "dlt.destinations.lance",
     ]
 
     # full frame
@@ -1349,9 +1350,12 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
             dataset_name = None
             additional_tables += ["dlt_sentinel_table"]
 
-        # all destinations now see tables from all schemas (including aleph's digits)
-        # except lancedb whose ibis backend only iterates the default schema
-        if populated_pipeline.destination.destination_type != "dlt.destinations.lancedb":
+        # filesystem uses duckdb and views to map know tables. for other ibis will list
+        # all available tables so both schemas tables are visible
+        if populated_pipeline.destination.destination_type not in [
+            "dlt.destinations.lancedb",
+        ]:
+            # from aleph schema
             additional_tables += ["digits"]
 
         add_table_prefix = lambda x: table_name_prefix + x
@@ -1378,6 +1382,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                     + additional_tables
                 )
             }
+            print(table_names_in_ibis)
             assert set(table_names_in_ibis) == expected_table_names
 
         table_name = add_table_prefix(map_i("items"))
