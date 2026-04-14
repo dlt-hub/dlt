@@ -510,7 +510,8 @@ dependencies = [
     { name = "pluggy", marker = "python_full_version < '3.13'" },
     { name = "psutil", marker = "python_full_version < '3.13'" },
     { name = "pygments", marker = "python_full_version < '3.13'" },
-    { name = "pyjwt", marker = "python_full_version < '3.13'" },
+    { name = "pyjwt", version = "2.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "python-daemon", marker = "python_full_version < '3.13'" },
     { name = "python-dateutil", marker = "python_full_version < '3.13'" },
     { name = "python-nvd3", marker = "python_full_version < '3.13'" },
@@ -1948,7 +1949,8 @@ dependencies = [
     { name = "oauthlib" },
     { name = "openpyxl" },
     { name = "pandas" },
-    { name = "pyjwt" },
+    { name = "pyjwt", version = "2.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "python-dateutil" },
     { name = "requests" },
     { name = "thrift" },
@@ -2430,7 +2432,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.24.0"
+version = "1.25.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2686,7 +2688,8 @@ dev = [
     { name = "mypy" },
     { name = "pip" },
     { name = "pydoclint" },
-    { name = "pyjwt" },
+    { name = "pyjwt", version = "2.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cases" },
@@ -2779,8 +2782,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.2,<0.25" },
-    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.21.1,<0.25" },
+    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.24.0,<0.26" },
+    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.22.1,<0.26" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3" },
@@ -2976,33 +2979,33 @@ sources = [
 
 [[package]]
 name = "dlt-runtime"
-version = "0.21.2"
+version = "0.24.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "cron-descriptor", marker = "python_full_version >= '3.10'" },
     { name = "httpx", marker = "python_full_version >= '3.10'" },
     { name = "pathspec", marker = "python_full_version >= '3.10'" },
-    { name = "python-jose", marker = "python_full_version >= '3.10'" },
+    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "tabulate", marker = "python_full_version >= '3.10'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/41/7c/17d6566941a2a03edf7f5f7940f5d1a9ee0b664b5c797c1a42afb140d7ae/dlt_runtime-0.21.2.tar.gz", hash = "sha256:fa09a6d5eebd63e62b752530b2b7878090e5c9d837f5850d8335f80a89b42e73", size = 64128, upload-time = "2026-02-23T16:34:16.896Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/58/ff3e41b75e27ae351fce165fe0ff39e3927c46ed980862d18d8134a15f75/dlt_runtime-0.24.1.tar.gz", hash = "sha256:a1e5d6671aa3b43fb097dee81b8d10387d177fbe0e0fcfead64e16d0104a438e", size = 76442, upload-time = "2026-04-08T12:32:42.894Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/2e/20a9c017efef3743eb1db4a3bcdf050e246ccd966acd20e07c2f72a0999b/dlt_runtime-0.21.2-py3-none-any.whl", hash = "sha256:52062ef216e60e62f048e418673cb32c7f4d8b629b4d99afc804e0ec1ca1cafc", size = 167545, upload-time = "2026-02-23T16:34:15.164Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/d9/8546e610127fa1d5fee414a89d3d50481e9241a055b1697f9a01b4053bb6/dlt_runtime-0.24.1-py3-none-any.whl", hash = "sha256:226f7017c4eecdc71aaf90006ad5381de02cfc430edfa5557993908be0e3cfcb", size = 197295, upload-time = "2026-04-08T12:32:41.497Z" },
 ]
 
 [[package]]
 name = "dlthub"
-version = "0.22.0"
+version = "0.22.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "python-jose", marker = "python_full_version >= '3.10'" },
     { name = "ruamel-yaml", marker = "python_full_version >= '3.10'" },
     { name = "sqlglot", version = "28.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d5/af/fe84689f8742a7a3dc3e538faf5bc001a70168a34c6375e17eb15d2ce3e1/dlthub-0.22.0.tar.gz", hash = "sha256:cede29e2d0340b48e6ec3d287b9573340707273509f4f697b23d7f4981d86b9d", size = 169355, upload-time = "2026-02-17T15:15:56.941Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/c2/d8ed5739c387052f18d8635c40890f7579588432f87788dc95e69f454832/dlthub-0.22.1.tar.gz", hash = "sha256:8d27dd632cb5b81e79df8215b61204592019513501f9c5e991675629f7609171", size = 169660, upload-time = "2026-02-23T22:40:36.252Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a2/33/0cb13a6a0ac6d416efe69265131b625ad08754824dbbbac5accc1c5c12f6/dlthub-0.22.0-py3-none-any.whl", hash = "sha256:7b57ce78613607f49c169152f3d544aed90aed6783a0bb82d2dfe0f92b2a4713", size = 225911, upload-time = "2026-02-17T15:15:55.011Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/50/6d98321d3eb2c4f0a77b1ea2261fc49bc5b19f768764c35f11f711c3f573/dlthub-0.22.1-py3-none-any.whl", hash = "sha256:57e4febb3bbfeff733d005a90842d1376cc4e81483ae56760037cc6863379f65", size = 226759, upload-time = "2026-02-23T22:40:33.402Z" },
 ]
 
 [[package]]
@@ -3381,7 +3384,8 @@ dependencies = [
     { name = "marshmallow", marker = "python_full_version < '3.13'" },
     { name = "marshmallow-sqlalchemy", marker = "python_full_version < '3.13'" },
     { name = "prison", marker = "python_full_version < '3.13'" },
-    { name = "pyjwt", marker = "python_full_version < '3.13'" },
+    { name = "pyjwt", version = "2.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "python-dateutil", marker = "python_full_version < '3.13'" },
     { name = "sqlalchemy", marker = "python_full_version < '3.13'" },
     { name = "sqlalchemy-utils", marker = "python_full_version < '3.13'" },
@@ -3427,7 +3431,8 @@ version = "4.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "flask", marker = "python_full_version < '3.13'" },
-    { name = "pyjwt", marker = "python_full_version < '3.13'" },
+    { name = "pyjwt", version = "2.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "werkzeug", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/51/16/96b101f18cba17ecce3225ab07bc4c8f23e6befd8552dbbed87482e7c7fb/flask_jwt_extended-4.7.1.tar.gz", hash = "sha256:8085d6757505b6f3291a2638c84d207e8f0ad0de662d1f46aa2f77e658a0c976", size = 34411, upload-time = "2024-11-20T23:44:41.044Z" }
@@ -5725,7 +5730,7 @@ dependencies = [
     { name = "jsonschema", marker = "python_full_version >= '3.10'" },
     { name = "pydantic", version = "2.12.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "pydantic-settings", marker = "python_full_version >= '3.10'" },
-    { name = "pyjwt", extra = ["crypto"], marker = "python_full_version >= '3.10'" },
+    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, extra = ["crypto"], marker = "python_full_version >= '3.10'" },
     { name = "python-multipart", marker = "python_full_version >= '3.10'" },
     { name = "pywin32", marker = "python_full_version >= '3.10' and sys_platform == 'win32'" },
     { name = "sse-starlette", marker = "python_full_version >= '3.10'" },
@@ -6109,7 +6114,8 @@ version = "1.32.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
-    { name = "pyjwt", extra = ["crypto"] },
+    { name = "pyjwt", version = "2.10.1", source = { registry = "https://pypi.org/simple" }, extra = ["crypto"], marker = "python_full_version < '3.10'" },
+    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, extra = ["crypto"], marker = "python_full_version >= '3.10'" },
     { name = "requests" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/3f/90/81dcc50f0be11a8c4dcbae1a9f761a26e5f905231330a7cacc9f04ec4c61/msal-1.32.3.tar.gz", hash = "sha256:5eea038689c78a5a70ca8ecbe1245458b55a857bd096efb6989c69ba15985d35", size = 151449, upload-time = "2025-04-25T13:12:34.204Z" }
@@ -9082,6 +9088,14 @@ wheels = [
 name = "pyjwt"
 version = "2.10.1"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.10' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version < '3.10' and os_name != 'nt' and sys_platform == 'emscripten'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/e7/46/bd74733ff231675599650d3e47f361794b22ef3e3770998dda30d3b63726/pyjwt-2.10.1.tar.gz", hash = "sha256:3cc5772eb20009233caf06e9d8a0577824723b44e6648ee0a2aedb6cf9381953", size = 87785, upload-time = "2024-11-28T03:43:29.933Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/61/ad/689f02752eeec26aed679477e80e632ef1b682313be70793d798c1d5fc8f/PyJWT-2.10.1-py3-none-any.whl", hash = "sha256:dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb", size = 22997, upload-time = "2024-11-28T03:43:27.893Z" },
@@ -9089,7 +9103,56 @@ wheels = [
 
 [package.optional-dependencies]
 crypto = [
-    { name = "cryptography" },
+    { name = "cryptography", marker = "python_full_version < '3.10'" },
+]
+
+[[package]]
+name = "pyjwt"
+version = "2.12.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.14' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.13.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.12.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.11.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.10.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.12.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.11.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.10.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+]
+dependencies = [
+    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.10.*'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c2/27/a3b6e5bf6ff856d2509292e95c8f57f0df7017cf5394921fc4e4ef40308a/pyjwt-2.12.1.tar.gz", hash = "sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b", size = 102564, upload-time = "2026-03-13T19:27:37.25Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/7a/8dd906bd22e79e47397a61742927f6747fe93242ef86645ee9092e610244/pyjwt-2.12.1-py3-none-any.whl", hash = "sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c", size = 29726, upload-time = "2026-03-13T19:27:35.677Z" },
+]
+
+[package.optional-dependencies]
+crypto = [
+    { name = "cryptography", marker = "python_full_version >= '3.10'" },
 ]
 
 [[package]]
@@ -10592,7 +10655,8 @@ dependencies = [
     { name = "idna" },
     { name = "packaging" },
     { name = "platformdirs" },
-    { name = "pyjwt" },
+    { name = "pyjwt", version = "2.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "pyopenssl" },
     { name = "pytz" },
     { name = "requests" },

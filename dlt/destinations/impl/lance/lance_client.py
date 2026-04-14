@@ -93,7 +93,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.config: LanceClientConfiguration = config
         self.type_mapper = self.capabilities.get_type_mapper()
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
-        self.namespace = self.config.storage.make_directory_namespace()
+        self.namespace = self.config.make_namespace()
         self.embedding_function = (
             self.config.embeddings.create_embedding_function() if self.config.embeddings else None
         )
@@ -180,9 +180,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         return [self.dataset_name, table_name]
 
     def get_table_schema(self, table_name: str) -> pa.Schema:
-        return self.open_lance_dataset(
-            table_name, branch_name=self.config.storage.branch_name
-        ).schema
+        return self.open_lance_dataset(table_name, branch_name=self.config.branch_name).schema
 
     def get_table_uri(self, table_name: str) -> str:
         # we don't pass branch here — `uri` always returns base URI
@@ -200,9 +198,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     def truncate_table(self, table_name: str) -> None:
         """Truncates table by deleting all rows in active branch."""
-        self.open_lance_dataset(table_name, branch_name=self.config.storage.branch_name).delete(
-            "true"
-        )
+        self.open_lance_dataset(table_name, branch_name=self.config.branch_name).delete("true")
 
     def create_branch_if_not_exists(self, table_name: str, branch_name: str) -> None:
         ds = self.open_lance_dataset(table_name)
@@ -442,9 +438,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     def add_null_columns_to_table(self, table_name: str, new_columns: List[TColumnSchema]) -> None:
         new_fields = [dlt_column_to_arrow_field(col, self.capabilities) for col in new_columns]
-        self.open_lance_dataset(
-            table_name, branch_name=self.config.storage.branch_name
-        ).add_columns(new_fields)
+        self.open_lance_dataset(table_name, branch_name=self.config.branch_name).add_columns(
+            new_fields
+        )
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
@@ -455,7 +451,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 self.create_table(table_name, self.make_arrow_table_schema(table_name))
 
             # create branch if needed
-            if branch_name := self.config.storage.branch_name:
+            if branch_name := self.config.branch_name:
                 self.create_branch_if_not_exists(table_name, branch_name)
 
             # add new columns to existing table (on the branch if configured)
@@ -485,10 +481,10 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         # Read the tables into memory as Arrow tables, with pushdown predicates, so we pull as little
         # data into memory as possible.
         state_ds = self.open_lance_dataset(
-            self.schema.state_table_name, branch_name=self.config.storage.branch_name
+            self.schema.state_table_name, branch_name=self.config.branch_name
         )
         loads_ds = self.open_lance_dataset(
-            self.schema.loads_table_name, branch_name=self.config.storage.branch_name
+            self.schema.loads_table_name, branch_name=self.config.branch_name
         )
         state_table = state_ds.scanner(
             filter=f"`{p_pipeline_name}` = '{pipeline_name}'", prefilter=True
@@ -508,7 +504,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     def _get_latest_schema(self, filter_: Optional[str] = None) -> Optional[StorageSchemaInfo]:
         ds = self.open_lance_dataset(
-            self.schema.version_table_name, branch_name=self.config.storage.branch_name
+            self.schema.version_table_name, branch_name=self.config.branch_name
         )
         table = ds.scanner(filter=filter_, prefilter=True).to_table() if filter_ else ds.to_table()
         rows = table.to_pylist()
@@ -547,7 +543,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.write_records(
             records,
             self.schema.version_table_name,
-            branch_name=self.config.storage.branch_name,
+            branch_name=self.config.branch_name,
             write_disposition=write_disposition,
         )
 
@@ -566,7 +562,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.write_records(
             records,
             self.schema.loads_table_name,
-            branch_name=self.config.storage.branch_name,
+            branch_name=self.config.branch_name,
             write_disposition=write_disposition,
         )
 
