@@ -361,6 +361,7 @@ class Relation(WithSqlClient):
     def join(
         self,
         other: str | Self,
+        *,
         kind: TJoinType = "inner",
         alias: Optional[str] = None,
     ) -> Self:
