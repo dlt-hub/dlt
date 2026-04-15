@@ -470,18 +470,16 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(item_transform, insert_at)
         return self
 
-    def _remove_incremental_step(self) -> None:
-        self._pipe.remove_by_type(Incremental, IncrementalResourceWrapper)
+    def _remove_incremental_step(self) -> Optional[int]:
+        """Removes incremental step from pipe, returns its previous index (None if not found)"""
+        idx = self._pipe.remove_by_type(Incremental, IncrementalResourceWrapper)
+        return idx if idx >= 0 else None
 
     def set_incremental(
-        self, new_incremental: Union[Incremental[Any], IncrementalResourceWrapper]
+        self,
+        new_incremental: Union[Incremental[Any], IncrementalResourceWrapper],
     ) -> Optional[Union[Incremental[Any], IncrementalResourceWrapper]]:
-        """Set/replace the incremental transform for the resource.
-
-        Args:
-            new_incremental: The Incremental instance/hint to set or replace
-            from_hints: If the incremental is set from hints. Defaults to False.
-        """
+        """Set/replace the incremental transform for the resource, preserving step position."""
         if new_incremental is Incremental.EMPTY:
             new_incremental = None
         if new_incremental:
@@ -489,26 +487,23 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if resource_primary_key := self._hints.get("primary_key"):
                 new_incremental.set_deduplication_key(resource_primary_key, from_hints=True)
         incremental = self.incremental
+        existing_idx: Optional[int] = None
         if incremental is not None:
-            # if isinstance(new_incremental, Mapping):
-            #     new_incremental = Incremental.ensure_instance(new_incremental)
-
             if isinstance(new_incremental, IncrementalResourceWrapper):
-                # Completely replace the wrapper
-                self._remove_incremental_step()
-                self.add_step(new_incremental)
+                # completely replace the wrapper at the same position
+                existing_idx = self._remove_incremental_step()
+                self.add_step(new_incremental, insert_at=existing_idx)
             elif isinstance(incremental, IncrementalResourceWrapper):
                 incremental.set_incremental(new_incremental, from_hints=True)
             else:
-                self._remove_incremental_step()
-                # re-add the step
+                existing_idx = self._remove_incremental_step()
                 incremental = None
         if incremental is None:
             # if there's no wrapper add incremental as a transform
             if new_incremental:
                 if not isinstance(new_incremental, IncrementalResourceWrapper):
                     new_incremental = Incremental.ensure_instance(new_incremental)
-                self.add_step(new_incremental)
+                self.add_step(new_incremental, insert_at=existing_idx)
         return new_incremental
 
     def _set_hints(
@@ -688,20 +683,21 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def _eject_config(self) -> bool:
         """Unwraps the pipe generator step from config injection and incremental wrappers by restoring the original step.
 
-        Removes the step with incremental wrapper. Should be used before a subsequent _inject_config is called on the
-        same pipe to successfully wrap it with new incremental and config injection.
+        Should be used before a subsequent _inject_config is called on the same pipe to successfully
+        wrap it with new incremental and config injection.
         Note that resources with bound arguments cannot be ejected.
-
         """
         if not self._pipe.is_empty and not self._args_bound:
             orig_gen = getattr(self._pipe.gen, "__GEN__", None)
             if orig_gen:
-                self._remove_incremental_step()
                 self._pipe.replace_gen(orig_gen)
                 return True
         return False
 
-    def _inject_config(self, incremental_from_hints_override: Optional[bool] = None) -> Self:
+    def _inject_config(
+        self,
+        incremental_from_hints_override: Optional[bool] = None,
+    ) -> Self:
         """Wraps the pipe generation step in incremental and config injection wrappers and adds pipe step with
         Incremental transform.
         """
@@ -793,7 +789,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         # this makes sure that a take config values from a right section and wrapper has a separated
         # instance in the pipeline
         if cloned_r._eject_config():
-            cloned_r._inject_config(incremental_from_hints_override=incremental_from_hints)
+            cloned_r._inject_config(
+                incremental_from_hints_override=incremental_from_hints,
+            )
         return cloned_r
 
     def _update_wrapper(self) -> None:
