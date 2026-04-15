@@ -874,8 +874,9 @@ class FilesystemClient(
     def get_table_dir(
         self, table_name: str, remote: bool = False, schema_name: Optional[str] = None
     ) -> str:
-        """Returns a directory containing table files, ending with separator.
-        Note that many tables can share the same table dir
+        """Returns a directory containing table files.
+
+        Note that many tables can share the same table dir.
         """
         # dlt tables do not respect layout (for now)
         table_prefix = self.get_table_prefix(table_name, schema_name=schema_name)
