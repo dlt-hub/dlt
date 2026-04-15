@@ -588,7 +588,7 @@ class FilesystemClient(
         """A path within a bucket to tables in a dataset
         NOTE: dataset_name changes if with_staging_dataset is active
         """
-        return self.pathlib.join(self.bucket_path, self.dataset_name, "")  # type: ignore[no-any-return]
+        return self.pathlib.join(self.bucket_path, self.dataset_name)  # type: ignore[no-any-return]
 
     @contextmanager
     def with_staging_dataset(self) -> Iterator["FilesystemClient"]:

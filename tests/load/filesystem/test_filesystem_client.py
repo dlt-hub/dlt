@@ -555,3 +555,19 @@ def test_hf_endpoint_env(default_buckets_env: str) -> None:
 
     with patch("huggingface_hub.metadata_update", side_effect=assert_hf_endpoint_set):
         client.update_dataset_card_metadata(load_id="test")
+
+
+def test_dataset_path_has_no_trailing_separator() -> None:
+    """`dataset_path` must not end with `/`.
+
+    OneLake (Microsoft Fabric) responds with `403 ClientAuthenticationError`
+    when `BlobClient.exists` targets a blob name ending in `/`, instead of
+    the `404 ResourceNotFoundError` that other Azure backends return. That
+    makes `FilesystemClient.initialize_storage` blow up on its first
+    `fs.isdir(self.dataset_path)` call before any data is written. Non-OneLake
+    backends observe the same latent defect as a silent `False`.
+    """
+    client = _client_factory(filesystem(bucket_url="file:///tmp/dlt-test-bucket"))
+    assert not client.dataset_path.endswith("/"), (
+        f"dataset_path must not end with '/', got {client.dataset_path!r}"
+    )
