@@ -10,7 +10,7 @@ You can run dlt within Snowflake AI Data Cloud in a few different ways.
 ## Ways to run dlt
 
 1. **Snowflake Native App**  
-   Install the **Database Connector App** from the Snowflake Marketplace and run pipelines through the built-in UI.  
+   Install the **dlt Connector App** from the Snowflake Marketplace and run pipelines through the built-in UI.  
 
 2. **Snowflake Notebook**  
    Run a dlt pipeline directly inside a Snowflake Notebook for interactive development and testing.  

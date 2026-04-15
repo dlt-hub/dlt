@@ -748,6 +748,28 @@ def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingCo
     return name_mapping
 
 
+def dlt_column_to_arrow_field(
+    column: TColumnSchema,
+    caps: DestinationCapabilitiesContext,
+    timestamp_timezone: str = "UTC",
+) -> pyarrow.Field:
+    """Convert a single dlt column schema to a PyArrow field.
+
+    Args:
+        column (TColumnSchema): dlt column schema with at least `name` and `data_type`.
+        caps (DestinationCapabilitiesContext): Destination capabilities for type mapping.
+        timestamp_timezone (str): Timezone for timestamp columns.
+
+    Returns:
+        pyarrow.Field: Corresponding PyArrow field.
+    """
+    return pyarrow.field(
+        column["name"],
+        get_py_arrow_datatype(column, caps, timestamp_timezone),
+        nullable=column.get("nullable", True),
+    )
+
+
 def columns_to_arrow(
     columns: TTableSchemaColumns,
     caps: DestinationCapabilitiesContext,
@@ -765,17 +787,9 @@ def columns_to_arrow(
     caps = caps or DestinationCapabilitiesContext.generic_capabilities()
     return pyarrow.schema(
         [
-            pyarrow.field(
-                name,
-                get_py_arrow_datatype(
-                    schema_item,
-                    caps,
-                    timestamp_timezone,
-                ),
-                nullable=schema_item.get("nullable", True),
-            )
-            for name, schema_item in columns.items()
-            if schema_item.get("data_type") is not None
+            dlt_column_to_arrow_field(column, caps, timestamp_timezone)
+            for column in columns.values()
+            if column.get("data_type") is not None
         ]
     )
 

@@ -1884,11 +1884,17 @@ class Pipeline(SupportsPipeline):
             "working_dir": self.working_dir,
         }
 
-    def dataset(self, schema: Union[Schema, str, None] = None) -> dlt.Dataset:
+    # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
+    #  of overload and dataset_type
+
+    def dataset(self, schema: Union[Schema, str, Sequence[Schema], None] = None) -> dlt.Dataset:
         """Returns a dataset object for querying the destination data.
 
         Args:
-            schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
+            schema (Union[Schema, str, Sequence[Schema], None]): Schema object(s) or name to use.
+                If None, uses the default schema. When ``use_single_dataset`` is True and the
+                pipeline has multiple schemas, all schemas are included automatically.
+
         Returns:
             dlt.Dataset: A dataset object that supports querying the destination data.
         """
@@ -1919,10 +1925,18 @@ class Pipeline(SupportsPipeline):
                 )
             else:
                 schema = self.schemas[schema]
-
+        elif isinstance(schema, Sequence) and not isinstance(schema, str):
+            schema_name = schema[0].name if schema else None
         elif self.default_schema_name:
-            schema = self.default_schema
             schema_name = self.default_schema_name
+            if self.config.use_single_dataset and len(self.schema_names) > 1:
+                # collect all schemas, default first
+                all_names = [self.default_schema_name] + [
+                    n for n in self.schema_names if n != self.default_schema_name
+                ]
+                schema = [self.schemas[n] for n in all_names]
+            else:
+                schema = self.default_schema
 
         try:
             dataset = dlt.dataset(
@@ -1930,7 +1944,6 @@ class Pipeline(SupportsPipeline):
                 self.dataset_name,
                 schema=schema,
             )
-            # allow dataset to lazily resolve schema from pipeline state
             dataset._pipeline_name = self.pipeline_name
             success = True
             return dataset
