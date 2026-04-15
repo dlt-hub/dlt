@@ -1,16 +1,18 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from time import sleep, time
+from time import sleep, monotonic
 from unittest import mock
 import pytest
 from unittest.mock import patch
 from typing import List, Tuple
 
+from dlt.common import pendulum
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
 from dlt.common.storages.configuration import FilesystemConfiguration
-from dlt.common.storages.load_package import TPackageJobState
+from dlt.common.storages.load_package import LoadPackageStateInjectableContext, TPackageJobState
+from dlt.common.configuration.container import Container
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination import AnyDestination
 from dlt.common.destination.client import RunnableLoadJob
@@ -85,7 +87,12 @@ def test_spool_job_started() -> None:
         )
         assert_job_metrics(job, "completed")
         jobs.append(job)
-    remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
     assert len(finalized_jobs) == 2
     assert len(load._job_metrics) == 2
@@ -127,10 +134,10 @@ def test_big_load_packages() -> None:
     # make the loop faster by basically not sleeping
     load._run_loop_sleep_duration = 0.001
     load_id, schema = prepare_load_package(load.load_storage, SMALL_FILES, jobs_per_case=500)
-    start_time = time()
+    start_time = monotonic()
     with ThreadPoolExecutor(max_workers=20) as pool:
         load.run(pool)
-    duration = float(time() - start_time)
+    duration = float(monotonic() - start_time)
 
     # sanity check
     assert duration > 2
@@ -210,7 +217,12 @@ def test_spool_job_failed_and_package_completed() -> None:
         jobs.append(job)
     assert len(jobs) == 2
     # complete files
-    remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
     assert len(finalized_jobs) == 2
     for job in jobs:
@@ -431,12 +443,242 @@ def test_try_retrieve_job() -> None:
     for j in jobs:
         while j.state() not in ("completed", "failed", "retry"):
             sleep(0.01)
-    # now jobs are known
+    # now jobs are known and have pending transitions from completion
     jobs = load.resume_started_jobs(load_id, schema)
     assert len(jobs) == 2
     for j in jobs:
         assert j.state() == "completed"
+    # _create_job(restore=True) goes through DummyClient.create_load_job which
+    # registers existing jobs as retried
     assert len(dummy_impl.RETRIED_JOBS) == 2
+
+
+def test_resume_with_pending_completed_transition() -> None:
+    """Jobs with a pending completed transition are restored as surrogates
+    and processed by complete_jobs without re-execution."""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        # move jobs to started and write pending completed transitions
+        # (simulates: worker committed data + wrote marker, then process crashed
+        #  before main thread could call complete_jobs)
+        files = packages.list_new_jobs(load_id)
+        assert len(files) == 2
+        for f in files:
+            fn = FileStorage.get_file_name_from_file_path(f)
+            packages.start_job(load_id, fn)
+            packages.save_pending_transition(load_id, fn, "completed")
+
+        assert len(packages.list_started_jobs(load_id)) == 2
+        assert len(packages.list_pending_transitions(load_id)) == 2
+
+        # resume: should find pending transitions and create surrogates
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        assert len(resumed_jobs) == 2
+        for j in resumed_jobs:
+            assert j.state() == "completed"
+
+        # process surrogates through complete_jobs
+        remaining, finalized, exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(remaining) == 0
+        assert len(finalized) == 2
+        assert exc is None
+
+        # files moved to completed_jobs, pending transitions consumed
+        all_jobs = packages.get_load_package_jobs(load_id)
+        assert len(all_jobs["completed_jobs"]) == 2
+        assert len(all_jobs["started_jobs"]) == 0
+        assert len(packages.list_pending_transitions(load_id)) == 0
+
+
+def test_resume_with_pending_failed_transition() -> None:
+    """One job completed, one failed. Tests both raise_on_failed_jobs modes
+    to verify pending transitions produce correct exception chain."""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        # move jobs to started: first completes, second fails
+        files = packages.list_new_jobs(load_id)
+        assert len(files) == 2
+        file_names = [FileStorage.get_file_name_from_file_path(f) for f in files]
+        for fn in file_names:
+            packages.start_job(load_id, fn)
+        packages.save_pending_transition(load_id, file_names[0], "completed")
+        packages.save_pending_transition(load_id, file_names[1], "failed", "a random fail occurred")
+
+        # resume: one completed surrogate, one failed surrogate
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        assert len(resumed_jobs) == 2
+        states = {j.state() for j in resumed_jobs}
+        assert states == {"completed", "failed"}
+
+        # --- mode 1: raise_on_failed_jobs=True (default) ---
+        # complete_jobs returns a pending_exception with correct exception chain
+        remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(remaining) == 0
+        assert len(finalized) == 2
+        assert pending_exc is not None
+        assert isinstance(pending_exc, LoadClientJobFailed)
+        # the chained client_exception must be a DestinationTerminalException
+        assert isinstance(pending_exc.client_exception, DestinationTerminalException)
+        assert "a random fail occurred" in pending_exc.failed_message
+
+        # files moved correctly
+        all_jobs = packages.get_load_package_jobs(load_id)
+        assert len(all_jobs["completed_jobs"]) == 1
+        assert len(all_jobs["failed_jobs"]) == 1
+        assert len(all_jobs["started_jobs"]) == 0
+        assert len(packages.list_pending_transitions(load_id)) == 0
+
+    # --- mode 2: raise_on_failed_jobs=False (silent completion) ---
+    loader_config = LoaderConfiguration(
+        raise_on_failed_jobs=False,
+        workers=1,
+        pool_type="none",
+    )
+    load = setup_loader(
+        client_config=DummyClientConfiguration(completed_prob=1.0),
+        loader_config=loader_config,
+    )
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        files = packages.list_new_jobs(load_id)
+        file_names = [FileStorage.get_file_name_from_file_path(f) for f in files]
+        for fn in file_names:
+            packages.start_job(load_id, fn)
+        packages.save_pending_transition(load_id, file_names[0], "completed")
+        packages.save_pending_transition(load_id, file_names[1], "failed", "a random fail occurred")
+
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(finalized) == 2
+        # no exception scheduled when raise_on_failed_jobs is False
+        assert pending_exc is None
+
+
+def test_resume_without_pending_transition() -> None:
+    """Without pending transitions, jobs are re-submitted normally (existing behavior)."""
+    load = setup_loader()
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+
+    # manually move jobs to started
+    files = load.load_storage.normalized_packages.list_new_jobs(load_id)
+    for f in files:
+        load.load_storage.normalized_packages.start_job(
+            load_id, FileStorage.get_file_name_from_file_path(f)
+        )
+
+    # no pending transitions exist — jobs should be re-submitted via submit_job(restore=True)
+    jobs = load.resume_started_jobs(load_id, schema)
+    assert len(jobs) == 2
+    # dummy client returns failed for unknown jobs (not in JOBS dict)
+    for j in jobs:
+        assert j.state() == "failed"
+
+
+def test_pending_transition_with_followup_jobs() -> None:
+    """Restored jobs produce their followup jobs via create_followup_jobs.
+
+    The DummyClient requires jobs to exist in its in-memory JOBS dict for
+    create_load_job(restore=True) to succeed, so we first run jobs through the
+    pool (which populates JOBS), then simulate a crash by writing pending
+    transitions and calling resume directly.
+    """
+    load = setup_loader(
+        client_config=DummyClientConfiguration(completed_prob=1.0, create_followup_jobs=True)
+    )
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        # submit jobs so DummyClient registers them in JOBS
+        load.pool = ThreadPoolExecutor()
+        new_jobs = load.start_new_jobs(load_id, schema, [])
+        for j in new_jobs:
+            while j.state() not in ("completed", "failed", "retry"):
+                sleep(0.01)
+
+        # write pending transitions (simulating crash after worker committed)
+        for j in new_jobs:
+            packages.save_pending_transition(load_id, j.file_name(), "completed")
+
+        # reset followup tracking
+        dummy_impl.CREATED_FOLLOWUP_JOBS = {}
+
+        # resume surrogates — _create_job_for_pending_transition calls
+        # DummyClient.create_load_job(restore=True) which returns the real
+        # LoadDummyJob from JOBS with its create_followup_jobs implementation
+        resumed_jobs = load.resume_started_jobs(load_id, schema)
+        assert len(resumed_jobs) == 2
+
+        # process through complete_jobs — should trigger create_followup_jobs
+        remaining, finalized, exc = load.complete_jobs(load_id, resumed_jobs, schema)
+        assert len(finalized) == 2
+
+        # followup jobs created by the real LoadDummyJob instances
+        assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 2
+
+
+def test_pending_transition_without_started_job() -> None:
+    """An orphaned pending transition (no matching started job) is tolerated."""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    # move only one job to started, but write a pending transition for a
+    # file name that was never started
+    files = packages.list_new_jobs(load_id)
+    fn = FileStorage.get_file_name_from_file_path(files[0])
+    packages.start_job(load_id, fn)
+    packages.save_pending_transition(load_id, fn, "completed")
+    # orphan: pending transition for a job that is NOT in started_jobs
+    packages.save_pending_transition(load_id, "ghost_table.abc123.0.jsonl", "completed")
+
+    # orphan is logged as error but does not prevent resume
+    jobs = load.resume_started_jobs(load_id, schema)
+    # the valid started job is still resumed as a surrogate
+    assert len(jobs) == 1
+    assert jobs[0].state() == "completed"
+
+
+def test_pending_transition_corrupt_format() -> None:
+    """A corrupt pending transition file raises on load."""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    files = packages.list_new_jobs(load_id)
+    fn = FileStorage.get_file_name_from_file_path(files[0])
+    packages.start_job(load_id, fn)
+
+    # write garbage directly to the pending transitions file
+    rel_path = packages._pending_transition_path(load_id, fn)
+    packages.storage.save(rel_path, "not valid json {{{")
+
+    with pytest.raises(Exception):
+        load.resume_started_jobs(load_id, schema)
 
 
 def test_completed_loop() -> None:
@@ -478,7 +720,9 @@ def test_failing_followup_jobs() -> None:
     # no metrics were collected
     assert len(load._job_metrics) == 0
 
-    # now we can retry the same load, it will restart the two jobs and successfully create the followup jobs
+    # now we can retry the same load, it will restart the two jobs and successfully
+    # create the followup jobs. pending transitions cause fresh job creation via the
+    # client which picks up the updated config
     load.initial_client_config.fail_followup_job_creation = False  # type: ignore
     assert_complete_job(load, load_id=load_id)
     assert len(dummy_impl.JOBS) == 2 * 2
@@ -509,7 +753,8 @@ def test_failing_table_chain_followup_jobs() -> None:
     # no metrics were collected
     assert len(load._job_metrics) == 0
 
-    # now we can retry the same load, it will restart the two jobs and successfully create the table chain followup jobs
+    # now we can retry the same load, pending transitions cause fresh job creation
+    # via the client which picks up the updated config
     load.initial_client_config.fail_table_chain_followup_job_creation = False  # type: ignore
     assert_complete_job(load, load_id=load_id)
     assert len(dummy_impl.JOBS) == 2 * 2
@@ -855,6 +1100,34 @@ def test_get_completed_table_chain_cases() -> None:
     assert chain == user_chain
 
 
+def test_extend_tables_with_table_chain_selective_filter() -> None:
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    bot_chain = {t["name"] for t in get_nested_tables(schema.tables, "event_bot")}
+    all_data = set(schema.data_table_names())
+    bot_only = lambda table_name: table_name in bot_chain
+
+    # append + selective filter: only tables with jobs AND passing filter
+    tables = set(
+        _extend_tables_with_table_chain(
+            schema, ["event_user", "event_bot"], ["event_user", "event_bot"], bot_only
+        )
+    )
+    assert tables == {"event_bot"}
+
+    # merge on bot chain: jobless nested tables now included
+    for bot in get_nested_tables(schema.tables, "event_bot"):
+        bot["write_disposition"] = "merge"
+    tables = set(_extend_tables_with_table_chain(schema, ["event_bot"], ["event_bot"], bot_only))
+    assert tables == bot_chain
+
+    # all data tables as both params (mirrors staging_data_tables computation in init_client)
+    tables = set(_extend_tables_with_table_chain(schema, all_data, all_data, bot_only))
+    assert tables == bot_chain
+
+
 def test_init_client_truncate_tables() -> None:
     load = setup_loader()
     _, schema = prepare_load_package(
@@ -1001,6 +1274,273 @@ def test_init_client_truncate_tables() -> None:
                 # print(update_stored_schema.call_args_list)
 
 
+def test_init_client_staging_ddl_includes_jobless_tables() -> None:
+    """Issue #2862: staging DDL includes ALL staging-eligible data tables, not just those with jobs."""
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    nothing_ = lambda _: False
+    all_ = lambda _: True
+    event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
+    all_data = set(schema.data_table_names())
+
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage,
+        patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_stored_schema,
+        patch.object(dummy_impl.DummyClient, "drop_tables"),
+    ):
+        with load.get_destination_client(schema) as client:
+            init_client(client, schema, [event_user], {}, nothing_, all_, all_)
+
+        # main + staging
+        assert update_stored_schema.call_count == 2
+        # main dataset: tables with jobs that have seen-data + dlt tables (always included)
+        assert update_stored_schema.call_args_list[0].kwargs["only_tables"] == {
+            "event_user",
+            "_dlt_loads",
+            "_dlt_version",
+        }
+        # staging DDL: all data tables with seen-data + _dlt_version (not just event_user)
+        # this guards agains situation where staging dataset got ie. dropped by the user
+        staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
+        assert staging_ddl == all_data | {"_dlt_version"}
+        # staging truncation: only the table with a job
+        staging_truncate = initialize_storage.call_args_list[3].kwargs["truncate_tables"]
+        assert staging_truncate == {"event_user"}
+
+
+def test_init_client_staging_selective_filter() -> None:
+    """Athena-like iceberg filter: only certain tables are staging-eligible.
+
+    NOTE: the test uses append disposition with a staging filter that accepts bot chain tables.
+    In production, append tables only reach staging when a destination explicitly opts them in
+    (e.g. Athena returns True for iceberg tables regardless of disposition). The synthetic filter
+    here tests the filter mechanics in init_client, not a real destination scenario.
+    """
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    nothing_ = lambda _: False
+    event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
+    event_bot = ParsedLoadJobFileName("event_bot", "event_bot_id", 0, "jsonl")
+    bot_chain = {t["name"] for t in get_nested_tables(schema.tables, "event_bot")}
+    selective_filter = lambda table_name: table_name in bot_chain
+
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage,
+        patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_stored_schema,
+        patch.object(dummy_impl.DummyClient, "drop_tables"),
+    ):
+        with load.get_destination_client(schema) as client:
+            init_client(
+                client, schema, [event_user, event_bot], {}, nothing_, selective_filter, nothing_
+            )
+
+        assert update_stored_schema.call_count == 2
+        # staging DDL: full bot chain (from staging_data_tables) + _dlt_version
+        staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
+        assert staging_ddl == bot_chain | {"_dlt_version"}
+        assert "event_user" not in staging_ddl
+        # staging truncation: only event_bot (has job + passes filter, append skips children)
+        staging_truncate = initialize_storage.call_args_list[3].kwargs["truncate_tables"]
+        assert staging_truncate == {"event_bot"}
+
+
+def test_init_client_staging_dlt_tables_with_jobs() -> None:
+    """Athena regression fix: dlt tables with seen-data and jobs appear in staging DDL."""
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    nothing_ = lambda _: False
+    all_ = lambda _: True
+    event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
+    dlt_loads_job = ParsedLoadJobFileName("_dlt_loads", "dlt_loads_id", 0, "jsonl")
+    all_data = set(schema.data_table_names())
+
+    # simulate a dlt table that has seen data (like _dlt_pipeline_state on Athena with force_iceberg)
+    schema.tables["_dlt_loads"].setdefault("x-normalizer", {})["seen-data"] = True
+
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage,
+        patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_stored_schema,
+        patch.object(dummy_impl.DummyClient, "drop_tables"),
+    ):
+        with load.get_destination_client(schema) as client:
+            init_client(client, schema, [event_user, dlt_loads_job], {}, nothing_, all_, all_)
+
+        assert update_stored_schema.call_count == 2
+        # staging DDL: all data tables + _dlt_version + _dlt_loads (dlt table enters via
+        # staging_tables_with_jobs, not staging_data_tables which excludes dlt tables)
+        staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
+        assert staging_ddl == all_data | {"_dlt_version", "_dlt_loads"}
+        # staging truncation includes both tables with jobs
+        staging_truncate = initialize_storage.call_args_list[3].kwargs["truncate_tables"]
+        assert staging_truncate == {"event_user", "_dlt_loads"}
+
+
+def test_init_client_unseen_data_tables_excluded() -> None:
+    """Tables without seen-data are excluded from both final and staging datasets."""
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    nothing_ = lambda _: False
+    all_ = lambda _: True
+    event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
+    event_bot = ParsedLoadJobFileName("event_bot", "event_bot_id", 0, "jsonl")
+    bot_chain = {t["name"] for t in get_nested_tables(schema.tables, "event_bot")}
+    all_data = set(schema.data_table_names())
+
+    # remove seen-data from bot chain
+    for name in bot_chain:
+        schema.tables[name].pop("x-normalizer", None)
+
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage,
+        patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_stored_schema,
+        patch.object(dummy_impl.DummyClient, "drop_tables"),
+    ):
+        with load.get_destination_client(schema) as client:
+            init_client(client, schema, [event_user, event_bot], {}, nothing_, all_, all_)
+
+        assert update_stored_schema.call_count == 2
+        # final DDL: event_user + dlt tables, bot excluded (in tables_no_data)
+        final_ddl = update_stored_schema.call_args_list[0].kwargs["only_tables"]
+        assert "event_user" in final_ddl
+        assert not (bot_chain & final_ddl)
+        # staging DDL: all data tables EXCEPT bot chain + _dlt_version
+        staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
+        assert staging_ddl == (all_data - bot_chain) | {"_dlt_version"}
+        assert not (bot_chain & staging_ddl)
+        # staging truncation: only event_user
+        staging_truncate = initialize_storage.call_args_list[3].kwargs["truncate_tables"]
+        assert staging_truncate == {"event_user"}
+
+
+def test_init_client_staging_destination_vs_final_destination() -> None:
+    """Different staging filters for final vs staging destination produce different DDL sets."""
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage,
+        ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"],
+        write_disposition="merge",
+    )
+    nothing_ = lambda _: False
+    event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
+    event_bot = ParsedLoadJobFileName("event_bot", "event_bot_id", 0, "jsonl")
+    bot_chain = {t["name"] for t in get_nested_tables(schema.tables, "event_bot")}
+    user_chain = {t["name"] for t in get_nested_tables(schema.tables, "event_user")}
+    jobs = [event_user, event_bot]
+
+    # final destination filter: only bot chain needs staging dataset (simulates iceberg tables)
+    final_dest_filter = lambda table_name: table_name in bot_chain
+    # staging destination filter: only user chain needs staging dataset
+    staging_dest_filter = lambda table_name: table_name in user_chain
+
+    # call 1: final destination with final_dest_filter
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage") as init_storage_1,
+        patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_schema_1,
+        patch.object(dummy_impl.DummyClient, "drop_tables"),
+    ):
+        with load.get_destination_client(schema) as client:
+            init_client(client, schema, jobs, {}, nothing_, final_dest_filter, nothing_)
+
+        assert update_schema_1.call_count == 2
+        staging_ddl_1 = update_schema_1.call_args_list[1].kwargs["only_tables"]
+        assert staging_ddl_1 == bot_chain | {"_dlt_version"}
+        assert not (user_chain & staging_ddl_1)
+        staging_trunc_1 = init_storage_1.call_args_list[3].kwargs["truncate_tables"]
+        assert staging_trunc_1 == bot_chain  # merge expands full chain
+
+    # call 2: staging destination with staging_dest_filter
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage") as init_storage_2,
+        patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_schema_2,
+        patch.object(dummy_impl.DummyClient, "drop_tables"),
+    ):
+        with load.get_destination_client(schema) as client:
+            init_client(client, schema, jobs, {}, nothing_, staging_dest_filter, nothing_)
+
+        assert update_schema_2.call_count == 2
+        staging_ddl_2 = update_schema_2.call_args_list[1].kwargs["only_tables"]
+        assert staging_ddl_2 == user_chain | {"_dlt_version"}
+        assert not (bot_chain & staging_ddl_2)
+        staging_trunc_2 = init_storage_2.call_args_list[3].kwargs["truncate_tables"]
+        assert staging_trunc_2 == user_chain  # merge expands full chain
+
+
+def test_init_client_staging_drop_tables_without_staging_eligible() -> None:
+    """Drop tables triggers staging dataset init even when no tables are staging-eligible."""
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    nothing_ = lambda _: False
+    all_ = lambda _: True
+    # no jobs at all — staging would normally be skipped
+    # but we have tables to drop (simulating dlt.pipeline.drop() request)
+    dropped_table = schema.get_table("event_bot")
+
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage,
+        patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_stored_schema,
+        patch.object(dummy_impl.DummyClient, "drop_tables") as drop_tables,
+        patch.object(dummy_impl.DummyClient, "is_storage_initialized", return_value=True),
+    ):
+        with load.get_destination_client(schema) as client:
+            # nothing_ staging filter: no tables are staging-eligible
+            # but drop_tables has a table and drop_staging_filter=all_ lets it through
+            init_client(
+                client,
+                schema,
+                [],
+                {},
+                nothing_,
+                nothing_,
+                all_,
+                drop_tables=[dropped_table],
+            )
+
+        # staging dataset init is entered because of drop_table_names
+        assert update_stored_schema.call_count == 2
+        # staging DDL: only _dlt_version (no staging-eligible data tables)
+        staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
+        assert staging_ddl == {"_dlt_version"}
+        # staging truncation: empty (no tables with jobs)
+        staging_truncate = initialize_storage.call_args_list[3].kwargs["truncate_tables"]
+        assert staging_truncate == set()
+        # drop_tables called on both main and staging datasets
+        assert drop_tables.call_count == 2
+        assert drop_tables.call_args_list[0].args == ("event_bot",)
+        assert drop_tables.call_args_list[1].args == ("event_bot",)
+
+        initialize_storage.reset_mock()
+        update_stored_schema.reset_mock()
+        drop_tables.reset_mock()
+
+        # selective drop_staging_filter: block the drop on staging
+        with load.get_destination_client(schema) as client:
+            init_client(
+                client,
+                schema,
+                [],
+                {},
+                nothing_,
+                nothing_,
+                nothing_,
+                drop_tables=[dropped_table],
+            )
+
+        # staging NOT entered: no staging-eligible tables AND drop_table_names is empty
+        # (nothing_ filter rejected the dropped table)
+        assert update_stored_schema.call_count == 1
+        drop_tables.assert_not_called()  # is_storage_initialized check still gated it on main
+
+
 def test_dummy_staging_filesystem() -> None:
     load = setup_loader(
         client_config=DummyClientConfiguration(completed_prob=1.0), filesystem_staging=True
@@ -1036,6 +1576,95 @@ def test_load_multiple_packages() -> None:
     # execute empty run
     load.run(None)
     assert len(load_info.metrics) == 2
+
+
+def test_followup_job_ids_in_metrics() -> None:
+    load = setup_loader(
+        client_config=DummyClientConfiguration(completed_prob=1.0, create_followup_jobs=True)
+    )
+    load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    with ThreadPoolExecutor() as pool:
+        load.run(pool)
+
+    # original jobs should have followup_jobs set (reference job IDs)
+    # followup (reference) jobs should have followup_jobs as None
+    for job_id, m in load._job_metrics.items():
+        if job_id in dummy_impl.CREATED_FOLLOWUP_JOBS:
+            # this is a followup job
+            assert m.followup_jobs is None
+        else:
+            # this is an original job - should reference its followup
+            assert m.followup_jobs is not None
+            assert len(m.followup_jobs) == 1
+            assert m.followup_jobs[0] in dummy_impl.CREATED_FOLLOWUP_JOBS
+
+
+def test_table_chain_followup_ids_in_metrics() -> None:
+    load = setup_loader(
+        client_config=DummyClientConfiguration(
+            completed_prob=1.0, create_followup_table_chain_reference_jobs=True
+        ),
+    )
+    load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES, jobs_per_case=10)
+    with ThreadPoolExecutor() as pool:
+        load.run(pool)
+
+    # 2 chain followup jobs (one per root table)
+    chain_followup_ids = set(dummy_impl.CREATED_TABLE_CHAIN_FOLLOWUP_JOBS.keys())
+    assert len(chain_followup_ids) == 2
+
+    # all original jobs are predecessors of the chain followup (fan-in)
+    for job_id, m in load._job_metrics.items():
+        if job_id in chain_followup_ids:
+            # chain followup jobs are terminal
+            assert m.followup_jobs is None
+        else:
+            # every original job should reference its chain followup
+            assert m.followup_jobs is not None
+            assert len(m.followup_jobs) == 1
+            assert m.followup_jobs[0] in chain_followup_ids
+
+
+def test_job_metrics_persisted_and_restored() -> None:
+    from dlt.common.metrics import LoadJobMetrics
+
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+
+    # write a fake metric into the load package state before running
+    fake_metric = LoadJobMetrics(
+        job_id="fake_table.fake_id.jsonl",
+        file_path="/fake/path",
+        table_name="fake_table",
+        started_at=pendulum.now(),
+        finished_at=pendulum.now(),
+        state="completed",
+        remote_url=None,
+        retry_count=0,
+        followup_jobs=["fake_followup.abc.reference"],
+    )
+    state = load.load_storage.normalized_packages.get_load_package_state(load_id)
+    state["load_metrics"] = {fake_metric.job_id: fake_metric._asdict()}
+    load.load_storage.normalized_packages.save_load_package_state(load_id, state)
+
+    with ThreadPoolExecutor() as pool:
+        load.run(pool)
+
+    # should contain both the fake metric and the real job metrics
+    assert "fake_table.fake_id.jsonl" in load._job_metrics
+    restored_fake = load._job_metrics["fake_table.fake_id.jsonl"]
+    assert restored_fake.state == "completed"
+    assert restored_fake.followup_jobs == ["fake_followup.abc.reference"]
+
+    # real jobs should also be present
+    real_job_ids = {jid for jid in load._job_metrics if jid != "fake_table.fake_id.jsonl"}
+    assert len(real_job_ids) == 2
+
+    # verify the loaded package state has load_metrics persisted
+    loaded_state = load.load_storage.loaded_packages.get_load_package_state(load_id)
+    assert "load_metrics" in loaded_state
+    assert "fake_table.fake_id.jsonl" in loaded_state["load_metrics"]
+    assert len(loaded_state["load_metrics"]) == 3  # fake + 2 real
 
 
 def test_terminal_exceptions() -> None:
@@ -1127,6 +1756,20 @@ def assert_complete_job(
                             )
                         else:
                             assert remote_url is None
+                        # followup_jobs: jobs that are themselves followups should
+                        # not have followup_jobs set; if followup_jobs is set,
+                        # each referenced id must exist as a completed job
+                        followup_jobs = job_metrics.followup_jobs
+                        is_followup = (
+                            job.job_id() in dummy_impl.CREATED_FOLLOWUP_JOBS
+                            or job.job_id() in dummy_impl.CREATED_TABLE_CHAIN_FOLLOWUP_JOBS
+                        )
+                        if is_followup:
+                            assert followup_jobs is None
+                        elif followup_jobs is not None:
+                            all_completed_ids = {j.job_id() for j in package_info["completed_jobs"]}
+                            for fup_id in followup_jobs:
+                                assert fup_id in all_completed_ids
                     else:
                         assert job_metrics is None
 

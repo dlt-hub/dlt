@@ -38,6 +38,7 @@ const sidebars = {
       items: [
         'reference/installation',
         "dlt-ecosystem/llm-tooling/llm-native-workflow",
+        "dlt-ecosystem/llm-tooling/explore-and-transform",
         'tutorial/rest-api',
         'tutorial/sql-database',
         'tutorial/filesystem',
@@ -230,6 +231,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/athena',
         'dlt-ecosystem/destinations/sqlalchemy',
         'dlt-ecosystem/destinations/weaviate',
+        'dlt-ecosystem/destinations/lance',
         'dlt-ecosystem/destinations/lancedb',
         'dlt-ecosystem/destinations/qdrant',
         'dlt-ecosystem/destinations/dremio',
@@ -417,17 +419,6 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Code examples',
-      link: {
-        type: 'doc',
-        id: 'examples/index',
-      },
-      items: [
-        'walkthroughs/dispatch-to-multiple-tables',
-      ],
-    },
-    {
-      type: 'category',
       label: 'Reference',
       link: {
         type: 'generated-index',
@@ -574,13 +565,27 @@ const sidebars = {
     },
     'hub/command-line-interface',
     'hub/EULA',
-    ],
+  ],
+  cookbookSidebar: [
+    {
+      type: 'category',
+      label: 'Cookbook',
+      link: {
+        type: 'doc',
+        id: 'examples/index',
+      },
+      items: [
+        'walkthroughs/dispatch-to-multiple-tables',
+      ],
+    },
+  ]
 };
 
  // insert examples
-for (const item of sidebars.docsSidebar) {
-    if (item.label === 'Code examples') {
+for (const item of sidebars.cookbookSidebar) {
+    if (item.label === 'Cookbook') {
       for (let examplePath of walkSync("./docs_processed/examples")) {
+        examplePath = examplePath.replace(/\\/g, "/");
         examplePath = examplePath.replace("docs_processed/", "");
         examplePath = examplePath.replace(".mdx", "");
         examplePath = examplePath.replace(".md", "");

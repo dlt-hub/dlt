@@ -472,6 +472,37 @@ def test_save_load_trace() -> None:
     assert pipeline.last_trace.last_normalize_info is None
 
 
+def test_run_step_with_exception_not_filtered_in_asdict() -> None:
+    """Run step carrying an exception from sync_destination must survive asdict()."""
+    pipeline = dlt.pipeline(destination="dummy")
+
+    def _failing_sync(self, *args, **kwargs):
+        raise PipelineStepFailed(pipeline, "sync", None, RuntimeError("sync failed"))
+
+    with patch.object(Pipeline, "_sync_destination", _failing_sync):
+        with pytest.raises(PipelineStepFailed):
+            pipeline.run([1, 2, 3], table_name="items")
+
+    trace = pipeline.last_trace
+    assert trace is not None
+
+    # only the "run" step should exist because extract/normalize/load never started
+    run_steps = [s for s in trace.steps if s.step == "run"]
+    assert len(run_steps) == 1
+    assert run_steps[0].step_exception is not None
+    assert "sync failed" in run_steps[0].step_exception
+
+    # asdict() must include the run step with the exception
+    trace_dict = trace.asdict()
+    dict_steps = trace_dict["steps"]
+    run_dict_steps = [s for s in dict_steps if s["step"] == "run"]
+    assert len(run_dict_steps) == 1
+    assert run_dict_steps[0]["step_exception"] is not None
+    assert "sync failed" in run_dict_steps[0]["step_exception"]
+
+    assert_trace_serializable(trace)
+
+
 def test_save_load_empty_trace() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
     os.environ["RESTORE_FROM_DESTINATION"] = "false"

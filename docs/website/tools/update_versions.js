@@ -79,6 +79,51 @@ if (branch != "devel") {
     process.exit(1)
 }
 
+/**
+ * Backfills sidebar keys that are absent from versioned sidebar snapshots.
+ *
+ * Docusaurus requires every sidebar referenced in navbar items to exist in every
+ * versioned snapshot. When a new sidebar is introduced in `devel` after a version
+ * was tagged, older snapshots won't have it, causing build failures. This function
+ * patches each snapshot JSON file by inserting a fallback entry for each missing
+ * sidebar ID, pointing back to the docs root so the navbar tab remains functional.
+ *
+ * Note: sidebars.js is intentionally NOT required here — it calls walkSync on
+ * docs_processed/ at load time, which does not exist during update_versions.js
+ * execution in CI.
+ *
+ * @param {string} versionedSidebarsFolder - Path to the versioned_sidebars directory.
+ * @param {string[]} sidebarIds - Sidebar IDs to backfill if absent from a snapshot.
+ */
+function backfillVersionedSidebars(versionedSidebarsFolder, sidebarIds) {
+    const files = fs.readdirSync(versionedSidebarsFolder).filter(f => f.endsWith('.json'));
+    for (const file of files) {
+        const filePath = `${versionedSidebarsFolder}/${file}`;
+        const snapshot = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        let patched = false;
+        for (const id of sidebarIds) {
+            if (!snapshot[id]) {
+                snapshot[id] = [
+                    {
+                        type: 'category',
+                        label: 'Cookbook',
+                        link: {
+                            type: 'doc',
+                            id: 'examples/index',
+                        },
+                        items: [],
+                    },
+                ];
+                patched = true;
+            }
+        }
+        if (patched) {
+            fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf8');
+            console.log(`Patched ${file}: added missing sidebar keys`);
+        }
+    }
+}
+
 selectedVersions.reverse()
 for (const version of selectedVersions) {
 
@@ -104,7 +149,9 @@ for (const version of selectedVersions) {
 
     console.log(`Moving snapshot`)
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_DOCS_FOLDER, VERSIONED_DOCS_FOLDER, {recursive: true})
-    fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_SIDEBARS_FOLDER, VERSIONED_SIDEBARS_FOLDER, {recursive: true})    
+    fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_SIDEBARS_FOLDER, VERSIONED_SIDEBARS_FOLDER, {recursive: true})
+
+    backfillVersionedSidebars(VERSIONED_SIDEBARS_FOLDER, ['cookbookSidebar']);
 }
 
 fs.cpSync(REPO_DOCS_DIR+"/versions.json", "versions.json")

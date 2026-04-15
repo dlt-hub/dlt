@@ -64,7 +64,12 @@ def main():
         env["AIRFLOW__CORE__EXECUTOR"] = "SequentialExecutor"
         env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = f"sqlite:///{airflow_home / 'airflow.db'}"
         env["AIRFLOW__API__BASE_URL"] = "http://127.0.0.1:8080"
+        # Airflow >=3.2 routes log messages and warnings to stdout, polluting
+        # CLI output we parse (e.g. `dags state`). Use ERROR to suppress them.
+        env["AIRFLOW__LOGGING__LOGGING_LEVEL"] = "ERROR"
         env["DLT_SMOKE_DB_PATH"] = db_path
+        # use 2 normalize workers to exercise spawn pool inside Airflow (#3586)
+        env["NORMALIZE__WORKERS"] = "2"
 
         print("=== Initializing Airflow DB ===")
         try:

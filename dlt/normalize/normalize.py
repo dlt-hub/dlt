@@ -97,12 +97,20 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             config=self.config._load_storage_config,
         )
 
+    def _collect_and_update_progress(self, load_id: str) -> None:
+        """Collects progress from worker files and updates the collector."""
+        progress = self.load_storage.new_packages.collect_progress(load_id)
+        for table_name, items_count in progress.items():
+            self.collector.update(table_name, items_count)
+
     def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> SubmitRV:
         workers: int = getattr(self.pool, "_max_workers", 1)
         # group files to process into as many groups as there are workers. prefer to send same tables
         # to the same worker
         chunk_files = group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
+        # create progress directory for worker IPC
+        self.load_storage.new_packages.create_progress_dir(load_id)
         param_chunk = [
             (
                 self.config,
@@ -111,6 +119,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 schema_dict,
                 load_id,
                 files,
+                True,  # report_progress
             )
             for files in chunk_files
         ]
@@ -123,6 +132,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
 
         while len(tasks) > 0:
             sleep(0.3)
+            # collect incremental progress from workers
+            self._collect_and_update_progress(load_id)
             # operate on copy of the list
             for task in list(tasks):
                 pending, params = task
@@ -148,12 +159,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                             summary.file_metrics.extend(result.file_metrics)
                             for tn, cols in result.null_only_columns.items():
                                 summary.null_only_columns.setdefault(tn, set()).update(cols)
-                            # update metrics
-                            self.collector.update("Files", len(result.file_metrics))
-                            self.collector.update(
-                                "Items",
-                                sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count,
-                            )
+                            # collect any remaining progress from this worker
+                            self._collect_and_update_progress(load_id)
                         except CannotCoerceColumnException as exc:
                             # schema conflicts resulting from parallel executing
                             logger.warning(
@@ -178,6 +185,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 logger.warning(f"Cancelling package {load_id} due to signal")
                 self.load_storage.new_packages.cancel(load_id)
 
+        self.load_storage.new_packages.cleanup_progress(load_id)
         return SubmitRV(
             summary.schema_updates, summary.file_metrics, pending_exc, summary.null_only_columns
         )
@@ -192,12 +200,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 schema.to_dict(),
                 load_id,
                 files,
+                collector=self.collector,
             )
             validate_and_update_schema(schema, result.schema_updates)
-            self.collector.update("Files", len(result.file_metrics))
-            self.collector.update(
-                "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
-            )
         except NormalizeJobFailed as job_failed_ex:
             pending_exc = job_failed_ex
             result = TWorkerRV(None, job_failed_ex.writer_metrics, {})
@@ -341,7 +346,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 continue
             with self.collector(f"Normalize {schema.name} in {load_id}"):
                 self.collector.update("Files", 0, len(schema_files))
-                self.collector.update("Items", 0)
                 # self.verify_package(load_id, schema, schema_files)
                 self._step_info_start_load_id(load_id)
                 self.spool_schema_files(load_id, schema, schema_files)

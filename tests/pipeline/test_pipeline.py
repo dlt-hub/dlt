@@ -75,7 +75,7 @@ from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 from dlt.pipeline.typing import TPipelineStep
 
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import get_test_storage_root, skipifwindows
+from tests.utils import capture_dlt_logger, get_test_storage_root, skipifwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_table_counts,
@@ -1581,13 +1581,8 @@ def test_restore_state_on_destination_dataset_name_change(caplog: Any) -> None:
     pipeline = dlt.pipeline(pipeline_name, destination="duckdb", dataset_name="new_dataset")
 
     # state restored from new_dataset must not revert dataset_name to original_dataset
-    dlt_logger = logging.getLogger("dlt")
-    dlt_logger.propagate = True
-    try:
-        with caplog.at_level(logging.WARNING, logger="dlt"):
-            load_info = pipeline.run(items([{"id": 1, "name": "Bob"}, {"id": 2, "name": "Alice"}]))
-    finally:
-        dlt_logger.propagate = False
+    with capture_dlt_logger(caplog) as caplog:
+        load_info = pipeline.run(items([{"id": 1, "name": "Bob"}, {"id": 2, "name": "Alice"}]))
     assert_load_info(load_info)
     assert pipeline.dataset_name == "new_dataset"
     assert pipeline.state["dataset_name"] == "new_dataset"
@@ -3449,6 +3444,75 @@ def test_pipeline_load_info_metrics_schema_is_not_changing() -> None:
     assert len(schema_hashset) == 1
 
 
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_load_info_dataset_name_per_load_id(use_single_dataset: bool) -> None:
+    """Verify that dataset_name in load metrics is correct per load_id.
+
+    With use_single_dataset=True both schemas share the same dataset name.
+    With use_single_dataset=False each schema gets a suffixed dataset name.
+    """
+    schema_a = dlt.Schema("schema_a")
+    schema_b = dlt.Schema("schema_b")
+
+    s1 = _create_simple_source(schema_a, "resource_1", [{"id": 1}])
+    s2 = _create_simple_source(schema_b, "resource_2", [{"id": 2}])
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_dataset_per_load",
+        destination="duckdb",
+        dataset_name="test_data",
+    )
+    pipeline.config.use_single_dataset = use_single_dataset
+
+    load_info = pipeline.run([s1, s2])
+
+    # each schema produces a separate load package
+    assert len(load_info.loads_ids) == 2
+
+    ds_names = {}
+    for load_id in load_info.loads_ids:
+        metrics_list = load_info.metrics[load_id]
+        assert len(metrics_list) == 1
+        ds_names[load_id] = metrics_list[0]["dataset_name"]
+
+    if use_single_dataset:
+        # both packages target the same dataset (no schema suffix)
+        assert all(ds == "test_data" for ds in ds_names.values())
+    else:
+        # schema_a is the default schema so it gets no suffix
+        assert set(ds_names.values()) == {"test_data", "test_data_schema_b"}
+
+    # top-level dataset_name is backward-compat scalar (last load_id's value)
+    assert load_info.dataset_name == ds_names[load_info.loads_ids[-1]]
+
+    # verify dataset_name appears in trace asdict under load_info
+    trace = pipeline.last_trace
+    load_step = next(s for s in trace.steps if s.step == "load")
+    step_dict = load_step.asdict()
+    assert "dataset_name" in step_dict["load_info"]
+
+
+def test_load_info_dataset_name_none_for_non_dwh_destination() -> None:
+    """Destinations without DestinationClientDwhConfiguration (e.g. dummy, custom)
+    produce dataset_name=None in metrics."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_dataset_none",
+        destination="dummy",
+    )
+    load_info = pipeline.run([{"id": 1}], table_name="items")
+
+    assert len(load_info.loads_ids) == 1
+    load_id = load_info.loads_ids[0]
+    assert load_info.metrics[load_id][0]["dataset_name"] is None
+    assert load_info.dataset_name is None
+
+
 def test_yielding_empty_list_creates_table() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="empty_start",
@@ -5174,6 +5238,191 @@ def test_pending_package_exception_warning() -> None:
     assert pip_ex.value.load_id is not None
     assert pip_ex.value.is_package_partially_loaded is True
     # assert pip_ex.value.has_pending_data is False
+
+
+def test_staging_tables_created_after_schema_change_without_data() -> None:
+    """Regression test for #2862: staging tables created for all eligible tables.
+
+    Step 1: resource_a (merge) + resource_b (append), both yield data with children
+    Step 2: directly change resource_b disposition to merge in schema, run only resource_a
+            → schema hash changes → DDL runs for ALL eligible staging tables → hash stored
+    Step 3: both yield data → hash matches → DDL skipped → resource_b staging table exists
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_missing_tables",
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    @dlt.source(name="test_src", root_key=True)
+    def make_source(b_data=None):
+        @dlt.resource(write_disposition="merge", primary_key="id")
+        def resource_a():
+            yield [{"id": 1, "val": "a1", "items": [{"sub_id": 1, "text": "x"}]}]
+
+        @dlt.resource(write_disposition="merge", primary_key="id")
+        def resource_b():
+            if b_data is not None:
+                yield b_data
+
+        return [resource_a, resource_b]
+
+    # step 1: both yield data, but resource_b is append (override at run level)
+    info = pipeline.run(
+        make_source(b_data=[{"id": 1, "val": "b1", "items": [{"sub_id": 1, "text": "y"}]}]),
+        write_disposition="append",
+    )
+    assert_load_info(info)
+
+    # step 2: change resource_b to merge directly in schema, run with no resource_b data
+    pipeline.default_schema.tables["resource_b"]["write_disposition"] = "merge"
+    pipeline.default_schema.tables["resource_b__items"]["write_disposition"] = "merge"
+
+    info = pipeline.run(make_source(b_data=None))
+    assert_load_info(info)
+
+    # step 3: both yield data — resource_b staging table must exist
+    info = pipeline.run(
+        make_source(b_data=[{"id": 2, "val": "b2", "items": [{"sub_id": 2, "text": "z"}]}])
+    )
+    assert_load_info(info)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            f"SELECT val FROM {pipeline.dataset_name}.resource_b ORDER BY val"
+        )
+        assert [r[0] for r in rows] == ["b1", "b2"]
+
+
+def test_staging_tables_recreated_after_staging_dataset_dropped() -> None:
+    """Regression test for #2862: staging tables recreated after staging dataset loss.
+
+    This is the scenario from the issue reproduction script: staging dataset is lost
+    (infra failure, concurrent pipeline, manual cleanup), then fully recreated.
+
+    Step 1: resource_a (merge) + resource_b (merge), both yield data with children
+    Step 2: drop staging dataset (simulating real-world desync)
+    Step 3: only resource_a yields data → staging recreated for ALL eligible tables
+    Step 4: both yield data → resource_b staging table exists → success
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_dropped",
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    @dlt.source(name="test_src", root_key=True)
+    def make_source(a_data, b_data=None):
+        @dlt.resource(write_disposition="merge", primary_key="id")
+        def resource_a():
+            yield a_data
+
+        @dlt.resource(write_disposition="merge", primary_key="id")
+        def resource_b():
+            if b_data is not None:
+                yield b_data
+
+        return [resource_a, resource_b]
+
+    # step 1: both yield data
+    info = pipeline.run(
+        make_source(
+            a_data=[{"id": 1, "val": "a1", "items": [{"sub_id": 1, "text": "x"}]}],
+            b_data=[{"id": 1, "val": "b1", "items": [{"sub_id": 1, "text": "y"}]}],
+        )
+    )
+    assert_load_info(info)
+
+    # step 2: drop staging dataset (simulating infra failure / concurrent pipeline)
+    with pipeline.sql_client() as client:
+        staging_dataset = client.staging_dataset_name
+        client.execute_sql(f'DROP SCHEMA IF EXISTS "{staging_dataset}" CASCADE')
+
+    # step 3: only resource_a yields data — staging recreated for ALL eligible tables
+    info = pipeline.run(
+        make_source(
+            a_data=[{"id": 2, "val": "a2", "items": [{"sub_id": 2, "text": "x2"}]}],
+            b_data=None,
+        )
+    )
+    assert_load_info(info)
+
+    # step 4: both yield data — resource_b staging table must exist
+    info = pipeline.run(
+        make_source(
+            a_data=[{"id": 3, "val": "a3", "items": [{"sub_id": 3, "text": "x3"}]}],
+            b_data=[{"id": 2, "val": "b2", "items": [{"sub_id": 2, "text": "z"}]}],
+        )
+    )
+    assert_load_info(info)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            f"SELECT val FROM {pipeline.dataset_name}.resource_b ORDER BY val"
+        )
+        assert [r[0] for r in rows] == ["b1", "b2"]
+
+
+@pytest.mark.parametrize("skip_dedup", [False, True], ids=["dedup_enabled", "dedup_skipped"])
+def test_merge_no_child_duplicates_on_duplicate_staging_data(skip_dedup: bool) -> None:
+    """When a child table's data file is duplicated in staging (simulating
+    crash+retry), the merge SQL deduplicates nested tables by _dlt_id.
+
+    With `deduplicated=True` the safety net is disabled and duplicates
+    pass through — verifying the flag is respected.
+    """
+    wd: Any = {"disposition": "merge", "deduplicated": True} if skip_dedup else "merge"
+
+    @dlt.resource(primary_key="id", write_disposition=wd)
+    def items():
+        yield [
+            {"id": 1, "val": "a", "nested": [{"x": 10}]},
+            {"id": 2, "val": "b", "nested": [{"x": 20}]},
+        ]
+
+    p = dlt.pipeline(
+        pipeline_name="test_merge_child_dedup",
+        destination="duckdb",
+        dataset_name="child_dedup",
+    )
+
+    # initial load to create tables
+    info = p.run(items())
+    assert_load_info(info)
+    assert_table_counts(p, {"items": 2, "items__nested": 2})
+
+    # extract + normalize a second batch (same data)
+    p.extract(items())
+    p.normalize()
+
+    # duplicate the child table's job file in the normalized package
+    load_id = p.list_normalized_load_packages()[0]
+    package_info = p.get_load_package_info(load_id)
+    child_jobs = [
+        j for j in package_info.jobs["new_jobs"] if j.job_file_info.table_name == "items__nested"
+    ]
+    assert len(child_jobs) >= 1
+    for child_job in child_jobs:
+        src_path = child_job.file_path
+        parsed = child_job.job_file_info
+        new_name = ParsedLoadJobFileName(
+            parsed.table_name,
+            ParsedLoadJobFileName.new_file_id(),
+            parsed.retry_count,
+            parsed.file_format,
+        ).file_name()
+        dst_path = os.path.join(os.path.dirname(src_path), new_name)
+        shutil.copy(src_path, dst_path)
+
+    info = p.load()
+    assert_load_info(info)
+
+    if skip_dedup:
+        # dedup disabled: duplicates pass through
+        assert_table_counts(p, {"items": 2, "items__nested": 4})
+    else:
+        # dedup enabled: nested table deduplicated by _dlt_id
+        assert_table_counts(p, {"items": 2, "items__nested": 2})
 
 
 def test_cleanup() -> None:
