@@ -571,3 +571,19 @@ def test_dataset_path_has_no_trailing_separator() -> None:
     assert not client.dataset_path.endswith(
         "/"
     ), f"dataset_path must not end with '/', got {client.dataset_path!r}"
+
+
+def test_get_table_dir_has_no_trailing_separator() -> None:
+    """`get_table_dir` must not end with `/` or `\\`.
+
+    `FilesystemClient.truncate_tables` iterates `get_table_dirs(...)` and
+    calls `self.fs_client.exists(table_dir)` for each one. On OneLake that
+    produces a `403 ClientAuthenticationError` on every truncated table
+    once the `dataset_path` trailing-slash bug (see previous test) is
+    already fixed. Same root cause, one level deeper.
+    """
+    client = _client_factory(filesystem(bucket_url="file:///tmp/dlt-test-bucket"))
+    table_dir = client.get_table_dir("some_table")
+    assert not table_dir.endswith(
+        ("/", "\\")
+    ), f"get_table_dir must not end with a separator, got {table_dir!r}"

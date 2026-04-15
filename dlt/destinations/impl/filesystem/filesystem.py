@@ -879,7 +879,7 @@ class FilesystemClient(
         """
         # dlt tables do not respect layout (for now)
         table_prefix = self.get_table_prefix(table_name, schema_name=schema_name)
-        table_dir: str = self.pathlib.dirname(table_prefix) + self.pathlib.sep
+        table_dir: str = self.pathlib.dirname(table_prefix)
         if remote:
             table_dir = self.make_remote_url(table_dir)
         return table_dir
