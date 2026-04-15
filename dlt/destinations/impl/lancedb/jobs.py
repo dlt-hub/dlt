@@ -7,6 +7,7 @@ from dlt.common.destination.client import (
     RunnableLoadJob,
     HasFollowupJobs,
 )
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.schema.typing import (
     TWriteDisposition,
@@ -59,6 +60,12 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
             merge_strategy = resolve_merge_strategy(
                 {self._load_table["name"]: self._load_table}, self._load_table
             )
+            if self._load_table.get("x-insert-only-scope"):
+                raise DestinationTerminalException(
+                    "LanceDB does not support insert-only with"
+                    " scope='previous_load'. Remove the scope parameter"
+                    " or use a different destination."
+                )
 
         with open(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)

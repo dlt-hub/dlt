@@ -2135,3 +2135,348 @@ def test_insert_only_with_nested_tables(destination_config: DestinationTestConfi
     # Child1 exists so not re-inserted, Child2 unchanged,
     # Child3 and Child4 are new inserts
     assert len(parent_tables["parent_items__children"]) == 4
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_insert_only_scope_previous_load(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Key absent from previous load is re-inserted; key present in previous load is skipped."""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_scope", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="row_hash",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "scope": "previous_load",
+        },
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [
+            {"row_hash": "aaa", "value": 1},
+            {"row_hash": "bbb", "value": 2},
+        ]
+
+    # load 1: both inserted
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"row_hash": "aaa", "value": 1},
+            {"row_hash": "bbb", "value": 2},
+        ],
+    )
+
+    # load 2: only bbb — aaa absent from this load
+    @dlt.resource(
+        name="items",
+        primary_key="row_hash",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "scope": "previous_load",
+        },
+        table_format=destination_config.table_format,
+    )
+    def items_load2():
+        yield [{"row_hash": "bbb", "value": 2}]
+
+    info = p.run(items_load2(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    # bbb skipped (in previous load), no new rows
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"row_hash": "aaa", "value": 1},
+            {"row_hash": "bbb", "value": 2},
+        ],
+    )
+
+    # load 3: aaa returns — was absent from previous load, should be re-inserted
+    @dlt.resource(
+        name="items",
+        primary_key="row_hash",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "scope": "previous_load",
+        },
+        table_format=destination_config.table_format,
+    )
+    def items_load3():
+        yield [
+            {"row_hash": "aaa", "value": 1},
+            {"row_hash": "bbb", "value": 2},
+        ]
+
+    info = p.run(items_load3(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    # aaa re-inserted (not in previous load), bbb skipped (was in previous load)
+    assert len([r for r in tables["items"] if r["row_hash"] == "aaa"]) == 2
+    assert len([r for r in tables["items"] if r["row_hash"] == "bbb"]) == 2
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_insert_only_default_scope_unchanged(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Without scope param, insert-only checks against all history (existing behavior)."""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_default_scope", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="row_hash",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [{"row_hash": "aaa", "value": 1}]
+
+    # load 1
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # load 2: different data
+    @dlt.resource(
+        name="items",
+        primary_key="row_hash",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def items_load2():
+        yield [{"row_hash": "bbb", "value": 2}]
+
+    info = p.run(items_load2(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # load 3: aaa returns — without scope, still skipped (in all-history)
+    @dlt.resource(
+        name="items",
+        primary_key="row_hash",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def items_load3():
+        yield [{"row_hash": "aaa", "value": 1}]
+
+    info = p.run(items_load3(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    # aaa NOT re-inserted — default scope checks all history
+    assert len([r for r in tables["items"] if r["row_hash"] == "aaa"]) == 1
+    assert len([r for r in tables["items"] if r["row_hash"] == "bbb"]) == 1
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_insert_only_scope_empty_target(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """First load into empty table with scope=previous_load inserts all records."""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_scope_empty", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="row_hash",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "scope": "previous_load",
+        },
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [
+            {"row_hash": "aaa", "value": 1},
+            {"row_hash": "bbb", "value": 2},
+        ]
+
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"row_hash": "aaa", "value": 1},
+            {"row_hash": "bbb", "value": 2},
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_insert_only_scope_with_nested_tables(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Nested table rows absent from previous load are re-inserted with scope=previous_load."""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_scope_nested", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "scope": "previous_load",
+        },
+        table_format=destination_config.table_format,
+    )
+    def parent():
+        yield [
+            {"id": 1, "name": "P1", "children": [{"child_id": 1, "val": "C1"}]},
+            {"id": 2, "name": "P2", "children": [{"child_id": 2, "val": "C2"}]},
+        ]
+
+    # load 1: both parents + children
+    info = p.run(parent(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    tables = load_tables_to_dicts(p, "parent", "parent__children", exclude_system_cols=True)
+    assert len(tables["parent"]) == 2
+    assert len(tables["parent__children"]) == 2
+
+    # load 2: only parent 2 (parent 1 absent)
+    @dlt.resource(
+        name="parent",
+        primary_key="id",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "scope": "previous_load",
+        },
+        table_format=destination_config.table_format,
+    )
+    def parent_load2():
+        yield [{"id": 2, "name": "P2", "children": [{"child_id": 2, "val": "C2"}]}]
+
+    info = p.run(parent_load2(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # load 3: parent 1 returns
+    @dlt.resource(
+        name="parent",
+        primary_key="id",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "scope": "previous_load",
+        },
+        table_format=destination_config.table_format,
+    )
+    def parent_load3():
+        yield [
+            {"id": 1, "name": "P1", "children": [{"child_id": 1, "val": "C1"}]},
+            {"id": 2, "name": "P2", "children": [{"child_id": 2, "val": "C2"}]},
+        ]
+
+    info = p.run(parent_load3(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    tables = load_tables_to_dicts(p, "parent", "parent__children", exclude_system_cols=True)
+    # parent 1 re-inserted (absent from previous load)
+    assert len([r for r in tables["parent"] if r["id"] == 1]) == 2
+    # child rows also re-inserted
+    assert len([r for r in tables["parent__children"] if r["child_id"] == 1]) == 2
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_insert_only_scope_with_hard_delete(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Hard-deleted records are filtered from staging before scope comparison."""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_scope_hard_delete", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "scope": "previous_load",
+        },
+        columns={"deleted": {"hard_delete": True}},
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "deleted": False},
+            {"id": 2, "name": "Bob", "deleted": False},
+        ]
+
+    # load 1
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    assert len(tables["items"]) == 2
+
+    # load 2: new record marked as deleted + existing record
+    @dlt.resource(
+        name="items",
+        primary_key="id",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "insert-only",
+            "scope": "previous_load",
+        },
+        columns={"deleted": {"hard_delete": True}},
+        table_format=destination_config.table_format,
+    )
+    def items_load2():
+        yield [
+            {"id": 3, "name": "Charlie", "deleted": True},
+            {"id": 4, "name": "Dave", "deleted": False},
+        ]
+
+    info = p.run(items_load2(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    tables = load_tables_to_dicts(p, "items", exclude_system_cols=True)
+    # Charlie filtered out (hard delete), Dave inserted
+    assert len([r for r in tables["items"] if r["name"] == "Charlie"]) == 0
+    assert len([r for r in tables["items"] if r["name"] == "Dave"]) == 1
