@@ -69,6 +69,8 @@ class Dataset:
         self._default_schema_name: Optional[str] = None
         self._resolved: bool = False
 
+        self._foreign_schemas: Dict[str, List[dlt.Schema]] = {}
+
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
@@ -158,14 +160,22 @@ class Dataset:
         """Provide table names as completion suggestion in interactive environments."""
         return self.tables
 
+    def _add_foreign_schemas(self, dataset_name: str, schemas: Sequence[dlt.Schema]) -> None:
+        """Register schemas from a foreign dataset for cross-dataset joins."""
+        if dataset_name == self.dataset_name:
+            return
+        self._foreign_schemas[dataset_name] = list(schemas)
+
     @property
     def sqlglot_schema(self) -> SQLGlotSchema:
         """SQLGlot schema of the dataset derived from all dlt schemas."""
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
-        return lineage.create_sqlglot_schema(
-            {self.dataset_name: list(self.schemas)}, dialect=self.destination_dialect
-        )
+        schema_map: Dict[str, Sequence[dlt.Schema]] = {
+            self.dataset_name: list(self.schemas),
+            **self._foreign_schemas,
+        }
+        return lineage.create_sqlglot_schema(schema_map, dialect=self.destination_dialect)
 
     @property
     def destination_dialect(self) -> TSqlGlotDialect:

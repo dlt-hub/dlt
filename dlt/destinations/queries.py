@@ -1,5 +1,4 @@
-from functools import partial
-from typing import Any, List
+from typing import Any, List, Optional
 
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
@@ -20,12 +19,16 @@ def _normalize_query(
 
     TODO: remove after next dlthub release
     """
+
+    def _expand(table_name: str, db: Optional[str] = None) -> List[str]:
+        return sql_client.make_qualified_table_name_path(
+            table_name, quote=False, casefold=False, dataset_name=db
+        )
+
     return bind_query(
         qualified_query,
         sqlglot_schema,
-        expand_table_name=partial(
-            sql_client.make_qualified_table_name_path, quote=False, casefold=False
-        ),
+        expand_table_name=_expand,
         casefold_identifier=casefold_identifier,
     )
 

@@ -287,14 +287,21 @@ class ClickHouseSqlClient(
         return database_name
 
     def make_qualified_table_name_path(
-        self, table_name: Optional[str], quote: bool = True, casefold: bool = True
+        self,
+        table_name: Optional[str],
+        quote: bool = True,
+        casefold: bool = True,
+        dataset_name: Optional[str] = None,
     ) -> List[str]:
         # get catalog and dataset
-        path = super().make_qualified_table_name_path(None, quote=quote, casefold=casefold)
+        path = super().make_qualified_table_name_path(
+            None, quote=quote, casefold=casefold, dataset_name=dataset_name
+        )
+        effective_dataset = dataset_name or self.dataset_name
         if table_name:
             # table name combines dataset name and table name
-            if self.dataset_name:
-                table_name = f"{self.dataset_name}{self.config.dataset_table_separator}{table_name}"
+            if effective_dataset:
+                table_name = f"{effective_dataset}{self.config.dataset_table_separator}{table_name}"
             else:
                 # without dataset just use the table name
                 pass
