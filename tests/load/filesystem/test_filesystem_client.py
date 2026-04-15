@@ -568,6 +568,6 @@ def test_dataset_path_has_no_trailing_separator() -> None:
     backends observe the same latent defect as a silent `False`.
     """
     client = _client_factory(filesystem(bucket_url="file:///tmp/dlt-test-bucket"))
-    assert not client.dataset_path.endswith("/"), (
-        f"dataset_path must not end with '/', got {client.dataset_path!r}"
-    )
+    assert not client.dataset_path.endswith(
+        "/"
+    ), f"dataset_path must not end with '/', got {client.dataset_path!r}"
