@@ -5,7 +5,7 @@ import signal
 import sys
 import time
 import zlib
-from datetime import datetime  # noqa: I251
+from datetime import datetime, timezone  # noqa: I251
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from uuid import uuid4
 
@@ -247,7 +247,7 @@ def _try_start_interval_job(
     tz = job_def.get("require", {}).get("timezone", "UTC")
     overall = resolve_interval_spec(job_def["interval"], cron, tz=tz)
     completed = _interval_store.get_completed_intervals(job_ref, overall)
-    iv = next_eligible_interval(cron, overall, completed)
+    iv = next_eligible_interval(cron, overall, completed, tz=tz)
     if iv is None:
         return False
 
@@ -393,7 +393,7 @@ def _start_job(
         entry_point["run_args"] = {"port": port_counter[0]}
         port_counter[0] += 1
 
-    now = pendulum.now("UTC")
+    now = datetime.now(timezone.utc)
     refresh_signal = False
     eff_interval: Optional[TInterval] = interval
 
@@ -415,10 +415,12 @@ def _start_job(
         entry_point["interval_start"] = eff_interval[0].isoformat()
         entry_point["interval_end"] = eff_interval[1].isoformat()
 
-    # propagate allow_external_schedulers from manifest to launcher (only meaningful
-    # when an interval is provided)
+    # propagate allow_external_schedulers and timezone to launcher (only meaningful
+    # when an interval is provided). timezone is re-applied at the launcher boundary
+    # so the user-facing interval carries its IANA identity across JSON round-trip.
     if "interval_start" in entry_point:
         entry_point["allow_external_schedulers"] = job_def.get("allow_external_schedulers", False)
+        entry_point["interval_timezone"] = job_def.get("require", {}).get("timezone", "UTC")
 
     # pass profile from require spec
     require = job_def.get("require", {})

@@ -2,15 +2,31 @@
 
 import os
 from typing import Any, ClassVar, Optional, Tuple
-from datetime import datetime  # noqa: I251
+from datetime import datetime, timezone  # noqa: I251
+from zoneinfo import ZoneInfo
 
 from dlt.common.configuration.specs.base_configuration import (
     ContainerInjectableContext,
     configspec,
 )
 from dlt.common.configuration.container import Container
-from dlt.common.time import ensure_pendulum_datetime_non_utc
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import TTimeInterval
+
+
+def _parse_utc(iso_utc: str) -> datetime:
+    """Parse a UTC ISO string to a stdlib datetime with `tzinfo=timezone.utc`."""
+    pdt = ensure_pendulum_datetime_utc(iso_utc)
+    return datetime(
+        pdt.year,
+        pdt.month,
+        pdt.day,
+        pdt.hour,
+        pdt.minute,
+        pdt.second,
+        pdt.microsecond,
+        tzinfo=timezone.utc,
+    )
 
 
 @configspec
@@ -45,15 +61,22 @@ class TimeIntervalContext(ContainerInjectableContext):
     def _detect(self) -> Optional[TTimeInterval]:
         """Detect interval from environment. Order: dlt env vars -> Airflow -> None.
 
-        Partial detection (start without end, or vice versa) returns None.
+        `DLT_INTERVAL_START` / `DLT_INTERVAL_END` are UTC ISO 8601. An optional
+        `DLT_INTERVAL_TIMEZONE` (IANA name) is applied after UTC parsing so the
+        resulting datetimes carry the job's original timezone identity across
+        JSON round-trip. Partial detection (start without end, or vice versa)
+        returns `None`.
         """
-        start_value = os.environ.get("DLT_START_VALUE")
-        end_value = os.environ.get("DLT_END_VALUE")
+        start_value = os.environ.get("DLT_INTERVAL_START")
+        end_value = os.environ.get("DLT_INTERVAL_END")
         if start_value and end_value:
-            return (
-                ensure_pendulum_datetime_non_utc(start_value),
-                ensure_pendulum_datetime_non_utc(end_value),
-            )
+            start_utc = _parse_utc(start_value)
+            end_utc = _parse_utc(end_value)
+            tz_name = os.environ.get("DLT_INTERVAL_TIMEZONE")
+            if tz_name:
+                tz = ZoneInfo(tz_name)
+                return (start_utc.astimezone(tz), end_utc.astimezone(tz))
+            return (start_utc, end_utc)
 
         try:
             try:

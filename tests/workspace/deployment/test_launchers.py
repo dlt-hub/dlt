@@ -82,6 +82,30 @@ def test_job_launcher_interval_injection() -> None:
     assert "current_start=2024-01-15T00:00:00" in result
 
 
+@pytest.mark.parametrize(
+    "iv_tz,expected_iso_fragment",
+    [
+        ("Europe/Berlin", "2024-01-15T01:00:00+01:00"),  # CET (winter)
+        ("America/New_York", "2024-01-14T19:00:00-05:00"),  # EST (winter)
+        ("UTC", "2024-01-15T00:00:00+00:00"),
+    ],
+    ids=["berlin-cet", "new-york-est", "utc"],
+)
+def test_job_launcher_applies_interval_timezone(iv_tz: str, expected_iso_fragment: str) -> None:
+    """Launcher re-applies IANA tz: UTC ISO in entry_point → tz-aware in run_context."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "interval_aware")
+    ep["interval_start"] = "2024-01-15T00:00:00Z"
+    ep["interval_end"] = "2024-01-16T00:00:00Z"
+    ep["interval_timezone"] = iv_tz
+    result = job_run(ep, run_id=f"iv-tz-{iv_tz}", trigger="schedule:0 0 * * *")
+    assert f"ctx_start={expected_iso_fragment}" in result
+    assert f"current_start={expected_iso_fragment}" in result
+    # env vars: UTC ISO + tz name (for subprocesses/direct readers)
+    assert os.environ["DLT_INTERVAL_START"] == "2024-01-15T00:00:00Z"
+    assert os.environ["DLT_INTERVAL_END"] == "2024-01-16T00:00:00Z"
+    assert os.environ["DLT_INTERVAL_TIMEZONE"] == iv_tz
+
+
 def test_job_launcher_no_interval() -> None:
     """Job without interval in entry_point gets no interval."""
     result = job_run(
