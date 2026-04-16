@@ -260,20 +260,26 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             write_iceberg_table,
             merge_iceberg_table,
             create_table,
+            add_column_docs_to_arrow_schema,
         )
         from dlt.destinations.impl.filesystem.iceberg_partition_spec import (
             build_iceberg_partition_spec,
         )
+        from dlt.destinations.impl.filesystem.iceberg_adapter import (
+            TABLE_PROPERTIES_HINT,
+            get_column_descriptions,
+        )
+
+        column_descriptions = get_column_descriptions(self._load_table)
 
         try:
             table = self._job_client.load_open_table(
                 "iceberg",
                 self.load_table_name,
                 schema=self.arrow_dataset.schema,
+                column_descriptions=column_descriptions,
             )
         except DestinationUndefinedEntity:
-            from dlt.destinations.impl.filesystem.iceberg_adapter import TABLE_PROPERTIES_HINT
-
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
 
@@ -289,9 +295,16 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 properties = None
 
             if spec_list:
+                arrow_schema = self.arrow_dataset.schema
+                if column_descriptions:
+                    arrow_schema = add_column_docs_to_arrow_schema(
+                        arrow_schema, column_descriptions
+                    )
+
                 partition_spec, iceberg_schema = build_iceberg_partition_spec(
-                    self.arrow_dataset.schema, spec_list
+                    arrow_schema, spec_list
                 )
+
                 create_table(
                     self._job_client.get_open_table_catalog("iceberg"),
                     table_id,
@@ -301,11 +314,15 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     properties=properties,
                 )
             else:
+                schema = self.arrow_dataset.schema
+                if column_descriptions:
+                    schema = add_column_docs_to_arrow_schema(schema, column_descriptions)
+
                 create_table(
                     self._job_client.get_open_table_catalog("iceberg"),
                     table_id,
                     table_location=location,
-                    schema=self.arrow_dataset.schema,
+                    schema=schema,
                     properties=properties,
                 )
             # run again with created table
