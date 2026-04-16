@@ -1,7 +1,8 @@
 """Tests for interval computation, eligibility, and upstream freshness checks."""
 
-from datetime import datetime  # noqa: I251
+from datetime import datetime, timezone  # noqa: I251
 from typing import Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -306,6 +307,189 @@ def test_next_eligible_with_gap_in_middle() -> None:
     assert iv == (_dt("2024-01-03"), _dt("2024-01-04"))
 
 
+# timezone handling: return values are always UTC; cron math respects tz
+
+
+@pytest.mark.parametrize(
+    "tz,cron,spec_start,spec_end,expected_start,expected_end",
+    [
+        # 08:00 CET (winter, +01:00) → 07:00 UTC
+        (
+            "Europe/Berlin",
+            "0 8 * * *",
+            "2024-01-01T00:00:00Z",
+            "2024-01-05T00:00:00Z",
+            "2023-12-31T07:00:00Z",
+            "2024-01-04T07:00:00Z",
+        ),
+        # 08:00 CEST (summer, +02:00) → 06:00 UTC
+        (
+            "Europe/Berlin",
+            "0 8 * * *",
+            "2024-06-01T00:00:00Z",
+            "2024-06-05T00:00:00Z",
+            "2024-05-31T06:00:00Z",
+            "2024-06-04T06:00:00Z",
+        ),
+        # 08:00 EDT (summer, -04:00) → 12:00 UTC
+        (
+            "America/New_York",
+            "0 8 * * *",
+            "2024-07-01T00:00:00Z",
+            "2024-07-05T00:00:00Z",
+            "2024-06-30T12:00:00Z",
+            "2024-07-04T12:00:00Z",
+        ),
+        # UTC baseline — no shift
+        (
+            "UTC",
+            "0 0 * * *",
+            "2024-01-01T00:00:00Z",
+            "2024-01-05T00:00:00Z",
+            "2024-01-01T00:00:00Z",
+            "2024-01-05T00:00:00Z",
+        ),
+    ],
+    ids=["berlin-winter", "berlin-summer", "new-york-summer", "utc-baseline"],
+)
+def test_resolve_interval_spec_returns_utc(
+    tz: str,
+    cron: str,
+    spec_start: str,
+    spec_end: str,
+    expected_start: str,
+    expected_end: str,
+) -> None:
+    """Non-UTC tz drives cron alignment; returned datetimes are always UTC."""
+    spec: TIntervalSpec = {"start": spec_start, "end": spec_end}
+    start, end = resolve_interval_spec(spec, cron, tz=tz)
+    assert start.tzinfo == timezone.utc
+    assert end.tzinfo == timezone.utc
+    assert start == _dt(expected_start)
+    assert end == _dt(expected_end)
+
+
+@pytest.mark.parametrize(
+    "tz,cron,overall_start,overall_end,expected_starts",
+    [
+        # Europe/Berlin spring forward: 2024-03-31 02:00 CET → 03:00 CEST.
+        # The exact-match assertion catches the "phantom 07:00 local" duplicate tick
+        # that aware-datetime cron iteration produces on DST-transition days.
+        (
+            "Europe/Berlin",
+            "0 8 * * *",
+            "2024-03-30T00:00:00Z",
+            "2024-04-02T23:59:59Z",
+            [
+                "2024-03-30T07:00:00Z",  # pre-DST: 08:00 CET = 07:00Z
+                "2024-03-31T06:00:00Z",  # post-DST: 08:00 CEST = 06:00Z — NO duplicate
+                "2024-04-01T06:00:00Z",  # still CEST
+            ],
+        ),
+        # Europe/Berlin fall back: 2024-10-27 03:00 CEST → 02:00 CET.
+        # The exact match catches the "09:00 local instead of 08:00" drift that
+        # aware-datetime cron iteration produces because the old CEST offset is
+        # carried forward across the fold.
+        (
+            "Europe/Berlin",
+            "0 8 * * *",
+            "2024-10-26T00:00:00Z",
+            "2024-10-29T23:59:59Z",
+            [
+                "2024-10-26T06:00:00Z",  # CEST: 08:00 = 06:00Z
+                "2024-10-27T07:00:00Z",  # CET: 08:00 = 07:00Z — NOT 08:00Z (09:00 local)
+                "2024-10-28T07:00:00Z",
+            ],
+        ),
+    ],
+    ids=["spring-forward", "fall-back"],
+)
+def test_iter_intervals_respects_tz_across_dst(
+    tz: str,
+    cron: str,
+    overall_start: str,
+    overall_end: str,
+    expected_starts: List[str],
+) -> None:
+    """Cron ticks follow the job's wall-clock across DST; yielded intervals are UTC.
+
+    Uses exact match on starts (not just `in`) so phantom DST duplicates or drifted
+    ticks fail the test rather than being silently tolerated.
+    """
+    overall = _iv(overall_start, overall_end)
+    intervals = list(iter_intervals(cron, overall, tz=tz))
+    for iv in intervals:
+        assert iv[0].tzinfo == timezone.utc
+        assert iv[1].tzinfo == timezone.utc
+    starts = [iv[0] for iv in intervals]
+    assert starts == [_dt(s) for s in expected_starts]
+
+
+@pytest.mark.parametrize(
+    "tz,cron,overall_start,overall_end,expected_start,expected_end",
+    [
+        # overall[0] in Berlin CEST is 06-01T02:00; next "0 0" Berlin is 06-02T00:00 = 06-01T22:00Z
+        (
+            "Europe/Berlin",
+            "0 0 * * *",
+            "2024-06-01T00:00:00Z",
+            "2024-06-03T00:00:00Z",
+            "2024-06-01T22:00:00Z",
+            "2024-06-02T22:00:00Z",
+        ),
+        # NY winter (EST -05:00): "0 0" NY = 05:00Z
+        (
+            "America/New_York",
+            "0 0 * * *",
+            "2024-01-01T00:00:00Z",
+            "2024-01-03T00:00:00Z",
+            "2024-01-01T05:00:00Z",
+            "2024-01-02T05:00:00Z",
+        ),
+    ],
+    ids=["berlin-summer", "new-york-winter"],
+)
+def test_next_eligible_interval_tz_returns_utc(
+    tz: str,
+    cron: str,
+    overall_start: str,
+    overall_end: str,
+    expected_start: str,
+    expected_end: str,
+) -> None:
+    """next_eligible_interval with a non-UTC tz returns UTC intervals."""
+    overall = _iv(overall_start, overall_end)
+    iv = next_eligible_interval(cron, overall, [], tz=tz)
+    assert iv is not None
+    assert iv[0].tzinfo == timezone.utc
+    assert iv == (_dt(expected_start), _dt(expected_end))
+
+
+@pytest.mark.parametrize(
+    "tz,year,month,day,hour",
+    [
+        ("Europe/Berlin", 2024, 3, 31, 8),  # DST-transition day
+        ("Europe/Berlin", 2024, 6, 15, 8),  # CEST
+        ("Europe/Berlin", 2024, 12, 15, 8),  # CET
+        ("America/New_York", 2024, 3, 10, 8),  # DST-transition day
+        ("Pacific/Auckland", 2024, 9, 29, 8),  # southern-hemisphere DST
+        ("UTC", 2024, 1, 1, 0),
+    ],
+    ids=["berlin-dst-day", "berlin-cest", "berlin-cet", "ny-dst-day", "auckland", "utc"],
+)
+def test_interval_utc_round_trip_through_launcher_boundary(
+    tz: str, year: int, month: int, day: int, hour: int
+) -> None:
+    """UTC ISO → parse → re-apply IANA tz equals original local datetime."""
+    target_tz = ZoneInfo(tz)
+    local = datetime(year, month, day, hour, tzinfo=target_tz)
+    iso_utc = local.astimezone(timezone.utc).isoformat()
+    restored = ensure_pendulum_datetime_utc(iso_utc).astimezone(target_tz)
+    assert restored == local
+    assert isinstance(restored.tzinfo, ZoneInfo)
+    assert restored.tzinfo.key == tz
+
+
 @pytest.mark.parametrize(
     "trigger,tz,prev,now_ref,expected_at",
     [
@@ -434,24 +618,73 @@ def test_next_scheduled_run_rejects_non_timed() -> None:
 @pytest.mark.parametrize(
     "trigger,prev,now,expected_start,expected_end",
     [
-        # prev=None synthesizes start by trigger type
-        # schedule: previous cron tick
+        # ── schedule, prev=None: most recently ELAPSED cron interval ──
+        # now mid-period with sub-second precision → [prev_tick, floor(now))
         (
             "schedule:0 * * * *",
             None,
-            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:37:42.123456Z",
+            "2024-06-15T11:00:00Z",
             "2024-06-15T12:00:00Z",
-            "2024-06-15T12:30:00Z",
         ),
-        # schedule: now exactly on a tick — that tick is the start (cron_floor includes equality)
+        # now exactly on a tick → floor includes equality, interval is [prev_tick, now)
         (
             "schedule:0 * * * *",
             None,
             "2024-06-15T12:00:00Z",
-            "2024-06-15T12:00:00Z",
+            "2024-06-15T11:00:00Z",
             "2024-06-15T12:00:00Z",
         ),
-        # every: now - period
+        # now 1μs after a tick → same floor, same result
+        (
+            "schedule:0 * * * *",
+            None,
+            "2024-06-15T12:00:00.000001Z",
+            "2024-06-15T11:00:00Z",
+            "2024-06-15T12:00:00Z",
+        ),
+        # now 1μs BEFORE a tick → floor is the previous tick, not the upcoming one
+        (
+            "schedule:0 * * * *",
+            None,
+            "2024-06-15T11:59:59.999999Z",
+            "2024-06-15T10:00:00Z",
+            "2024-06-15T11:00:00Z",
+        ),
+        # ── schedule, prev set: overrides natural start; end is floor(now) ──
+        # steady state: prev ON a cron tick, equal to natural_start → same result
+        (
+            "schedule:0 * * * *",
+            "2024-06-15T11:00:00Z",
+            "2024-06-15T12:37:42.123Z",
+            "2024-06-15T11:00:00Z",
+            "2024-06-15T12:00:00Z",
+        ),
+        # gap-fill: prev OFF a tick (missed cascade / non-aligned watermark)
+        (
+            "schedule:0 * * * *",
+            "2024-06-15T09:15:23.500Z",
+            "2024-06-15T12:37:42.123Z",
+            "2024-06-15T09:15:23.500Z",
+            "2024-06-15T12:00:00Z",
+        ),
+        # gap-fill with prev on a much earlier cron tick → large window
+        (
+            "schedule:0 * * * *",
+            "2024-06-15T06:00:00Z",
+            "2024-06-15T12:37:42.123Z",
+            "2024-06-15T06:00:00Z",
+            "2024-06-15T12:00:00Z",
+        ),
+        # now exactly on a tick with prev set → end = now, not next tick
+        (
+            "schedule:0 * * * *",
+            "2024-06-15T09:00:00Z",
+            "2024-06-15T12:00:00Z",
+            "2024-06-15T09:00:00Z",
+            "2024-06-15T12:00:00Z",
+        ),
+        # ── every, prev=None ──
         (
             "every:1h",
             None,
@@ -459,7 +692,6 @@ def test_next_scheduled_run_rejects_non_timed() -> None:
             "2024-06-15T11:30:00Z",
             "2024-06-15T12:30:00Z",
         ),
-        # every: 5-minute period
         (
             "every:5m",
             None,
@@ -467,7 +699,7 @@ def test_next_scheduled_run_rejects_non_timed() -> None:
             "2024-06-15T12:25:00Z",
             "2024-06-15T12:30:00Z",
         ),
-        # once: zero-length at the once time, regardless of now
+        # ── once, prev=None ──
         (
             "once:2030-01-01T00:00:00Z",
             None,
@@ -475,7 +707,7 @@ def test_next_scheduled_run_rejects_non_timed() -> None:
             "2030-01-01T00:00:00Z",
             "2030-01-01T00:00:00Z",
         ),
-        # manual: zero-length at now
+        # ── event-like triggers, prev=None ──
         (
             "manual:jobs.mod.a",
             None,
@@ -483,7 +715,6 @@ def test_next_scheduled_run_rejects_non_timed() -> None:
             "2024-06-15T12:30:00Z",
             "2024-06-15T12:30:00Z",
         ),
-        # tag: zero-length at now
         (
             "tag:nightly",
             None,
@@ -491,7 +722,6 @@ def test_next_scheduled_run_rejects_non_timed() -> None:
             "2024-06-15T12:30:00Z",
             "2024-06-15T12:30:00Z",
         ),
-        # job.success: zero-length at now
         (
             "job.success:jobs.mod.upstream",
             None,
@@ -499,15 +729,7 @@ def test_next_scheduled_run_rejects_non_timed() -> None:
             "2024-06-15T12:30:00Z",
             "2024-06-15T12:30:00Z",
         ),
-        # prev set + schedule → prev wins, end is now (not the cron tick)
-        (
-            "schedule:0 * * * *",
-            "2024-06-15T10:15:23Z",
-            "2024-06-15T12:30:00Z",
-            "2024-06-15T10:15:23Z",
-            "2024-06-15T12:30:00Z",
-        ),
-        # prev set + every → prev wins
+        # ── every, prev set: continuity — [prev, now) ──
         (
             "every:1h",
             "2024-06-15T10:00:00Z",
@@ -515,36 +737,60 @@ def test_next_scheduled_run_rejects_non_timed() -> None:
             "2024-06-15T10:00:00Z",
             "2024-06-15T12:30:00Z",
         ),
-        # prev set + once → prev wins (overrides zero-length default)
+        # ── point-in-time triggers with prev set: prev is IGNORED ──
+        # once: always [once, once) regardless of prev
         (
             "once:2030-01-01T00:00:00Z",
             "2024-06-15T10:00:00Z",
             "2024-06-15T12:30:00Z",
-            "2024-06-15T10:00:00Z",
-            "2024-06-15T12:30:00Z",
+            "2030-01-01T00:00:00Z",
+            "2030-01-01T00:00:00Z",
         ),
-        # prev set + manual → prev wins
+        # manual: always [now, now) regardless of prev
         (
             "manual:jobs.mod.a",
             "2024-06-15T10:00:00Z",
             "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # tag: always [now, now) regardless of prev
+        (
+            "tag:nightly",
             "2024-06-15T10:00:00Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
+        ),
+        # job.success: always [now, now) regardless of prev
+        (
+            "job.success:jobs.mod.upstream",
+            "2024-06-15T10:00:00Z",
+            "2024-06-15T12:30:00Z",
+            "2024-06-15T12:30:00Z",
             "2024-06-15T12:30:00Z",
         ),
     ],
     ids=[
-        "schedule-prev=None-midhour",
+        "schedule-prev=None-midperiod-subsec",
         "schedule-prev=None-on-tick",
+        "schedule-prev=None-1us-after-tick",
+        "schedule-prev=None-1us-before-tick",
+        "schedule-prev-on-tick-steady-state",
+        "schedule-prev-off-tick-gap-fill",
+        "schedule-prev-early-tick-large-gap",
+        "schedule-prev-set-now-on-tick",
         "every-prev=None-1h",
         "every-prev=None-5m",
         "once-prev=None",
         "manual-prev=None",
         "tag-prev=None",
         "job.success-prev=None",
-        "schedule-prev-set",
-        "every-prev-set",
-        "once-prev-set",
-        "manual-prev-set",
+        "every-prev-set-continuity",
+        "once-prev-set-ignored",
+        "manual-prev-set-ignored",
+        "tag-prev-set-ignored",
+        "job.success-prev-set-ignored",
     ],
 )
 def test_compute_run_interval(
@@ -557,7 +803,7 @@ def test_compute_run_interval(
     iv = compute_run_interval(
         TTrigger(trigger),
         _dt(now),
-        prev_completed_run=_dt(prev) if prev else None,
+        prev_interval_end=_dt(prev) if prev else None,
     )
     assert iv == (_dt(expected_start), _dt(expected_end))
 
@@ -567,7 +813,7 @@ def test_compute_run_interval_returns_utc() -> None:
     iv = compute_run_interval(
         TTrigger("schedule:0 8 * * *"),
         _dt("2024-06-15T11:00:00Z"),
-        prev_completed_run=None,
+        prev_interval_end=None,
         tz="US/Eastern",
     )
     assert iv[0].tzname() == "UTC"
@@ -575,16 +821,19 @@ def test_compute_run_interval_returns_utc() -> None:
 
 
 def test_compute_run_interval_schedule_with_timezone() -> None:
-    """Cron tick is computed in target tz then converted to UTC."""
-    # 08:00 ET = 12:00 UTC (DST). At now=11:00 UTC (07:00 ET), the previous
-    # 08:00 ET tick is yesterday's 08:00 ET = previous day 12:00 UTC.
+    """Schedule interval is the most recently ELAPSED cron period in target tz.
+
+    08:00 ET = 12:00 UTC (EDT). At now = 2024-06-15T11:00Z (07:00 ET on 06-15),
+    the last elapsed 08:00-ET tick is 2024-06-14T08:00 ET = 06-14T12:00Z;
+    the tick before that is 2024-06-13T08:00 ET = 06-13T12:00Z.
+    """
     iv = compute_run_interval(
         TTrigger("schedule:0 8 * * *"),
         _dt("2024-06-15T11:00:00Z"),
-        prev_completed_run=None,
+        prev_interval_end=None,
         tz="US/Eastern",
     )
-    assert iv == (_dt("2024-06-14T12:00:00Z"), _dt("2024-06-15T11:00:00Z"))
+    assert iv == (_dt("2024-06-13T12:00:00Z"), _dt("2024-06-14T12:00:00Z"))
 
 
 def test_compute_run_interval_invalid_trigger() -> None:
@@ -595,7 +844,7 @@ def test_compute_run_interval_invalid_trigger() -> None:
         compute_run_interval(
             TTrigger("not-a-trigger"),
             _dt("2024-06-15T12:00:00Z"),
-            prev_completed_run=None,
+            prev_interval_end=None,
         )
 
 
@@ -894,7 +1143,7 @@ def test_freshness_via_resolve_and_check_with_misaligned_cron() -> None:
 
 def _check_run_freshness(
     upstream_job: TJobDefinition,
-    prev: Optional[pendulum.DateTime],
+    prev: Optional[datetime],
     constraint: str = "job.is_fresh",
 ) -> Tuple[bool, List[str]]:
     """Run check_all_upstream_run_fresh with a single upstream."""
@@ -996,20 +1245,22 @@ def test_schedule_freshness_handles_minute_boundary_crossing() -> None:
     minute it ran in) while the strict `expected = current tick` would be 22:50.
     """
     # prev_completed_run = cron_floor of started_at = 22:49:00
-    prev = ensure_pendulum_datetime_utc("2026-04-08T22:49:00Z")
+    prev = datetime(2026, 4, 8, 22, 49, 0, tzinfo=timezone.utc)
     # downstream is checking ~6s later, after the minute has rolled over
-    check_now = ensure_pendulum_datetime_utc("2026-04-08T22:50:01Z")
+    check_now = datetime(2026, 4, 8, 22, 50, 1, tzinfo=timezone.utc)
     import dlt._workspace.deployment.interval as iv_mod
+    from unittest.mock import patch
 
-    orig_now = iv_mod.pendulum.now
-    try:
-        iv_mod.pendulum.now = lambda *a, **kw: check_now
+    class _FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return check_now.astimezone(tz) if tz is not None else check_now
+
+    with patch.object(iv_mod, "datetime", _FrozenDatetime):
         fresh, reason = _check_run_freshness(
             _job("jobs.up", ["schedule:* * * * *"], default_trigger="schedule:* * * * *"),
             prev,
         )
-    finally:
-        iv_mod.pendulum.now = orig_now
     assert fresh, f"expected fresh, got reason: {reason}"
 
 

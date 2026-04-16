@@ -2,9 +2,10 @@
 
 import os
 import time
-from datetime import date, datetime  # noqa: I251
+from datetime import date, datetime, timezone  # noqa: I251
 from typing import Dict, List, Optional
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -38,8 +39,8 @@ def test_explicit_context_with_pendulum() -> None:
 
 def test_no_interval_when_empty() -> None:
     with patch.dict(os.environ, {}, clear=True):
-        os.environ.pop("DLT_START_VALUE", None)
-        os.environ.pop("DLT_END_VALUE", None)
+        os.environ.pop("DLT_INTERVAL_START", None)
+        os.environ.pop("DLT_INTERVAL_END", None)
         ctx = TimeIntervalContext()
     assert ctx.interval is None
 
@@ -49,11 +50,14 @@ def test_no_interval_when_empty() -> None:
     [
         # both present → detected
         (
-            {"DLT_START_VALUE": "2024-03-01T00:00:00Z", "DLT_END_VALUE": "2024-03-02T00:00:00Z"},
+            {
+                "DLT_INTERVAL_START": "2024-03-01T00:00:00Z",
+                "DLT_INTERVAL_END": "2024-03-02T00:00:00Z",
+            },
             True,
         ),
         # start only → partial → None
-        ({"DLT_START_VALUE": "2024-03-01T00:00:00Z"}, False),
+        ({"DLT_INTERVAL_START": "2024-03-01T00:00:00Z"}, False),
         # neither → None
         ({}, False),
     ],
@@ -61,13 +65,13 @@ def test_no_interval_when_empty() -> None:
 )
 def test_detect_from_env_vars(env_vars: Dict[str, str], expect_interval: bool) -> None:
     with patch.dict(os.environ, env_vars, clear=False):
-        os.environ.pop("DLT_START_VALUE", None) if "DLT_START_VALUE" not in env_vars else None
-        os.environ.pop("DLT_END_VALUE", None) if "DLT_END_VALUE" not in env_vars else None
+        os.environ.pop("DLT_INTERVAL_START", None) if "DLT_INTERVAL_START" not in env_vars else None
+        os.environ.pop("DLT_INTERVAL_END", None) if "DLT_INTERVAL_END" not in env_vars else None
         ctx = TimeIntervalContext()
     if expect_interval:
         assert ctx.interval is not None
-        assert ctx.interval[0] == ensure_pendulum_datetime_non_utc(env_vars["DLT_START_VALUE"])
-        assert ctx.interval[1] == ensure_pendulum_datetime_non_utc(env_vars["DLT_END_VALUE"])
+        assert ctx.interval[0] == ensure_pendulum_datetime_non_utc(env_vars["DLT_INTERVAL_START"])
+        assert ctx.interval[1] == ensure_pendulum_datetime_non_utc(env_vars["DLT_INTERVAL_END"])
     else:
         assert ctx.interval is None
 
@@ -117,8 +121,8 @@ def test_detect_from_airflow(
         patch.dict(os.environ, {}, clear=False),
         patch.dict("sys.modules", {"airflow.operators.python": mock_module}),
     ):
-        os.environ.pop("DLT_START_VALUE", None)
-        os.environ.pop("DLT_END_VALUE", None)
+        os.environ.pop("DLT_INTERVAL_START", None)
+        os.environ.pop("DLT_INTERVAL_END", None)
         ctx = TimeIntervalContext()
 
     if expect_interval:
@@ -137,6 +141,59 @@ def test_injectable_context_and_current() -> None:
         assert get_interval_context() is ctx
         current_iv = dlt.current.interval()
         assert current_iv == iv
+
+
+@pytest.mark.parametrize(
+    "iv_tz,expected_tz_name,expected_start,expected_end",
+    [
+        # tz env var set → UTC parsed then converted to target tz
+        (
+            "Europe/Berlin",
+            "Europe/Berlin",
+            datetime(2024, 1, 15, 1, tzinfo=ZoneInfo("Europe/Berlin")),  # 00:00Z = 01:00 CET
+            datetime(2024, 1, 16, 1, tzinfo=ZoneInfo("Europe/Berlin")),
+        ),
+        (
+            "America/New_York",
+            "America/New_York",
+            datetime(2024, 1, 14, 19, tzinfo=ZoneInfo("America/New_York")),  # 00:00Z = 19:00 EST
+            datetime(2024, 1, 15, 19, tzinfo=ZoneInfo("America/New_York")),
+        ),
+        # no tz env var → UTC passthrough (stdlib timezone.utc)
+        (
+            None,
+            None,
+            datetime(2024, 1, 15, tzinfo=timezone.utc),
+            datetime(2024, 1, 16, tzinfo=timezone.utc),
+        ),
+    ],
+    ids=["berlin", "new-york", "no-tz-defaults-utc"],
+)
+def test_detect_applies_interval_timezone_env_var(
+    iv_tz: Optional[str],
+    expected_tz_name: Optional[str],
+    expected_start: datetime,
+    expected_end: datetime,
+) -> None:
+    """`DLT_INTERVAL_TIMEZONE` (optional) is applied to UTC ISO env values."""
+    env = {
+        "DLT_INTERVAL_START": "2024-01-15T00:00:00Z",
+        "DLT_INTERVAL_END": "2024-01-16T00:00:00Z",
+    }
+    if iv_tz is not None:
+        env["DLT_INTERVAL_TIMEZONE"] = iv_tz
+    with patch.dict(os.environ, env, clear=False):
+        if iv_tz is None:
+            os.environ.pop("DLT_INTERVAL_TIMEZONE", None)
+        ctx = TimeIntervalContext()
+    assert ctx.interval is not None
+    assert ctx.interval[0] == expected_start
+    assert ctx.interval[1] == expected_end
+    if expected_tz_name is not None:
+        assert isinstance(ctx.interval[0].tzinfo, ZoneInfo)
+        assert ctx.interval[0].tzinfo.key == expected_tz_name
+    else:
+        assert ctx.interval[0].tzinfo == timezone.utc
 
 
 def test_context_preserves_timezone() -> None:

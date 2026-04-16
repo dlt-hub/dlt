@@ -4,11 +4,13 @@ import asyncio
 import inspect
 import os
 import sys
+from datetime import datetime, timezone  # noqa: I251
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from dlt.common.configuration.container import Container
 from dlt.common.reflection.ref import object_from_ref
-from dlt.common.time import ensure_pendulum_datetime_non_utc
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace import known_sections as ws_known_sections
@@ -146,6 +148,22 @@ def _wants_run_context(f: Any) -> bool:
         return False
 
 
+def _parse_utc_to_tz(iso_utc: str, tz: ZoneInfo) -> datetime:
+    """Parse a UTC ISO string to a stdlib datetime in `tz`."""
+    pdt = ensure_pendulum_datetime_utc(iso_utc)
+    utc_dt = datetime(
+        pdt.year,
+        pdt.month,
+        pdt.day,
+        pdt.hour,
+        pdt.minute,
+        pdt.second,
+        pdt.microsecond,
+        tzinfo=timezone.utc,
+    )
+    return utc_dt.astimezone(tz)
+
+
 def run(
     entry_point: TRuntimeEntryPoint,
     run_id: str,
@@ -171,15 +189,23 @@ def run(
     if profile:
         os.environ[WORKSPACE__PROFILE] = profile
 
-    # parse interval from entry point
+    # parse interval from entry point. The runner always serializes in UTC and
+    # ships `interval_timezone` (IANA name) as a sidecar so tz identity survives
+    # JSON round-trip. Re-apply tz here — this is the boundary where the
+    # user-facing interval gets its original timezone back.
     iv_start_str = entry_point.get("interval_start")
     iv_end_str = entry_point.get("interval_end")
+    iv_tz_name = entry_point.get("interval_timezone", "UTC")
     iv: Optional[TTimeInterval] = None
     if iv_start_str and iv_end_str:
+        target_tz = ZoneInfo(iv_tz_name)
         iv = (
-            ensure_pendulum_datetime_non_utc(iv_start_str),
-            ensure_pendulum_datetime_non_utc(iv_end_str),
+            _parse_utc_to_tz(iv_start_str, target_tz),
+            _parse_utc_to_tz(iv_end_str, target_tz),
         )
+        os.environ["DLT_INTERVAL_START"] = iv_start_str
+        os.environ["DLT_INTERVAL_END"] = iv_end_str
+        os.environ["DLT_INTERVAL_TIMEZONE"] = iv_tz_name
 
     # inject run_context if the function signature declares it
     kwargs: Dict[str, Any] = {}
