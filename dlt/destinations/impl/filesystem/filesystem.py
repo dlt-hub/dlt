@@ -588,7 +588,7 @@ class FilesystemClient(
         """A path within a bucket to tables in a dataset
         NOTE: dataset_name changes if with_staging_dataset is active
         """
-        return self.pathlib.join(self.bucket_path, self.dataset_name, "")  # type: ignore[no-any-return]
+        return self.pathlib.join(self.bucket_path, self.dataset_name)  # type: ignore[no-any-return]
 
     @contextmanager
     def with_staging_dataset(self) -> Iterator["FilesystemClient"]:
@@ -874,12 +874,13 @@ class FilesystemClient(
     def get_table_dir(
         self, table_name: str, remote: bool = False, schema_name: Optional[str] = None
     ) -> str:
-        """Returns a directory containing table files, ending with separator.
-        Note that many tables can share the same table dir
+        """Returns a directory containing table files.
+
+        Note that many tables can share the same table dir.
         """
         # dlt tables do not respect layout (for now)
         table_prefix = self.get_table_prefix(table_name, schema_name=schema_name)
-        table_dir: str = self.pathlib.dirname(table_prefix) + self.pathlib.sep
+        table_dir: str = self.pathlib.dirname(table_prefix)
         if remote:
             table_dir = self.make_remote_url(table_dir)
         return table_dir

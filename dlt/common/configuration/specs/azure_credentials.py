@@ -187,6 +187,33 @@ class AzureServicePrincipalCredentials(
         return base_kwargs
 
 
+@configspec
+class OneLakeNotebookIdentityCredentials(CredentialsConfiguration):
+    """Azure credentials for OneLake filesystem staging under Fabric notebook identity.
+
+    Returns adlfs kwargs with `account_name` and `account_host` only -- no
+    `credential` key. Fabric Python notebooks register a custom
+    `OnelakeFileSystem` as the `abfss://` handler, and its `__init__` falls
+    through to a built-in `make_credential()` helper when no credential is
+    supplied.
+
+    Warning: only usable inside a Fabric notebook kernel.
+    """
+
+    azure_storage_account_name: str = "onelake"
+    """OneLake logical storage account name."""
+
+    azure_account_host: str = "onelake.blob.fabric.microsoft.com"
+    """OneLake blob DFS endpoint."""
+
+    def to_adlfs_credentials(self) -> Dict[str, Any]:
+        """Return adlfs kwargs with `account_name` and `account_host` only."""
+        return {
+            "account_name": self.azure_storage_account_name,
+            "account_host": self.azure_account_host,
+        }
+
+
 AnyAzureCredentials = Union[
     # Credentials without defaults come first because union types are attempted in order
     # and explicit config should supersede system defaults
