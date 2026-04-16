@@ -231,3 +231,22 @@ def test_get_access_token_calls_injected_credential_when_set() -> None:
 
     assert creds.get_access_token() == "injected-token"
     fake_credential.get_token.assert_called_once_with("https://database.windows.net/.default")
+
+
+def test_get_odbc_dsn_dict_omits_auth_fields_in_token_mode() -> None:
+    """When `access_token` is set, the DSN dict must not include
+    `AUTHENTICATION`/`UID`/`PWD`."""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.access_token = "abc123"
+
+    dsn_dict = creds.get_odbc_dsn_dict()
+
+    assert "AUTHENTICATION" not in dsn_dict
+    assert "UID" not in dsn_dict
+    assert "PWD" not in dsn_dict
+    assert dsn_dict["DRIVER"] == "{ODBC Driver 18 for SQL Server}"
+    assert dsn_dict["SERVER"] == "test.datawarehouse.fabric.microsoft.com,1433"
+    assert dsn_dict["DATABASE"] == "testdb"
+    assert dsn_dict["LongAsMax"] == "yes"

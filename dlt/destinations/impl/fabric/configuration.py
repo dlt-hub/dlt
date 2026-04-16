@@ -68,18 +68,20 @@ class FabricCredentials(AzureServicePrincipalCredentials):
                 self.resolve()
 
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
-        """Build ODBC DSN dictionary with Fabric-specific settings."""
-        params = {
+        """Build the ODBC DSN dictionary with Fabric-specific settings."""
+        params: Dict[str, Any] = {
             "DRIVER": "{ODBC Driver 18 for SQL Server}",
             "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,
-            "AUTHENTICATION": "ActiveDirectoryServicePrincipal",
-            "LongAsMax": "yes",  # Required for UTF-8 collation support
+            "LongAsMax": "yes",
             "Encrypt": "yes",
             "TrustServerCertificate": "no",
         }
 
-        # Add Service Principal credentials if provided
+        if self.get_access_token() is not None:
+            return params
+
+        params["AUTHENTICATION"] = "ActiveDirectoryServicePrincipal"
         if self.azure_client_id and self.azure_tenant_id and self.azure_client_secret:
             params["UID"] = f"{self.azure_client_id}@{self.azure_tenant_id}"
             params["PWD"] = str(self.azure_client_secret)
