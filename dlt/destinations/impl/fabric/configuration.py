@@ -54,16 +54,21 @@ class FabricCredentials(AzureServicePrincipalCredentials):
         return None
 
     def on_partial(self) -> None:
-        """Enable fallback to DefaultAzureCredential if explicit credentials not provided."""
+        """Resolve partial credentials.
+
+        When `access_token` or `azure_credential` is set, skip the
+        `DefaultAzureCredential` fallback -- the user has already provided auth.
+        """
+        if self.access_token is not None or self.azure_credential is not None:
+            return
+
         try:
             from azure.identity import DefaultAzureCredential
         except ModuleNotFoundError:
             raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
 
-        # If no explicit Service Principal credentials, use default credentials
         if not self.azure_client_id or not self.azure_client_secret or not self.azure_tenant_id:
             self._set_default_credentials(DefaultAzureCredential())
-            # Resolve if we have warehouse connection details (not storage account name)
             if self.host and self.database:
                 self.resolve()
 

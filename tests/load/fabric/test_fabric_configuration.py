@@ -250,3 +250,21 @@ def test_get_odbc_dsn_dict_omits_auth_fields_in_token_mode() -> None:
     assert dsn_dict["SERVER"] == "test.datawarehouse.fabric.microsoft.com,1433"
     assert dsn_dict["DATABASE"] == "testdb"
     assert dsn_dict["LongAsMax"] == "yes"
+
+
+def test_on_partial_skips_default_azure_credential_in_token_mode() -> None:
+    """When `access_token` is set, `on_partial` must not attempt to
+    import or instantiate `DefaultAzureCredential`."""
+    from unittest.mock import patch
+
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.access_token = "abc123"
+
+    with patch(
+        "dlt.destinations.impl.fabric.configuration.FabricCredentials._set_default_credentials",
+    ) as mock_set_default:
+        creds.on_partial()
+
+    mock_set_default.assert_not_called()
