@@ -194,3 +194,22 @@ def test_fabric_credentials_authentication_method() -> None:
     # Verify ActiveDirectoryServicePrincipal is set
     dsn_dict = creds.get_odbc_dsn_dict()
     assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+
+
+def test_get_access_token_returns_raw_string_when_set() -> None:
+    """`get_access_token()` returns the raw `access_token` when it is set."""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.access_token = "abc123"
+
+    assert creds.get_access_token() == "abc123"
+
+
+def test_get_access_token_returns_none_when_no_token_configured() -> None:
+    """`get_access_token()` returns None when neither access_token nor azure_credential is set."""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+
+    assert creds.get_access_token() is None

@@ -5,6 +5,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.typing import TSecretStrValue
 from dlt import version
 
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
@@ -37,6 +38,15 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     # Override to make optional - not needed for Fabric Warehouse credentials (only for staging)
     azure_storage_account_name: Optional[str] = None
     """Not used for Fabric Warehouse credentials (only staging credentials need this)"""
+
+    access_token: Optional[TSecretStrValue] = None
+    """Pre-fetched AAD bearer token for Fabric Warehouse."""
+
+    def get_access_token(self) -> Optional[str]:
+        """Return an AAD bearer token for Fabric Warehouse, or `None`."""
+        if self.access_token is not None:
+            return str(self.access_token)
+        return None
 
     def on_partial(self) -> None:
         """Enable fallback to DefaultAzureCredential if explicit credentials not provided."""
