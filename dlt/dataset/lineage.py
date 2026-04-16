@@ -131,7 +131,7 @@ def compute_columns_schema(
             qualify(
                 select_expression,
                 schema=sqlglot_schema,
-                dialect=dialect,
+                dialect=f"{dialect}, normalization_strategy=case_sensitive" if dialect else None,
                 infer_schema=infer_sqlglot_schema,
                 quote_identifiers=False,
                 expand_stars=True,
