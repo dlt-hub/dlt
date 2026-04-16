@@ -89,7 +89,9 @@ def plug_cli_profile() -> Type[plugins.SupportsCliCommand]:
 
         return ProfileCommand
     else:
-        return None
+        from dlt._workspace.cli.commands import _ProfilePlaceholder
+
+        return _ProfilePlaceholder
 
 
 @plugins.hookimpl(specname="plug_cli")
@@ -99,4 +101,6 @@ def plug_cli_workspace() -> Type[plugins.SupportsCliCommand]:
 
         return WorkspaceCommand
     else:
-        return None
+        from dlt._workspace.cli.commands import _WorkspacePlaceholder
+
+        return _WorkspacePlaceholder
