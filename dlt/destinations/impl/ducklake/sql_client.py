@@ -145,10 +145,13 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             )
             attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:md:{catalog.database}'"
             attach_params = f", METADATA_SCHEMA '{metadata_schema}'"
-        elif catalog.drivername in ("sqlite", "duckdb"):
-            # attach sqllite with multi-process access
+        elif catalog.drivername == "sqlite":
+            # attach sqlite with multi-process access
             attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{catalog.database}'"
             attach_params = ", META_TYPE 'sqlite', META_JOURNAL_MODE 'WAL', META_BUSY_TIMEOUT 1000"
+        elif catalog.drivername == "duckdb":
+            # DuckDB-backed catalog: no META_TYPE, DuckLake opens it natively
+            attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{catalog.database}'"
         else:
             raise NotImplementedError(str(catalog))
         attach_statement += f" AS {ducklake_name}"
