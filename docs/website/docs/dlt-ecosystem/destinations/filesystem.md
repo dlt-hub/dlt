@@ -258,6 +258,38 @@ max_concurrency=3
 ```
 :::
 
+#### OneLake under notebook identity
+
+When using dlt from inside a Microsoft Fabric Python notebook with `staging="filesystem"` pointing at a OneLake bucket, the standard Azure credential classes are not applicable -- the notebook user has no Service Principal, and the Fabric-registered `OnelakeFileSystem` handler authenticates the current notebook user only when no explicit credential is supplied.
+
+Use `OneLakeNotebookIdentityCredentials` on the filesystem staging credentials:
+
+```toml
+[destination.filesystem]
+bucket_url = "abfss://<workspace-guid>@onelake.dfs.fabric.microsoft.com/<lakehouse-guid>/Files/_dlt_stage"
+
+[destination.filesystem.credentials]
+type = "OneLakeNotebookIdentityCredentials"
+```
+
+Or in Python:
+
+```py
+from dlt.common.configuration.specs.azure_credentials import (
+    OneLakeNotebookIdentityCredentials,
+)
+
+filesystem_credentials = OneLakeNotebookIdentityCredentials()
+```
+
+This class returns adlfs kwargs with `account_name` and `account_host` only -- no `credential` key. Inside a Fabric notebook kernel, the registered `OnelakeFileSystem.__init__` falls through to its built-in `make_credential()` helper, producing a credential tied to the notebook user identity.
+
+:::caution
+`OneLakeNotebookIdentityCredentials` only works inside a Fabric notebook kernel. Outside of Fabric, the `abfss://` protocol handler is plain adlfs `AzureBlobFileSystem`, which has no built-in credential fallback and will fail authentication at the first read.
+:::
+
+Pair with `FabricCredentials.access_token` or `azure_credential` on the Fabric destination side -- see the [Fabric destination notebook identity section](fabric.md#notebook-user-identity-microsoft-fabric-notebooks).
+
 ### Hugging Face
 
 The filesystem destination supports loading into [Hugging Face Datasets](https://huggingface.co/docs/datasets/index) using the `hf://` protocol. See the [Hugging Face destination](huggingface) page for setup and configuration details.
