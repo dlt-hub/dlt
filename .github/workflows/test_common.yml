@@ -20,46 +20,46 @@ jobs:
       matrix:
         include:
 
-          # macos tests
-          - os: macos-latest
+          # macos tests (Blacksmith macOS runners top out at 12 vCPU)
+          - os: blacksmith-12vcpu-macos-latest
             python-version: "3.11"
             shell: bash
 
           # linux tests
-          - os: ubuntu-latest
+          - os: blacksmith-32vcpu-ubuntu-2404
             python-version: "3.10"
             shell: bash
-          - os: ubuntu-latest
+          - os: blacksmith-32vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
-          - os: ubuntu-latest
+          - os: blacksmith-32vcpu-ubuntu-2404
             python-version: "3.12"
             shell: bash
-          - os: ubuntu-latest
+          - os: blacksmith-32vcpu-ubuntu-2404
             python-version: "3.13"
             shell: bash
 
-          - os: "macos-14"
+          - os: blacksmith-12vcpu-macos-latest
             python-version: "3.14"
             shell: bash
 
           # linux test with minimal dependencies
-          - os: ubuntu-latest
+          - os: blacksmith-32vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
 
           # linux test with newest available allowed packages (will update lockfile, should not be committed if run locally)
-          - os: ubuntu-latest
+          - os: blacksmith-32vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--upgrade' # could also be 'direct'
 
           # windows tests
-          - os: windows-latest
+          - os: blacksmith-32vcpu-windows-2025
             python-version: "3.11"
             shell: cmd
-          - os: windows-latest
+          - os: blacksmith-32vcpu-windows-2025
             python-version: "3.13"
             shell: cmd
 
