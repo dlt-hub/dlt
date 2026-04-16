@@ -16,7 +16,7 @@ from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.common.typing import TLoaderFileFormat
 
 from dlt.destinations.type_mapping import TypeMapperImpl
-from dlt.destinations.impl.bigquery.bigquery_adapter import should_autodetect_schema
+from dlt.destinations.impl.bigquery.bigquery_adapter import should_autodetect_schema, GEOGRAPHY_HINT
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.utils import parse_db_data_type_str_with_precision
 
@@ -57,6 +57,7 @@ class BigQueryTypeMapper(TypeMapperImpl):
         "BIGNUMERIC": "decimal",
         "JSON": "json",
         "TIME": "time",
+        "GEOGRAPHY": "text",
     }
 
     def ensure_supported_type(
@@ -110,6 +111,11 @@ class BigQueryTypeMapper(TypeMapperImpl):
             return "BIGNUMERIC(%i,%i)" % (precision, scale)
         return "NUMERIC(%i,%i)" % (precision, scale)
 
+    def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
+        if column.get(GEOGRAPHY_HINT):
+            return "GEOGRAPHY"
+        return super().to_destination_type(column, table)
+
     # noinspection PyTypeChecker,PydanticTypeChecker
     def from_destination_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]
@@ -119,6 +125,8 @@ class BigQueryTypeMapper(TypeMapperImpl):
             return dict(data_type="wei")
         if db_type == "DATETIME":
             return {"data_type": "timestamp", "timezone": False}
+        if db_type == "GEOGRAPHY":
+            return dict(data_type="text")
         return super().from_destination_type(*parse_db_data_type_str_with_precision(db_type))
 
 
