@@ -213,3 +213,21 @@ def test_get_access_token_returns_none_when_no_token_configured() -> None:
     creds.database = "testdb"
 
     assert creds.get_access_token() is None
+
+
+def test_get_access_token_calls_injected_credential_when_set() -> None:
+    """`get_access_token()` delegates to an injected TokenCredential when
+    `access_token` is not set."""
+    from unittest.mock import MagicMock
+    from azure.core.credentials import AccessToken
+
+    fake_credential = MagicMock()
+    fake_credential.get_token.return_value = AccessToken("injected-token", 1234567890)
+
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.azure_credential = fake_credential
+
+    assert creds.get_access_token() == "injected-token"
+    fake_credential.get_token.assert_called_once_with("https://database.windows.net/.default")

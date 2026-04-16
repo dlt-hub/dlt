@@ -42,10 +42,15 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     access_token: Optional[TSecretStrValue] = None
     """Pre-fetched AAD bearer token for Fabric Warehouse."""
 
+    azure_credential: Optional[Any] = None
+    """Injectable `azure.core.credentials.TokenCredential` for Fabric Warehouse."""
+
     def get_access_token(self) -> Optional[str]:
         """Return an AAD bearer token for Fabric Warehouse, or `None`."""
         if self.access_token is not None:
             return str(self.access_token)
+        if self.azure_credential is not None:
+            return self.azure_credential.get_token("https://database.windows.net/.default").token
         return None
 
     def on_partial(self) -> None:
