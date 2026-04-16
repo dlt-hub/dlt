@@ -22,40 +22,40 @@ jobs:
         include:
 
           # macos tests
-          - os: "macos-14"
+          - os: blacksmith-12vcpu-macos-latest
             python-version: "3.12"
             shell: bash
 
           # linux tests
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.10"
             shell: bash
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.12"
             shell: bash
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.13"
             shell: bash
 
           # linux test with minimal dependencies
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
 
           # mac test with newest available allowed packages (will update lockfile, should not be committed if run locally)
           # TODO: revert to linux
-          - os: "macos-14"
+          - os: blacksmith-12vcpu-macos-latest
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--upgrade' # could also be 'direct'
 
 
           # windows tests
-          - os: windows-latest
+          - os: blacksmith-8vcpu-windows-2025
             python-version: "3.12"
             shell: cmd
 
@@ -113,7 +113,7 @@ jobs:
   matrix_job_required_check:
     name: common | common tests
     needs: run_common
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     if: always()
     steps:
       - name: Check matrix job results
