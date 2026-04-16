@@ -948,7 +948,7 @@ def bind_query(
     qualified_query: sge.Query,
     sqlglot_schema: Any,  # SQLGlotSchema
     *,
-    expand_table_name: Callable[[str], List[str]],
+    expand_table_name: Callable[[str, Optional[str]], List[str]],
     casefold_identifier: Callable[[str], str],
 ) -> sge.Query:
     """Binds a logical query (compliant with dlt schema) to physical tables in the destination dataset.
@@ -971,7 +971,9 @@ def bind_query(
     Args:
         qualified_query: SQLGlot query expression with qualified table/column references
         sqlglot_schema: Schema mapping for name validation and column resolution
-        expand_table_name: Function that expands table name to fully qualified path [catalog, schema, table]
+        expand_table_name: Function ``(table_name, dataset_name | None) -> [catalog, schema, table]``
+            that expands a table name to a fully qualified path. The second argument is the
+            dataset qualifier from the query (``node.db``), or `None` for the default dataset.
         casefold_identifier: Case transformation function (`str`, `str.upper`, or `str.lower`)
 
     Returns:
@@ -993,7 +995,7 @@ def bind_query(
             # expand named of known tables. this is currently clickhouse things where
             # we use dataset.table in queries but render those as dataset___table
             if sqlglot_schema.column_names(node):
-                expanded_path = expand_table_name(node.name)
+                expanded_path = expand_table_name(node.name, node.db or None)
                 # set the table name
                 if node.name != expanded_path[-1]:
                     node.this.set("this", expanded_path[-1])

@@ -51,8 +51,44 @@ class AccountMembershipRow(TypedDict):
     user_name: str
 
 
+class WarehouseRow(TypedDict):
+    warehouse_id: int
+    city: str
+
+
+class InventoryItemRow(TypedDict):
+    sku: str
+    warehouse_id: int
+    quantity: int
+
+
+class PurchaseRow(TypedDict):
+    purchase_id: int
+    user_id: int
+    sku: str
+    quantity: int
+
+
+class CustomerRow(TypedDict):
+    customer_id: int
+    name: str
+    country_code: str
+
+
+class CustomerOrderRow(TypedDict):
+    order_id: int
+    customer_id: int
+    amount: float
+
+
+class CountryRow(TypedDict):
+    code: str
+    name: str
+
+
 TLoadStats = dict[str, int]
 TLoadsFixture = tuple[dlt.Dataset, tuple[str, str], tuple[TLoadStats, TLoadStats]]
+TCrossDsFixture = tuple[dlt.Dataset, dlt.Dataset]
 
 
 USERS_DATA_0: list[UserRow] = [
@@ -142,6 +178,88 @@ def crm(i: int = 0):
             yield PRODUCTS_DATA_1
 
     return [users(i), products(i)]
+
+
+WAREHOUSES: list[WarehouseRow] = [
+    {"warehouse_id": 1, "city": "Berlin"},
+    {"warehouse_id": 2, "city": "Paris"},
+]
+
+INVENTORY_ITEMS: list[InventoryItemRow] = [
+    {"sku": "W-001", "warehouse_id": 1, "quantity": 50},
+    {"sku": "G-001", "warehouse_id": 2, "quantity": 30},
+    {"sku": "D-001", "warehouse_id": 1, "quantity": 10},
+]
+
+PURCHASES: list[PurchaseRow] = [
+    {"purchase_id": 1, "user_id": 1, "sku": "W-001", "quantity": 2},
+    {"purchase_id": 2, "user_id": 1, "sku": "G-001", "quantity": 1},
+    {"purchase_id": 3, "user_id": 2, "sku": "W-001", "quantity": 1},
+    {"purchase_id": 4, "user_id": 99, "sku": "D-001", "quantity": 5},
+]
+
+
+@dlt.source
+def inventory():
+    @dlt.resource(name="warehouses")
+    def warehouses():
+        yield WAREHOUSES
+
+    @dlt.resource(
+        name="inventory_items",
+        references=[
+            {
+                "referenced_table": "warehouses",
+                "columns": ["warehouse_id"],
+                "referenced_columns": ["warehouse_id"],
+            }
+        ],
+    )
+    def inventory_items():
+        yield INVENTORY_ITEMS
+
+    @dlt.resource(name="purchases")
+    def purchases():
+        yield PURCHASES
+
+    return [warehouses(), inventory_items(), purchases()]
+
+
+CUSTOMERS: list[CustomerRow] = [
+    {"customer_id": 1, "name": "Alice", "country_code": "DE"},
+    {"customer_id": 2, "name": "Bob", "country_code": "FR"},
+    {"customer_id": 3, "name": "Charlie", "country_code": "DE"},
+]
+
+CUSTOMER_ORDERS: list[CustomerOrderRow] = [
+    {"order_id": 100, "customer_id": 1, "amount": 50.0},
+    {"order_id": 101, "customer_id": 1, "amount": 75.0},
+    {"order_id": 102, "customer_id": 2, "amount": 200.0},
+    {"order_id": 103, "customer_id": 3, "amount": 30.0},
+]
+
+COUNTRIES: list[CountryRow] = [
+    {"code": "DE", "name": "Germany"},
+    {"code": "FR", "name": "France"},
+    {"code": "ES", "name": "Spain"},
+]
+
+
+@dlt.source
+def relational_tables():
+    @dlt.resource(name="customers")
+    def customers():
+        yield CUSTOMERS
+
+    @dlt.resource(name="orders")
+    def orders():
+        yield CUSTOMER_ORDERS
+
+    @dlt.resource(name="countries")
+    def countries():
+        yield COUNTRIES
+
+    return [customers(), orders(), countries()]
 
 
 @dlt.source
