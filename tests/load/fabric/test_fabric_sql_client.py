@@ -13,7 +13,7 @@ pytestmark = pytest.mark.essential
 
 
 @pytest.fixture(autouse=True)
-def _mock_pyodbc(monkeypatch: pytest.MonkeyPatch) -> None:
+def _mock_pyodbc(monkeypatch: pytest.MonkeyPatch) -> None:  # type: ignore[misc]
     """Install a fake pyodbc module in sys.modules."""
     fake_pyodbc = MagicMock(name="pyodbc_module")
     monkeypatch.setitem(sys.modules, "pyodbc", fake_pyodbc)
@@ -53,7 +53,7 @@ def test_open_connection_passes_token_via_attrs_before_1256() -> None:
     client = _fake_sql_client()
     client.credentials.access_token = "FAKE_TOKEN"
 
-    FabricSqlClient.open_connection(client)
+    FabricSqlClient.open_connection(client)  # type: ignore[arg-type]
 
     pyodbc = sys.modules["pyodbc"]
     assert pyodbc.connect.called
@@ -71,7 +71,7 @@ def test_open_connection_passes_connect_timeout_in_token_mode() -> None:
     client.credentials.access_token = "FAKE_TOKEN"
     client.credentials.connect_timeout = 42
 
-    FabricSqlClient.open_connection(client)
+    FabricSqlClient.open_connection(client)  # type: ignore[arg-type]
 
     pyodbc = sys.modules["pyodbc"]
     assert pyodbc.connect.call_args.kwargs["timeout"] == 42
@@ -105,7 +105,7 @@ def test_open_connection_sets_autocommit_true_in_token_mode() -> None:
     client = _fake_sql_client()
     client.credentials.access_token = "FAKE_TOKEN"
 
-    FabricSqlClient.open_connection(client)
+    FabricSqlClient.open_connection(client)  # type: ignore[arg-type]
 
     pyodbc = sys.modules["pyodbc"]
     returned_conn = pyodbc.connect.return_value
@@ -118,7 +118,7 @@ def test_open_connection_installs_datetimeoffset_converter_in_token_mode() -> No
     client = _fake_sql_client()
     client.credentials.access_token = "FAKE_TOKEN"
 
-    FabricSqlClient.open_connection(client)
+    FabricSqlClient.open_connection(client)  # type: ignore[arg-type]
 
     pyodbc = sys.modules["pyodbc"]
     returned_conn = pyodbc.connect.return_value
@@ -133,6 +133,6 @@ def test_open_connection_caches_conn_on_self() -> None:
     client = _fake_sql_client()
     client.credentials.access_token = "FAKE_TOKEN"
 
-    returned = FabricSqlClient.open_connection(client)
+    returned = FabricSqlClient.open_connection(client)  # type: ignore[arg-type]
 
     assert client._conn is returned

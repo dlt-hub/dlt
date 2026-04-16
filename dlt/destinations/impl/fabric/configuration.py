@@ -50,7 +50,7 @@ class FabricCredentials(AzureServicePrincipalCredentials):
         if self.access_token is not None:
             return str(self.access_token)
         if self.azure_credential is not None:
-            return self.azure_credential.get_token("https://database.windows.net/.default").token
+            return self.azure_credential.get_token("https://database.windows.net/.default").token  # type: ignore[no-any-return]
         return None
 
     def on_partial(self) -> None:

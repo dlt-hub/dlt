@@ -45,9 +45,8 @@ def test_warmup_short_circuits_when_staging_secret_is_none(
         azure_client_secret=None,
     )
 
-    result = FabricCopyFileLoadJob._ensure_fabric_token_initialized(job, staging_credentials)
+    FabricCopyFileLoadJob._ensure_fabric_token_initialized(job, staging_credentials)  # type: ignore[arg-type]
 
-    assert result is None
     _mock_azure_identity.assert_not_called()
 
 
@@ -63,9 +62,8 @@ def test_warmup_short_circuits_when_staging_secret_is_empty_string(
         azure_client_secret="",
     )
 
-    result = FabricCopyFileLoadJob._ensure_fabric_token_initialized(job, staging_credentials)
+    FabricCopyFileLoadJob._ensure_fabric_token_initialized(job, staging_credentials)  # type: ignore[arg-type]
 
-    assert result is None
     _mock_azure_identity.assert_not_called()
 
 
@@ -86,7 +84,7 @@ def test_warmup_still_runs_when_staging_secret_is_real_value(
         azure_client_secret="real-secret",
     )
 
-    FabricCopyFileLoadJob._ensure_fabric_token_initialized(job, staging_credentials)
+    FabricCopyFileLoadJob._ensure_fabric_token_initialized(job, staging_credentials)  # type: ignore[arg-type]
 
     _mock_azure_identity.assert_called_once_with(
         tenant_id="tenant-id",
