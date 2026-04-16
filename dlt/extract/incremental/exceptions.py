@@ -77,6 +77,6 @@ class ExternalSchedulerNotAvailable(PipeException):
             pipe_name,
             "External scheduler interval is not available. The resource has"
             " allow_external_schedulers=True but no interval was provided by the runtime"
-            " (no DLT_START_VALUE/DLT_END_VALUE env vars, no Airflow context, and no"
+            " (no DLT_INTERVAL_START/DLT_INTERVAL_END env vars, no Airflow context, and no"
             " interval injected by the launcher).",
         )

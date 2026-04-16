@@ -2918,14 +2918,14 @@ def test_join_env_scheduler(item_type: TestDataItemFormat) -> None:
         yield data_to_item_format(item_type, data)
 
     # wide range [d2, d4) over [d1, d2, d3] → d2, d3
-    os.environ["DLT_START_VALUE"] = "2024-01-02T00:00:00Z"
-    os.environ["DLT_END_VALUE"] = "2024-01-04T00:00:00Z"
+    os.environ["DLT_INTERVAL_START"] = "2024-01-02T00:00:00Z"
+    os.environ["DLT_INTERVAL_END"] = "2024-01-04T00:00:00Z"
     with Container().injectable_context(TimeIntervalContext()):
         result = list(test_type_2())
     assert len(data_item_to_list(item_type, result)) == 2
 
     # narrower range [d2, d3) → d2
-    os.environ["DLT_END_VALUE"] = "2024-01-03T00:00:00Z"
+    os.environ["DLT_INTERVAL_END"] = "2024-01-03T00:00:00Z"
     with Container().injectable_context(TimeIntervalContext()):
         result = list(test_type_2())
     assert len(data_item_to_list(item_type, result)) == 1
@@ -2950,8 +2950,8 @@ def test_join_env_scheduler_pipeline(item_type: TestDataItemFormat) -> None:
     pipeline = dlt.pipeline(pipeline_name=pip_1_name, destination="duckdb")
 
     # range [d2, d3) → d2; mock state (end_value set)
-    os.environ["DLT_START_VALUE"] = "2024-01-02T00:00:00Z"
-    os.environ["DLT_END_VALUE"] = "2024-01-03T00:00:00Z"
+    os.environ["DLT_INTERVAL_START"] = "2024-01-02T00:00:00Z"
+    os.environ["DLT_INTERVAL_END"] = "2024-01-03T00:00:00Z"
     with Container().injectable_context(TimeIntervalContext()):
         r = test_type_2()
         r.add_step(AssertItems([{"updated_at": d2}], item_type))
@@ -2964,7 +2964,7 @@ def test_join_env_scheduler_pipeline(item_type: TestDataItemFormat) -> None:
         pipeline.extract(r)
 
     # shift start earlier, widen range to [d1, d3) → d1, d2
-    os.environ["DLT_START_VALUE"] = "2024-01-01T00:00:00Z"
+    os.environ["DLT_INTERVAL_START"] = "2024-01-01T00:00:00Z"
     with Container().injectable_context(TimeIntervalContext()):
         r = test_type_2()
         r.add_step(AssertItems([{"updated_at": d1}, {"updated_at": d2}], item_type))
@@ -2985,8 +2985,8 @@ def test_allow_external_schedulers(item_type: TestDataItemFormat) -> None:
         yield data_to_item_format(item_type, data)
 
     # add incremental dynamically with datetime type; range [d2, d4) → d2, d3
-    os.environ["DLT_START_VALUE"] = "2024-01-02T00:00:00Z"
-    os.environ["DLT_END_VALUE"] = "2024-01-04T00:00:00Z"
+    os.environ["DLT_INTERVAL_START"] = "2024-01-02T00:00:00Z"
+    os.environ["DLT_INTERVAL_END"] = "2024-01-04T00:00:00Z"
     with Container().injectable_context(TimeIntervalContext()):
         r = test_type_dt()
         r.add_step(dlt.sources.incremental[datetime]("updated_at"))

@@ -172,9 +172,11 @@ class TRuntimeEntryPoint(TEntryPoint):
 
     run_args: NotRequired[TRunArgs]
     interval_start: NotRequired[str]
-    """ISO 8601 start of the interval being processed."""
+    """ISO 8601 UTC start of the interval being processed."""
     interval_end: NotRequired[str]
-    """ISO 8601 end of the interval being processed."""
+    """ISO 8601 UTC end of the interval being processed."""
+    interval_timezone: NotRequired[str]
+    """IANA timezone name (from `require.timezone`); applied to the interval by the launcher."""
     allow_external_schedulers: NotRequired[bool]
     """Propagated from `TJobDefinition.allow_external_schedulers`. Tells the
     launcher whether to inject `TimeIntervalContext(allow_external_schedulers=True)`
@@ -191,9 +193,9 @@ class TTimeoutSpec(TypedDict):
     """Expanded timeout specification stored in the manifest."""
 
     timeout: NotRequired[Union[int, float]]
-    """Max wall-clock duration in seconds."""
+    """Maximum duration of the job after which it will be terminated."""
     grace_period: NotRequired[Union[int, float]]
-    """Seconds for graceful shutdown before hard kill. Default: 30 (batch), 5 (interactive)."""
+    """Seconds for graceful shutdown after sending termination signal."""
 
 
 class TExecuteSpec(TypedDict):
