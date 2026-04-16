@@ -268,3 +268,16 @@ def test_on_partial_skips_default_azure_credential_in_token_mode() -> None:
         creds.on_partial()
 
     mock_set_default.assert_not_called()
+
+
+def test_on_partial_resolves_when_access_token_and_host_set() -> None:
+    """When `access_token`, `host`, and `database` are set, `on_partial` must
+    call `self.resolve()` so the credentials are not left in a partial state."""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.access_token = "abc123"
+
+    creds.on_partial()
+
+    assert creds.is_resolved()

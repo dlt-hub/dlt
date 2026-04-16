@@ -60,6 +60,8 @@ class FabricCredentials(AzureServicePrincipalCredentials):
         `DefaultAzureCredential` fallback -- the user has already provided auth.
         """
         if self.access_token is not None or self.azure_credential is not None:
+            if self.host and self.database:
+                self.resolve()
             return
 
         try:
