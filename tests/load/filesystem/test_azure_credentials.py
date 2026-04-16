@@ -344,3 +344,37 @@ def test_azure_service_principal_pyiceberg_export_import() -> None:
 
     # test connection using imported credentials
     assert can_connect_pyiceberg_fileio_config(ABFS_BUCKET, pyiceberg_config)
+
+
+def test_onelake_notebook_identity_credentials_defaults() -> None:
+    from dlt.common.configuration.specs.azure_credentials import (
+        OneLakeNotebookIdentityCredentials,
+    )
+
+    creds = OneLakeNotebookIdentityCredentials()
+    assert creds.azure_storage_account_name == "onelake"
+    assert creds.azure_account_host == "onelake.blob.fabric.microsoft.com"
+
+
+def test_onelake_notebook_identity_to_adlfs_credentials_returns_account_only() -> None:
+    from dlt.common.configuration.specs.azure_credentials import (
+        OneLakeNotebookIdentityCredentials,
+    )
+
+    creds = OneLakeNotebookIdentityCredentials()
+    result = creds.to_adlfs_credentials()
+
+    assert set(result.keys()) == {"account_name", "account_host"}
+    assert result["account_name"] == "onelake"
+    assert result["account_host"] == "onelake.blob.fabric.microsoft.com"
+    assert "credential" not in result
+
+
+def test_onelake_notebook_identity_is_not_service_principal_subclass() -> None:
+    from dlt.common.configuration.specs.azure_credentials import (
+        AzureServicePrincipalCredentialsWithoutDefaults,
+        OneLakeNotebookIdentityCredentials,
+    )
+
+    creds = OneLakeNotebookIdentityCredentials()
+    assert not isinstance(creds, AzureServicePrincipalCredentialsWithoutDefaults)
