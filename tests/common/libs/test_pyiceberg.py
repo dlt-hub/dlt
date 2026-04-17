@@ -12,6 +12,7 @@ sqlalchemy = pytest.importorskip("sqlalchemy", minversion="2.0")
 
 from dlt.common.libs.pyiceberg import (
     get_catalog,
+    drop_iceberg_table,
 )
 
 # ============================================================================
@@ -452,3 +453,40 @@ def test_catalog_from_yaml_parametrized(catalog_config, tmp_path, monkeypatch):
     namespaces = catalog.list_namespaces()
     namespace_list = [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
     assert test_namespace in namespace_list
+
+
+def test_drop_iceberg_table(sqlite_catalog_config):
+    """Test dropping an Iceberg table from the catalog.
+
+    This test verifies that:
+    1. drop_iceberg_table successfully removes a table from the catalog
+    2. NoSuchTableError is handled gracefully when table doesn't exist
+    """
+    from pyiceberg.exceptions import NoSuchTableError, NamespaceAlreadyExistsError
+    import pyarrow as pa
+
+    catalog = get_catalog("drop_test_catalog", iceberg_catalog_config=sqlite_catalog_config)
+
+    namespace = "drop_test_ns"
+    try:
+        catalog.create_namespace(namespace)
+    except NamespaceAlreadyExistsError:
+        pass
+
+    # Create a simple table
+    table_id = f"{namespace}.test_table"
+    schema = pa.schema(
+        [pa.field("id", pa.int64(), nullable=False), pa.field("name", pa.string(), nullable=True)]
+    )
+
+    table = catalog.create_table(table_id, schema=schema)
+
+    assert catalog.load_table(table_id) is not None
+
+    drop_iceberg_table(catalog, table_id)
+
+    with pytest.raises(NoSuchTableError):
+        catalog.load_table(table_id)
+
+    # Dropping non-existent table should not raise error (just log warning)
+    drop_iceberg_table(catalog, table_id)
