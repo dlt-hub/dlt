@@ -256,6 +256,9 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
 class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
+        import gc
+        import pyarrow.parquet as pq
+        from dlt.common.libs.pyarrow import pyarrow as pa
         from dlt.common.libs.pyiceberg import (
             write_iceberg_table,
             merge_iceberg_table,
@@ -265,11 +268,18 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             build_iceberg_partition_spec,
         )
 
+        schema = pq.read_schema(self.file_paths[0])
+
+        logger.info(
+            f"Will copy file(s) {self.file_paths} to iceberg table"
+            f" {self.make_remote_url()} [arrow buffer: {pa.total_allocated_bytes()}]"
+        )
+
         try:
             table = self._job_client.load_open_table(
                 "iceberg",
                 self.load_table_name,
-                schema=self.arrow_dataset.schema,
+                schema=schema,
             )
         except DestinationUndefinedEntity:
             from dlt.destinations.impl.filesystem.iceberg_adapter import TABLE_PROPERTIES_HINT
@@ -278,7 +288,6 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
 
             spec_list = self._get_partition_spec_list()
-            # merge config-level defaults with per-table adapter overrides
             config_properties = self._job_client.config.iceberg_table_properties
             adapter_properties: Optional[Dict[str, str]] = self._load_table.get(
                 TABLE_PROPERTIES_HINT
@@ -290,7 +299,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
             if spec_list:
                 partition_spec, iceberg_schema = build_iceberg_partition_spec(
-                    self.arrow_dataset.schema, spec_list
+                    schema, spec_list
                 )
                 create_table(
                     self._job_client.get_open_table_catalog("iceberg"),
@@ -305,26 +314,75 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     self._job_client.get_open_table_catalog("iceberg"),
                     table_id,
                     table_location=location,
-                    schema=self.arrow_dataset.schema,
+                    schema=schema,
                     properties=properties,
                 )
-            # run again with created table
+
             self.run()
             return
 
+        del schema
+
+        gc_interval = self._job_client.config.iceberg_gc_collect_interval
+        if gc_interval:
+            gc.collect()
+
         if self._load_table["write_disposition"] == "merge" and table is not None:
-            merge_iceberg_table(
-                table=table,
-                data=self.arrow_dataset.to_table(),
-                schema=self._load_table,
-                load_table_name=self.load_table_name,
-            )
+            source_ds = self.arrow_dataset
+            with source_ds.scanner(
+                batch_readahead=0, fragment_readahead=0, use_threads=False
+            ).to_reader() as arrow_rbr:
+                merge_iceberg_table(
+                    table=table,
+                    data=arrow_rbr,
+                    schema=self._load_table,
+                    load_table_name=self.load_table_name,
+                    gc_collect_interval=gc_interval,
+                )
+            del source_ds
         else:
+            arrow_rbr = pa.RecordBatchReader.from_batches(
+                pq.read_schema(self.file_paths[0]),
+                self._iter_parquet_batches(self.file_paths, gc_collect_interval=gc_interval),
+            )
             write_iceberg_table(
                 table=table,
-                data=self.arrow_dataset.to_table(),
+                data=arrow_rbr,
                 write_disposition=self._load_table["write_disposition"],
+                gc_collect_interval=gc_interval,
             )
+
+        if gc_interval:
+            gc.collect()
+        logger.info(
+            f"Copied {self.file_paths} to iceberg table {self.make_remote_url()}"
+            f" [arrow buffer: {pa.total_allocated_bytes()}]"
+        )
+
+    @staticmethod
+    def _iter_parquet_batches(
+        file_paths: List[str],
+        batch_size: int = 10_000,
+        gc_collect_interval: int = 10,
+    ) -> Iterator[Any]:
+        """Yield Arrow batches from parquet files one at a time for constant memory."""
+        import gc
+        import pyarrow.parquet as pq
+
+        for idx, file_path in enumerate(file_paths, 1):
+            file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+            pf = pq.ParquetFile(file_path)
+            row_count = 0
+            for batch in pf.iter_batches(batch_size=batch_size):
+                row_count += batch.num_rows
+                yield batch
+            logger.info(
+                f"[load] File {idx}/{len(file_paths)}: {file_path} "
+                f"({file_size_mb:.1f} MB, {row_count:,} rows)"
+            )
+            del pf
+            if gc_collect_interval and idx % gc_collect_interval == 0:
+                gc.collect()
 
     def _get_partition_spec_list(self) -> List["PartitionSpec"]:
         """Resolve partition specs. Combines legacy partition columns (identity transform)
