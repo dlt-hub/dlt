@@ -66,7 +66,7 @@ def generate_manifest_hash(manifest: TJobsDeploymentManifest) -> str:
     manifest_copy = copy(manifest)
     for key in _HASH_EXCLUDE_KEYS:
         manifest_copy.pop(key, None)  # type: ignore[misc]
-    content = json.typed_dumpb(manifest_copy, sort_keys=True)
+    content = json.dumpb(manifest_copy, sort_keys=True)
     h = hashlib.sha3_256(content)
     return base64.b64encode(h.digest()).decode("ascii")
 
@@ -78,7 +78,7 @@ def hash_job_definition(job_def: TJobDefinition) -> str:
     caller can derive per-job hashes for change detection without recomputing
     the whole manifest hash.
     """
-    content = json.typed_dumpb(job_def, sort_keys=True)
+    content = json.dumpb(job_def, sort_keys=True)
     return base64.b64encode(hashlib.sha3_256(content).digest()).decode("ascii")
 
 
@@ -123,7 +123,7 @@ def save_manifest(manifest: TJobsDeploymentManifest, f: BinaryIO) -> str:
         The new version hash.
     """
     _, new_hash, _ = bump_manifest_version(manifest)
-    data = json.typed_dumpb(manifest)
+    data = json.dumpb(manifest)
     f.write(data)
     return new_hash
 
@@ -131,7 +131,7 @@ def save_manifest(manifest: TJobsDeploymentManifest, f: BinaryIO) -> str:
 def load_manifest(f: BinaryIO) -> TJobsDeploymentManifest:
     """Read, migrate, and validate a manifest from binary IO."""
     data = f.read()
-    manifest_dict: DictStrAny = json.typed_loadb(data)
+    manifest_dict: DictStrAny = json.loadb(data)
     engine_version = manifest_dict.get("engine_version", 1)
     manifest = migrate_manifest(manifest_dict, engine_version, MANIFEST_ENGINE_VERSION)
 

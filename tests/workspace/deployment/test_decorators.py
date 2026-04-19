@@ -48,7 +48,7 @@ def test_job_decorator() -> None:
     def with_parens():
         return "scheduled"
 
-    assert with_parens.execute == {"timeout": {"timeout": 14400.0}}
+    assert with_parens.execute == {"timeout": {"timeout": 14400.0}, "concurrency": 1}
     assert with_parens.trigger == [TTrigger("schedule:0 8 * * *")]
     assert with_parens() == "scheduled"
 
@@ -268,6 +268,53 @@ def test_trigger_properties_and_chaining() -> None:
     assert my_app.success == TTrigger(f"job.success:jobs.{my_app.section}.my_app")
 
 
+@pytest.mark.parametrize(
+    "decorator,decorator_kwargs,user_execute,expected_concurrency",
+    [
+        # batch default: no user execute → concurrency=1
+        ("batch", {"trigger": "0 8 * * *"}, None, 1),
+        # batch default with other execute fields preserved → concurrency=1 added
+        ("batch", {"trigger": "0 8 * * *"}, {"timeout": 3600}, 1),
+        # batch explicit override: user concurrency wins
+        ("batch", {"trigger": "0 8 * * *"}, {"concurrency": 5}, 5),
+        # batch explicit None: no-limit — setdefault does NOT overwrite
+        ("batch", {"trigger": "0 8 * * *"}, {"concurrency": None}, None),
+        # interactive default → concurrency=1
+        ("interactive", {"interface": "rest_api"}, None, 1),
+        # interactive explicit override: user concurrency wins
+        ("interactive", {"interface": "rest_api"}, {"concurrency": 3}, 3),
+        # interactive explicit None: no-limit
+        ("interactive", {"interface": "rest_api"}, {"concurrency": None}, None),
+    ],
+    ids=[
+        "batch-default",
+        "batch-default-with-timeout",
+        "batch-override-int",
+        "batch-override-none-unlimited",
+        "interactive-default",
+        "interactive-override-int",
+        "interactive-override-none-unlimited",
+    ],
+)
+def test_concurrency_default_and_override(
+    decorator: str,
+    decorator_kwargs: Any,
+    user_execute: Any,
+    expected_concurrency: Any,
+) -> None:
+    """Both batch and interactive default to concurrency=1; user values always win."""
+    deco = job if decorator == "batch" else interactive
+    kwargs = dict(decorator_kwargs)
+    if user_execute is not None:
+        kwargs["execute"] = user_execute
+
+    @deco(**kwargs)
+    def my_job():
+        pass
+
+    assert my_job.execute["concurrency"] == expected_concurrency
+
+
 def test_job_definition_batch() -> None:
     """to_job_definition produces correct TJobDefinition for batch jobs."""
 
@@ -287,7 +334,8 @@ def test_job_definition_batch() -> None:
     assert job_def["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.job"
     assert job_def["triggers"] == [TTrigger("schedule:0 8 * * *")]
     assert job_def["execute"]["timeout"] == {"timeout": 14400.0}
-    assert "concurrency" not in job_def["execute"]
+    # batch default: concurrency=1 (user can override by passing a value, or None for no-limit)
+    assert job_def["execute"]["concurrency"] == 1
     assert job_def["expose"]["starred"] is True
     assert job_def["expose"]["tags"] == ["etl"]
     assert job_def["description"] == "Daily ETL."

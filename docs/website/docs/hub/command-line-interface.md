@@ -479,7 +479,7 @@ Show logs for latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime logs [-h] script_path_or_job_name [run_number]
+dlt runtime logs [-h] selector_or_job_name [run_number]
 ```
 
 **Description**
@@ -493,7 +493,7 @@ Show logs for the latest run of a job or a specific run number.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `script_path_or_job_name` - Local path or job name
+* `selector_or_job_name` - Local path or job name
 * `run_number` - Run number (optional)
 
 **Options**
@@ -507,7 +507,7 @@ Cancel latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime cancel [-h] script_path_or_job_name [run_number]
+dlt runtime cancel [-h] selector_or_job_name [run_number]
 ```
 
 **Description**
@@ -521,7 +521,7 @@ Cancel the latest run of a job or a specific run number.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `script_path_or_job_name` - Local path or job name
+* `selector_or_job_name` - Local path or job name
 * `run_number` - Run number (optional)
 
 **Options**
@@ -711,7 +711,7 @@ List, create and inspect jobs.
 
 **Usage**
 ```sh
-dlt runtime job [-h] [script_path_or_job_name] {list,info,create} ...
+dlt runtime job [-h] [selector_or_job_name] {list,info,create} ...
 ```
 
 **Description**
@@ -725,7 +725,7 @@ List and manipulate jobs registered in the workspace.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `script_path_or_job_name` - Local script path or job name. required for all commands except `list`
+* `selector_or_job_name` - Local script path or job name. required for all commands except `list`
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -743,7 +743,7 @@ List the jobs registered in the workspace.
 
 **Usage**
 ```sh
-dlt runtime job [script_path_or_job_name] list [-h]
+dlt runtime job [selector_or_job_name] list [-h]
 ```
 
 **Description**
@@ -767,7 +767,7 @@ Show job info.
 
 **Usage**
 ```sh
-dlt runtime job [script_path_or_job_name] info [-h]
+dlt runtime job [selector_or_job_name] info [-h]
 ```
 
 **Description**
@@ -791,7 +791,7 @@ Create a job without running it.
 
 **Usage**
 ```sh
-dlt runtime job [script_path_or_job_name] create [-h] [--name [NAME]]
+dlt runtime job [selector_or_job_name] create [-h] [--name [NAME]]
     [--schedule [SCHEDULE]] [--interactive] [--app-type {marimo,mcp,streamlit}]
     [--description [DESCRIPTION]]
 ```
@@ -822,7 +822,7 @@ List, create and inspect jobs.
 
 **Usage**
 ```sh
-dlt runtime jobs [-h] [script_path_or_job_name] {list,info,create} ...
+dlt runtime jobs [-h] [selector_or_job_name] {list,info,create} ...
 ```
 
 **Description**
@@ -836,7 +836,7 @@ List and manipulate jobs registered in the workspace.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `script_path_or_job_name` - Local script path or job name. required for all commands except `list`
+* `selector_or_job_name` - Local script path or job name. required for all commands except `list`
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -854,7 +854,7 @@ List the jobs registered in the workspace.
 
 **Usage**
 ```sh
-dlt runtime jobs [script_path_or_job_name] list [-h]
+dlt runtime jobs [selector_or_job_name] list [-h]
 ```
 
 **Description**
@@ -878,7 +878,7 @@ Show job info.
 
 **Usage**
 ```sh
-dlt runtime jobs [script_path_or_job_name] info [-h]
+dlt runtime jobs [selector_or_job_name] info [-h]
 ```
 
 **Description**
@@ -902,7 +902,7 @@ Create a job without running it.
 
 **Usage**
 ```sh
-dlt runtime jobs [script_path_or_job_name] create [-h] [--name [NAME]]
+dlt runtime jobs [selector_or_job_name] create [-h] [--name [NAME]]
     [--schedule [SCHEDULE]] [--interactive] [--app-type {marimo,mcp,streamlit}]
     [--description [DESCRIPTION]]
 ```
@@ -933,7 +933,7 @@ List, create and inspect job runs.
 
 **Usage**
 ```sh
-dlt runtime job-run [-h] [script_path_or_job_name] [run_number]
+dlt runtime job-run [-h] [selector_or_job_name] [run_number]
     {list,info,create,logs,cancel} ...
 ```
 
@@ -948,7 +948,7 @@ List and manipulate job runs registered in the workspace.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `script_path_or_job_name` - Local script path or job name. required for all commands except `list`
+* `selector_or_job_name` - Local script path or job name. required for all commands except `list`
 * `run_number` - Run number. used in all commands except `list` and `create` as optional argument. if not specified, the latest run of the given script will be used.
 
 **Options**
@@ -969,7 +969,7 @@ List the job runs registered in the workspace.
 
 **Usage**
 ```sh
-dlt runtime job-run [script_path_or_job_name] [run_number] list [-h]
+dlt runtime job-run [selector_or_job_name] [run_number] list [-h]
 ```
 
 **Description**
@@ -993,7 +993,7 @@ Show job run info.
 
 **Usage**
 ```sh
-dlt runtime job-run [script_path_or_job_name] [run_number] info [-h]
+dlt runtime job-run [selector_or_job_name] [run_number] info [-h]
 ```
 
 **Description**
@@ -1017,7 +1017,7 @@ Create a job run without running it.
 
 **Usage**
 ```sh
-dlt runtime job-run [script_path_or_job_name] [run_number] create [-h]
+dlt runtime job-run [selector_or_job_name] [run_number] create [-h]
 ```
 
 **Description**
@@ -1041,7 +1041,7 @@ Show logs for the latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime job-run [script_path_or_job_name] [run_number] logs [-h]
+dlt runtime job-run [selector_or_job_name] [run_number] logs [-h]
 ```
 
 **Description**
@@ -1065,7 +1065,7 @@ Cancel the latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime job-run [script_path_or_job_name] [run_number] cancel [-h]
+dlt runtime job-run [selector_or_job_name] [run_number] cancel [-h]
 ```
 
 **Description**
@@ -1089,7 +1089,7 @@ List, create and inspect job runs.
 
 **Usage**
 ```sh
-dlt runtime job-runs [-h] [script_path_or_job_name] [run_number]
+dlt runtime job-runs [-h] [selector_or_job_name] [run_number]
     {list,info,create,logs,cancel} ...
 ```
 
@@ -1104,7 +1104,7 @@ List and manipulate job runs registered in the workspace.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `script_path_or_job_name` - Local script path or job name. required for all commands except `list`
+* `selector_or_job_name` - Local script path or job name. required for all commands except `list`
 * `run_number` - Run number. used in all commands except `list` and `create` as optional argument. if not specified, the latest run of the given script will be used.
 
 **Options**
@@ -1125,7 +1125,7 @@ List the job runs registered in the workspace.
 
 **Usage**
 ```sh
-dlt runtime job-runs [script_path_or_job_name] [run_number] list [-h]
+dlt runtime job-runs [selector_or_job_name] [run_number] list [-h]
 ```
 
 **Description**
@@ -1149,7 +1149,7 @@ Show job run info.
 
 **Usage**
 ```sh
-dlt runtime job-runs [script_path_or_job_name] [run_number] info [-h]
+dlt runtime job-runs [selector_or_job_name] [run_number] info [-h]
 ```
 
 **Description**
@@ -1173,7 +1173,7 @@ Create a job run without running it.
 
 **Usage**
 ```sh
-dlt runtime job-runs [script_path_or_job_name] [run_number] create [-h]
+dlt runtime job-runs [selector_or_job_name] [run_number] create [-h]
 ```
 
 **Description**
@@ -1197,7 +1197,7 @@ Show logs for the latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime job-runs [script_path_or_job_name] [run_number] logs [-h]
+dlt runtime job-runs [selector_or_job_name] [run_number] logs [-h]
 ```
 
 **Description**
@@ -1221,7 +1221,7 @@ Cancel the latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime job-runs [script_path_or_job_name] [run_number] cancel [-h]
+dlt runtime job-runs [selector_or_job_name] [run_number] cancel [-h]
 ```
 
 **Description**

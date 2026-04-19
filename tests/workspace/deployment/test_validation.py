@@ -1,5 +1,7 @@
 """Tests for manifest validation, hashing, versioning, and IO."""
 
+import json as stdlib_json
+from datetime import datetime, timezone  # noqa: I251
 from io import BytesIO
 from typing import Any, Dict, List, Optional
 
@@ -446,6 +448,58 @@ def test_manifest_roundtrip_io() -> None:
     assert loaded["deployment_module"] == manifest["deployment_module"]
     assert loaded["jobs"][0]["job_ref"] == "jobs.mod.a"
     assert "version_hash" in loaded
+
+
+@pytest.mark.parametrize(
+    "raw_start,raw_end,expected_start,expected_end",
+    [
+        # datetime aware → ISO with Z suffix (dlt custom encoder convention)
+        (
+            datetime(2024, 1, 1, tzinfo=timezone.utc),
+            datetime(2024, 12, 31, 23, 59, 59, tzinfo=timezone.utc),
+            "2024-01-01T00:00:00Z",
+            "2024-12-31T23:59:59Z",
+        ),
+        # datetime naive → ISO without offset (passes through .isoformat())
+        (
+            datetime(2024, 1, 1),
+            datetime(2024, 12, 31, 23, 59, 59),
+            "2024-01-01T00:00:00",
+            "2024-12-31T23:59:59",
+        ),
+        # plain strings → round-trip unchanged
+        (
+            "2024-01-01T00:00:00Z",
+            "2024-12-31T23:59:59Z",
+            "2024-01-01T00:00:00Z",
+            "2024-12-31T23:59:59Z",
+        ),
+    ],
+    ids=["datetime-aware", "datetime-naive", "string"],
+)
+def test_manifest_interval_spec_accepts_datetime(
+    raw_start: Any, raw_end: Any, expected_start: str, expected_end: str
+) -> None:
+    """TIntervalSpec accepts datetime at build time; round-trips as ISO string."""
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.a",
+                triggers=["schedule:0 * * * *"],
+                interval={"start": raw_start, "end": raw_end},
+                allow_external_schedulers=True,
+            )
+        ]
+    )
+    buf = BytesIO()
+    save_manifest(manifest, buf)
+    buf.seek(0)
+    loaded = load_manifest(buf)
+    iv = loaded["jobs"][0]["interval"]
+    assert iv["start"] == expected_start
+    assert iv["end"] == expected_end
+    assert isinstance(iv["start"], str)
+    assert isinstance(iv["end"], str)
 
 
 def test_migrate_manifest_same_version_is_noop() -> None:

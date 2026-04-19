@@ -144,10 +144,10 @@ class TIntervalSpec(TypedDict):
     the set of discrete intervals to process.
     """
 
-    start: str
-    """ISO 8601 start of the range. Required."""
-    end: NotRequired[str]
-    """ISO 8601 end of the range. Defaults to now if omitted."""
+    start: Union[str, datetime]
+    """ISO 8601 string or `datetime` for the start of the range. Required."""
+    end: NotRequired[Union[str, datetime]]
+    """ISO 8601 string or `datetime` for the end of the range. Defaults to now."""
 
 
 class TJobRunContext(TypedDict):
@@ -203,7 +203,9 @@ class TExecuteSpec(TypedDict):
 
     timeout: NotRequired[Optional[TTimeoutSpec]]
     concurrency: NotRequired[Optional[int]]
-    """Max concurrent runs. None = no limit (batch default), 1 = single instance (interactive default)."""
+    """Max concurrent runs. Default `1` for both batch and interactive jobs.
+    Pass any positive integer to allow that many concurrent instances, or
+    explicitly `None` to remove the limit."""
 
 
 class TDeliverSpec(TypedDict, total=False):

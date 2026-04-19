@@ -195,7 +195,7 @@ dlt runtime deployment info [version_number]
 dlt runtime job list
 
 # Get job details
-dlt runtime job info <script_path_or_job_name>
+dlt runtime job info <selector_or_job_name>
 
 # Create a job without running it
 dlt runtime job create <script_path> [--name NAME] [--schedule "CRON"] [--interactive] [--app-type marimo (default) | streamlit | mcp]
@@ -205,19 +205,19 @@ dlt runtime job create <script_path> [--name NAME] [--schedule "CRON"] [--intera
 
 ```sh
 # List all runs
-dlt runtime job-run list [script_path_or_job_name]
+dlt runtime job-run list [selector_or_job_name]
 
 # Get run details
-dlt runtime job-run info <script_path_or_job_name> [run_number]
+dlt runtime job-run info <selector_or_job_name> [run_number]
 
 # Create a new run
-dlt runtime job-run create <script_path_or_job_name>
+dlt runtime job-run create <selector_or_job_name>
 
 # View run logs
-dlt runtime job-run logs <script_path_or_job_name> [run_number] [-f/--follow]
+dlt runtime job-run logs <selector_or_job_name> [run_number] [-f/--follow]
 
 # Cancel a run
-dlt runtime job-run cancel <script_path_or_job_name> [run_number]
+dlt runtime job-run cancel <selector_or_job_name> [run_number]
 ```
 
 ### Configuration commands

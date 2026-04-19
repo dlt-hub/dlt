@@ -380,9 +380,11 @@ def _check_schedule_run_freshness(
     if prev is None:
         return False, f"upstream {upstream_ref} has no usable completion (refresh pending)"
     target_tz = ZoneInfo(tz)
-    current_floor = cron_floor(cron_expr, datetime.now(target_tz))
-    # iterate cron naively to find the tick BEFORE current_floor, then re-attach tz
-    cron = croniter(cron_expr, current_floor.replace(tzinfo=None))
+    # naive-local + 1us so an exact-on-tick now counts as the current floor;
+    # two get_prev calls give [expected_tick, current_floor) — one croniter instance
+    now_local_naive = datetime.now(target_tz).replace(tzinfo=None)
+    cron = croniter(cron_expr, now_local_naive + timedelta(microseconds=1))
+    cron.get_prev(datetime)  # current_floor — skip
     expected_naive: datetime = cron.get_prev(datetime)
     expected = expected_naive.replace(tzinfo=target_tz).astimezone(timezone.utc)
     if _stdlib_utc(prev) < expected:

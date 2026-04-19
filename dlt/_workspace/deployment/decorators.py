@@ -271,10 +271,13 @@ def _job(
     wrapper.section = section
     wrapper.job_type = job_type
     wrapper.trigger = normalize_triggers(trigger)
-    if execute is not None and "timeout" in execute:
-        execute = dict(execute)  # type: ignore[assignment]
-        execute["timeout"] = normalize_timeout(execute["timeout"])
-    wrapper.execute = execute
+    # normalize execute and default concurrency to 1 (user can override by passing
+    # any value, including None for no-limit)
+    exec_spec: TExecuteSpec = dict(execute) if execute else {}  # type: ignore[assignment]
+    if "timeout" in exec_spec:
+        exec_spec["timeout"] = normalize_timeout(exec_spec["timeout"])
+    exec_spec.setdefault("concurrency", 1)
+    wrapper.execute = exec_spec
     wrapper.expose = _normalize_expose(expose)
     wrapper.require = require
     wrapper.deliver = deliver
@@ -362,7 +365,8 @@ def job(
 
         execute: Execution constraints. Accepts `TExecuteSpec` with:
             `timeout` (seconds, human string like `"4h"`, or `TTimeoutSpec` dict),
-            `concurrency` (max concurrent runs, `None` = no limit).
+            `concurrency` (max concurrent runs, defaults to `1`;
+            pass `None` to remove the limit).
 
         expose: UI presentation. Accepts `TJobExposeSpec` with:
             `tags` (grouping labels), `starred` (top-level UI visibility),
