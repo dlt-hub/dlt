@@ -213,8 +213,8 @@ def test_module_expose_overrides() -> None:
     assert job_def["expose"] == {"interface": "rest_api"}
 
 
-def test_module_requires_sets_require() -> None:
-    """__requires__ sets job require spec."""
+def test_module_require_sets_require() -> None:
+    """__require__ sets job require spec."""
     mod = import_module(f"{CASES}.marimo_with_requires")
     job_def = detect_module_job(mod)
 
