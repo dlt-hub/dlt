@@ -1,10 +1,12 @@
 """Launcher for plain Python modules via __main__."""
 
 import os
+import sys
 from typing import Any, Dict, Optional
 
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace.deployment.launchers._launcher import (
+    exec_process,
     parse_launcher_args,
     set_config_env_vars,
 )
@@ -20,7 +22,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     profile = entry_point.get("profile")
     if profile:
         os.environ[WORKSPACE__PROFILE] = profile
-    os.execvp("python", ["python", "-m", module_name])
+    exec_process([sys.executable, "-m", module_name])
 
 
 if __name__ == "__main__":

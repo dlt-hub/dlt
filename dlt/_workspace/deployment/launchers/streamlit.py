@@ -1,4 +1,3 @@
-import os
 from typing import Any, Dict
 
 from dlt.common.configuration import resolve_configuration
@@ -6,6 +5,7 @@ from dlt.common.configuration import resolve_configuration
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment.configuration import StreamlitConfiguration
 from dlt._workspace.deployment.launchers._launcher import (
+    exec_process,
     get_run_args_base_path,
     get_run_args_port,
     parse_launcher_args,
@@ -44,7 +44,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     if base_path:
         args.append(f"--server.baseUrlPath={base_path}")
 
-    os.execvp("streamlit", args)
+    exec_process(args)
 
 
 if __name__ == "__main__":

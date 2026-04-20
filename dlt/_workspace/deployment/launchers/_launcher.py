@@ -1,4 +1,6 @@
 import argparse
+import os
+import subprocess
 from importlib import import_module
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -6,6 +8,16 @@ from dlt.common import json
 from dlt.common.configuration.utils import add_config_dict_to_env
 
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint
+
+
+def exec_process(argv: List[str]) -> None:
+    """Replace the current process with `argv` on POSIX; spawn + wait on Windows."""
+    if os.name == "posix":
+        os.execvp(argv[0], argv)
+    # Windows: os.execvp spawns a detached child and returns 0 to the parent
+    # shell, breaking exit-code propagation. Spawn + wait + propagate instead.
+    result = subprocess.run(argv)
+    raise SystemExit(result.returncode)
 
 
 def parse_launcher_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
