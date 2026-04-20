@@ -242,23 +242,22 @@ def test_job_launcher_mcp_fallback() -> None:
 
 
 def test_module_launcher_builds_correct_args() -> None:
-    """Module launcher calls os.execvp with python -m <module>."""
-    with patch("os.execvp") as mock_exec:
+    """Module launcher passes [sys.executable, '-m', <module>] to exec_process."""
+    with patch("dlt._workspace.deployment.launchers.module.exec_process") as mock_exec:
         from dlt._workspace.deployment.launchers.module import run
 
         ep = _entry(f"{WORKSPACE}.etl_script")
         run(ep)
         mock_exec.assert_called_once_with(
-            "python",
-            ["python", "-m", f"{WORKSPACE}.etl_script"],
+            [sys.executable, "-m", f"{WORKSPACE}.etl_script"]
         )
 
 
 def test_marimo_launcher_builds_correct_args() -> None:
-    """Marimo launcher calls os.execvp with marimo run and correct flags."""
+    """Marimo launcher passes `marimo -y run` and correct flags to exec_process."""
     entry_point = _entry(f"{WORKSPACE}.marimo_notebook", port=5000)
     with (
-        patch("os.execvp") as mock_exec,
+        patch("dlt._workspace.deployment.launchers.marimo.exec_process") as mock_exec,
         patch(
             "dlt._workspace.deployment.launchers.marimo.resolve_module_path",
             return_value="/path/to/notebook.py",
@@ -268,10 +267,9 @@ def test_marimo_launcher_builds_correct_args() -> None:
 
         run(entry_point)
 
-        args = mock_exec.call_args[0]
-        assert args[0] == "marimo"
-        cmd = args[1]
-        assert cmd[:2] == ["marimo", "run"]
+        cmd = mock_exec.call_args[0][0]
+        # -y suppresses the "Are you sure you want to quit?" SIGINT prompt
+        assert cmd[:3] == ["marimo", "-y", "run"]
         assert "/path/to/notebook.py" in cmd
         assert "--port" in cmd
         assert "5000" in cmd
@@ -285,7 +283,7 @@ def test_marimo_launcher_with_token() -> None:
     """Marimo launcher passes --token and --token-password when configured."""
     entry_point = _entry(f"{WORKSPACE}.marimo_notebook", port=5000)
     with (
-        patch("os.execvp") as mock_exec,
+        patch("dlt._workspace.deployment.launchers.marimo.exec_process") as mock_exec,
         patch(
             "dlt._workspace.deployment.launchers.marimo.resolve_module_path",
             return_value="/path/to/notebook.py",
@@ -299,7 +297,7 @@ def test_marimo_launcher_with_token() -> None:
         finally:
             del os.environ["JOBS__MARIMO_NOTEBOOK__MARIMO__TOKEN"]
 
-        cmd = mock_exec.call_args[0][1]
+        cmd = mock_exec.call_args[0][0]
         assert "--token" in cmd
         assert "--token-password" in cmd
         assert "my-secret" in cmd
@@ -309,7 +307,7 @@ def test_marimo_launcher_with_base_path() -> None:
     """Marimo launcher passes --base-url from run_args.base_path."""
     entry_point = _entry(f"{WORKSPACE}.marimo_notebook", port=5000, base_path="/workspace/123/nb")
     with (
-        patch("os.execvp") as mock_exec,
+        patch("dlt._workspace.deployment.launchers.marimo.exec_process") as mock_exec,
         patch(
             "dlt._workspace.deployment.launchers.marimo.resolve_module_path",
             return_value="/path/to/notebook.py",
@@ -319,16 +317,16 @@ def test_marimo_launcher_with_base_path() -> None:
 
         run(entry_point)
 
-        cmd = mock_exec.call_args[0][1]
+        cmd = mock_exec.call_args[0][0]
         assert "--base-url" in cmd
         assert "/workspace/123/nb" in cmd
 
 
 def test_streamlit_launcher_builds_correct_args() -> None:
-    """Streamlit launcher calls os.execvp with streamlit run and correct flags."""
+    """Streamlit launcher passes `streamlit run` and correct flags to exec_process."""
     entry_point = _entry(f"{WORKSPACE}.streamlit_app", port=8501)
     with (
-        patch("os.execvp") as mock_exec,
+        patch("dlt._workspace.deployment.launchers.streamlit.exec_process") as mock_exec,
         patch(
             "dlt._workspace.deployment.launchers.streamlit.resolve_module_path",
             return_value="/path/to/app.py",
@@ -338,9 +336,7 @@ def test_streamlit_launcher_builds_correct_args() -> None:
 
         run(entry_point)
 
-        args = mock_exec.call_args[0]
-        assert args[0] == "streamlit"
-        cmd = args[1]
+        cmd = mock_exec.call_args[0][0]
         assert cmd[:2] == ["streamlit", "run"]
         assert "/path/to/app.py" in cmd
         assert "--server.address=0.0.0.0" in cmd

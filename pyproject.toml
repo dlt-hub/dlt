@@ -320,6 +320,7 @@ dashboard-tests = [
 # NOTE: required to use google secrets config provider
 providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
+streamlit = ["streamlit>1.50 ; python_version >= '3.10'"]
 dbt = [
     "dbt-core>=1.7.0",
     "dbt-redshift>=1.7.0",
