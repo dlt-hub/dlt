@@ -1279,7 +1279,11 @@ def test_incremental_implicitly_filters_out_data(mock_api_server) -> None:
     load_info = pipeline.run(source)
     assert len(load_info.loads_ids) == 1
 
-    # On the second run, incremental should filter out everything implicitly
+    # Second run: incremental emits a final status change signaling it caught up with no new data
+    load_info = pipeline.run(source)
+    assert len(load_info.loads_ids) == 1
+
+    # Third run: incremental should filter out everything implicitly, no more status updates
     load_info = pipeline.run(source)
     assert len(load_info.loads_ids) == 0
 

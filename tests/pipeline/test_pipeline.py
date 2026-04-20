@@ -1078,7 +1078,16 @@ def test_state_extracted_once_for_same_schema_multiple_sources(use_single_datase
 
     p.normalize()
 
-    # Second extraction: state not extracted (unchanged hash)
+    # Second extraction: incremental emits a final status change (caught up, no new data)
+    p.extract([s1, s2])
+    storage = ExtractStorage(p._normalize_storage_config())
+    _assert_extracted_file_exists(
+        storage, "shared_schema", schema.state_table_name, should_exist=True
+    )
+
+    p.normalize()
+
+    # Third extraction: state not extracted (unchanged hash, no more status updates)
     p.extract([s1, s2])
     storage = ExtractStorage(p._normalize_storage_config())
     _assert_extracted_file_exists(
@@ -1087,7 +1096,7 @@ def test_state_extracted_once_for_same_schema_multiple_sources(use_single_datase
 
     p.normalize()
 
-    # Third extraction: state extracted (incremental data changed)
+    # Fourth extraction: state extracted (incremental data changed)
     new_s2 = _create_simple_source(
         schema, "resource_2", [{"id": 7}, {"id": 8}, {"id": 9}], use_incremental=True
     )
@@ -1155,7 +1164,33 @@ def test_state_extracted_per_schema_for_multiple_schemas(use_single_dataset: boo
 
     p.normalize()
 
-    # Second extraction: no state change, no extraction
+    # Second extraction: incremental emits a final status change (caught up, no new data)
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+    if use_single_dataset:
+        _assert_extracted_file_exists(
+            storage, schema_a.name, schema_a.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=False
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=False
+        )
+    else:
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_a.name, schema_a.state_table_name, should_exist=False
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=False
+        )
+
+    p.normalize()
+
+    # Third extraction: no state change, no extraction
     p.extract([s1, s2, s3])
     storage = ExtractStorage(p._normalize_storage_config())
     for s in [schema_a, schema_b, schema_c]:
@@ -1163,7 +1198,7 @@ def test_state_extracted_per_schema_for_multiple_schemas(use_single_dataset: boo
 
     p.normalize()
 
-    # Third extraction: incremental data changed in schema_b
+    # Fourth extraction: incremental data changed in schema_b
     new_s2 = _create_simple_source(
         schema_b, "resource_2", [{"id": 10}, {"id": 11}, {"id": 12}], use_incremental=True
     )
@@ -1239,7 +1274,15 @@ def test_state_extraction_mixed_schemas(use_single_dataset: bool) -> None:
 
     p.normalize()
 
-    # Second extraction: no state change, no extraction
+    # Second extraction: incremental emits a final status change (caught up, no new data)
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+    _assert_extracted_file_exists(storage, shared.name, shared.state_table_name, should_exist=True)
+    _assert_extracted_file_exists(storage, unique.name, unique.state_table_name, should_exist=False)
+
+    p.normalize()
+
+    # Third extraction: no state change, no extraction
     p.extract([s1, s2, s3])
     storage = ExtractStorage(p._normalize_storage_config())
     for s in [shared, unique]:
@@ -1247,7 +1290,7 @@ def test_state_extraction_mixed_schemas(use_single_dataset: bool) -> None:
 
     p.normalize()
 
-    # Third extraction: incremental data changed in shared schema
+    # Fourth extraction: incremental data changed in shared schema
     new_s1 = _create_simple_source(
         shared, "resource_1", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
     )

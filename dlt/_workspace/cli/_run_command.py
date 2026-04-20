@@ -353,8 +353,7 @@ def print_run_warnings(info: TRunJobInfo) -> None:
 def print_run_starting(info: TRunJobInfo) -> None:
     """Emit the 'Starting <job> (trigger: ...)' banner before launch."""
     fmt.echo(
-        "Starting %s (trigger: %s)"
-        % (fmt.bold(info["display_label"]), info["trigger_humanized"])
+        "Starting %s (trigger: %s)" % (fmt.bold(info["display_label"]), info["trigger_humanized"])
     )
     if info["entry_point"].get("job_type") == "interactive":
         port = info["entry_point"]["run_args"]["port"]
