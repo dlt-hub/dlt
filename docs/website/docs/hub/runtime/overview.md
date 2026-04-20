@@ -116,7 +116,7 @@ From the Jobs page you can:
 - Change or cancel schedules for batch jobs
 - Create and manage **public links** for interactive jobs (notebooks/dashboards)
 
-#### Public kinks for interactive jobs
+#### Public links for interactive jobs
 
 Interactive jobs like notebooks and dashboards can be shared via public links. To manage public links:
 1. Open the context menu on a job in the job list, or go to the job detail page
@@ -162,19 +162,33 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 |---------|-------------|
 | `dlt runtime login` | Authenticate with GitHub OAuth |
 | `dlt runtime logout` | Clear local credentials |
-| `dlt runtime launch <script>` | Deploy and run a batch script |
-| `dlt runtime serve <script> [--app-type marimo (default) \| streamlit \| mcp]` | Deploy and run an interactive application |
-| `dlt runtime schedule <script> "<cron>"` | Schedule a script with cron expression |
-| `dlt runtime schedule <script> cancel` | Cancel a scheduled script |
-| `dlt runtime logs <script> [run_number]` | View logs for a run |
-| `dlt runtime cancel <script> [run_number]` | Cancel a running job |
+| `dlt runtime launch <script_or_job>` | Deploy and run a batch script |
+| `dlt runtime serve <script_or_job>` | Deploy and run an interactive application |
+| `dlt runtime deploy` | Deploy jobs from `__deployment__.py` manifest |
+| `dlt runtime trigger <selector> [--refresh]` | Trigger jobs matching a selector (e.g. `tag:backfill`, `schedule:*`) |
+| `dlt runtime run-pipeline <pipeline_name>` | Trigger job by pipeline name |
+| `dlt runtime logs <name> [-f]` | View or stream logs for a run |
+| `dlt runtime cancel <name_or_selector>` | Cancel active runs for matching jobs |
 | `dlt runtime dashboard` | Open the web dashboard |
-| `dlt runtime deploy` | Sync code and config without running |
-| `dlt runtime info` | Show workspace overview |
+| `dlt runtime info` | Show workspace deployment overview |
 
-### Deployment Commands
+### Deployment commands
+
+For workspaces with a `__deployment__.py` manifest (required for scheduling, followup jobs, and multi-job workspaces):
 
 ```sh
+# Deploy jobs from __deployment__.py manifest
+dlt runtime deploy
+
+# Preview what would change without applying
+dlt runtime deploy --dry-run
+
+# Dump the expanded manifest as YAML (useful for debugging)
+dlt runtime deploy --show-manifest
+
+# Sync code + config without deploying manifest
+dlt runtime sync
+
 # Sync only code (deployment)
 dlt runtime deployment sync
 
@@ -190,34 +204,33 @@ dlt runtime deployment info [version_number]
 
 ### Job commands
 
+Commands accept job names, script paths, or **selectors** (`batch`, `tag:ingest`, `schedule:*`):
+
 ```sh
 # List all jobs
 dlt runtime job list
 
-# Get job details
-dlt runtime job info <selector_or_job_name>
+# List jobs matching a selector
+dlt runtime job "tag:ingest" list
 
-# Create a job without running it
-dlt runtime job create <script_path> [--name NAME] [--schedule "CRON"] [--interactive] [--app-type marimo (default) | streamlit | mcp]
+# Get job details
+dlt runtime job <name> info
 ```
 
 ### Job run commands
 
 ```sh
-# List all runs
-dlt runtime job-run list [selector_or_job_name]
+# List all runs (or filter by job name/selector)
+dlt runtime job-run list [name_or_selector]
 
 # Get run details
-dlt runtime job-run info <selector_or_job_name> [run_number]
-
-# Create a new run
-dlt runtime job-run create <selector_or_job_name>
+dlt runtime job-run <name> [run_number] info
 
 # View run logs
-dlt runtime job-run logs <selector_or_job_name> [run_number] [-f/--follow]
+dlt runtime job-run <name> [run_number] logs [-f/--follow]
 
 # Cancel a run
-dlt runtime job-run cancel <selector_or_job_name> [run_number]
+dlt runtime job-run <name> [run_number] cancel
 ```
 
 ### Configuration commands
@@ -232,35 +245,6 @@ dlt runtime configuration info [version_number]
 # Sync local configuration to Runtime
 dlt runtime configuration sync
 ```
-
-## Development workflow
-
-A typical development flow:
-
-1. **Develop locally** with DuckDB (`dev` profile):
-   ```sh
-   uv run python fruitshop_pipeline.py
-   ```
-
-2. **Test your notebook locally**:
-   ```sh
-   uv run marimo edit fruitshop_notebook.py
-   ```
-
-3. **Run pipeline in Runtime** (`prod` profile):
-   ```sh
-   uv run dlt runtime launch fruitshop_pipeline.py
-   ```
-
-4. **Run notebook in Runtime** (`access` profile):
-   ```sh
-   uv run dlt runtime serve fruitshop_notebook.py
-   ```
-
-5. **Check run status and logs**:
-   ```sh
-   uv run dlt runtime logs fruitshop_pipeline.py
-   ```
 
 ## Key concepts
 
@@ -305,17 +289,15 @@ def ping() -> str:
 
 ### Serving Streamlit and MCP applications
 
-Via job create and job run commands:
-```sh
-dlt runtime job create report.py --interactive --app-type streamlit
-dlt runtime job-run create report.py
-```
-
-Via serve command:
+Use the `serve` command to deploy and run interactive applications:
 
 ```sh
-dlt runtime serve mcp_server.py --app-type mcp``
+dlt runtime serve my_notebook.py          # marimo (auto-detected)
+dlt runtime serve my_mcp_server.py        # FastMCP (auto-detected)
+dlt runtime serve my_streamlit_app.py     # Streamlit (auto-detected)
 ```
+
+The application type is auto-detected from the module contents. For workspaces with a `__deployment__.py` manifest, import the module there and deploy with `dlt runtime deploy` -- interactive jobs are detected automatically.
 
 ### Profiles
 
@@ -334,7 +316,7 @@ Both are versioned separately, allowing you to update code without changing secr
 
 ## Current limitations
 
-- **Runtime limits**: Jobs are limited to 120 minutes maximum execution time
+- **Runtime limits**: Jobs default to 120 minutes maximum execution time (override with `execute={"timeout": "6h"}` in the decorator)
 - **Interactive timeout**: Notebooks are killed after about 5 minutes of inactivity (no open browser tab)
 - **UI operations**: Creating jobs must currently be done via CLI (schedules can be changed in the WebUI)
 - **Pagination**: List views show the top 100 items
