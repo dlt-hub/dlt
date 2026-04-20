@@ -28,6 +28,7 @@ from dlt._workspace.deployment.requirements import (
     save_requirements,
 )
 from dlt._workspace.deployment._trigger_helpers import (
+    humanize_trigger,
     is_selector,
     parse_trigger,
     normalize_trigger,

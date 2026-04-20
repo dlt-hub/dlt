@@ -6,6 +6,7 @@ import pytest
 
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment._trigger_helpers import (
+    humanize_trigger,
     match_triggers_with_selectors,
     normalize_trigger,
     normalize_triggers,
@@ -509,3 +510,44 @@ def test_pick_trigger(matched: List[str], default: Optional[str], expected: Opti
         assert result is None
     else:
         assert result == TTrigger(expected)
+
+
+@pytest.mark.parametrize(
+    "trigger,expected",
+    [
+        ("schedule:0 2 * * *", "schedule: 0 2 * * *"),
+        ("every:5m", "every 5m"),
+        ("once:2026-03-15T08:00:00Z", "once at 2026-03-15T08:00:00Z"),
+        ("manual:jobs.backfill", "manual (backfill)"),
+        ("manual:jobs.mod.ingest", "manual (ingest)"),
+        ("tag:nightly", "tag:nightly"),
+        ("http:", "interactive service"),
+        ("http:9090", "interactive service"),
+        ("deployment:", "after deployment"),
+        ("webhook:ingest", "webhook ingest"),
+        ("webhook:", "webhook"),
+        ("job.success:jobs.upstream", "after upstream succeeds"),
+        ("job.fail:jobs.mod.upstream", "after upstream fails"),
+        ("pipeline_name:fruitshop", "pipeline fruitshop"),
+        ("not-a-valid-trigger", "not-a-valid-trigger"),
+    ],
+    ids=[
+        "schedule",
+        "every",
+        "once",
+        "manual",
+        "manual-qualified",
+        "tag",
+        "http-bare",
+        "http-port",
+        "deployment",
+        "webhook",
+        "webhook-bare",
+        "job-success",
+        "job-fail",
+        "pipeline-name",
+        "unparseable-falls-back-to-raw",
+    ],
+)
+def test_humanize_trigger(trigger: str, expected: str) -> None:
+    assert humanize_trigger(TTrigger(trigger)) == expected

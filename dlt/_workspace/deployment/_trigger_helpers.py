@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import TAnyDateTime
-from dlt._workspace.deployment._job_ref import resolve_job_ref
+from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name as _job_short_name
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.typing import (
     HttpTriggerInfo,
@@ -310,3 +310,39 @@ def maybe_parse_schedule(job_def: TJobDefinition) -> Optional[str]:
         if parsed.type == "schedule":
             return str(parsed.expr)
     return None
+
+
+def humanize_trigger(trigger: TTrigger) -> str:
+    """Human-readable description of a trigger string for display in CLIs."""
+    try:
+        parsed = parse_trigger(trigger)
+    except InvalidTrigger:
+        return str(trigger)
+    tt = parsed.type
+    expr = parsed.expr
+    # raw_expr preserves the original form of every:/once: payloads (units,
+    # ISO string) rather than the parsed float/datetime
+    _, _, raw_expr = str(trigger).partition(":")
+    if tt == "http":
+        return "interactive service"
+    if tt == "deployment":
+        return "after deployment"
+    if tt == "tag":
+        return f"tag:{expr}"
+    if tt == "manual":
+        return f"manual ({_job_short_name(str(expr))})" if expr else "manual"
+    if tt == "every":
+        return f"every {raw_expr}"
+    if tt == "schedule":
+        return f"schedule: {expr}"
+    if tt == "once":
+        return f"once at {raw_expr}"
+    if tt == "job.success":
+        return f"after {_job_short_name(str(expr))} succeeds"
+    if tt == "job.fail":
+        return f"after {_job_short_name(str(expr))} fails"
+    if tt == "webhook":
+        return f"webhook {expr}" if expr else "webhook"
+    if tt == "pipeline_name":
+        return f"pipeline {expr}"
+    return str(trigger)
