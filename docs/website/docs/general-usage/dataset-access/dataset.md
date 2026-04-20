@@ -119,6 +119,12 @@ You can refine your data retrieval by limiting the number of records, selecting 
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::aggregate-->
 
+### Join related tables
+
+Use `join()` to navigate dlt's schema references between related tables, such as parent/child tables created from nested data, or tables where you explicitly annotate the relationship. Joined columns are prefixed with the joined table name, or with the alias you provide.
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::join_related_tables-->
+
 ### Chain operations
 
 You can combine `select`, `limit`, and other methods.
@@ -263,4 +269,3 @@ ds = pipeline.dataset(schema=pipeline.default_schema_name)
 - **Lazy evaluation:** `Dataset` and `Relation` objects delay data retrieval until necessary. This design improves performance and resource utilization.
 
 - **Custom SQL queries:** When executing custom SQL queries, remember that additional methods like `limit()` or `select()` won't modify the query. Include all necessary clauses directly in your SQL statement.
-
