@@ -3,7 +3,7 @@
 from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_pendulum_datetime_utc
 
-from dlt._workspace._runner.freshness_store import DuckDBJobFreshnessStore
+from tests.workspace.runner._runner.freshness_store import DuckDBJobFreshnessStore
 
 
 def _dt(s: str) -> pendulum.DateTime:

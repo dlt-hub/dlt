@@ -33,19 +33,19 @@ from dlt._workspace.deployment.interval import (
     resolve_interval_spec,
     resolve_run_freshness_refs,
 )
-from dlt._workspace._runner.freshness_store import (
+from tests.workspace.runner._runner.freshness_store import (
     DuckDBJobFreshnessStore,
     TJobFreshnessStore,
 )
-from dlt._workspace._runner.interval_store import DuckDBIntervalStore, TIntervalStore
-from dlt._workspace._runner.process import JobProcess
-from dlt._workspace._runner.run_store import (
+from tests.workspace.runner._runner.interval_store import DuckDBIntervalStore, TIntervalStore
+from tests.workspace.runner._runner.process import JobProcess
+from tests.workspace.runner._runner.run_store import (
     DuckDBJobRunsStore,
     TJobRun,
     TJobRunsStore,
     TJobRunStatus,
 )
-from dlt._workspace._runner.scheduler import TriggerScheduler
+from tests.workspace.runner._runner.scheduler import TriggerScheduler
 from dlt._workspace.deployment.exceptions import InvalidJobRef, InvalidTrigger
 from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment._trigger_helpers import (

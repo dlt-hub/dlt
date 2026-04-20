@@ -2,7 +2,7 @@
 
 from dlt.common.pendulum import pendulum
 
-from dlt._workspace._runner.run_store import DuckDBJobRunsStore
+from tests.workspace.runner._runner.run_store import DuckDBJobRunsStore
 
 
 def test_create_and_get_last_run() -> None:

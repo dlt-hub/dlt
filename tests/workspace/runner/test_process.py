@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from dlt._workspace._runner.process import JobProcess
+from tests.workspace.runner._runner.process import JobProcess
 
 
 def test_process_runs_and_captures_output() -> None:

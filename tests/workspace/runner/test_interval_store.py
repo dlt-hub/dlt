@@ -7,7 +7,7 @@ import pytest
 from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_pendulum_datetime_utc
 
-from dlt._workspace._runner.interval_store import DuckDBIntervalStore
+from tests.workspace.runner._runner.interval_store import DuckDBIntervalStore
 
 
 def _dt(s: str) -> pendulum.DateTime:

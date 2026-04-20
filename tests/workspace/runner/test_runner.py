@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import pytest
 
-from dlt._workspace._runner.runner import run, _log, _log_job
+from tests.workspace.runner._runner.runner import run, _log, _log_job
 from dlt._workspace.deployment.typing import (
     TFreshnessConstraint,
     TJobDefinition,

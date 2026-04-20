@@ -3,9 +3,7 @@
 import time
 from typing import List, Tuple
 
-import pytest
-
-from dlt._workspace._runner.scheduler import TriggerScheduler
+from tests.workspace.runner._runner.scheduler import TriggerScheduler
 from dlt._workspace.deployment._trigger_helpers import match_triggers_with_selectors
 from dlt._workspace.deployment.typing import (
     TEntryPoint,

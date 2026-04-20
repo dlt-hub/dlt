@@ -7,9 +7,9 @@ import pytest
 from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_pendulum_datetime_utc
 
-from dlt._workspace._runner import runner as runner_mod
-from dlt._workspace._runner.freshness_store import DuckDBJobFreshnessStore
-from dlt._workspace._runner.run_store import TJobRun
+from tests.workspace.runner._runner import runner as runner_mod
+from tests.workspace.runner._runner.freshness_store import DuckDBJobFreshnessStore
+from tests.workspace.runner._runner.run_store import TJobRun
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
     TExecuteSpec,
@@ -72,7 +72,7 @@ def _run_record(
 @pytest.fixture
 def runner_state() -> Iterator[Dict[str, TJobDefinition]]:
     """Set up module-level runner state for unit tests; restore on teardown."""
-    from dlt._workspace._runner.run_store import DuckDBJobRunsStore
+    from tests.workspace.runner._runner.run_store import DuckDBJobRunsStore
 
     saved_freshness = runner_mod._freshness_store
     saved_runs = runner_mod._runs_store
@@ -315,7 +315,7 @@ def test_allow_external_schedulers_propagates_to_entry_point(
         def is_alive(self) -> bool:
             return False
 
-    import dlt._workspace._runner.runner as runner_mod_inner
+    import tests.workspace.runner._runner.runner as runner_mod_inner
 
     saved_cls = runner_mod_inner.JobProcess
     runner_mod_inner.JobProcess = _FakeProc  # type: ignore[misc,assignment]

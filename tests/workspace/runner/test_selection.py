@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import pytest
 
-from dlt._workspace._runner.runner import run, select_jobs, _resolve_selectors
+from tests.workspace.runner._runner.runner import run, select_jobs, _resolve_selectors
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
     TExecuteSpec,
