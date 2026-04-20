@@ -1159,7 +1159,7 @@ workspace info.
             print_run_starting,
             print_run_warnings,
         )
-        from dlt._workspace.deployment._job_ref import short_name as job_short_name
+        from dlt._workspace.deployment._job_ref import format_job_label
         from dlt._workspace.deployment.launchers._launcher import exec_process
         from dlt._workspace.deployment.typing import TJobDefinition, TTrigger
         from dlt._workspace.profile import read_profile_pin
@@ -1169,12 +1169,14 @@ workspace info.
         ) -> Tuple["TJobDefinition", "TTrigger"]:
             if len(candidates) == 1:
                 return candidates[0]
-            labels = [
-                f"{i}-{job_short_name(j['job_ref'])}" for i, (j, _) in enumerate(candidates, 1)
-            ]
+
+            def _label(j: "TJobDefinition") -> str:
+                return format_job_label(j["job_ref"], j.get("expose"), j.get("deliver"))
+
+            labels = [f"{i}-{_label(j)}" for i, (j, _) in enumerate(candidates, 1)]
             fmt.echo(f"{len(candidates)} jobs match:")
             for i, (j, t) in enumerate(candidates, 1):
-                fmt.echo(f"  {i}. {job_short_name(j['job_ref'])}  (trigger: {t})")
+                fmt.echo(f"  {i}. {_label(j)}  (trigger: {t})")
             choice = fmt.prompt(
                 "Pick a job: " + ", ".join(labels),
                 choices=[str(i) for i in range(1, len(candidates) + 1)],

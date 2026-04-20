@@ -116,7 +116,7 @@ def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> Non
     if verbosity == 0:
         return
 
-    max_name = max((len(j["short_name"]) for j in info["jobs"]), default=8)
+    max_name = max((len(j["display_label"]) for j in info["jobs"]), default=8)
     for job in info["jobs"]:
         triggers: List[str] = []
         if "default_trigger" in job:
@@ -127,7 +127,7 @@ def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> Non
                 triggers = ["(interactive)"]
             else:
                 triggers = ["(manual only)"]
-        fmt.echo("  %s  %s" % (job["short_name"].ljust(max_name), ", ".join(triggers)))
+        fmt.echo("  %s  %s" % (job["display_label"].ljust(max_name), ", ".join(triggers)))
 
 
 @utils.track_command("workspace", track_before=False, operation="clean")

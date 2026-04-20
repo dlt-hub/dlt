@@ -37,7 +37,7 @@ from dlt._workspace.deployment import (
     humanize_trigger,
     manifest_from_module,
 )
-from dlt._workspace.deployment._job_ref import short_name as job_short_name
+from dlt._workspace.deployment._job_ref import format_job_label
 from dlt._workspace.deployment._trigger_helpers import parse_trigger
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.manifest import expand_triggers
@@ -612,7 +612,11 @@ def fetch_deployment_info() -> TDeploymentManifestInfo:
 
         entry: TDeploymentJobInfo = {
             "job_ref": job_def["job_ref"],
-            "short_name": job_short_name(job_def["job_ref"]),
+            "display_label": format_job_label(
+                job_def["job_ref"],
+                job_def.get("expose"),
+                job_def.get("deliver"),
+            ),
             "category": category,
             "triggers": other_human,
         }

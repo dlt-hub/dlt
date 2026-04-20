@@ -41,11 +41,19 @@ def test_fetch_deployment_info_ok_categorizes_and_lists_triggers() -> None:
     assert counts.get("pipeline", 0) >= 1
     assert counts.get("batch", 0) >= 2
 
-    by_ref = {j["short_name"]: j for j in info["jobs"]}
-    assert by_ref["batch_one"]["default_trigger"] == "schedule: 0 2 * * *"
-    assert by_ref["batch_one"]["category"] == "batch"
-    assert by_ref["load_fruitshop"]["default_trigger"] == "schedule: 0 3 * * *"
-    assert by_ref["load_fruitshop"]["category"] == "pipeline"
+    by_ref = {j["job_ref"]: j for j in info["jobs"]}
+    # @job-decorated jobs get section from module name → jobs.__deployment__.<name>
+    batch_one = by_ref["jobs.__deployment__.batch_one"]
+    assert batch_one["default_trigger"] == "schedule: 0 2 * * *"
+    assert batch_one["category"] == "batch"
+    assert batch_one["display_label"] == "batch_one (__deployment__)"
+    # load_fruitshop delivers to the 'fruitshop' pipeline → label has pipeline suffix
+    load_fs = by_ref["jobs.__deployment__.load_fruitshop"]
+    assert load_fs["default_trigger"] == "schedule: 0 3 * * *"
+    assert load_fs["category"] == "pipeline"
+    assert load_fs["display_label"] == "load_fruitshop (fruitshop)"
+    # plain module → no section, plain label
+    assert by_ref["jobs.plain"]["display_label"] == "plain"
 
 
 def test_print_deployment_info_not_found_renders_single_line(
@@ -115,14 +123,14 @@ def test_print_deployment_info_ok_verbose_lists_jobs(
         "jobs": [
             {
                 "job_ref": "jobs.backfill",
-                "short_name": "backfill",
+                "display_label": "backfill",
                 "category": "pipeline",
                 "default_trigger": "schedule: 0 2 * * *",
                 "triggers": ["tag:nightly"],
             },
             {
                 "job_ref": "jobs.dashboard",
-                "short_name": "dashboard",
+                "display_label": "dashboard",
                 "category": "notebook",
                 "triggers": [],
             },

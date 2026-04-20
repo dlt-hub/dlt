@@ -129,7 +129,7 @@ class TDeploymentJobInfo(TypedDict):
     """A single job entry in the deployment manifest summary."""
 
     job_ref: str
-    short_name: str
+    display_label: str
     category: str
     default_trigger: NotRequired[str]
     triggers: List[str]
@@ -149,7 +149,7 @@ class TRunJobInfo(TypedDict):
     """Resolved `workspace run` request — all data needed to launch the job."""
 
     job_ref: str
-    short_name: str
+    display_label: str
     trigger: str
     trigger_humanized: str
     launcher: str

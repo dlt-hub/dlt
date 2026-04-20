@@ -14,7 +14,11 @@ from dlt.common.time import ensure_pendulum_datetime_non_utc
 
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli.exceptions import CliCommandInnerException
-from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name
+from dlt._workspace.deployment._job_ref import (
+    format_job_label,
+    resolve_job_ref,
+    short_name,
+)
 from dlt._workspace.deployment._trigger_helpers import (
     humanize_trigger,
     is_selector,
@@ -114,7 +118,7 @@ def collect_candidates(
         try:
             resolved = f"manual:{resolve_job_ref(selector, job_refs)}"
         except (InvalidJobRef, KeyError) as exc:
-            refs = ", ".join(short_name(r) for r in job_refs)
+            refs = ", ".join(job_refs)
             raise CliCommandInnerException(
                 cmd="workspace run",
                 msg=f"Could not resolve {selector!r} to a job. Available: {refs}",
@@ -282,7 +286,7 @@ def fetch_run_info(
     expanded_map: Dict[str, List[TTrigger]] = {j["job_ref"]: expand_triggers(j) for j in jobs}
     candidates = collect_candidates(jobs, selector, expanded_map)
     if not candidates:
-        refs = ", ".join(short_name(j["job_ref"]) for j in jobs)
+        refs = ", ".join(j["job_ref"] for j in jobs)
         raise CliCommandInnerException(
             cmd="workspace run",
             msg=f"No job matched {selector!r}. Available: {refs}",
@@ -309,7 +313,9 @@ def fetch_run_info(
 
     info: TRunJobInfo = {
         "job_ref": job_def["job_ref"],
-        "short_name": short_name(job_def["job_ref"]),
+        "display_label": format_job_label(
+            job_def["job_ref"], job_def.get("expose"), job_def.get("deliver")
+        ),
         "trigger": picked_trigger,
         "trigger_humanized": humanize_trigger(picked_trigger),
         "launcher": pick_launcher(entry_point),
@@ -347,7 +353,8 @@ def print_run_warnings(info: TRunJobInfo) -> None:
 def print_run_starting(info: TRunJobInfo) -> None:
     """Emit the 'Starting <job> (trigger: ...)' banner before launch."""
     fmt.echo(
-        "Starting %s (trigger: %s)" % (fmt.bold(info["short_name"]), info["trigger_humanized"])
+        "Starting %s (trigger: %s)"
+        % (fmt.bold(info["display_label"]), info["trigger_humanized"])
     )
     if info["entry_point"].get("job_type") == "interactive":
         port = info["entry_point"]["run_args"]["port"]
