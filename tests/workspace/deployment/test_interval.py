@@ -9,9 +9,9 @@ import pytest
 from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_pendulum_datetime_utc
 
+from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.interval import (
     TInterval,
-    check_all_upstream_interval_fresh,
     check_all_upstream_run_fresh,
     compute_run_interval,
     cron_floor,
@@ -19,11 +19,9 @@ from dlt._workspace.deployment.interval import (
     iter_intervals,
     next_eligible_interval,
     next_scheduled_run,
-    resolve_interval_freshness_checks,
     resolve_interval_spec,
     sort_and_coalesce,
 )
-from dlt._workspace._runner.interval_store import DuckDBIntervalStore
 from dlt._workspace.deployment.freshness import (
     get_direct_freshness_downstream,
     get_refresh_cascade_targets,
@@ -42,12 +40,8 @@ from dlt._workspace.deployment.typing import (
 )
 
 
-def _dt(s: str) -> pendulum.DateTime:
-    return ensure_pendulum_datetime_utc(s)
-
-
 def _iv(start: str, end: str) -> TInterval:
-    return (_dt(start), _dt(end))
+    return (ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
 
 
 def _job(
@@ -82,9 +76,6 @@ def _job(
     if allow_external_schedulers is not None:
         job["allow_external_schedulers"] = allow_external_schedulers
     return job
-
-
-# sort_and_coalesce
 
 
 @pytest.mark.parametrize(
@@ -129,12 +120,9 @@ def _job(
 def test_sort_and_coalesce(
     intervals: List[Tuple[str, str]], expected: List[Tuple[str, str]]
 ) -> None:
-    ivs = [(_dt(s), _dt(e)) for s, e in intervals]
-    exp = [(_dt(s), _dt(e)) for s, e in expected]
+    ivs = [(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e)) for s, e in intervals]
+    exp = [(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e)) for s, e in expected]
     assert sort_and_coalesce(ivs) == exp
-
-
-# iter_intervals
 
 
 @pytest.mark.parametrize(
@@ -165,7 +153,10 @@ def test_iter_intervals(
     intervals = list(iter_intervals(cron, iv))
     assert len(intervals) == expected_count
     if first_start is not None:
-        assert intervals[0] == (_dt(first_start), _dt(first_end))
+        assert intervals[0] == (
+            ensure_pendulum_datetime_utc(first_start),
+            ensure_pendulum_datetime_utc(first_end),
+        )
 
 
 def test_monthly_variable_length_intervals() -> None:
@@ -189,25 +180,31 @@ def test_iter_intervals_is_lazy() -> None:
     overall = _iv("2024-01-01", "2024-12-31")
     gen = iter_intervals("0 0 * * *", overall)
     first = next(gen)
-    assert first == (_dt("2024-01-01"), _dt("2024-01-02"))
+    assert first == (
+        ensure_pendulum_datetime_utc("2024-01-01"),
+        ensure_pendulum_datetime_utc("2024-01-02"),
+    )
     second = next(gen)
-    assert second == (_dt("2024-01-02"), _dt("2024-01-03"))
-
-
-# resolve_interval_spec + cron_floor
+    assert second == (
+        ensure_pendulum_datetime_utc("2024-01-02"),
+        ensure_pendulum_datetime_utc("2024-01-03"),
+    )
 
 
 def test_resolve_with_explicit_end() -> None:
     spec: TIntervalSpec = {"start": "2024-01-01T00:00:00Z", "end": "2024-01-05T00:00:00Z"}
     result = resolve_interval_spec(spec, "0 0 * * *")
-    assert result == (_dt("2024-01-01"), _dt("2024-01-05"))
+    assert result == (
+        ensure_pendulum_datetime_utc("2024-01-01"),
+        ensure_pendulum_datetime_utc("2024-01-05"),
+    )
 
 
 def test_resolve_open_ended_uses_last_cron_tick() -> None:
     """Open-ended spec resolves end to the last elapsed cron tick."""
     spec: TIntervalSpec = {"start": "2020-01-01T00:00:00Z"}
     start, end = resolve_interval_spec(spec, "0 0 * * *")
-    assert start == _dt("2020-01-01")
+    assert start == ensure_pendulum_datetime_utc("2020-01-01")
     assert end <= pendulum.now("UTC")
     assert end.hour == 0 and end.minute == 0
 
@@ -216,16 +213,16 @@ def test_resolve_interval_spec_snaps_start() -> None:
     """When start is between cron ticks, it snaps backward."""
     spec: TIntervalSpec = {"start": "2024-01-01T06:30:00Z", "end": "2024-01-05T00:00:00Z"}
     start, end = resolve_interval_spec(spec, "0 0 * * *")
-    assert start == _dt("2024-01-01")
-    assert end == _dt("2024-01-05")
+    assert start == ensure_pendulum_datetime_utc("2024-01-01")
+    assert end == ensure_pendulum_datetime_utc("2024-01-05")
 
 
 def test_resolve_explicit_end_snapped() -> None:
     """Explicit end between cron ticks snaps backward."""
     spec: TIntervalSpec = {"start": "2024-01-01T00:00:00Z", "end": "2024-01-05T06:30:00Z"}
     start, end = resolve_interval_spec(spec, "0 0 * * *")
-    assert start == _dt("2024-01-01")
-    assert end == _dt("2024-01-05")
+    assert start == ensure_pendulum_datetime_utc("2024-01-01")
+    assert end == ensure_pendulum_datetime_utc("2024-01-05")
 
 
 @pytest.mark.parametrize(
@@ -240,20 +237,28 @@ def test_resolve_explicit_end_snapped() -> None:
     ids=["daily-aligned", "daily-misaligned", "3min-misaligned", "3min-aligned", "1min-aligned"],
 )
 def test_cron_floor(cron_expr: str, dt: str, expected: str) -> None:
-    assert cron_floor(cron_expr, _dt(dt)) == _dt(expected)
+    assert cron_floor(cron_expr, ensure_pendulum_datetime_utc(dt)) == ensure_pendulum_datetime_utc(
+        expected
+    )
 
 
 def test_eligible_intervals_skips_completed() -> None:
     completed = sort_and_coalesce(
         [
-            (_dt("2024-01-01"), _dt("2024-01-02")),
-            (_dt("2024-01-02"), _dt("2024-01-03")),
+            (
+                ensure_pendulum_datetime_utc("2024-01-01"),
+                ensure_pendulum_datetime_utc("2024-01-02"),
+            ),
+            (
+                ensure_pendulum_datetime_utc("2024-01-02"),
+                ensure_pendulum_datetime_utc("2024-01-03"),
+            ),
         ]
     )
     overall = _iv("2024-01-01", "2024-01-05")
     eligible = get_eligible_intervals("0 0 * * *", overall, completed)
     assert len(eligible) == 2
-    assert eligible[0][0] == _dt("2024-01-03")
+    assert eligible[0][0] == ensure_pendulum_datetime_utc("2024-01-03")
 
 
 def test_eligible_intervals_all_when_none_completed() -> None:
@@ -270,15 +275,19 @@ def test_eligible_intervals_ordered() -> None:
 
 
 def test_next_eligible_interval_returns_first_incomplete() -> None:
-    completed = [(_dt("2024-01-01"), _dt("2024-01-02"))]
+    completed = [
+        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-02"))
+    ]
     overall = _iv("2024-01-01", "2024-01-05")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
-    assert iv[0] == _dt("2024-01-02")
+    assert iv[0] == ensure_pendulum_datetime_utc("2024-01-02")
 
 
 def test_next_eligible_interval_none_when_all_done() -> None:
-    completed = [(_dt("2024-01-01"), _dt("2024-01-03"))]
+    completed = [
+        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-03"))
+    ]
     overall = _iv("2024-01-01", "2024-01-03")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is None
@@ -286,28 +295,36 @@ def test_next_eligible_interval_none_when_all_done() -> None:
 
 def test_next_eligible_skips_leading_completed() -> None:
     """Leading completed block is trimmed, avoiding iteration over 100 done intervals."""
-    completed = [(_dt("2024-01-01"), _dt("2024-04-10"))]
+    completed = [
+        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-04-10"))
+    ]
     overall = _iv("2024-01-01", "2024-06-01")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
-    assert iv[0] == _dt("2024-04-10")
+    assert iv[0] == ensure_pendulum_datetime_utc("2024-04-10")
 
 
 def test_next_eligible_with_gap_in_middle() -> None:
     """Completed intervals with a gap — returns the first interval in the gap."""
     completed = sort_and_coalesce(
         [
-            (_dt("2024-01-01"), _dt("2024-01-03")),
-            (_dt("2024-01-04"), _dt("2024-01-05")),
+            (
+                ensure_pendulum_datetime_utc("2024-01-01"),
+                ensure_pendulum_datetime_utc("2024-01-03"),
+            ),
+            (
+                ensure_pendulum_datetime_utc("2024-01-04"),
+                ensure_pendulum_datetime_utc("2024-01-05"),
+            ),
         ]
     )
     overall = _iv("2024-01-01", "2024-01-05")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
-    assert iv == (_dt("2024-01-03"), _dt("2024-01-04"))
-
-
-# timezone handling: return values are always UTC; cron math respects tz
+    assert iv == (
+        ensure_pendulum_datetime_utc("2024-01-03"),
+        ensure_pendulum_datetime_utc("2024-01-04"),
+    )
 
 
 @pytest.mark.parametrize(
@@ -365,8 +382,8 @@ def test_resolve_interval_spec_returns_utc(
     start, end = resolve_interval_spec(spec, cron, tz=tz)
     assert start.tzinfo == timezone.utc
     assert end.tzinfo == timezone.utc
-    assert start == _dt(expected_start)
-    assert end == _dt(expected_end)
+    assert start == ensure_pendulum_datetime_utc(expected_start)
+    assert end == ensure_pendulum_datetime_utc(expected_end)
 
 
 @pytest.mark.parametrize(
@@ -422,7 +439,7 @@ def test_iter_intervals_respects_tz_across_dst(
         assert iv[0].tzinfo == timezone.utc
         assert iv[1].tzinfo == timezone.utc
     starts = [iv[0] for iv in intervals]
-    assert starts == [_dt(s) for s in expected_starts]
+    assert starts == [ensure_pendulum_datetime_utc(s) for s in expected_starts]
 
 
 @pytest.mark.parametrize(
@@ -462,7 +479,10 @@ def test_next_eligible_interval_tz_returns_utc(
     iv = next_eligible_interval(cron, overall, [], tz=tz)
     assert iv is not None
     assert iv[0].tzinfo == timezone.utc
-    assert iv == (_dt(expected_start), _dt(expected_end))
+    assert iv == (
+        ensure_pendulum_datetime_utc(expected_start),
+        ensure_pendulum_datetime_utc(expected_end),
+    )
 
 
 @pytest.mark.parametrize(
@@ -578,41 +598,42 @@ def test_next_scheduled_run(
 ) -> None:
     scheduled_at = next_scheduled_run(
         TTrigger(trigger),
-        _dt(now_ref),
+        ensure_pendulum_datetime_utc(now_ref),
         tz=tz,
-        prev_scheduled_run=_dt(prev) if prev else None,
+        prev_scheduled_run=ensure_pendulum_datetime_utc(prev) if prev else None,
     )
-    assert scheduled_at == _dt(expected_at)
+    assert scheduled_at == ensure_pendulum_datetime_utc(expected_at)
 
 
 def test_next_scheduled_run_returns_utc() -> None:
     """All returned datetimes are UTC regardless of tz parameter."""
     scheduled_at = next_scheduled_run(
         TTrigger("schedule:0 8 * * *"),
-        _dt("2024-06-15T11:00:00Z"),
+        ensure_pendulum_datetime_utc("2024-06-15T11:00:00Z"),
         tz="US/Eastern",
     )
     assert scheduled_at.tzname() == "UTC"
 
     scheduled_every = next_scheduled_run(
         TTrigger("every:1h"),
-        _dt("2024-06-15T10:00:00Z"),
+        ensure_pendulum_datetime_utc("2024-06-15T10:00:00Z"),
     )
     assert scheduled_every.tzname() == "UTC"
 
     scheduled_once = next_scheduled_run(
         TTrigger("once:2025-01-01T00:00:00Z"),
-        _dt("2024-06-15T00:00:00Z"),
+        ensure_pendulum_datetime_utc("2024-06-15T00:00:00Z"),
     )
     assert scheduled_once.tzname() == "UTC"
 
 
 def test_next_scheduled_run_rejects_non_timed() -> None:
     """Non-timed triggers raise InvalidTrigger."""
-    from dlt._workspace.deployment.exceptions import InvalidTrigger as IT
-
-    with pytest.raises(IT, match="not a timed trigger"):
-        next_scheduled_run(TTrigger("manual:jobs.mod.a"), _dt("2024-06-15T00:00:00Z"))
+    with pytest.raises(InvalidTrigger, match="not a timed trigger"):
+        next_scheduled_run(
+            TTrigger("manual:jobs.mod.a"),
+            ensure_pendulum_datetime_utc("2024-06-15T00:00:00Z"),
+        )
 
 
 @pytest.mark.parametrize(
@@ -802,17 +823,20 @@ def test_compute_run_interval(
 ) -> None:
     iv = compute_run_interval(
         TTrigger(trigger),
-        _dt(now),
-        prev_interval_end=_dt(prev) if prev else None,
+        ensure_pendulum_datetime_utc(now),
+        prev_interval_end=ensure_pendulum_datetime_utc(prev) if prev else None,
     )
-    assert iv == (_dt(expected_start), _dt(expected_end))
+    assert iv == (
+        ensure_pendulum_datetime_utc(expected_start),
+        ensure_pendulum_datetime_utc(expected_end),
+    )
 
 
 def test_compute_run_interval_returns_utc() -> None:
     """All returned datetimes are UTC."""
     iv = compute_run_interval(
         TTrigger("schedule:0 8 * * *"),
-        _dt("2024-06-15T11:00:00Z"),
+        ensure_pendulum_datetime_utc("2024-06-15T11:00:00Z"),
         prev_interval_end=None,
         tz="US/Eastern",
     )
@@ -829,316 +853,24 @@ def test_compute_run_interval_schedule_with_timezone() -> None:
     """
     iv = compute_run_interval(
         TTrigger("schedule:0 8 * * *"),
-        _dt("2024-06-15T11:00:00Z"),
+        ensure_pendulum_datetime_utc("2024-06-15T11:00:00Z"),
         prev_interval_end=None,
         tz="US/Eastern",
     )
-    assert iv == (_dt("2024-06-13T12:00:00Z"), _dt("2024-06-14T12:00:00Z"))
+    assert iv == (
+        ensure_pendulum_datetime_utc("2024-06-13T12:00:00Z"),
+        ensure_pendulum_datetime_utc("2024-06-14T12:00:00Z"),
+    )
 
 
 def test_compute_run_interval_invalid_trigger() -> None:
     """Unparseable triggers raise InvalidTrigger."""
-    from dlt._workspace.deployment.exceptions import InvalidTrigger as IT
-
-    with pytest.raises(IT):
+    with pytest.raises(InvalidTrigger):
         compute_run_interval(
             TTrigger("not-a-trigger"),
-            _dt("2024-06-15T12:00:00Z"),
+            ensure_pendulum_datetime_utc("2024-06-15T12:00:00Z"),
             prev_interval_end=None,
         )
-
-
-# freshness checks
-
-
-def _check_interval_freshness(
-    ds_iv: TInterval,
-    ds_overall: TInterval,
-    upstream_job: TJobDefinition,
-    store: DuckDBIntervalStore,
-    constraint: str = "job.is_matching_interval_fresh",
-) -> Tuple[bool, List[str]]:
-    """Resolve + fetch + evaluate interval freshness for a single upstream."""
-    ref = upstream_job["job_ref"]
-    all_jobs: Dict[str, TJobDefinition] = {ref: upstream_job}
-    freshness = [TFreshnessConstraint(f"{constraint}:{ref}")]
-    checks, reasons = resolve_interval_freshness_checks(ds_iv, ds_overall, freshness, all_jobs)
-    if not reasons:
-        completions = {
-            (c.upstream_ref, c.effective_interval): store.is_interval_completed(
-                c.upstream_ref, c.effective_interval
-            )
-            for c in checks
-        }
-        _, reasons = check_all_upstream_interval_fresh(checks, completions)
-    return len(reasons) == 0, reasons
-
-
-@pytest.mark.parametrize(
-    "ds_iv,us_interval_spec,constraint,completed,expected",
-    [
-        (
-            ("2024-01-01", "2024-01-02"),
-            {"start": "2024-01-01T00:00:00Z", "end": "2024-01-31T00:00:00Z"},
-            "job.is_matching_interval_fresh",
-            [("2024-01-01", "2024-01-02")],
-            True,
-        ),
-        (
-            ("2024-01-01", "2024-01-02"),
-            {"start": "2024-01-01T00:00:00Z", "end": "2024-01-31T00:00:00Z"},
-            "job.is_matching_interval_fresh",
-            [],
-            False,
-        ),
-        (
-            ("2024-06-01", "2024-06-02"),
-            {"start": "2025-01-01T00:00:00Z", "end": "2025-12-31T00:00:00Z"},
-            "job.is_matching_interval_fresh",
-            [],
-            True,
-        ),
-        (
-            ("2024-01-15", "2024-01-16"),
-            {"start": "2024-01-01T00:00:00Z", "end": "2024-01-31T00:00:00Z"},
-            "job.is_fresh",
-            [("2024-01-01", "2024-01-31")],
-            True,
-        ),
-        (
-            ("2024-01-15", "2024-01-16"),
-            {"start": "2024-01-01T00:00:00Z", "end": "2024-01-31T00:00:00Z"},
-            "job.is_fresh",
-            [("2024-01-01", "2024-01-15")],
-            False,
-        ),
-        (
-            ("2024-06-01", "2024-06-02"),
-            {"start": "2025-01-01T00:00:00Z", "end": "2025-06-01T00:00:00Z"},
-            "job.is_fresh",
-            [("2025-01-01", "2025-06-01")],
-            True,
-        ),
-        (
-            ("2024-02-01", "2024-02-02"),
-            {"start": "2024-01-01T00:00:00Z", "end": "2024-01-15T00:00:00Z"},
-            "job.is_matching_interval_fresh",
-            [("2024-01-01", "2024-01-15")],
-            False,
-        ),
-    ],
-    ids=[
-        "matching-covered",
-        "matching-gap",
-        "matching-non-overlapping",
-        "fresh-complete",
-        "fresh-incomplete",
-        "fresh-non-overlapping",
-        "matching-after-upstream-end",
-    ],
-)
-def test_check_upstream_freshness(
-    ds_iv: Tuple[str, str],
-    us_interval_spec: TIntervalSpec,
-    constraint: str,
-    completed: List[Tuple[str, str]],
-    expected: bool,
-) -> None:
-    store = DuckDBIntervalStore()
-    for s, e in completed:
-        store.mark_interval_completed("jobs.up", (_dt(s), _dt(e)))
-    ds_overall = _iv("2024-01-01", "2025-06-01")
-    up = _job(
-        "jobs.up",
-        ["schedule:0 0 * * *"],
-        interval=us_interval_spec,
-        default_trigger="schedule:0 0 * * *",
-    )
-    fresh, _ = _check_interval_freshness(_iv(*ds_iv), ds_overall, up, store, constraint)
-    assert fresh == expected
-    store.close()
-
-
-def _resolve_and_check_interval_freshness(
-    ds_iv: TInterval,
-    ds_overall: TInterval,
-    freshness: List[TFreshnessConstraint],
-    all_jobs: Dict[str, TJobDefinition],
-    store: DuckDBIntervalStore,
-) -> Tuple[bool, List[str]]:
-    """Full resolve + fetch + evaluate for interval freshness."""
-    checks, reasons = resolve_interval_freshness_checks(ds_iv, ds_overall, freshness, all_jobs)
-    if not reasons:
-        completions = {
-            (c.upstream_ref, c.effective_interval): store.is_interval_completed(
-                c.upstream_ref, c.effective_interval
-            )
-            for c in checks
-        }
-        _, reasons = check_all_upstream_interval_fresh(checks, completions)
-    return len(reasons) == 0, reasons
-
-
-def test_all_upstream_must_pass() -> None:
-    """One incomplete upstream blocks the downstream."""
-    store = DuckDBIntervalStore()
-    store.mark_interval_completed("jobs.a", (_dt("2024-01-01"), _dt("2024-01-02")))
-    up_a = _job(
-        "jobs.a",
-        ["schedule:0 0 * * *"],
-        interval={"start": "2024-01-01T00:00:00Z", "end": "2024-01-31T00:00:00Z"},
-        default_trigger="schedule:0 0 * * *",
-    )
-    up_b = _job(
-        "jobs.b",
-        ["schedule:0 0 * * *"],
-        interval={"start": "2024-01-01T00:00:00Z", "end": "2024-01-31T00:00:00Z"},
-        default_trigger="schedule:0 0 * * *",
-    )
-    all_jobs = {"jobs.a": up_a, "jobs.b": up_b}
-    freshness = [
-        TFreshnessConstraint("job.is_matching_interval_fresh:jobs.a"),
-        TFreshnessConstraint("job.is_matching_interval_fresh:jobs.b"),
-    ]
-    fresh, reasons = _resolve_and_check_interval_freshness(
-        _iv("2024-01-01", "2024-01-02"),
-        _iv("2024-01-01", "2024-01-31"),
-        freshness,
-        all_jobs,
-        store,
-    )
-    assert not fresh
-    assert len(reasons) == 1
-    assert "jobs.b" in reasons[0]
-    store.close()
-
-
-def test_all_upstream_fresh_when_all_covered() -> None:
-    store = DuckDBIntervalStore()
-    store.mark_interval_completed("jobs.a", (_dt("2024-01-01"), _dt("2024-01-02")))
-    store.mark_interval_completed("jobs.b", (_dt("2024-01-01"), _dt("2024-01-02")))
-    up_a = _job(
-        "jobs.a",
-        ["schedule:0 0 * * *"],
-        interval={"start": "2024-01-01T00:00:00Z", "end": "2024-01-31T00:00:00Z"},
-        default_trigger="schedule:0 0 * * *",
-    )
-    up_b = _job(
-        "jobs.b",
-        ["schedule:0 0 * * *"],
-        interval={"start": "2024-01-01T00:00:00Z", "end": "2024-01-31T00:00:00Z"},
-        default_trigger="schedule:0 0 * * *",
-    )
-    all_jobs = {"jobs.a": up_a, "jobs.b": up_b}
-    freshness = [
-        TFreshnessConstraint("job.is_matching_interval_fresh:jobs.a"),
-        TFreshnessConstraint("job.is_matching_interval_fresh:jobs.b"),
-    ]
-    fresh, reasons = _resolve_and_check_interval_freshness(
-        _iv("2024-01-01", "2024-01-02"),
-        _iv("2024-01-01", "2024-01-31"),
-        freshness,
-        all_jobs,
-        store,
-    )
-    assert fresh
-    assert reasons == []
-    store.close()
-
-
-def test_freshness_with_misaligned_cron_schedules() -> None:
-    """Downstream */1 intervals within upstream */3 interval require completion."""
-    store = DuckDBIntervalStore()
-    up = _job(
-        "jobs.up",
-        ["schedule:*/3 * * * *"],
-        interval={"start": "2024-01-01T11:40:00Z", "end": "2024-01-01T12:00:00Z"},
-        default_trigger="schedule:*/3 * * * *",
-    )
-    ds_overall = _iv("2024-01-01T11:40:00Z", "2024-01-01T12:00:00Z")
-
-    # [11:40, 11:41) within upstream [11:39, 11:42) → not fresh yet
-    fresh, _ = _check_interval_freshness(
-        _iv("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
-        ds_overall,
-        up,
-        store,
-    )
-    assert not fresh
-
-    # complete upstream [11:39, 11:42) → downstream [11:40, 11:41) now fresh
-    store.mark_interval_completed(
-        "jobs.up", (_dt("2024-01-01T11:39:00Z"), _dt("2024-01-01T11:42:00Z"))
-    )
-    fresh, _ = _check_interval_freshness(
-        _iv("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
-        ds_overall,
-        up,
-        store,
-    )
-    assert fresh
-
-    # [11:42, 11:43) not fresh until upstream [11:42, 11:45) completes
-    fresh, _ = _check_interval_freshness(
-        _iv("2024-01-01T11:42:00Z", "2024-01-01T11:43:00Z"),
-        ds_overall,
-        up,
-        store,
-    )
-    assert not fresh
-
-    store.mark_interval_completed(
-        "jobs.up", (_dt("2024-01-01T11:42:00Z"), _dt("2024-01-01T11:45:00Z"))
-    )
-    fresh, _ = _check_interval_freshness(
-        _iv("2024-01-01T11:42:00Z", "2024-01-01T11:43:00Z"),
-        ds_overall,
-        up,
-        store,
-    )
-    assert fresh
-
-    store.close()
-
-
-def test_freshness_via_resolve_and_check_with_misaligned_cron() -> None:
-    """resolve + check resolves upstream overall with cron_floor snapping."""
-    store = DuckDBIntervalStore()
-    up = _job(
-        "jobs.up",
-        ["schedule:*/3 * * * *"],
-        interval={"start": "2024-01-01T11:40:00Z", "end": "2024-01-01T12:00:00Z"},
-        default_trigger="schedule:*/3 * * * *",
-    )
-    all_jobs: Dict[str, TJobDefinition] = {"jobs.up": up}
-    freshness = [TFreshnessConstraint("job.is_matching_interval_fresh:jobs.up")]
-    ds_overall = _iv("2024-01-01T11:40:00Z", "2024-01-01T12:00:00Z")
-
-    fresh, _ = _resolve_and_check_interval_freshness(
-        _iv("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
-        ds_overall,
-        freshness,
-        all_jobs,
-        store,
-    )
-    assert not fresh
-
-    store.mark_interval_completed(
-        "jobs.up", (_dt("2024-01-01T11:39:00Z"), _dt("2024-01-01T11:42:00Z"))
-    )
-    fresh, reasons = _resolve_and_check_interval_freshness(
-        _iv("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
-        ds_overall,
-        freshness,
-        all_jobs,
-        store,
-    )
-    assert fresh, f"should be fresh: {reasons}"
-
-    store.close()
-
-
-# generalized freshness — run-based checks (schedule without interval, every, event, interactive)
 
 
 def _check_run_freshness(
@@ -1280,41 +1012,6 @@ def test_matching_interval_fresh_on_non_interval_upstream_fails(
     fresh, reasons = _check_run_freshness(up, None, constraint="job.is_matching_interval_fresh")
     assert not fresh
     assert "job.is_matching_interval_fresh requires" in reasons[0]
-
-
-# check_all_upstream_interval_fresh — rejection cases
-
-
-@pytest.mark.parametrize(
-    "trigger,default_trigger,job_type_,reason_frag",
-    [
-        ("http:", "http:", "interactive", "interactive"),
-        ("every:5m", "every:5m", "batch", "no interval"),
-        ("schedule:0 * * * *", "schedule:0 * * * *", "batch", "no interval"),
-    ],
-    ids=["interactive-upstream", "every-no-interval", "schedule-no-interval"],
-)
-def test_interval_fresh_rejects_invalid_upstream(
-    trigger: str, default_trigger: str, job_type_: str, reason_frag: str
-) -> None:
-    """Interval freshness rejects upstreams that lack schedule+interval."""
-    store = DuckDBIntervalStore()
-    up = _job("jobs.up", [trigger], default_trigger=default_trigger, job_type=job_type_)  # type: ignore[arg-type]
-    all_jobs: Dict[str, TJobDefinition] = {"jobs.up": up}
-    freshness = [TFreshnessConstraint("job.is_fresh:jobs.up")]
-    fresh, reasons = _resolve_and_check_interval_freshness(
-        _iv("2024-01-01", "2024-01-02"),
-        _iv("2024-01-01", "2024-01-31"),
-        freshness,
-        all_jobs,
-        store,
-    )
-    assert not fresh
-    assert reason_frag in reasons[0]
-    store.close()
-
-
-# check_all_upstream_run_fresh — rejection and edge cases
 
 
 @pytest.mark.parametrize(
