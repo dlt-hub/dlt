@@ -82,7 +82,7 @@ def _check_return_value(
 
     # flask
     try:
-        from flask import Flask  # type: ignore[import-not-found]
+        from flask import Flask  # type: ignore[import-not-found,unused-ignore]
 
         if isinstance(result, Flask):
             raise NotImplementedError(
