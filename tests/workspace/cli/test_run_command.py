@@ -13,6 +13,7 @@ from dlt._workspace.cli import commands as commands_mod
 from dlt._workspace.cli._run_command import (
     build_runtime_entry_point,
     collect_candidates,
+    fetch_run_info,
     load_manifest,
     pick_launcher,
     promote_file_arg,
@@ -249,13 +250,36 @@ def test_resolve_profile(
         assert warning is None
 
 
+_SCHED_HOURLY = {
+    "triggers": ["schedule:0 * * * *"],
+    "default_trigger": "schedule:0 * * * *",
+}
+_SCHED_HOURLY_BACKFILL = {
+    **_SCHED_HOURLY,
+    "interval": {"start": "2026-04-19T00:00:00Z", "end": "2026-04-19T06:00:00Z"},
+}
+_SCHED_HOURLY_WIDE_BACKFILL = {
+    **_SCHED_HOURLY,
+    "interval": {"start": "2026-04-19T00:00:00Z"},
+}
+_EVERY_5M = {
+    "triggers": ["every:5m"],
+    "default_trigger": "every:5m",
+}
+_EVERY_BACKFILL = {
+    **_EVERY_5M,
+    "interval": {"start": "2026-04-19T10:00:00Z"},
+}
+
+
 @pytest.mark.parametrize(
-    "user_start,user_end,job_kwargs,expected_start,expected_end,expected_tz",
+    "user_start,user_end,job_kwargs,refresh,expected_start,expected_end,expected_tz",
     [
         (
             "2026-04-19T00:00:00Z",
             "2026-04-19T06:00:00Z",
-            {},
+            _SCHED_HOURLY_BACKFILL,  # declared; user override must still win verbatim
+            False,
             datetime(2026, 4, 19, 0, tzinfo=timezone.utc),
             datetime(2026, 4, 19, 6, tzinfo=timezone.utc),
             "UTC",
@@ -264,6 +288,7 @@ def test_resolve_profile(
             "2026-04-19T00:00:00Z",
             None,
             {},
+            False,
             datetime(2026, 4, 19, 0, tzinfo=timezone.utc),
             NOW,
             "UTC",
@@ -272,57 +297,101 @@ def test_resolve_profile(
             "2026-04-19T12:00:00",
             "2026-04-19T13:00:00",
             {"require": {"timezone": "Europe/Warsaw"}},
+            False,
             datetime(2026, 4, 19, 10, tzinfo=timezone.utc),
             datetime(2026, 4, 19, 11, tzinfo=timezone.utc),
             "Europe/Warsaw",
         ),
+        # refresh=true: backfill from declared start to most recent tick, clamped to declared end
         (
             None,
             None,
-            {
-                "triggers": ["schedule:0 * * * *"],
-                "default_trigger": "schedule:0 * * * *",
-                "interval": {
-                    "start": "2026-04-19T00:00:00Z",
-                    "end": "2026-04-19T06:00:00Z",
-                },
-            },
+            _SCHED_HOURLY_BACKFILL,
+            True,
             datetime(2026, 4, 19, 0, tzinfo=timezone.utc),
             datetime(2026, 4, 19, 6, tzinfo=timezone.utc),
             "UTC",
         ),
+        # refresh=true, open-ended declared (no end): backfill declared_start → floor(now)
         (
             None,
             None,
-            {
-                "triggers": ["schedule:0 * * * *"],
-                "default_trigger": "schedule:0 * * * *",
-            },
-            datetime(2026, 4, 19, 11, tzinfo=timezone.utc),
+            _SCHED_HOURLY_WIDE_BACKFILL,
+            True,
+            datetime(2026, 4, 19, 0, tzinfo=timezone.utc),
             datetime(2026, 4, 19, 12, tzinfo=timezone.utc),
             "UTC",
         ),
-        (None, None, {}, NOW, NOW, "UTC"),
+        # refresh=true + every: declared start to now
+        (
+            None,
+            None,
+            _EVERY_BACKFILL,
+            True,
+            datetime(2026, 4, 19, 10, tzinfo=timezone.utc),
+            NOW,
+            "UTC",
+        ),
+        # refresh=true but no declared interval → falls through to compute_run_interval
+        (
+            None,
+            None,
+            _SCHED_HOURLY,
+            True,
+            datetime(2026, 4, 19, 11, tzinfo=timezone.utc),
+            NOW,
+            "UTC",
+        ),
+        # refresh=false, declared covers past window: clamp cuts natural end to declared_end
+        (
+            None,
+            None,
+            _SCHED_HOURLY_BACKFILL,
+            False,
+            # natural [11:00, 12:00) clamped to declared [00:00, 06:00) → start ≥ 11 but ≤ end=06
+            datetime(2026, 4, 19, 11, tzinfo=timezone.utc),
+            datetime(2026, 4, 19, 6, tzinfo=timezone.utc),
+            "UTC",
+        ),
+        # refresh=false, no declared interval: most recently elapsed schedule window
+        (
+            None,
+            None,
+            _SCHED_HOURLY,
+            False,
+            datetime(2026, 4, 19, 11, tzinfo=timezone.utc),
+            NOW,
+            "UTC",
+        ),
+        # refresh=false, no trigger: manual: collapses to point-in-time
+        (None, None, {}, False, NOW, NOW, "UTC"),
     ],
     ids=[
-        "user-override-full",
+        "user-override-wins-over-declared",
         "user-start-only-end-defaults-to-now",
         "naive-values-use-job-tz-Warsaw-CEST",
-        "job-def-interval-with-cron",
-        "fallback-compute-run-interval-schedule",
-        "manual-collapses-to-point",
+        "refresh-true-backfill-schedule-clamped-to-declared-end",
+        "refresh-true-backfill-schedule-open-ended",
+        "refresh-true-backfill-every",
+        "refresh-true-no-declared-falls-through",
+        "refresh-false-clamped-to-declared-range",
+        "refresh-false-compute-run-interval-schedule",
+        "refresh-false-manual-collapses-to-point",
     ],
 )
 def test_resolve_interval(
     user_start: Optional[str],
     user_end: Optional[str],
     job_kwargs: Dict[str, Any],
+    refresh: bool,
     expected_start: datetime,
     expected_end: datetime,
     expected_tz: str,
 ) -> None:
     jd = _job("jobs.a", **job_kwargs)
-    start, end, tz = resolve_interval(user_start, user_end, jd, TTrigger("manual:jobs.a"), NOW)
+    start, end, tz = resolve_interval(
+        user_start, user_end, jd, TTrigger("manual:jobs.a"), NOW, refresh=refresh
+    )
     assert start == expected_start
     assert end == expected_end
     assert tz == expected_tz
@@ -388,6 +457,44 @@ def test_build_runtime_entry_point_does_not_mutate_job_def() -> None:
 def test_pick_launcher(launcher: Optional[str], function: Optional[str], expected: str) -> None:
     ep = {"launcher": launcher, "function": function, "job_type": "batch"}
     assert pick_launcher(ep) == expected  # type: ignore[arg-type]
+
+
+def test_fetch_run_info_manual_selector_swaps_to_default_trigger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the user picks a manual: selector, but the job has a schedule as its
+    # default_trigger — the run should fire with the schedule, not as a point-in-time manual
+    job_def = _job(
+        "jobs.a",
+        triggers=["schedule:0 * * * *", "manual:jobs.a"],
+        default_trigger="schedule:0 * * * *",
+    )
+    manifest = {"engine_version": 1, "jobs": [job_def]}
+
+    def _fake_load_manifest(name_or_path, use_all):
+        return manifest, []
+
+    monkeypatch.setattr(run_cmd_mod, "load_manifest", _fake_load_manifest)
+
+    info = fetch_run_info(
+        selector="manual:jobs.a",
+        file=None,
+        user_profile=None,
+        user_start=None,
+        user_end=None,
+        user_refresh=False,
+        cli_config={},
+        pinned_profile=None,
+        pick=lambda candidates: candidates[0],
+        now_utc=NOW,
+    )
+    assert info is not None
+    assert info["trigger"] == "schedule:0 * * * *"
+    assert info["trigger_humanized"] == "schedule: 0 * * * *"
+    # schedule-derived window for cron "0 * * * *" at NOW=12:00 UTC: [11:00, 12:00)
+    assert info["entry_point"]["interval_start"] == "2026-04-19T11:00:00+00:00"
+    assert info["entry_point"]["interval_end"] == "2026-04-19T12:00:00+00:00"
+    assert info["entry_point"]["refresh"] is False
 
 
 def test_load_manifest_plain_python_module_becomes_module_job(

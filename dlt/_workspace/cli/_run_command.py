@@ -10,7 +10,7 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from dlt.common import json
-from dlt.common.time import ensure_pendulum_datetime_non_utc
+from dlt.common.time import ensure_pendulum_datetime_non_utc, ensure_pendulum_datetime_utc
 
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli.exceptions import CliCommandInnerException
@@ -24,9 +24,10 @@ from dlt._workspace.deployment._trigger_helpers import (
     is_selector,
     match_triggers_with_selectors,
     maybe_parse_schedule,
+    parse_trigger,
     pick_trigger,
 )
-from dlt._workspace.deployment.exceptions import InvalidJobRef
+from dlt._workspace.deployment.exceptions import InvalidJobRef, InvalidTrigger
 from dlt._workspace.deployment.interval import (
     compute_run_interval,
     resolve_interval_spec,
@@ -179,8 +180,18 @@ def resolve_interval(
     job_def: TJobDefinition,
     picked_trigger: TTrigger,
     now_utc: datetime,
+    refresh: bool,
 ) -> Tuple[datetime, datetime, str]:
-    """Resolve `(start_utc, end_utc, tz)`. Precedence: CLI overrides > job interval > trigger."""
+    """Resolve `(start_utc, end_utc, tz)` for a run.
+
+    - User `--start/--end` wins verbatim (no clamping, no cron alignment).
+    - `refresh=True` + declared interval → backfill from declared start to
+      the most recent schedule tick (or `now` for `every:`/others).
+    - Otherwise → most recently elapsed window via `compute_run_interval`.
+    - Result is clamped to the declared `interval.start`/`interval.end` when
+      one is declared (`declared_start` is already cron-aligned by manifest
+      generation, so this is pure min/max).
+    """
     tz = job_def.get("require", {}).get("timezone", "UTC")
 
     if user_start:
@@ -189,14 +200,38 @@ def resolve_interval(
         end = _to_utc(user_end, target_tz) if user_end else now_utc
         return start, end, tz
 
-    if "interval" in job_def:
-        cron = maybe_parse_schedule(job_def)
-        if cron:
-            start, end = resolve_interval_spec(job_def["interval"], cron, tz=tz)
-            return start, end, tz
+    declared = job_def.get("interval")
+    trigger = job_def.get("default_trigger") or picked_trigger
+    cron = maybe_parse_schedule(job_def)
 
-    trigger_for_interval = job_def.get("default_trigger") or picked_trigger
-    start, end = compute_run_interval(trigger_for_interval, now_utc, prev_interval_end=None, tz=tz)
+    # declared bounds: computed once, used for backfill start and clamping.
+    # manifest generation aligns declared start to a cron tick when cron is set.
+    declared_start_dt: Optional[datetime] = None
+    declared_end_dt: Optional[datetime] = None
+    if declared:
+        if cron:
+            declared_start_dt, spec_end = resolve_interval_spec(declared, cron, tz=tz)
+            if declared.get("end"):
+                declared_end_dt = spec_end
+        else:
+            declared_start_dt = ensure_pendulum_datetime_utc(declared["start"])
+            if declared.get("end"):
+                declared_end_dt = ensure_pendulum_datetime_utc(declared["end"])
+
+    natural_start, natural_end = compute_run_interval(
+        trigger, now_utc, prev_interval_end=None, tz=tz
+    )
+
+    if refresh and declared_start_dt is not None:
+        start, end = declared_start_dt, natural_end
+    else:
+        start, end = natural_start, natural_end
+
+    if declared_start_dt is not None:
+        start = max(start, declared_start_dt)
+    if declared_end_dt is not None:
+        end = min(end, declared_end_dt)
+
     return start, end, tz
 
 
@@ -293,12 +328,25 @@ def fetch_run_info(
         )
 
     job_def, picked_trigger = pick(candidates)
+
+    # manual: selectors are how the user asked for the job; for the actual run
+    # we use the job's default_trigger so interval math reflects the real
+    # schedule (matches runtime and the test harness)
+    effective_trigger = picked_trigger
+    try:
+        if parse_trigger(picked_trigger).type == "manual":
+            default = job_def.get("default_trigger")
+            if default:
+                effective_trigger = default
+    except InvalidTrigger:
+        pass
+
     effective_refresh, refresh_warning = resolve_refresh(user_refresh, job_def)
     profile, profile_warning = resolve_profile(user_profile, job_def, pinned_profile)
 
     now = now_utc if now_utc is not None else datetime.now(timezone.utc)
     interval_start, interval_end, tz = resolve_interval(
-        user_start, user_end, job_def, picked_trigger, now
+        user_start, user_end, job_def, effective_trigger, now, refresh=effective_refresh
     )
 
     entry_point = build_runtime_entry_point(
@@ -316,8 +364,8 @@ def fetch_run_info(
         "display_label": format_job_label(
             job_def["job_ref"], job_def.get("expose"), job_def.get("deliver")
         ),
-        "trigger": picked_trigger,
-        "trigger_humanized": humanize_trigger(picked_trigger),
+        "trigger": effective_trigger,
+        "trigger_humanized": humanize_trigger(effective_trigger),
         "launcher": pick_launcher(entry_point),
         "run_id": str(uuid4()),
         "entry_point": dict(entry_point),
