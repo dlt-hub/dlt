@@ -1038,57 +1038,62 @@ workspace info.
 
         run_parser = subparsers.add_parser(
             "run",
-            help="Run workspace jobs locally",
+            help="Run a single workspace job locally",
             description=(
-                "Run jobs from a deployment module locally. Discovers jobs via"
-                " `__deployment__.py` (or a specified file/module), matches them against"
-                " trigger selectors, and executes them as subprocesses."
+                "Run a single job from a deployment module locally. Loads the"
+                " manifest, matches exactly one job by selector or job reference,"
+                " builds a runtime entry point, and spawns the launcher subprocess."
+                " Freshness checks are skipped — use runtime for scheduled execution."
             ),
         )
         run_parser.add_argument(
-            "deployment_module",
+            "selector_or_job_ref",
             nargs="?",
-            default=DEFAULT_DEPLOYMENT_MODULE,
+            default=None,
             help=(
-                "File path (e.g. my_jobs.py) or module name (default: __deployment__)."
-                " File paths are resolved relative to the current directory."
+                "Job reference (backfill, batch.backfill), trigger selector"
+                " (tag:backfill, schedule:*), or a .py file path (auto-promoted"
+                " to --file). If omitted, the job's default trigger is used."
             ),
         )
         run_parser.add_argument(
-            "--select",
-            action="append",
-            default=[],
-            metavar="SELECTOR",
+            "--file",
+            "-f",
+            default=None,
+            metavar="FILE",
             help=(
-                "Job selector (repeatable). Accepts job refs (backfill, batch.backfill)"
-                " or trigger patterns (tag:backfill, http, schedule:*)"
+                "Path to a .py deployment module. If omitted, loads the default"
+                f" {DEFAULT_DEPLOYMENT_MODULE!r} module from the workspace."
             ),
         )
         run_parser.add_argument(
-            "--no-future",
-            action="store_true",
-            help="Suppress timed trigger scheduling (schedule, every, once)",
+            "--profile",
+            default=None,
+            metavar="NAME",
+            help="Override require.profile and the workspace pinned profile.",
         )
         run_parser.add_argument(
-            "--once",
-            action="store_true",
-            help="Fire timed triggers once (don't repeat)",
+            "--start",
+            default=None,
+            metavar="ISO",
+            help="Override interval start (ISO 8601). Naive values use the job's timezone.",
         )
         run_parser.add_argument(
-            "--no-use-all",
-            action="store_true",
-            help="Scan module __dict__ instead of __all__",
+            "--end",
+            default=None,
+            metavar="ISO",
+            help="Override interval end (ISO 8601). Defaults to now if --start is set.",
         )
         run_parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Display execution plan without launching jobs",
+            help="Resolve the job and print the entry point without launching",
         )
         run_parser.add_argument(
             "-v",
             "--verbose",
             action="store_true",
-            help="Show full manifest JSON before running",
+            help="Print the resolved entry point before running",
         )
         run_parser.add_argument(
             "-c",
@@ -1096,17 +1101,15 @@ workspace info.
             action="append",
             default=[],
             metavar="KEY=VALUE",
-            help="Config key=value pairs passed to all jobs (repeatable)",
+            help="Config key=value pairs passed to the job (repeatable)",
         )
         run_parser.add_argument(
             "--refresh",
             action="store_true",
             help=(
-                "Clear `prev_completed_run` for selected non-interval targets and"
-                " their transitive freshness-downstream before dispatch, forcing a"
-                " refresh-mode run. Targets blocked by constraints (concurrency,"
-                " freshness) are skipped with a warning. Interval-store jobs are"
-                " unaffected."
+                "Request a refresh run. Respects TJobDefinition.refresh:"
+                " `always` forces refresh regardless, `block` ignores the flag"
+                " with a warning (run proceeds), `auto` honors it."
             ),
         )
 
@@ -1145,35 +1148,79 @@ workspace info.
         return config
 
     def _execute_run(self, args: argparse.Namespace) -> None:
-        from dlt._workspace._runner.runner import run_from_module
+        from typing import List, Tuple
 
-        config = self._parse_config_args(args.config) if args.config else None
+        from dlt.common import json
 
-        try:
-            exit_code = run_from_module(
-                module_name=args.deployment_module,
-                trigger_selectors=args.select or None,
-                use_all=not args.no_use_all,
-                no_future=args.no_future,
-                once=args.once,
-                dry_run=args.dry_run,
-                verbose=args.verbose,
-                config=config,
-                refresh=args.refresh,
-                warn=fmt.warning,
+        from dlt._workspace._workspace_context import active
+        from dlt._workspace.cli._run_command import (
+            fetch_run_info,
+            print_run_plan,
+            print_run_starting,
+            print_run_warnings,
+        )
+        from dlt._workspace.deployment._job_ref import short_name as job_short_name
+        from dlt._workspace.deployment.launchers._launcher import exec_process
+        from dlt._workspace.deployment.typing import TJobDefinition, TTrigger
+        from dlt._workspace.profile import read_profile_pin
+
+        def _pick(
+            candidates: List[Tuple["TJobDefinition", "TTrigger"]],
+        ) -> Tuple["TJobDefinition", "TTrigger"]:
+            if len(candidates) == 1:
+                return candidates[0]
+            labels = [
+                f"{i}-{job_short_name(j['job_ref'])}" for i, (j, _) in enumerate(candidates, 1)
+            ]
+            fmt.echo(f"{len(candidates)} jobs match:")
+            for i, (j, t) in enumerate(candidates, 1):
+                fmt.echo(f"  {i}. {job_short_name(j['job_ref'])}  (trigger: {t})")
+            choice = fmt.prompt(
+                "Pick a job: " + ", ".join(labels),
+                choices=[str(i) for i in range(1, len(candidates) + 1)],
+                default="1",
             )
-        except ModuleNotFoundError as exc:
-            raise CliCommandInnerException(
-                cmd="workspace run",
-                msg=(
-                    f"Module {args.deployment_module!r} not found. Make sure it is"
-                    " importable from the current directory."
-                ),
-                inner_exc=exc,
-            )
+            return candidates[int(choice) - 1]
 
-        if exit_code != 0:
-            raise SystemExit(exit_code)
+        cli_config = self._parse_config_args(args.config) if args.config else {}
+        info = fetch_run_info(
+            selector=args.selector_or_job_ref,
+            file=args.file,
+            user_profile=args.profile,
+            user_start=args.start,
+            user_end=args.end,
+            user_refresh=args.refresh,
+            cli_config=cli_config,
+            pinned_profile=read_profile_pin(active()),
+            pick=_pick,
+        )
+        if info is None:
+            fmt.echo("No jobs found in manifest.")
+            return
+
+        print_run_warnings(info)
+
+        if args.verbose or args.dry_run:
+            print_run_plan(info)
+        if args.dry_run:
+            fmt.echo("--dry-run: not launching")
+            return
+
+        print_run_starting(info)
+        exec_process(
+            [
+                sys.executable,
+                "-u",
+                "-m",
+                info["launcher"],
+                "--run-id",
+                info["run_id"],
+                "--trigger",
+                info["trigger"],
+                "--entry-point",
+                json.typed_dumps(info["entry_point"]),
+            ]
+        )
 
 
 class ProfileCommand(SupportsCliCommand):
