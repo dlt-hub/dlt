@@ -32,12 +32,23 @@ from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli import echo as fmt
+from dlt._workspace.deployment import (
+    DEFAULT_DEPLOYMENT_MODULE,
+    humanize_trigger,
+    manifest_from_module,
+)
+from dlt._workspace.deployment._job_ref import short_name as job_short_name
+from dlt._workspace.deployment._trigger_helpers import parse_trigger
+from dlt._workspace.deployment.exceptions import InvalidTrigger
+from dlt._workspace.deployment.manifest import expand_triggers
 from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
 from dlt._workspace.profile import BUILT_IN_PROFILES, read_profile_pin
 from dlt._workspace.typing import (
     ProviderInfo,
     ProviderLocationInfo,
     TCurrentProfileInfo,
+    TDeploymentJobInfo,
+    TDeploymentManifestInfo,
     TLocationInfo,
     TLocationScope,
     TProfileInfo,
@@ -542,6 +553,78 @@ def fetch_workspace_info() -> TWorkspaceInfo:
         dlthub_version=dlthub_version,
         initialized=initialized,
         installed_toolkits=installed_toolkits,
+    )
+
+
+def fetch_deployment_info() -> TDeploymentManifestInfo:
+    """Summarize the workspace deployment manifest.
+
+    Returns a model with status = "not_found" when the default deployment
+    module doesn't exist, "generation_failed" when it exists but loading
+    raises, or "ok" with the full manifest summary.
+    """
+    try:
+        manifest, _warnings = manifest_from_module(DEFAULT_DEPLOYMENT_MODULE)
+    except ImportError as exc:
+        default_file = os.path.join(os.getcwd(), f"{DEFAULT_DEPLOYMENT_MODULE}.py")
+        if not os.path.isfile(default_file):
+            return TDeploymentManifestInfo(status="not_found")
+        return TDeploymentManifestInfo(
+            status="generation_failed", error=f"{type(exc).__name__}: {exc}"
+        )
+    except Exception as exc:
+        return TDeploymentManifestInfo(
+            status="generation_failed", error=f"{type(exc).__name__}: {exc}"
+        )
+
+    jobs_info: List[TDeploymentJobInfo] = []
+    counts: Dict[str, int] = {}
+    for job_def in manifest.get("jobs", []):
+        expose = job_def.get("expose") or {}
+        deliver = job_def.get("deliver") or {}
+        entry_point = job_def["entry_point"]
+        # category priority: explicit expose.category > delivers to a pipeline > job_type
+        category: str
+        if expose.get("category"):
+            category = expose["category"]
+        elif deliver.get("pipeline_name"):
+            category = "pipeline"
+        else:
+            category = entry_point["job_type"]
+        counts[category] = counts.get(category, 0) + 1
+
+        expanded = expand_triggers(job_def)
+        default = job_def.get("default_trigger")
+        default_human: Optional[str] = None
+        other_human: List[str] = []
+        for trig in expanded:
+            # skip manual: synthetic triggers in the summary
+            try:
+                if parse_trigger(trig).type == "manual":
+                    continue
+            except InvalidTrigger:
+                pass
+            humanized = humanize_trigger(trig)
+            if trig == default and default_human is None:
+                default_human = humanized
+            else:
+                other_human.append(humanized)
+
+        entry: TDeploymentJobInfo = {
+            "job_ref": job_def["job_ref"],
+            "short_name": job_short_name(job_def["job_ref"]),
+            "category": category,
+            "triggers": other_human,
+        }
+        if default_human is not None:
+            entry["default_trigger"] = default_human
+        jobs_info.append(entry)
+
+    return TDeploymentManifestInfo(
+        status="ok",
+        total_jobs=len(jobs_info),
+        counts_by_category=counts,
+        jobs=jobs_info,
     )
 
 
