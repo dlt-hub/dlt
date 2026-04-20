@@ -485,6 +485,28 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             column_def_sql += option_str
         return column_def_sql
 
+    def _alter_existing_column_hints_sql(
+        self, table_name: str, storage_columns: TTableSchemaColumns
+    ) -> List[str]:
+        """Emit ALTER TABLE ... ALTER COLUMN ... SET OPTIONS for changed descriptions."""
+        sql_updates: List[str] = []
+        schema_columns = self.schema.get_table_columns(table_name, include_incomplete=True)
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
+        for col_name, schema_col in schema_columns.items():
+            schema_desc = schema_col.get("description")
+            if not schema_desc:
+                continue
+            if col_name not in storage_columns:
+                # New column — handled by _get_table_update_sql, not here.
+                continue
+            escaped_col = self.sql_client.escape_column_name(col_name)
+            escaped_desc = escape_bigquery_literal(schema_desc)
+            sql_updates.append(
+                f"ALTER TABLE {qualified_name}\n"
+                f"ALTER COLUMN {escaped_col} SET OPTIONS(description={escaped_desc})"
+            )
+        return sql_updates
+
     def _create_load_job(self, table: PreparedTableSchema, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends.
         table_name = table["name"]
