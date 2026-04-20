@@ -43,7 +43,6 @@ const sidebars = {
         'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
-        'tutorial/playground',
         {
           type: 'category',
           label: 'Education',
