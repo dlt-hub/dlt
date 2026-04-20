@@ -693,9 +693,7 @@ def test_alter_column_descriptions_when_changed(gcp_client: BigQueryClient) -> N
     columns[0]["description"] = "New description"
     columns[1]["description"] = "Another description"
 
-    gcp_client.schema.update_table(
-        utils.new_table("event_test_table", columns=columns)
-    )
+    gcp_client.schema.update_table(utils.new_table("event_test_table", columns=columns))
     storage_columns = {c["name"]: {"name": c["name"], "data_type": c["data_type"]} for c in columns}
 
     # Destination has no descriptions — both should be updated
@@ -715,16 +713,17 @@ def test_alter_column_descriptions_skips_unchanged(gcp_client: BigQueryClient) -
     columns[0]["description"] = "Same description"
     columns[1]["description"] = "Also same"
 
-    gcp_client.schema.update_table(
-        utils.new_table("event_test_table", columns=columns)
-    )
+    gcp_client.schema.update_table(utils.new_table("event_test_table", columns=columns))
     storage_columns = {c["name"]: {"name": c["name"], "data_type": c["data_type"]} for c in columns}
 
     # Destination already has matching descriptions
-    _stub_dest_descriptions(gcp_client, {
-        columns[0]["name"]: "Same description",
-        columns[1]["name"]: "Also same",
-    })
+    _stub_dest_descriptions(
+        gcp_client,
+        {
+            columns[0]["name"]: "Same description",
+            columns[1]["name"]: "Also same",
+        },
+    )
 
     sql_updates = gcp_client._alter_existing_column_hints_sql("event_test_table", storage_columns)
     assert len(sql_updates) == 0
@@ -735,16 +734,17 @@ def test_alter_column_descriptions_handles_removal(gcp_client: BigQueryClient) -
     columns = deepcopy(TABLE_UPDATE[:2])
     # No descriptions in schema
 
-    gcp_client.schema.update_table(
-        utils.new_table("event_test_table", columns=columns)
-    )
+    gcp_client.schema.update_table(utils.new_table("event_test_table", columns=columns))
     storage_columns = {c["name"]: {"name": c["name"], "data_type": c["data_type"]} for c in columns}
 
     # Destination has descriptions that should be cleared
-    _stub_dest_descriptions(gcp_client, {
-        columns[0]["name"]: "Old description",
-        columns[1]["name"]: "Another old one",
-    })
+    _stub_dest_descriptions(
+        gcp_client,
+        {
+            columns[0]["name"]: "Old description",
+            columns[1]["name"]: "Another old one",
+        },
+    )
 
     sql_updates = gcp_client._alter_existing_column_hints_sql("event_test_table", storage_columns)
     assert len(sql_updates) == 2
@@ -759,12 +759,12 @@ def test_alter_column_descriptions_skips_new_columns(gcp_client: BigQueryClient)
     columns[0]["description"] = "First column description"
     columns[1]["description"] = "Second column description"
 
-    gcp_client.schema.update_table(
-        utils.new_table("event_test_table", columns=columns)
-    )
+    gcp_client.schema.update_table(utils.new_table("event_test_table", columns=columns))
 
     # Only col1 exists in storage — col2 is new
-    storage_columns = {columns[0]["name"]: {"name": columns[0]["name"], "data_type": columns[0]["data_type"]}}
+    storage_columns = {
+        columns[0]["name"]: {"name": columns[0]["name"], "data_type": columns[0]["data_type"]}
+    }
     _stub_dest_descriptions(gcp_client, {columns[0]["name"]: None})
 
     sql_updates = gcp_client._alter_existing_column_hints_sql("event_test_table", storage_columns)
@@ -777,10 +777,10 @@ def test_alter_column_descriptions_escapes_special_characters(gcp_client: BigQue
     columns = deepcopy(TABLE_UPDATE[:1])
     columns[0]["description"] = "It's a 'test' with \"quotes\" and \\ backslashes"
 
-    gcp_client.schema.update_table(
-        utils.new_table("event_test_table", columns=columns)
-    )
-    storage_columns = {columns[0]["name"]: {"name": columns[0]["name"], "data_type": columns[0]["data_type"]}}
+    gcp_client.schema.update_table(utils.new_table("event_test_table", columns=columns))
+    storage_columns = {
+        columns[0]["name"]: {"name": columns[0]["name"], "data_type": columns[0]["data_type"]}
+    }
     _stub_dest_descriptions(gcp_client, {columns[0]["name"]: None})
 
     sql_updates = gcp_client._alter_existing_column_hints_sql("event_test_table", storage_columns)

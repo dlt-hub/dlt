@@ -485,9 +485,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             column_def_sql += option_str
         return column_def_sql
 
-    def _get_dest_column_descriptions(
-        self, table_name: str
-    ) -> Dict[str, Optional[str]]:
+    def _get_dest_column_descriptions(self, table_name: str) -> Dict[str, Optional[str]]:
         """Fetch current column descriptions from BigQuery."""
         try:
             bq_table = self.sql_client.native_connection.get_table(
