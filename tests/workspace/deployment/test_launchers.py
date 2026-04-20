@@ -248,9 +248,7 @@ def test_module_launcher_builds_correct_args() -> None:
 
         ep = _entry(f"{WORKSPACE}.etl_script")
         run(ep)
-        mock_exec.assert_called_once_with(
-            [sys.executable, "-m", f"{WORKSPACE}.etl_script"]
-        )
+        mock_exec.assert_called_once_with([sys.executable, "-m", f"{WORKSPACE}.etl_script"])
 
 
 def test_marimo_launcher_builds_correct_args() -> None:

@@ -2,6 +2,7 @@ import base64
 import hashlib
 import logging
 import os
+import sys
 import tarfile
 import time
 from io import BytesIO
@@ -198,7 +199,9 @@ def test_inside_root_symlink_preserved(tmp_path: Path) -> None:
 def test_up_dir_symlink_still_inside_is_preserved(tmp_path: Path) -> None:
     (tmp_path / "real.txt").write_bytes(b"hello\n")
     (tmp_path / "subdir").mkdir()
-    os.symlink("../real.txt", tmp_path / "subdir" / "link.txt")
+    # use os.path.join so the separator is native; Windows' CreateSymbolicLinkW
+    # rejects forward-slash `..` targets with WinError 123
+    os.symlink(os.path.join("..", "real.txt"), tmp_path / "subdir" / "link.txt")
 
     items = [
         (tmp_path / "real.txt", Path("real.txt")),
@@ -248,7 +251,20 @@ def test_outside_root_symlink_skipped(
 
 @pytest.mark.parametrize(
     "variant",
-    ["relative_escape", "dangling", "cyclic"],
+    [
+        "relative_escape",
+        "dangling",
+        pytest.param(
+            "cyclic",
+            marks=pytest.mark.skipif(
+                sys.platform == "win32",
+                reason=(
+                    "Windows refuses to create cyclic symlinks "
+                    "(CreateSymbolicLinkW raises ERROR_CANT_RESOLVE_FILENAME)"
+                ),
+            ),
+        ),
+    ],
 )
 def test_invalid_symlink_variants_skipped(
     tmp_path: Path,
@@ -262,7 +278,11 @@ def test_invalid_symlink_variants_skipped(
 
     if variant == "relative_escape":
         (workspace / "subdir").mkdir()
-        os.symlink("../../not_in_workspace.txt", workspace / "subdir" / "bad.txt")
+        # native separator — Windows rejects forward-slash `..` symlink targets
+        os.symlink(
+            os.path.join("..", "..", "not_in_workspace.txt"),
+            workspace / "subdir" / "bad.txt",
+        )
         bad_abs = workspace / "subdir" / "bad.txt"
         bad_rel = Path("subdir/bad.txt")
     elif variant == "dangling":
