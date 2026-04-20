@@ -78,7 +78,7 @@ class LanceSQLClient(WithTableScanners):
 
     @raise_database_error
     def _create_lance_secret(self) -> None:
-        storage_options = self.lance_client.config.storage.options
+        storage_options = self.lance_client.config.storage_options
         if not storage_options:
             return
         scope = self.lance_client.config.storage.namespace_uri

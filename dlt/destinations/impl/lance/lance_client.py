@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import TracebackType
 from typing import (
     Dict,
@@ -136,7 +137,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def drop_dataset_namespace(self) -> None:
         """Drops dataset namespace after removing all its tables."""
         for table in self.list_dataset_namespace_tables():
-            self.namespace.drop_table(DropTableRequest(id=[self.dataset_name, table]))
+            self.namespace.drop_table(DropTableRequest(id=self.make_table_id(table)))
         self.namespace.drop_namespace(DropNamespaceRequest(id=[self.dataset_name]))
 
     @raise_destination_error
@@ -157,7 +158,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             schema.empty_table(),
             namespace=self.namespace,
             table_id=self.make_table_id(table_name),
-            storage_options=self.config.storage.options,
+            storage_options=self.config.storage_options,
         )
 
     @raise_destination_error
@@ -225,7 +226,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         return lance.dataset(
             namespace=self.namespace,
             table_id=self.make_table_id(table_name),
-            storage_options=self.config.storage.options,
+            storage_options=self.config.storage_options,
         ).checkout_version((branch_name, version_number))
 
     def open_lancedb_table(self, table_name: str) -> LanceTable:
@@ -233,11 +234,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         This provides access to LanceDB-specific features like vector search.
         """
+        table_uri = self.get_table_uri(table_name)
+        db_uri = self.config.storage.bucket_url if self.config.storage else Path(table_uri).parent
         db = lancedb.connect(
-            self.config.storage.bucket_url,
-            storage_options=self.config.storage.options,
+            db_uri,
+            storage_options=self.config.storage_options,
         )
-        return LanceTable.open(db, table_name, location=self.get_table_uri(table_name))
+        return LanceTable.open(db, table_name, location=table_uri)
 
     @raise_destination_error
     def _write_records(

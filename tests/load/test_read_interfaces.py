@@ -1,4 +1,4 @@
-from typing import Any, cast, Tuple, List
+from typing import Any, List, Tuple, cast
 import re
 import pytest
 import dlt
@@ -9,7 +9,6 @@ import sqlglot.expressions as sge
 from dlt import Pipeline
 from dlt.common import Decimal
 
-from typing import List
 from functools import reduce
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
@@ -21,18 +20,19 @@ from dlt.common.utils import uniq_id
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
+from tests.load.lance_utils import module_lance_rest_server
 from tests.load.utils import (
-    destinations_configs,
     DestinationTestConfiguration,
-    SFTP_BUCKET,
     MEMORY_BUCKET,
+    SFTP_BUCKET,
+    destinations_configs,
+    drop_pipeline_data,
 )
 from tests.utils import (
-    preserve_module_environ,
-    auto_module_test_storage,
+    _preserve_environ,
     auto_module_test_run_context,
+    auto_module_test_storage,
 )
-from tests.load.utils import drop_pipeline_data
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
@@ -133,13 +133,38 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
     return source()
 
 
+@pytest.fixture(
+    scope="module",
+    params=destinations_configs(
+        default_sql_configs=True,
+        read_only_sqlclient_configs=True,
+        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
+    ),
+    ids=lambda x: x.name,
+)
+def destination_config(
+    request: pytest.FixtureRequest,
+) -> DestinationTestConfiguration:
+    return cast(DestinationTestConfiguration, request.param)
+
+
+@pytest.fixture(scope="module")
+def preserve_module_environ_per_destination_config(
+    destination_config: DestinationTestConfiguration,
+) -> Any:
+    yield from _preserve_environ()
+
+
 @pytest.fixture(scope="module")
 def populated_pipeline(
-    request, auto_module_test_storage, preserve_module_environ, auto_module_test_run_context
+    destination_config: DestinationTestConfiguration,
+    module_lance_rest_server: None,
+    auto_module_test_storage,
+    preserve_module_environ_per_destination_config,
+    auto_module_test_run_context,
 ) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
-    destination_config = cast(DestinationTestConfiguration, request.param)
     if (
         destination_config.file_format not in ["parquet", "jsonl"]
         and destination_config.destination_type == "filesystem"
@@ -172,23 +197,8 @@ def populated_pipeline(
         drop_pipeline_data(pipeline)
 
 
-# NOTE: we collect all destination configs centrally, this way the session based
-# pipeline population per fixture setup will work and save a lot of time
-configs = destinations_configs(
-    default_sql_configs=True,
-    read_only_sqlclient_configs=True,
-    bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
-)
-
-
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> None:
     # no need to test on all destinations
     if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
@@ -235,12 +245,6 @@ Columns:
 
 
 @pytest.mark.no_load
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_fetchscalar(populated_pipeline: Pipeline) -> None:
     assert populated_pipeline.dataset()(
         "SELECT COUNT(*) FROM items"
@@ -258,12 +262,6 @@ def test_fetchscalar(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_arrow_access(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -294,12 +292,6 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     # access via key
     table_relationship = populated_pipeline.dataset()["items"]
@@ -339,12 +331,6 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     # check fetch accessors
     table_relationship = populated_pipeline.dataset().items
@@ -374,12 +360,6 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
     # check that hints are carried over to arrow table
@@ -406,12 +386,6 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_loads_table_access(populated_pipeline: Pipeline) -> None:
     # check loads table access, we should have 3 entires
     # - first source (default schema)
@@ -423,12 +397,6 @@ def test_loads_table_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_row_counts(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
@@ -524,12 +492,6 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_sql_queries(populated_pipeline: Pipeline) -> None:
     dataset_name = populated_pipeline.dataset_name
 
@@ -611,12 +573,6 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     dataset_ = populated_pipeline.dataset()
 
@@ -679,12 +635,6 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipeline) -> None:
     # no clients exist yet
     dataset = populated_pipeline.dataset()
@@ -753,12 +703,6 @@ def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipe
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_column_selection(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
     columns = ["_dlt_load_id", "other_decimal"]
@@ -807,12 +751,6 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_chained_column_selection(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
 
@@ -832,12 +770,6 @@ def test_chained_column_selection(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_order_by(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     table_relationship = populated_pipeline.dataset().items
@@ -866,12 +798,6 @@ def test_order_by(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_where(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     items = populated_pipeline.dataset().items
@@ -909,12 +835,6 @@ def test_where(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     items = populated_pipeline.dataset().items
     orderable_in_chain = populated_pipeline.dataset().orderable_in_chain
@@ -959,12 +879,6 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_min_max(populated_pipeline: Pipeline) -> None:
     items = populated_pipeline.dataset().items
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -983,12 +897,6 @@ def test_min_max(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
     match = "Table `unknown_table` not found"
     dataset = populated_pipeline.dataset()
@@ -1007,12 +915,6 @@ def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_schema_arg(populated_pipeline: Pipeline) -> None:
     """Simple test to ensure schemas may be selected via schema arg"""
 
@@ -1040,12 +942,6 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
     import ibis
@@ -1306,12 +1202,6 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
 
@@ -1402,12 +1292,6 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 @pytest.mark.skip("enable when we standardize behavior for non existing datasets")
 def test_ibis_no_dataset(populated_pipeline: Pipeline) -> None:
     try:
@@ -1427,12 +1311,6 @@ def test_ibis_no_dataset(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
@@ -1505,11 +1383,6 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
 
 
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "destination_config",
-    configs,
-    ids=lambda x: x.name,
-)
 def test_read_not_materialized_table(destination_config: DestinationTestConfiguration):
     # TODO lancedb destination faills unreliably on the 2nd `pipeline.run()` because
     # of the dltSentinel table. The test parallelization PR should solve this issue
@@ -1599,12 +1472,6 @@ def test_naming_convention_propagation(destination_config: DestinationTestConfig
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_read_unified_schema(populated_pipeline: Pipeline) -> None:
     """Test that a unified schema allows querying tables from all schemas."""
     default_schema = populated_pipeline.default_schema
@@ -1635,12 +1502,6 @@ def test_read_unified_schema(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_read_unified_schema_ibis(populated_pipeline: Pipeline) -> None:
     """Test that ibis works with a unified schema dataset."""
     try:
@@ -1727,13 +1588,16 @@ def _src_gamma():
 
 @pytest.fixture(scope="module")
 def overlap_pipeline(
-    request, auto_module_test_storage, preserve_module_environ, auto_module_test_run_context
+    destination_config: DestinationTestConfiguration,
+    module_lance_rest_server: None,
+    auto_module_test_storage,
+    preserve_module_environ_per_destination_config,
+    auto_module_test_run_context,
 ) -> Any:
     """Pipeline with three schemas (alpha, beta, gamma) that each have an
     'events' table with shared columns (id, name) and unique columns.
     Tests select schema subsets via ``pipeline.dataset(schema=[...])``.
     """
-    destination_config = cast(DestinationTestConfiguration, request.param)
     if (
         destination_config.file_format not in ["parquet", "jsonl"]
         and destination_config.destination_type == "filesystem"
@@ -1758,12 +1622,6 @@ def overlap_pipeline(
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "overlap_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_multi_schema_load_ids_and_compatible_overlap(
     overlap_pipeline: Pipeline,
 ) -> None:
@@ -1797,12 +1655,6 @@ def test_multi_schema_load_ids_and_compatible_overlap(
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "overlap_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_three_schema_overlap(overlap_pipeline: Pipeline) -> None:
     """All three schemas: unified view has all rows and all unique columns."""
     ds = overlap_pipeline.dataset()
@@ -1834,12 +1686,6 @@ def test_three_schema_overlap(overlap_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "overlap_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_multi_schema_ibis(overlap_pipeline: Pipeline) -> None:
     """Ibis backend sees all schemas' tables and merged columns."""
     try:

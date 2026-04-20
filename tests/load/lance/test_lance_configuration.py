@@ -2,6 +2,7 @@ import os
 from typing import Optional
 
 import pytest
+from lance.namespace import DirectoryNamespace, RestNamespace
 from lancedb.embeddings import CohereEmbeddingFunction, OllamaEmbeddings, OpenAIEmbeddings
 
 import dlt
@@ -20,6 +21,8 @@ from dlt.destinations.impl.lance.configuration import (
     LanceClientConfiguration,
     LanceEmbeddingsConfiguration,
     LanceEmbeddingsCredentials,
+    RestCatalogCapabilities,
+    RestCatalogCredentials,
     LanceStorageConfiguration,
     TEmbeddingProvider,
 )
@@ -214,6 +217,21 @@ def test_lance_client_configuration_catalog_dispatch() -> None:
     assert isinstance(c.storage, LanceStorageConfiguration)
     assert c.capabilities.manifest_enabled is True
     assert c.capabilities.dir_listing_enabled is True
+    assert isinstance(c.make_namespace(), DirectoryNamespace)
+
+    # catalog_type "rest" routes to RestCatalog* resolved types
+    c = resolve_configuration(
+        LanceClientConfiguration(
+            catalog_type="rest",
+            credentials=RestCatalogCredentials(uri="http://127.0.0.1:2333"),
+        )._bind_dataset_name(dataset_name="test_dataset"),
+        sections=("destination", "lance"),
+    )
+    assert c.catalog_type == "rest"
+    assert isinstance(c.credentials, RestCatalogCredentials)
+    assert isinstance(c.capabilities, RestCatalogCapabilities)
+    assert c.storage is None
+    assert isinstance(c.make_namespace(), RestNamespace)
 
 
 def test_directory_catalog_credentials_inherit_from_storage() -> None:
@@ -224,6 +242,7 @@ def test_directory_catalog_credentials_inherit_from_storage() -> None:
         )._bind_dataset_name(dataset_name="test_dataset"),
         sections=("destination", "lance"),
     )
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
     assert c.storage.bucket_url == "s3://my-bucket"
     assert c.storage.namespace_uri == "s3://my-bucket/my-ns"
     assert c.credentials.bucket_url == c.storage.namespace_uri
@@ -242,6 +261,7 @@ def test_directory_catalog_credentials_override_storage() -> None:
         LanceClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
         sections=("destination", "lance"),
     )
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
     assert c.storage.bucket_url == "s3://data-bucket"
     assert c.credentials.bucket_url == "s3://catalog-bucket/catalog"
     # catalog credentials ran their own merge — options carry AWS creds + cloud timeouts
@@ -275,6 +295,7 @@ def test_lance_follows_local_dir(
         )._bind_dataset_name(dataset_name="test_dataset"),
         sections=("destination", "lance"),
     )
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
     assert c.storage.bucket_url == f"file://{abs_local_dir}"
     assert c.storage.namespace_uri == f"file://{abs_local_dir}/{DEFAULT_LANCE_NAMESPACE_NAME}"
     if inherits_from_storage:
@@ -291,6 +312,7 @@ def test_lance_follows_local_dir(
         )._bind_dataset_name(dataset_name="test_dataset"),
         sections=("destination", "lance"),
     )
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
     expected_storage = os.path.join(abs_local_dir, "my_lance_data")
     assert c.storage.bucket_url == f"file://{expected_storage}"
     assert c.storage.namespace_uri == f"file://{expected_storage}/{DEFAULT_LANCE_NAMESPACE_NAME}"
@@ -310,6 +332,7 @@ def test_lance_follows_local_dir(
         ),
         sections=("destination", "lance"),
     )
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
     assert c.storage.pipeline_name == "test_lance_follows_local_dir"
     assert c.storage.bucket_url == f"file://{abs_local_dir}"
     assert c.storage.namespace_uri == f"file://{abs_local_dir}/{DEFAULT_LANCE_NAMESPACE_NAME}"
