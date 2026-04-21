@@ -4,12 +4,14 @@ import asyncio
 import inspect
 import os
 import sys
+from contextlib import nullcontext
 from datetime import datetime, timezone  # noqa: I251
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from dlt.common.configuration.container import Container
 from dlt.common.reflection.ref import object_from_ref
+from dlt.common.runtime import signals
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import TTimeInterval
 
@@ -223,22 +225,30 @@ def run(
             ctx["interval_end"] = iv[1]
         kwargs["run_context"] = ctx
 
+    # default to intercepting — callers opt out with `intercept_signals=False`
+    signal_ctx = (
+        signals.intercepted_signals()
+        if entry_point.get("intercept_signals", True)
+        else nullcontext()
+    )
+
     # inject interval context into Container so dlt.current.interval() works.
     # `allow_external_schedulers` is propagated from the manifest via entry_point —
     # the runner sets it from job_def["allow_external_schedulers"] in `_start_job`.
-    if iv is not None:
-        iv_ctx = TimeIntervalContext(
-            interval=iv,
-            allow_external_schedulers=entry_point.get("allow_external_schedulers", False),
-        )
-        with Container().injectable_context(iv_ctx):
+    with signal_ctx:
+        if iv is not None:
+            iv_ctx = TimeIntervalContext(
+                interval=iv,
+                allow_external_schedulers=entry_point.get("allow_external_schedulers", False),
+            )
+            with Container().injectable_context(iv_ctx):
+                result = job(**kwargs)
+                if asyncio.iscoroutine(result):
+                    result = asyncio.run(result)
+        else:
             result = job(**kwargs)
             if asyncio.iscoroutine(result):
                 result = asyncio.run(result)
-    else:
-        result = job(**kwargs)
-        if asyncio.iscoroutine(result):
-            result = asyncio.run(result)
 
     _check_return_value(result, job, entry_point)
     return result

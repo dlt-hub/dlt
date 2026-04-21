@@ -1,7 +1,15 @@
 """Batch jobs for the test workspace."""
 
+import threading
+import time
+from typing import Iterator
+
 import dlt
+from dlt.common.runtime import signals
 from dlt.hub.run import job, TJobRunContext
+
+EXTRACT_STARTED = threading.Event()
+"""Set by `long_extract` on first yield."""
 
 
 @job(execute={"timeout": {"timeout": 86400.0}})
@@ -80,6 +88,38 @@ def profile_aware(run_context: TJobRunContext):
     import os
 
     return f"profile={os.environ.get('WORKSPACE__PROFILE', '')}"
+
+
+JOB_STARTED = threading.Event()
+"""Set by `wait_for_signal` on entry."""
+
+
+@job
+def wait_for_signal() -> None:
+    """Signal-aware wait that proves launcher-level signal interception."""
+    JOB_STARTED.set()
+    signals.sleep(30)
+    signals.raise_if_signalled()
+
+
+@job
+def long_extract() -> None:
+    """Pipeline whose extract yields one item per second for up to 60s."""
+    EXTRACT_STARTED.clear()
+
+    @dlt.resource(name="slow_numbers")
+    def _slow_numbers() -> Iterator[int]:
+        for i in range(60):
+            EXTRACT_STARTED.set()
+            time.sleep(1)
+            yield i
+
+    pipeline = dlt.pipeline(
+        pipeline_name="signal_long_extract",
+        destination="duckdb",
+        dataset_name="_data",
+    )
+    pipeline.run(_slow_numbers())
 
 
 @job

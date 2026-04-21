@@ -278,6 +278,9 @@ def build_runtime_entry_point(
     entry_point["allow_external_schedulers"] = job_def.get("allow_external_schedulers", False)
     entry_point["profile"] = profile
     entry_point["refresh"] = refresh
+    execute_spec = job_def.get("execute") or {}
+    if "intercept_signals" in execute_spec:
+        entry_point["intercept_signals"] = execute_spec["intercept_signals"]
     return entry_point
 
 

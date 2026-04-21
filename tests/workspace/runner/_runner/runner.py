@@ -427,6 +427,10 @@ def _start_job(
     if "profile" in require:
         entry_point["profile"] = require["profile"]
 
+    execute_spec = job_def.get("execute") or {}
+    if "intercept_signals" in execute_spec:
+        entry_point["intercept_signals"] = execute_spec["intercept_signals"]
+
     # select launcher
     launcher = entry_point.get("launcher")
     if launcher is None:

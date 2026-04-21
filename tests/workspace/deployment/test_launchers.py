@@ -2,17 +2,27 @@
 
 import json
 import os
+import signal
 import subprocess
 import sys
-from typing import List
+from datetime import datetime, timezone  # noqa: I251
+from multiprocessing.dummy import DummyProcess
+from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+import dlt
+from dlt._workspace.cli._run_command import build_runtime_entry_point
 from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.launchers.job import run as job_run
-from dlt._workspace.deployment.typing import TRuntimeEntryPoint
+from dlt._workspace.deployment.typing import TJobDefinition, TRuntimeEntryPoint
+from dlt.common.exceptions import SignalReceivedException
+from dlt.common.runtime import signals
+from dlt.pipeline.exceptions import PipelineStepFailed
 
+from tests.utils import skipifwindows
+from tests.workspace.cases.runtime_workspace import batch_jobs
 from tests.workspace.utils import isolated_workspace
 
 WORKSPACE = "tests.workspace.cases.runtime_workspace"
@@ -606,3 +616,93 @@ def test_isolated_module_launcher_via_cli(
     )
     assert result.returncode == 0, f"stderr: {result.stderr}"
     assert "hello_module_ok" in result.stdout
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signal.SIGINT, signal.SIGTERM))
+@pytest.mark.forked
+def test_job_launcher_signal_graceful_extract(sig: int) -> None:
+    """SIGINT/SIGTERM mid-extract raises PipelineStepFailed and persists a trace."""
+
+    def _killer() -> None:
+        batch_jobs.EXTRACT_STARTED.wait(timeout=30)
+        os.kill(os.getpid(), sig)
+
+    killer = DummyProcess(target=_killer)
+    killer.start()
+
+    with pytest.raises(PipelineStepFailed) as exc_info:
+        job_run(
+            _entry(f"{WORKSPACE}.batch_jobs", "long_extract"),
+            run_id="test-sig-extract",
+            trigger="manual:",
+        )
+
+    assert exc_info.value.step == "extract"
+    assert isinstance(exc_info.value.__cause__, SignalReceivedException)
+
+    # trace was saved by @with_runtime_trace finally-block despite the signal
+    pipeline = dlt.attach("signal_long_extract")
+    trace = pipeline.last_trace
+    assert trace is not None
+    extract_steps = [s for s in trace.steps if s.step == "extract"]
+    assert len(extract_steps) == 1
+    assert extract_steps[0].step_exception is not None
+
+
+def test_build_runtime_entry_point_propagates_execute_intercept_signals() -> None:
+    """`execute.intercept_signals` flows through to `entry_point.intercept_signals`."""
+    base_ep = {
+        "module": "foo",
+        "function": "bar",
+        "job_type": "batch",
+        "launcher": "dlt._workspace.deployment.launchers.job",
+    }
+    now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+    def _job_def(**extra: Any) -> TJobDefinition:
+        jd: Dict[str, Any] = {
+            "job_ref": "jobs.test",
+            "entry_point": dict(base_ep),
+            "triggers": [],
+            "execute": {},
+        }
+        jd.update(extra)
+        return jd  # type: ignore[return-value,unused-ignore]
+
+    # absent: launcher default (True) applies, flag not copied
+    ep_absent = build_runtime_entry_point(_job_def(), {}, "default", False, now, now, "UTC")
+    assert "intercept_signals" not in ep_absent
+
+    # explicit False opts out
+    ep_off = build_runtime_entry_point(
+        _job_def(execute={"intercept_signals": False}), {}, "default", False, now, now, "UTC"
+    )
+    assert ep_off["intercept_signals"] is False
+
+    # explicit True copied through
+    ep_on = build_runtime_entry_point(
+        _job_def(execute={"intercept_signals": True}), {}, "default", False, now, now, "UTC"
+    )
+    assert ep_on["intercept_signals"] is True
+
+
+@skipifwindows
+@pytest.mark.forked
+def test_job_launcher_opt_out_of_signal_interception() -> None:
+    """`intercept_signals=False` leaves Python's default SIGINT handler in place."""
+
+    def _killer() -> None:
+        batch_jobs.JOB_STARTED.wait(timeout=30)
+        os.kill(os.getpid(), signal.SIGINT)
+
+    killer = DummyProcess(target=_killer)
+    killer.start()
+
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "wait_for_signal")
+    ep["intercept_signals"] = False
+
+    # default handler raises plain KeyboardInterrupt, not dlt's SignalReceivedException
+    with pytest.raises(KeyboardInterrupt) as exc_info:
+        job_run(ep, run_id="test-no-intercept", trigger="manual:")
+    assert type(exc_info.value) is KeyboardInterrupt

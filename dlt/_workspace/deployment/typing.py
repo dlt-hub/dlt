@@ -187,6 +187,9 @@ class TRuntimeEntryPoint(TEntryPoint):
     """Config key-value pairs injected as env vars before job execution."""
     refresh: NotRequired[bool]
     """Refresh signal with request to refresh (reload) the data"""
+    intercept_signals: NotRequired[bool]
+    """Intercept SIGTERM and SIGINT during job execution. Defaults to `True` when
+    absent; set to `False` to opt out."""
 
 
 class TTimeoutSpec(TypedDict):
@@ -206,6 +209,8 @@ class TExecuteSpec(TypedDict):
     """Max concurrent runs. Default `1` for both batch and interactive jobs.
     Pass any positive integer to allow that many concurrent instances, or
     explicitly `None` to remove the limit."""
+    intercept_signals: NotRequired[bool]
+    """Intercept SIGINT/SIGTERM around the whole job. Default `True`."""
 
 
 class TDeliverSpec(TypedDict, total=False):
