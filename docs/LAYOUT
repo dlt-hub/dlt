@@ -1,0 +1,238 @@
+docsSidebar
+├── Getting started (→ intro)
+│   ├── Installation
+│   ├── LLM-native workflow
+│   ├── Explore and transform
+│   ├── Tutorial: REST API
+│   ├── Tutorial: SQL database
+│   ├── Tutorial: Filesystem
+│   ├── Tutorial: Load data from an API
+│   ├── Tutorial: Playground
+│   └── Education (→ tutorial/education)
+│       ├── Fundamentals course
+│       └── Advanced course
+│
+├── Release highlights (generated index)
+│   ├── 1.21.2
+│   ├── 1.19
+│   ├── 1.18
+│   ├── 1.17
+│   ├── 1.16
+│   ├── 1.15
+│   ├── 1.13–1.14
+│   └── 1.12.1
+│
+├── Core concepts
+│   ├── How dlt works
+│   ├── Source
+│   ├── Resource
+│   ├── Pipeline
+│   ├── Destination
+│   ├── State
+│   ├── Schema (→ general-usage/schema)
+│   │   ├── Schema contracts
+│   │   ├── Schema evolution
+│   │   └── Naming convention
+│   └── Glossary
+│
+├── Sources (→ verified-sources/index)
+│   ├── REST APIs (→ rest_api/index)
+│   │   ├── Basic
+│   │   ├── Advanced
+│   │   ├── REST API helpers (→ http/overview)
+│   │   │   ├── REST client
+│   │   │   └── Requests
+│   │   └── [link] 5k+ REST APIs with LLMs
+│   ├── 30+ SQL databases (→ sql_database/index)
+│   │   ├── Setup
+│   │   ├── Configuration
+│   │   ├── Usage
+│   │   ├── Troubleshooting
+│   │   ├── Advanced
+│   │   └── Add incremental configuration
+│   ├── Cloud storage and filesystem (→ filesystem/index)
+│   │   ├── Basic
+│   │   └── Advanced
+│   ├── Airtable
+│   ├── Amazon Kinesis
+│   ├── Arrow / Pandas
+│   ├── Asana
+│   ├── Chess
+│   ├── Facebook Ads
+│   ├── Freshdesk
+│   ├── GitHub
+│   ├── Google Ads
+│   ├── Google Analytics
+│   ├── Google Sheets
+│   ├── HubSpot
+│   ├── Inbox
+│   ├── Jira
+│   ├── Kafka
+│   ├── Matomo
+│   ├── MongoDB
+│   ├── Mux
+│   ├── Notion
+│   ├── Personio
+│   ├── PG Replication
+│   ├── Pipedrive
+│   ├── OpenAPI Generator
+│   ├── Salesforce
+│   ├── Scrapy
+│   ├── Shopify
+│   ├── Slack
+│   ├── Strapi
+│   ├── Stripe
+│   ├── Workable
+│   ├── Zendesk
+│   └── Add a verified source
+│
+├── Destinations (→ destinations/index)
+│   ├── BigQuery
+│   ├── Databricks
+│   ├── DuckDB
+│   ├── MS SQL
+│   ├── Synapse
+│   ├── ClickHouse
+│   ├── Filesystem
+│   ├── HuggingFace
+│   ├── Delta / Iceberg
+│   ├── Iceberg
+│   ├── Postgres
+│   ├── Redshift
+│   ├── Snowflake
+│   ├── Athena
+│   ├── SQLAlchemy
+│   ├── Weaviate
+│   ├── Lance
+│   ├── LanceDB
+│   ├── Qdrant
+│   ├── Dremio
+│   ├── Destination (custom)
+│   ├── MotherDuck
+│   ├── DuckLake
+│   ├── Fabric
+│   ├── Community destinations
+│   └── Create a new destination
+│
+├── Using dlt (generated index)
+│   ├── Create a pipeline
+│   ├── Run a pipeline
+│   ├── Load data incrementally
+│   │   ├── Full loading
+│   │   ├── Merge loading
+│   │   ├── Incremental loading
+│   │   ├── Cursor
+│   │   ├── Lag
+│   │   ├── Advanced state
+│   │   └── Troubleshooting
+│   ├── Configure pipelines and credentials (→ credentials/index)
+│   │   ├── Setup
+│   │   ├── Advanced
+│   │   ├── Vaults
+│   │   ├── Complex types
+│   │   └── Add credentials
+│   ├── Adjust a schema
+│   ├── Dashboard
+│   ├── Access loaded data (→ dataset-access/index)
+│   │   ├── Marimo
+│   │   ├── Dataset
+│   │   ├── Ibis backend
+│   │   ├── SQL client
+│   │   ├── View dlt schema
+│   │   └── Destination tables
+│   ├── Transform data (→ transformations/index)
+│   │   ├── Transform data with dbt
+│   │   │   ├── dbt
+│   │   │   └── dbt Cloud
+│   │   ├── Python
+│   │   ├── SQL
+│   │   └── Transform before load
+│   │       ├── Add map
+│   │       ├── Renaming columns
+│   │       ├── Pseudonymizing columns
+│   │       └── Removing columns
+│   └── Data quality lifecycle
+│
+├── Deploying dlt
+│   ├── Share a dataset
+│   ├── Deploy a pipeline (generated index)
+│   │   ├── GitHub Actions
+│   │   ├── Airflow / Composer
+│   │   ├── Airflow GCP Cloud Composer (explainer)
+│   │   ├── Google Cloud Functions
+│   │   ├── Google Cloud Run
+│   │   ├── GCP Cloud Function as webhook
+│   │   ├── Kestra
+│   │   ├── Dagster
+│   │   ├── Prefect
+│   │   ├── Modal
+│   │   └── Orchestra
+│   ├── Run in production (generated index)
+│   │   ├── Running
+│   │   ├── Monitoring
+│   │   ├── Alerting
+│   │   └── Tracing
+│   └── Run in Snowflake (generated index)
+│       ├── Run in Snowflake
+│       └── Database connector app
+│
+├── Optimizing dlt
+│   └── Performance
+│
+└── Reference (generated index)
+    ├── [API Reference — injected at runtime from sidebar.json]
+    ├── Command-line interface
+    ├── Telemetry
+    ├── Staging
+    ├── File formats (generated index)
+    │   ├── JSONL
+    │   ├── Parquet
+    │   ├── CSV
+    │   └── Insert format
+    ├── Table formats (generated index)
+    │   ├── Delta
+    │   └── Iceberg
+    ├── Data quality dashboard
+    └── FAQ
+
+────────────────────────────────────────────────────
+hubSidebar
+├── Getting started
+│   ├── hub/intro
+│   ├── Installation
+│   ├── [ref] LLM-native workflow
+│   └── Runtime tutorial
+│
+├── Workspace (→ hub/workspace/overview)
+│   ├── Overview
+│   ├── Create pipeline
+│   │   ├── Init
+│   │   └── MS SQL
+│   ├── Ensure data quality
+│   │   ├── [ref] Dashboard
+│   │   ├── MCP server
+│   │   └── Data quality
+│   ├── Create reports and transformations
+│   │   ├── [ref] Marimo
+│   │   ├── [ref] Dataset
+│   │   ├── Transformations index
+│   │   └── dbt transformations
+│   └── Deploy workspace
+│       └── Profiles (dlthub)
+│
+├── Runtime
+│   └── Overview
+│
+├── Storage
+│   ├── Delta
+│   ├── Iceberg
+│   └── Snowflake+
+│
+├── Command-line interface
+└── EULA
+
+────────────────────────────────────────────────────
+cookbookSidebar
+└── Cookbook (→ examples/index)
+    ├── Dispatch to multiple tables
+    └── [+ examples dynamically inserted from docs_processed/examples/ at build time]
