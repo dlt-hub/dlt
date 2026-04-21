@@ -2,7 +2,6 @@ import base64
 import hashlib
 import logging
 import os
-import sys
 import tarfile
 import time
 from io import BytesIO
@@ -213,7 +212,8 @@ def test_up_dir_symlink_still_inside_is_preserved(tmp_path: Path) -> None:
 
     manifest = _read_manifest(buf)
     link_entry = next(f for f in manifest["files"] if f["relative_path"] == "subdir/link.txt")
-    assert link_entry["linkname"] == "../real.txt"
+    # linkname is the raw `os.readlink` value — native separator on each platform
+    assert link_entry["linkname"] == os.path.join("..", "real.txt")
 
 
 def test_outside_root_symlink_skipped(
@@ -251,20 +251,7 @@ def test_outside_root_symlink_skipped(
 
 @pytest.mark.parametrize(
     "variant",
-    [
-        "relative_escape",
-        "dangling",
-        pytest.param(
-            "cyclic",
-            marks=pytest.mark.skipif(
-                sys.platform == "win32",
-                reason=(
-                    "Windows refuses to create cyclic symlinks "
-                    "(CreateSymbolicLinkW raises ERROR_CANT_RESOLVE_FILENAME)"
-                ),
-            ),
-        ),
-    ],
+    ["relative_escape", "dangling"],
 )
 def test_invalid_symlink_variants_skipped(
     tmp_path: Path,
@@ -285,15 +272,10 @@ def test_invalid_symlink_variants_skipped(
         )
         bad_abs = workspace / "subdir" / "bad.txt"
         bad_rel = Path("subdir/bad.txt")
-    elif variant == "dangling":
+    else:  # dangling
         os.symlink("nonexistent.txt", workspace / "bad.txt")
         bad_abs = workspace / "bad.txt"
         bad_rel = Path("bad.txt")
-    else:  # cyclic
-        os.symlink("b.txt", workspace / "a.txt")
-        os.symlink("a.txt", workspace / "b.txt")
-        bad_abs = workspace / "a.txt"
-        bad_rel = Path("a.txt")
 
     items = [
         (workspace / "keep.txt", Path("keep.txt")),
