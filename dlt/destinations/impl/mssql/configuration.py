@@ -3,7 +3,6 @@ from typing import Final, ClassVar, Any, List, Dict, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
-from dlt.common.utils import digest128
 from dlt.common.typing import TSecretStrValue
 from dlt.common.exceptions import SystemConfigurationException
 
@@ -135,8 +134,9 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     create_indexes: bool = False
     has_case_sensitive_identifiers: bool = False
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+    def physical_destination(self) -> str:
+        """Returns host:port."""
         if self.credentials and self.credentials.host:
-            return digest128(self.credentials.host)
+            port = self.credentials.port or 1433
+            return f"{self.credentials.host}:{port}"
         return ""

@@ -14,12 +14,10 @@ from dlt.common.configuration.specs.base_configuration import (
 from dlt.common.typing import TSecretStrValue
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
-from dlt.common.utils import digest128
 from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
 
 if TYPE_CHECKING:
     from zerobus import ArrowStreamConfigurationOptions, IPCCompression
-
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 DEFAULT_DATABRICKS_INSERT_API: TDatabricksInsertApi = "copy_into"
@@ -286,8 +284,8 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
                 " `destination.databricks.credentials.client_secret`."
             )
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+    def physical_destination(self) -> str:
+        """Returns the server hostname."""
         if self.credentials and self.credentials.server_hostname:
-            return digest128(self.credentials.server_hostname)
+            return self.credentials.server_hostname
         return ""

@@ -64,7 +64,7 @@ def test_redshift_configuration() -> None:
         RedshiftCredentials(),
         explicit_value="postgres://user1:pass@host1/db1?warehouse=warehouse1&role=role1",
     )
-    assert RedshiftClientConfiguration(credentials=c).fingerprint() == digest128("host1")
+    assert RedshiftClientConfiguration(credentials=c).fingerprint() == digest128("host1:5439")
 
 
 def test_create_table(client: RedshiftClient) -> None:

@@ -60,6 +60,17 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     def _is_s3_tables_catalog(self) -> bool:
         return is_s3_tables_catalog(self.aws_data_catalog)
 
+    def physical_destination(self) -> str:
+        """Returns region/catalog, or "" when region is unavailable."""
+        catalog = self.aws_data_catalog or DEFAULT_AWS_DATA_CATALOG
+        region = None
+        if self.credentials:
+            region = self.credentials.region_name
+
+        if region:
+            return f"{region}/{catalog}"
+        return ""
+
     def __str__(self) -> str:
         """Return displayable destination location"""
         if self.staging_config:

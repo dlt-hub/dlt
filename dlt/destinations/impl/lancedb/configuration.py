@@ -9,12 +9,13 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     NotResolved,
 )
-from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+)
 from dlt.common.pendulum import timedelta
 from dlt.common.storages.configuration import FilesystemConfiguration, WithLocalFiles
 from dlt.common.typing import TSecretStrValue, Annotated
-from dlt.common.utils import digest128
-
 from dlt.destinations.impl.lancedb.warnings import uri_on_credentials_deprecated
 
 if TYPE_CHECKING:
@@ -190,9 +191,31 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
         # TODO: move uri back to credentials to make it more like other connections
         self.credentials.uri = self.lance_uri
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of a connection string."""
+    def physical_destination(self) -> str:
+        """Returns the resolved LanceDB URI, or "" for external native clients."""
+        if not self.lance_uri or self.lance_uri == ":external:":
+            return ""
 
-        if self.lance_uri:
-            return digest128(self.lance_uri)
-        return ""
+        if self.lance_uri.startswith("db://"):
+            region = self.credentials.region if self.credentials else None
+            host_override = self.credentials.host_override if self.credentials else None
+            endpoint_parts = [self.lance_uri]
+            if region:
+                endpoint_parts.append(region)
+            if host_override:
+                endpoint_parts.append(host_override)
+            return "|".join(endpoint_parts)
+
+        return self.lance_uri
+
+    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True for the same LanceDB URI and table naming layout."""
+        if not isinstance(other, LanceDBClientConfiguration):
+            return False
+
+        self_phys = self.physical_destination()
+        other_phys = other.physical_destination()
+        if not self_phys or not other_phys or self_phys != other_phys:
+            return False
+
+        return self.dataset_separator == other.dataset_separator

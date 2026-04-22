@@ -10,7 +10,6 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
-from dlt.common.utils import digest128
 from dlt.destinations.impl.snowflake.utils import (
     read_snowflake_session_token,
     snowflake_session_token_available,
@@ -179,8 +178,8 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     use_decfloat: bool = False
     """Whether to use DECFLOAT type for unbound decimals instead of DECIMAL"""
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+    def physical_destination(self) -> str:
+        """Returns the account host."""
         if self.credentials and self.credentials.host:
-            return digest128(self.credentials.host)
+            return self.credentials.host
         return ""
