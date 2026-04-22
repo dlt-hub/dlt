@@ -12,16 +12,15 @@ from dlt.common.storages import (
     NormalizeStorageConfiguration,
 )
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.utils import uniq_id
-
 from dlt.common.typing import TTableNames, TDataItems
+
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourceExtractionError
 from dlt.extract.extract import ExtractStorage, Extract
 from dlt.extract.hints import TResourceNestedHints, make_hints
-from dlt.extract.items_transform import ValidateItem
-
+from dlt.extract.items_transform import ValidateItem, MetricsItem
 from dlt.extract.items import TableNameMeta, DataItemWithMeta
+
 from tests.utils import MockPipeline, clean_test_storage, get_test_storage_root
 from tests.extract.utils import expect_extracted_file
 
@@ -905,6 +904,47 @@ def test_add_metrics(extract_step: Extract, as_single_batch: bool) -> None:
     ]
     assert "seen_priorities" not in d.get("custom_metrics", {})
     assert d["custom_metrics"]["high_priority_count"] == 2
+
+
+def test_custom_metrics_preserved_when_all_items_filtered(extract_step: Extract) -> None:
+    """Zero-yield resources still surface their custom metrics in extract_info.
+
+    Both metrics APIs (`dlt.current.resource_metrics()` and `resource.add_metrics`)
+    populate in-memory dicts even when every item is filtered before reaching the
+    writer. `_compute_metrics` backfills such resources so the counters are
+    preserved with an empty writer-metrics entry.
+    """
+
+    @dlt.resource
+    def all_filtered():
+        # API 1: `dlt.current.resource_metrics()` mutated from inside the resource
+        dlt.current.resource_metrics()["seen_via_current"] = True
+        yield [1, 2, 3]
+
+    def early_counter(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
+        # runs BEFORE the filter — fires once on the single input batch
+        metrics["early_count"] = metrics.get("early_count", 0) + 1
+
+    # API 2: add_metrics runs before the filter; filter then drops every item so
+    # no file is ever written for this resource
+    all_filtered.add_metrics(early_counter).add_filter(lambda _: False)
+
+    source = DltSource(dlt.Schema("metrics"), "module", [all_filtered])
+    load_id = extract_step.extract(source, 20, 1)
+
+    # the MetricsItem step held its own counter from the pre-filter callback
+    resource = source.resources["all_filtered"]
+    metrics_steps = [s for s in resource._pipe.steps if isinstance(s, MetricsItem)]
+    assert len(metrics_steps) == 1
+    assert metrics_steps[0].custom_metrics == {"early_count": 1}
+
+    # persisted metrics: resource is present with zero items_count and merged customs
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    all_resource_metrics = step_info.metrics[load_id][0]["resource_metrics"]
+    assert "all_filtered" in all_resource_metrics
+    rm = all_resource_metrics["all_filtered"]
+    assert rm.items_count == 0
+    assert rm.custom_metrics == {"early_count": 1, "seen_via_current": True}
 
 
 def test_object_mixed_case_columns_normalized(extract_step: Extract) -> None:
