@@ -31,10 +31,6 @@ except ModuleNotFoundError:
     )
 
 
-TLastRunInfo = Optional[Tuple[bool, datetime]]
-"""Last run status for freshness: `None` = no runs, `(is_completed, scheduled_at)` otherwise."""
-
-
 def _stdlib_utc(value: TAnyDateTime) -> datetime:
     """Coerce to a plain stdlib `datetime` in UTC (`tzinfo=timezone.utc`).
 
@@ -366,28 +362,14 @@ def _trim_leading_completed(
 def _check_schedule_run_freshness(
     upstream_ref: str,
     cron_expr: str,
-    prev: Optional[datetime],
+    now_utc: datetime,
+    prev_interval_end: datetime,
     tz: str = "UTC",
 ) -> Tuple[bool, str]:
-    """schedule: upstream WITHOUT interval — `prev_completed_run` covers the most
-    recently COMPLETED cron interval.
-
-    The current cron period is in progress, so the upstream is considered fresh
-    if it has run for the cron tick BEFORE the current floor. For `* * * * *`
-    at now=22:50:02 the expected tick is 22:49:00 (start of the previous period),
-    not 22:50:00.
-    """
-    if prev is None:
-        return False, f"upstream {upstream_ref} has no usable completion (refresh pending)"
-    target_tz = ZoneInfo(tz)
-    # naive-local + 1us so an exact-on-tick now counts as the current floor;
-    # two get_prev calls give [expected_tick, current_floor) — one croniter instance
-    now_local_naive = datetime.now(target_tz).replace(tzinfo=None)
-    cron = croniter(cron_expr, now_local_naive + timedelta(microseconds=1))
-    cron.get_prev(datetime)  # current_floor — skip
-    expected_naive: datetime = cron.get_prev(datetime)
-    expected = expected_naive.replace(tzinfo=target_tz).astimezone(timezone.utc)
-    if _stdlib_utc(prev) < expected:
+    """Checks if last (per `utc_now`) cron interval was processed by `upstream_ref`"""
+    # the just-elapsed cron tick in target tz, converted back to UTC
+    expected = cron_floor(cron_expr, now_utc.astimezone(ZoneInfo(tz))).astimezone(timezone.utc)
+    if _stdlib_utc(prev_interval_end) < expected:
         return False, f"upstream {upstream_ref} missing run for {expected}"
     return True, ""
 
@@ -395,18 +377,14 @@ def _check_schedule_run_freshness(
 def _check_every_freshness(
     upstream_ref: str,
     period_seconds: float,
-    prev: Optional[datetime],
+    now_utc: datetime,
+    prev_interval_end: datetime,
 ) -> Tuple[bool, str]:
-    """every: upstream — `prev_completed_run` is set AND within the previous period.
-
-    The current period is in progress, so the upstream is fresh if its last run
-    is within `2 * period` of now: `period` covers the in-progress period and
-    another `period` covers the most recently completed one.
-    """
-    if prev is None:
-        return False, f"upstream {upstream_ref} has no usable completion (refresh pending)"
-    elapsed = (datetime.now(timezone.utc) - _stdlib_utc(prev)).total_seconds()
-    if elapsed > 2 * period_seconds:
+    """every: upstream's last-completed `interval_end` is within the previous period"""
+    # interval_end is exclusive: elapsed == period means `now` has crossed into the next period
+    # and the previous one is unprocessed — stale
+    elapsed = (now_utc - _stdlib_utc(prev_interval_end)).total_seconds()
+    if elapsed >= period_seconds:
         return (
             False,
             (
@@ -414,16 +392,6 @@ def _check_every_freshness(
                 f" (last {elapsed:.0f}s ago, period {period_seconds:.0f}s)"
             ),
         )
-    return True, ""
-
-
-def _check_event_freshness(
-    upstream_ref: str,
-    prev: Optional[datetime],
-) -> Tuple[bool, str]:
-    """event/manual upstream — `prev_completed_run` is set."""
-    if prev is None:
-        return False, f"upstream {upstream_ref} has no usable completion (refresh pending)"
     return True, ""
 
 
@@ -598,18 +566,23 @@ def resolve_run_freshness_refs(
 def check_all_upstream_run_fresh(
     freshness_constraints: List[TFreshnessConstraint],
     all_jobs: Dict[str, TJobDefinition],
-    prev_runs: Dict[str, Optional[datetime]],
+    prev_interval_ends: Dict[str, Optional[datetime]],
+    now_utc: Optional[datetime] = None,
 ) -> Tuple[bool, List[str]]:
-    """Check run-based freshness constraints given pre-fetched `prev_completed_run` info.
+    """Check run-based freshness constraints against each upstream's last-completed
+    `interval_end`.
 
-    `prev_runs[upstream_ref]` should be the upstream's `prev_completed_run`
-    (or `None` if absent or reset). Dispatches per-upstream based on the
-    upstream's `default_trigger` type:
+    `prev_interval_ends[upstream_ref]` is the `interval_end` of the upstream's last
+    successful run (`None` if it has never completed or its freshness state was
+    reset). Dispatches per-upstream based on the upstream's `default_trigger` type:
 
-    - `schedule:` without `interval` → `prev` covers most recent cron tick
-    - `every:` → `prev` is within the period
-    - event/manual → `prev` is set
+    - `schedule:` without `interval` → `interval_end` covers the most recently
+      elapsed cron tick
+    - `every:` → `interval_end` is within the previous period
+    - event/manual → `interval_end` is set (any completion is enough)
     """
+    if now_utc is None:
+        now_utc = datetime.now(timezone.utc)
     reasons: List[str] = []
 
     for constraint in freshness_constraints:
@@ -628,18 +601,26 @@ def check_all_upstream_run_fresh(
             )
             continue
 
-        prev = prev_runs.get(upstream_ref)
+        prev_interval_end = prev_interval_ends.get(upstream_ref)
+        if prev_interval_end is None:
+            reasons.append(
+                f"upstream {upstream_ref} didn't process any intervals yet (refresh pending)"
+            )
+            continue
 
         if trigger_type == "schedule":
             us_cron = maybe_parse_schedule(upstream_job)
             us_tz = upstream_job.get("require", {}).get("timezone", "UTC")
-            fresh, reason = _check_schedule_run_freshness(upstream_ref, us_cron, prev, tz=us_tz)
+            fresh, reason = _check_schedule_run_freshness(
+                upstream_ref, us_cron, now_utc, prev_interval_end, tz=us_tz
+            )
         elif trigger_type == "every":
             parsed = parse_trigger(upstream_job["default_trigger"])
             period = float(parsed.expr)  # type: ignore[arg-type]
-            fresh, reason = _check_every_freshness(upstream_ref, period, prev)
+            fresh, reason = _check_every_freshness(upstream_ref, period, now_utc, prev_interval_end)
         else:
-            fresh, reason = _check_event_freshness(upstream_ref, prev)
+            # event / manual — any completed `interval_end` is sufficient
+            continue
 
         if not fresh:
             reasons.append(reason)
