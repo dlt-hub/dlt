@@ -5,8 +5,10 @@ from urllib.parse import urlparse
 
 from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
-from dlt.common.destination.client import DestinationClientDwhConfiguration
-from dlt.common.utils import digest128
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+)
 
 TWeaviateBatchConsistency = Literal["ONE", "QUORUM", "ALL"]
 TWeaviateConnectionType = Literal["cloud", "local", "custom"]
@@ -62,10 +64,12 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
         }
     )
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
-
+    def physical_destination(self) -> str:
+        """Returns the host part of the connection URL."""
         if self.credentials and self.credentials.url:
-            hostname = urlparse(self.credentials.url).hostname
-            return digest128(hostname)
+            return urlparse(self.credentials.url).hostname or ""
         return ""
+
+    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+        """Weaviate does not support dlt SQL joins."""
+        return False

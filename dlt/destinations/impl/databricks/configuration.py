@@ -7,7 +7,6 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
-from dlt.common.utils import digest128
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 
@@ -190,8 +189,8 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
         else:
             return ""
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+    def physical_destination(self) -> str:
+        """Returns the server hostname."""
         if self.credentials and self.credentials.server_hostname:
-            return digest128(self.credentials.server_hostname)
+            return self.credentials.server_hostname
         return ""

@@ -8,8 +8,10 @@ from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
 )
-from dlt.common.destination.client import DestinationClientDwhConfiguration
-from dlt.common.utils import digest128
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+)
 from dlt.common.storages.configuration import WithLocalFiles
 
 from dlt.destinations.impl.qdrant.exceptions import InvalidInMemoryQdrantCredentials
@@ -146,11 +148,13 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
         if self.qd_path and not os.path.isabs(self.qd_path):
             self.qd_path = self.make_location(self.qd_path, "%s.qdrant")
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of a connection string"""
-        if self.qd_location:
-            return digest128(self.qd_location)
-        return ""
+    def physical_destination(self) -> str:
+        """Returns the Qdrant connection location."""
+        return self.qd_location or ""
+
+    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+        """Qdrant does not support dlt SQL joins."""
+        return False
 
     def __str__(self) -> str:
         """Return displayable destination location"""

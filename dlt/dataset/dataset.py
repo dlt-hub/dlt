@@ -482,12 +482,11 @@ def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
 
 
 def is_same_physical_destination(dataset1: dlt.Dataset, dataset2: dlt.Dataset) -> bool:
-    """Check if both datasets are at the same physical destination.
-
-    This is done by comparing the fingerprint of both destination configs. There
-    are potential false positive if two different config give access to the same destination.
-    """
-    return str(dataset1.destination_client.config) == str(dataset2.destination_client.config)
+    """Check if tables from both datasets can be joined in a single query."""
+    # NOTE: the name is historical -- this actually checks join compatibility via
+    # can_join_with(), which may return True even when the physical storage
+    # locations differ (e.g. filesystem destinations backed by different buckets).
+    return dataset1.destination_client.config.can_join_with(dataset2.destination_client.config)
 
 
 def _get_dataset_schema_from_destination_using_schema_name(

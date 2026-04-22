@@ -3,7 +3,6 @@ from typing import Final, Optional
 
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration import configspec
-from dlt.common.utils import digest128
 
 from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
@@ -28,8 +27,9 @@ class RedshiftClientConfiguration(PostgresClientConfiguration):
     staging_iam_role: Optional[str] = None
     has_case_sensitive_identifiers: bool = False
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+    def physical_destination(self) -> str:
+        """Returns host:port."""
         if self.credentials and self.credentials.host:
-            return digest128(self.credentials.host)
+            port = self.credentials.port or 5439
+            return f"{self.credentials.host}:{port}"
         return ""

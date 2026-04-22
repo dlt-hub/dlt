@@ -5,7 +5,6 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.typing import TSecretStrValue
-from dlt.common.utils import digest128
 
 
 @configspec(init=False)
@@ -37,8 +36,8 @@ class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     staging_data_source: str = None
     """The name of the staging data source"""
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+    def physical_destination(self) -> str:
+        """Returns host:port."""
         if self.credentials and self.credentials.host:
-            return digest128(self.credentials.host)
+            return f"{self.credentials.host}:{self.credentials.port}"
         return ""

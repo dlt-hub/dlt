@@ -8,7 +8,6 @@ from dlt.common.configuration.specs.base_configuration import NotResolved
 from dlt.common.destination.client import (
     DestinationClientDwhWithStagingConfiguration,
 )
-from dlt.common.utils import digest128
 from dlt.destinations.impl.clickhouse.typing import TSecureConnection, TTableEngineType
 
 
@@ -97,8 +96,8 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
         "table_engine_type",
     ]
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of the host part of a connection string."""
+    def physical_destination(self) -> str:
+        """Returns host:port."""
         if self.credentials and self.credentials.host:
-            return digest128(self.credentials.host)
+            return f"{self.credentials.host}:{self.credentials.port}"
         return ""

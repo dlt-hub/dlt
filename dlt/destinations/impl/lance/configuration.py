@@ -12,7 +12,10 @@ from dlt.common.configuration.specs.base_configuration import (
     resolve_type,
 )
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
-from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+)
 from dlt.common.storages.configuration import (
     FileSystemCredentials,
     FilesystemConfiguration,
@@ -316,5 +319,23 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
                 props[f"storage.{k}"] = str(v)
         return connect(self.catalog_type, props)
 
-    def fingerprint(self) -> str:
-        return self.storage.fingerprint() if self.storage else ""
+    def physical_destination(self) -> str:
+        """Returns the resolved Lance catalog root."""
+        if (
+            isinstance(self.credentials, DirectoryCatalogCredentials)
+            and self.credentials.bucket_url
+        ):
+            return f"{self.catalog_type}:{self.credentials.bucket_url.rstrip('/')}"
+        return ""
+
+    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True for the same Lance catalog and bound dlt dataset."""
+        if not isinstance(other, LanceClientConfiguration):
+            return False
+
+        self_phys = self.physical_destination()
+        other_phys = other.physical_destination()
+        if not self_phys or not other_phys or self_phys != other_phys:
+            return False
+
+        return self.dataset_name == other.dataset_name

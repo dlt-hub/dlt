@@ -102,8 +102,10 @@ def test_ducklake_configuration_default() -> None:
     assert credentials.storage_url == str(local_dir / "ducklake.files")
     # file url
     assert credentials.storage.bucket_url.startswith("file://")
-    # fingerprint is local
-    assert configuration.fingerprint() == digest128("file://")
+    # fingerprint derived from catalog identity + ducklake name
+    expected_phys = f"sqlite://{local_dir / 'ducklake.sqlite'}#{DEFAULT_DUCKLAKE_NAME}"
+    assert configuration.physical_destination() == expected_phys
+    assert configuration.fingerprint() == digest128(expected_phys)
 
 
 def test_ducklake_configuration_duckdb_catalog() -> None:
@@ -121,7 +123,9 @@ def test_ducklake_configuration_duckdb_catalog() -> None:
     assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.duckdb"))
-    assert configuration.fingerprint() == digest128("file://")
+    expected_phys = f"duckdb://{local_dir / 'ducklake.duckdb'}#{DEFAULT_DUCKLAKE_NAME}"
+    assert configuration.physical_destination() == expected_phys
+    assert configuration.fingerprint() == digest128(expected_phys)
 
 
 def test_ducklake_configuration_ducklake_name() -> None:
@@ -138,8 +142,10 @@ def test_ducklake_configuration_ducklake_name() -> None:
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "my_ducklake.sqlite"))
     assert credentials.storage_url == str(local_dir / "my_ducklake.files")
-    # fingerprint is local
-    assert configuration.fingerprint() == digest128("file://")
+    # fingerprint derived from catalog identity + ducklake name
+    expected_phys = f"sqlite://{local_dir / 'my_ducklake.sqlite'}#my_ducklake"
+    assert configuration.physical_destination() == expected_phys
+    assert configuration.fingerprint() == digest128(expected_phys)
 
 
 def test_ducklake_configuration_destination_name() -> None:
@@ -156,8 +162,10 @@ def test_ducklake_configuration_destination_name() -> None:
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
     assert credentials.storage_url == str(local_dir / "ducklake.files")
-    # fingerprint is local
-    assert configuration.fingerprint() == digest128("file://")
+    # fingerprint derived from catalog identity + ducklake name
+    expected_phys = f"sqlite://{local_dir / 'ducklake.sqlite'}#{DEFAULT_DUCKLAKE_NAME}"
+    assert configuration.physical_destination() == expected_phys
+    assert configuration.fingerprint() == digest128(expected_phys)
 
 
 def test_ducklake_configuration_pipeline_name() -> None:
@@ -202,8 +210,11 @@ def test_ducklake_configuration_storage_credentials() -> None:
     )
     # NOTE: dataset folders will be created in /lake/
     assert credentials.storage_url == "s3://dlt-ci-test-bucket/lake"
-    # fingerprint is NOT local
-    assert configuration.fingerprint() == digest128("s3://dlt-ci-test-bucket")
+    # fingerprint derived from remote catalog identity + ducklake name
+    assert (
+        configuration.physical_destination() == "postgresql://localhost:5432/dlt_data#my_ducklake"
+    )
+    assert configuration.fingerprint() == digest128(configuration.physical_destination())
 
 
 def test_ducklake_configuration_catalog_credentials() -> None:
