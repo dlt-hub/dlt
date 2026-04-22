@@ -228,7 +228,9 @@ def join_related_tables_snippet(tmp_path: Path) -> None:
     dataset = pipeline.dataset()
 
     # @@@DLT_SNIPPET_START join_related_tables
-    users_with_orders = dataset["users"].join("users__orders", alias="orders")
+    users_with_orders = dataset["users"].join(
+        "users__orders", alias="orders", kind="left"
+    )
     df = users_with_orders.select("name", "orders__order_id", "orders__total").df()
     # @@@DLT_SNIPPET_END join_related_tables
 
