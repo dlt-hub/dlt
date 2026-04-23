@@ -265,6 +265,26 @@ def _discover_join_params(
     return joins, target_qualifier
 
 
+def _normalize_left_projection(query: sge.Select, left_table: str) -> list[sge.Expression]:
+    """Qualify the left-side projection so an added JOIN can't leak right-side columns.
+
+    Bare `Star` becomes `<left_table>.*`; unqualified `Column`s get their
+    `table` set to `<left_table>`.
+    """
+    origin_identifier = sge.to_identifier(left_table, quoted=False)
+    normalized: list[sge.Expression] = []
+    for expr in query.selects:
+        if isinstance(expr, sge.Star):
+            normalized.append(sge.Column(table=origin_identifier, this=sge.Star()))
+        elif isinstance(expr, sge.Column) and expr.args.get("table") is None:
+            expr_copy = expr.copy()
+            expr_copy.set("table", origin_identifier)
+            normalized.append(expr_copy)
+        else:
+            normalized.append(expr)
+    return normalized
+
+
 def _apply_join_projection(
     query: sge.Select,
     *,
@@ -275,28 +295,17 @@ def _apply_join_projection(
     projection_prefix: str,
     allow_existing_target_projection: bool,
 ) -> None:
-    """Apply join projection contract onto ``query``.
+    """Apply join projection contract onto `query`.
 
     Preserves the left-side projection and appends only columns from the explicitly
-    joined ``target_table`` as ``{projection_prefix}__{column}`` aliases.
+    joined `target_table` as `{projection_prefix}__{column}` aliases.
 
-    ``allow_existing_target_projection`` is used for idempotent re-joins: when a
+    `allow_existing_target_projection` is used for idempotent re-joins: when a
     join call contributes no new join edges, all target-prefixed columns may already
     exist in the left projection and should be accepted as a no-op instead of raising
     a collision error.
     """
-    # Unbound columns must refer to the origin table so bind them to it
-    origin_identifier = sge.to_identifier(left_table, quoted=False)
-    normalized_left_expressions: list[sge.Expression] = []
-    for expr in query.selects:
-        if isinstance(expr, sge.Star):
-            normalized_left_expressions.append(sge.Column(table=origin_identifier, this=sge.Star()))
-        elif isinstance(expr, sge.Column) and expr.args.get("table") is None:
-            expr_copy = expr.copy()
-            expr_copy.set("table", origin_identifier)
-            normalized_left_expressions.append(expr_copy)
-        else:
-            normalized_left_expressions.append(expr)
+    normalized_left_expressions = _normalize_left_projection(query, left_table)
 
     existing_projection_column_names = {
         expr.output_name
@@ -343,8 +352,14 @@ def _apply_join(
     right_table: str,
     projection_prefix: str,
     kind: TJoinType = "inner",
+    project: bool = True,
 ) -> sge.Select:
-    """Apply schema-driven join(s) to ``expression`` and return the new query."""
+    """Apply schema-driven join(s) to `expression` and return the new query.
+
+    When `project` is `False` the JOIN is added to the query but the SELECT
+    list is left untouched (filter-only join). Use this for join targets whose
+    columns must be referenced in WHERE/ON predicates without being projected.
+    """
     if left_table not in schema.tables:
         raise ValueError(f"Table `{left_table}` not found in dataset schema")
     if right_table not in schema.tables:
@@ -374,13 +389,18 @@ def _apply_join(
         )
         query = query.join(join_expr)
 
-    _apply_join_projection(
-        query,
-        schema=schema,
-        left_table=left_table,
-        target_table=right_table,
-        target_qualifier=target_qualifier,
-        projection_prefix=projection_prefix,
-        allow_existing_target_projection=not join_params,
-    )
+    if project:
+        _apply_join_projection(
+            query,
+            schema=schema,
+            left_table=left_table,
+            target_table=right_table,
+            target_qualifier=target_qualifier,
+            projection_prefix=projection_prefix,
+            allow_existing_target_projection=not join_params,
+        )
+    else:
+        # Filter-only join: qualify the left projection so a bare `*` does not
+        # expand across the joined table and leak right-side columns at runtime.
+        query.set("expressions", _normalize_left_projection(query, left_table))
     return query
