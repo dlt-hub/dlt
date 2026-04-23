@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional
-
 from dlt.common import json
 from dlt.common.typing import copy_sig_any
 from dlt.sources import TDataItems, DltResource, DltSource
 from dlt.sources.filesystem import FileItemDict
+from dlt.common.libs import pandas as pd
 
 from .helpers import fetch_arrow, fetch_json
 
@@ -23,7 +23,7 @@ def _read_csv(
     Returns:
         TDataItem: The file content
     """
-    import pandas as pd
+    
 
     # apply defaults to pandas kwargs
     kwargs = {**{"header": "infer", "chunksize": chunksize}, **pandas_kwargs}
