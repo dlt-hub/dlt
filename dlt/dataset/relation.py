@@ -431,8 +431,10 @@ class Relation(WithSqlClient):
 
         target_dataset, target_table, target_columns = self._resolve_join_target(other, on=on)
 
+        is_same_dataset = self._dataset._is_same_dataset(target_dataset)
+
         # self-join detection
-        if target_table == self._table_name and target_dataset is self._dataset:
+        if target_table == self._table_name and is_same_dataset:
             raise ValueError("Self-joins are not supported.")
 
         projection_prefix = alias or target_table
@@ -440,7 +442,7 @@ class Relation(WithSqlClient):
         if on is None:
             if not self._table_name:
                 raise ValueError("This relation has no base table to resolve references.")
-            if target_dataset is not self._dataset:
+            if not is_same_dataset:
                 raise ValueError("`on` is required when joining relations from different datasets.")
             if target_table not in self._dataset.schema.tables:
                 raise ValueError(f"Table `{target_table}` not found in dataset schema")
@@ -453,7 +455,7 @@ class Relation(WithSqlClient):
                 kind=kind,
             )
         else:
-            if target_dataset is not self._dataset:
+            if not is_same_dataset:
                 self._dataset._add_foreign_schemas(
                     target_dataset.dataset_name,
                     list(target_dataset.schemas),
@@ -467,9 +469,7 @@ class Relation(WithSqlClient):
                 self.sqlglot_expression,
                 target=subquery_rhs,
                 target_table=target_table,
-                target_dataset_name=(
-                    target_dataset.dataset_name if target_dataset is not self._dataset else None
-                ),
+                target_dataset_name=(None if is_same_dataset else target_dataset.dataset_name),
                 target_columns=target_columns,
                 on=on,
                 projection_prefix=projection_prefix,
@@ -496,7 +496,7 @@ class Relation(WithSqlClient):
             target_dataset = other._dataset
 
             # physical destination check
-            if target_dataset is not self._dataset:
+            if not self._dataset._is_same_dataset(target_dataset):
                 if not self._dataset.is_same_physical_destination(target_dataset):
                     raise ValueError(
                         "Cannot join relations from different physical destinations: "

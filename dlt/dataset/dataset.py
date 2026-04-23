@@ -160,6 +160,12 @@ class Dataset:
         """Provide table names as completion suggestion in interactive environments."""
         return self.tables
 
+    def _is_same_dataset(self, other: dlt.Dataset) -> bool:
+        """Whether `other` represents the same logical dataset."""
+        # TODO currently only compares dataset name,
+        # once harderned, conside implementing __eq__ based on this method
+        return self.dataset_name == other.dataset_name
+
     def _add_foreign_schemas(self, dataset_name: str, schemas: Sequence[dlt.Schema]) -> None:
         """Register schemas from a foreign dataset for cross-dataset joins."""
         if dataset_name == self.dataset_name:
