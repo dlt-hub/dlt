@@ -28,7 +28,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     script_path = resolve_module_path(module_name)
 
     # -y before the subcommand suppresses marimo's "Are you sure you want to quit?" SIGINT prompt
-    args = ["marimo", "-y", "run", script_path]
+    args = ["marimo", "-y", mc.command, script_path]
     args.extend(["--port", str(port)])
     args.extend(["--host", "0.0.0.0"])
     args.append("--headless")

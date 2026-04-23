@@ -4,7 +4,7 @@ Each spec resolves in sections (JOBS, section, name, __section__) so users
 can override per-job via env vars like JOBS__MY_MODULE__MY_JOB__MCP__HOST.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
@@ -22,6 +22,7 @@ class MarimoConfiguration(BaseConfiguration):
     """Auth token for session access. None disables auth."""
     session_ttl: int = 120
     """Seconds before closing an idle session."""
+    command: Literal["run", "edit"] = "run"
 
 
 @configspec
