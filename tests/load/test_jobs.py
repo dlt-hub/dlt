@@ -1,3 +1,4 @@
+import threading
 from typing import List, Optional, Tuple
 
 import pytest
@@ -182,6 +183,10 @@ def test_on_completed_exception_propagates() -> None:
     with pytest.raises(OSError, match="disk full"):
         j.run_managed(MockClient(), None)  # type: ignore
 
+    # job must still reach a terminal state
+    assert j.state() == "failed"
+    assert j._finished_at is not None
+
 
 def test_on_completed_fires_before_semaphore_release() -> None:
     """_on_completed fires before _finished_at is set and before the
@@ -212,6 +217,107 @@ def test_on_completed_fires_before_semaphore_release() -> None:
     # during the callback, _finished_at was not yet set
     assert len(finished_at_during_callback) == 1
     assert finished_at_during_callback[0] is None
+
+
+def test_state_not_published_before_on_completed_finishes() -> None:
+    """Regression test for #3849: state() must not return a terminal value
+    while _on_completed is still executing."""
+    file_path = "/table.1234.0.jsonl"
+    barrier = threading.Barrier(2, timeout=5)
+    state_during_callback: List[TLoadJobState] = []
+
+    class SuccessfulJob(RunnableLoadJob):
+        def run(self) -> None:
+            pass
+
+    j = SuccessfulJob(file_path)
+
+    def blocking_callback(state: TLoadJobState, msg: Optional[str]) -> None:
+        barrier.wait()  # sync 1: signal that callback is running
+        barrier.wait()  # sync 2: wait for observer to finish checking
+
+    j.set_run_vars(
+        load_id="1",
+        schema=None,
+        load_table=None,
+        on_completed=blocking_callback,
+    )
+
+    def worker() -> None:
+        j.run_managed(MockClient(), None)  # type: ignore
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+
+    barrier.wait()  # sync 1: callback is executing
+    state_during_callback.append(j.state())
+    barrier.wait()  # sync 2: let callback finish
+
+    t.join(timeout=5)
+    assert not t.is_alive()
+
+    # while callback was running, state must still be "running"
+    assert state_during_callback[0] == "running"
+    # after run_managed returns, state is terminal
+    assert j.state() == "completed"
+
+
+def test_on_completed_exception_sets_terminal_state() -> None:
+    """When _on_completed raises, the job must reach 'failed' with
+    _finished_at set so execution does not halt."""
+    file_path = "/table.1234.0.jsonl"
+
+    class SuccessfulJob(RunnableLoadJob):
+        def run(self) -> None:
+            pass
+
+    def bad_callback(state: TLoadJobState, msg: Optional[str]) -> None:
+        raise OSError(".dlt folder unavailable")
+
+    j = SuccessfulJob(file_path)
+    j.set_run_vars(
+        load_id="1",
+        schema=None,
+        load_table=None,
+        on_completed=bad_callback,
+    )
+    with pytest.raises(OSError, match=".dlt folder unavailable"):
+        j.run_managed(MockClient(), None)  # type: ignore
+
+    assert j.state() == "failed"
+    assert j._finished_at is not None
+    assert isinstance(j.exception(), OSError)
+
+
+def test_on_completed_exception_releases_semaphore() -> None:
+    """Semaphore must be released even when _on_completed raises,
+    otherwise the loader hangs."""
+    from threading import BoundedSemaphore
+
+    file_path = "/table.1234.0.jsonl"
+
+    class SuccessfulJob(RunnableLoadJob):
+        def run(self) -> None:
+            pass
+
+    def bad_callback(state: TLoadJobState, msg: Optional[str]) -> None:
+        raise OSError("disk full")
+
+    sem = BoundedSemaphore()
+    sem.acquire()
+
+    j = SuccessfulJob(file_path)
+    j.set_run_vars(
+        load_id="1",
+        schema=None,
+        load_table=None,
+        on_completed=bad_callback,
+    )
+    with pytest.raises(OSError):
+        j.run_managed(MockClient(), sem)  # type: ignore
+
+    # semaphore must have been released despite the exception
+    assert sem.acquire(blocking=False), "semaphore was not released"
 
 
 def test_set_final_state_completed() -> None:
