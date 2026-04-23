@@ -8,13 +8,7 @@ docsSidebar
 │
 ├── Release highlights
 │   ├── 1.21.2
-│   ├── 1.19
-│   ├── 1.18
-│   ├── 1.17
-│   ├── 1.16
-│   ├── 1.15
-│   ├── 1.13–1.14
-│   └── 1.12.1
+│   └── ...
 │
 ├── Core concepts
 │   ├── Source
@@ -28,7 +22,7 @@ docsSidebar
 │   └── Workspace
 │
 ├── Sources
-│   ├── [link] 10k+ LLM Context
+│   ├── [link] 10k+ AI Context assets
 │   ├── REST API
 │   │   ├── Basic
 │   │   ├── Advanced
@@ -40,9 +34,9 @@ docsSidebar
 │   │   ├── Setup
 │   │   ├── Configuration
 │   │   ├── Usage
-│   │   ├── Troubleshooting
+│   │   ├── Troubleshoot
 │   │   ├── Advanced
-│   │   └── Incremental
+│   │   └── Incremental load
 │   ├── Object store and filesystem
 │   │   ├── Basic
 │   │   └── Advanced
@@ -75,6 +69,7 @@ docsSidebar
 │   ├── MotherDuck
 │   ├── DuckLake
 │   ├── Fabric
+│   ├── Reverse ETL
 │   └── Community destinations
 │
 ├── Incremental loading
