@@ -242,6 +242,7 @@ dev = [
     "pytest-timeout>=2.3.1,<3",
     "mypy>=1.11.0",
     "flake8>=7.0.0,<8",
+    "Flake8-pyproject>=1.2.0",
     "bandit>=1.7.0,<2",
     "black[jupyter]>=23.7.0,<24",
     "isort>=5.12.0,<6",
@@ -385,7 +386,7 @@ exclude = [
 [tool.ruff.lint]
 preview = true
 ignore = [
-    # from tox.ini
+    # from [tool.flake8]
     "E1",
     "E2",
     "E3",
@@ -405,6 +406,41 @@ ignore = [
     "F841",
     "F811",
 ]
+
+[tool.flake8]
+ignore = ["E1", "E2", "E3", "E4", "F401", "W391", "W292", "E501", "E731", "F811", "W503", "E704", "W504", "DOC502", "DOC503", "DOC501", "B010", "I250"]
+banned-modules = """
+    datetime = use dlt.common.pendulum
+    json = use dlt.common.json
+    decimal = use dlt.common.decimal
+    decimal.Decimal = use dlt.common.Decimal
+    open = use dlt.common.open
+    pendulum = use dlt.common.pendulum
+    ibis = use dlt.common.libs.ibis
+    sqlalchemy = use dlt.common.libs.sql_alchemy
+    typing.TypedDict = use dlt.common.typing.TypedDict
+    typing.ParamSpec = use dlt.common.typing.ParamSpec
+    typing.Concatenate = use dlt.common.typing.Concatenate
+    typing.TypeAlias = use dlt.common.typing.TypeAlias
+    typing.Self = use dlt.common.typing.Self
+    typing.Never = use dlt.common.typing.Never
+    typing.Unpack = use dlt.common.typing.Unpack
+    typing.Annotated = use dlt.common.typing.Annotated
+    typing.get_original_bases = use dlt.common.typing.get_original_bases
+    """
+extend-immutable-calls = ["dlt.sources.incremental"]
+# allow banned-imports (I251) in tests and docs e.g., direct numpy import
+per-file-ignores = [
+    "tests/*: T20, I251",
+    "tools/tests/*: T20, I251",
+    "docs/*: T20, I251",
+    "dlt/common/typing.py: I251",
+    "dlt/_workspace/_templates/*: I251",
+]
+# docstring linting
+style = "google"
+allow-init-docstring = true
+arg-type-hints-in-docstring = true
 
 [tool.black]
 line-length = 100
