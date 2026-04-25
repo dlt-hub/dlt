@@ -36,6 +36,8 @@ from dlt._workspace.deployment.exceptions import (
 )
 from dlt._workspace.deployment._job_ref import parse_job_ref
 from dlt._workspace.deployment import trigger as _triggers
+from dlt._workspace.deployment import interval as _interval
+from dlt._workspace.deployment.interval import cron_floor
 from dlt._workspace.deployment._trigger_helpers import (
     maybe_parse_schedule,
     parse_trigger,
@@ -287,8 +289,6 @@ def validate_job_definition(
     if has_interval and "schedule" in trigger_types:
         cron_expr = maybe_parse_schedule(job_def)
         if cron_expr:
-            from dlt._workspace.deployment.interval import cron_floor
-
             iv = job_def["interval"]
             raw_start = ensure_datetime_utc(iv["start"])
             if cron_floor(cron_expr, raw_start) != raw_start:
@@ -396,6 +396,10 @@ def validate_manifest(manifest: TJobsDeploymentManifest) -> ManifestValidationRe
                 continue
 
             if fc.type == "job.is_matching_interval_fresh":
+                if not _interval.INTERVAL_FRESHNESS_ENABLED:
+                    raise NotImplementedError(
+                        f"job {ref!r} declares {fc.type!r} on {us_ref!r}: not yet implemented"
+                    )
                 if "interval" not in us_job:
                     errors.append(
                         f"job {ref!r} has {fc.type} constraint on {us_ref!r}"

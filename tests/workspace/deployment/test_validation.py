@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import pytest
 
+from dlt._workspace.deployment import interval as interval_mod
 from dlt._workspace.deployment.exceptions import InvalidJobDefinition, JobValidationResult
 from dlt._workspace.deployment.manifest import (
     DASHBOARD_JOB_REF,
@@ -31,6 +32,11 @@ from dlt._workspace.deployment.typing import (
     TJobType,
     TTrigger,
 )
+
+
+@pytest.fixture
+def enable_interval_freshness(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(interval_mod, "INTERVAL_FRESHNESS_ENABLED", True)
 
 
 def _make_job(
@@ -236,7 +242,7 @@ def test_interval_without_schedule_trigger() -> None:
     assert any("no schedule trigger" in e for e in result.errors)
 
 
-def test_freshness_constraint_on_non_interval_upstream() -> None:
+def test_freshness_constraint_on_non_interval_upstream(enable_interval_freshness: None) -> None:
     manifest = _make_manifest(
         [
             _make_job("jobs.mod.up", triggers=["schedule:0 0 * * *"]),
@@ -251,6 +257,26 @@ def test_freshness_constraint_on_non_interval_upstream() -> None:
     result = validate_manifest(manifest)
     assert not result.is_valid
     assert any("upstream has no interval" in e for e in result.errors)
+
+
+def test_is_matching_interval_fresh_disabled_raises() -> None:
+    manifest = _make_manifest(
+        [
+            _make_job(
+                "jobs.mod.up",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01"},
+            ),
+            _make_job(
+                "jobs.mod.down",
+                triggers=["schedule:0 0 * * *"],
+                interval={"start": "2024-01-01"},
+                freshness=["job.is_matching_interval_fresh:jobs.mod.up"],
+            ),
+        ]
+    )
+    with pytest.raises(NotImplementedError, match="not yet implemented"):
+        validate_manifest(manifest)
 
 
 def test_allow_external_schedulers_without_interval_warns() -> None:
@@ -314,7 +340,7 @@ def test_aligned_interval_no_warning() -> None:
     assert not any("snapped" in w for w in result.warnings)
 
 
-def test_valid_interval_job_with_freshness() -> None:
+def test_valid_interval_job_with_freshness(enable_interval_freshness: None) -> None:
     manifest = _make_manifest(
         [
             _make_job(
@@ -524,7 +550,9 @@ def test_load_manifest_raises_invalid_manifest() -> None:
     assert any("duplicate" in e for e in exc_info.value.validation.errors)
 
 
-def test_freshness_on_upstream_without_schedule_trigger() -> None:
+def test_freshness_on_upstream_without_schedule_trigger(
+    enable_interval_freshness: None,
+) -> None:
     """Freshness constraint on upstream that has interval but no schedule trigger."""
     manifest = _make_manifest(
         [
@@ -611,7 +639,9 @@ def test_is_fresh_on_schedule_no_interval_upstream_valid() -> None:
     assert result.is_valid, f"errors: {result.errors}"
 
 
-def test_is_matching_interval_fresh_on_every_upstream_invalid() -> None:
+def test_is_matching_interval_fresh_on_every_upstream_invalid(
+    enable_interval_freshness: None,
+) -> None:
     """job.is_matching_interval_fresh on every: upstream without interval is invalid."""
     manifest = _make_manifest(
         [
@@ -628,7 +658,9 @@ def test_is_matching_interval_fresh_on_every_upstream_invalid() -> None:
     assert any("no interval" in e for e in result.errors)
 
 
-def test_is_matching_interval_fresh_on_schedule_no_interval_invalid() -> None:
+def test_is_matching_interval_fresh_on_schedule_no_interval_invalid(
+    enable_interval_freshness: None,
+) -> None:
     """job.is_matching_interval_fresh on schedule: upstream without interval is invalid."""
     manifest = _make_manifest(
         [

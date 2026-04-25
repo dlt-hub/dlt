@@ -64,11 +64,19 @@ def interval_aware(run_context: TJobRunContext):
     return ",".join(parts) if parts else "no_interval"
 
 
-@job
+@job(
+    allow_external_schedulers=True,
+    interval={"start": "2024-01-15T00:00:00Z"},
+    trigger="0 0 * * *",
+)
 def incremental_interval_job(run_context: TJobRunContext):
     """Job that creates an incremental resource and checks scheduler join."""
     from datetime import datetime  # noqa: I251
     from dlt.common.pendulum import pendulum
+    from dlt.extract.incremental.context import get_interval_context
+
+    ctx = get_interval_context()
+    ctx_flag = ctx.allow_external_schedulers if ctx else None
 
     @dlt.resource()
     def my_events(
@@ -79,7 +87,7 @@ def incremental_interval_job(run_context: TJobRunContext):
     r = my_events()
     items = list(r)
     inc = r.incremental._incremental
-    return f"iv={inc.initial_value},end={inc.end_value},items={len(items)}"
+    return f"iv={inc.initial_value},end={inc.end_value},items={len(items)},allow_ext={ctx_flag}"
 
 
 @job

@@ -151,6 +151,33 @@ def test_job_launcher_interval_without_allow_external_schedulers_does_not_force_
     assert "end=2024-01-16" not in result
 
 
+def test_decorator_to_launcher_e2e_allow_external_schedulers() -> None:
+    """End-to-end: `@job(allow_external_schedulers=True)` on the decorator reaches the
+    launcher's `TimeIntervalContext` and the incremental auto-joins."""
+    job_def = batch_jobs.incremental_interval_job.to_job_definition()
+    assert job_def["allow_external_schedulers"] is True
+    assert job_def["interval"] == {"start": "2024-01-15T00:00:00Z"}
+
+    ep = build_runtime_entry_point(
+        job_def,
+        cli_config={},
+        profile="dev",
+        refresh=False,
+        interval_start=datetime(2024, 1, 15, tzinfo=timezone.utc),
+        interval_end=datetime(2024, 1, 16, tzinfo=timezone.utc),
+        tz="UTC",
+    )
+    assert ep["allow_external_schedulers"] is True
+
+    result = job_run(ep, run_id="inc-iv-e2e", trigger="schedule:0 0 * * *")
+    # context flag was injected and observed by the job
+    assert "allow_ext=True" in result
+    # incremental auto-joined the interval
+    assert "iv=2024-01-15" in result
+    assert "end=2024-01-16" in result
+    assert "items=1" in result
+
+
 def test_job_launcher_profile_injection() -> None:
     """Job launcher sets WORKSPACE__PROFILE env var from entry_point.profile."""
     old = os.environ.pop("WORKSPACE__PROFILE", None)

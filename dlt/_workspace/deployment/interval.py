@@ -31,6 +31,9 @@ except ModuleNotFoundError:
     )
 
 
+INTERVAL_FRESHNESS_ENABLED: bool = False
+
+
 def _stdlib_in_tz(value: TAnyDateTime, tz: ZoneInfo) -> datetime:
     """Coerce to stdlib `datetime` in target tz. Naive inputs are attached to `tz`.
 
