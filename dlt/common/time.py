@@ -161,6 +161,34 @@ ensure_pendulum_datetime = deprecated("Use ensure_pendulum_datetime_utc instead"
 )
 
 
+def ensure_datetime_utc(value: TAnyDateTime) -> datetime.datetime:
+    """Coerce a date/time value to a stdlib `datetime.datetime` in UTC.
+
+    UTC is assumed if the value is not timezone aware. Other timezones are shifted to UTC.
+
+    Args:
+        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+
+    Returns:
+        A stdlib `datetime.datetime` in UTC timezone.
+    """
+    return to_py_datetime(ensure_pendulum_datetime_utc(value))
+
+
+def ensure_datetime_non_utc(value: TAnyDateTime) -> datetime.datetime:
+    """Coerce a date/time value to a stdlib `datetime.datetime`, preserving original timezone.
+
+    Tz-awareness is preserved. Naive datetimes remain naive. Tz-aware datetimes keep their original timezone.
+
+    Args:
+        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+
+    Returns:
+        A stdlib `datetime.datetime` that preserves original timezone.
+    """
+    return to_py_datetime(ensure_pendulum_datetime_non_utc(value))
+
+
 def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
     """Coerce a date/time value to a `pendulum.DateTime` object.
 

@@ -5,14 +5,13 @@ import inspect
 import os
 import sys
 from contextlib import nullcontext
-from datetime import datetime, timezone  # noqa: I251
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from dlt.common.configuration.container import Container
 from dlt.common.reflection.ref import object_from_ref
 from dlt.common.runtime import signals
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_utc
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace import known_sections as ws_known_sections
@@ -150,22 +149,6 @@ def _wants_run_context(f: Any) -> bool:
         return False
 
 
-def _parse_utc_to_tz(iso_utc: str, tz: ZoneInfo) -> datetime:
-    """Parse a UTC ISO string to a stdlib datetime in `tz`."""
-    pdt = ensure_pendulum_datetime_utc(iso_utc)
-    utc_dt = datetime(
-        pdt.year,
-        pdt.month,
-        pdt.day,
-        pdt.hour,
-        pdt.minute,
-        pdt.second,
-        pdt.microsecond,
-        tzinfo=timezone.utc,
-    )
-    return utc_dt.astimezone(tz)
-
-
 def run(
     entry_point: TRuntimeEntryPoint,
     run_id: str,
@@ -202,8 +185,8 @@ def run(
     if iv_start_str and iv_end_str:
         target_tz = ZoneInfo(iv_tz_name)
         iv = (
-            _parse_utc_to_tz(iv_start_str, target_tz),
-            _parse_utc_to_tz(iv_end_str, target_tz),
+            ensure_datetime_utc(iv_start_str).astimezone(target_tz),
+            ensure_datetime_utc(iv_end_str).astimezone(target_tz),
         )
         os.environ["DLT_INTERVAL_START"] = iv_start_str
         os.environ["DLT_INTERVAL_END"] = iv_end_str
@@ -233,8 +216,6 @@ def run(
     )
 
     # inject interval context into Container so dlt.current.interval() works.
-    # `allow_external_schedulers` is propagated from the manifest via entry_point —
-    # the runner sets it from job_def["allow_external_schedulers"] in `_start_job`.
     with signal_ctx:
         if iv is not None:
             iv_ctx = TimeIntervalContext(

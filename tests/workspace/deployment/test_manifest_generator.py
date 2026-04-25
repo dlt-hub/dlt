@@ -356,11 +356,6 @@ def test_tags_in_expose() -> None:
     assert "ops" in maintenance["expose"]["tags"]
     assert "tag:ops" not in maintenance["triggers"]
 
-    # marimo notebook has tags=["notebook"] in expose
-    notebook = jobs_by_ref[TJobRef("jobs.marimo_notebook")]
-    assert "notebook" in notebook["expose"]["tags"]
-    assert "tag:notebook" not in notebook["triggers"]
-
     # streamlit has category="dashboard" in expose (not a tag)
     st_app = jobs_by_ref[TJobRef("jobs.streamlit_app")]
     assert st_app["expose"]["category"] == "dashboard"

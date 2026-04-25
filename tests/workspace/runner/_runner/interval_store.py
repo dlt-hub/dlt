@@ -2,7 +2,7 @@
 
 from typing import List, Protocol
 
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_utc
 from dlt.common.typing import TTimeInterval as TInterval
 
 from dlt._workspace.deployment.interval import sort_and_coalesce
@@ -87,7 +87,7 @@ class DuckDBIntervalStore:
             [job_ref, overall[0], overall[1]],
         ).fetchall()
         raw: List[TInterval] = [
-            (ensure_pendulum_datetime_utc(r[0]), ensure_pendulum_datetime_utc(r[1])) for r in rows
+            (ensure_datetime_utc(r[0]), ensure_datetime_utc(r[1])) for r in rows
         ]
         return sort_and_coalesce(raw)
 

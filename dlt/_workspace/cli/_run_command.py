@@ -10,8 +10,9 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from dlt.common import json
-from dlt.common.time import ensure_pendulum_datetime_non_utc, ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_non_utc, ensure_datetime_utc
 
+from dlt._workspace._workspace_context import active
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli.exceptions import CliCommandInnerException
 from dlt._workspace.deployment._job_ref import (
@@ -41,7 +42,6 @@ from dlt._workspace.deployment.typing import (
     TRuntimeEntryPoint,
     TTrigger,
 )
-from dlt._workspace.profile import DEFAULT_PROFILE
 from dlt._workspace.typing import TRunJobInfo
 
 
@@ -157,15 +157,9 @@ def resolve_refresh(user_refresh: bool, job_def: TJobDefinition) -> Tuple[bool, 
 def resolve_profile(
     user_profile: Optional[str],
     job_def: TJobDefinition,
-    pinned_profile: Optional[str],
 ) -> Tuple[str, Optional[str]]:
-    """Current profile (`--profile` > pinned > DEFAULT_PROFILE) + warning if the job declares a different profile."""
-    if user_profile is not None:
-        current = user_profile
-    elif pinned_profile is not None:
-        current = pinned_profile
-    else:
-        current = DEFAULT_PROFILE
+    """Current profile (`--profile` > active workspace profile) + warning if the job declares a different profile."""
+    current = user_profile if user_profile is not None else active().profile
 
     declared = job_def.get("require", {}).get("profile")
     warning: Optional[str] = None
@@ -214,9 +208,9 @@ def resolve_interval(
             if declared.get("end"):
                 declared_end_dt = spec_end
         else:
-            declared_start_dt = ensure_pendulum_datetime_utc(declared["start"])
+            declared_start_dt = ensure_datetime_utc(declared["start"])
             if declared.get("end"):
-                declared_end_dt = ensure_pendulum_datetime_utc(declared["end"])
+                declared_end_dt = ensure_datetime_utc(declared["end"])
 
     natural_start, natural_end = compute_run_interval(
         trigger, now_utc, prev_interval_end=None, tz=tz
@@ -236,17 +230,7 @@ def resolve_interval(
 
 
 def _to_utc(value: str, target_tz: ZoneInfo) -> datetime:
-    pdt = ensure_pendulum_datetime_non_utc(value)
-    dt = datetime(
-        pdt.year,
-        pdt.month,
-        pdt.day,
-        pdt.hour,
-        pdt.minute,
-        pdt.second,
-        pdt.microsecond,
-        tzinfo=pdt.tzinfo,
-    )
+    dt = ensure_datetime_non_utc(value)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=target_tz)
     return dt.astimezone(timezone.utc)
@@ -300,7 +284,6 @@ def fetch_run_info(
     user_end: Optional[str],
     user_refresh: bool,
     cli_config: Dict[str, str],
-    pinned_profile: Optional[str],
     pick: TPickFn,
     now_utc: Optional[datetime] = None,
 ) -> Optional[TRunJobInfo]:
@@ -345,7 +328,7 @@ def fetch_run_info(
         pass
 
     effective_refresh, refresh_warning = resolve_refresh(user_refresh, job_def)
-    profile, profile_warning = resolve_profile(user_profile, job_def, pinned_profile)
+    profile, profile_warning = resolve_profile(user_profile, job_def)
 
     now = now_utc if now_utc is not None else datetime.now(timezone.utc)
     interval_start, interval_end, tz = resolve_interval(

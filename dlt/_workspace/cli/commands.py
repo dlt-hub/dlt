@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
@@ -1148,11 +1148,8 @@ workspace info.
         return config
 
     def _execute_run(self, args: argparse.Namespace) -> None:
-        from typing import List, Tuple
-
         from dlt.common import json
 
-        from dlt._workspace._workspace_context import active
         from dlt._workspace.cli._run_command import (
             fetch_run_info,
             print_run_plan,
@@ -1162,7 +1159,6 @@ workspace info.
         from dlt._workspace.deployment._job_ref import format_job_label
         from dlt._workspace.deployment.launchers._launcher import exec_process
         from dlt._workspace.deployment.typing import TJobDefinition, TTrigger
-        from dlt._workspace.profile import read_profile_pin
 
         def _pick(
             candidates: List[Tuple["TJobDefinition", "TTrigger"]],
@@ -1193,7 +1189,6 @@ workspace info.
             user_end=args.end,
             user_refresh=args.refresh,
             cli_config=cli_config,
-            pinned_profile=read_profile_pin(active()),
             pick=_pick,
         )
         if info is None:

@@ -122,7 +122,7 @@ def _detect_marimo(module: ModuleType) -> Optional[TJobDefinition]:
     job_def: TJobDefinition = {
         "job_ref": _module_job_ref(module),
         "entry_point": entry_point,
-        "expose": TExposeSpec(interface="gui", category="notebook", tags=["notebook"]),
+        "expose": TExposeSpec(interface="gui", category="notebook"),
         "triggers": [_HTTP_TRIGGER],
         "execute": _INTERACTIVE_EXECUTION,
     }

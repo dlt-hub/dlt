@@ -14,6 +14,7 @@ from types import ModuleType
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
 from dlt.common.pendulum import pendulum
+from dlt.common.time import ensure_datetime_utc
 from dlt.common.typing import DictStrAny
 from dlt.common.validation import validate_dict
 from dlt.reflection.script_inspector import no_pipeline_execution
@@ -287,10 +288,9 @@ def validate_job_definition(
         cron_expr = maybe_parse_schedule(job_def)
         if cron_expr:
             from dlt._workspace.deployment.interval import cron_floor
-            from dlt.common.time import ensure_pendulum_datetime_utc
 
             iv = job_def["interval"]
-            raw_start = ensure_pendulum_datetime_utc(iv["start"])
+            raw_start = ensure_datetime_utc(iv["start"])
             if cron_floor(cron_expr, raw_start) != raw_start:
                 warnings.append(
                     f"job {ref!r} interval start ({iv['start']}) is not a"
@@ -298,7 +298,7 @@ def validate_job_definition(
                 )
             end_str = iv.get("end")
             if end_str:
-                raw_end = ensure_pendulum_datetime_utc(end_str)
+                raw_end = ensure_datetime_utc(end_str)
                 if cron_floor(cron_expr, raw_end) != raw_end:
                     warnings.append(
                         f"job {ref!r} interval end ({end_str}) is not a"

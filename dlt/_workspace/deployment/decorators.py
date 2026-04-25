@@ -48,9 +48,6 @@ TJobFunParams = ParamSpec("TJobFunParams")
 TJobResult = TypeVar("TJobResult", default=Any)
 
 
-_normalize_timeout = normalize_timeout
-
-
 def _normalize_expose(
     expose: Optional[TJobExposeSpec],
 ) -> Optional[TJobExposeSpec]:
@@ -490,7 +487,7 @@ def interactive(
     exec_spec: TExecuteSpec = dict(execute) if execute else {}  # type: ignore[assignment]
     exec_spec.setdefault("concurrency", 1)
     if idle_timeout is not None:
-        exec_spec["timeout"] = _normalize_timeout(idle_timeout)
+        exec_spec["timeout"] = normalize_timeout(idle_timeout)
 
     return _job(
         func,

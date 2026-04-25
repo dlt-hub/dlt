@@ -215,34 +215,41 @@ def test_resolve_refresh(
 
 
 @pytest.mark.parametrize(
-    "user,declared,pinned,expected_current,expect_warning",
+    "user,declared,active_profile,expected_current,expect_warning",
     [
         ("access", None, "dev", "access", False),
         (None, None, "tests", "tests", False),
-        (None, None, None, DEFAULT_PROFILE, False),
+        (None, None, DEFAULT_PROFILE, DEFAULT_PROFILE, False),
         (None, "prod", "prod", "prod", False),
         (None, "prod", "dev", "dev", True),
         ("dev", "prod", "prod", "dev", True),
     ],
     ids=[
         "cli-override-wins",
-        "pinned-when-no-override",
-        "fallback-to-default",
+        "active-when-no-override",
+        "default-profile",
         "no-warning-when-declared-matches",
-        "warns-on-declared-vs-pinned-mismatch",
+        "warns-on-declared-vs-active-mismatch",
         "cli-override-triggers-declared-mismatch",
     ],
 )
 def test_resolve_profile(
     user: Optional[str],
     declared: Optional[str],
-    pinned: Optional[str],
+    active_profile: str,
     expected_current: str,
     expect_warning: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     require: Optional[TRequireSpec] = {"profile": declared} if declared else None
     jd = _job("jobs.a", require=require)
-    current, warning = resolve_profile(user, jd, pinned)
+
+    class _MockCtx:
+        profile = active_profile
+
+    monkeypatch.setattr(run_cmd_mod, "active", lambda: _MockCtx())
+
+    current, warning = resolve_profile(user, jd)
     assert current == expected_current
     if expect_warning:
         assert warning and f"'{declared}'" in warning and f"'{expected_current}'" in warning
@@ -484,7 +491,6 @@ def test_fetch_run_info_manual_selector_swaps_to_default_trigger(
         user_end=None,
         user_refresh=False,
         cli_config={},
-        pinned_profile=None,
         pick=lambda candidates: candidates[0],
         now_utc=NOW,
     )
