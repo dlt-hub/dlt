@@ -5,7 +5,7 @@ from typing import List, Protocol
 from dlt.common.time import ensure_datetime_utc
 from dlt.common.typing import TTimeInterval
 
-from dlt._workspace.deployment.interval import sort_and_coalesce
+from dlt._workspace.deployment._interval_store_freshness import sort_and_coalesce
 
 
 class TIntervalStore(Protocol):

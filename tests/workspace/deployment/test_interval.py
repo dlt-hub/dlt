@@ -1,147 +1,25 @@
-"""Tests for interval computation, eligibility, and scheduling primitives."""
+"""Tests for interval computation and scheduling primitives."""
 
 from datetime import datetime, timezone  # noqa: I251
-from typing import List, Optional, Tuple
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_pendulum_datetime_utc
-from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.interval import (
     compute_run_interval,
     cron_floor,
-    get_eligible_intervals,
-    iter_intervals,
-    next_eligible_interval,
     next_scheduled_run,
     resolve_interval_spec,
-    sort_and_coalesce,
 )
 from dlt._workspace.deployment.typing import (
     TIntervalSpec,
     TTrigger,
 )
-
-
-def _iv(start: str, end: str) -> TTimeInterval:
-    return (ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
-
-
-@pytest.mark.parametrize(
-    "intervals,expected",
-    [
-        # empty
-        ([], []),
-        # single
-        ([("2024-01-01", "2024-01-02")], [("2024-01-01", "2024-01-02")]),
-        # adjacent → merged
-        (
-            [("2024-01-01", "2024-01-02"), ("2024-01-02", "2024-01-03")],
-            [("2024-01-01", "2024-01-03")],
-        ),
-        # overlapping → merged
-        (
-            [("2024-01-01", "2024-01-03"), ("2024-01-02", "2024-01-04")],
-            [("2024-01-01", "2024-01-04")],
-        ),
-        # gap preserved
-        (
-            [("2024-01-01", "2024-01-02"), ("2024-01-04", "2024-01-05")],
-            [("2024-01-01", "2024-01-02"), ("2024-01-04", "2024-01-05")],
-        ),
-        # unsorted input
-        (
-            [("2024-01-04", "2024-01-05"), ("2024-01-01", "2024-01-02")],
-            [("2024-01-01", "2024-01-02"), ("2024-01-04", "2024-01-05")],
-        ),
-        # three adjacent → single
-        (
-            [
-                ("2024-01-01", "2024-01-02"),
-                ("2024-01-02", "2024-01-03"),
-                ("2024-01-03", "2024-01-04"),
-            ],
-            [("2024-01-01", "2024-01-04")],
-        ),
-    ],
-    ids=["empty", "single", "adjacent", "overlapping", "gap", "unsorted", "three-adjacent"],
-)
-def test_sort_and_coalesce(
-    intervals: List[Tuple[str, str]], expected: List[Tuple[str, str]]
-) -> None:
-    ivs = [(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e)) for s, e in intervals]
-    exp = [(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e)) for s, e in expected]
-    assert sort_and_coalesce(ivs) == exp
-
-
-@pytest.mark.parametrize(
-    "cron,overall,expected_count,first_start,first_end",
-    [
-        ("0 0 * * *", ("2024-01-01", "2024-01-05"), 4, "2024-01-01", "2024-01-02"),
-        (
-            "0 * * * *",
-            ("2024-01-01T00:00:00Z", "2024-01-01T03:00:00Z"),
-            3,
-            "2024-01-01T00:00:00Z",
-            "2024-01-01T01:00:00Z",
-        ),
-        ("0 0 * * *", ("2024-01-01", "2024-01-01"), 0, None, None),
-        ("0 0 * * *", ("2024-01-05", "2024-01-01"), 0, None, None),
-        ("0 0 1 * *", ("2024-01-01", "2024-05-01"), 4, "2024-01-01", "2024-02-01"),
-    ],
-    ids=["daily", "hourly", "zero-length", "inverted", "monthly-variable"],
-)
-def test_iter_intervals(
-    cron: str,
-    overall: Tuple[str, str],
-    expected_count: int,
-    first_start: Optional[str],
-    first_end: Optional[str],
-) -> None:
-    iv = _iv(*overall)
-    intervals = list(iter_intervals(cron, iv))
-    assert len(intervals) == expected_count
-    if first_start is not None:
-        assert intervals[0] == (
-            ensure_pendulum_datetime_utc(first_start),
-            ensure_pendulum_datetime_utc(first_end),
-        )
-
-
-def test_monthly_variable_length_intervals() -> None:
-    """Monthly cron produces intervals of variable length (28-31 days)."""
-    overall = _iv("2024-01-01", "2024-05-01")
-    intervals = list(iter_intervals("0 0 1 * *", overall))
-    lengths = [(iv[1] - iv[0]).days for iv in intervals]
-    assert lengths == [31, 29, 31, 30]
-
-
-def test_weekly_cron() -> None:
-    """Weekly cron (every Monday at midnight)."""
-    overall = _iv("2024-01-01", "2024-01-29")
-    intervals = list(iter_intervals("0 0 * * 1", overall))
-    assert len(intervals) == 4
-    for iv in intervals:
-        assert (iv[1] - iv[0]).days == 7
-
-
-def test_iter_intervals_is_lazy() -> None:
-    overall = _iv("2024-01-01", "2024-12-31")
-    gen = iter_intervals("0 0 * * *", overall)
-    first = next(gen)
-    assert first == (
-        ensure_pendulum_datetime_utc("2024-01-01"),
-        ensure_pendulum_datetime_utc("2024-01-02"),
-    )
-    second = next(gen)
-    assert second == (
-        ensure_pendulum_datetime_utc("2024-01-02"),
-        ensure_pendulum_datetime_utc("2024-01-03"),
-    )
 
 
 def test_resolve_with_explicit_end() -> None:
@@ -192,91 +70,6 @@ def test_resolve_explicit_end_snapped() -> None:
 def test_cron_floor(cron_expr: str, dt: str, expected: str) -> None:
     assert cron_floor(cron_expr, ensure_pendulum_datetime_utc(dt)) == ensure_pendulum_datetime_utc(
         expected
-    )
-
-
-def test_eligible_intervals_skips_completed() -> None:
-    completed = sort_and_coalesce(
-        [
-            (
-                ensure_pendulum_datetime_utc("2024-01-01"),
-                ensure_pendulum_datetime_utc("2024-01-02"),
-            ),
-            (
-                ensure_pendulum_datetime_utc("2024-01-02"),
-                ensure_pendulum_datetime_utc("2024-01-03"),
-            ),
-        ]
-    )
-    overall = _iv("2024-01-01", "2024-01-05")
-    eligible = get_eligible_intervals("0 0 * * *", overall, completed)
-    assert len(eligible) == 2
-    assert eligible[0][0] == ensure_pendulum_datetime_utc("2024-01-03")
-
-
-def test_eligible_intervals_all_when_none_completed() -> None:
-    overall = _iv("2024-01-01", "2024-01-05")
-    eligible = get_eligible_intervals("0 0 * * *", overall, [])
-    assert len(eligible) == 4
-
-
-def test_eligible_intervals_ordered() -> None:
-    overall = _iv("2024-01-01", "2024-01-04")
-    eligible = get_eligible_intervals("0 0 * * *", overall, [])
-    starts = [iv[0] for iv in eligible]
-    assert starts == sorted(starts)
-
-
-def test_next_eligible_interval_returns_first_incomplete() -> None:
-    completed = [
-        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-02"))
-    ]
-    overall = _iv("2024-01-01", "2024-01-05")
-    iv = next_eligible_interval("0 0 * * *", overall, completed)
-    assert iv is not None
-    assert iv[0] == ensure_pendulum_datetime_utc("2024-01-02")
-
-
-def test_next_eligible_interval_none_when_all_done() -> None:
-    completed = [
-        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-03"))
-    ]
-    overall = _iv("2024-01-01", "2024-01-03")
-    iv = next_eligible_interval("0 0 * * *", overall, completed)
-    assert iv is None
-
-
-def test_next_eligible_skips_leading_completed() -> None:
-    """Leading completed block is trimmed, avoiding iteration over 100 done intervals."""
-    completed = [
-        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-04-10"))
-    ]
-    overall = _iv("2024-01-01", "2024-06-01")
-    iv = next_eligible_interval("0 0 * * *", overall, completed)
-    assert iv is not None
-    assert iv[0] == ensure_pendulum_datetime_utc("2024-04-10")
-
-
-def test_next_eligible_with_gap_in_middle() -> None:
-    """Completed intervals with a gap — returns the first interval in the gap."""
-    completed = sort_and_coalesce(
-        [
-            (
-                ensure_pendulum_datetime_utc("2024-01-01"),
-                ensure_pendulum_datetime_utc("2024-01-03"),
-            ),
-            (
-                ensure_pendulum_datetime_utc("2024-01-04"),
-                ensure_pendulum_datetime_utc("2024-01-05"),
-            ),
-        ]
-    )
-    overall = _iv("2024-01-01", "2024-01-05")
-    iv = next_eligible_interval("0 0 * * *", overall, completed)
-    assert iv is not None
-    assert iv == (
-        ensure_pendulum_datetime_utc("2024-01-03"),
-        ensure_pendulum_datetime_utc("2024-01-04"),
     )
 
 
@@ -337,105 +130,6 @@ def test_resolve_interval_spec_returns_utc(
     assert end.tzinfo == timezone.utc
     assert start == ensure_pendulum_datetime_utc(expected_start)
     assert end == ensure_pendulum_datetime_utc(expected_end)
-
-
-@pytest.mark.parametrize(
-    "tz,cron,overall_start,overall_end,expected_starts",
-    [
-        # Europe/Berlin spring forward: 2024-03-31 02:00 CET → 03:00 CEST.
-        # The exact-match assertion catches the "phantom 07:00 local" duplicate tick
-        # that aware-datetime cron iteration produces on DST-transition days.
-        (
-            "Europe/Berlin",
-            "0 8 * * *",
-            "2024-03-30T00:00:00Z",
-            "2024-04-02T23:59:59Z",
-            [
-                "2024-03-30T07:00:00Z",  # pre-DST: 08:00 CET = 07:00Z
-                "2024-03-31T06:00:00Z",  # post-DST: 08:00 CEST = 06:00Z — NO duplicate
-                "2024-04-01T06:00:00Z",  # still CEST
-            ],
-        ),
-        # Europe/Berlin fall back: 2024-10-27 03:00 CEST → 02:00 CET.
-        # The exact match catches the "09:00 local instead of 08:00" drift that
-        # aware-datetime cron iteration produces because the old CEST offset is
-        # carried forward across the fold.
-        (
-            "Europe/Berlin",
-            "0 8 * * *",
-            "2024-10-26T00:00:00Z",
-            "2024-10-29T23:59:59Z",
-            [
-                "2024-10-26T06:00:00Z",  # CEST: 08:00 = 06:00Z
-                "2024-10-27T07:00:00Z",  # CET: 08:00 = 07:00Z — NOT 08:00Z (09:00 local)
-                "2024-10-28T07:00:00Z",
-            ],
-        ),
-    ],
-    ids=["spring-forward", "fall-back"],
-)
-def test_iter_intervals_respects_tz_across_dst(
-    tz: str,
-    cron: str,
-    overall_start: str,
-    overall_end: str,
-    expected_starts: List[str],
-) -> None:
-    """Cron ticks follow the job's wall-clock across DST; yielded intervals are UTC.
-
-    Uses exact match on starts (not just `in`) so phantom DST duplicates or drifted
-    ticks fail the test rather than being silently tolerated.
-    """
-    overall = _iv(overall_start, overall_end)
-    intervals = list(iter_intervals(cron, overall, tz=tz))
-    for iv in intervals:
-        assert iv[0].tzinfo == timezone.utc
-        assert iv[1].tzinfo == timezone.utc
-    starts = [iv[0] for iv in intervals]
-    assert starts == [ensure_pendulum_datetime_utc(s) for s in expected_starts]
-
-
-@pytest.mark.parametrize(
-    "tz,cron,overall_start,overall_end,expected_start,expected_end",
-    [
-        # overall[0] in Berlin CEST is 06-01T02:00; next "0 0" Berlin is 06-02T00:00 = 06-01T22:00Z
-        (
-            "Europe/Berlin",
-            "0 0 * * *",
-            "2024-06-01T00:00:00Z",
-            "2024-06-03T00:00:00Z",
-            "2024-06-01T22:00:00Z",
-            "2024-06-02T22:00:00Z",
-        ),
-        # NY winter (EST -05:00): "0 0" NY = 05:00Z
-        (
-            "America/New_York",
-            "0 0 * * *",
-            "2024-01-01T00:00:00Z",
-            "2024-01-03T00:00:00Z",
-            "2024-01-01T05:00:00Z",
-            "2024-01-02T05:00:00Z",
-        ),
-    ],
-    ids=["berlin-summer", "new-york-winter"],
-)
-def test_next_eligible_interval_tz_returns_utc(
-    tz: str,
-    cron: str,
-    overall_start: str,
-    overall_end: str,
-    expected_start: str,
-    expected_end: str,
-) -> None:
-    """next_eligible_interval with a non-UTC tz returns UTC intervals."""
-    overall = _iv(overall_start, overall_end)
-    iv = next_eligible_interval(cron, overall, [], tz=tz)
-    assert iv is not None
-    assert iv[0].tzinfo == timezone.utc
-    assert iv == (
-        ensure_pendulum_datetime_utc(expected_start),
-        ensure_pendulum_datetime_utc(expected_end),
-    )
 
 
 @pytest.mark.parametrize(

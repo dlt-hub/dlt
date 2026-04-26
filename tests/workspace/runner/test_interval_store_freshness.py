@@ -7,7 +7,7 @@ import pytest
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import TTimeInterval
 
-from dlt._workspace.deployment.interval import (
+from dlt._workspace.deployment._interval_store_freshness import (
     check_all_upstream_interval_fresh,
     resolve_interval_freshness_checks,
 )

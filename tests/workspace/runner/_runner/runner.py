@@ -25,12 +25,14 @@ from dlt._workspace.deployment.typing import (
     TTrigger,
 )
 from dlt._workspace.deployment.interval import (
-    check_all_upstream_interval_fresh,
     check_all_upstream_run_fresh,
     compute_run_interval,
+    resolve_interval_spec,
+)
+from dlt._workspace.deployment._interval_store_freshness import (
+    check_all_upstream_interval_fresh,
     next_eligible_interval,
     resolve_interval_freshness_checks,
-    resolve_interval_spec,
     resolve_run_freshness_refs,
 )
 from tests.workspace.runner._runner.freshness_store import (
