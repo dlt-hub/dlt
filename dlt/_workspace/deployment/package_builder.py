@@ -78,7 +78,8 @@ class PackageBuilder:
     ) -> str:
         """Write deployment package to output stream, return content hash"""
         manifest_files: List[TDeploymentFileItem] = []
-        workspace_root = Path(self.run_context.run_dir).resolve()
+        # needed to check symlink target
+        workspace_root: Path = None
 
         with tarfile.open(fileobj=output_stream, mode="w|gz") as tar:
             for abs_path, rel_path in file_selector:
@@ -86,6 +87,9 @@ class PackageBuilder:
                 arcname = f"{DEFAULT_DEPLOYMENT_FILES_FOLDER}/{posix_path}"
 
                 if abs_path.is_symlink():
+                    # resolve workspace root on demand
+                    if not workspace_root:
+                        workspace_root = Path(self.run_context.run_dir).resolve()
                     if not _symlink_target_inside_root(abs_path, workspace_root):
                         logger.warning(
                             "Skipping symlink %r in deployment: target %r does"

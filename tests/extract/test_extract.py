@@ -907,13 +907,7 @@ def test_add_metrics(extract_step: Extract, as_single_batch: bool) -> None:
 
 
 def test_custom_metrics_preserved_when_all_items_filtered(extract_step: Extract) -> None:
-    """Zero-yield resources still surface their custom metrics in extract_info.
-
-    Both metrics APIs (`dlt.current.resource_metrics()` and `resource.add_metrics`)
-    populate in-memory dicts even when every item is filtered before reaching the
-    writer. `_compute_metrics` backfills such resources so the counters are
-    preserved with an empty writer-metrics entry.
-    """
+    """Zero-yield resources still surface their custom metrics in extract_info."""
 
     @dlt.resource
     def all_filtered():

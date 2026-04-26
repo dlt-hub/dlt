@@ -93,7 +93,7 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
             },
         )
         def items(
-            cursor=dlt.sources.incremental[pendulum.DateTime](
+            cursor=dlt.sources.incremental[pendulum.DateTime](  # noqa: B008
                 "created_at", initial_value=ITEMS_EPOCH
             ),
         ):

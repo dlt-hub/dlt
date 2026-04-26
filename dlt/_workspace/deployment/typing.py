@@ -5,12 +5,9 @@ from dlt.common.typing import NotRequired, TypedDict
 
 
 MANIFEST_ENGINE_VERSION = 1
-
 REQUIREMENTS_ENGINE_VERSION = 1
-
 MAIN_GROUP = "main"
 """Conventional group name for top-level workspace dependencies."""
-
 DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
 """Default deployment module name for manifest generation."""
 
@@ -67,7 +64,6 @@ TJobType = Literal["batch", "interactive", "stream"]
 
 TInterfaceType = Literal["gui", "rest_api", "mcp"]
 """What an interactive job exposes: web UI, programmatic API, or MCP tool server."""
-
 
 TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook"]
 """UI category for grouping jobs in the runtime interface."""

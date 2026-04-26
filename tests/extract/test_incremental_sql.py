@@ -221,7 +221,7 @@ def test_to_sqlglot_filter_after_resource_extract() -> None:
 
     @dlt.resource
     def items(
-        cursor=dlt.sources.incremental[int]("id", initial_value=0, lag=2),
+        cursor=dlt.sources.incremental[int]("id", initial_value=0, lag=2),  # noqa: B008
     ):
         # advances state["last_value"] to 5
         yield from [{"id": i} for i in range(1, 6)]

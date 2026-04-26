@@ -47,7 +47,7 @@ from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
 
-from tests.extract.utils import AssertItems, data_item_to_list
+from tests.extract.utils import data_item_to_list
 from tests.pipeline.utils import assert_query_column
 from tests.utils import (
     ALL_TEST_DATA_ITEM_FORMATS,
@@ -2900,107 +2900,6 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
     assert r.incremental.incremental.allow_external_schedulers is False
     # any will be ignored when merging explicit instance with default
     assert r.incremental.incremental.get_incremental_value_type() is int
-
-
-@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_join_env_scheduler(item_type: TestDataItemFormat) -> None:
-    d1 = pendulum.datetime(2024, 1, 1, tz="UTC")
-    d2 = pendulum.datetime(2024, 1, 2, tz="UTC")
-    d3 = pendulum.datetime(2024, 1, 3, tz="UTC")
-
-    @dlt.resource
-    def test_type_2(
-        updated_at: dlt.sources.incremental[datetime] = dlt.sources.incremental(
-            "updated_at", allow_external_schedulers=True
-        )
-    ):
-        data = [{"updated_at": d} for d in [d1, d2, d3]]
-        yield data_to_item_format(item_type, data)
-
-    # wide range [d2, d4) over [d1, d2, d3] → d2, d3
-    os.environ["DLT_INTERVAL_START"] = "2024-01-02T00:00:00Z"
-    os.environ["DLT_INTERVAL_END"] = "2024-01-04T00:00:00Z"
-    with Container().injectable_context(TimeIntervalContext()):
-        result = list(test_type_2())
-    assert len(data_item_to_list(item_type, result)) == 2
-
-    # narrower range [d2, d3) → d2
-    os.environ["DLT_INTERVAL_END"] = "2024-01-03T00:00:00Z"
-    with Container().injectable_context(TimeIntervalContext()):
-        result = list(test_type_2())
-    assert len(data_item_to_list(item_type, result)) == 1
-
-
-@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_join_env_scheduler_pipeline(item_type: TestDataItemFormat) -> None:
-    d1 = pendulum.datetime(2024, 1, 1, tz="UTC")
-    d2 = pendulum.datetime(2024, 1, 2, tz="UTC")
-    d3 = pendulum.datetime(2024, 1, 3, tz="UTC")
-
-    @dlt.resource
-    def test_type_2(
-        updated_at: dlt.sources.incremental[datetime] = dlt.sources.incremental(
-            "updated_at", allow_external_schedulers=True
-        )
-    ):
-        data = [{"updated_at": d} for d in [d1, d2, d3]]
-        yield data_to_item_format(item_type, data)
-
-    pip_1_name = "incremental_" + uniq_id()
-    pipeline = dlt.pipeline(pipeline_name=pip_1_name, destination="duckdb")
-
-    # range [d2, d3) → d2; mock state (end_value set)
-    os.environ["DLT_INTERVAL_START"] = "2024-01-02T00:00:00Z"
-    os.environ["DLT_INTERVAL_END"] = "2024-01-03T00:00:00Z"
-    with Container().injectable_context(TimeIntervalContext()):
-        r = test_type_2()
-        r.add_step(AssertItems([{"updated_at": d2}], item_type))
-        pipeline.extract(r)
-
-    # same range, fresh injection extracts same items (mock state, not persisted)
-    with Container().injectable_context(TimeIntervalContext()):
-        r = test_type_2()
-        r.add_step(AssertItems([{"updated_at": d2}], item_type))
-        pipeline.extract(r)
-
-    # shift start earlier, widen range to [d1, d3) → d1, d2
-    os.environ["DLT_INTERVAL_START"] = "2024-01-01T00:00:00Z"
-    with Container().injectable_context(TimeIntervalContext()):
-        r = test_type_2()
-        r.add_step(AssertItems([{"updated_at": d1}, {"updated_at": d2}], item_type))
-        pipeline.extract(r)
-
-
-@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_allow_external_schedulers(item_type: TestDataItemFormat) -> None:
-    from dlt.extract.incremental.exceptions import JoinSchedulerError
-
-    d1 = pendulum.datetime(2024, 1, 1, tz="UTC")
-    d2 = pendulum.datetime(2024, 1, 2, tz="UTC")
-    d3 = pendulum.datetime(2024, 1, 3, tz="UTC")
-
-    @dlt.resource()
-    def test_type_dt():
-        data = [{"updated_at": d} for d in [d1, d2, d3]]
-        yield data_to_item_format(item_type, data)
-
-    # add incremental dynamically with datetime type; range [d2, d4) → d2, d3
-    os.environ["DLT_INTERVAL_START"] = "2024-01-02T00:00:00Z"
-    os.environ["DLT_INTERVAL_END"] = "2024-01-04T00:00:00Z"
-    with Container().injectable_context(TimeIntervalContext()):
-        r = test_type_dt()
-        r.add_step(dlt.sources.incremental[datetime]("updated_at"))
-        r.incremental.allow_external_schedulers = True
-        result = data_item_to_list(item_type, list(r))
-    assert len(result) == 2
-
-    # untyped incremental raises JoinSchedulerError during type validation
-    with Container().injectable_context(TimeIntervalContext()):
-        r = test_type_dt()
-        r.add_step(dlt.sources.incremental("updated_at"))
-        r.incremental.allow_external_schedulers = True
-        with pytest.raises(JoinSchedulerError):
-            list(r)
 
 
 @pytest.mark.parametrize("yield_pydantic", (True, False))

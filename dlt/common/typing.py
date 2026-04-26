@@ -128,12 +128,7 @@ TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
 TAnyDateTime = Union[pendulum.DateTime, pendulum.Date, datetime, date, str, float, int]
 """DateTime represented as pendulum/python object, ISO string or unix timestamp"""
 TTimeInterval = Tuple[datetime, datetime]
-"""Half-open time interval `[start, end)` as timezone-aware datetimes.
-
-Convention: always UTC when serialized or persisted. Timezone is re-applied at
-the launcher boundary (from `require.timezone`), so user-facing interval values
-inside a job carry the job's IANA timezone identity.
-"""
+"""Half-open time interval `[start, end)` as timezone-aware datetimes."""
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"

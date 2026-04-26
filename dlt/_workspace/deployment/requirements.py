@@ -1,5 +1,7 @@
-"""Export, save, load, and migrate `TWorkspaceRequirementsManifest` — the
-wire format for workspace dependencies shipped to the runtime."""
+"""Export, save, load, and migrate `TWorkspaceRequirementsManifest` — the wire format for workspace dependencies shipped to the runtime.
+Supports requirements.txt and requirements.in. If uv installed - supports pyproject with dependency groups and uv/PEP lock files.
+poetry/PDM support can be easily added.
+"""
 
 import importlib.metadata
 import re
@@ -79,8 +81,7 @@ def get_dlt_requirement_spec() -> str:
 
     Uses PEP 610 `direct_url.json` when dlt was installed from a URL (branch
     zip, git) so the spec survives on a remote runner; falls back to a
-    `dlt==<version>` pin for ordinary index installs. Mirrors the runtime
-    vault's repackager so manifests stay consistent with what runs on Modal.
+    `dlt==<version>` pin for ordinary index installs.
     """
     dist = importlib.metadata.distribution(DLT_PKG_NAME)
     direct_url_text = dist.read_text("direct_url.json")
@@ -174,14 +175,12 @@ def export_workspace_requirements(
     Raises:
         WorkspaceRequirementsError: `uv.lock` out of sync, `uv` failure, or parse error.
     """
-    workspace_root = Path(workspace_root)
-
     pyproject_path = workspace_root / PYPROJECT_TOML
     uv_lock_path = workspace_root / UV_LOCK
     requirements_txt_path = workspace_root / REQUIREMENTS_TXT
     requirements_in_path = workspace_root / REQUIREMENTS_IN
 
-    # detection order: pyproject → requirements.txt → requirements.in → empty main
+    # detection order: pyproject -> requirements.txt -> requirements.in -> empty main
     if pyproject_path.exists():
         groups = _export_from_pyproject(workspace_root, pyproject_path, uv_lock_path)
     elif requirements_txt_path.exists():
