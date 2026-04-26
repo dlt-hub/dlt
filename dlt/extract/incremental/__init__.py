@@ -11,10 +11,7 @@ from typing import (
     Tuple,
     TYPE_CHECKING,
 )
-
-if TYPE_CHECKING:
-    from dlt.common.libs.sqlglot import sge
-
+from datetime import datetime  # noqa: I251
 import inspect
 from functools import wraps
 
@@ -52,6 +49,9 @@ from dlt.common.incremental.typing import (
     TIncrementalRange,
 )
 
+if TYPE_CHECKING:
+    from dlt.common.libs.sqlglot import sge
+
 from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental.exceptions import (
     ExternalSchedulerNotAvailable,
@@ -68,7 +68,7 @@ from dlt.extract.incremental.transform import (
     ArrowIncremental,
     IncrementalTransform,
 )
-from dlt.extract.incremental.lag import apply_lag
+from dlt.extract.incremental.lag import apply_lag_with_suppression
 from dlt.extract.incremental.sql import to_sqlglot_filter as _to_sqlglot_filter
 
 try:
@@ -322,22 +322,42 @@ class Incremental(
         """Return the name of the cursor column if the cursor path resolves to a single column"""
         return extract_simple_field_name(self.cursor_path)
 
+    def _resolve_bounds(
+        self, apply_lag: bool = True
+    ) -> Tuple[Optional[TCursorValue], Optional[TCursorValue]]:
+        """Resolve `(lower, upper)` cursor bounds. Works on bound and unbound instances."""
+        # upper: explicit end_value beats the live cursor; on unbound, live is None
+        upper = self.end_value
+        if upper is None and self._cached_state is not None:
+            upper = self._cached_state.get("last_value")
+
+        lower: Optional[TCursorValue]
+        if self._cached_state is None:
+            # unbound: no state to read from. lag needs a live last_value to step
+            # back from — there is none — so it is a no-op here regardless of self.lag
+            lower = self.initial_value
+        elif apply_lag:
+            # bind() set self.start_value via `last_value` property, which calls
+            # apply_lag_with_suppression — so this is already lag-adjusted
+            lower = self.start_value
+        else:
+            # raw start as persisted into state by bind()
+            lower = self._cached_state.get("start_value")
+        return lower, upper
+
     def to_sqlglot_filter(self, apply_lag: bool = True) -> Optional["sge.Expression"]:
         """Build a sqlglot WHERE expression that filters rows to the current incremental window.
 
-        See `dlt.extract.incremental.sql.to_sqlglot_filter` for full semantics.
+        Works on bound and unbound instances; see `dlt.extract.incremental.sql.to_sqlglot_filter`
+        for full semantics.
 
         Args:
-            apply_lag (bool): When True (default) use the lag-adjusted instance `start_value`
-                as the lower bound. When False, use the raw `start_value` from cached state;
-                requires the incremental to have been bound.
+            apply_lag (bool): When True (default) lag is applied to the lower bound;
+                when False the raw cached `start_value` is used.
 
         Returns:
             Optional[sge.Expression]: A sqlglot boolean expression suitable for use as a
                 WHERE clause, or `None` when filtering is not possible.
-
-        Raises:
-            IncrementalUnboundError: If `apply_lag=False` and the incremental is unbound.
         """
         return _to_sqlglot_filter(self, apply_lag=apply_lag)
 
@@ -453,25 +473,14 @@ class Incremental(
     @property
     def last_value(self) -> Optional[TCursorValue]:
         s = self.get_state()
-        last_value: TCursorValue = s["last_value"]
-
-        if self.lag:
-            if self.last_value_func not in (max, min):
-                logger.warning(
-                    f"Lag on {self.resource_name} is only supported for max or min last_value_func."
-                    f" Provided: {self.last_value_func}"
-                )
-            elif self.end_value is not None:
-                logger.info(
-                    f"Lag on {self.resource_name} is deactivated if end_value is set in"
-                    " incremental."
-                )
-            elif last_value is not None:
-                last_value = apply_lag(
-                    self.lag, self.initial_value, last_value, self.last_value_func
-                )
-
-        return last_value
+        return apply_lag_with_suppression(  # type: ignore[no-any-return]
+            self.lag,
+            self.last_value_func,
+            self.initial_value,
+            self.end_value,
+            s["last_value"],
+            self.resource_name,
+        )
 
     def _transform_item(
         self, transformer: IncrementalTransform, row: TDataItem
@@ -539,13 +548,11 @@ class Incremental(
             self.end_value = coerce_from_date_types(data_type, end)  # end_value must be set
 
             # adapt scheduler values tz-awareness to match configured bounds
-            from datetime import datetime as _datetime  # noqa: I251
-
-            if configured_initial is not None and isinstance(self.initial_value, _datetime):
+            if configured_initial is not None and isinstance(self.initial_value, datetime):
                 self.initial_value = IncrementalTransform._adapt_timezone(
                     configured_initial, self.initial_value, "initial_value", self.resource_name
                 )
-            if configured_end is not None and isinstance(self.end_value, _datetime):
+            if configured_end is not None and isinstance(self.end_value, datetime):
                 self.end_value = IncrementalTransform._adapt_timezone(
                     configured_end, self.end_value, "end_value", self.resource_name
                 )

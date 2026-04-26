@@ -4,10 +4,11 @@ from typing import Any, Callable, Optional
 import pytest
 
 import dlt
+from dlt.common.configuration.container import Container
 from dlt.common.pendulum import pendulum
+from dlt.common.pipeline import StateInjectableContext
 from dlt.common.typing import TSortOrder  # noqa: F401  -- avoids unused-import lint downstream
 
-from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental import Incremental
 
 
@@ -191,14 +192,59 @@ def test_to_sqlglot_filter_apply_lag_false_uses_state() -> None:
     )
 
 
-def test_to_sqlglot_filter_apply_lag_false_unbound_raises() -> None:
-    """`apply_lag=False` requires a bound incremental; `apply_lag=True` does not."""
+def test_to_sqlglot_filter_unbound_uses_instance_values() -> None:
+    """Unbound incremental falls back to instance `initial_value` / `end_value`; no error."""
     incr = dlt.sources.incremental[int]("created_at", initial_value=10)
-    # not bound — _cached_state is None
-    with pytest.raises(IncrementalUnboundError):
-        incr.to_sqlglot_filter(apply_lag=False)
-    # apply_lag=True falls back to instance start_value (= initial_value)
+    # both flavours fall back to initial_value (no last_value to lag from,
+    # no cached start_value to read)
     assert _filter_sql(incr, apply_lag=True) == '"created_at" >= CAST(10 AS BIGINT)'
+    assert _filter_sql(incr, apply_lag=False) == '"created_at" >= CAST(10 AS BIGINT)'
+
+
+def test_to_sqlglot_filter_unbound_with_end_value() -> None:
+    """Unbound incremental with `end_value` emits both bounds from instance values."""
+    incr = dlt.sources.incremental[int]("created_at", initial_value=10, end_value=100)
+    assert (
+        _filter_sql(incr)
+        == '"created_at" >= CAST(10 AS BIGINT) AND "created_at" < CAST(100 AS BIGINT)'
+    )
+
+
+def test_to_sqlglot_filter_unbound_lag_is_no_op() -> None:
+    """Lag set on unbound incremental is a no-op (no last_value to step back from)."""
+    incr = dlt.sources.incremental[int]("created_at", initial_value=10, lag=5)
+    assert _filter_sql(incr) == '"created_at" >= CAST(10 AS BIGINT)'
+
+
+def test_to_sqlglot_filter_after_resource_extract() -> None:
+    """After resource extraction populates state, filter reflects state-derived bounds."""
+
+    @dlt.resource
+    def items(
+        cursor=dlt.sources.incremental[int]("id", initial_value=0, lag=2),
+    ):
+        # advances state["last_value"] to 5
+        yield from [{"id": i} for i in range(1, 6)]
+
+    with Container().injectable_context(StateInjectableContext(state={})):
+        res = items()
+        list(res)
+        # second pass: bind() reads persisted state, applies lag
+        res2 = items()
+        list(res2)
+        incr = res2._pipe.steps[-1]  # the IncrementalTransform's incremental — fall back below
+        # actually grab the bound incremental from the resource
+        incr = res2.incremental._incremental
+        # last_value was 5; lag=2 with max func -> lower = 5 - 2 = 3; upper = 5 (live)
+        assert (
+            _filter_sql(incr, apply_lag=True)
+            == '"id" >= CAST(3 AS BIGINT) AND "id" < CAST(5 AS BIGINT)'
+        )
+        # apply_lag=False: raw start_value from state = 5 (bind sets it from last_value)
+        assert (
+            _filter_sql(incr, apply_lag=False)
+            == '"id" >= CAST(5 AS BIGINT) AND "id" < CAST(5 AS BIGINT)'
+        )
 
 
 @pytest.mark.parametrize(
@@ -207,7 +253,7 @@ def test_to_sqlglot_filter_apply_lag_false_unbound_raises() -> None:
         pytest.param(
             pendulum.DateTime,
             pendulum.parse("2024-01-01T00:00:00Z"),
-            "CAST('2024-01-01 00:00:00+00:00' AS TIMESTAMP)",
+            "CAST('2024-01-01 00:00:00+00:00' AS TIMESTAMPTZ)",
             id="datetime-tz-aware",
         ),
         pytest.param(

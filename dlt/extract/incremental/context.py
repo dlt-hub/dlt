@@ -2,7 +2,7 @@
 
 import os
 from typing import Any, ClassVar, Optional, Tuple
-from datetime import datetime, timezone  # noqa: I251
+from datetime import datetime  # noqa: I251
 from zoneinfo import ZoneInfo
 
 from dlt.common.configuration.specs.base_configuration import (
@@ -10,23 +10,8 @@ from dlt.common.configuration.specs.base_configuration import (
     configspec,
 )
 from dlt.common.configuration.container import Container
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_utc
 from dlt.common.typing import TTimeInterval
-
-
-def _parse_utc(iso_utc: str) -> datetime:
-    """Parse a UTC ISO string to a stdlib datetime with `tzinfo=timezone.utc`."""
-    pdt = ensure_pendulum_datetime_utc(iso_utc)
-    return datetime(
-        pdt.year,
-        pdt.month,
-        pdt.day,
-        pdt.hour,
-        pdt.minute,
-        pdt.second,
-        pdt.microsecond,
-        tzinfo=timezone.utc,
-    )
 
 
 @configspec
@@ -70,8 +55,8 @@ class TimeIntervalContext(ContainerInjectableContext):
         start_value = os.environ.get("DLT_INTERVAL_START")
         end_value = os.environ.get("DLT_INTERVAL_END")
         if start_value and end_value:
-            start_utc = _parse_utc(start_value)
-            end_utc = _parse_utc(end_value)
+            start_utc = ensure_datetime_utc(start_value)
+            end_utc = ensure_datetime_utc(end_value)
             tz_name = os.environ.get("DLT_INTERVAL_TIMEZONE")
             if tz_name:
                 tz = ZoneInfo(tz_name)

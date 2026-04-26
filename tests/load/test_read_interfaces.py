@@ -1,13 +1,16 @@
+from datetime import timedelta  # noqa: I251
 from typing import Any, cast, Tuple, List
 import re
 import pytest
 import dlt
 import os
-
 import sqlglot.expressions as sge
+from copy import copy
 
 from dlt import Pipeline
 from dlt.common import Decimal
+from dlt.common.incremental.typing import IncrementalColumnState
+from dlt.common.pendulum import pendulum
 
 from typing import List
 from functools import reduce
@@ -18,6 +21,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 
 from dlt.common.utils import uniq_id
+from dlt.extract.incremental import Incremental
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
@@ -34,7 +38,10 @@ from tests.utils import (
 )
 from tests.load.utils import drop_pipeline_data
 
-EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
+EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "created_at", "_dlt_load_id", "_dlt_id"]
+
+# items.created_at is generated as `ITEMS_EPOCH + timedelta(seconds=i)` for i in range(total_records)
+ITEMS_EPOCH = pendulum.datetime(2024, 1, 1, 0, 0, 0, tz="UTC")
 
 
 def _total_records(destination_type: str) -> int:
@@ -82,15 +89,21 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
                 # we add a decimal with precision to see wether the hints are preserved
                 "decimal": {"data_type": "decimal", "precision": 10, "scale": 3},
                 "other_decimal": {"data_type": "decimal", "precision": 12, "scale": 3},
+                "created_at": {"data_type": "timestamp"},
             },
         )
-        def items():
+        def items(
+            cursor=dlt.sources.incremental[pendulum.DateTime](
+                "created_at", initial_value=ITEMS_EPOCH
+            ),
+        ):
             yield from [
                 {
                     "id": i,
                     "children": [{"id": i + 100}, {"id": i + 1000}],
                     "decimal": Decimal("10.433"),
                     "other_decimal": Decimal("10.433"),
+                    "created_at": ITEMS_EPOCH + timedelta(seconds=i),
                 }
                 for i in range(total_records)
             ]
@@ -160,7 +173,6 @@ def populated_pipeline(
     # create a second schema in the pipeline
     # NOTE: that generates additional load package and then another one for the state
     # NOTE: "aleph" schema is now the newest schema in the dataset and we assume that later in the tests
-    # TODO: we need some kind of idea for multi-schema datasets
     pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
     print(pipeline.last_trace.last_normalize_info)
 
@@ -905,6 +917,110 @@ def test_where(populated_pipeline: Pipeline) -> None:
     assert "Received invalid value `operator=wrong`" in py_exc.value.args[0]
 
     assert total_records - 3 == len(not_in_rows)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.serial
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_to_sqlglot_filter_on_dataset(populated_pipeline: Pipeline) -> None:
+    """End-to-end: Incremental.to_sqlglot_filter() applied via dataset().items.where(expr)."""
+    is_sqlite = "sqlite" in populated_pipeline.destination.destination_name.lower()
+    # TODO: file upstream sqlglot; remove this monkey-patch once merged.
+    _orig_cast_sql = None
+    if is_sqlite:
+        from sqlglot.dialects.sqlite import SQLite as _SQLiteDialect
+
+        # PoC override: sqlglot's SQLiteGenerator already rewrites `CAST AS DATE` -> `DATE(x)`
+        # to side-step sqlite's NUMERIC-affinity trap, but doesn't extend that to TIMESTAMP /
+        # TIMESTAMPTZ / DATETIME. Without the patch, CAST AS TIMESTAMPTZ parses leading digits
+        # of the literal and yields integer 2024, breaking comparisons with TEXT-stored ISO
+        # strings. The patch wraps timestamp casts in `DATETIME(x)` which preserves the string.
+        _gen_cls = _SQLiteDialect.Generator
+        _orig_cast_sql = _gen_cls.cast_sql
+
+        def _patched_cast_sql(self, expression, safe_prefix=None):
+            if expression.is_type("date"):
+                return self.func("DATE", expression.this)
+            if expression.is_type("timestamp", "timestamptz", "datetime"):
+                return self.func("DATETIME", expression.this)
+            return _orig_cast_sql(self, expression, safe_prefix)
+
+        _gen_cls.cast_sql = _patched_cast_sql  # type: ignore[method-assign]
+    try:
+        _run_filter_assertions(populated_pipeline)
+    finally:
+        if is_sqlite and _orig_cast_sql is not None:
+            from sqlglot.dialects.sqlite import SQLite as _SQLiteDialect
+
+            _SQLiteDialect.Generator.cast_sql = _orig_cast_sql  # type: ignore[method-assign]
+
+
+def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
+    items = populated_pipeline.dataset().items
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    last_dt = ITEMS_EPOCH + timedelta(seconds=total_records - 1)
+
+    # post-run state matches what `bind()` persisted: start_value snapshot == last_value
+    cached_state: IncrementalColumnState = {
+        "initial_value": ITEMS_EPOCH,
+        "last_value": last_dt,
+        "start_value": last_dt,
+        "unique_hashes": [],
+    }
+
+    def _bind(incr: Incremental[Any], instance_start_value: Any = None) -> Incremental[Any]:
+        # mirror Incremental.bind(): instance start_value is the lag-applied lower
+        # (or raw last_value when no lag), cached_state["start_value"] is the raw snapshot
+        incr._cached_state = copy(cached_state)
+        incr.start_value = instance_start_value if instance_start_value is not None else last_dt
+        return incr
+
+    # bound, no lag: lower == upper == last_dt -> "no new data" filter, 0 rows
+    incr = _bind(dlt.sources.incremental[pendulum.DateTime]("created_at"))
+    expr = incr.to_sqlglot_filter()
+    assert expr is not None
+    assert items.where(expr).fetchall() == []
+
+    # 1. lag — 5 seconds backward; bind() would set start_value = last_dt - 5s
+    lagged_start = last_dt - timedelta(seconds=5)
+    incr_lag = _bind(
+        dlt.sources.incremental[pendulum.DateTime]("created_at", lag=5.0),
+        instance_start_value=lagged_start,
+    )
+    expr = incr_lag.to_sqlglot_filter()
+    # filter: created_at >= last_dt-5s AND < last_dt -> positions total-6..total-2 = 5 rows
+    assert len(items.where(expr).fetchall()) == 5
+    # apply_lag=False reads raw cached state["start_value"] (= last_dt) -> 0 rows
+    expr_raw = incr_lag.to_sqlglot_filter(apply_lag=False)
+    assert items.where(expr_raw).fetchall() == []
+
+    # 2. no upper bound — fresh, unbound, just initial_value
+    # filter: created_at >= ITEMS_EPOCH -> all rows
+    incr_unbound = dlt.sources.incremental[pendulum.DateTime](
+        "created_at", initial_value=ITEMS_EPOCH
+    )
+    expr = incr_unbound.to_sqlglot_filter()
+    assert len(items.where(expr).fetchall()) == total_records
+
+    # 3. open start, closed end — fresh, unbound, range modifiers on both ends
+    range_start_dt = ITEMS_EPOCH + timedelta(seconds=10)
+    range_end_dt = ITEMS_EPOCH + timedelta(seconds=20)
+    incr_range = dlt.sources.incremental[pendulum.DateTime](
+        "created_at",
+        initial_value=range_start_dt,
+        end_value=range_end_dt,
+        range_start="open",
+        range_end="closed",
+    )
+    expr = incr_range.to_sqlglot_filter()
+    # filter: created_at > t+10s AND created_at <= t+20s -> positions 11..20 = 10 rows
+    assert len(items.where(expr).fetchall()) == 10
 
 
 @pytest.mark.no_load

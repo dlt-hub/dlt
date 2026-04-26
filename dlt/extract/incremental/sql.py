@@ -1,9 +1,8 @@
+from datetime import datetime  # noqa: I251
 from typing import Any, List, Optional, Type, TYPE_CHECKING
 
 from dlt.common.data_types.type_helpers import py_type_to_sc_type
 from dlt.common.libs.sqlglot import sge, to_sqlglot_type, build_typed_literal
-
-from dlt.extract.exceptions import IncrementalUnboundError
 
 if TYPE_CHECKING:
     from dlt.extract.incremental import Incremental
@@ -14,38 +13,29 @@ def to_sqlglot_filter(
 ) -> Optional[sge.Expression]:
     """Build a sqlglot WHERE expression that filters rows to the current incremental window.
 
-    The filter is computed from the persisted state and current bounds:
-    - The lower bound is `start_value` (lag-adjusted) when `apply_lag=True`,
-      or the raw `state["start_value"]` snapshotted at `bind()` time when `apply_lag=False`.
-    - The upper bound is `end_value` if set, otherwise `state["last_value"]` (which advances
-      during the run), otherwise no upper bound clause is emitted.
-    - `range_start` and `range_end` decide whether endpoints are inclusive (`closed`)
-      or exclusive (`open`); the operator direction follows `last_value_func`.
-    - `on_cursor_value_missing="include"` ORs `cursor IS NULL`, `"exclude"` ANDs
-      `cursor IS NOT NULL`, `"raise"` emits no NULL clause.
+    Bounds come from `Incremental._resolve_bounds(apply_lag=apply_lag)` which works
+    on both bound and unbound instances (falling back to `initial_value` / `end_value`).
+    `range_start` / `range_end` decide endpoint inclusivity; the operator direction
+    follows `last_value_func`. `on_cursor_value_missing` controls NULL handling
+    (`"include"` ORs `cursor IS NULL`, `"exclude"` ANDs `cursor IS NOT NULL`,
+    `"raise"` emits no NULL clause).
 
     Args:
         incremental (Incremental): The incremental instance whose cursor is filtered.
-        apply_lag (bool): When True (default) use the lag-adjusted instance `start_value`
-            as the lower bound. When False, use the raw `start_value` from cached state;
-            requires the incremental to have been bound.
+        apply_lag (bool): When True (default) lag is applied to the lower bound;
+            when False the raw cached `start_value` is used.
 
     Returns:
         Optional[sge.Expression]: A sqlglot boolean expression suitable for use as a WHERE
             clause, or `None` when filtering is not possible: a JSONPath cursor (not a
             simple column), a custom `last_value_func` other than `min`/`max`, or no
             bounds and no NULL handling.
-
-    Raises:
-        IncrementalUnboundError: If `apply_lag=False` is requested and the incremental
-            has not been bound (no cached state to read raw `start_value` from).
     """
     column_name = incremental.get_cursor_column_name()
     if column_name is None:
         # JSONPath cursor cannot be filtered in SQL
         return None
 
-    # operator selection mirrors dlt/sources/sql_database/helpers.py:170-180
     lower_op: Type[sge.Binary]
     upper_op: Type[sge.Binary]
     if incremental.last_value_func is max:
@@ -58,34 +48,27 @@ def to_sqlglot_filter(
         # custom last_value_func cannot be translated to SQL
         return None
 
-    # lower bound source
-    if apply_lag:
-        # `start_value` is set in bind() from `last_value` property; lag is auto-suppressed
-        # when end_value is set (see Incremental.last_value lines 440-444)
-        lower = incremental.start_value
-    else:
-        if incremental._cached_state is None:
-            raise IncrementalUnboundError(incremental.cursor_path)
-        lower = incremental._cached_state.get("start_value")
-
-    # upper bound source: end_value > live last_value > None
-    upper: Optional[Any]
-    if incremental.end_value is not None:
-        upper = incremental.end_value
-    elif (
-        incremental._cached_state is not None
-        and incremental._cached_state.get("last_value") is not None
-    ):
-        upper = incremental._cached_state["last_value"]
-    else:
-        upper = None
+    lower, upper = incremental._resolve_bounds(apply_lag=apply_lag)
 
     # type the literal: derive sqlglot DataType from cursor's Python type
     sqlglot_type: Optional[sge.DataType] = None
     param_type = incremental.get_incremental_value_type()
     if param_type is not Any:
         try:
-            sqlglot_type = to_sqlglot_type(dlt_type=py_type_to_sc_type(param_type))
+            # tz-awareness comes from the actual bound value — needed so dialects that
+            # split timestamp/timestamptz (bigquery DATETIME vs TIMESTAMP) emit the
+            # right cast and don't reject the comparison
+            timezone: Optional[bool] = None
+            tz_sample = (
+                lower
+                if isinstance(lower, datetime)
+                else (upper if isinstance(upper, datetime) else None)
+            )
+            if tz_sample is not None:
+                timezone = tz_sample.tzinfo is not None
+            sqlglot_type = to_sqlglot_type(
+                dlt_type=py_type_to_sc_type(param_type), timezone=timezone
+            )
         except TypeError:
             # unmappable Python type — emit untyped literal
             sqlglot_type = None
