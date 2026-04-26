@@ -229,7 +229,7 @@ def test_resolved_job_triggers() -> None:
     assert result.unresolved_triggers == {}
 
 
-def test_interval_without_schedule_trigger() -> None:
+def test_interval_without_schedule_or_every_trigger() -> None:
     manifest = _make_manifest(
         [
             _make_job(
@@ -239,7 +239,17 @@ def test_interval_without_schedule_trigger() -> None:
     )
     result = validate_manifest(manifest)
     assert not result.is_valid
-    assert any("no schedule trigger" in e for e in result.errors)
+    assert any("no schedule or every" in e for e in result.errors)
+
+
+def test_interval_with_every_trigger_valid() -> None:
+    manifest = _make_manifest(
+        [
+            _make_job("jobs.mod.a", triggers=["every:5m"], interval={"start": "2024-01-01"}),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid, f"errors: {result.errors}"
 
 
 def test_freshness_constraint_on_non_interval_upstream(enable_interval_freshness: None) -> None:
@@ -553,7 +563,7 @@ def test_load_manifest_raises_invalid_manifest() -> None:
 def test_freshness_on_upstream_without_schedule_trigger(
     enable_interval_freshness: None,
 ) -> None:
-    """Freshness constraint on upstream that has interval but no schedule trigger."""
+    """Freshness constraint on upstream that has interval but no schedule or every trigger."""
     manifest = _make_manifest(
         [
             _make_job(
@@ -571,7 +581,7 @@ def test_freshness_on_upstream_without_schedule_trigger(
     )
     result = validate_manifest(manifest)
     assert not result.is_valid
-    assert any("no schedule trigger" in e for e in result.errors)
+    assert any("no schedule or every" in e for e in result.errors)
 
 
 def test_multiple_interval_triggers_rejected() -> None:
@@ -760,24 +770,24 @@ def test_is_fresh_on_event_upstream_valid() -> None:
             "multiple interval-generating",
             None,
         ),
-        # interval without schedule
+        # interval without schedule or every
         (
             _make_job(
                 "jobs.mod.bad",
                 triggers=["manual:jobs.mod.bad"],
                 interval={"start": "2024-01-01"},
             ),
-            "no schedule trigger",
+            "no schedule or every",
             None,
         ),
-        # interval with every trigger
+        # interval with every trigger — valid
         (
             _make_job(
-                "jobs.mod.bad",
+                "jobs.mod.ok",
                 triggers=["every:5m"],
                 interval={"start": "2024-01-01"},
             ),
-            "intervals require a schedule",
+            None,
             None,
         ),
         # allow_external_schedulers without interval
@@ -836,7 +846,7 @@ def test_is_fresh_on_event_upstream_valid() -> None:
         "interactive-no-http",
         "multiple-interval-triggers",
         "interval-no-schedule",
-        "interval-with-every",
+        "interval-with-every-valid",
         "external-schedulers-no-interval",
         "misaligned-interval-start",
         "dashboard-wrong-type",

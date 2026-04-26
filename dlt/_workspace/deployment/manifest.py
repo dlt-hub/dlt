@@ -279,13 +279,8 @@ def validate_job_definition(
             f"job {ref!r} has multiple interval-generating triggers"
             " (only one schedule: or every: allowed)"
         )
-    if has_interval and "schedule" not in trigger_types:
-        errors.append(f"job {ref!r} has interval but no schedule trigger")
-    if has_interval and "every" in trigger_types:
-        errors.append(
-            f"job {ref!r} has interval with every trigger —"
-            " intervals require a schedule trigger, not every"
-        )
+    if has_interval and "schedule" not in trigger_types and "every" not in trigger_types:
+        errors.append(f"job {ref!r} has interval but no schedule or every trigger")
     if has_interval and "schedule" in trigger_types:
         cron_expr = maybe_parse_schedule(job_def)
         if cron_expr:
@@ -346,8 +341,6 @@ def validate_manifest(manifest: TJobsDeploymentManifest) -> ManifestValidationRe
         result = validate_job_definition(job_def)
         errors.extend(result.errors)
         warnings.extend(result.warnings)
-
-    # -- cross-job checks below --
 
     # duplicate job refs
     seen_refs: Set[str] = set()
