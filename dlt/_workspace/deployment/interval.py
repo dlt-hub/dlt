@@ -26,8 +26,8 @@ try:
     from croniter import croniter
 except ModuleNotFoundError:
     raise MissingDependencyException(
-        "dltHub workspace",
-        [f"{version.DLT_PKG_NAME}[workspace]"],
+        "dltHub",
+        [f"{version.DLT_PKG_NAME}[hub]"],
     )
 
 
