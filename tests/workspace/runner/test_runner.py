@@ -220,7 +220,7 @@ def test_freshness_blocks_when_upstream_not_run(capsys: pytest.CaptureFixture[st
     assert exit_code == 0
     captured = capsys.readouterr()
     assert "skipped" in captured.err
-    assert "no usable completion" in captured.err
+    assert "didn't process any intervals" in captured.err
 
 
 def test_freshness_passes_after_upstream_completes() -> None:
@@ -451,7 +451,7 @@ def test_refresh_propagates_through_freshness_chain(
     # both jobs should print REFRESH_FLAG=True (both are first runs)
     assert captured.out.count("REFRESH_FLAG=True") == 2
     # downstream's freshness check should NOT have been blocked
-    assert "no usable completion" not in captured.err
+    assert "didn't process any intervals" not in captured.err
 
 
 def test_event_dispatched_job_uses_default_trigger_for_interval(

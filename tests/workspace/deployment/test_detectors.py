@@ -33,7 +33,7 @@ def test_detect_marimo(module_name: str, expected_display_name: str) -> None:
     assert job_def["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.marimo"
     assert job_def["expose"]["interface"] == "gui"
     assert job_def["triggers"] == [HTTP_TRIGGER]
-    assert "notebook" in job_def.get("expose", {}).get("tags", [])
+    assert job_def.get("expose", {}).get("category") == "notebook"
 
     if expected_display_name:
         assert expected_display_name in job_def.get("description", "")

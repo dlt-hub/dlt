@@ -4717,10 +4717,12 @@ def test_incremental_hints_in_extract_trace() -> None:
     assert inc_hint["cursor_path"] == "updated_at"
     assert inc_hint["initial_value"] == 1
     assert inc_hint["end_value"] is None
-    # resource_metrics should be empty when no items pass the filter
+    # resource is still recorded in metrics (items_count=0) when filter excludes everything
     extract_info = p.last_trace.last_extract_info
     load_id = list(extract_info.metrics.keys())[0]
-    assert extract_info.metrics[load_id][0]["resource_metrics"] == {}
+    resource_metrics = extract_info.metrics[load_id][0]["resource_metrics"]
+    assert "static_data" in resource_metrics
+    assert resource_metrics["static_data"].items_count == 0
 
 
 def test_decorator_incremental_fallback_none_default() -> None:

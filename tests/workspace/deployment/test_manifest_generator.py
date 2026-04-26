@@ -102,7 +102,7 @@ def test_full_deployment_job_details() -> None:
     assert notebook["entry_point"]["job_type"] == "interactive"
     assert notebook["entry_point"]["launcher"] == "dlt._workspace.deployment.launchers.marimo"
     assert "Test Notebook" in notebook.get("description", "")
-    assert "notebook" in notebook.get("expose", {}).get("tags", [])
+    assert notebook.get("expose", {}).get("category") == "notebook"
 
     # mcp server (detected from module)
     mcp = jobs_by_ref[TJobRef("jobs.mcp_server")]

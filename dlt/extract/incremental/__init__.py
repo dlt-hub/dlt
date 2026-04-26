@@ -503,7 +503,8 @@ class Incremental(
     def _join_external_scheduler(self, ctx: TimeIntervalContext) -> None:
         """Joins external scheduler interval from TimeIntervalContext."""
 
-        if ctx.interval is None:
+        interval = ctx.interval
+        if interval is None:
             raise ExternalSchedulerNotAvailable(self.resource_name)
 
         param_type = self.get_incremental_value_type()
@@ -542,7 +543,7 @@ class Incremental(
         configured_end = self.end_value
 
         try:
-            start, end = ctx.interval
+            start, end = interval
 
             self.initial_value = coerce_from_date_types(data_type, start)
             self.end_value = coerce_from_date_types(data_type, end)  # end_value must be set

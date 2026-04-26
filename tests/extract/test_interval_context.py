@@ -76,12 +76,16 @@ def test_detect_from_env_vars(env_vars: Dict[str, str], expect_interval: bool) -
         os.environ.pop("DLT_INTERVAL_START", None) if "DLT_INTERVAL_START" not in env_vars else None
         os.environ.pop("DLT_INTERVAL_END", None) if "DLT_INTERVAL_END" not in env_vars else None
         ctx = TimeIntervalContext()
-    if expect_interval:
-        assert ctx.interval is not None
-        assert ctx.interval[0] == ensure_pendulum_datetime_non_utc(env_vars["DLT_INTERVAL_START"])
-        assert ctx.interval[1] == ensure_pendulum_datetime_non_utc(env_vars["DLT_INTERVAL_END"])
-    else:
-        assert ctx.interval is None
+        # `interval` re-detects on access when not set explicitly, so the
+        # assertion must happen inside the patch.dict scope
+        if expect_interval:
+            assert ctx.interval is not None
+            assert ctx.interval[0] == ensure_pendulum_datetime_non_utc(
+                env_vars["DLT_INTERVAL_START"]
+            )
+            assert ctx.interval[1] == ensure_pendulum_datetime_non_utc(env_vars["DLT_INTERVAL_END"])
+        else:
+            assert ctx.interval is None
 
 
 @pytest.mark.parametrize(
@@ -132,13 +136,14 @@ def test_detect_from_airflow(
         os.environ.pop("DLT_INTERVAL_START", None)
         os.environ.pop("DLT_INTERVAL_END", None)
         ctx = TimeIntervalContext()
-
-    if expect_interval:
-        assert ctx.interval is not None
-        assert ctx.interval[0] == airflow_context["data_interval_start"]
-        assert ctx.interval[1] == airflow_context["data_interval_end"]
-    else:
-        assert ctx.interval is None
+        # `interval` re-detects on access when not set explicitly, so the
+        # assertion must happen inside the mock-airflow patch scope
+        if expect_interval:
+            assert ctx.interval is not None
+            assert ctx.interval[0] == airflow_context["data_interval_start"]
+            assert ctx.interval[1] == airflow_context["data_interval_end"]
+        else:
+            assert ctx.interval is None
 
 
 def test_injectable_context_and_current() -> None:
@@ -194,14 +199,16 @@ def test_detect_applies_interval_timezone_env_var(
         if iv_tz is None:
             os.environ.pop("DLT_INTERVAL_TIMEZONE", None)
         ctx = TimeIntervalContext()
-    assert ctx.interval is not None
-    assert ctx.interval[0] == expected_start
-    assert ctx.interval[1] == expected_end
-    if expected_tz_name is not None:
-        assert isinstance(ctx.interval[0].tzinfo, ZoneInfo)
-        assert ctx.interval[0].tzinfo.key == expected_tz_name
-    else:
-        assert ctx.interval[0].tzinfo == timezone.utc
+        # `interval` re-detects on access when not set explicitly, so the
+        # assertions must happen inside the patch.dict scope
+        assert ctx.interval is not None
+        assert ctx.interval[0] == expected_start
+        assert ctx.interval[1] == expected_end
+        if expected_tz_name is not None:
+            assert isinstance(ctx.interval[0].tzinfo, ZoneInfo)
+            assert ctx.interval[0].tzinfo.key == expected_tz_name
+        else:
+            assert ctx.interval[0].tzinfo == timezone.utc
 
 
 def test_context_preserves_timezone() -> None:

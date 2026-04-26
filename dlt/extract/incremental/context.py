@@ -26,8 +26,6 @@ class TimeIntervalContext(ContainerInjectableContext):
     can_create_default: ClassVar[bool] = True
     global_affinity: ClassVar[bool] = False
 
-    interval: Optional[TTimeInterval] = None
-    """Resolved interval as `(start, end)` datetime tuple, or `None`."""
     allow_external_schedulers: Optional[bool] = None
     """Override per-incremental `allow_external_schedulers`."""
 
@@ -38,10 +36,22 @@ class TimeIntervalContext(ContainerInjectableContext):
     ) -> None:
         super().__init__()
         self.allow_external_schedulers = allow_external_schedulers
-        if interval is not None:
-            self.interval = interval
-        else:
-            self.interval = self._detect()
+        # explicit interval is stored; when None, `interval` property auto-detects
+        # fresh on every access (so long-lived processes like an Airflow worker
+        # running multiple tasks see the current `data_interval_start/end`)
+        self._interval = interval
+
+    @property
+    def interval(self) -> Optional[TTimeInterval]:
+        """Resolved interval as `(start, end)` datetime tuple, or `None`.
+
+        Returns the interval explicitly passed to the constructor when set;
+        otherwise re-runs auto-detection on each access so callers always see
+        the current runtime interval rather than a value cached at init time.
+        """
+        if self._interval is not None:
+            return self._interval
+        return self._detect()
 
     def _detect(self) -> Optional[TTimeInterval]:
         """Detect interval from environment. Order: dlt env vars -> Airflow -> None.
