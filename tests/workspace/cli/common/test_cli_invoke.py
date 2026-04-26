@@ -60,7 +60,7 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
     # info on non existing pipeline
     result = script_runner.run(["dlt", "pipeline", "debug_pipeline", "info"])
     assert result.returncode == -2
-    assert "the pipeline was not found in" in result.stderr
+    assert "No local pipeline state found" in result.stderr
 
     shutil.copytree(
         os.path.join(WORKSPACE_CLI_CASES_DIR, "deploy_pipeline"), ".", dirs_exist_ok=True
