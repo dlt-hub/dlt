@@ -265,7 +265,7 @@ def test_fetchscalar(populated_pipeline: Pipeline) -> None:
 
     with pytest.raises(ValueError) as ex:
         populated_pipeline.dataset()["items"].limit(1).limit(1).fetchscalar()
-    assert "got 1 row with 5 columns" in str(ex.value)
+    assert "got 1 row with 6 columns" in str(ex.value)
 
 
 @pytest.mark.no_load
@@ -921,7 +921,6 @@ def test_where(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.serial
 @pytest.mark.parametrize(
     "populated_pipeline",
     configs,
@@ -1020,7 +1019,20 @@ def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
     )
     expr = incr_range.to_sqlglot_filter()
     # filter: created_at > t+10s AND created_at <= t+20s -> positions 11..20 = 10 rows
-    assert len(items.where(expr).fetchall()) == 10
+    arrow_tbl = items.where(expr).select("created_at").order_by("created_at").arrow()
+    actual_dts = arrow_tbl["created_at"].to_pylist()
+    expected_dts = [ITEMS_EPOCH + timedelta(seconds=i) for i in range(11, 21)]
+
+    # normalize to Unix int_timestamp — destinations differ in how they return tz
+    # information (naive vs aware, timezone class), so compare instants
+    def _ts(d: Any) -> int:
+        if isinstance(d, str):
+            d = pendulum.parse(d)
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=pendulum.UTC)
+        return int(d.timestamp())
+
+    assert [_ts(d) for d in actual_dts] == [_ts(d) for d in expected_dts]
 
 
 @pytest.mark.no_load

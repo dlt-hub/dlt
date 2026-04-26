@@ -1,3 +1,5 @@
+import sys
+import types
 from datetime import date, datetime, timezone, time, timedelta  # noqa: I251
 from uuid import uuid4
 from typing import List, Tuple, Any
@@ -8,6 +10,7 @@ from numpy.testing import assert_equal
 
 from dlt.common import Decimal
 from dlt.common.data_types.type_helpers import json_to_str
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.libs.pyarrow import (
@@ -16,6 +19,7 @@ from dlt.common.libs.pyarrow import (
     convert_numpy_to_arrow,
     row_tuples_to_arrow,
     serialize_type,
+    uuid_to_string,
 )
 
 
@@ -119,6 +123,8 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool, leading_nulls: boo
     assert pa.types.is_float64(result[2].type)
     assert pa.types.is_boolean(result[3].type)
     assert pa.types.is_date(result[4].type)
+    # dlt always coerces UUIDs to canonical hyphenated string regardless of
+    # whether pyarrow inferred them as string (<24) or `arrow.uuid` (>=24)
     assert pa.types.is_string(result[5].type)
     assert pa.types.is_timestamp(result[6].type)
     assert pa.types.is_list(result[7].type)
@@ -159,6 +165,104 @@ def test_convert_to_arrow_json_is_string():
 
     arrow_table = row_tuples_to_arrow(rows, _caps(), columns_schema, "UTC")
     assert pa.types.is_string(arrow_table[column_name].type)
+
+
+def test_uuid_to_string_from_fixed_size_binary() -> None:
+    """uuid_to_string accepts fixed_size_binary[16] and returns canonical strings."""
+    uuids = [uuid4() for _ in range(5)]
+    fsb = pa.array([u.bytes for u in uuids], type=pa.binary(16))
+
+    result = uuid_to_string(fsb)
+
+    assert pa.types.is_string(result.type)
+    assert result.to_pylist() == [str(u) for u in uuids]
+
+
+def _pyarrow_infers_uuid() -> bool:
+    """True if `pa.array([uuid4()])` infers the `arrow.uuid` extension (pyarrow >=24)."""
+    try:
+        arr = pa.array([uuid4()])
+    except pa.ArrowInvalid:
+        return False
+    return getattr(arr.type, "extension_name", None) == "arrow.uuid"
+
+
+@pytest.mark.skipif(
+    not _pyarrow_infers_uuid(), reason="pyarrow does not infer arrow.uuid extension at this version"
+)
+def test_uuid_to_string_from_arrow_uuid_extension() -> None:
+    """uuid_to_string accepts the pyarrow >=24 `arrow.uuid` extension array."""
+    uuids = [uuid4() for _ in range(5)]
+    arr = pa.array(uuids)
+    assert getattr(arr.type, "extension_name", None) == "arrow.uuid"
+
+    result = uuid_to_string(arr)
+
+    assert pa.types.is_string(result.type)
+    assert result.to_pylist() == [str(u) for u in uuids]
+
+
+def test_uuid_to_string_preserves_nulls() -> None:
+    """Null entries survive both numpy and Python paths."""
+    uuids: List[Any] = [uuid4(), None, uuid4(), None, uuid4()]
+    fsb = pa.array([u.bytes if u is not None else None for u in uuids], type=pa.binary(16))
+
+    result = uuid_to_string(fsb)
+
+    expected = [str(u) if u is not None else None for u in uuids]
+    assert result.to_pylist() == expected
+
+
+def test_uuid_to_string_python_fallback_matches_numpy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When numpy is missing, the pure-Python fallback produces identical output."""
+    uuids: List[Any] = [uuid4(), None, uuid4(), uuid4(), None, uuid4()]
+    fsb = pa.array([u.bytes if u is not None else None for u in uuids], type=pa.binary(16))
+
+    # numpy path output (real numpy is installed in the dev env)
+    numpy_result = uuid_to_string(fsb)
+
+    # force the fallback: replace `dlt.common.libs.numpy` with a stub whose
+    # `numpy` attribute raises MissingDependencyException, mirroring an
+    # environment where numpy isn't installed
+    class _NumpyStub(types.ModuleType):
+        def __getattr__(self, name: str) -> Any:
+            if name == "numpy":
+                raise MissingDependencyException("dlt numpy Helpers", ["numpy"])
+            raise AttributeError(name)
+
+    monkeypatch.setitem(sys.modules, "dlt.common.libs.numpy", _NumpyStub("dlt.common.libs.numpy"))
+
+    python_result = uuid_to_string(fsb)
+
+    # cross-path equivalence: both paths must produce byte-identical output
+    assert numpy_result.to_pylist() == python_result.to_pylist()
+    expected = [str(u) if u is not None else None for u in uuids]
+    assert python_result.to_pylist() == expected
+
+
+def test_convert_uuid_is_string() -> None:
+    """convert_numpy_to_arrow yields a string array for UUID columns regardless of pyarrow version."""
+    column_name = "uuid_col"
+    columns_schema: TTableSchemaColumns = {column_name: {"name": column_name}}
+    uuids = [uuid4(), uuid4(), uuid4()]
+    rows = [(u,) for u in uuids]
+
+    columns = transpose_rows_to_columns(rows, columns_schema)
+    arrow_array = convert_numpy_to_arrow(
+        columns[column_name],
+        DestinationCapabilitiesContext().generic_capabilities(),
+        columns_schema[column_name],
+        "UTC",
+        True,
+    )
+
+    assert pa.types.is_string(arrow_array.type)
+    assert arrow_array.to_pylist() == [str(u) for u in uuids]
+
+    # round-trip through row_tuples_to_arrow as well
+    arrow_table = row_tuples_to_arrow(rows, _caps(), columns_schema, "UTC")
+    assert pa.types.is_string(arrow_table[column_name].type)
+    assert arrow_table[column_name].to_pylist() == [str(u) for u in uuids]
 
 
 def test_convert_to_arrow_null_column_is_not_removed():
