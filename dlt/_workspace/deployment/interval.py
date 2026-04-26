@@ -6,8 +6,8 @@ from zoneinfo import ZoneInfo
 
 from dlt import version
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.time import ensure_datetime_non_utc, ensure_datetime_utc
-from dlt.common.typing import TAnyDateTime, TTimeInterval as TInterval
+from dlt.common.time import ensure_datetime_in_tz, ensure_datetime_utc
+from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment._trigger_helpers import (
     maybe_parse_schedule,
@@ -32,18 +32,6 @@ except ModuleNotFoundError:
 
 
 INTERVAL_FRESHNESS_ENABLED: bool = False
-
-
-def _stdlib_in_tz(value: TAnyDateTime, tz: ZoneInfo) -> datetime:
-    """Coerce to stdlib `datetime` in target tz. Naive inputs are attached to `tz`.
-
-    Matches the pre-existing dlt convention: a naive user-supplied string means
-    "local wall clock in the job's timezone", not UTC.
-    """
-    dt = ensure_datetime_non_utc(value)
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=tz)
-    return dt.astimezone(tz)
 
 
 def next_scheduled_run(
@@ -105,7 +93,7 @@ def compute_run_interval(
     now: datetime,
     prev_interval_end: Optional[datetime],
     tz: str = "UTC",
-) -> TInterval:
+) -> TTimeInterval:
     """Half-open `[start, end)` interval for a non-interval job run.
 
     `schedule:` and `every:` triggers carry continuity: `prev_interval_end`
@@ -130,7 +118,7 @@ def compute_run_interval(
         tz: IANA timezone for cron evaluation. Used only for `schedule:`.
 
     Returns:
-        TInterval: Half-open `[start, end)` tuple, both UTC stdlib `datetime`.
+        TTimeInterval: Half-open `[start, end)` tuple, both UTC stdlib `datetime`.
 
     Raises:
         InvalidTrigger: If `trigger` cannot be parsed.
@@ -174,12 +162,12 @@ def compute_run_interval(
     return (now_p, now_p)
 
 
-def sort_and_coalesce(intervals: Sequence[TInterval]) -> List[TInterval]:
+def sort_and_coalesce(intervals: Sequence[TTimeInterval]) -> List[TTimeInterval]:
     """Sort intervals by start and merge adjacent/overlapping into contiguous ranges."""
     if not intervals:
         return []
     sorted_ivs = sorted(intervals, key=lambda iv: iv[0])
-    merged: List[TInterval] = [sorted_ivs[0]]
+    merged: List[TTimeInterval] = [sorted_ivs[0]]
     for iv in sorted_ivs[1:]:
         prev_start, prev_end = merged[-1]
         if iv[0] <= prev_end:
@@ -189,8 +177,8 @@ def sort_and_coalesce(intervals: Sequence[TInterval]) -> List[TInterval]:
     return merged
 
 
-def resolve_interval_spec(spec: TIntervalSpec, cron_expr: str, tz: str = "UTC") -> TInterval:
-    """Resolve a TIntervalSpec into a concrete TInterval in UTC.
+def resolve_interval_spec(spec: TIntervalSpec, cron_expr: str, tz: str = "UTC") -> TTimeInterval:
+    """Resolve a TIntervalSpec into a concrete TTimeInterval in UTC.
 
     `start` is required and snapped backward to the latest cron tick <= start.
     `end` defaults to now, also snapped backward. Cron ticks are evaluated in
@@ -198,11 +186,11 @@ def resolve_interval_spec(spec: TIntervalSpec, cron_expr: str, tz: str = "UTC") 
     are always UTC.
     """
     target_tz = ZoneInfo(tz)
-    raw_start = _stdlib_in_tz(spec["start"], target_tz)
+    raw_start = ensure_datetime_in_tz(spec["start"], target_tz)
     start = cron_floor(cron_expr, raw_start)
 
     end_str = spec.get("end")
-    raw_end = _stdlib_in_tz(end_str, target_tz) if end_str else datetime.now(target_tz)
+    raw_end = ensure_datetime_in_tz(end_str, target_tz) if end_str else datetime.now(target_tz)
     end = cron_floor(cron_expr, raw_end)
 
     return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
@@ -234,9 +222,9 @@ def is_cron_expression(s: str) -> bool:
 
 def iter_intervals(
     cron_expr: str,
-    overall: TInterval,
+    overall: TTimeInterval,
     tz: str = "UTC",
-) -> Iterator[TInterval]:
+) -> Iterator[TTimeInterval]:
     """Yield discrete [tick_n, tick_n+1) intervals from cron within overall range.
 
     Cron is evaluated in `tz` (so DST-sensitive expressions tick on local walls),
@@ -269,10 +257,10 @@ def iter_intervals(
 
 def get_eligible_intervals(
     cron_expr: str,
-    overall: TInterval,
-    completed: Sequence[TInterval],
+    overall: TTimeInterval,
+    completed: Sequence[TTimeInterval],
     tz: str = "UTC",
-) -> List[TInterval]:
+) -> List[TTimeInterval]:
     """Return all incomplete intervals within overall, earliest first.
 
     Args:
@@ -282,7 +270,7 @@ def get_eligible_intervals(
         tz: IANA timezone for cron evaluation. Yielded intervals are UTC.
     """
     effective_start, comp_idx = _trim_leading_completed(overall[0], completed)
-    result: List[TInterval] = []
+    result: List[TTimeInterval] = []
     for iv in iter_intervals(cron_expr, (effective_start, overall[1]), tz=tz):
         while comp_idx < len(completed) and completed[comp_idx][1] <= iv[0]:
             comp_idx += 1
@@ -298,10 +286,10 @@ def get_eligible_intervals(
 
 def next_eligible_interval(
     cron_expr: str,
-    overall: TInterval,
-    completed: Sequence[TInterval],
+    overall: TTimeInterval,
+    completed: Sequence[TTimeInterval],
     tz: str = "UTC",
-) -> Optional[TInterval]:
+) -> Optional[TTimeInterval]:
     """First incomplete interval, or None if all done.
 
     Args:
@@ -327,7 +315,7 @@ def next_eligible_interval(
 
 
 def _trim_leading_completed(
-    start: datetime, completed: Sequence[TInterval]
+    start: datetime, completed: Sequence[TTimeInterval]
 ) -> Tuple[datetime, int]:
     """Advance start past the first completed range if it covers the beginning."""
     if completed and completed[0][0] <= start:
@@ -375,7 +363,7 @@ class TIntervalFreshnessCheck(NamedTuple):
     """A resolved interval completion query for freshness checking."""
 
     upstream_ref: str
-    effective_interval: TInterval
+    effective_interval: TTimeInterval
     """The interval to check completion for."""
     reason_if_not_completed: str
     """Reason string to use if the interval is not completed."""
@@ -405,8 +393,8 @@ def _resolve_upstream(
 
 
 def resolve_interval_freshness_checks(
-    downstream_interval: TInterval,
-    downstream_overall: TInterval,
+    downstream_interval: TTimeInterval,
+    downstream_overall: TTimeInterval,
     freshness_constraints: List[TFreshnessConstraint],
     all_jobs: Dict[str, TJobDefinition],
 ) -> Tuple[List[TIntervalFreshnessCheck], List[str]]:
@@ -490,7 +478,7 @@ def resolve_interval_freshness_checks(
 
 def check_all_upstream_interval_fresh(
     checks: List[TIntervalFreshnessCheck],
-    completions: Dict[Tuple[str, TInterval], bool],
+    completions: Dict[Tuple[str, TTimeInterval], bool],
     immediate_reasons: Optional[List[str]] = None,
 ) -> Tuple[bool, List[str]]:
     """Evaluate interval freshness given pre-fetched completion data.

@@ -10,7 +10,7 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from dlt.common import json
-from dlt.common.time import ensure_datetime_non_utc, ensure_datetime_utc
+from dlt.common.time import ensure_datetime_utc
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.cli import echo as fmt
@@ -190,8 +190,8 @@ def resolve_interval(
 
     if user_start:
         target_tz = ZoneInfo(tz)
-        start = _to_utc(user_start, target_tz)
-        end = _to_utc(user_end, target_tz) if user_end else now_utc
+        start = ensure_datetime_utc(user_start, default_tz=target_tz)
+        end = ensure_datetime_utc(user_end, default_tz=target_tz) if user_end else now_utc
         return start, end, tz
 
     declared = job_def.get("interval")
@@ -227,13 +227,6 @@ def resolve_interval(
         end = min(end, declared_end_dt)
 
     return start, end, tz
-
-
-def _to_utc(value: str, target_tz: ZoneInfo) -> datetime:
-    dt = ensure_datetime_non_utc(value)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=target_tz)
-    return dt.astimezone(timezone.utc)
 
 
 def build_runtime_entry_point(

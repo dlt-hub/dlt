@@ -8,10 +8,10 @@ import pytest
 
 from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.interval import (
-    TInterval,
     compute_run_interval,
     cron_floor,
     get_eligible_intervals,
@@ -27,7 +27,7 @@ from dlt._workspace.deployment.typing import (
 )
 
 
-def _iv(start: str, end: str) -> TInterval:
+def _iv(start: str, end: str) -> TTimeInterval:
     return (ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
 
 

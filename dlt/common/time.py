@@ -161,21 +161,27 @@ ensure_pendulum_datetime = deprecated("Use ensure_pendulum_datetime_utc instead"
 )
 
 
-def ensure_datetime_utc(value: TAnyDateTime) -> datetime.datetime:
+def ensure_datetime_utc(
+    value: TAnyDateTime, default_tz: datetime.tzinfo = datetime.timezone.utc
+) -> datetime.datetime:
     """Coerce a date/time value to a stdlib `datetime.datetime` in UTC.
 
-    UTC is assumed if the value is not timezone aware. Other timezones are shifted to UTC.
+    Naive inputs are interpreted in `default_tz` (UTC by default). Tz-aware inputs are converted to UTC.
 
     Args:
         value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+        default_tz: Timezone used to interpret naive inputs before converting to UTC. Defaults to UTC.
 
     Returns:
         A stdlib `datetime.datetime` in UTC timezone.
     """
-    return to_py_datetime(ensure_pendulum_datetime_utc(value))
+    dt = ensure_datetime(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=default_tz)
+    return dt.astimezone(datetime.timezone.utc)
 
 
-def ensure_datetime_non_utc(value: TAnyDateTime) -> datetime.datetime:
+def ensure_datetime(value: TAnyDateTime) -> datetime.datetime:
     """Coerce a date/time value to a stdlib `datetime.datetime`, preserving original timezone.
 
     Tz-awareness is preserved. Naive datetimes remain naive. Tz-aware datetimes keep their original timezone.
@@ -187,6 +193,24 @@ def ensure_datetime_non_utc(value: TAnyDateTime) -> datetime.datetime:
         A stdlib `datetime.datetime` that preserves original timezone.
     """
     return to_py_datetime(ensure_pendulum_datetime_non_utc(value))
+
+
+def ensure_datetime_in_tz(value: TAnyDateTime, tz: datetime.tzinfo) -> datetime.datetime:
+    """Coerce a date/time value to a stdlib `datetime.datetime` in `tz`.
+
+    Naive inputs are interpreted as wall-clock in `tz`. Tz-aware inputs are converted to `tz`.
+
+    Args:
+        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+        tz: Target timezone (e.g. `ZoneInfo("Europe/Berlin")`, `timezone.utc`).
+
+    Returns:
+        A stdlib `datetime.datetime` with `tzinfo == tz`.
+    """
+    dt = ensure_datetime(value)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=tz)
+    return dt.astimezone(tz)
 
 
 def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:

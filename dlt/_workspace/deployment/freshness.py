@@ -141,15 +141,16 @@ def get_transitive_freshness_downstream(
     upstream_ref: str,
     all_jobs: Mapping[str, TJobDefinition],
 ) -> List[str]:
-    """BFS through `freshness` edges from `upstream_ref`.
+    """Breadth-first search through `freshness` edges from `upstream_ref`.
 
     Args:
         upstream_ref: The upstream job reference to start the walk from.
         all_jobs: Map of `job_ref` to job definition.
 
     Returns:
-        List[str]: All transitively reachable downstream job refs, BFS order.
-        `upstream_ref` itself is excluded even if reachable via a cycle.
+        List[str]: All transitively reachable downstream job refs, in
+        breadth-first search order. `upstream_ref` itself is excluded
+        even if reachable via a cycle.
     """
     seen: Set[str] = {upstream_ref}
     result: List[str] = []
@@ -168,32 +169,19 @@ def get_refresh_cascade_targets(
     root_ref: str,
     all_jobs: Mapping[str, TJobDefinition],
 ) -> List[str]:
-    """BFS the freshness graph from `root_ref`, stopping at `block` nodes.
+    """Jobs to which a refresh signal initiated at `root_ref` propagates.
 
-    Returns the list of `job_ref`s whose `prev_completed_run` should be
-    cleared when an eager refresh cascade is initiated for `root_ref`.
-    The root itself is **excluded** from the result — callers handle the
-    root separately (the block-on-root override is enforced by the caller).
-
-    Walk rules, applied per visited node (root excluded):
-
-    - `refresh == "block"` → stop this branch. The block node is NOT
-      included in the result and its downstream is NOT recursed into.
-      The freshness chain is severed at the block boundary.
-    - `refresh == "always"` or `"auto"` (default) → include in the
-      result, recurse into `get_direct_freshness_downstream`.
-    - Interval-store-eligible jobs (`"interval" in job_def AND
-      `allow_external_schedulers=True`) → excluded from the result and
-      the walk. They manage their own watermark via `IntervalStore` and
-      do not have a `prev_completed_run` to clear.
+    Walks the freshness graph downstream from `root_ref` and returns the
+    affected job refs. The root itself is excluded — callers handle it
+    separately.
 
     Args:
         root_ref: The job ref initiating the cascade.
         all_jobs: Map of `job_ref` to `TJobDefinition`.
 
     Returns:
-        List[str]: BFS-ordered refs to clear, excluding root, blocks,
-        and interval-store-eligible jobs.
+        List[str]: Breadth-first search ordered downstream refs, excluding
+        the root, `refresh="block"` nodes, and interval-store-eligible jobs.
     """
     seen: Set[str] = {root_ref}
     result: List[str] = []
@@ -206,8 +194,12 @@ def get_refresh_cascade_targets(
             ds_def = all_jobs.get(ds_ref)
             if ds_def is None:
                 continue
+            # `refresh="block"` severs the freshness chain: the block node is
+            # not refreshed and its downstream is not recursed into
             if ds_def.get("refresh") == "block":
                 continue
+            # interval-store-eligible jobs manage their own watermark and
+            # are not part of the refresh cascade
             if "interval" in ds_def and ds_def.get("allow_external_schedulers", False):
                 continue
             seen.add(ds_ref)

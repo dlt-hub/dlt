@@ -5,9 +5,9 @@ from typing import Dict, List, Optional, Tuple
 import pytest
 
 from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment.interval import (
-    TInterval,
     check_all_upstream_interval_fresh,
     resolve_interval_freshness_checks,
 )
@@ -25,7 +25,7 @@ from dlt._workspace.deployment.typing import (
 from tests.workspace.runner._runner.interval_store import DuckDBIntervalStore
 
 
-def _iv(start: str, end: str) -> TInterval:
+def _iv(start: str, end: str) -> TTimeInterval:
     return (ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
 
 
@@ -64,8 +64,8 @@ def _job(
 
 
 def _check_interval_freshness(
-    ds_iv: TInterval,
-    ds_overall: TInterval,
+    ds_iv: TTimeInterval,
+    ds_overall: TTimeInterval,
     upstream_job: TJobDefinition,
     store: DuckDBIntervalStore,
     constraint: str = "job.is_matching_interval_fresh",
@@ -87,8 +87,8 @@ def _check_interval_freshness(
 
 
 def _resolve_and_check_interval_freshness(
-    ds_iv: TInterval,
-    ds_overall: TInterval,
+    ds_iv: TTimeInterval,
+    ds_overall: TTimeInterval,
     freshness: List[TFreshnessConstraint],
     all_jobs: Dict[str, TJobDefinition],
     store: DuckDBIntervalStore,

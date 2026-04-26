@@ -17,6 +17,7 @@ from dlt._workspace.deployment.freshness import (
 )
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.manifest import expand_triggers, manifest_from_module
+from dlt.common.typing import TTimeInterval
 from dlt._workspace.deployment.typing import (
     TJobDefinition,
     TJobRef,
@@ -24,7 +25,6 @@ from dlt._workspace.deployment.typing import (
     TTrigger,
 )
 from dlt._workspace.deployment.interval import (
-    TInterval,
     check_all_upstream_interval_fresh,
     check_all_upstream_run_fresh,
     compute_run_interval,
@@ -364,7 +364,7 @@ def _start_job(
     job_def: TJobDefinition,
     trigger: TTrigger,
     port_counter: List[int],
-    interval: Optional[TInterval] = None,
+    interval: Optional[TTimeInterval] = None,
 ) -> None:
     """Start a job subprocess."""
     job_ref = job_def["job_ref"]
@@ -395,7 +395,7 @@ def _start_job(
 
     now = datetime.now(timezone.utc)
     refresh_signal = False
-    eff_interval: Optional[TInterval] = interval
+    eff_interval: Optional[TTimeInterval] = interval
 
     if interval is not None:
         # interval-store path: caller computed the interval, no refresh signal
@@ -508,7 +508,7 @@ def _collect_completions(
 
             # retrieve run record (contains interval if any)
             run_id = _running_run_ids.pop(job_ref, None)
-            iv: Optional[TInterval] = None
+            iv: Optional[TTimeInterval] = None
             run_record: Optional[TJobRun] = None
             if run_id:
                 run_record = _runs_store.get_run(run_id)
