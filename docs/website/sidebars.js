@@ -218,22 +218,6 @@ const sidebars = {
       type: 'category',
       label: 'Using dlt',
       items: [
-        'walkthroughs/create-a-pipeline',
-        'walkthroughs/run-a-pipeline',
-        'general-usage/dashboard',
-        /*{
-          type: "category",
-          label: "Build with LLMs",
-          link: {
-            type: 'generated-index',
-            title: 'Build with LLMs',
-            description: 'Learn to build dlt pipelines with LLMs',
-            slug: 'dlt-ecosystem/llm-tooling',
-          },
-          items: [
-            "dlt-ecosystem/llm-tooling/llm-native-workflow",
-          ]
-        },*/
         'walkthroughs/adjust-a-schema',
         {
           type: 'category',
