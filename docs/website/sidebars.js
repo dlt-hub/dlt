@@ -364,9 +364,9 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Optimizing dlt',
+      label: 'Performance',
       items: [
-        'reference/performance',
+        { type: 'doc', id: 'reference/performance', label: 'Performance' },
       ],
     },
     {
@@ -411,30 +411,6 @@ const sidebars = {
         'reference/frequently-asked-questions',
       ],
     },
-    /*
-    {
-      type: 'category',
-      label: 'How-to guides',
-      link: {
-        type: 'generated-index',
-        title: 'How-to guides',
-        description: 'In this section you will find step-by-step instructions for the common tasks.',
-        slug: 'walkthroughs',
-        keywords: ['how-to'],
-      },
-      items: [
-        {
-          type: 'category',
-          label: 'Data enrichments',
-          items: [
-            'general-usage/data-enrichments/user_agent_device_data_enrichment',
-            'general-usage/data-enrichments/currency_conversion_data_enrichment',
-            'general-usage/data-enrichments/url-parser-data-enrichment'
-          ]
-        }
-      ]
-    }
-    */
   ],
   hubSidebar: [
     {
