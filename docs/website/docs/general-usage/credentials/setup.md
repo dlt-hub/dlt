@@ -1,5 +1,5 @@
 ---
-title: Overview and examples
+title: Overview
 description: Learn where configs are stored and how to write them
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---
@@ -794,4 +794,3 @@ This error message shows exactly:
 4. That it searched environment variables first, then `secrets.toml`
 
 Note that `config.toml` wasn't checked since it's not appropriate for storing secrets.
-

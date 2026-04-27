@@ -234,22 +234,6 @@ const sidebars = {
             "dlt-ecosystem/llm-tooling/llm-native-workflow",
           ]
         },*/
-        {
-          type: 'category',
-          label: 'Configure pipelines and credentials',
-           link: {
-            type: 'doc',
-            id: 'general-usage/credentials/index',
-          },
-          items: [
-            'general-usage/credentials/setup',
-            'general-usage/credentials/advanced',
-            'general-usage/credentials/vaults',
-            'general-usage/credentials/complex_types',
-            // Unsure item
-            'walkthroughs/add_credentials'
-          ]
-        },
         'walkthroughs/adjust-a-schema',
         {
           type: 'category',
@@ -268,6 +252,22 @@ const sidebars = {
           ]
         },
         'general-usage/data-quality-lifecycle',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Configuration & secrets',
+       link: {
+        type: 'doc',
+        id: 'general-usage/credentials/index',
+      },
+      items: [
+        'general-usage/credentials/setup',
+        'general-usage/credentials/advanced',
+        'general-usage/credentials/vaults',
+        'general-usage/credentials/complex_types',
+        // Unsure item
+        'walkthroughs/add_credentials'
       ]
     },
     {
