@@ -1,10 +1,10 @@
 ---
-title: Hugging Face Datasets
+title: Hugging Face
 description: Load data into Hugging Face Datasets repositories using dlt
 keywords: [hugging face, hf, datasets, parquet, filesystem, hub]
 ---
 
-# Hugging Face Datasets
+# Hugging Face
 
 The Hugging Face destination loads data into [Hugging Face Datasets](https://huggingface.co/docs/datasets/index) repositories. It is built on top of the [filesystem](filesystem) destination and uses the `hf://` protocol to write [Parquet](../file-formats/parquet) files to the Hugging Face Hub.
 
