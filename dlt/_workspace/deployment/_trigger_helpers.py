@@ -344,5 +344,5 @@ def humanize_trigger(trigger: TTrigger) -> str:
     if tt == "webhook":
         return f"webhook {expr}" if expr else "webhook"
     if tt == "pipeline_name":
-        return f"pipeline {expr}"
+        return f"pipeline: {expr}"
     return str(trigger)

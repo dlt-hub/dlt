@@ -174,9 +174,7 @@ class TRuntimeEntryPoint(TEntryPoint):
     interval_timezone: NotRequired[str]
     """IANA timezone name (from `require.timezone`); applied to the interval by the launcher."""
     allow_external_schedulers: NotRequired[bool]
-    """Propagated from `TJobDefinition.allow_external_schedulers`. Tells the
-    launcher whether to inject `TimeIntervalContext(allow_external_schedulers=True)`
-    so dlt incrementals join the runner-provided interval without per-resource opt-in."""
+    """Experimental. Incremental instance will automatically assume interval of the job."""
     profile: NotRequired[str]
     """Active workspace profile, resolved from require.profile."""
     config: NotRequired[Dict[str, Any]]

@@ -370,6 +370,18 @@ _EVERY_BACKFILL = {
             NOW,
             "UTC",
         ),
+        # refresh=false, open-ended declared in the past: declared_start is a floor only,
+        # natural interval wins — the declared start (e.g. EPOCH) is NOT passed through
+        # without --refresh. Mirrors the `clock` job pattern in the starter pack.
+        (
+            None,
+            None,
+            _SCHED_HOURLY_WIDE_BACKFILL,
+            False,
+            datetime(2026, 4, 19, 11, tzinfo=timezone.utc),
+            NOW,
+            "UTC",
+        ),
         # refresh=false, no trigger: manual: collapses to point-in-time
         (None, None, {}, False, NOW, NOW, "UTC"),
     ],
@@ -383,6 +395,7 @@ _EVERY_BACKFILL = {
         "refresh-true-no-declared-falls-through",
         "refresh-false-clamped-to-declared-range",
         "refresh-false-compute-run-interval-schedule",
+        "refresh-false-open-ended-declared-not-passed-without-refresh",
         "refresh-false-manual-collapses-to-point",
     ],
 )
