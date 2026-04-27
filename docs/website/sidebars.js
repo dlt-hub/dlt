@@ -67,14 +67,14 @@ const sidebars = {
         keywords: ['release notes, release highlights'],
       },
       items: [
-        'release-notes/1.21.2',
-        'release-notes/1.19',
-        'release-notes/1.18',
-        'release-notes/1.17',
-        'release-notes/1.16',
-        'release-notes/1.15',
-        'release-notes/1.13-1.14',
-        'release-notes/1.12.1',
+        { type: 'doc', id: 'release-notes/1.21.2', label: '1.21.2' },
+        { type: 'doc', id: 'release-notes/1.19', label: '1.19' },
+        { type: 'doc', id: 'release-notes/1.18', label: '1.18' },
+        { type: 'doc', id: 'release-notes/1.17', label: '1.17' },
+        { type: 'doc', id: 'release-notes/1.16', label: '1.16' },
+        { type: 'doc', id: 'release-notes/1.15', label: '1.15' },
+        { type: 'doc', id: 'release-notes/1.13-1.14', label: '1.13-1.14' },
+        { type: 'doc', id: 'release-notes/1.12.1', label: '1.12.1' },
       ]
     },
     {
