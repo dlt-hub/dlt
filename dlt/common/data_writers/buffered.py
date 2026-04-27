@@ -9,7 +9,7 @@ from dlt.common.data_writers.exceptions import (
     DestinationCapabilitiesRequired,
     FileImportNotFound,
     InvalidFileNameTemplateException,
-    SchemaChanged,
+    SchemaEvolutionRequired,
 )
 from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec, count_rows_in_items
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -250,7 +250,7 @@ class BufferedDataWriter(Generic[TWriter]):
                 self._buffered_items_count = 0
                 try:
                     self._writer.write_data(items)
-                except SchemaChanged as sc:
+                except SchemaEvolutionRequired as sc:
                     # cross-batch schema widened - rotate to new file.
                     # items list was already cleared inside write_data;
                     # the materialized table is on the exception.

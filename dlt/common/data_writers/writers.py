@@ -25,7 +25,7 @@ from dlt.common.data_writers.exceptions import (
     FileFormatForItemFormatNotFound,
     FileSpecNotFound,
     InvalidDataItem,
-    SchemaChanged,
+    SchemaEvolutionRequired,
 )
 from dlt.common.destination.configuration import (
     CsvFormatConfiguration,
@@ -543,7 +543,7 @@ class ArrowToParquetWriter(ParquetDataWriter):
 
         self.writer.write_table(table, row_group_size=self.parquet_format.row_group_size)
         # increment after successful write so metrics are correct when
-        # SchemaChanged triggers file rotation mid-batch
+        # SchemaEvolutionRequired triggers file rotation mid-batch
         self.items_count += table.num_rows
 
     def _reconcile_schema(
@@ -565,7 +565,7 @@ class ArrowToParquetWriter(ParquetDataWriter):
             # writer schema already covers incoming types - safe cast up
             return table.cast(self.writer.schema)
         # incoming has wider types - need a new file
-        raise SchemaChanged(unified, table)
+        raise SchemaEvolutionRequired(unified, table)
 
     def write_footer(self) -> None:
         if not self.writer:

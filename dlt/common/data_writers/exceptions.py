@@ -94,7 +94,7 @@ class InvalidDataItem(DataWriterException):
         )
 
 
-class SchemaChanged(DataWriterException):
+class SchemaEvolutionRequired(DataWriterException):
     """Cross-batch schema widened; signals file rotation."""
 
     def __init__(
