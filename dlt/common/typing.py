@@ -124,6 +124,18 @@ TDataItem: TypeAlias = Any
 """A single data item as extracted from data source"""
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
 "A single data item or a list as extracted from the data source"
+TDataRecord = dict[str, Any]
+"""Table row dictionary. Not guaranteed to be JSON serializable without custom encoding."""
+TDataRecordBatch = list[TDataRecord]
+"""List of table row dictionaries. Not guaranteed to be JSON serializable without custom encoding."""
+TJsonScalar = Union[None, bool, int, float, str]
+"""JSON-native scalar value. Can be serialized to JSON without custom encoding."""
+TJsonValue = Union[TJsonScalar, list["TJsonValue"], dict[str, "TJsonValue"]]
+"""JSON-native value. Can be serialized to JSON without custom encoding."""
+TJsonDataRecord = dict[str, TJsonValue]
+"""JSON-native Table row dictionary. Can be serialized to JSON without custom encoding."""
+TJsonDataRecordBatch = list[TJsonDataRecord]
+"""List of JSON-native table row dictionaries. Can be serialized to JSON without custom encoding."""
 TAnyDateTime = Union[pendulum.DateTime, pendulum.Date, datetime, date, str, float, int]
 """DateTime represented as pendulum/python object, ISO string or unix timestamp"""
 TVariantBase = TypeVar("TVariantBase", covariant=True)

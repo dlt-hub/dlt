@@ -1,3 +1,5 @@
+from typing import cast
+
 import pytest
 
 from dlt.common.destination.exceptions import DestinationCapabilitiesException, UnsupportedDataType
@@ -12,6 +14,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.impl.bigquery.bigquery_adapter import AUTODETECT_SCHEMA_HINT
+from dlt.destinations.impl.databricks.databricks_adapter import INSERT_API_HINT
 
 
 def test_resolve_merge_strategy() -> None:
@@ -149,6 +152,36 @@ def test_verify_capabilities_data_types() -> None:
     assert isinstance(exceptions[0], UnsupportedDataType)
     assert exceptions[0].column == "col2"
     assert set(exceptions[0].available_in_formats) == {"parquet", "model"}
+
+    # decimal and wei not supported on databricks zerobus
+    schema_zerobus = Schema("schema_zerobus")
+    table = new_table(
+        "table",
+        write_disposition="append",
+        columns=[
+            # supported types
+            {"name": "date_col", "data_type": "date"},
+            {"name": "time_col", "data_type": "time"},
+            # unsupported types
+            {"name": "decimal_col", "data_type": "decimal"},
+            {"name": "wei_col", "data_type": "wei"},
+        ],
+    )
+    table[INSERT_API_HINT] = "zerobus"  # type: ignore[typeddict-unknown-key]
+    schema_zerobus.update_table(table, normalize_identifiers=False)
+    exceptions = verify_supported_data_types(
+        schema_zerobus.tables.values(),  # type: ignore[arg-type]
+        new_jobs_parquet,
+        databricks().capabilities(),
+        "databricks",
+    )
+    assert len(exceptions) == 2
+    assert all(isinstance(exception, UnsupportedDataType) for exception in exceptions)
+    unsupported_exceptions = cast(list[UnsupportedDataType], exceptions)
+    assert {exception.column for exception in unsupported_exceptions} == {
+        "decimal_col",
+        "wei_col",
+    }
 
     # exclude binary type if precision is set on column
     schema_bin = Schema("schema_bin")

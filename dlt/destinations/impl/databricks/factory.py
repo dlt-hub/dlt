@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Type, Union
 
 from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
@@ -12,15 +12,32 @@ from dlt.common.typing import TLoaderFileFormat
 
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.databricks.configuration import (
-    DatabricksCredentials,
     DatabricksClientConfiguration,
+    DatabricksCredentials,
+    DatabricksZerobusConfiguration,
 )
+from dlt.destinations.impl.databricks.typing import (
+    DEFAULT_DATABRICKS_INSERT_API,
+    TDatabricksInsertApi,
+)
+from dlt.destinations.impl.databricks.utils import get_databricks_insert_api
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.databricks.databricks import DatabricksClient
 
 
 class DatabricksTypeMapper(TypeMapperImpl):
+    UNSUPPORTED_TYPES: ClassVar[
+        dict[tuple[TDatabricksInsertApi, TLoaderFileFormat], frozenset[TDataType]]
+    ] = {
+        (DEFAULT_DATABRICKS_INSERT_API, "parquet"): frozenset({"time"}),
+        (DEFAULT_DATABRICKS_INSERT_API, "jsonl"): frozenset({"decimal", "wei", "binary", "date"}),
+        (DEFAULT_DATABRICKS_INSERT_API, "model"): frozenset(),
+        ("zerobus", "parquet"): frozenset({"decimal", "wei"}),
+        ("zerobus", "jsonl"): frozenset({"decimal", "wei"}),
+        ("zerobus", "model"): frozenset(),
+    }
+
     sct_to_unbound_dbt = {
         "json": "STRING",  # Json type stored as string
         "text": "STRING",
@@ -60,26 +77,22 @@ class DatabricksTypeMapper(TypeMapperImpl):
         table: PreparedTableSchema,
         loader_file_format: TLoaderFileFormat,
     ) -> None:
+        insert_api = get_databricks_insert_api(table)
+        unsupported_types = self.UNSUPPORTED_TYPES[(insert_api, loader_file_format)]
         if loader_file_format == "jsonl":
-            if column["data_type"] in {
-                "decimal",
-                "wei",
-                "binary",
-                "json",
-                "date",
-            }:
-                raise TerminalValueError("", column["data_type"])
             if column["data_type"] == "timestamp" and column.get("timezone") is False:
                 raise TerminalValueError(
                     "Cannot load naive timestamps from json, use parquet", column["data_type"]
                 )
-        if loader_file_format == "parquet":
-            if column["data_type"] in {"time"}:
+        elif loader_file_format == "parquet":
+            if column["data_type"] == "time" and column["data_type"] in unsupported_types:
                 raise TerminalValueError(
                     "Spark can't read Time from parquet. Convert your time column to string or"
                     " change file format.",
                     column["data_type"],
                 )
+        if column["data_type"] in unsupported_types:
+            raise TerminalValueError("", column["data_type"])
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
@@ -190,6 +203,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         environment: str = None,
         staging_volume_name: str = None,
         create_indexes: bool = False,
+        zerobus: DatabricksZerobusConfiguration = None,
         **kwargs: Any,
     ) -> None:
         """Configure the Databricks destination to use in a pipeline.
@@ -205,6 +219,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             environment (str, optional): Environment of the destination
             staging_volume_name (str, optional): Name of the staging volume to use
             create_indexes (bool, optional): Whether PRIMARY KEY or FOREIGN KEY constrains should be created
+            zerobus (DatabricksZerobusConfiguration, optional): Zerobus configuration including Zerobus endpoint, batch size, and credentials.
             **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
@@ -215,6 +230,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             environment=environment,
             staging_volume_name=staging_volume_name,
             create_indexes=create_indexes,
+            zerobus=zerobus,
             **kwargs,
         )
 

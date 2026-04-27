@@ -209,6 +209,17 @@ class ParsedLoadJobFileName(NamedTuple):
         return self.job_id()
 
 
+def group_jobs_by_table_name(
+    jobs: Iterable[ParsedLoadJobFileName],
+) -> dict[str, list[ParsedLoadJobFileName]]:
+    """Returns dictionary with table names as keys and list of jobs for those tables as values."""
+
+    jobs_by_table_name: dict[str, list[ParsedLoadJobFileName]] = {}
+    for job in jobs:
+        jobs_by_table_name.setdefault(job.table_name, []).append(job)
+    return jobs_by_table_name
+
+
 class LoadJobInfo(NamedTuple):
     state: TPackageJobState
     file_path: str

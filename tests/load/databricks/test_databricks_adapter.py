@@ -2,9 +2,14 @@ from typing import Iterator, Dict, Any
 import pytest
 
 import dlt
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import uniq_id
 from dlt.destinations.adapters import databricks_adapter
 from dlt.destinations import databricks
+from dlt.destinations.impl.databricks.databricks_adapter import (
+    COLUMN_COMMENT_HINT,
+    INSERT_API_HINT,
+)
 from dlt.destinations.impl.databricks.factory import DatabricksTypeMapper
 from dlt.destinations.impl.databricks.typing import DEFAULT_DATABRICKS_INSERT_API
 from tests.cases import table_update_and_row
@@ -705,3 +710,29 @@ def test_databricks_adapter_preserves_existing_columns() -> None:
     assert (  # new column hint added
         column[COLUMN_COMMENT_HINT] == "foo"  # type: ignore[typeddict-item]
     )
+
+
+def test_databricks_adapter_insert_api() -> None:
+    default_res = dlt.resource([{"id": 1}], name="default", write_disposition="append")
+    zerobus_res = dlt.resource([{"id": 1}], name="zerobus", write_disposition="append")
+
+    databricks_adapter(default_res, insert_api=None)
+    databricks_adapter(zerobus_res, insert_api="zerobus")
+
+    default_table_schema = default_res.compute_table_schema()
+    zerobus_table_schema = zerobus_res.compute_table_schema()
+
+    assert INSERT_API_HINT not in default_table_schema
+    assert zerobus_table_schema[INSERT_API_HINT] == "zerobus"  # type: ignore[typeddict-item]
+
+
+@pytest.mark.parametrize("write_disposition", ("replace", "merge"))
+def test_databricks_adapter_zerobus_insert_api_requires_append(
+    write_disposition: TWriteDisposition,
+) -> None:
+    res = dlt.resource([{"id": 1}], name="foo", write_disposition=write_disposition)
+
+    with pytest.raises(ValueError):
+        databricks_adapter(res, insert_api="zerobus")
+
+    databricks_adapter(res, insert_api="copy_into")  # `copy_into` should not raise

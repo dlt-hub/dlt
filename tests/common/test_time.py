@@ -14,6 +14,7 @@ from dlt.common.storages.load_package import create_load_id
 from dlt.common.time import (
     MonotonicPreciseTime,
     LockedMonotonicPreciseTime,
+    date_to_epoch_days,
     increasing_precise_time,
     precise_time,
     parse_iso_like_datetime,
@@ -978,3 +979,8 @@ def test_create_load_id_strictly_increasing() -> None:
     # after removing the mock the real singleton still has its high-water mark
     restored = float(create_load_id())
     assert restored >= baseline
+
+
+def test_date_to_epoch_days() -> None:
+    assert date_to_epoch_days(date(1970, 1, 1)) == 0
+    assert date_to_epoch_days(pendulum.date(1970, 1, 2)) == 1

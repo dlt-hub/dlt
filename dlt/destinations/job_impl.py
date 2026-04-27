@@ -1,10 +1,11 @@
-from abc import ABC, abstractmethod
+from __future__ import annotations
+
 import os
 import tempfile  # noqa: 251
-from typing import Dict, Iterable, List, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Generic, Iterable, List, Optional
+
 
 from dlt.common import pendulum
-from dlt.common.json import json
 from dlt.common.destination.client import (
     HasFollowupJobs,
     TLoadJobState,
@@ -14,14 +15,22 @@ from dlt.common.destination.client import (
 )
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.storages.load_package import commit_load_package_state
-from dlt.common.storages import FileStorage
-from dlt.common.typing import TDataItems
+from dlt.common.typing import TDataItems, TDataRecordBatch
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
+from dlt.destinations.file_batching import (
+    FileBatchIterator,
+    JsonlFileBatchIterator,
+    ParquetFileBatchIterator,
+    TRecordBatch,
+)
 from dlt.destinations.impl.destination.configuration import (
     CustomDestinationClientConfiguration,
     TDestinationCallable,
 )
+
+if TYPE_CHECKING:
+    from dlt.common.libs.pyarrow import pyarrow
 
 
 class FinalizedLoadJob(LoadJob):
@@ -142,39 +151,65 @@ class ReferenceFollowupJobRequest(FollowupJobRequestImpl):
         return refs[0]
 
 
-class DestinationLoadJob(RunnableLoadJob, ABC):
+class BatchedFileLoadJob(RunnableLoadJob, Generic[TRecordBatch]):
+    file_batch_iterator_class: type[FileBatchIterator[TRecordBatch]]
+
+    def __init__(self, file_path: str, batch_size: int, destination_state: Dict[str, int]) -> None:
+        super().__init__(file_path)
+        self._batch_size = batch_size
+        self._destination_state = destination_state
+        self._state_key = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
+
+    @property
+    def _record_offset(self) -> int:
+        return self._destination_state.get(self._state_key, 0)
+
+    def iter_batches(self) -> Iterable[TRecordBatch]:
+        return self.file_batch_iterator_class(
+            self._file_path,
+            self._batch_size,
+            self._record_offset,
+            list(self._load_table["columns"].keys()),
+        )
+
+    def _advance_record_offset(self, processed_count: int) -> None:
+        self._destination_state[self._state_key] = self._record_offset + processed_count
+        commit_load_package_state()
+
+    def _process_batches(self, process_batch: Callable[[TRecordBatch], int]) -> None:
+        for batch in self.iter_batches():
+            processed_count = process_batch(batch)
+            self._advance_record_offset(processed_count)
+
+
+class DestinationLoadJob(BatchedFileLoadJob[TRecordBatch]):
     def __init__(
         self,
         file_path: str,
         config: CustomDestinationClientConfiguration,
         destination_state: Dict[str, int],
         destination_callable: TDestinationCallable,
-        skipped_columns: List[str],
         callable_requires_job_client_args: bool = False,
     ) -> None:
-        super().__init__(file_path)
+        super().__init__(file_path, config.batch_size, destination_state)
         self._config = config
         self._callable = destination_callable
-        self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
-        self._skipped_columns = skipped_columns
-        self._destination_state = destination_state
         self._callable_requires_job_client_args = callable_requires_job_client_args
 
     def run(self) -> None:
         # update filepath, it will be in running jobs now
-        if self._config.batch_size == 0:
+        if self._batch_size == 0:
             # on batch size zero we only call the callable with the filename
             self.call_callable_with_items(self._file_path)
             # save progress
             commit_load_package_state()
         else:
-            current_index = self._destination_state.get(self._storage_id, 0)
-            for batch in self.get_batches(current_index):
+
+            def process_batch(batch: TRecordBatch) -> int:
                 self.call_callable_with_items(batch)
-                current_index += len(batch)
-                self._destination_state[self._storage_id] = current_index
-                # save progress
-                commit_load_package_state()
+                return len(batch)
+
+            self._process_batches(process_batch)
 
     def call_callable_with_items(self, items: TDataItems) -> None:
         if not items:
@@ -185,56 +220,10 @@ class DestinationLoadJob(RunnableLoadJob, ABC):
         else:
             self._callable(items, self._load_table)
 
-    @abstractmethod
-    def get_batches(self, start_index: int) -> Iterable[TDataItems]:
-        pass
+
+class DestinationParquetLoadJob(DestinationLoadJob["pyarrow.RecordBatch"]):
+    file_batch_iterator_class = ParquetFileBatchIterator
 
 
-class DestinationParquetLoadJob(DestinationLoadJob):
-    def get_batches(self, start_index: int) -> Iterable[TDataItems]:
-        # stream items
-        from dlt.common.libs.pyarrow import pyarrow
-
-        # guard against changed batch size after restart of loadjob
-        assert (
-            start_index % self._config.batch_size
-        ) == 0, "Batch size was changed during processing of one load package"
-
-        # on record batches we cannot drop columns, we need to
-        # select the ones we want to keep
-        keep_columns = list(self._load_table["columns"].keys())
-        start_batch = start_index / self._config.batch_size
-        with pyarrow.parquet.ParquetFile(self._file_path) as reader:
-            for record_batch in reader.iter_batches(
-                batch_size=self._config.batch_size, columns=keep_columns
-            ):
-                if start_batch > 0:
-                    start_batch -= 1
-                    continue
-                yield record_batch
-
-
-class DestinationJsonlLoadJob(DestinationLoadJob):
-    def get_batches(self, start_index: int) -> Iterable[TDataItems]:
-        current_batch: TDataItems = []
-
-        # stream items
-        with FileStorage.open_zipsafe_ro(self._file_path) as f:
-            for line in f:
-                encoded_json = json.typed_loads(line)
-                if isinstance(encoded_json, dict):
-                    encoded_json = [encoded_json]
-
-                for item in encoded_json:
-                    # find correct start position
-                    if start_index > 0:
-                        start_index -= 1
-                        continue
-                    # skip internal columns
-                    for column in self._skipped_columns:
-                        item.pop(column, None)
-                    current_batch.append(item)
-                    if len(current_batch) == self._config.batch_size:
-                        yield current_batch
-                        current_batch = []
-                yield current_batch
+class DestinationJsonlLoadJob(DestinationLoadJob[TDataRecordBatch]):
+    file_batch_iterator_class = JsonlFileBatchIterator

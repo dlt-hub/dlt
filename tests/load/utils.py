@@ -338,6 +338,7 @@ def destinations_configs(
     table_format_filesystem_configs: bool = False,
     table_format_local_configs: bool = False,
     read_only_sqlclient_configs: bool = False,
+    include_cids: Union[str, Sequence[str]] = (),
     subset: Sequence[str] = (),
     bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
@@ -370,6 +371,7 @@ def destinations_configs(
         table_format_local_configs: Include delta and iceberg configs for local file bucket only.
         read_only_sqlclient_configs: Include all configs that support read-only SQL client
             (filesystem with all buckets, table formats, and lancedb).
+        include_cids: Include configs by configuration id.
 
     Active Destination Filtering:
         The candidate list is first filtered to include only destinations in ACTIVE_DESTINATIONS
@@ -427,19 +429,17 @@ def destinations_configs(
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
 
-    # default sql configs that are also default staging configs
-    default_sql_configs_with_staging = [
-        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
+    cid_configs = [
         DestinationTestConfiguration(
-            destination_type="athena",
             cid="athena",
+            destination_type="athena",
             file_format="parquet",
             supports_merge=False,
             bucket_url=AWS_BUCKET,
         ),
         DestinationTestConfiguration(
-            destination_type="athena",
             cid="athena-iceberg",
+            destination_type="athena",
             file_format="parquet",
             bucket_url=AWS_BUCKET,
             supports_merge=True,
@@ -447,8 +447,8 @@ def destinations_configs(
             table_format="iceberg",
         ),
         DestinationTestConfiguration(
-            destination_type="athena",
             cid="athena-s3-tables",
+            destination_type="athena",
             file_format="parquet",
             bucket_url=AWS_BUCKET,
             supports_merge=True,
@@ -457,6 +457,20 @@ def destinations_configs(
             table_format="iceberg",
             naming_convention="s3_tables",
         ),
+        DestinationTestConfiguration(
+            cid="databricks_zerobus",
+            destination_type="databricks",
+            destination_name="databricks_zerobus",
+        ),
+    ]
+    cid_configs_by_cid = {config.cid: config for config in cid_configs if config.cid is not None}
+
+    # default sql configs that are also default staging configs
+    default_sql_configs_with_staging = [
+        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
+        cid_configs_by_cid["athena"],
+        cid_configs_by_cid["athena-iceberg"],
+        cid_configs_by_cid["athena-s3-tables"],
     ]
 
     # default non staging sql based configs, one per destination
@@ -901,6 +915,16 @@ def destinations_configs(
                 ),
             ]
 
+    if include_cids:
+        if isinstance(include_cids, str):
+            include_cids = (include_cids,)
+        existing_cids = {config.cid for config in destination_configs if config.cid is not None}
+        destination_configs += [
+            config
+            for config in cid_configs
+            if config.cid in include_cids and config.cid not in existing_cids
+        ]
+
     try:
         # register additional destinations from _addons.py which must be placed in the same folder
         # as tests
@@ -1220,6 +1244,7 @@ def yield_client(
     dataset_name: str = None,
     default_config_values: StrAny = None,
     schema_name: str = "event",
+    enter_client: bool = True,
 ) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DATASET_NAME", None)
     # import destination reference by name
@@ -1265,15 +1290,19 @@ def yield_client(
             )
         )
     ):
-        with destination.client(schema, dest_config) as client:  # type: ignore[assignment]
-            try:
-                from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
+        client = destination.client(schema, dest_config)  # type: ignore[assignment]
+        if enter_client:
+            with client:
+                try:
+                    from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 
-                # open table scanners automatically, context manager above does not do that
-                if issubclass(client.sql_client_class, WithTableScanners):
-                    client.sql_client.open_connection()
-            except (ImportError, MissingDependencyException):
-                pass
+                    # open table scanners automatically, context manager above does not do that
+                    if issubclass(client.sql_client_class, WithTableScanners):
+                        client.sql_client.open_connection()
+                except (ImportError, MissingDependencyException):
+                    pass
+                yield client
+        else:
             yield client
 
 
@@ -1283,8 +1312,9 @@ def cm_yield_client(
     dataset_name: str,
     default_config_values: StrAny = None,
     schema_name: str = "event",
+    enter_client: bool = True,
 ) -> Iterator[SqlJobClientBase]:
-    return yield_client(destination, dataset_name, default_config_values, schema_name)
+    return yield_client(destination, dataset_name, default_config_values, schema_name, enter_client)
 
 
 def yield_client_with_storage(

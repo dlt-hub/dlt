@@ -1,10 +1,14 @@
 import dataclasses
-from typing import ClassVar, Final, Optional, Any, Dict, List, List, Dict, cast, Callable
+from typing import Any, Callable, ClassVar, Dict, Final, List, Optional, cast
 from urllib.parse import urlparse
 
 from dlt.common import logger
+from dlt.common.configuration.specs.base_configuration import (
+    BaseConfiguration,
+    CredentialsConfiguration,
+    configspec,
+)
 from dlt.common.typing import TSecretStrValue
-from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import digest128
@@ -163,8 +167,28 @@ class DatabricksCredentials(CredentialsConfiguration):
             conn_params["access_token"] = self.access_token
         return conn_params
 
+    def to_workspace_url(self) -> str:
+        if not self.server_hostname:
+            raise ConfigurationValueError(
+                "Cannot construct workspace URL: `server_hostname` is not set."
+            )
+        return f"https://{self.server_hostname}"
+
     def __str__(self) -> str:
         return f"databricks://{self.server_hostname}{self.http_path}/{self.catalog}"
+
+
+@configspec
+class DatabricksZerobusCredentials(CredentialsConfiguration):
+    client_id: str = None
+    client_secret: TSecretStrValue = None
+
+
+@configspec
+class DatabricksZerobusConfiguration(BaseConfiguration):
+    endpoint_url: str = None
+    credentials: DatabricksZerobusCredentials = None
+    batch_size: int = 500
 
 
 @configspec
@@ -179,9 +203,10 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """Name of the Databricks managed volume for temporary storage, e.g., <catalog_name>.<database_name>.<volume_name>. Defaults to '_dlt_temp_load_volume' if not set."""
     keep_staged_files: Optional[bool] = True
     """Tells if to keep the files in internal (volume) stage"""
-
-    """Whether PRIMARY KEY or FOREIGN KEY constrains should be created"""
     create_indexes: bool = False
+    """Whether PRIMARY KEY or FOREIGN KEY constrains should be created"""
+    zerobus: Optional[DatabricksZerobusConfiguration] = None
+    """Databricks Zerobus Configuration including endpoint and credentials. Required when using the `zerobus` insert API."""
 
     def __str__(self) -> str:
         """Return displayable destination location"""

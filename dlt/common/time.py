@@ -19,6 +19,7 @@ from dlt.common.warnings import deprecated
 PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
 DAY_DURATION_SEC: float = 24 * 60 * 60.0
+UNIX_EPOCH_DATE = datetime.date(1970, 1, 1)
 
 precise_time: Callable[[], float] = None
 """A precise timer using win_precise_time library on windows and time.time on other systems"""
@@ -232,6 +233,11 @@ def datetime_obj_to_str(
     return datatime.strftime(datetime_format)
 
 
+def date_to_epoch_days(value: datetime.date) -> int:
+    """Converts date value to number of days since Unix epoch."""
+    return value.toordinal() - UNIX_EPOCH_DATE.toordinal()
+
+
 def ensure_pendulum_time(value: Union[str, int, float, datetime.time, timedelta]) -> pendulum.Time:
     """Coerce a time-like value to a `pendulum.Time` object using timezone=False semantics.
 
@@ -385,6 +391,10 @@ def datetime_to_timestamp(moment: Union[datetime.datetime, pendulum.DateTime]) -
 
 def datetime_to_timestamp_ms(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
     return int(moment.timestamp() * 1000)
+
+
+def datetime_to_timestamp_us(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
+    return datetime_to_timestamp(moment) * 1_000_000 + moment.microsecond
 
 
 def _datetime_from_ts_or_iso(

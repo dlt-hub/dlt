@@ -2,7 +2,7 @@ import os
 import base64
 import dataclasses
 from datetime import date, datetime, time  # noqa: I251
-from typing import Any, Callable, List, Protocol, IO, Union, Dict
+from typing import Any, Callable, List, Protocol, IO, Union, cast
 from uuid import UUID
 from enum import Enum
 
@@ -12,16 +12,17 @@ except ImportError:
     PydanticBaseModel = None  # type: ignore[misc]
 
 from dlt.common import known_env
+from dlt.common.typing import TJsonValue
 from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
-from dlt.common.utils import map_nested_values_in_place  # noqa: F401
+from dlt.common.utils import map_nested_values_in_place
 from dlt.common.libs.hexbytes import HexBytes
 
 TPuaDecoders = List[Callable[[Any], Any]]
 
-JsonSerializable = Union[str, Dict[str, Any]]
+JsonSerializable = TJsonValue
 """
 Type representing a JSON-serializable object.
 """
@@ -38,6 +39,13 @@ _custom_encoder: Union[None, JsonEncoder] = None
 Holds the custom encoder function, if set.
 This is used as a last-resort fallback for encoding objects.
 """
+
+JSON_SCALAR_TYPES = (type(None), bool, int, float, str)
+"""Python types representing JSON scalar values. Can be serialized natively without custom encoding."""
+JSON_NESTED_TYPES = (dict, list, tuple)
+"""Python types representing JSON nested values. Can be serialized natively without custom encoding."""
+JSON_TYPES = JSON_SCALAR_TYPES + JSON_NESTED_TYPES
+"""Python types representing all JSON values. Can be serialized natively without custom encoding."""
 
 
 def _custom_encode(obj: Any) -> JsonSerializable:
@@ -282,6 +290,28 @@ def set_custom_encoder_impl(encoder: JsonEncoder) -> None:
     _custom_encoder = encoder
 
 
+def to_json_value(value: object, encoder: JsonEncoder = custom_encode) -> TJsonValue:
+    """Converts `value` to JSON-native Python value, using `encoder` for non-JSON-native values.
+
+    `dict` and `list` inputs are encoded in place, `tuple` inputs are converted to `list`.
+    """
+
+    def _to_json_value(value: object) -> TJsonValue:
+        if isinstance(value, JSON_SCALAR_TYPES):
+            return cast(TJsonValue, value)
+        return cast(TJsonValue, map_nested_values_in_place(to_json_value, value, encoder=encoder))
+
+    if isinstance(value, JSON_TYPES):
+        return _to_json_value(value)
+
+    value = encoder(value)
+
+    if isinstance(value, JSON_TYPES):
+        return _to_json_value(value)
+
+    raise TypeError(f"`{repr(value)}` is not JSON serializable")
+
+
 # pick the right impl
 json: SupportsJson = None
 if os.environ.get(known_env.DLT_USE_JSON) == "simplejson":
@@ -302,6 +332,7 @@ else:
 __all__ = [
     "json",
     "custom_encode",
+    "to_json_value",
     "custom_pua_encode",
     "custom_pua_decode",
     "custom_pua_decode_nested",
