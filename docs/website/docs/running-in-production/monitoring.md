@@ -4,20 +4,6 @@ description: How to monitor a dlt pipeline
 keywords: [monitoring, run monitoring, data monitoring, github actions]
 ---
 
-# Monitoring
-
-Monitoring and [alerting](alerting.md) are used together to provide a more complete picture of the
-health of a data product. With monitoring, we examine much more information than we consider when
-alerting. Monitoring is meant to give a fast, simple overview of the health of the system. How to
-best monitor a `dlt` pipeline will depend on your [deployment method](../walkthroughs/deploy-a-pipeline/).
-
-## Run monitoring
-
-### Sentry
-
-Using `dlt` [tracing](tracing.md), you can configure [Sentry](https://sentry.io) DSN to start
-receiving rich information on executed pipelines, including encountered errors and exceptions.
-
 ## Data monitoring
 
 Data quality monitoring is concerned with ensuring that quality data arrives at the data warehouse
@@ -87,4 +73,3 @@ info = pipeline.run(source, table_name="table_name", write_disposition='append')
 print(info.load_packages[0])
 ```
 > `load_packages[0]` will print the information of the first load package in the list of load packages.
-

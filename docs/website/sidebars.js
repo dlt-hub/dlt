@@ -399,23 +399,6 @@ const sidebars = {
             { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-orchestra', label: 'Orchestra' },
           ]
         },
-        {
-          type: 'category',
-          label: 'Run in production',
-          link: {
-            type: 'generated-index',
-            title: 'Run in production',
-            description: 'How to run dlt in production.',
-            slug: 'running-in-production',
-            keywords: ['production'],
-          },
-          items: [
-            'running-in-production/running',
-            'running-in-production/monitoring',
-            'running-in-production/alerting',
-            'running-in-production/tracing',
-          ],
-        },
       ]
     },
     {
