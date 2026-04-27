@@ -198,7 +198,9 @@ def databricks_adapter(
         additional_table_hints[TABLE_PROPERTIES_HINT] = table_properties
 
     resource.apply_hints(
-        columns=cast(TTableSchemaColumns, additional_column_hints),
+        columns=(
+            cast(TTableSchemaColumns, additional_column_hints) if additional_column_hints else None
+        ),
         additional_table_hints=additional_table_hints,
     )
 
