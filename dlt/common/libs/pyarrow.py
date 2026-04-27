@@ -49,6 +49,7 @@ import ctypes
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 ARROW_DECIMAL_MAX_PRECISION = 76
+ARROW_UUID_EXTENSION_NAME = "arrow.uuid"
 
 
 class UnsupportedArrowTypeException(DltException):
@@ -1065,10 +1066,7 @@ def convert_numpy_to_arrow(
         inferred_array = pa.array(column_data, type=inferred_arrow_type)
         # pyarrow >=24 infers UUIDs as the `arrow.uuid` extension; coerce to string
         # so destinations see canonical hyphenated text, matching pyarrow <24 behavior
-        if (
-            inferred_array is not None
-            and getattr(inferred_array.type, "extension_name", None) == "arrow.uuid"
-        ):
+        if inferred_array is not None and _is_arrow_uuid_extension(inferred_array.type):
             inferred_array = uuid_to_string(inferred_array)
     # detailed error handling should happen in fallback cases
     except (pa.ArrowInvalid, pyarrow.ArrowTypeError):
@@ -1541,3 +1539,10 @@ def cast_date64_columns_to_timestamp(tbl: pyarrow.Table, tz: Optional[str] = Non
 
     new_schema = pyarrow.schema(fields, metadata=tbl.schema.metadata)
     return pyarrow.Table.from_arrays(arrays, schema=new_schema)
+
+
+def _is_arrow_uuid_extension(arrow_type: Any) -> bool:
+    return (
+        isinstance(arrow_type, pyarrow.BaseExtensionType)
+        and arrow_type.extension_name == ARROW_UUID_EXTENSION_NAME
+    )
