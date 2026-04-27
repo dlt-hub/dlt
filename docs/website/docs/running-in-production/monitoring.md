@@ -13,21 +13,6 @@ best monitor a `dlt` pipeline will depend on your [deployment method](../walkthr
 
 ## Run monitoring
 
-### GitHub Actions
-
-In GitHub Actions, at the top level, we can monitor:
-
-- The workflows scheduled to (not) run.
-- Run history (e.g., success/failure).
-
-GitHub Actions workflows:
-
-![GitHub Actions workflows](images/github_actions_workflows.png)
-
-GitHub Actions workflow DAG:
-
-![GitHub Actions workflow DAG](images/github_actions_workflow_dag.png)
-
 ### Sentry
 
 Using `dlt` [tracing](tracing.md), you can configure [Sentry](https://sentry.io) DSN to start
