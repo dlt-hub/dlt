@@ -390,7 +390,6 @@ const sidebars = {
               label: 'GitHub Actions',
             },
             { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer', label: 'Airflow' },
-            { type: 'doc', id: 'reference/explainers/airflow-gcp-cloud-composer', label: 'Airflow on GCP Cloud Composer' },
             { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions', label: 'Google Cloud Functions' },
             { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run', label: 'Google Cloud Run' },
             { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-kestra', label: 'Kestra' },

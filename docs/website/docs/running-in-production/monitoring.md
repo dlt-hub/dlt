@@ -1,7 +1,7 @@
 ---
 title: Monitoring
 description: How to monitor a dlt pipeline
-keywords: [monitoring, run monitoring, data monitoring, airflow, github actions]
+keywords: [monitoring, run monitoring, data monitoring, github actions]
 ---
 
 # Monitoring
@@ -12,21 +12,6 @@ alerting. Monitoring is meant to give a fast, simple overview of the health of t
 best monitor a `dlt` pipeline will depend on your [deployment method](../walkthroughs/deploy-a-pipeline/).
 
 ## Run monitoring
-
-### Airflow
-
-In Airflow, at the top level, we can monitor:
-
-- The tasks scheduled to (not) run.
-- Run history (e.g., success/failure).
-
-Airflow DAGs:
-
-![Airflow DAGs](images/airflow_dags.png)
-
-Airflow DAG tasks:
-
-![Airflow DAG tasks](images/airflow_dag_tasks.png)
 
 ### GitHub Actions
 
