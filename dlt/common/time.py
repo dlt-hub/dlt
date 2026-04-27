@@ -471,7 +471,7 @@ def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
     return td
 
 
-TTimeWithPrecision = TypeVar("TTimeWithPrecision", bound=Union[pendulum.DateTime, pendulum.Time])
+TTimeWithPrecision = TypeVar("TTimeWithPrecision", bound=Union[datetime.datetime, datetime.time])
 
 
 def reduce_pendulum_datetime_precision(
