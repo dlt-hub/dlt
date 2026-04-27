@@ -43,18 +43,6 @@ const sidebars = {
         'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
-        {
-          type: 'category',
-          label: 'Education',
-          link: {
-            type: 'doc',
-            id: 'tutorial/education',
-          },
-          items: [
-            'tutorial/fundamentals-course',
-            'tutorial/advanced-course',
-          ]
-        },
       ]
     },
     {
@@ -555,6 +543,20 @@ const sidebars = {
         'walkthroughs/dispatch-to-multiple-tables',
         'walkthroughs/share-a-dataset',
       ],
+    },
+  ],
+  educationSidebar: [
+    {
+      type: 'category',
+      label: 'Education',
+      link: {
+        type: 'doc',
+        id: 'tutorial/education',
+      },
+      items: [
+        'tutorial/fundamentals-course',
+        'tutorial/advanced-course',
+      ]
     },
   ]
 };
