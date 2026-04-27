@@ -189,7 +189,8 @@ def test_inside_root_symlink_preserved(tmp_path: Path) -> None:
     manifest = _read_manifest(buf)
     link_entry = next(f for f in manifest["files"] if f["relative_path"] == "link.txt")
     assert link_entry["linkname"] == "real.txt"
-    assert "sha3_256" not in link_entry
+    # sha3_256 is now mandatory; for symlinks it digests the link target string
+    assert link_entry["sha3_256"] == _sha3_b64(b"real.txt")
     assert link_entry["size_in_bytes"] == 0
     real_entry = next(f for f in manifest["files"] if f["relative_path"] == "real.txt")
     assert real_entry["sha3_256"] == _sha3_b64(b"hello\n")

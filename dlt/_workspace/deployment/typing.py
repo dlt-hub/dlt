@@ -249,15 +249,15 @@ class TJobDefinition(TypedDict):
     """Controls refresh policy of the job"""
 
 
-class TDeploymentFileItem(TypedDict, total=False):
+class TDeploymentFileItem(TypedDict):
     """A file in the deployment package."""
 
     relative_path: str
     size_in_bytes: int
     sha3_256: str
-    """Set for regular file entries only."""
-    linkname: str
-    """Set for symlink entries only."""
+    """Digest of file contents for regular files; digest of `linkname` for symlinks."""
+    linkname: NotRequired[str]
+    """Symlink target string; set for symlink entries only."""
 
 
 class TFilesManifest(TypedDict):
