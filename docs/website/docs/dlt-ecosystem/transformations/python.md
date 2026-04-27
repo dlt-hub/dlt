@@ -1,7 +1,7 @@
 ---
 title: Transform data in Python with Arrow tables or DataFrames
 description: Transforming data loaded by a dlt pipeline with pandas dataframes or arrow tables
-keywords: [transform, pandas]
+keywords: [transform, pandas, pyarrow]
 ---
 
 # Transform data in Python with Arrow tables or DataFrames
@@ -111,4 +111,3 @@ data after loading, you can use Pandas or one of the following:
 
 1. [dbt.](dbt/dbt.md) (recommended)
 2. [`dlt` SQL client.](sql.md)
-

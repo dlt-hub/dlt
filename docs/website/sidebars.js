@@ -314,37 +314,33 @@ const sidebars = {
             'general-usage/destination-tables',
           ]
         },
+        'general-usage/data-quality-lifecycle',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Transformations',
+      items: [
         {
           type: 'category',
-          label: 'Transform data',
-          link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/transformations/index',
-          },
+          label: 'Extract, Transform, Load (ETL)',
           items: [
-            {
-              type: 'category',
-              label: 'Transform data with dbt',
-              items: [
-                'dlt-ecosystem/transformations/dbt/dbt',
-                'dlt-ecosystem/transformations/dbt/dbt_cloud',
-              ]
-            },
-            'dlt-ecosystem/transformations/python',
-            'dlt-ecosystem/transformations/sql',
-            {
-              type: 'category',
-              label: 'Transform before load',
-              items: [
-                'dlt-ecosystem/transformations/add-map',
-                'general-usage/customising-pipelines/renaming_columns',
-                'general-usage/customising-pipelines/pseudonymizing_columns',
-                'general-usage/customising-pipelines/removing_columns',
-              ]
-            }
+            { type: 'doc', id: 'dlt-ecosystem/transformations/add-map', label: 'Add column' },
+            { type: 'doc', id: 'general-usage/customising-pipelines/renaming_columns', label: 'Rename column' },
+            { type: 'doc', id: 'general-usage/customising-pipelines/removing_columns', label: 'Remove column' },
+            { type: 'doc', id: 'general-usage/customising-pipelines/pseudonymizing_columns', label: 'Pseudonymize values' },
           ]
         },
-        'general-usage/data-quality-lifecycle',
+        {
+          type: 'category',
+          label: 'Extract, Load, Transform (ELT)',
+          items: [
+            { type: 'doc', id: 'dlt-ecosystem/transformations/python', label: 'Python' },
+            { type: 'doc', id: 'dlt-ecosystem/transformations/sql', label: 'SQL' },
+            { type: 'doc', id: 'dlt-ecosystem/transformations/dbt/dbt', label: 'dbt' },
+            { type: 'link', href: 'https://sqlmesh.readthedocs.io/en/stable/integrations/dlt/', label: 'SQLMesh' },
+          ]
+        },
       ]
     },
     {
