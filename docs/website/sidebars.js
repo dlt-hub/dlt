@@ -31,11 +31,8 @@ const sidebars = {
     {
       type: 'category',
       label: 'Getting started',
-      link: {
-        type: 'doc',
-        id: 'intro',
-      },
       items: [
+        { type: 'doc', id: 'intro', label: 'dlt' },
         'reference/installation',
         "dlt-ecosystem/llm-tooling/llm-native-workflow",
         "dlt-ecosystem/llm-tooling/explore-and-transform",
@@ -48,12 +45,6 @@ const sidebars = {
     {
       type: 'category',
       label: 'Release highlights',
-      link: {
-        type: 'generated-index',
-        title: 'Release highlights',
-        slug: '/release-highlights',
-        keywords: ['release notes, release highlights'],
-      },
       items: [
         { type: 'doc', id: 'release-notes/1.21.2', label: '1.21.2' },
         { type: 'doc', id: 'release-notes/1.19', label: '1.19' },
@@ -94,10 +85,6 @@ const sidebars = {
     {
       type: 'category',
       label: 'Sources',
-      link: {
-        type: 'doc',
-        id: 'dlt-ecosystem/verified-sources/index',
-      },
       items: [
         {
           type: 'category',
@@ -197,10 +184,6 @@ const sidebars = {
     {
       type: 'category',
       label: 'Destinations',
-      link: {
-        type: 'doc',
-        id: 'dlt-ecosystem/destinations/index',
-      },
       items: [
         'dlt-ecosystem/destinations/bigquery',
         'dlt-ecosystem/destinations/databricks',
@@ -233,12 +216,6 @@ const sidebars = {
     {
       type: 'category',
       label: 'Using dlt',
-      link: {
-        type: 'generated-index',
-        title: 'Using dlt',
-        slug: 'general-usage',
-        keywords: ['concepts', 'usage'],
-      },
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/run-a-pipeline',
@@ -395,13 +372,6 @@ const sidebars = {
     {
       type: 'category',
       label: 'Reference',
-      link: {
-        type: 'generated-index',
-        title: 'Reference',
-        description: 'Learn more about the dlt, CLI, and the telemetry.',
-        slug: 'reference',
-        keywords: ['reference'],
-      },
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
