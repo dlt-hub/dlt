@@ -25,6 +25,7 @@ from dlt.common.data_writers.exceptions import (
     FileFormatForItemFormatNotFound,
     FileSpecNotFound,
     InvalidDataItem,
+    SchemaChanged,
 )
 from dlt.common.destination.configuration import (
     CsvFormatConfiguration,
@@ -514,12 +515,15 @@ class ArrowToParquetWriter(ParquetDataWriter):
 
         if not items:
             return
+
+        promote_options = self.parquet_format.arrow_concat_promote_options
+
         # concat batches and tables into a single one, preserving order
         # pyarrow writer starts a row group for each item it writes (even with 0 rows)
         # it also converts batches into tables internally. by creating a single table
         # we allow the user rudimentary control over row group size via max buffered items
         table = concat_batches_and_tables_in_order(
-            items, promote_options=self.parquet_format.arrow_concat_promote_options
+            items, promote_options=promote_options
         )
         # release batch references - concat is zero-copy so table shares the
         # underlying buffers via Arrow refcounting. clearing the input list
@@ -527,11 +531,41 @@ class ArrowToParquetWriter(ParquetDataWriter):
         # concatenated table keeps the buffers alive
         if isinstance(items, list):
             items.clear()
-        self.items_count += table.num_rows
+
         if not self.writer:
             self.writer = self._create_writer(table.schema)
-        # write concatenated tables
+        elif (
+            promote_options != "none"
+            and not table.schema.equals(self.writer.schema, check_metadata=False)
+        ):
+            # cross-batch schema mismatch: cast or rotate
+            table = self._reconcile_schema(table, promote_options)
+
         self.writer.write_table(table, row_group_size=self.parquet_format.row_group_size)
+        # increment after successful write so metrics are correct when
+        # SchemaChanged triggers file rotation mid-batch
+        self.items_count += table.num_rows
+
+    def _reconcile_schema(
+        self, table: "pa.Table", promote_options: str
+    ) -> "pa.Table":
+        """Reconcile table schema with writer schema across flush batches."""
+        from dlt.common.libs.pyarrow import pyarrow
+
+        writer_schema = self.writer.schema.remove_metadata()
+        table_schema = table.schema.remove_metadata()
+
+        # incompatible schemas (e.g. string vs int) raise ArrowInvalid/ArrowTypeError
+        unified = pyarrow.unify_schemas(
+            [writer_schema, table_schema],
+            promote_options=promote_options,
+        )
+
+        if unified == writer_schema:
+            # writer schema already covers incoming types - safe cast up
+            return table.cast(self.writer.schema)
+        # incoming has wider types - need a new file
+        raise SchemaChanged(unified, table)
 
     def write_footer(self) -> None:
         if not self.writer:

@@ -1,7 +1,10 @@
-from typing import NamedTuple, Sequence
+from typing import TYPE_CHECKING, Any, NamedTuple, Sequence
 
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import DltException
+
+if TYPE_CHECKING:
+    from dlt.common.libs.pyarrow import pyarrow
 
 
 class DataWriterException(DltException):
@@ -88,4 +91,18 @@ class InvalidDataItem(DataWriterException):
         super().__init__(
             f"A data item of type {data_item_format=:} cannot be written as `{file_format}:"
             f" {details}`"
+        )
+
+
+class SchemaChanged(DataWriterException):
+    """Cross-batch schema widened; signals file rotation."""
+
+    def __init__(
+        self, unified_schema: "pyarrow.Schema", table: "pyarrow.Table"
+    ) -> None:
+        self.unified_schema = unified_schema
+        self.table = table
+        super().__init__(
+            "Schema evolved across flush batches, rotating to new file with"
+            " unified schema."
         )
