@@ -71,19 +71,7 @@ const sidebars = {
         'general-usage/pipeline',
         'general-usage/destination',
         'general-usage/state',
-        {
-          type: 'category',
-          label: 'Schema',
-          link: {
-            type: 'doc',
-            id: 'general-usage/schema',
-          },
-          items: [
-            'general-usage/schema-contracts',
-            'general-usage/schema-evolution',
-            'general-usage/naming-convention',
-          ]
-        },
+        'general-usage/schema',
       ]
     },
     {
@@ -218,7 +206,7 @@ const sidebars = {
       type: 'category',
       label: 'Using dlt',
       items: [
-        'walkthroughs/adjust-a-schema',
+        'general-usage/dashboard',
         {
           type: 'category',
           label: 'Access loaded data',
@@ -231,7 +219,6 @@ const sidebars = {
             'general-usage/dataset-access/dataset',
             'general-usage/dataset-access/ibis-backend',
             'general-usage/dataset-access/sql-client',
-            'general-usage/dataset-access/view-dlt-schema',
             'general-usage/destination-tables',
           ]
         },
@@ -265,6 +252,21 @@ const sidebars = {
         'general-usage/incremental/lag',
         'general-usage/incremental/advanced-state',
         'general-usage/incremental/troubleshooting',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Schema management',
+      items: [
+        'general-usage/schema-contracts',
+        'general-usage/schema-evolution',
+        {
+          type: 'doc',
+          id: 'general-usage/dataset-access/view-dlt-schema',
+          label: 'Export & visualize',
+        },
+        'walkthroughs/adjust-a-schema',
+        'general-usage/naming-convention',
       ]
     },
     {
