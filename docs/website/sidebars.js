@@ -349,12 +349,34 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Deploying dlt',
+      label: 'Deploy',
       items: [
-        'walkthroughs/share-a-dataset',
+        {
+          type: "category",
+          label: "On Snowflake",
+          link: {
+            type: 'generated-index',
+            title: 'On Snowflake',
+            description: 'How to run dlt in Snowflake.',
+            slug: 'run-in-snowflake',
+            keywords: ['Snowflake'],
+          },
+          items: [
+            {
+              id: "walkthroughs/run-in-snowflake/run-in-snowflake",
+              type: 'doc',
+              label: 'Run dlt',
+            },
+            {
+              id: "walkthroughs/run-in-snowflake/database-connector-app",
+              type: 'doc',
+              label: 'Snowflake Native App',
+            },
+          ]
+        },
         {
           type: 'category',
-          label: 'Deploy a pipeline',
+          label: 'Orchestrators',
           link: {
             type: 'generated-index',
             title: 'Deploy a pipeline',
@@ -362,17 +384,20 @@ const sidebars = {
             slug: 'walkthroughs/deploy-a-pipeline',
           },
           items: [
-            'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
-            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
-            'reference/explainers/airflow-gcp-cloud-composer',
-            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
-            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run',
-            'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
-            'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
-            'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
-            'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
-            'walkthroughs/deploy-a-pipeline/deploy-with-modal',
-            'walkthroughs/deploy-a-pipeline/deploy-with-orchestra',
+            {
+              id: 'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
+              type: 'doc',
+              label: 'GitHub Actions',
+            },
+            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer', label: 'Airflow' },
+            { type: 'doc', id: 'reference/explainers/airflow-gcp-cloud-composer', label: 'Airflow on GCP Cloud Composer' },
+            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions', label: 'Google Cloud Functions' },
+            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run', label: 'Google Cloud Run' },
+            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-kestra', label: 'Kestra' },
+            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-dagster', label: 'Dagster' },
+            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-prefect', label: 'Prefect' },
+            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-modal', label: 'Modal' },
+            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-orchestra', label: 'Orchestra' },
           ]
         },
         {
@@ -392,21 +417,6 @@ const sidebars = {
             'running-in-production/tracing',
           ],
         },
-        {
-          type: "category",
-          label: "Run in Snowflake",
-          link: {
-            type: 'generated-index',
-            title: 'Run in Snowflake',
-            description: 'How to run dlt in Snowflake.',
-            slug: 'run-in-snowflake',
-            keywords: ['Snowflake'],
-          },
-          items: [
-            "walkthroughs/run-in-snowflake/run-in-snowflake",
-            "walkthroughs/run-in-snowflake/database-connector-app"
-          ]
-        }
       ]
     },
     {
@@ -565,6 +575,7 @@ const sidebars = {
       },
       items: [
         'walkthroughs/dispatch-to-multiple-tables',
+        'walkthroughs/share-a-dataset',
       ],
     },
   ]
