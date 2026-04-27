@@ -22,6 +22,7 @@ from dlt.common.schema.typing import TTableFormat
 
 from dlt.common.utils import uniq_id
 from dlt.extract.incremental import Incremental
+from dlt.extract.incremental.sql import to_sqlglot_filter
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
@@ -928,12 +929,13 @@ def test_where(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_to_sqlglot_filter_on_dataset(populated_pipeline: Pipeline) -> None:
-    """End-to-end: Incremental.to_sqlglot_filter() applied via dataset().items.where(expr)."""
+    """End-to-end: to_sqlglot_filter(incr) applied via dataset().items.where(expr)."""
     _run_filter_assertions(populated_pipeline)
 
 
 def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
     items = populated_pipeline.dataset().items
+    caps = populated_pipeline.dataset().sql_client.capabilities
     total_records = _total_records(populated_pipeline.destination.destination_type)
     last_dt = ITEMS_EPOCH + timedelta(seconds=total_records - 1)
 
@@ -954,7 +956,7 @@ def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
 
     # bound, no lag: lower == upper == last_dt -> "no new data" filter, 0 rows
     incr = _bind(dlt.sources.incremental[pendulum.DateTime]("created_at"))
-    expr = incr.to_sqlglot_filter()
+    expr = to_sqlglot_filter(incr, destination_capabilities=caps)
     assert expr is not None
     assert items.where(expr).fetchall() == []
 
@@ -964,11 +966,11 @@ def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
         dlt.sources.incremental[pendulum.DateTime]("created_at", lag=5.0),
         instance_start_value=lagged_start,
     )
-    expr = incr_lag.to_sqlglot_filter()
+    expr = to_sqlglot_filter(incr_lag, destination_capabilities=caps)
     # filter: created_at >= last_dt-5s AND < last_dt -> positions total-6..total-2 = 5 rows
     assert len(items.where(expr).fetchall()) == 5
     # apply_lag=False reads raw cached state["start_value"] (= last_dt) -> 0 rows
-    expr_raw = incr_lag.to_sqlglot_filter(apply_lag=False)
+    expr_raw = to_sqlglot_filter(incr_lag, apply_lag=False, destination_capabilities=caps)
     assert items.where(expr_raw).fetchall() == []
 
     # 2. no upper bound — fresh, unbound, just initial_value
@@ -976,7 +978,7 @@ def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
     incr_unbound = dlt.sources.incremental[pendulum.DateTime](
         "created_at", initial_value=ITEMS_EPOCH
     )
-    expr = incr_unbound.to_sqlglot_filter()
+    expr = to_sqlglot_filter(incr_unbound, destination_capabilities=caps)
     assert len(items.where(expr).fetchall()) == total_records
 
     # 3. open start, closed end — fresh, unbound, range modifiers on both ends
@@ -989,7 +991,7 @@ def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
         range_start="open",
         range_end="closed",
     )
-    expr = incr_range.to_sqlglot_filter()
+    expr = to_sqlglot_filter(incr_range, destination_capabilities=caps)
     # filter: created_at > t+10s AND created_at <= t+20s -> positions 11..20 = 10 rows
     arrow_tbl = items.where(expr).select("created_at").order_by("created_at").arrow()
     actual_dts = arrow_tbl["created_at"].to_pylist()

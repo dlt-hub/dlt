@@ -1045,14 +1045,6 @@ def test_merge_with_dispatch_and_incremental(
         _get_shuffled_events(True) | github_resource,
         **destination_config.run_kwargs,
     )
-    # state-only package: bind() persists `start_value = last_value` on first
-    # filtered run, so the pipeline emits one state load
-    assert len(info.loads_ids) == 1
-    # third identical run — `start_value` already in sync, nothing to write
-    info = p.run(
-        _get_shuffled_events(True) | github_resource,
-        **destination_config.run_kwargs,
-    )
     assert len(info.loads_ids) == 0
 
     # load one more event with a new id

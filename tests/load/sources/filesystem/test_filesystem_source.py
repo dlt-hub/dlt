@@ -330,11 +330,8 @@ def test_incremental_order(bucket_url: str, incremental_method: str, row_order: 
         print(pipeline.last_trace.last_normalize_info)
         loaded_files = pipeline.dataset().files["file_name"].fetchall()
         runs += 1
-        if runs <= 4:
-            assert [t_[0] for t_ in loaded_files] == all_files[:runs]
-    # 4 file-loading runs + 1 trailing state-only run (bind() persists
-    # `start_value = last_value` once the cursor stops advancing)
-    assert runs == 5
+        assert [t_[0] for t_ in loaded_files] == all_files[:runs]
+    assert runs == 4
 
 
 @pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)

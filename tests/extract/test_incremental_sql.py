@@ -10,10 +10,11 @@ from dlt.common.pipeline import StateInjectableContext
 from dlt.common.typing import TSortOrder  # noqa: F401  -- avoids unused-import lint downstream
 
 from dlt.extract.incremental import Incremental
+from dlt.extract.incremental.sql import to_sqlglot_filter
 
 
 def _filter_sql(incr: Incremental[Any], apply_lag: bool = True) -> Optional[str]:
-    expr = incr.to_sqlglot_filter(apply_lag=apply_lag)
+    expr = to_sqlglot_filter(incr, apply_lag=apply_lag)
     return expr.sql(dialect="duckdb") if expr is not None else None
 
 
@@ -314,7 +315,7 @@ def test_to_sqlglot_filter_date_cursor_full_window() -> None:
 def test_to_sqlglot_filter_returns_none_for_jsonpath_cursor() -> None:
     incr = dlt.sources.incremental("$.foo.bar", initial_value=10)
     _bind_state(incr, initial_value=10, last_value=50, start_value=10)
-    assert incr.to_sqlglot_filter() is None
+    assert to_sqlglot_filter(incr) is None
 
 
 def test_to_sqlglot_filter_returns_none_for_custom_last_value_func() -> None:
@@ -322,7 +323,7 @@ def test_to_sqlglot_filter_returns_none_for_custom_last_value_func() -> None:
         "created_at", initial_value=10, last_value_func=lambda xs: xs[-1]
     )
     _bind_state(incr, initial_value=10, last_value=50, start_value=10)
-    assert incr.to_sqlglot_filter() is None
+    assert to_sqlglot_filter(incr) is None
 
 
 def test_to_sqlglot_filter_untyped_literal_when_type_unknown() -> None:

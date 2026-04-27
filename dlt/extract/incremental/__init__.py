@@ -9,7 +9,6 @@ from typing import (
     Union,
     Literal,
     Tuple,
-    TYPE_CHECKING,
 )
 from datetime import datetime  # noqa: I251
 import inspect
@@ -49,9 +48,6 @@ from dlt.common.incremental.typing import (
     TIncrementalRange,
 )
 
-if TYPE_CHECKING:
-    from dlt.common.libs.sqlglot import sge
-
 from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental.exceptions import (
     ExternalSchedulerNotAvailable,
@@ -69,7 +65,6 @@ from dlt.extract.incremental.transform import (
     IncrementalTransform,
 )
 from dlt.extract.incremental.lag import apply_lag_with_suppression
-from dlt.extract.incremental.sql import to_sqlglot_filter as _to_sqlglot_filter
 
 try:
     from dlt.common.libs.pyarrow import is_arrow_item
@@ -209,6 +204,8 @@ class Incremental(
 
         self._cached_state: IncrementalColumnState = None
         """State dictionary cached on first access"""
+        self._cached_state_start_value: TCursorValue = None
+        """Start value to be written to cached state if data arrives"""
 
         self.lag = lag
         super().__init__(lambda x: x)  # TODO:
@@ -344,22 +341,6 @@ class Incremental(
             # raw start as persisted into state by bind()
             lower = self._cached_state.get("start_value")
         return lower, upper
-
-    def to_sqlglot_filter(self, apply_lag: bool = True) -> Optional["sge.Expression"]:
-        """Build a sqlglot WHERE expression that filters rows to the current incremental window.
-
-        Works on bound and unbound instances; see `dlt.extract.incremental.sql.to_sqlglot_filter`
-        for full semantics.
-
-        Args:
-            apply_lag (bool): When True (default) lag is applied to the lower bound;
-                when False the raw cached `start_value` is used.
-
-        Returns:
-            Optional[sge.Expression]: A sqlglot boolean expression suitable for use as a
-                WHERE clause, or `None` when filtering is not possible.
-        """
-        return _to_sqlglot_filter(self, apply_lag=apply_lag)
 
     def on_resolved(self) -> None:
         compile_path(self.cursor_path)
@@ -607,7 +588,7 @@ class Incremental(
         # cache state
         self._cached_state = self.get_state()
         # now cached state is available
-        self._cached_state["start_value"] = self._cached_state["last_value"]
+        self._cached_state_start_value = self._cached_state["last_value"]
         # Clear transforms so we get new instances
         self._transformers.clear()
         return self
@@ -693,13 +674,16 @@ class Incremental(
         else:
             rows = self._transform_item(transformer, rows)
 
+        cached_state = self._cached_state
         # ensure last_value maintains forward-only progression when lag is applied
-        if self.lag and (cached_last_value := self._cached_state.get("last_value")):
+        if self.lag and (cached_last_value := cached_state.get("last_value")):
             transformer.last_value = self.last_value_func(
                 (transformer.last_value, cached_last_value)
             )
         # writing back state
-        self._cached_state["last_value"] = transformer.last_value
+        cached_state["last_value"] = transformer.last_value
+        if rows is not None:
+            cached_state["start_value"] = self._cached_state_start_value
 
         if transformer.boundary_deduplication:
             # compute hashes for new last rows
@@ -709,19 +693,19 @@ class Incremental(
                 transformer.compute_unique_value(row, self.primary_key)
                 for row in transformer.last_rows
             )
-            initial_hash_list = self._cached_state.get("unique_hashes")
+            initial_hash_list = cached_state.get("unique_hashes")
             initial_hash_count = len(initial_hash_list) if initial_hash_list else 0
             self._incremental_metrics["initial_unique_hashes_count"] = initial_hash_count
 
             # add directly computed hashes
             unique_hashes.update(transformer.unique_hashes)
-            self._cached_state["unique_hashes"] = list(unique_hashes)
-            final_hash_count = len(self._cached_state["unique_hashes"])
+            cached_state["unique_hashes"] = list(unique_hashes)
+            final_hash_count = len(cached_state["unique_hashes"])
             self._incremental_metrics["final_unique_hashes_count"] = final_hash_count
 
             self._check_duplicate_cursor_threshold(initial_hash_count, final_hash_count)
         else:
-            self._cached_state["unique_hashes"] = []
+            cached_state["unique_hashes"] = []
         return rows
 
     def _check_duplicate_cursor_threshold(

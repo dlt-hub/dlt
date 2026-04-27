@@ -1458,9 +1458,7 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     info = p.run(standalone_some_data(item_type, now))
     print(p.last_trace.last_normalize_info)
     print(info)
-    # generated empty state (start_value updated to last_value)
-    assert len(info.loads_ids) == 1
-    info = p.run(standalone_some_data(item_type, now))
+    # no data produced - no state change - no load packages
     assert len(info.loads_ids) == 0
     info = p.run(standalone_some_data(item_type, now), write_disposition="replace")
     assert len(info.loads_ids) == 1
@@ -1477,9 +1475,9 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     print(parent_r._pipe._steps)
     print(child._pipe._steps)
 
-    # generated empty state (start_value updated to last_value)
+    # no data produced - no state change - no load packages
     info = p.run(child)
-    assert len(info.loads_ids) == 1
+    assert len(info.loads_ids) == 0
     # also transformer will not receive new data
     info = p.run(child)
     assert len(info.loads_ids) == 0
@@ -4708,9 +4706,6 @@ def test_incremental_hints_in_extract_trace() -> None:
     p.run(static_data)
     assert p.last_trace.last_extract_info.metrics
     # second run yields same items — all filtered out
-    load_info = p.run(static_data)
-    # but state updated (start_value = last_value from prev run)
-    assert len(load_info.loads_ids) == 1
     load_info = p.run(static_data)
     assert load_info.loads_ids == []
     inc_hint = _get_incremental_hint("static_data")
