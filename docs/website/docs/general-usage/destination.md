@@ -64,7 +64,7 @@ For custom destination names passed to your pipeline (e.g., `destination="my_des
 <!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::custom_name_layout-->
 
 
-Note that when you use the [`dlt init` command](../walkthroughs/add-a-verified-source.md) to create or add a data source, `dlt` creates a sample configuration for the selected destination.
+Note that when you use the `dlt init` command to create or add a data source, `dlt` creates a sample configuration for the selected destination.
 
 
 
@@ -281,4 +281,3 @@ In most cases, setting the flag above just indicates to `dlt` that you switched 
 You have two ways to implement a new destination:
 1. You can use the `@dlt.destination` decorator and [implement a sink function](../dlt-ecosystem/destinations/destination.md). This is a perfect way to implement reverse ETL destinations that push data back to REST APIs.
 2. You can implement [a full destination](../walkthroughs/create-new-destination.md) where you have full control over load jobs and schema migration.
-

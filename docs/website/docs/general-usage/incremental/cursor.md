@@ -152,7 +152,7 @@ i.e. when two runs created new dataset at the same time.
 
 For a robust backfill of this kind you probably want to use an orchestrator to make sure that each partition is loaded and loaded only once.
 
-Also check [filesystem](../../dlt-ecosystem/verified-sources/filesystem/basic.md#6-split-large-incremental-loads) example.
+Also check [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md###6-split-large-incremental-loads) example.
 
 ## Declare row order to not request unnecessary data
 
@@ -275,7 +275,7 @@ engine will be able to stream data using the index without the need to scan the 
 If your source returns unordered data, you will most probably miss some data items or load them twice.
 :::
 
-Check two other examples: [filesystem](../../dlt-ecosystem/verified-sources/filesystem/basic.md#6-split-large-incremental-loads) and
+Check two other examples: [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md###6-split-large-incremental-loads) and
 [sql_database](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#split-or-partition-long-incremental-loads).
 
 
