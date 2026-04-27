@@ -987,7 +987,8 @@ def uuid_to_string(arr: Any) -> Any:  # pyarrow.Array -> pyarrow.Array
     """Convert an array of UUIDs to canonical hyphenated lowercase string array.
 
     Accepts a `pa.uuid()` extension array or a `fixed_size_binary[16]`. Nulls
-    are preserved. Falls back to pure Python if numpy is missing.
+    are preserved. Sliced inputs (`storage.offset != 0`) are supported. Falls
+    back to pure Python if numpy is missing or the input is sliced.
     """
     pa = pyarrow
 
@@ -998,8 +999,15 @@ def uuid_to_string(arr: Any) -> Any:  # pyarrow.Array -> pyarrow.Array
     try:
         from dlt.common.libs.numpy import numpy as np
     except MissingDependencyException:
-        # pure-Python fallback. `str(UUID)` is canonical lowercase hyphenated
-        # per RFC 4122, byte-identical to the numpy path's output.
+        np = None
+
+    # the numpy fast path reads `buffers()[1]` from byte 0 and reuses
+    # `buffers()[0]` (bit-packed validity) as-is — both wrong when the input is
+    # sliced. iterating `for scalar in storage` honors `storage.offset`, so the
+    # pure-python path is correct for sliced inputs as well.
+    if np is None or storage.offset != 0:
+        # `str(UUID)` is canonical lowercase hyphenated per RFC 4122,
+        # byte-identical to the numpy path's output.
         return pa.array(
             [
                 None if scalar.as_py() is None else str(uuid.UUID(bytes=scalar.as_py()))

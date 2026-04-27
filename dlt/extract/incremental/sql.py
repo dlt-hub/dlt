@@ -78,15 +78,13 @@ def to_sqlglot_filter(
         Optional[sge.Expression]: A sqlglot boolean expression suitable for use as a
             WHERE clause, or `None` when filtering is not possible.
     """
-    # bounds come from Incremental._resolve_bounds(apply_lag=apply_lag) which works on
+    # bounds come from Incremental.resolve_bounds(apply_lag=apply_lag) which works on
     # bound and unbound instances (falling back to initial_value / end_value).
     # range_start / range_end decide endpoint inclusivity; the operator direction
     # follows last_value_func. on_cursor_value_missing controls NULL handling:
     #   "include" ORs `cursor IS NULL`
     #   "exclude" ANDs `cursor IS NOT NULL`
     #   "raise"   emits no NULL clause
-    # returns None when filtering is not possible: JSONPath cursor (not a simple column),
-    # custom last_value_func other than min/max, or no bounds and no NULL handling.
     column_name = incremental.get_cursor_column_name()
     if column_name is None:
         # JSONPath cursor cannot be filtered in SQL
@@ -104,7 +102,7 @@ def to_sqlglot_filter(
         # custom last_value_func cannot be translated to SQL
         return None
 
-    lower, upper = incremental._resolve_bounds(apply_lag=apply_lag)
+    lower, upper = incremental.resolve_bounds(apply_lag=apply_lag)
 
     # type the literal and format the bounds. branches by dlt cursor type:
     # - timestamp: caps drive precision + tz handling; sqlite drops the cast

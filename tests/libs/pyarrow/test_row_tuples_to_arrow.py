@@ -213,6 +213,22 @@ def test_uuid_to_string_preserves_nulls() -> None:
     assert result.to_pylist() == expected
 
 
+def test_uuid_to_string_handles_sliced_array() -> None:
+    """Sliced inputs (`storage.offset != 0`) yield correctly aligned strings."""
+    uuids: List[Any] = [uuid4(), None, uuid4(), uuid4(), None, uuid4()]
+    fsb = pa.array([u.bytes if u is not None else None for u in uuids], type=pa.binary(16))
+
+    # slice that starts past offset 0 and skips the tail — exercises both the
+    # data-buffer offset and the bit-packed validity offset
+    sliced = fsb.slice(2, 3)
+    assert sliced.offset != 0
+
+    result = uuid_to_string(sliced)
+
+    expected = [str(u) if u is not None else None for u in uuids[2:5]]
+    assert result.to_pylist() == expected
+
+
 def test_uuid_to_string_python_fallback_matches_numpy(monkeypatch: pytest.MonkeyPatch) -> None:
     """When numpy is missing, the pure-Python fallback produces identical output."""
     uuids: List[Any] = [uuid4(), None, uuid4(), uuid4(), None, uuid4()]

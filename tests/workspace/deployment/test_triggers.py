@@ -528,7 +528,7 @@ def test_pick_trigger(matched: List[str], default: Optional[str], expected: Opti
         ("webhook:", "webhook"),
         ("job.success:jobs.upstream", "after upstream succeeds"),
         ("job.fail:jobs.mod.upstream", "after upstream fails"),
-        ("pipeline_name:fruitshop", "pipeline fruitshop"),
+        ("pipeline_name:fruitshop", "pipeline: fruitshop"),
         ("not-a-valid-trigger", "not-a-valid-trigger"),
     ],
     ids=[

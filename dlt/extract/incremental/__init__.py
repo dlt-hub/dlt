@@ -319,10 +319,19 @@ class Incremental(
         """Return the name of the cursor column if the cursor path resolves to a single column"""
         return extract_simple_field_name(self.cursor_path)
 
-    def _resolve_bounds(
+    def resolve_bounds(
         self, apply_lag: bool = True
     ) -> Tuple[Optional[TCursorValue], Optional[TCursorValue]]:
-        """Resolve `(lower, upper)` cursor bounds. Works on bound and unbound instances."""
+        """Resolve `(lower, upper)` cursor bounds. Works on bound and unbound instances.
+
+        Args:
+            apply_lag (bool): When True, the returned `lower` is the lag-adjusted
+                `start_value` set by `bind()`. When False, the raw `start_value`
+                persisted in cached state is returned.
+
+        Returns:
+            Tuple[Optional[TCursorValue], Optional[TCursorValue]]: `(lower, upper)` bounds.
+        """
         # upper: explicit end_value beats the live cursor; on unbound, live is None
         upper = self.end_value
         if upper is None and self._cached_state is not None:

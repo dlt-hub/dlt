@@ -3,7 +3,7 @@
 import os
 import time
 from datetime import date, datetime, timezone  # noqa: I251
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
@@ -424,11 +424,12 @@ def _dt(day: str) -> pendulum.DateTime:
 
 
 @pytest.mark.parametrize(
-    "configured_initial,configured_end,sched_start,sched_end,"
+    "last_value_func,configured_initial,configured_end,sched_start,sched_end,"
     "data_items,expect_initial,expect_end,expect_count",
     [
-        # start clipped: scheduler [May, Sep) → clipped to [Jun, Sep)
+        # max: start clipped — scheduler [May, Sep) → clipped to [Jun, Sep)
         (
+            max,
             "2024-06-01",
             None,
             "2024-05-01",
@@ -438,8 +439,9 @@ def _dt(day: str) -> pendulum.DateTime:
             "2024-09-01",
             2,
         ),
-        # end clipped: scheduler [Jun, Feb+1) → clipped to [Jun, Dec)
+        # max: end clipped — scheduler [Jun, Feb+1) → clipped to [Jun, Dec)
         (
+            max,
             "2024-01-01",
             "2024-12-01",
             "2024-06-01",
@@ -449,8 +451,9 @@ def _dt(day: str) -> pendulum.DateTime:
             "2024-12-01",
             2,
         ),
-        # completely outside → negative range → all filtered
+        # max: completely outside → negative range → all filtered
         (
+            max,
             "2024-06-01",
             "2024-12-01",
             "2025-01-01",
@@ -460,8 +463,9 @@ def _dt(day: str) -> pendulum.DateTime:
             "2024-12-01",
             0,
         ),
-        # inside bounds → no clip
+        # max: inside bounds → no clip
         (
+            max,
             "2024-05-01",
             "2024-12-01",
             "2024-07-01",
@@ -471,8 +475,9 @@ def _dt(day: str) -> pendulum.DateTime:
             "2024-09-01",
             2,
         ),
-        # no configured bounds → scheduler as-is
+        # max: no configured bounds → scheduler as-is
         (
+            max,
             None,
             None,
             "2024-07-01",
@@ -482,16 +487,47 @@ def _dt(day: str) -> pendulum.DateTime:
             "2024-09-01",
             2,
         ),
+        # min: for descending cursors, initial_value is the upper bound and
+        # end_value is the lower. clipping rule mirrors max: cfg wins when
+        # `last_value_func((cfg, sched)) == cfg`, which for min means cfg is
+        # smaller. result: cfg always narrows the active range.
+        # case A: cfg_initial < sched (narrows upper), cfg_end > sched (narrows lower)
+        (
+            min,
+            "2024-08-01",
+            "2024-06-01",
+            "2024-09-01",
+            "2024-05-01",
+            ["2024-09-15", "2024-08-15", "2024-07-15", "2024-06-15", "2024-05-15"],
+            "2024-08-01",
+            "2024-06-01",
+            2,
+        ),
+        # case B: cfg_initial > sched (no clip on initial), cfg_end > sched (clip on end)
+        (
+            min,
+            "2024-09-01",
+            "2024-07-01",
+            "2024-08-01",
+            "2024-05-01",
+            ["2024-08-15", "2024-07-15", "2024-06-15"],
+            "2024-08-01",
+            "2024-07-01",
+            1,
+        ),
     ],
     ids=[
-        "start-clipped",
-        "end-clipped",
-        "empty-negative-range",
-        "inside-no-clip",
-        "no-bounds",
+        "max-start-clipped",
+        "max-end-clipped",
+        "max-empty-negative-range",
+        "max-inside-no-clip",
+        "max-no-bounds",
+        "min-both-clipped",
+        "min-end-clipped",
     ],
 )
 def test_scheduler_range_clipping(
+    last_value_func: Any,
     configured_initial: Optional[str],
     configured_end: Optional[str],
     sched_start: str,
@@ -511,6 +547,7 @@ def test_scheduler_range_clipping(
             "updated_at",
             initial_value=cfg_initial,
             end_value=cfg_end,
+            last_value_func=last_value_func,
             allow_external_schedulers=True,
         ),
     ):
