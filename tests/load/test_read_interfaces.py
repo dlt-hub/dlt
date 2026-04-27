@@ -929,35 +929,7 @@ def test_where(populated_pipeline: Pipeline) -> None:
 )
 def test_to_sqlglot_filter_on_dataset(populated_pipeline: Pipeline) -> None:
     """End-to-end: Incremental.to_sqlglot_filter() applied via dataset().items.where(expr)."""
-    is_sqlite = "sqlite" in populated_pipeline.destination.destination_name.lower()
-    # TODO: file upstream sqlglot; remove this monkey-patch once merged.
-    _orig_cast_sql = None
-    if is_sqlite:
-        from sqlglot.dialects.sqlite import SQLite as _SQLiteDialect
-
-        # PoC override: sqlglot's SQLiteGenerator already rewrites `CAST AS DATE` -> `DATE(x)`
-        # to side-step sqlite's NUMERIC-affinity trap, but doesn't extend that to TIMESTAMP /
-        # TIMESTAMPTZ / DATETIME. Without the patch, CAST AS TIMESTAMPTZ parses leading digits
-        # of the literal and yields integer 2024, breaking comparisons with TEXT-stored ISO
-        # strings. The patch wraps timestamp casts in `DATETIME(x)` which preserves the string.
-        _gen_cls = _SQLiteDialect.Generator
-        _orig_cast_sql = _gen_cls.cast_sql
-
-        def _patched_cast_sql(self, expression, safe_prefix=None):
-            if expression.is_type("date"):
-                return self.func("DATE", expression.this)
-            if expression.is_type("timestamp", "timestamptz", "datetime"):
-                return self.func("DATETIME", expression.this)
-            return _orig_cast_sql(self, expression, safe_prefix)
-
-        _gen_cls.cast_sql = _patched_cast_sql  # type: ignore[method-assign]
-    try:
-        _run_filter_assertions(populated_pipeline)
-    finally:
-        if is_sqlite and _orig_cast_sql is not None:
-            from sqlglot.dialects.sqlite import SQLite as _SQLiteDialect
-
-            _SQLiteDialect.Generator.cast_sql = _orig_cast_sql  # type: ignore[method-assign]
+    _run_filter_assertions(populated_pipeline)
 
 
 def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
@@ -1263,7 +1235,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         return re.sub(r"\s+", " ", query), columns
 
     # test all functions discussed here: https://ibis-project.org/tutorials/ibis-for-sql-users
-    ALL_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
+    ALL_COLUMNS = ["id", "decimal", "other_decimal", "created_at", "_dlt_load_id", "_dlt_id"]
 
     # selecting two columns
     assert sql_from_expr(items_table.select("id", "decimal")) == (
@@ -1276,8 +1248,8 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table) == (
         (
             'SELECT "items"."id" AS "id", "items"."decimal" AS "decimal", "items"."other_decimal"'
-            ' AS "other_decimal", "items"."_dlt_load_id" AS "_dlt_load_id", "items"."_dlt_id" AS'
-            ' "_dlt_id" FROM "dataset"."items" AS "items"'
+            ' AS "other_decimal", "items"."created_at" AS "created_at", "items"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "items"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "items"'
         ),
         ALL_COLUMNS,
     )
@@ -1318,8 +1290,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.filter(items_table.id < 10)) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" WHERE'
+            ' "t0"."id" < 10'
         ),
         ALL_COLUMNS,
     )
@@ -1334,8 +1307,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.filter(items_table.id < 10).filter(items_table.id > 5)) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" WHERE'
+            ' "t0"."id" < 10 AND "t0"."id" > 5'
         ),
         ALL_COLUMNS,
     )
@@ -1344,8 +1318,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.filter((items_table.id < 10) | (items_table.id > 5))) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" WHERE ("t0"."id" < 10) OR ("t0"."id" > 5)'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" WHERE'
+            ' ("t0"."id" < 10) OR ("t0"."id" > 5)'
         ),
         ALL_COLUMNS,
     )
@@ -1368,8 +1343,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.order_by("id", "decimal").limit(10)) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC LIMIT 10'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" ORDER BY'
+            ' "t0"."id" ASC, "t0"."decimal" ASC LIMIT 10'
         ),
         ALL_COLUMNS,
     )
@@ -1378,8 +1354,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.order_by(ibis.desc("id"), ibis.asc("decimal")).limit(10)) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC LIMIT 10'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" ORDER BY'
+            ' "t0"."id" DESC, "t0"."decimal" ASC LIMIT 10'
         ),
         ALL_COLUMNS,
     )
@@ -1388,8 +1365,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.order_by("id").limit(10, offset=5)) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" ORDER BY'
+            ' "t0"."id" ASC LIMIT 10 OFFSET 5'
         ),
         ALL_COLUMNS,
     )
@@ -1413,9 +1391,10 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     ) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN (SELECT "t1"."di_decimal" AS'
-            ' "di_decimal" FROM "dataset"."double_items" AS "t1")'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" WHERE'
+            ' "t0"."decimal" IN (SELECT "t1"."di_decimal" AS "di_decimal" FROM'
+            ' "dataset"."double_items" AS "t1")'
         ),
         ALL_COLUMNS,
     )

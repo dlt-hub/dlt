@@ -60,10 +60,7 @@ def compute_package_content_hash(manifest: TFilesManifest) -> str:
     h = hashlib.sha3_256()
     for item in manifest["files"]:
         h.update(item["relative_path"].encode("utf-8"))
-        if "sha3_256" in item:
-            h.update(item["sha3_256"].encode("ascii"))
-        if "linkname" in item:
-            h.update(item["linkname"].encode("utf-8"))
+        h.update(item["sha3_256"].encode("ascii"))
     return base64.b64encode(h.digest()).decode("ascii")
 
 
@@ -100,11 +97,18 @@ class PackageBuilder:
                         continue
                     # tar.add reads os.readlink only, never the target content
                     tar.add(str(abs_path), arcname=arcname, recursive=False)
+                    linkname = os.readlink(abs_path)
+                    # hash the link target string (not its content) so retargeting
+                    # the symlink always changes the package content hash
+                    linkname_digest = base64.b64encode(
+                        hashlib.sha3_256(linkname.encode("utf-8")).digest()
+                    ).decode("ascii")
                     manifest_files.append(
                         {
                             "relative_path": posix_path,
                             "size_in_bytes": 0,
-                            "linkname": os.readlink(abs_path),
+                            "sha3_256": linkname_digest,
+                            "linkname": linkname,
                         }
                     )
                     continue

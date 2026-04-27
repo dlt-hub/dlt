@@ -253,7 +253,7 @@ def test_to_sqlglot_filter_after_resource_extract() -> None:
         pytest.param(
             pendulum.DateTime,
             pendulum.parse("2024-01-01T00:00:00Z"),
-            "CAST('2024-01-01 00:00:00+00:00' AS TIMESTAMPTZ)",
+            "CAST('2024-01-01 00:00:00.000000+00:00' AS TIMESTAMPTZ)",
             id="datetime-tz-aware",
         ),
         pytest.param(
@@ -269,6 +269,12 @@ def test_to_sqlglot_filter_after_resource_extract() -> None:
             id="text",
         ),
         pytest.param(
+            int,
+            42,
+            "CAST(42 AS BIGINT)",
+            id="bigint",
+        ),
+        pytest.param(
             float,
             1.5,
             "CAST(1.5 AS DOUBLE)",
@@ -281,6 +287,28 @@ def test_to_sqlglot_filter_typed_literals(py_type: type, value: Any, expected_ca
     _bind_state(incr, initial_value=value, last_value=None, start_value=value)
     sql = _filter_sql(incr)
     assert sql == f'"created_at" >= {expected_cast}'
+
+
+def test_to_sqlglot_filter_date_cursor_full_window() -> None:
+    """Date cursors render as `CAST('YYYY-MM-DD' AS DATE)` on both bounds."""
+    incr = dlt.sources.incremental[date](
+        "created_at",
+        initial_value=date(2024, 1, 1),
+        end_value=date(2024, 1, 31),
+        range_start="closed",
+        range_end="open",
+    )
+    _bind_state(
+        incr,
+        initial_value=date(2024, 1, 1),
+        last_value=None,
+        start_value=date(2024, 1, 1),
+    )
+    assert (
+        _filter_sql(incr)
+        == "\"created_at\" >= CAST('2024-01-01' AS DATE) AND \"created_at\" < CAST('2024-01-31' AS"
+        " DATE)"
+    )
 
 
 def test_to_sqlglot_filter_returns_none_for_jsonpath_cursor() -> None:
