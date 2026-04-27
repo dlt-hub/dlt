@@ -60,7 +60,12 @@ const sidebars = {
       type: 'category',
       label: 'Core concepts',
       items: [
-        'reference/explainers/how-dlt-works',
+        {
+          type: 'doc',
+          id: 'reference/explainers/how-dlt-works',
+          label: 'Overview',
+        },
+        'general-usage/glossary',
         'general-usage/source',
         'general-usage/resource',
         'general-usage/pipeline',
@@ -79,7 +84,6 @@ const sidebars = {
             'general-usage/naming-convention',
           ]
         },
-        'general-usage/glossary'
       ]
     },
     {
@@ -232,19 +236,6 @@ const sidebars = {
         },*/
         {
           type: 'category',
-          label: 'Load data incrementally',
-          items: [
-            'general-usage/full-loading',
-            'general-usage/merge-loading',
-            'general-usage/incremental-loading',
-            'general-usage/incremental/cursor',
-            'general-usage/incremental/lag',
-            'general-usage/incremental/advanced-state',
-            'general-usage/incremental/troubleshooting',
-          ]
-        },
-        {
-          type: 'category',
           label: 'Configure pipelines and credentials',
            link: {
             type: 'doc',
@@ -277,6 +268,19 @@ const sidebars = {
           ]
         },
         'general-usage/data-quality-lifecycle',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Incremental loading',
+      items: [
+        'general-usage/full-loading',
+        'general-usage/merge-loading',
+        'general-usage/incremental-loading',
+        'general-usage/incremental/cursor',
+        'general-usage/incremental/lag',
+        'general-usage/incremental/advanced-state',
+        'general-usage/incremental/troubleshooting',
       ]
     },
     {
