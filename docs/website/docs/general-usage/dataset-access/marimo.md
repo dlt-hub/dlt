@@ -12,15 +12,10 @@ This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich envi
 
 ## Prerequisites
 
-First, you need to install dlt workspace:
+Install the workspace extra, which includes marimo, ibis, and DuckDB:
 
 ```sh
-pip install "dlt[hub]"
-```
-To install marimo and ibis with the duckdb extras, run the following command: 
-
-```sh
-pip install marimo "ibis-framework[duckdb]"
+pip install "dlt[workspace]"
 ```
 
 ## Launch marimo
@@ -102,7 +97,7 @@ The **Datasources** displays a limited range of data types.
 
 Marimo notebooks can also be [deployed as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/) and the code hidden. 
 
-For example, here is a small app for Github actions dataset. After loading your data, you can run this UI based app which lets you select your date ranges and see plots and data based on your selections. 
+For example, here is a small app for GitHub actions dataset. After loading your data, you can run this UI based app which lets you select your date ranges and see plots and data based on your selections. 
 
 ![Example marimo data app](https://storage.googleapis.com/dlt-blog-images/marimo-data-app.png)
 

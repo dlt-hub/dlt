@@ -298,7 +298,6 @@ const sidebars = {
           ]
         },
         'walkthroughs/adjust-a-schema',
-
         {
           type: 'category',
           label: 'Access loaded data',
