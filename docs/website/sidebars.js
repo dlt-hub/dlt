@@ -271,15 +271,45 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Incremental loading',
+      label: 'Load strategy',
       items: [
-        'general-usage/full-loading',
-        'general-usage/merge-loading',
-        'general-usage/incremental-loading',
-        'general-usage/incremental/cursor',
-        'general-usage/incremental/lag',
-        'general-usage/incremental/advanced-state',
-        'general-usage/incremental/troubleshooting',
+        {
+          type: 'doc',
+          id: 'general-usage/full-loading',
+          label: 'Full',
+        },
+        {
+          type: 'doc',
+          id: 'general-usage/merge-loading',
+          label: 'Merge',
+        },
+        {
+          type: 'category',
+          label: 'Incremental',
+          items: [
+            {
+              type: 'doc',
+              id: 'general-usage/incremental-loading',
+              label: 'Basic',
+            },
+            {
+              type: 'doc',
+              id: 'general-usage/incremental/cursor',
+              label: 'Cursor-based',
+            },
+            'general-usage/incremental/lag',
+            {
+              type: 'doc',
+              id: 'general-usage/incremental/advanced-state',
+              label: 'State',
+            },
+            {
+              type: 'doc',
+              id: 'general-usage/incremental/troubleshooting',
+              label: 'Troubleshoot',
+            },
+          ]
+        }
       ]
     },
     {
