@@ -13,7 +13,7 @@ from dlt.dataset._join import (
     _to_join_ref,
 )
 from dlt.dataset.relation import TJoinType
-from tests.dataset.utils import TLoadsFixture
+from tests.dataset.utils import TCrossDsFixture, TLoadsFixture
 
 
 class _ColumnRef(TypedDict):
@@ -208,8 +208,7 @@ def test_resolve_reference_chain_rejects_self_join(dataset_with_loads: TLoadsFix
 
 
 @pytest.mark.parametrize("dataset_with_loads", ["with_root_key"], indirect=True)
-def test_join_rejects_cross_dataset(dataset_with_loads: TLoadsFixture) -> None:
-    """Test that joining relations from different datasets raises an error."""
+def test_join_rejects_different_physical_destination(dataset_with_loads: TLoadsFixture) -> None:
     dataset, _, _ = dataset_with_loads
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -227,12 +226,11 @@ def test_join_rejects_cross_dataset(dataset_with_loads: TLoadsFixture) -> None:
         pipeline.run([other_data])
         other_dataset = pipeline.dataset()
 
-        # Try to join with a relation from the other dataset
         rel = dataset.table("users")
         other_rel = other_dataset.table("other_data")
 
-        with pytest.raises(ValueError, match="different datasets"):
-            rel.join(other_rel)
+        with pytest.raises(ValueError, match="different physical destinations"):
+            rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
 
 
 @pytest.mark.parametrize(
@@ -300,7 +298,7 @@ def test_resolve_reference_chain_rejects_unrelated_tables(
         pytest.param(
             lambda ds: ds.table("users"),
             "users",
-            "Cannot join a table to itself",
+            "Self-joins are not supported",
             id="self-join",
         ),
         pytest.param(
@@ -920,3 +918,202 @@ def test_join_columns_schema_resolves_with_name_mutating_normalizer(
         for column_name in normalized_dataset.schema.tables[normalized_right]["columns"].keys()
     }
     assert expected_right_aliases.issubset(schema_cols)
+
+
+def test_explicit_on_joins_relational_tables(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    joined = ds.table("customers").join("orders", on="customers.customer_id = orders.customer_id")
+    df = joined.df()
+    assert len(df) == 4
+    assert "orders__amount" in df.columns
+    assert list(df["orders__amount"]) == [50.0, 75.0, 200.0, 30.0]
+
+    # auto join should fail: no dlt reference between customers and orders
+    with pytest.raises(ValueError, match="Unable to resolve reference chain"):
+        ds.table("customers").join("orders")
+
+
+def test_explicit_on_accepts_sqlglot_expression(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    on_expr = sge.EQ(
+        this=sge.Column(
+            table=sge.to_identifier("customers"),
+            this=sge.to_identifier("country_code"),
+        ),
+        expression=sge.Column(
+            table=sge.to_identifier("countries"),
+            this=sge.to_identifier("code"),
+        ),
+    )
+    joined = ds.table("customers").join("countries", on=on_expr)
+    df = joined.df()
+    assert len(df) == 3
+    assert list(df["countries__name"]) == ["Germany", "France", "Germany"]
+
+
+def test_explicit_on_non_eq_predicate(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    joined = ds.table("customers").join(
+        "orders",
+        on="customers.customer_id = orders.customer_id AND orders.amount > 50",
+    )
+    df = joined.df()
+    assert len(df) == 2
+    assert list(df["orders__amount"]) == [75.0, 200.0]
+
+
+def test_explicit_on_projection_prefix(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    joined = ds.table("customers").join(
+        "orders", on="customers.customer_id = orders.customer_id", alias="o"
+    )
+    selects = joined.sqlglot_expression.selects
+    right_aliases = {expr.output_name for expr in selects if expr.output_name.startswith("o__")}
+    assert right_aliases
+    expected = {f"o__{col}" for col in ds.schema.tables["orders"]["columns"].keys()}
+    assert right_aliases == expected
+
+
+def test_explicit_on_rejects_empty_alias(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    with pytest.raises(ValueError, match="must be a non-empty string"):
+        ds.table("customers").join(
+            "orders", on="customers.customer_id = orders.customer_id", alias=""
+        )
+
+
+def test_explicit_on_rejects_self_join(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    with pytest.raises(ValueError, match="Self-joins are not supported"):
+        ds.table("customers").join(
+            "customers",
+            on="customers.customer_id = customers.customer_id",
+            alias="c2",
+        )
+
+
+def test_explicit_on_with_filtered_rhs(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    expensive_orders = ds.table("orders").where("amount", "gt", 50.0)
+    joined = ds.table("customers").join(
+        expensive_orders, on="customers.customer_id = orders.customer_id"
+    )
+    df = joined.df()
+    assert len(df) == 2
+    assert list(df["name"]) == ["Alice", "Bob"]
+    assert list(df["orders__amount"]) == [75.0, 200.0]
+
+
+def test_explicit_on_with_projected_rhs(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    narrow_orders = ds.table("orders").select("order_id", "customer_id")
+    joined = ds.table("customers").join(
+        narrow_orders, on="customers.customer_id = orders.customer_id"
+    )
+    df = joined.df()
+    assert len(df) == 4
+    rhs_cols = {c for c in df.columns if c.startswith("orders__")}
+    assert rhs_cols == {"orders__order_id", "orders__customer_id"}
+    assert "orders__amount" not in df.columns
+
+
+def test_cross_dataset_join_registers_foreign_schemas(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    """Cross-dataset join registers the foreign dataset's schemas."""
+    ds_a, ds_b = cross_dataset_duckdb
+    users = ds_a.table("users")
+    purchases = ds_b.table("purchases")
+
+    assert ds_b.dataset_name not in ds_a._foreign_schemas
+
+    users.join(purchases, on="users.id = purchases.user_id")
+
+    assert ds_b.dataset_name in ds_a._foreign_schemas
+    foreign_schemas = ds_a._foreign_schemas[ds_b.dataset_name]
+    assert len(foreign_schemas) >= 1
+
+
+def test_cross_dataset_join_requires_on(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_a, ds_b = cross_dataset_duckdb
+    users = ds_a.table("users")
+    purchases = ds_b.table("purchases")
+
+    with pytest.raises(ValueError, match="`on` is required"):
+        users.join(purchases)
+
+
+def test_cross_dataset_join_e2e(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_a, ds_b = cross_dataset_duckdb
+    users = ds_a.table("users")
+    purchases = ds_b.table("purchases")
+
+    joined = users.join(purchases, on="users.id = purchases.user_id")
+    df = joined.df()
+    assert len(df) == 3
+    assert "purchases__sku" in df.columns
+    assert "purchases__quantity" in df.columns
+    assert sorted(df["purchases__sku"]) == ["G-001", "W-001", "W-001"]
+
+
+_MATCHED = {
+    "purchases__purchase_id": [1, 2, 3],
+    "purchases__user_id": [1, 1, 2],
+    "purchases__sku": ["W-001", "G-001", "W-001"],
+    "purchases__quantity": [2, 1, 1],
+    "name": ["Alice", "Alice", "Bob"],
+}
+_MATCHED_PLUS_ORPHAN = {
+    "purchases__purchase_id": [1, 2, 3, 4],
+    "purchases__user_id": [1, 1, 2, 99],
+    "purchases__sku": ["W-001", "G-001", "W-001", "D-001"],
+    "purchases__quantity": [2, 1, 1, 5],
+    "name": ["Alice", "Alice", "Bob", None],  # orphan's matched user name is NULL
+}
+
+
+@pytest.mark.parametrize(
+    "kind,expected",
+    [
+        # inner + left: both users match, so LEFT adds no extra rows
+        pytest.param("inner", _MATCHED, id="inner"),
+        pytest.param("left", _MATCHED, id="left"),
+        # right + full: orphan purchase appears with NULL on the user side
+        pytest.param("right", _MATCHED_PLUS_ORPHAN, id="right"),
+        pytest.param("full", _MATCHED_PLUS_ORPHAN, id="full"),
+    ],
+)
+def test_cross_dataset_join_kind_parameter(
+    cross_dataset_duckdb: TCrossDsFixture,
+    kind: TJoinType,
+    expected: dict[str, list[Any]],
+) -> None:
+    ds_a, ds_b = cross_dataset_duckdb
+    users = ds_a.table("users")
+    purchases = ds_b.table("purchases")
+
+    joined = users.join(purchases, on="users.id = purchases.user_id", kind=kind)
+    df = joined.df()
+
+    for col, expected_values in expected.items():
+        assert list(df[col]) == expected_values, f"column `{col}` mismatch"

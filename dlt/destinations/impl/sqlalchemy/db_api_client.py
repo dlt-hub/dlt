@@ -337,19 +337,23 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             table_obj.create(self._current_connection)
 
     def make_qualified_table_name_path(
-        self, table_name: Optional[str], quote: bool = True, casefold: bool = True
+        self,
+        table_name: Optional[str],
+        quote: bool = True,
+        casefold: bool = True,
+        dataset_name: Optional[str] = None,
     ) -> List[str]:
         path: List[str] = []
         # no catalog for sqlalchemy
         if catalog_name := self.catalog_name(quote=quote, casefold=casefold):
             path.append(catalog_name)
 
-        dataset_name = self.dataset_name
+        effective_dataset = dataset_name or self.dataset_name
         if self.dialect.requires_name_normalize and casefold:  # type: ignore[attr-defined]
-            dataset_name = str(self.dialect.normalize_name(dataset_name))  # type: ignore[func-returns-value]
+            effective_dataset = str(self.dialect.normalize_name(effective_dataset))  # type: ignore[func-returns-value]
         if quote:
-            dataset_name = self.dialect.identifier_preparer.quote_identifier(dataset_name)  # type: ignore[attr-defined]
-        path.append(dataset_name)
+            effective_dataset = self.dialect.identifier_preparer.quote_identifier(effective_dataset)  # type: ignore[attr-defined]
+        path.append(effective_dataset)
         if table_name:
             if self.dialect.requires_name_normalize and casefold:  # type: ignore[attr-defined]
                 table_name = str(self.dialect.normalize_name(table_name))  # type: ignore[func-returns-value]

@@ -1,5 +1,4 @@
-from functools import partial
-from typing import cast
+from typing import List, Optional, cast
 
 import duckdb
 import pytest
@@ -130,12 +129,16 @@ ORDER BY i.id ASC
     )
 
     with duckdb_destination_client.sql_client as sql_client:
+
+        def _expand(table_name: str, db: Optional[str] = None) -> List[str]:
+            return sql_client.make_qualified_table_name_path(
+                table_name, quote=False, casefold=False, dataset_name=db
+            )
+
         normalized_query_expr = bind_query(
             qualified_query=cast(sge.Query, qualified_query_expr),
             sqlglot_schema=sqlglot_schema,
-            expand_table_name=partial(
-                sql_client.make_qualified_table_name_path, quote=False, casefold=False
-            ),
+            expand_table_name=_expand,
             casefold_identifier=sql_client.capabilities.casefold_identifier,
         )
         normalized_query = normalized_query_expr.sql()

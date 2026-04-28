@@ -230,20 +230,27 @@ SELECT 1
 
     # TODO make it a staticmethod to avoid passing SQLClient instances all around
     def make_qualified_table_name_path(
-        self, table_name: Optional[str], quote: bool = True, casefold: bool = True
+        self,
+        table_name: Optional[str],
+        quote: bool = True,
+        casefold: bool = True,
+        dataset_name: Optional[str] = None,
     ) -> List[str]:
         """Returns a list with path components leading from catalog to table_name.
         Used to construct fully qualified names. `table_name` is optional.
+
+        Args:
+            dataset_name: Override the default dataset name for cross-dataset references.
         """
         path: List[str] = []
         if catalog_name := self.catalog_name(quote=quote, casefold=casefold):
             path.append(catalog_name)
-        dataset_name = self.dataset_name
+        effective_dataset = dataset_name or self.dataset_name
         if casefold:
-            dataset_name = self.capabilities.casefold_identifier(self.dataset_name)
+            effective_dataset = self.capabilities.casefold_identifier(effective_dataset)
         if quote:
-            dataset_name = self.capabilities.escape_identifier(dataset_name)
-        path.append(dataset_name)
+            effective_dataset = self.capabilities.escape_identifier(effective_dataset)
+        path.append(effective_dataset)
         if table_name:
             if casefold:
                 table_name = self.capabilities.casefold_identifier(table_name)
