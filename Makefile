@@ -268,7 +268,7 @@ test-pipeline-arrow:
 # ----------------------------------------------------------------------
 
 install-workspace:
-	uv sync $(UV_SYNC_ARGS) --extra workspace --extra cli
+	uv sync $(UV_SYNC_ARGS) --extra workspace --extra cli --group streamlit
 
 TEST_WORKSPACE_PATHS = tests/workspace
 

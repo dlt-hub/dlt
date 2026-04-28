@@ -12,7 +12,6 @@ from dlt.common.pipeline import LoadInfo
 from dlt.common.typing import DictStrAny
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.exceptions import DestinationUndefinedEntity
-from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.common.schema.typing import TTableSchema
 
 
