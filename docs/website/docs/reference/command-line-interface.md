@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
     [--non-interactive] [--debug] [--no-pwd]
-    {telemetry,schema,pipeline,init,deploy,dashboard,ai} ...
+    {ai,dashboard,deploy,init,license,pipeline,schema,telemetry} ...
 ```
 
 <details>
@@ -48,28 +48,29 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 * `--no-pwd` - Do not add current working directory to sys.path. by default $pwd is added to reproduce python behavior when running scripts.
 
 **Available subcommands**
-* [`telemetry`](#dlt-telemetry) - Shows telemetry status
-* [`schema`](#dlt-schema) - Shows, converts and upgrades schemas
-* [`pipeline`](#dlt-pipeline) - Operations on pipelines that were ran locally
-* [`init`](#dlt-init) - Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
-* [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
-* [`dashboard`](#dlt-dashboard) - Starts the dlt workspace dashboard
 * [`ai`](#dlt-ai) - Use ai-powered development tools and utilities
+* [`dashboard`](#dlt-dashboard) - Starts the dlt workspace dashboard
+* [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
+* [`init`](#dlt-init) - Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
+* [`license`](#dlt-license) - View dlthub license status
+* [`pipeline`](#dlt-pipeline) - Operations on pipelines that were ran locally
+* [`schema`](#dlt-schema) - Shows, converts and upgrades schemas
+* [`telemetry`](#dlt-telemetry) - Shows telemetry status
 
 </details>
 
-## `dlt telemetry`
+## `dlt ai`
 
-Shows telemetry status.
+Use AI-powered development tools and utilities.
 
 **Usage**
 ```sh
-dlt telemetry [-h]
+dlt ai [-h] {status,init,secrets,toolkit,mcp} ...
 ```
 
 **Description**
 
-The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
+The `dlt ai` command provides commands to configure your LLM-enabled IDE and MCP server.
 
 <details>
 
@@ -80,20 +81,419 @@ Inherits arguments from [`dlt`](#dlt).
 **Options**
 * `-h, --help` - Show this help message and exit
 
+**Available subcommands**
+* [`status`](#dlt-ai-status) - Show ai setup status: dlt version, agent, toolkits, readiness checks
+* [`init`](#dlt-ai-init) - Install initial ai rules and skills for your ai coding agent
+* [`secrets`](#dlt-ai-secrets) - Manage secrets files used by dlt
+* [`toolkit`](#dlt-ai-toolkit) - Manage ai toolkit plugins (list, info, install)
+* [`mcp`](#dlt-ai-mcp) - Run or install the dlt mcp server
+
 </details>
 
-## `dlt schema`
+### `dlt ai status`
 
-Shows, converts and upgrades schemas.
+Show AI setup status: dlt version, agent, toolkits, readiness checks.
 
 **Usage**
 ```sh
-dlt schema [-h] [--format {json,yaml,dbml,dot,mermaid}] [--remove-defaults] file
+dlt ai status [-h]
 ```
 
 **Description**
 
-The `dlt schema` command will load, validate and print out a dlt schema: `dlt schema path/to/my_schema_file.yaml`.
+Show AI setup status: dlt version, agent, toolkits, readiness checks.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai`](#dlt-ai).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt ai init`
+
+Install initial AI rules and skills for your AI coding agent.
+
+**Usage**
+```sh
+dlt ai init [-h] [--agent {claude,cursor,codex}] [--location LOCATION] [--branch
+    BRANCH] [--overwrite]
+```
+
+**Description**
+
+Install initial AI rules and skills for your AI coding agent.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai`](#dlt-ai).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
+* `--location LOCATION` - Advanced. git url or local path to ai workbench repository.
+* `--branch BRANCH` - Advanced. git branch to fetch from.
+* `--overwrite` - Overwrite existing files instead of skipping them.
+
+</details>
+
+### `dlt ai secrets`
+
+Manage secrets files used by dlt.
+
+**Usage**
+```sh
+dlt ai secrets [-h] {list,view-redacted,update-fragment} ...
+```
+
+**Description**
+
+List, view (redacted), or update secret files used by dlt providers.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai`](#dlt-ai).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`list`](#dlt-ai-secrets-list) - List secret file locations from providers
+* [`view-redacted`](#dlt-ai-secrets-view-redacted) - Print secrets toml with all values replaced by '***'
+* [`update-fragment`](#dlt-ai-secrets-update-fragment) - Merge a toml fragment into the secrets file
+
+</details>
+
+### `dlt ai secrets list`
+
+List secret file locations from providers.
+
+**Usage**
+```sh
+dlt ai secrets list [-h]
+```
+
+**Description**
+
+List secret file locations from providers.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt ai secrets view-redacted`
+
+Print secrets TOML with all values replaced by '***'.
+
+**Usage**
+```sh
+dlt ai secrets view-redacted [-h] [--path PATH]
+```
+
+**Description**
+
+Without --path, shows the unified view merged from all project secret files. With --path, shows that exact file.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--path PATH` - Show this exact file instead of the unified provider view
+
+</details>
+
+### `dlt ai secrets update-fragment`
+
+Merge a TOML fragment into the secrets file.
+
+**Usage**
+```sh
+dlt ai secrets update-fragment [-h] --path PATH [fragment]
+```
+
+**Description**
+
+Merge a TOML fragment into the secrets file.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
+
+**Positional arguments**
+* `fragment` - Toml fragment string to merge; reads from stdin if omitted
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--path PATH` - Path to the secrets toml file to write to
+
+</details>
+
+### `dlt ai toolkit`
+
+Manage AI toolkit plugins (list, info, install).
+
+**Usage**
+```sh
+dlt ai toolkit [-h] [name] {list,info,install} ...
+```
+
+**Description**
+
+Manage AI toolkit plugins (list, info, install).
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai`](#dlt-ai).
+
+**Positional arguments**
+* `name` - Toolkit name (required for info and install)
+* `list` - List available toolkits
+* `info` - Show toolkit contents and components
+* `install` - Install toolkit components into project
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt ai toolkit list`
+
+List available toolkits.
+
+**Usage**
+```sh
+dlt ai toolkit [name] list [-h] [--location LOCATION] [--branch BRANCH]
+```
+
+**Description**
+
+List available toolkits.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai toolkit`](#dlt-ai-toolkit).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
+* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
+
+</details>
+
+### `dlt ai toolkit info`
+
+Show toolkit contents and components.
+
+**Usage**
+```sh
+dlt ai toolkit [name] info [-h] [--location LOCATION] [--branch BRANCH]
+```
+
+**Description**
+
+Show toolkit contents and components.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai toolkit`](#dlt-ai-toolkit).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
+* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
+
+</details>
+
+### `dlt ai toolkit install`
+
+Install toolkit components into project.
+
+**Usage**
+```sh
+dlt ai toolkit [name] install [-h] [--location LOCATION] [--branch BRANCH]
+    [--agent {claude,cursor,codex}] [--overwrite] [--strict]
+```
+
+**Description**
+
+Install toolkit components into project.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai toolkit`](#dlt-ai-toolkit).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
+* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
+* `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
+* `--overwrite` - Overwrite existing files instead of skipping them.
+* `--strict` - Fail on validation warnings (invalid frontmatter, etc.).
+
+</details>
+
+### `dlt ai mcp`
+
+Run or install the dlt MCP server.
+
+**Usage**
+```sh
+dlt ai mcp [-h] [--stdio] [--sse] [--port PORT] [--features [FEATURES ...]]
+    {run,install} ...
+```
+
+**Description**
+
+Run or install the dlt MCP server.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai`](#dlt-ai).
+
+**Positional arguments**
+* `run` - Start the mcp server (default)
+* `install` - Install mcp server config into the current project
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--stdio` - Use stdio transport mode
+* `--sse` - Use legacy sse transport instead of streamable-http
+* `--port PORT` - Port for the mcp server (default: 8000)
+* `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
+
+</details>
+
+### `dlt ai mcp run`
+
+Start the MCP server (default).
+
+**Usage**
+```sh
+dlt ai mcp run [-h] [--stdio] [--sse] [--port PORT] [--features [FEATURES ...]]
+```
+
+**Description**
+
+Start the MCP server (default).
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai mcp`](#dlt-ai-mcp).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--stdio` - Use stdio transport mode
+* `--sse` - Use legacy sse transport instead of streamable-http
+* `--port PORT` - Port for the mcp server (default: 8000)
+* `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
+
+</details>
+
+### `dlt ai mcp install`
+
+Install MCP server config into the current project.
+
+**Usage**
+```sh
+dlt ai mcp install [-h] [--agent {claude,cursor,codex}] [--features [FEATURES
+    ...]] [--name NAME] [--overwrite]
+```
+
+**Description**
+
+Install MCP server config into the current project.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai mcp`](#dlt-ai-mcp).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
+* `--features [FEATURES ...]` - Mcp feature sets to include in the server config
+* `--name NAME` - Server name in the mcp config (default: dlt-workspace)
+* `--overwrite` - Overwrite existing server config instead of skipping.
+
+</details>
+
+## `dlt dashboard`
+
+Starts the dlt workspace dashboard.
+
+**Usage**
+```sh
+dlt dashboard [-h] [--pipelines-dir PIPELINES_DIR] [--edit]
+```
+
+**Description**
+
+The `dlt dashboard` command starts the dlt workspace dashboard. You can use the dashboard:
+
+* to list and inspect local pipelines
+* browse the full pipeline schema and all hints
+* browse the data in the destination
+* inspect the pipeline state.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--pipelines-dir PIPELINES_DIR` - Pipelines working directory
+* `--edit` - Eject dashboard and start editable version
+
+</details>
+
+## `dlt deploy`
+
+Creates a deployment package for a selected pipeline script.
+
+**Usage**
+```sh
+dlt deploy [-h] pipeline-script-path {github-action,airflow-composer} ...
+```
+
+**Description**
+
+The `dlt deploy` command prepares your pipeline for deployment and gives you step-by-step instructions on how to accomplish it. To enable this functionality, please first execute `pip install "dlt[cli]"` which will add additional packages to the current environment.
 
 <details>
 
@@ -102,12 +502,238 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
 Inherits arguments from [`dlt`](#dlt).
 
 **Positional arguments**
-* `file` - Schema file name, in yaml or json format, will autodetect based on extension
+* `pipeline-script-path` - Path to a pipeline script
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--format {json,yaml,dbml,dot,mermaid}` - Display schema in this format
-* `--remove-defaults` - Does not show default hint values
+
+**Available subcommands**
+* [`github-action`](#dlt-deploy-github-action) - Deploys the pipeline to github actions
+* [`airflow-composer`](#dlt-deploy-airflow-composer) - Deploys the pipeline to airflow
+
+</details>
+
+### `dlt deploy github-action`
+
+Deploys the pipeline to Github Actions.
+
+**Usage**
+```sh
+dlt deploy pipeline-script-path github-action [-h] [--location LOCATION]
+    [--branch BRANCH] --schedule SCHEDULE [--run-manually] [--run-on-push]
+```
+
+**Description**
+
+Deploys the pipeline to GitHub Actions.
+
+GitHub Actions (https://github.com/features/actions) is a CI/CD runner with a large free tier which you can use to run your pipelines.
+
+You must specify when the GitHub Action should run using a cron schedule expression. The command also takes additional flags:
+`--run-on-push` (default is False) and `--run-manually` (default is True). Remember to put the cron
+schedule expression in quotation marks.
+
+For the chess.com API example from our docs, you can deploy it with `dlt deploy chess.py github-action --schedule "*/30 * * * *"`.
+
+Follow the guide on how to deploy a pipeline with GitHub Actions in our documentation for more information.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt deploy`](#dlt-deploy).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
+* `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
+* `--schedule SCHEDULE` - A schedule with which to run the pipeline, in cron format. example: '*/30 * * * *' will run the pipeline every 30 minutes. remember to enclose the scheduler expression in quotation marks!
+* `--run-manually` - Allows the pipeline to be run manually form github actions ui.
+* `--run-on-push` - Runs the pipeline with every push to the repository.
+
+</details>
+
+### `dlt deploy airflow-composer`
+
+Deploys the pipeline to Airflow.
+
+**Usage**
+```sh
+dlt deploy pipeline-script-path airflow-composer [-h] [--location LOCATION]
+    [--branch BRANCH] [--secrets-format {env,toml}]
+```
+
+**Description**
+
+Google Composer (https://cloud.google.com/composer?hl=en) is a managed Airflow environment provided by Google. Follow the guide in our docs on how to deploy a pipeline with Airflow to learn more. This command will:
+
+
+* create an Airflow DAG for your pipeline script that you can customize. The DAG uses
+the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py#L37) to make this process trivial.
+
+* provide you with the environment variables and secrets that you must add to Airflow.
+
+* provide you with a cloudbuild file to sync your GitHub repository with the `dag` folder of your Airflow Composer instance.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt deploy`](#dlt-deploy).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
+* `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
+* `--secrets-format {env,toml}` - Format of the secrets
+
+</details>
+
+## `dlt init`
+
+Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
+
+**Usage**
+```sh
+dlt init [-h] [--list-sources] [--list-destinations] [--location LOCATION]
+    [--branch BRANCH] [--eject] [source] [destination]
+```
+
+**Description**
+
+The `dlt init` command creates a new dlt pipeline script that loads data from `source` to `destination`. When you run the command, several things happen:
+
+1. Creates a basic project structure if the current folder is empty by adding `.dlt/config.toml`, `.dlt/secrets.toml`, and `.gitignore` files.
+2. Checks if the `source` argument matches one of our verified sources and, if so, adds it to your project.
+3. If the `source` is unknown, uses a generic template to get you started.
+4. Rewrites the pipeline scripts to use your `destination`.
+5. Creates sample config and credentials in `secrets.toml` and `config.toml` for the specified source and destination.
+6. Creates `requirements.txt` with dependencies required by the source and destination. If one exists, prints instructions on what to add to it.
+
+This command can be used several times in the same folder to add more sources, destinations, and pipelines. It will also update the verified source code to the newest
+version if run again with an existing `source` name. You will be warned if files will be overwritten or if the `dlt` version needs an upgrade to run a particular pipeline.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Positional arguments**
+* `source` - Name of data source for which to create a pipeline. adds existing verified source or creates a new pipeline template if verified source for your data source is not yet implemented.
+* `destination` - Name of a destination i.e. bigquery or redshift
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--list-sources, -l` - Shows all available verified sources and their short descriptions. for each source, it checks if your local `dlt` version requires an update and prints the relevant warning.
+* `--list-destinations` - Shows the name of all core dlt destinations.
+* `--location LOCATION` - Advanced. uses a specific url or local path to verified sources repository.
+* `--branch BRANCH` - Advanced. uses specific branch of the verified sources repository to fetch the template.
+* `--eject` - Ejects the source code of the core source like sql_database or rest_api so they will be editable by you.
+
+</details>
+
+## `dlt license`
+
+View dlthub license status.
+
+**Usage**
+```sh
+dlt license [-h] {info,scopes,issue} ...
+```
+
+**Description**
+
+View dlthub license status.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`info`](#dlt-license-info) - Show the installed license
+* [`scopes`](#dlt-license-scopes) - Show available scopes
+* [`issue`](#dlt-license-issue) - Issues a self-signed trial license that may be used for development, testing and for ci ops.
+
+</details>
+
+### `dlt license info`
+
+Show the installed license.
+
+**Usage**
+```sh
+dlt license info [-h]
+```
+
+**Description**
+
+Show the installed license.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt license`](#dlt-license).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt license scopes`
+
+Show available scopes.
+
+**Usage**
+```sh
+dlt license scopes [-h]
+```
+
+**Description**
+
+Show available scopes.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt license`](#dlt-license).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt license issue`
+
+Issues a self-signed trial license that may be used for development, testing and for ci ops.
+
+**Usage**
+```sh
+dlt license issue [-h] scope
+```
+
+**Description**
+
+Issue a new self-signed trial license.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt license`](#dlt-license).
+
+**Positional arguments**
+* `scope` - Scope of the license, a comma separated list of the scopes: ['dlthub.dbt_generator', 'dlthub.sources.mssql', 'dlthub.project', 'dlthub.transformation', 'dlthub.data_quality', 'dlthub.destinations.iceberg', 'dlthub.destinations.snowflake_plus', 'dlthub.runner']
+
+**Options**
+* `-h, --help` - Show this help message and exit
 
 </details>
 
@@ -519,29 +1145,18 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 </details>
 
-## `dlt init`
+## `dlt schema`
 
-Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
+Shows, converts and upgrades schemas.
 
 **Usage**
 ```sh
-dlt init [-h] [--list-sources] [--list-destinations] [--location LOCATION]
-    [--branch BRANCH] [--eject] [source] [destination]
+dlt schema [-h] [--format {json,yaml,dbml,dot,mermaid}] [--remove-defaults] file
 ```
 
 **Description**
 
-The `dlt init` command creates a new dlt pipeline script that loads data from `source` to `destination`. When you run the command, several things happen:
-
-1. Creates a basic project structure if the current folder is empty by adding `.dlt/config.toml`, `.dlt/secrets.toml`, and `.gitignore` files.
-2. Checks if the `source` argument matches one of our verified sources and, if so, adds it to your project.
-3. If the `source` is unknown, uses a generic template to get you started.
-4. Rewrites the pipeline scripts to use your `destination`.
-5. Creates sample config and credentials in `secrets.toml` and `config.toml` for the specified source and destination.
-6. Creates `requirements.txt` with dependencies required by the source and destination. If one exists, prints instructions on what to add to it.
-
-This command can be used several times in the same folder to add more sources, destinations, and pipelines. It will also update the verified source code to the newest
-version if run again with an existing `source` name. You will be warned if files will be overwritten or if the `dlt` version needs an upgrade to run a particular pipeline.
+The `dlt schema` command will load, validate and print out a dlt schema: `dlt schema path/to/my_schema_file.yaml`.
 
 <details>
 
@@ -550,143 +1165,27 @@ version if run again with an existing `source` name. You will be warned if files
 Inherits arguments from [`dlt`](#dlt).
 
 **Positional arguments**
-* `source` - Name of data source for which to create a pipeline. adds existing verified source or creates a new pipeline template if verified source for your data source is not yet implemented.
-* `destination` - Name of a destination i.e. bigquery or redshift
+* `file` - Schema file name, in yaml or json format, will autodetect based on extension
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--list-sources, -l` - Shows all available verified sources and their short descriptions. for each source, it checks if your local `dlt` version requires an update and prints the relevant warning.
-* `--list-destinations` - Shows the name of all core dlt destinations.
-* `--location LOCATION` - Advanced. uses a specific url or local path to verified sources repository.
-* `--branch BRANCH` - Advanced. uses specific branch of the verified sources repository to fetch the template.
-* `--eject` - Ejects the source code of the core source like sql_database or rest_api so they will be editable by you.
+* `--format {json,yaml,dbml,dot,mermaid}` - Display schema in this format
+* `--remove-defaults` - Does not show default hint values
 
 </details>
 
-## `dlt deploy`
+## `dlt telemetry`
 
-Creates a deployment package for a selected pipeline script.
+Shows telemetry status.
 
 **Usage**
 ```sh
-dlt deploy [-h] pipeline-script-path {github-action,airflow-composer} ...
+dlt telemetry [-h]
 ```
 
 **Description**
 
-The `dlt deploy` command prepares your pipeline for deployment and gives you step-by-step instructions on how to accomplish it. To enable this functionality, please first execute `pip install "dlt[cli]"` which will add additional packages to the current environment.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt`](#dlt).
-
-**Positional arguments**
-* `pipeline-script-path` - Path to a pipeline script
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`github-action`](#dlt-deploy-github-action) - Deploys the pipeline to github actions
-* [`airflow-composer`](#dlt-deploy-airflow-composer) - Deploys the pipeline to airflow
-
-</details>
-
-### `dlt deploy github-action`
-
-Deploys the pipeline to Github Actions.
-
-**Usage**
-```sh
-dlt deploy pipeline-script-path github-action [-h] [--location LOCATION]
-    [--branch BRANCH] --schedule SCHEDULE [--run-manually] [--run-on-push]
-```
-
-**Description**
-
-Deploys the pipeline to GitHub Actions.
-
-GitHub Actions (https://github.com/features/actions) is a CI/CD runner with a large free tier which you can use to run your pipelines.
-
-You must specify when the GitHub Action should run using a cron schedule expression. The command also takes additional flags:
-`--run-on-push` (default is False) and `--run-manually` (default is True). Remember to put the cron
-schedule expression in quotation marks.
-
-For the chess.com API example from our docs, you can deploy it with `dlt deploy chess.py github-action --schedule "*/30 * * * *"`.
-
-Follow the guide on how to deploy a pipeline with GitHub Actions in our documentation for more information.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt deploy`](#dlt-deploy).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
-* `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
-* `--schedule SCHEDULE` - A schedule with which to run the pipeline, in cron format. example: '*/30 * * * *' will run the pipeline every 30 minutes. remember to enclose the scheduler expression in quotation marks!
-* `--run-manually` - Allows the pipeline to be run manually form github actions ui.
-* `--run-on-push` - Runs the pipeline with every push to the repository.
-
-</details>
-
-### `dlt deploy airflow-composer`
-
-Deploys the pipeline to Airflow.
-
-**Usage**
-```sh
-dlt deploy pipeline-script-path airflow-composer [-h] [--location LOCATION]
-    [--branch BRANCH] [--secrets-format {env,toml}]
-```
-
-**Description**
-
-Google Composer (https://cloud.google.com/composer?hl=en) is a managed Airflow environment provided by Google. Follow the guide in our docs on how to deploy a pipeline with Airflow to learn more. This command will:
-
-
-* create an Airflow DAG for your pipeline script that you can customize. The DAG uses
-the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py#L37) to make this process trivial.
-
-* provide you with the environment variables and secrets that you must add to Airflow.
-
-* provide you with a cloudbuild file to sync your GitHub repository with the `dag` folder of your Airflow Composer instance.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt deploy`](#dlt-deploy).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
-* `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
-* `--secrets-format {env,toml}` - Format of the secrets
-
-</details>
-
-## `dlt dashboard`
-
-Starts the dlt workspace dashboard.
-
-**Usage**
-```sh
-dlt dashboard [-h] [--pipelines-dir PIPELINES_DIR] [--edit]
-```
-
-**Description**
-
-The `dlt dashboard` command starts the dlt workspace dashboard. You can use the dashboard:
-
-* to list and inspect local pipelines
-* browse the full pipeline schema and all hints
-* browse the data in the destination
-* inspect the pipeline state.
+The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
 
 <details>
 
@@ -696,400 +1195,6 @@ Inherits arguments from [`dlt`](#dlt).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--pipelines-dir PIPELINES_DIR` - Pipelines working directory
-* `--edit` - Eject dashboard and start editable version
-
-</details>
-
-## `dlt ai`
-
-Use AI-powered development tools and utilities.
-
-**Usage**
-```sh
-dlt ai [-h] {status,init,secrets,toolkit,mcp} ...
-```
-
-**Description**
-
-The `dlt ai` command provides commands to configure your LLM-enabled IDE and MCP server.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt`](#dlt).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`status`](#dlt-ai-status) - Show ai setup status: dlt version, agent, toolkits, readiness checks
-* [`init`](#dlt-ai-init) - Install initial ai rules and skills for your ai coding agent
-* [`secrets`](#dlt-ai-secrets) - Manage secrets files used by dlt
-* [`toolkit`](#dlt-ai-toolkit) - Manage ai toolkit plugins (list, info, install)
-* [`mcp`](#dlt-ai-mcp) - Run or install the dlt mcp server
-
-</details>
-
-### `dlt ai status`
-
-Show AI setup status: dlt version, agent, toolkits, readiness checks.
-
-**Usage**
-```sh
-dlt ai status [-h]
-```
-
-**Description**
-
-Show AI setup status: dlt version, agent, toolkits, readiness checks.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai`](#dlt-ai).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt ai init`
-
-Install initial AI rules and skills for your AI coding agent.
-
-**Usage**
-```sh
-dlt ai init [-h] [--agent {claude,cursor,codex}] [--location LOCATION] [--branch
-    BRANCH] [--overwrite]
-```
-
-**Description**
-
-Install initial AI rules and skills for your AI coding agent.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai`](#dlt-ai).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
-* `--location LOCATION` - Advanced. git url or local path to ai workbench repository.
-* `--branch BRANCH` - Advanced. git branch to fetch from.
-* `--overwrite` - Overwrite existing files instead of skipping them.
-
-</details>
-
-### `dlt ai secrets`
-
-Manage secrets files used by dlt.
-
-**Usage**
-```sh
-dlt ai secrets [-h] {list,view-redacted,update-fragment} ...
-```
-
-**Description**
-
-List, view (redacted), or update secret files used by dlt providers.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai`](#dlt-ai).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`list`](#dlt-ai-secrets-list) - List secret file locations from providers
-* [`view-redacted`](#dlt-ai-secrets-view-redacted) - Print secrets toml with all values replaced by '***'
-* [`update-fragment`](#dlt-ai-secrets-update-fragment) - Merge a toml fragment into the secrets file
-
-</details>
-
-### `dlt ai secrets list`
-
-List secret file locations from providers.
-
-**Usage**
-```sh
-dlt ai secrets list [-h]
-```
-
-**Description**
-
-List secret file locations from providers.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt ai secrets view-redacted`
-
-Print secrets TOML with all values replaced by '***'.
-
-**Usage**
-```sh
-dlt ai secrets view-redacted [-h] [--path PATH]
-```
-
-**Description**
-
-Without --path, shows the unified view merged from all project secret files. With --path, shows that exact file.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--path PATH` - Show this exact file instead of the unified provider view
-
-</details>
-
-### `dlt ai secrets update-fragment`
-
-Merge a TOML fragment into the secrets file.
-
-**Usage**
-```sh
-dlt ai secrets update-fragment [-h] --path PATH [fragment]
-```
-
-**Description**
-
-Merge a TOML fragment into the secrets file.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai secrets`](#dlt-ai-secrets).
-
-**Positional arguments**
-* `fragment` - Toml fragment string to merge; reads from stdin if omitted
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--path PATH` - Path to the secrets toml file to write to
-
-</details>
-
-### `dlt ai toolkit`
-
-Manage AI toolkit plugins (list, info, install).
-
-**Usage**
-```sh
-dlt ai toolkit [-h] [name] {list,info,install} ...
-```
-
-**Description**
-
-Manage AI toolkit plugins (list, info, install).
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai`](#dlt-ai).
-
-**Positional arguments**
-* `name` - Toolkit name (required for info and install)
-* `list` - List available toolkits
-* `info` - Show toolkit contents and components
-* `install` - Install toolkit components into project
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt ai toolkit list`
-
-List available toolkits.
-
-**Usage**
-```sh
-dlt ai toolkit [name] list [-h] [--location LOCATION] [--branch BRANCH]
-```
-
-**Description**
-
-List available toolkits.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai toolkit`](#dlt-ai-toolkit).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
-* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
-
-</details>
-
-### `dlt ai toolkit info`
-
-Show toolkit contents and components.
-
-**Usage**
-```sh
-dlt ai toolkit [name] info [-h] [--location LOCATION] [--branch BRANCH]
-```
-
-**Description**
-
-Show toolkit contents and components.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai toolkit`](#dlt-ai-toolkit).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
-* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
-
-</details>
-
-### `dlt ai toolkit install`
-
-Install toolkit components into project.
-
-**Usage**
-```sh
-dlt ai toolkit [name] install [-h] [--location LOCATION] [--branch BRANCH]
-    [--agent {claude,cursor,codex}] [--overwrite] [--strict]
-```
-
-**Description**
-
-Install toolkit components into project.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai toolkit`](#dlt-ai-toolkit).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
-* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
-* `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
-* `--overwrite` - Overwrite existing files instead of skipping them.
-* `--strict` - Fail on validation warnings (invalid frontmatter, etc.).
-
-</details>
-
-### `dlt ai mcp`
-
-Run or install the dlt MCP server.
-
-**Usage**
-```sh
-dlt ai mcp [-h] [--stdio] [--sse] [--port PORT] [--features [FEATURES ...]]
-    {run,install} ...
-```
-
-**Description**
-
-Run or install the dlt MCP server.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai`](#dlt-ai).
-
-**Positional arguments**
-* `run` - Start the mcp server (default)
-* `install` - Install mcp server config into the current project
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--stdio` - Use stdio transport mode
-* `--sse` - Use legacy sse transport instead of streamable-http
-* `--port PORT` - Port for the mcp server (default: 8000)
-* `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
-
-</details>
-
-### `dlt ai mcp run`
-
-Start the MCP server (default).
-
-**Usage**
-```sh
-dlt ai mcp run [-h] [--stdio] [--sse] [--port PORT] [--features [FEATURES ...]]
-```
-
-**Description**
-
-Start the MCP server (default).
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai mcp`](#dlt-ai-mcp).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--stdio` - Use stdio transport mode
-* `--sse` - Use legacy sse transport instead of streamable-http
-* `--port PORT` - Port for the mcp server (default: 8000)
-* `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
-
-</details>
-
-### `dlt ai mcp install`
-
-Install MCP server config into the current project.
-
-**Usage**
-```sh
-dlt ai mcp install [-h] [--agent {claude,cursor,codex}] [--features [FEATURES
-    ...]] [--name NAME] [--overwrite]
-```
-
-**Description**
-
-Install MCP server config into the current project.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt ai mcp`](#dlt-ai-mcp).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
-* `--features [FEATURES ...]` - Mcp feature sets to include in the server config
-* `--name NAME` - Server name in the mcp config (default: dlt-workspace)
-* `--overwrite` - Overwrite existing server config instead of skipping.
 
 </details>
 
