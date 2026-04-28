@@ -530,10 +530,7 @@ def overlapping_tables_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
     )
     pipeline.run(src_a())
     pipeline.run(src_b())
-    ds = pipeline.dataset()
-    for s in ds.schemas:
-        s.naming.max_length = None
-    return ds
+    return pipeline.dataset()
 
 
 def test_shared_table_merge(overlapping_tables_dataset: dlt.Dataset) -> None:
