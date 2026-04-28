@@ -1,3 +1,4 @@
+import os
 from typing import Any, Callable, Sequence
 
 import dlt
@@ -77,6 +78,7 @@ def test_databricks_zerobus_data_types(
     rows = query_rows_eventually(
         dataset=pipe.dataset(),
         query=f"SELECT {selected_columns} FROM data_types ORDER BY col1 LIMIT 1",
+        # "greater than" because Zerobus can deliver duplicates (at-least-once guarantee)
         rows_ready=lambda rows: len(rows) > 0,
     )
     assert_all_data_types_row(
@@ -85,3 +87,53 @@ def test_databricks_zerobus_data_types(
         expected_row=data_row,
         schema=columns,
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(include_cids="databricks_zerobus"),
+    ids=lambda x: x.name,
+)
+def test_databricks_zerobus_concurrent_streams(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Asserts multiple Zerobus jobs can stream concurrently into the same table."""
+
+    # NOTE: run this test with `-s` to see Zerobus SDK logs, which show the lifecycle of the
+    # multiple streams nicely
+
+    n_rows = 3
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "1"  # force 1 row per file to create multiple jobs
+    os.environ["LOAD__WORKERS"] = str(n_rows)  # allow concurrent loads for all rows
+
+    rows = [{"id": i} for i in range(n_rows)]
+
+    @dlt.resource(write_disposition="append")
+    def my_resource():
+        yield rows
+
+    databricks_adapter(my_resource, insert_api="zerobus")
+
+    pipe = destination_config.setup_pipeline(
+        "test_databricks_zerobus_concurrent_streams", dev_mode=True
+    )
+    info = pipe.run(my_resource)
+    assert_load_info(info)
+
+    # pipeline used one job (stream) per row, and all jobs completed successfully
+    completed_jobs = [
+        job
+        for job in info.load_packages[0].jobs["completed_jobs"]
+        if job.job_file_info.table_name == my_resource.table_name
+    ]
+    assert len(completed_jobs) == len(rows)
+
+    # all expected rows are eventually available in the table — we use set comparison because
+    # Zerobus can deliver duplicates (at-least-once guarantee)
+    expected_rows = [(row["id"],) for row in rows]
+    observed_rows = query_rows_eventually(
+        dataset=pipe.dataset(),
+        query=f"SELECT id FROM {my_resource.table_name} ORDER BY id",
+        rows_ready=lambda rows: set(rows) == set(expected_rows),
+    )
+    assert set(observed_rows) == set(expected_rows)
