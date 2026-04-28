@@ -686,7 +686,27 @@ class FilesystemClient(
 
         return initial_version, current_version
 
+    def _drop_iceberg_tables_from_catalog(self, tables: Iterable[str]) -> None:
+        """Drop Iceberg tables from the catalog before truncating files."""
+        from dlt.common.libs.pyiceberg import drop_iceberg_table
+
+        # Check if any of the tables use iceberg format
+        iceberg_tables = [
+            t
+            for t in tables
+            if t in self.schema.tables and self.schema.tables[t].get("table_format") == "iceberg"
+        ]
+        if not iceberg_tables:
+            return
+
+        catalog = self.get_open_table_catalog("iceberg")
+        for table in iceberg_tables:
+            table_id = f"{self.dataset_name}.{table}"
+            drop_iceberg_table(catalog, table_id)
+
     def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        self._drop_iceberg_tables_from_catalog(tables)
+
         self.truncate_tables(list(tables))
         if not delete_schema:
             return

@@ -167,6 +167,49 @@ def test_refresh_drop_sources(
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
+        subset=["filesystem"],
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
+def test_refresh_drop_sources_iceberg(destination_config: DestinationTestConfiguration):
+    """Test that refresh='drop_sources' properly drops Iceberg tables from catalog.
+
+    This test verifies the fix for the issue where Iceberg tables were not being
+    dropped from the catalog when using refresh='drop_sources', causing
+    'Table already exists' errors on subsequent runs.
+    """
+    pipeline = destination_config.setup_pipeline(
+        "iceberg_refresh_test", refresh="drop_sources", dev_mode=True
+    )
+
+    # First run - creates Iceberg table
+    info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
+    assert_load_info(info)
+    # Get only the value column (first column) to ignore dlt system columns
+    first_run_data = [r[0] for r in pipeline.dataset().digits.fetchall()]
+    assert first_run_data == [1, 2, 3]
+
+    # Second run with drop_sources - should drop table from catalog and recreate
+    # This should NOT raise 'Table already exists' error
+    info = pipeline.run([4, 5, 6], table_name="digits", **destination_config.run_kwargs)
+    assert_load_info(info)
+    second_run_data = [r[0] for r in pipeline.dataset().digits.fetchall()]
+    assert second_run_data == [4, 5, 6]
+
+    # Third run to verify table still works
+    info = pipeline.run([7, 8, 9], table_name="digits", **destination_config.run_kwargs)
+    assert_load_info(info)
+    third_run_data = [r[0] for r in pipeline.dataset().digits.fetchall()]
+    assert third_run_data == [7, 8, 9]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
         subset=["duckdb", "filesystem", "iceberg"],
         table_format_local_configs=True,
     ),
