@@ -76,6 +76,8 @@ try:
 except MissingDependencyException:
     pandas = None
 
+from dlt.common.libs.sqlglot import sge as exp
+
 
 class IncrementalMetricsRow(TypedDict, total=False):
     unfiltered_items_count: int
@@ -471,6 +473,14 @@ class Incremental(
             s["last_value"],
             self.resource_name,
         )
+
+    @property
+    def unprocessed_values(self) -> set[Any]:
+        unprocessed_ids = get_unprocessed_ids(self.initial_value)
+        # hack because you need to store a cursor that is within the existing values
+        self.last_value_func = lambda x: x
+        self.initial_value = self.initial_value[0]
+        return set(unprocessed_ids)
 
     def _transform_item(
         self, transformer: IncrementalTransform, row: TDataItem
@@ -955,6 +965,58 @@ def incremental_config_to_instance(cfg: TIncrementalConfig) -> Incremental[Any]:
     if isinstance(cfg, Incremental):
         return cfg
     return Incremental(**cfg)
+
+
+def _get_unprocessed_ids_query(
+    ids: list[str],
+    processed_table: str,
+    id_column: str,
+) -> exp.Select:
+    if not ids:
+        raise ValueError("ids list must not be empty")
+
+    unnest_subquery = exp.Subquery(
+        this=exp.select(
+            exp.alias_(
+                exp.Anonymous(
+                    this="unnest",
+                    expressions=[exp.Array(expressions=[exp.Literal.string(v) for v in ids])],
+                ),
+                id_column,
+            )
+        ),
+        alias="i",
+    )
+
+    return (
+        exp.select(f"i.{id_column}")
+        .from_(unnest_subquery)
+        .join(f"{processed_table} AS p", join_type="LEFT", on=f"p.{id_column} = i.{id_column}")
+        .where(f"p.{id_column} IS NULL")
+    )
+
+
+def get_unprocessed_ids(ids: list[Any]) -> set[Any]:
+    import dlt
+
+    resource = dlt.current.resource()
+    if not (pk := resource._hints.get("primary_key")):
+        raise ValueError("Missing `primary_key` hint.")
+
+    table_name: str = resource.table_name  # type: ignore[assignment]
+    dataset = dlt.current.pipeline().dataset()
+
+    # table doesn't exist; no ids were processed
+    if table_name not in dataset.tables:
+        return set(ids)
+
+    query = _get_unprocessed_ids_query(
+        ids=ids,
+        processed_table=table_name,
+        id_column=pk,  # type: ignore[arg-type]
+    )
+    unprocessed_ids = {r[0] for r in dataset(query, _execute_raw_query=True).fetchall()}
+    return unprocessed_ids
 
 
 __all__ = [
