@@ -1,13 +1,11 @@
 import multiprocessing
 import os
-from typing import Iterator, Generator, Any, List
+from typing import TYPE_CHECKING, Generator, Any, List, cast
 from typing import Mapping
 from typing import Union, Dict
 
 import pytest
-from lancedb import DBConnection
 from lancedb.embeddings import EmbeddingFunctionRegistry
-from lancedb.table import Table
 import pyarrow as pa
 import numpy as np
 
@@ -16,22 +14,37 @@ from dlt.common import json
 from dlt.common.typing import DictStrAny
 from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id, digest128
-from dlt.destinations.impl.lancedb.lancedb_adapter import (
-    lancedb_adapter,
-    VECTORIZE_HINT,
-)
-from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 from dlt.extract import DltResource
-from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
+from tests.load.lancedb.utils import (
+    LANCE_DEST_CONFS,
+    assert_table,
+    chunk_document,
+    get_adapter,
+    get_vectorize_hint,
+    mock_embed,
+    get_table_location,
+    open_lance_table,
+)
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.load.utils import sequence_generator
 from tests.pipeline.utils import assert_load_info
 from tests.utils import get_test_storage_root
+
+if TYPE_CHECKING:
+    from tests.load.lancedb.utils import TLanceDestinationClient
+else:
+    TLanceDestinationClient = Any
 
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
 
 
-def test_adapter_and_hints() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_adapter_and_hints(destination_config: DestinationTestConfiguration) -> None:
     generator_instance1 = sequence_generator()
 
     @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
@@ -40,7 +53,10 @@ def test_adapter_and_hints() -> None:
 
     assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
 
-    lancedb_adapter(
+    adapter = get_adapter(destination_config)
+    vectorize_hint = get_vectorize_hint(destination_config)
+
+    adapter(
         some_data,
         embed=["content"],
     )
@@ -48,11 +64,11 @@ def test_adapter_and_hints() -> None:
     assert some_data.columns["content"] == {  # type: ignore
         "name": "content",
         "data_type": "text",
-        "x-lancedb-embed": True,
-        "nullable": True,  # lancedb will override nullability
+        vectorize_hint: True,
+        "nullable": True,
     }
 
-    lancedb_adapter(
+    adapter(
         some_data,
         merge_key="content",
     )
@@ -63,29 +79,33 @@ def test_adapter_and_hints() -> None:
     assert some_data.columns["content"] == {  # type: ignore
         "name": "content",
         "data_type": "text",
-        "x-lancedb-embed": True,
-        "nullable": True,  # lancedb will override nullability
+        vectorize_hint: True,
+        "nullable": True,
     }
 
     assert some_data.compute_table_schema()["columns"]["content"]["merge_key"] is True
 
 
-def test_changing_merge_key() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_changing_merge_key(destination_config: DestinationTestConfiguration) -> None:
     @dlt.resource
     def some_data():
         yield {"id": 1, "other_id": 2, "content": "random"}
 
     # Initially "id" is set as key
-    lancedb_adapter(
+    get_adapter(destination_config)(
         some_data,
         embed=["random"],
         merge_key="id",
     )
 
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_changing_merge_key",
-        destination="lancedb",
-        dataset_name=f"test_changing_merge_key{uniq_id()}",
+        dev_mode=True,
     )
     info = pipeline.run(
         some_data(),
@@ -96,7 +116,7 @@ def test_changing_merge_key() -> None:
     assert pipeline.default_schema.tables["some_data"]["columns"]["id"]["nullable"] is False
 
     # We change key to "other_id"
-    lancedb_adapter(
+    get_adapter(destination_config)(
         some_data,
         embed=["random"],
         merge_key="other_id",
@@ -115,39 +135,48 @@ def test_changing_merge_key() -> None:
     assert pipeline.default_schema.tables["some_data"]["columns"]["other_id"]["nullable"] is False
 
 
-def test_basic_state_and_schema() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_basic_state_and_schema(destination_config: DestinationTestConfiguration) -> None:
     generator_instance1 = sequence_generator()
 
     @dlt.resource
     def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         some_data,
         embed=["content"],
     )
 
-    pipeline = dlt.pipeline(
-        pipeline_name="test_pipeline_append",
-        destination="lancedb",
-        dataset_name=f"test_pipeline_append_dataset{uniq_id()}",
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_basic_state_and_schema",
+        dev_mode=True,
     )
     info = pipeline.run(
         some_data(),
     )
     assert_load_info(info)
 
-    client: LanceDBClient
-    with pipeline.destination_client() as client:  # type: ignore
+    with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
         # Check if we can get a stored schema and state.
         schema = client.get_stored_schema(client.schema.name)
         print("Print dataset name", client.dataset_name)
         assert schema
-        state = client.get_stored_state("test_pipeline_append")
+        state = client.get_stored_state("test_basic_state_and_schema")
         assert state
 
 
-def test_pipeline_append() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_pipeline_append(destination_config: DestinationTestConfiguration) -> None:
     generator_instance1 = sequence_generator()
     generator_instance2 = sequence_generator()
 
@@ -155,15 +184,14 @@ def test_pipeline_append() -> None:
     def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         some_data,
         embed=["content"],
     )
 
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_pipeline_append",
-        destination="lancedb",
-        dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
+        dev_mode=True,
     )
     info = pipeline.run(
         some_data(),
@@ -182,7 +210,12 @@ def test_pipeline_append() -> None:
     assert_table(pipeline, "some_data", items=data)
 
 
-def test_explicit_append() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_explicit_append(destination_config: DestinationTestConfiguration) -> None:
     data = [
         {"doc_id": 1, "content": "1"},
         {"doc_id": 2, "content": "2"},
@@ -193,15 +226,14 @@ def test_explicit_append() -> None:
     def some_data() -> Generator[List[DictStrAny], Any, None]:
         yield data
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         some_data,
         embed=["content"],
     )
 
-    pipeline = dlt.pipeline(
-        pipeline_name="test_pipeline_append",
-        destination="lancedb",
-        dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_explicit_append",
+        dev_mode=True,
     )
     info = pipeline.run(
         some_data(),
@@ -220,7 +252,12 @@ def test_explicit_append() -> None:
     assert_table(pipeline, "some_data", items=data)
 
 
-def test_pipeline_replace() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_pipeline_replace(destination_config: DestinationTestConfiguration) -> None:
     os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "2"
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"
 
@@ -232,9 +269,8 @@ def test_pipeline_replace() -> None:
 
     uid = uniq_id()
 
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_pipeline_replace",
-        destination="lancedb",
         dataset_name="test_pipeline_replace_dataset"
         + uid,  # Lancedb doesn't mandate any name normalization.
     )
@@ -259,7 +295,12 @@ def test_pipeline_replace() -> None:
     assert_table(pipeline, "some_data", items=data)
 
 
-def test_pipeline_merge() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_pipeline_merge(destination_config: DestinationTestConfiguration) -> None:
     data = [
         {
             "doc_id": 1,
@@ -329,12 +370,11 @@ def test_pipeline_merge() -> None:
     def movies_data() -> Any:
         yield data
 
-    lancedb_adapter(movies_data, embed=["description"], no_remove_orphans=True)
+    get_adapter(destination_config)(movies_data, embed=["description"], no_remove_orphans=True)
 
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="movies",
-        destination="lancedb",
-        dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
+        dev_mode=True,
     )
     info = pipeline.run(
         movies_data(),
@@ -355,7 +395,15 @@ def test_pipeline_merge() -> None:
     assert_table(pipeline, "movies_data", items=data)
 
 
-def test_pipeline_insert_only_merge() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_pipeline_insert_only_merge(destination_config: DestinationTestConfiguration) -> None:
+    if destination_config.destination_type == "lance":
+        pytest.skip("`insert-only` merge strategy not yet implement for `lance`")
+
     data = [
         {"doc_id": 1, "title": "The Shawshank Redemption"},
         {"doc_id": 2, "title": "The Godfather"},
@@ -368,12 +416,11 @@ def test_pipeline_insert_only_merge() -> None:
     def movies_data() -> Any:
         yield data
 
-    lancedb_adapter(movies_data, no_remove_orphans=True)
+    get_adapter(destination_config)(movies_data, no_remove_orphans=True)
 
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="movies_insert_only",
-        destination="lancedb",
-        dataset_name=f"TestInsertOnly{uniq_id()}",
+        dev_mode=True,
     )
     info = pipeline.run(movies_data())
     assert_load_info(info)
@@ -392,7 +439,7 @@ def test_pipeline_insert_only_merge() -> None:
     def movies_update() -> Any:
         yield updated_data
 
-    lancedb_adapter(movies_update, no_remove_orphans=True)
+    get_adapter(destination_config)(movies_update, no_remove_orphans=True)
 
     info = pipeline.run(movies_update.with_name("movies_data")())
     assert_load_info(info)
@@ -402,7 +449,12 @@ def test_pipeline_insert_only_merge() -> None:
     assert_table(pipeline, "movies_data", items=expected)
 
 
-def test_pipeline_with_schema_evolution() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_pipeline_with_schema_evolution(destination_config: DestinationTestConfiguration) -> None:
     data = [
         {
             "doc_id": 1,
@@ -418,12 +470,11 @@ def test_pipeline_with_schema_evolution() -> None:
     def some_data() -> Generator[List[DictStrAny], Any, None]:
         yield data
 
-    lancedb_adapter(some_data, embed=["content"])
+    get_adapter(destination_config)(some_data, embed=["content"])
 
-    pipeline = dlt.pipeline(
-        pipeline_name="test_pipeline_append",
-        destination="lancedb",
-        dataset_name=f"TestSchemaEvolutionDataset{uniq_id()}",
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_pipeline_with_schema_evolution",
+        dev_mode=True,
     )
     pipeline.run(
         some_data(),
@@ -458,17 +509,28 @@ def test_pipeline_with_schema_evolution() -> None:
     assert_table(pipeline, "some_data", items=aggregated_data)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("lance_location", (":external:", ":pipeline:", "default"))
-def test_merge_github_nested(lance_location: str) -> None:
+def test_merge_github_nested(
+    lance_location: str, destination_config: DestinationTestConfiguration
+) -> None:
     if lance_location == ":pipeline:":
-        destination_ = dlt.destinations.lancedb(lance_uri=lance_location)
+        destination_ = getattr(dlt.destinations, destination_config.destination_type)(
+            lance_uri=lance_location
+        )
     elif lance_location == ":external:":
         import lancedb
 
         path = os.path.join(get_test_storage_root(), "test.lancedb")
-        destination_ = dlt.destinations.lancedb(credentials=lancedb.connect(path))
+        destination_ = getattr(dlt.destinations, destination_config.destination_type)(
+            credentials=lancedb.connect(path)
+        )
     else:
-        destination_ = "lancedb"  # type: ignore[assignment]
+        destination_ = destination_config.destination_type
 
     pipe = dlt.pipeline(destination=destination_, dataset_name="github1", dev_mode=True)
     assert pipe.dataset_name.startswith("github1_202")
@@ -480,8 +542,9 @@ def test_merge_github_nested(lance_location: str) -> None:
     ) as f:
         data = json.load(f)
 
+    adapter = get_adapter(destination_config)
     info = pipe.run(
-        lancedb_adapter(data[:17], embed=["title", "body"], no_remove_orphans=True),
+        adapter(data[:17], embed=["title", "body"], no_remove_orphans=True),
         table_name="issues",
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         primary_key="id",
@@ -510,13 +573,19 @@ def test_merge_github_nested(lance_location: str) -> None:
     issues = pipe.default_schema.tables["issues"]
     assert issues["columns"]["id"]["primary_key"] is True
     # Make sure vectorization is enabled for.
-    assert issues["columns"]["title"][VECTORIZE_HINT]  # type: ignore[literal-required]
-    assert issues["columns"]["body"][VECTORIZE_HINT]  # type: ignore[literal-required]
-    assert VECTORIZE_HINT not in issues["columns"]["url"]
+    vectorize_hint = get_vectorize_hint(destination_config)
+    assert issues["columns"]["title"][vectorize_hint]  # type: ignore[literal-required]
+    assert issues["columns"]["body"][vectorize_hint]  # type: ignore[literal-required]
+    assert vectorize_hint not in issues["columns"]["url"]
     assert_table(pipe, "issues", expected_items_count=17)
 
 
-def test_bring_your_own_vector() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_bring_your_own_vector(destination_config: DestinationTestConfiguration) -> None:
     """Test pipeline with explicitly provided vector data in an arrow table."""
 
     # TODO: support Python objects - requires serializing arrow types (get_nested_column_type_from_py_arrow)
@@ -546,10 +615,8 @@ def test_bring_your_own_vector() -> None:
     def identity_resource(data: pa.Table) -> Generator[pa.Table, None, None]:
         yield data
 
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_bring_your_own_vector",
-        destination="lancedb",
-        dataset_name=f"test_bring_your_own_vector_{uniq_id()}",
         dev_mode=True,
     )
 
@@ -571,11 +638,9 @@ def test_bring_your_own_vector() -> None:
     assert_load_info(info)
 
     # Verify the data was loaded correctly
-    client: LanceDBClient = None
-    with pipeline.destination_client() as client:  # type: ignore[assignment]
-        db: DBConnection = client.db_client
-        table_name = client.make_qualified_table_name("vector_data")
-        tbl = db.open_table(table_name)
+    with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
+        tbl = open_lance_table(client, "vector_data")
         tbl.create_scalar_index("id")
 
         # Check that the vector column exists and has the right dimensions
@@ -595,12 +660,21 @@ def test_bring_your_own_vector() -> None:
         assert len(tbl.to_pandas()) == num_rows
 
 
-def test_empty_dataset_allowed() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_empty_dataset_allowed(destination_config: DestinationTestConfiguration) -> None:
+    if destination_config.destination_type == "lance":
+        pytest.skip("lance destination does not allow empty datasets")
+
     # dataset_name is optional so dataset name won't be autogenerated when not explicitly passed.
-    pipe = dlt.pipeline(destination="lancedb", dev_mode=True)
+    pipe = dlt.pipeline(destination=destination_config.destination_type, dev_mode=True)
 
     assert pipe.dataset_name is None
-    info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
+    adapter = get_adapter(destination_config)
+    info = pipe.run(adapter(["context", "created", "not a stop word"], embed=["value"]))
     # Dataset in load info is empty.
     assert info.dataset_name is None
     # lancedb is a DWH destination with optional dataset_name — verify metrics reflect None
@@ -608,7 +682,8 @@ def test_empty_dataset_allowed() -> None:
     assert info.metrics[load_id][0]["dataset_name"] is None
     client = pipe.destination_client()
     assert client.dataset_name is None  # type: ignore
-    assert client.sentinel_table == "dltSentinelTable"  # type: ignore
+    if destination_config.destination_type == "lancedb":
+        assert client.sentinel_table == "dltSentinelTable"  # type: ignore
     assert_table(pipe, "content", expected_items_count=3)
 
     dataset = pipe.dataset()
@@ -616,7 +691,14 @@ def test_empty_dataset_allowed() -> None:
     assert len(rows) == 3
 
 
-def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_lancedb_remove_nested_orphaned_records_with_chunks(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="document",
@@ -643,10 +725,8 @@ def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:
     ) -> Union[Generator[Dict[str, Any], None, None], DltResource]:
         return documents(docs)
 
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="chunked_docs",
-        destination="lancedb",
-        dataset_name="chunked_documents",
         dev_mode=True,
     )
 
@@ -682,6 +762,7 @@ def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:
     assert_load_info(info)
 
     with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
         # Orphaned chunks/documents must have been discarded.
         # Shouldn't contain any text from `initial_docs' where doc_id=1.
         expected_text = {
@@ -708,9 +789,7 @@ def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:
             " set.",
         }
 
-        embeddings_table_name = client.make_qualified_table_name("document__embeddings")  # type: ignore[attr-defined]
-
-        tbl: Table = client.db_client.open_table(embeddings_table_name)  # type: ignore[attr-defined]
+        tbl = open_lance_table(client, "document__embeddings")
         df = tbl.to_pandas()
         assert set(df["chunk_text"]) == expected_text
 
@@ -721,61 +800,61 @@ search_data = [
 ]
 
 
-def test_fts_query() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_fts_query(destination_config: DestinationTestConfiguration) -> None:
     @dlt.resource
     def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
         yield from search_data
 
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_fts_query",
-        destination="lancedb",
-        dataset_name=f"test_pipeline_append{uniq_id()}",
+        dev_mode=True,
     )
     info = pipeline.run(
         search_data_resource(),
     )
     assert_load_info(info)
 
-    client: LanceDBClient
-    with pipeline.destination_client() as client:  # type: ignore[assignment]
-        db_client: DBConnection = client.db_client
-
-        table_name = client.make_qualified_table_name("search_data_resource")
-        tbl = db_client[table_name]
-        tbl.checkout_latest()
+    with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
+        tbl = open_lance_table(client, "search_data_resource")
 
         tbl.create_fts_index("text")
         results = tbl.search("kittens", query_type="fts").select(["text"]).to_list()
         assert results[0]["text"] == "There are several kittens playing"
 
 
-def test_semantic_query() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_semantic_query(destination_config: DestinationTestConfiguration) -> None:
     @dlt.resource
     def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
         yield from search_data
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         search_data_resource,
         embed=["text"],
     )
 
-    pipeline = dlt.pipeline(
-        pipeline_name="test_fts_query",
-        destination="lancedb",
-        dataset_name=f"test_pipeline_append{uniq_id()}",
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_semantic_query",
+        dev_mode=True,
     )
     info = pipeline.run(
         search_data_resource(),
     )
     assert_load_info(info)
 
-    client: LanceDBClient
-    with pipeline.destination_client() as client:  # type: ignore[assignment]
-        db_client: DBConnection = client.db_client
-
-        table_name = client.make_qualified_table_name("search_data_resource")
-        tbl = db_client[table_name]
-        tbl.checkout_latest()
+    with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
+        tbl = open_lance_table(client, "search_data_resource")
 
         results = (
             tbl.search("puppy", query_type="vector", ordering_field_name="_distance")
@@ -785,51 +864,61 @@ def test_semantic_query() -> None:
         assert results[0]["text"] == "Frodo was a happy puppy"
 
 
-def test_semantic_query_custom_embedding_functions_registered() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_semantic_query_custom_embedding_functions_registered(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     """Test the LanceDB registry registered custom embedding functions defined in models, if any.
     See: https://github.com/dlt-hub/dlt/issues/1765"""
+    if destination_config.destination_type == "lance" and destination_config.extra_info != "file":
+        pytest.skip("testing this locally suffices")
 
     @dlt.resource
     def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
         yield from search_data
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         search_data_resource,
         embed=["text"],
     )
 
-    pipeline = dlt.pipeline(
-        pipeline_name="test_fts_query",
-        destination="lancedb",
-        dataset_name=f"test_pipeline_append{uniq_id()}",
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_semantic_query_custom_embedding_functions_registered",
+        dev_mode=True,
     )
     info = pipeline.run(
         search_data_resource(),
     )
     assert_load_info(info)
 
-    client: LanceDBClient
-    with pipeline.destination_client() as client:  # type: ignore[assignment]
-        db_client_uri = client.db_client.uri
-        table_name = client.make_qualified_table_name("search_data_resource")
+    with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
+        table_location = get_table_location(client, "search_data_resource")
 
     # A new python process doesn't seem to correctly deserialize the custom embedding
     # functions into global __REGISTRY__.
     # We make sure to reset it as well to make sure no globals are propagated to the spawned process.
     EmbeddingFunctionRegistry().reset()
     with multiprocessing.get_context("spawn").Pool(1) as pool:
-        results = pool.apply(run_lance_search_in_separate_process, (db_client_uri, table_name))
+        results = pool.apply(
+            run_lance_search_in_separate_process,
+            ("search_data_resource", table_location),
+        )
 
     assert results[0]["text"] == "Frodo was a happy puppy"
 
 
-def run_lance_search_in_separate_process(db_client_uri: str, table_name: str) -> Any:
+def run_lance_search_in_separate_process(table_name: str, table_location: str) -> Any:
     import lancedb
+    from lancedb.table import LanceTable
 
     # Must read into __REGISTRY__ here.
-    db = lancedb.connect(db_client_uri)
-    tbl = db[table_name]
-    tbl.checkout_latest()
+    db = lancedb.connect("dummy")  # we specify table location directly so this is fine
+    tbl = LanceTable.open(db, table_name, location=table_location)
 
     return (
         tbl.search("puppy", query_type="vector", ordering_field_name="_distance")

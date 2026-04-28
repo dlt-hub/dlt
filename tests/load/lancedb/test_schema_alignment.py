@@ -1,28 +1,35 @@
 import os
 import pytest
 import pyarrow as pa
-import pandas as pd
-from typing import List, Dict, Any, Generator
-from datetime import datetime, date, time
+from typing import TYPE_CHECKING, Any, Generator, cast
 from decimal import Decimal
 
 import dlt
-from dlt.common.typing import DictStrAny
-from dlt.common.utils import uniq_id
 from dlt.pipeline.exceptions import PipelineStepFailed
-from tests.load.lancedb.utils import assert_table
+from tests.load.lancedb.utils import LANCE_DEST_CONFS, open_lance_table
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info
 from tests.cases import arrow_table_all_data_types, remove_column_from_data
 from tests.utils import TestDataItemFormat
 
+if TYPE_CHECKING:
+    from tests.load.lancedb.utils import TLanceDestinationClient
+else:
+    TLanceDestinationClient = Any
+
 
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
-def test_identical_schemas_all_types(object_format: TestDataItemFormat) -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_identical_schemas_all_types(
+    destination_config: DestinationTestConfiguration, object_format: TestDataItemFormat
+) -> None:
     """Test that identical schemas return the original table."""
-    pipeline = dlt.pipeline(
-        pipeline_name="test_identical_schemas_arrow_table_all_types",
-        destination="lancedb",
-        dataset_name=f"test_identical_schemas_arrow_table_all_types_{uniq_id()}",
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_identical_schemas_all_types",
         dev_mode=True,
     )
 
@@ -52,11 +59,16 @@ def test_identical_schemas_all_types(object_format: TestDataItemFormat) -> None:
     assert schema_after_first_load == pipeline.default_schema
 
 
-def test_add_columns_of_new_types_one_by_one() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="test_slow_schema_evolution",
-        destination="lancedb",
-        dataset_name=f"test_slow_schema_evolution_{uniq_id()}",
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_add_columns_of_new_types_one_by_one(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_add_columns_of_new_types_one_by_one",
         dev_mode=True,
     )
 
@@ -93,8 +105,8 @@ def test_add_columns_of_new_types_one_by_one() -> None:
         assert_load_info(info)
         # get data from destination
         with pipeline.destination_client() as client:
-            table_name = client.make_qualified_table_name("all_types_table")  # type: ignore[attr-defined]
-            tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+            client = cast(TLanceDestinationClient, client)
+            tbl = open_lance_table(client, "all_types_table")
             actual_columns = set(tbl.schema.names)
             if data_type == "json":
                 data_type = "json__a"
@@ -105,12 +117,17 @@ def test_add_columns_of_new_types_one_by_one() -> None:
 
 
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
-def test_new_column_in_second_load(object_format: TestDataItemFormat) -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_new_column_in_second_load(
+    destination_config: DestinationTestConfiguration, object_format: TestDataItemFormat
+) -> None:
     """Test that new columns in source are added to the target."""
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_new_column_in_second_load",
-        destination="lancedb",
-        dataset_name=f"test_new_column_in_second_load_{uniq_id()}",
         dev_mode=True,
     )
 
@@ -141,8 +158,8 @@ def test_new_column_in_second_load(object_format: TestDataItemFormat) -> None:
 
     # Verify that the extra column is in the actual destination table
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("all_types_table")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+        client = cast(TLanceDestinationClient, client)
+        tbl = open_lance_table(client, "all_types_table")
 
         # Get the actual table schema from the destination
         actual_columns = set(tbl.schema.names)
@@ -154,7 +171,12 @@ def test_new_column_in_second_load(object_format: TestDataItemFormat) -> None:
         )
 
 
-def test_arrow_precision_types():
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_arrow_precision_types(destination_config: DestinationTestConfiguration):
     # create a table with all those types as columns
     import numpy as np
 
@@ -178,10 +200,8 @@ def test_arrow_precision_types():
     )
 
     # now run a pipeline with this table
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_arrow_precision_types",
-        destination="lancedb",
-        dataset_name=f"test_arrow_precision_types_{uniq_id()}",
         dev_mode=True,
     )
 
@@ -197,8 +217,8 @@ def test_arrow_precision_types():
 
     # check the types of the column in the destination table and in the pipeline schema
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("all_precision_types")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+        client = cast(TLanceDestinationClient, client)
+        tbl = open_lance_table(client, "all_precision_types")
 
         # Check that all original types are preserved in the destination
         expected_types = [
@@ -224,17 +244,23 @@ def test_arrow_precision_types():
 
 @pytest.mark.parametrize("remove_orphans", [True, False])
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_missing_column_in_second_load(
-    object_format: TestDataItemFormat, remove_orphans: bool
+    destination_config: DestinationTestConfiguration,
+    object_format: TestDataItemFormat,
+    remove_orphans: bool,
 ) -> None:
     """
     Test if same data is loaded with missing column and merge stragegy is present, column
     is removed from lancedb table.
     """
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_missing_column_in_second_load",
-        destination="lancedb",
-        dataset_name=f"test_missing_column_in_second_load_{uniq_id()}",
+        dev_mode=True,
     )
 
     @dlt.resource(
@@ -271,8 +297,11 @@ def test_missing_column_in_second_load(
     table = remove_column_from_data(object_format, table, "float_null")
 
     # do a first run to establish schema
-    info = None
-    if remove_orphans and object_format in ["arrow-table", "pandas"]:
+    if (
+        remove_orphans
+        and object_format in ["arrow-table", "pandas"]
+        and destination_config.destination_type == "lancedb"
+    ):
         with pytest.raises(PipelineStepFailed) as e:
             info = pipeline.run(resource(table))
         assert "_dlt_load_id` column is required" in str(e.value)
@@ -280,9 +309,7 @@ def test_missing_column_in_second_load(
         os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "true"
         os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "true"
         pipeline.drop()
-        info = pipeline.run(resource(table))
-    else:
-        info = pipeline.run(resource(table))
+    info = pipeline.run(resource(table))
     assert_load_info(info)
 
     # Remove a column from the data
@@ -297,12 +324,15 @@ def test_missing_column_in_second_load(
 
 
 # @pytest.mark.xfail(reason="normalizer issue?")
-def test_json_nesting_evolution() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_json_nesting_evolution(destination_config: DestinationTestConfiguration) -> None:
     """Test that json nesting evolution is handled correctly."""
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_json_nesting_evolution",
-        destination="lancedb",
-        dataset_name=f"test_json_nesting_evolution_{uniq_id()}",
         dev_mode=True,
     )
 
@@ -326,8 +356,8 @@ def test_json_nesting_evolution() -> None:
     assert "json__b__c" in schema_in_pipeline.tables["nesting_table"]["columns"]
 
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("nesting_table")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+        client = cast(TLanceDestinationClient, client)
+        tbl = open_lance_table(client, "nesting_table")
         assert "json__a" in tbl.schema.names
         assert "json__b__c" in tbl.schema.names
 
@@ -346,8 +376,8 @@ def test_json_nesting_evolution() -> None:
     # print("both schemas", schema_in_pipeline, pipeline.default_schema)
     # print("schema_in_pipeline.tables", schema_in_pipeline.tables["nesting_table"]["columns"].keys())
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("nesting_table")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+        client = cast(TLanceDestinationClient, client)
+        tbl = open_lance_table(client, "nesting_table")
         assert "json__b__c__c1" in tbl.schema.names
         assert "json__b__d" in tbl.schema.names
         assert "json__b__c" in tbl.schema.names

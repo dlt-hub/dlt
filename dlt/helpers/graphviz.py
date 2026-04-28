@@ -6,7 +6,6 @@ import textwrap
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import dlt
-from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.common.exceptions import MissingDependencyException, TypeErrorWithKnownTypes
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
@@ -497,7 +496,7 @@ def render_schema_with_graphviz(
         stored_schema = obj
     elif isinstance(obj, dlt.Pipeline):
         stored_schema = obj.default_schema.to_dict()
-    elif isinstance(obj, ReadableDBAPIDataset):  # TODO fix this check
+    elif isinstance(obj, dlt.Dataset):
         stored_schema = obj.schema.to_dict()
     else:
         raise TypeErrorWithKnownTypes(

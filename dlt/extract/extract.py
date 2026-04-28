@@ -282,6 +282,18 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
             )
         }
+        # backfill resources that produced no writer output but carry custom metrics
+        # (e.g. every item was filtered out) so `add_metrics` /
+        # `dlt.current.resource_metrics()` counters are not silently dropped
+        for resource_name in source.selected_resources:
+            if resource_name in resource_metrics:
+                continue
+            custom = _get_all_resource_custom_metrics(resource_name)
+            if custom:
+                resource_metrics[resource_name] = DataWriterAndCustomMetrics(
+                    *EMPTY_DATA_WRITER_METRICS,
+                    custom_metrics=custom,
+                )
         # collect resource hints
         clean_hints: Dict[str, Dict[str, Any]] = {}
         for resource in source.selected_resources.values():

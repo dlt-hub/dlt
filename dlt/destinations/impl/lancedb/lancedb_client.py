@@ -17,6 +17,7 @@ import lancedb.table
 import pyarrow as pa
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction
 from lancedb.query import LanceQueryBuilder
+from packaging.version import Version
 from pyarrow import Array, ChunkedArray
 
 from dlt.common import json, pendulum, logger
@@ -185,7 +186,7 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
             return
 
         for table_name in tables:
-            if table_name in self.db_client.table_names():
+            if table_name in self.list_table_names():
                 self.db_client.drop_table(table_name)
 
     def delete_table(self, table_name: str) -> None:
@@ -214,6 +215,11 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         query_table.checkout_latest()
         return query_table.search(query=query)
 
+    def list_table_names(self) -> List[str]:
+        if Version(lancedb.__version__) >= Version("0.26.0"):
+            return list(self.db_client.list_tables().tables)
+        return list(self.db_client.table_names())
+
     @lancedb_error
     def _get_table_names(self) -> List[str]:
         """Return all tables in the dataset, excluding the sentinel table."""
@@ -221,11 +227,11 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
             prefix = f"{self.dataset_name}{self.config.dataset_separator}"
             table_names = [
                 table_name
-                for table_name in self.db_client.table_names()
+                for table_name in self.list_table_names()
                 if table_name.startswith(prefix)
             ]
         else:
-            table_names = self.db_client.table_names()
+            table_names = self.list_table_names()
 
         return [table_name for table_name in table_names if table_name != self.sentinel_table]
 
@@ -545,7 +551,7 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
     def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
-        if fq_version_table_name not in self.db_client.table_names():
+        if fq_version_table_name not in self.list_table_names():
             return None
 
         version_table: "lancedb.table.Table" = self.db_client.open_table(fq_version_table_name)
@@ -650,4 +656,4 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         return jobs
 
     def table_exists(self, table_name: str) -> bool:
-        return table_name in self.db_client.table_names()
+        return table_name in self.list_table_names()
