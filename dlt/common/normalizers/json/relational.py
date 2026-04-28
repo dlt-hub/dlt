@@ -332,7 +332,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             RelationalNormalizerConfig,
             self.schema._normalizers_config["json"].get("config") or {},
         )
-        DataItemNormalizer._validate_normalizer_config(self.schema, config)
+        self._validate_normalizer_config(self.schema, config)
 
         # add hints, do not compile.
         self.schema._merge_hints(

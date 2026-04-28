@@ -394,16 +394,20 @@ class DltSource(Iterable[TDataItem]):
     @property
     def max_table_nesting(self) -> int:
         """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
-        return RelationalNormalizer.get_normalizer_config(self._schema).get("max_nesting")
+        data_normalizer = self._schema.data_item_normalizer
+        assert isinstance(data_normalizer, RelationalNormalizer)
+        return data_normalizer.get_normalizer_config(self._schema).get("max_nesting")
 
     @max_table_nesting.setter
     def max_table_nesting(self, value: int) -> None:
+        data_normalizer = self._schema.data_item_normalizer
+        assert isinstance(data_normalizer, RelationalNormalizer)
         if value is None:
             # this also check the normalizer type
-            config = RelationalNormalizer.get_normalizer_config(self._schema)
+            config = data_normalizer.get_normalizer_config(self._schema)
             config.pop("max_nesting", None)
         else:
-            RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
+            data_normalizer.update_normalizer_config(self._schema, {"max_nesting": value})
 
     @property
     def root_key(self) -> Optional[bool]:
@@ -411,8 +415,10 @@ class DltSource(Iterable[TDataItem]):
         This option is most useful if you plan to change write disposition of a resource to disable/enable merge.
 
         """
+        data_normalizer = self._schema.data_item_normalizer
+        assert isinstance(data_normalizer, RelationalNormalizer)
         # this also check the normalizer type
-        config = RelationalNormalizer.get_normalizer_config(self._schema)
+        config = data_normalizer.get_normalizer_config(self._schema)
         is_root_key = config.get("root_key_propagation")
         if is_root_key is None:
             # if not found get legacy value
@@ -424,12 +430,14 @@ class DltSource(Iterable[TDataItem]):
 
     @root_key.setter
     def root_key(self, value: bool) -> None:
+        data_normalizer = self._schema.data_item_normalizer
+        assert isinstance(data_normalizer, RelationalNormalizer)
         # this also check the normalizer type
-        config = RelationalNormalizer.get_normalizer_config(self._schema)
+        config = data_normalizer.get_normalizer_config(self._schema)
         if value is None:
             value = self._get_root_key_legacy(config)
         if value is not None:
-            RelationalNormalizer.update_normalizer_config(
+            data_normalizer.update_normalizer_config(
                 self._schema,
                 {"root_key_propagation": value},
             )
