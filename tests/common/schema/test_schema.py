@@ -14,6 +14,7 @@ from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import (
+    CannotCoerceColumnException,
     IncompatibleSchemaException,
     InvalidSchemaName,
     ParentTableNotFoundException,
@@ -1148,21 +1149,35 @@ def test_unify_schemas_basic() -> None:
     assert "users" not in schema_b.tables
 
 
-def test_unify_schemas_overlapping_tables() -> None:
+@pytest.mark.parametrize(
+    "cols_a,cols_b,expected_columns",
+    [
+        pytest.param(
+            [{"name": "col_a", "data_type": "text"}],
+            [{"name": "col_b", "data_type": "bigint"}],
+            {"col_a": "text", "col_b": "bigint"},
+            id="disjoint_columns",
+        ),
+        pytest.param(
+            [{"name": "id", "data_type": "bigint"}],
+            [{"name": "id", "data_type": "bigint"}, {"name": "extra", "data_type": "text"}],
+            {"id": "bigint", "extra": "text"},
+            id="shared_column_same_type",
+        ),
+    ],
+)
+def test_unify_schemas_overlapping_tables(cols_a, cols_b, expected_columns) -> None:
     schema_a = Schema("alpha")
-    schema_a.update_table(
-        utils.new_table("shared", columns=[{"name": "col_a", "data_type": "text"}])
-    )
+    schema_a.update_table(utils.new_table("shared", columns=cols_a))
 
     schema_b = Schema("beta")
-    schema_b.update_table(
-        utils.new_table("shared", columns=[{"name": "col_b", "data_type": "bigint"}])
-    )
+    schema_b.update_table(utils.new_table("shared", columns=cols_b))
 
     unified = schema_a.unify_schemas([schema_b])
     columns = unified.get_table("shared")["columns"]
-    assert "col_a" in columns
-    assert "col_b" in columns
+    assert columns.keys() == expected_columns.keys()
+    for col_name, expected_type in expected_columns.items():
+        assert columns[col_name]["data_type"] == expected_type
 
 
 def test_unify_schemas_naming_mismatch() -> None:
@@ -1199,3 +1214,31 @@ def test_unify_schemas_empty_sequence() -> None:
     assert unified.is_new
     assert unified.previous_hashes == []
     assert unified.stored_version_hash is None
+
+
+def test_unify_schemas_column_type_conflict() -> None:
+    schema_a = Schema("alpha")
+    schema_a.update_table(
+        utils.new_table("shared", columns=[{"name": "val", "data_type": "bigint"}])
+    )
+
+    schema_b = Schema("beta")
+    schema_b.update_table(utils.new_table("shared", columns=[{"name": "val", "data_type": "text"}]))
+
+    with pytest.raises(CannotCoerceColumnException):
+        schema_a.unify_schemas([schema_b])
+
+
+def test_unify_schemas_sql_naming_convention_mismatch() -> None:
+    schema_a = Schema("alpha")
+    schema_a._configure_normalizers(
+        {"names": "dlt.common.normalizers.naming.sql_cs_v1", "json": None}
+    )
+
+    schema_b = Schema("beta")
+    schema_b._configure_normalizers(
+        {"names": "dlt.common.normalizers.naming.sql_ci_v1", "json": None}
+    )
+
+    with pytest.raises(IncompatibleSchemaException, match="naming convention mismatch"):
+        schema_a.unify_schemas([schema_b])

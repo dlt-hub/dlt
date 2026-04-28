@@ -49,6 +49,7 @@ import ctypes
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 ARROW_DECIMAL_MAX_PRECISION = 76
+ARROW_UUID_EXTENSION_NAME = "arrow.uuid"
 
 
 class UnsupportedArrowTypeException(DltException):
@@ -748,6 +749,28 @@ def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingCo
     return name_mapping
 
 
+def dlt_column_to_arrow_field(
+    column: TColumnSchema,
+    caps: DestinationCapabilitiesContext,
+    timestamp_timezone: str = "UTC",
+) -> pyarrow.Field:
+    """Convert a single dlt column schema to a PyArrow field.
+
+    Args:
+        column (TColumnSchema): dlt column schema with at least `name` and `data_type`.
+        caps (DestinationCapabilitiesContext): Destination capabilities for type mapping.
+        timestamp_timezone (str): Timezone for timestamp columns.
+
+    Returns:
+        pyarrow.Field: Corresponding PyArrow field.
+    """
+    return pyarrow.field(
+        column["name"],
+        get_py_arrow_datatype(column, caps, timestamp_timezone),
+        nullable=column.get("nullable", True),
+    )
+
+
 def columns_to_arrow(
     columns: TTableSchemaColumns,
     caps: DestinationCapabilitiesContext,
@@ -765,17 +788,9 @@ def columns_to_arrow(
     caps = caps or DestinationCapabilitiesContext.generic_capabilities()
     return pyarrow.schema(
         [
-            pyarrow.field(
-                name,
-                get_py_arrow_datatype(
-                    schema_item,
-                    caps,
-                    timestamp_timezone,
-                ),
-                nullable=schema_item.get("nullable", True),
-            )
-            for name, schema_item in columns.items()
-            if schema_item.get("data_type") is not None
+            dlt_column_to_arrow_field(column, caps, timestamp_timezone)
+            for column in columns.values()
+            if column.get("data_type") is not None
         ]
     )
 
@@ -1000,6 +1015,13 @@ def convert_numpy_to_arrow(
     try:
         # type=None lets pyarrow infer the type from the data
         inferred_array = pa.array(column_data, type=inferred_arrow_type)
+        # pyarrow 24+ infers Python UUIDs natively (apache/arrow#48727)
+        # Preserve dlt's pre-24 string encoding when no data_type is set
+        if dlt_data_type is None and _is_arrow_uuid_extension(inferred_array.type):
+            inferred_array = pa.array(
+                [None if v is None else custom_encode(v) for v in column_data],
+                type=pa.string(),
+            )
     # detailed error handling should happen in fallback cases
     except (pa.ArrowInvalid, pyarrow.ArrowTypeError):
         logger.warning(
@@ -1461,3 +1483,10 @@ def cast_date64_columns_to_timestamp(tbl: pyarrow.Table, tz: Optional[str] = Non
 
     new_schema = pyarrow.schema(fields, metadata=tbl.schema.metadata)
     return pyarrow.Table.from_arrays(arrays, schema=new_schema)
+
+
+def _is_arrow_uuid_extension(arrow_type: Any) -> bool:
+    return (
+        isinstance(arrow_type, pyarrow.BaseExtensionType)
+        and arrow_type.extension_name == ARROW_UUID_EXTENSION_NAME
+    )

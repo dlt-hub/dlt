@@ -13,7 +13,7 @@ Once the pipeline runs, all resources are evaluated and the data is loaded at th
 
 Example:
 
-This pipeline will load a list of objects into a DuckDB table named "three":
+This pipeline loads a list of objects into a DuckDB table named "three":
 
 ```py
 import dlt
@@ -27,32 +27,30 @@ print(info)
 
 You instantiate a pipeline by calling the `dlt.pipeline` function with the following arguments:
 
-- `pipeline_name`: a name of the pipeline that will be used to identify it in trace and monitoring
-  events and to restore its state and data schemas on subsequent runs. If not provided, `dlt` will
-  create a pipeline name from the file name of the currently executing Python module.
+- `pipeline_name`: a name of the pipeline that is used to identify it in trace and monitoring
+  events and to restore its state and data schemas on subsequent runs. If not provided, `dlt` creates a pipeline name from the filename of the currently executing Python module.
 - `destination`: a name of the [destination](../dlt-ecosystem/destinations) to which dlt
-  will load the data. It may also be provided to the `run` method of the `pipeline` and can be declared in [various ways](destination.md). 
-- `dataset_name`: a name of the dataset to which the data will be loaded. A dataset is a logical
-  group of tables, i.e., `schema` in relational databases or a folder grouping many files. It may also be
+  loads the data. It may also be provided to the `run` method of the `pipeline` and can be declared in [various ways](destination.md). 
+- `dataset_name`: a name of the dataset to which the data is loaded. A dataset is a logical
+  group of tables, that is, `schema` in relational databases or a folder grouping many files. It may also be
   provided later to the `run` or `load` methods of the pipeline. If not provided, then
   it defaults to the `{pipeline_name}_dataset` on destinations that require datasets (most of the warehouses).
-  It will stay empty on destinations that do not separate tables into datasets (or database schemas) i.e.
-  on vector databases or ClickHouse.
+  It stays empty on destinations that don't separate tables into datasets (or database schemas), that is, on vector databases or ClickHouse.
 
 To load the data, you call the `run` method and pass your data in the `data` argument.
 
 Arguments:
 
 - `data` (the first argument) may be a dlt source, resource, generator function, or any Iterator or
-  Iterable (i.e., a list or the result of the `map` function).
+  Iterable (that is, a list or the result of the `map` function).
 - `write_disposition` controls how to write data to a table. Defaults to "append".
-  - `append` will always add new data at the end of the table.
-  - `replace` will replace existing data with new data.
-  - `merge` will deduplicate and merge data based on `primary_key` and `merge_key` hints.
-- `table_name`: specified in cases when the table name cannot be inferred, i.e., from the resources or name
+  - `append` always adds new data at the end of the table.
+  - `replace` replaces existing data with new data.
+  - `merge` deduplicates and merges data based on `primary_key` and `merge_key` hints.
+- `table_name`: specified in cases when the table name can't be inferred, that is, from the resources or name
   of the generator function.
 
-Example: This pipeline will load the data the generator `generate_rows(10)` produces:
+Example: This pipeline loads the data the generator `generate_rows(10)` produces:
 
 ```py
 import dlt
@@ -79,7 +77,7 @@ You can inspect stored artifacts using the command
 [programmatically](../walkthroughs/run-a-pipeline.md#4-inspect-a-load-process).
 
 > 💡 A pipeline with a given name looks for its working directory in the location above - so if you have two
-> pipeline scripts that create a pipeline with the same name, they will see the same working folder
+> pipeline scripts that create a pipeline with the same name, they see the same working folder
 > and share all the possible state. You may override the default location using the `pipelines_dir`
 > argument when creating the pipeline.
 
@@ -102,29 +100,29 @@ into all CLI commands to get info/trace for that pipeline.
 
 ## Do experiments with dev mode
 
-If you [create a new pipeline script](../walkthroughs/create-a-pipeline.md), you will be
-experimenting a lot. If you want each time the pipeline resets its state and loads data to a
+If you [create a new pipeline script](../walkthroughs/create-a-pipeline.md), you experiment
+a lot. If you want each time the pipeline resets its state and loads data to a
 new dataset, set the `dev_mode` argument of the `dlt.pipeline` method to True. Each time the
 pipeline is created, `dlt` adds a datetime-based suffix to the dataset name.
 
 ## Drop destination schema / dataset to start over
-If you drop the destination schema / dataset to which your pipeline loads data, the pipeline will fully reset its
-state and working directory and will execute its first run. 
-If your pipeline does not share the dataset with any other pipeline and you do not keep any additional data in it - this
+If you drop the destination schema / dataset to which your pipeline loads data, the pipeline fully resets its
+state and working directory and executes its first run. 
+If your pipeline doesn't share the dataset with any other pipeline and you don't keep any additional data in it - this
 operation is also safe to be executed in production to trigger full refresh without a need to writing additional code.
 
 ## Refresh pipeline data and state
 
 You can reset parts or all of your sources by using the `refresh` argument to `dlt.pipeline` or the pipeline's `run` or `extract` method.
-That means when you run the pipeline, the sources/resources being processed will have their state reset and their tables either dropped or truncated,
+That means when you run the pipeline, the sources/resources being processed have their state reset and their tables either dropped or truncated,
 depending on which refresh mode is used.
 
 :::tip
-`dlt` will modify your destination only if extract and normalize steps of refresh run succeeded. In any other case all modifications, including 
+`dlt` modifies your destination only if extract and normalize steps of refresh run succeeded. In any other case all modifications, including 
 schema and state, are discarded.
 :::
 
-The `refresh` option works with all relational or SQL destinations and cloud storages and files (`filesystem`). It does not work with vector databases (we are working on that) and with custom destinations.
+The `refresh` option works with all relational or SQL destinations and cloud storages and files (`filesystem`). It doesn't work with vector databases (support is in progress) and with custom destinations.
 
 The `refresh` argument should have one of the following string values to decide the refresh mode:
 
@@ -145,24 +143,24 @@ import dlt
 pipeline = dlt.pipeline("airtable_demo", destination="duckdb")
 pipeline.run(airtable_emojis(), refresh="drop_sources")
 ```
-In the example above, we instruct `dlt` to wipe the pipeline state belonging to the `airtable_emojis` source and drop all the database tables in `duckdb` to
+The preceding example instructs `dlt` to wipe the pipeline state belonging to the `airtable_emojis` source and drop all the database tables in `duckdb` to
 which data was loaded. The `airtable_emojis` source had two resources named "📆 Schedule" and "💰 Budget" loading to tables "_schedule" and "_budget". Here's
 what `dlt` does step by step:
 1. Collects a list of tables to drop by looking for all the tables in the schema that are created in the destination.
 2. Removes existing pipeline state associated with the `airtable_emojis` source.
 3. Resets the schema associated with the `airtable_emojis` source.
-4. Executes `extract` and `normalize` steps. These will create fresh pipeline state and a schema.
+4. Executes `extract` and `normalize` steps. These create fresh pipeline state and a schema.
 5. Before it executes the `load` step, the collected tables are dropped from staging and regular dataset.
 6. Schema `airtable_emojis` (associated with the source) is removed from the `_dlt_version` table.
-7. Executes the `load` step as usual so tables are re-created and fresh schema and pipeline state are stored.
+7. Executes the `load` step as usual so tables are recreated and fresh schema and pipeline state are stored.
 
 ### Selectively drop tables and resource state with `drop_resources`
 
-Limits the refresh to the resources being processed in `pipeline.run` or `pipeline.extract` (e.g., by using `source.with_resources(...)`).
+Limits the refresh to the resources being processed in `pipeline.run` or `pipeline.extract` (for example, by using `source.with_resources(...)`).
 Tables belonging to those resources are dropped, and their resource state is wiped (that includes incremental state).
 The tables are deleted both from the pipeline's schema and from the destination database.
 
-Source level state keys are not deleted in this mode (i.e., `dlt.current.source_state()[<'my_key>'] = '<my_value>'`)
+Source level state keys aren't deleted in this mode (that is, `dlt.current.source_state()[<'my_key>'] = '<my_value>'`)
 
 :::warning
 This erases schema history for all affected sources, and only the latest schema version is stored.
@@ -174,13 +172,12 @@ import dlt
 pipeline = dlt.pipeline("airtable_demo", destination="duckdb")
 pipeline.run(airtable_emojis().with_resources("📆 Schedule"), refresh="drop_resources")
 ```
-Above, we request that the state associated with the "📆 Schedule" resource is reset, and the table generated by it ("_schedule") is dropped. Other resources,
-tables, and state are not affected. Please check `drop_sources` for a step-by-step description of what `dlt` does internally.
+Above, the state associated with the "📆 Schedule" resource is reset, and the table generated by it ("_schedule") is dropped. Other resources,
+tables, and state aren't affected. Please check `drop_sources` for a step-by-step description of what `dlt` does internally.
 
 ### Selectively truncate tables and reset resource state with `drop_data`
 
-Same as `drop_resources`, but instead of dropping tables from the schema, only the data is deleted from them (i.e., by `TRUNCATE <table_name>` in SQL destinations). Resource state for selected resources is also wiped. In the case of [incremental resources](incremental/cursor.md), this will
-reset the cursor state and fully reload the data from the `initial_value`.
+Same as `drop_resources`, but instead of dropping tables from the schema, only the data is deleted from them (that is, by `TRUNCATE <table_name>` in SQL destinations). Resource state for selected resources is also wiped. In the case of [incremental resources](incremental/cursor.md), this resets the cursor state and fully reloads the data from the `initial_value`.
 
 The schema remains unmodified in this case.
 ```py
@@ -190,7 +187,7 @@ pipeline = dlt.pipeline("airtable_demo", destination="duckdb")
 pipeline.run(airtable_emojis().with_resources("📆 Schedule"), refresh="drop_data")
 ```
 Above, the incremental state of the "📆 Schedule" is reset before the `extract` step so data is fully reacquired. Just before the `load` step starts,
-the "_schedule" is truncated, and new (full) table data will be inserted/copied.
+the "_schedule" is truncated, and new (full) table data is inserted/copied.
 
 ## Monitor the loading progress
 
@@ -201,14 +198,14 @@ the pipeline run is progressing. dlt supports 4 progress monitors out of the box
   bars that also allows for logging.
 - [tqdm](https://github.com/tqdm/tqdm) - the most popular Python progress bar lib, proven to work in
   Notebooks.
-- [alive_progress](https://github.com/rsalmei/alive-progress) - with the most fancy animations.
-- **log** - dumps the progress information to log, console, or text stream. **the most useful on
+- [alive_progress](https://github.com/rsalmei/alive-progress) - with the fanciest animations.
+- **log** - dumps the progress information to log, console, or text stream. **The most useful on
   production** optionally adds memory and CPU usage stats.
 
 > 💡 You must install the required progress bar library yourself.
 
 You pass the progress monitor in the `progress` argument of the pipeline. You can use a name from the
-list above as in the following example:
+preceding list as in the following example:
 
 ```py
 # create a pipeline loading chess data that dumps

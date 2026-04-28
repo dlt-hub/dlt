@@ -4,6 +4,8 @@ import pytest
 import dlt
 import os
 
+import sqlglot.expressions as sge
+
 from dlt import Pipeline
 from dlt.common import Decimal
 
@@ -205,8 +207,10 @@ def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> N
     # dataset
     assert (
         _replace_variable_content(str(dataset_))
-        == "Dataset `dataset_name` at `duckdb[<destination_config>]` with tables in dlt schema"
-        " `source`:\nitems, double_items, orderable_in_chain, items__children"
+        == "Dataset `dataset_name` at `duckdb[<destination_config>]` "
+        "with schemas:\n"
+        "  source: items, double_items, orderable_in_chain, items__children\n"
+        "  aleph: digits"
     )
 
     dataset_repr = _replace_variable_content(repr(dataset_))
@@ -307,6 +311,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         "dlt.destinations.snowflake",
         "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
         "dlt.destinations.lancedb",  # default is 200
+        "dlt.destinations.lance",
     ]
 
     # full frame
@@ -446,6 +451,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
             "orderable_in_chain",
             total_records,
         ),
+        (
+            "digits",
+            3,
+        ),
     }
     # get only one data table
     assert set(
@@ -505,6 +514,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         (
             "orderable_in_chain",
             total_records,
+        ),
+        (
+            "digits",
+            3,
         ),
     }
 
@@ -731,7 +744,9 @@ def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipe
     assert dataset_._opened_sql_client is None
 
     # check that if the schema needs to be fetched, no opened client is left
-    dataset_._schema = None
+    dataset_._schemas.clear()
+    dataset_._default_schema_name = None
+    dataset_._resolved = False
     assert dataset_.schema
     assert dataset_._opened_sql_client is None
 
@@ -1338,7 +1353,6 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         # filesystem uses duckdb and views to map know tables. for other ibis will list
         # all available tables so both schemas tables are visible
         if populated_pipeline.destination.destination_type not in [
-            "dlt.destinations.filesystem",
             "dlt.destinations.lancedb",
         ]:
             # from aleph schema
@@ -1368,6 +1382,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                     + additional_tables
                 )
             }
+            print(table_names_in_ibis)
             assert set(table_names_in_ibis) == expected_table_names
 
         table_name = add_table_prefix(map_i("items"))
@@ -1430,7 +1445,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     )
 
     # dataset.schema is only set once first accessed
-    assert dataset._schema == populated_pipeline.default_schema_name
+    assert dataset._schema_arg == populated_pipeline.default_schema_name
     dataset.schema
     assert isinstance(dataset.schema, dlt.Schema)
 
@@ -1672,3 +1687,178 @@ def test_read_unified_schema_ibis(populated_pipeline: Pipeline) -> None:
     # digits has values 1, 2, 3 — so join produces 3 rows
     assert len(result) == 3
     assert [row[0] for row in result] == [1, 2, 3]
+
+
+@dlt.source
+def _src_alpha():
+    @dlt.resource(name="events")
+    def events_alpha():
+        yield [
+            {"id": 1, "name": "click", "alpha_detail": "a1"},
+            {"id": 2, "name": "view", "alpha_detail": "a2"},
+        ]
+
+    return [events_alpha]
+
+
+@dlt.source
+def _src_beta():
+    @dlt.resource(name="events")
+    def events_beta():
+        yield [
+            {"id": 3, "name": "scroll", "beta_metric": 100},
+            {"id": 4, "name": "hover", "beta_metric": 200},
+        ]
+
+    return [events_beta]
+
+
+@dlt.source
+def _src_gamma():
+    @dlt.resource(name="events")
+    def events_gamma():
+        yield [
+            {"id": 5, "name": "submit", "gamma_flag": True},
+            {"id": 6, "name": "cancel", "gamma_flag": False},
+        ]
+
+    return [events_gamma]
+
+
+@pytest.fixture(scope="module")
+def overlap_pipeline(
+    request, auto_module_test_storage, preserve_module_environ, auto_module_test_run_context
+) -> Any:
+    """Pipeline with three schemas (alpha, beta, gamma) that each have an
+    'events' table with shared columns (id, name) and unique columns.
+    Tests select schema subsets via ``pipeline.dataset(schema=[...])``.
+    """
+    destination_config = cast(DestinationTestConfiguration, request.param)
+    if (
+        destination_config.file_format not in ["parquet", "jsonl"]
+        and destination_config.destination_type == "filesystem"
+    ):
+        pytest.skip(
+            "Test only works for jsonl and parquet on filesystem destination, given:"
+            f" {destination_config.file_format}"
+        )
+
+    pipeline = destination_config.setup_pipeline(
+        "overlap_pipeline", dataset_name="overlap_test", dev_mode=True
+    )
+    pipeline.run(_src_alpha())
+    pipeline.run(_src_beta())
+    pipeline.run(_src_gamma())
+
+    try:
+        yield pipeline
+    finally:
+        drop_pipeline_data(pipeline)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "overlap_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_multi_schema_load_ids_and_compatible_overlap(
+    overlap_pipeline: Pipeline,
+) -> None:
+    """Two-schema subset: load_ids per schema and unified column visibility."""
+    p = overlap_pipeline
+    alpha = p.schemas["_src_alpha"]
+    beta = p.schemas["_src_beta"]
+    ds = p.dataset(schema=[alpha, beta])
+
+    assert len(ds.schemas) == 2
+
+    # load_ids per schema
+    alpha_ids = ds.load_ids()
+    assert len(alpha_ids) >= 1
+    beta_ids = ds.load_ids(schema_name="_src_beta")
+    assert len(beta_ids) >= 1
+    assert set(alpha_ids).isdisjoint(set(beta_ids))
+
+    alpha_latest = ds.latest_load_id()
+    assert alpha_latest == alpha_ids[-1]
+    beta_latest = ds.latest_load_id(schema_name="_src_beta")
+    assert beta_latest == beta_ids[-1]
+
+    # unified events table has columns from both selected schemas
+    sg_columns = ds.sqlglot_schema.column_names(sge.Table(this=sge.to_identifier("events")))
+    assert "alpha_detail" in sg_columns
+    assert "beta_metric" in sg_columns
+    # gamma_flag must NOT be visible — that schema was not selected
+    assert "gamma_flag" not in sg_columns
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "overlap_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_three_schema_overlap(overlap_pipeline: Pipeline) -> None:
+    """All three schemas: unified view has all rows and all unique columns."""
+    ds = overlap_pipeline.dataset()
+    assert len(ds.schemas) == 3
+
+    sg_columns = ds.sqlglot_schema.column_names(sge.Table(this=sge.to_identifier("events")))
+    assert "alpha_detail" in sg_columns
+    assert "beta_metric" in sg_columns
+    assert "gamma_flag" in sg_columns
+
+    rows = ds.events.fetchall()
+    assert len(rows) == 6  # 2 + 2 + 2
+    ids = sorted(row[0] for row in rows)
+    assert ids == [1, 2, 3, 4, 5, 6]
+
+    # row_counts per load_id: filtering by each schema's load_ids must
+    # partition the events — no double-counting, sum equals total
+    total_events = 0
+    all_load_ids: set[str] = set()
+    for s in ds.schemas:
+        for lid in ds.load_ids(schema_name=s.name):
+            # load_ids across schemas must be disjoint
+            assert lid not in all_load_ids, f"load_id {lid} appears in multiple schemas"
+            all_load_ids.add(lid)
+            counts = dict(ds.row_counts(load_id=lid).fetchall())
+            total_events += counts.get("events", 0)
+    assert total_events == 6
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "overlap_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_multi_schema_ibis(overlap_pipeline: Pipeline) -> None:
+    """Ibis backend sees all schemas' tables and merged columns."""
+    try:
+        import ibis  # noqa: F401
+    except ImportError:
+        pytest.skip("ibis not installed")
+
+    if overlap_pipeline.destination.destination_type not in (
+        "dlt.destinations.duckdb",
+        "dlt.destinations.filesystem",
+    ):
+        pytest.skip("ibis multi-schema test only on duckdb and filesystem")
+
+    ds = overlap_pipeline.dataset()
+    ib = ds.ibis()
+
+    events = ib.table("events")
+    cols = events.columns
+    assert "alpha_detail" in cols
+    assert "beta_metric" in cols
+    assert "gamma_flag" in cols
+    assert events.count().execute() == 6

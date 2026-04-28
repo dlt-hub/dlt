@@ -1,5 +1,5 @@
-import sys
 import pathlib
+import sys
 from typing import Any
 
 import pytest
@@ -8,143 +8,37 @@ from sqlglot import expressions as sge
 import dlt
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.dataset.dataset import _get_load_ids, _get_latest_load_id
+from tests.dataset.utils import TLoadsFixture, crm
 
 # TODO move destination-independent tests from `test_read_interfaces.py` to this module
 
-USERS_DATA_0 = [
-    {
-        "id": 1,
-        "name": "Alice",
-        "orders": [
-            {"order_id": 101, "amount": 100.0, "items": [{"item": "A"}, {"item": "B"}]},
-            {"order_id": 102, "amount": 200.0, "items": [{"item": "C"}]},
-        ],
-    },
-    {
-        "id": 2,
-        "name": "Bob",
-        "orders": [{"order_id": 103, "amount": 150.0, "items": [{"item": "D"}]}],
-    },
-]
 
-USERS_DATA_1 = [
-    {
-        "id": 3,
-        "name": "Charlie",
-        "orders": [{"order_id": 104, "amount": 300.0, "items": [{"item": "E"}]}],
-    }
-]
-
-PRODUCTS_DATA_0 = [{"product_id": 1, "name": "Widget"}, {"product_id": 2, "name": "Gadget"}]
-PRODUCTS_DATA_1 = [{"product_id": 3, "name": "Doohickey"}]
+def _set_name_normalizer_on_schema(schema: dlt.Schema, name_normalizer_ref: str) -> None:
+    schema._normalizers_config["names"] = name_normalizer_ref
+    schema.update_normalizers()
 
 
-@dlt.source(root_key=False)
-def crm(i: int = 0):
+ITEMS_DATA = [{"item_id": 1, "name": "Widget"}, {"item_id": 2, "name": "Gadget"}]
+WAREHOUSES_DATA = [{"warehouse_id": 1, "location": "Berlin"}]
+
+
+@dlt.source
+def inventory():
     @dlt.resource
-    def users(i: int):
-        if i == 0:
-            yield USERS_DATA_0
-        elif i == 1:
-            yield USERS_DATA_1
+    def items():
+        yield ITEMS_DATA
 
     @dlt.resource
-    def products(i: int):
-        if i == 0:
-            yield PRODUCTS_DATA_0
-        elif i == 1:
-            yield PRODUCTS_DATA_1
+    def warehouses():
+        yield WAREHOUSES_DATA
 
-    return [users(i), products(i)]
-
-
-LOAD_0_STATS = {
-    "users": len(USERS_DATA_0),
-    "products": len(PRODUCTS_DATA_0),
-    "users__orders": sum(len(user["orders"]) for user in USERS_DATA_0),  # type: ignore[misc,arg-type]
-    "users__orders__items": sum(
-        len(order["items"]) for user in USERS_DATA_0 for order in user["orders"]  # type: ignore[misc,attr-defined]
-    ),
-}
-LOAD_1_STATS = {
-    "users": len(USERS_DATA_1),
-    "products": len(PRODUCTS_DATA_1),
-    "users__orders": sum(len(user["orders"]) for user in USERS_DATA_1),  # type: ignore[misc,arg-type]
-    "users__orders__items": sum(
-        len(order["items"]) for user in USERS_DATA_1 for order in user["orders"]  # type: ignore[misc,attr-defined]
-    ),
-}
-
-
-TLoadsFixture = tuple[dlt.Dataset, tuple[str, str], tuple[dict[str, Any], dict[str, Any]]]
-
-
-@pytest.fixture(scope="module")
-def loads_with_root_key(module_tmp_path: pathlib.Path) -> TLoadsFixture:
-    """Create a pipeline with nested data across multiple loads."""
-    pipeline = dlt.pipeline(
-        pipeline_name="with_root_key",
-        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
-        destination=dlt.destinations.duckdb(str(module_tmp_path / "duckdb.db")),
-        dev_mode=True,
-    )
-
-    source = crm(0)
-    source.root_key = True
-    pipeline.run(source)
-    load_id_1 = pipeline.last_trace.last_normalize_info.loads_ids[0]
-
-    source = crm(1)
-    source.root_key = True
-    pipeline.run(source)
-    load_id_2 = pipeline.last_trace.last_normalize_info.loads_ids[0]
-
-    return (pipeline.dataset(), (load_id_1, load_id_2), (LOAD_0_STATS, LOAD_1_STATS))
-
-
-@pytest.fixture(scope="module")
-def loads_without_root_key(module_tmp_path: pathlib.Path) -> TLoadsFixture:
-    """Create a pipeline with nested data across multiple loads."""
-    pipeline = dlt.pipeline(
-        pipeline_name="without_root_key",
-        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
-        destination=dlt.destinations.duckdb(str(module_tmp_path / "duckdb.db")),
-        dev_mode=True,
-    )
-
-    source = crm(0)
-    source.root_key = False
-    pipeline.run(source)
-    load_id_1 = pipeline.last_trace.last_normalize_info.loads_ids[0]
-
-    source = crm(1)
-    source.root_key = False
-    pipeline.run(source)
-    load_id_2 = pipeline.last_trace.last_normalize_info.loads_ids[0]
-
-    return (pipeline.dataset(), (load_id_1, load_id_2), (LOAD_0_STATS, LOAD_1_STATS))
-
-
-# params= sets the default value for tests not specifying
-@pytest.fixture(params=["with_root_key"])
-def dataset_with_loads(
-    request: pytest.FixtureRequest,
-    loads_with_root_key: TLoadsFixture,
-    loads_without_root_key: TLoadsFixture,
-) -> TLoadsFixture:
-    """Router fixture for indirect parametrization of dataset fixtures."""
-    if request.param == "with_root_key":
-        return loads_with_root_key
-    elif request.param == "without_root_key":
-        return loads_without_root_key
-    else:
-        raise ValueError(f"Unknown dataset fixture: {request.param}")
+    return [items, warehouses]
 
 
 @pytest.fixture(scope="module")
 def dataset() -> dlt.Dataset:
-    @dlt.resource
-    def purchases():
+    @dlt.resource(name="purchases")
+    def purchases_data():
         yield from (
             {"id": 1, "name": "alice", "city": "berlin"},
             {"id": 2, "name": "bob", "city": "paris"},
@@ -154,7 +48,7 @@ def dataset() -> dlt.Dataset:
     pipeline = dlt.pipeline(
         "_relation_to_ibis", destination="duckdb", full_refresh=True, dev_mode=True
     )
-    pipeline.run([purchases])
+    pipeline.run([purchases_data])
     return pipeline.dataset()
 
 
@@ -163,11 +57,6 @@ def purchases(dataset: dlt.Dataset) -> dlt.Relation:
     purchases = dataset.table("purchases")
     assert isinstance(purchases, dlt.Relation)
     return purchases
-
-
-def _set_name_normalizer_on_schema(schema: dlt.Schema, name_normalizer_ref: str) -> None:
-    schema._normalizers_config["names"] = name_normalizer_ref
-    schema.update_normalizers()
 
 
 @pytest.mark.skipif(
@@ -211,8 +100,28 @@ def test_transformed_relation_to_ibis_(purchases: dlt.Relation) -> None:
 
     table = purchases.where("id", "gt", 2).select("name").to_ibis()
     assert isinstance(table, ir.Table)
-    # executes without error
-    table.execute()
+    out = table.execute()
+    assert list(out["name"]) == ["charlie"]
+
+
+def test_relation_from_loads_rejects_non_table_relations(dataset: dlt.Dataset) -> None:
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.query("SELECT * FROM purchases").from_loads(["load_1"])
+
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.table("purchases").where("id", "gt", 1).from_loads(["load_1"])
+
+
+def test_relation_with_load_id_rejects_non_table_relations(
+    dataset_with_loads: TLoadsFixture,
+) -> None:
+    dataset, _, _ = dataset_with_loads
+
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.query("SELECT * FROM users").with_load_id_col()
+
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.table("users__orders").where("order_id", "gt", 1).with_load_id_col()
 
 
 def test_dataset_load_ids(dataset_with_loads: TLoadsFixture):
@@ -391,3 +300,282 @@ def test_relation_from_loads_query(
         assert any(col.name == normalized_load_id for col in expr.expressions)
     else:
         assert not any(col.name == normalized_load_id for col in expr.expressions)
+
+
+@pytest.fixture(scope="module")
+def multi_schema_pipeline(module_tmp_path: pathlib.Path) -> dlt.Pipeline:
+    pipeline = dlt.pipeline(
+        pipeline_name="multi_schema",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "multi_schema.db")),
+        dev_mode=True,
+    )
+    pipeline.run(crm(0))
+    pipeline.run(inventory())
+    return pipeline
+
+
+@pytest.fixture(scope="module")
+def multi_schema_dataset(multi_schema_pipeline: dlt.Pipeline) -> dlt.Dataset:
+    ds = multi_schema_pipeline.dataset()
+    # we need to reset max_length here to avoid IncompatibleSchemaException
+    # down the line in unify_schemas: max_length is resolved from
+    # DestinationCapabilitiesContext at schema construction time
+    # The deactivate_pipeline autouse fixture removes caps from the Container
+    # between tests, so clone() inside unify_schemas would create schemas without
+    # max_length.
+    for s in ds.schemas:
+        s.naming.max_length = None
+    return ds
+
+
+def test_multi_schema_schemas_property(multi_schema_dataset: dlt.Dataset) -> None:
+    schemas = multi_schema_dataset.schemas
+    assert len(schemas) == 2
+    schema_names = {s.name for s in multi_schema_dataset.schemas}
+    assert schema_names == {"crm", "inventory"}
+
+
+def test_multi_schema_tables_includes_all_schemas(multi_schema_dataset: dlt.Dataset) -> None:
+    tables = multi_schema_dataset.tables
+    expected = set(
+        [
+            "users",
+            "products",
+            "users__orders",
+            "users__orders__items",
+            "items",
+            "warehouses",
+            "_dlt_version",
+            "_dlt_loads",
+            "_dlt_pipeline_state",
+        ]
+    )
+    assert set(tables) == expected
+
+
+def test_multi_schema_table_access_secondary(multi_schema_dataset: dlt.Dataset) -> None:
+    items = multi_schema_dataset["items"].fetchall()
+    assert len(items) == len(ITEMS_DATA)
+    assert items[0][0] == 1
+    assert items[0][1] == "Widget"
+    assert items[1][0] == 2
+    assert items[1][1] == "Gadget"
+
+
+def test_multi_schema_row_counts(multi_schema_dataset: dlt.Dataset) -> None:
+    counts = dict(multi_schema_dataset.row_counts().fetchall())
+    expected_counts = {
+        "users": 2,
+        "products": 2,
+        "users__orders": 3,
+        "users__orders__items": 4,
+        "items": 2,
+        "warehouses": 1,
+    }
+    assert counts == expected_counts
+
+
+def test_multi_schema_cross_schema_sql_query(multi_schema_dataset: dlt.Dataset) -> None:
+    result = multi_schema_dataset.query(
+        "SELECT u.id, i.item_id FROM users u, items i WHERE u.id = i.item_id"
+    ).fetchall()
+    assert sorted(result) == [(1, 1), (2, 2)]
+
+
+def test_multi_schema_load_ids(multi_schema_dataset: dlt.Dataset) -> None:
+    # default: returns load ids for the default schema only
+    default_ids = multi_schema_dataset.load_ids()
+    assert len(default_ids) >= 1
+    assert default_ids == sorted(default_ids)
+    assert all(isinstance(lid, str) for lid in default_ids)
+
+    # explicit schema_name returns that schema's load ids
+    inv_ids = multi_schema_dataset.load_ids(schema_name="inventory")
+    assert len(inv_ids) >= 1
+    assert all(isinstance(lid, str) for lid in inv_ids)
+
+    # each schema's load ids are disjoint
+    assert set(default_ids).isdisjoint(set(inv_ids))
+
+
+def test_multi_schema_latest_load_id(multi_schema_dataset: dlt.Dataset) -> None:
+    # default schema
+    latest = multi_schema_dataset.latest_load_id()
+    all_ids = multi_schema_dataset.load_ids()
+    assert latest == all_ids[-1]
+
+    # explicit schema
+    inv_latest = multi_schema_dataset.latest_load_id(schema_name="inventory")
+    inv_ids = multi_schema_dataset.load_ids(schema_name="inventory")
+    assert inv_latest == inv_ids[-1]
+
+
+def test_multi_schema_str_shows_all_schema_names(multi_schema_dataset: dlt.Dataset) -> None:
+    s = str(multi_schema_dataset)
+    assert "crm" in s
+    assert "inventory" in s
+
+
+def test_multi_schema_sqlglot_schema_has_all_tables(multi_schema_dataset: dlt.Dataset) -> None:
+    sg_schema = multi_schema_dataset.sqlglot_schema
+    assert sg_schema.column_names(sge.Table(this=sge.to_identifier("users")))
+    assert sg_schema.column_names(sge.Table(this=sge.to_identifier("items")))
+
+
+def test_use_single_dataset_false_stays_single_schema(
+    module_tmp_path: pathlib.Path,
+) -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="multi_dataset_mode",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "multi_dataset.db")),
+        dev_mode=True,
+    )
+    pipeline.config.use_single_dataset = False
+    pipeline.run(crm(0))
+    pipeline.run(inventory())
+    ds = pipeline.dataset()
+    assert len(ds.schemas) == 1
+    assert ds.schema.name == "crm"
+
+
+@pytest.mark.parametrize(
+    "schema_arg_fn, expected_names",
+    [
+        pytest.param(lambda a, b: [a, b], ["crm", "inventory"], id="list-input"),
+        pytest.param(lambda a, b: (b, a), ["inventory", "crm"], id="tuple-input-reversed"),
+        pytest.param(lambda a, b: [b, a], ["inventory", "crm"], id="caller-ordering"),
+        pytest.param(lambda a, b: [a], ["crm"], id="single-in-list"),
+    ],
+)
+def test_dataset_with_schema_sequence(
+    multi_schema_pipeline: dlt.Pipeline,
+    schema_arg_fn: Any,
+    expected_names: list[str],
+) -> None:
+    schema_a = multi_schema_pipeline.schemas["crm"]
+    schema_b = multi_schema_pipeline.schemas["inventory"]
+    schema_arg = schema_arg_fn(schema_a, schema_b)
+
+    ds = dlt.dataset(
+        destination=multi_schema_pipeline._destination,
+        dataset_name=multi_schema_pipeline.dataset_name,
+        schema=schema_arg,
+    )
+    assert [s.name for s in ds.schemas] == expected_names
+    assert ds.schema.name == expected_names[0]
+
+
+def test_dataset_with_empty_schema_sequence(
+    multi_schema_pipeline: dlt.Pipeline,
+) -> None:
+    ds = dlt.dataset(
+        destination=multi_schema_pipeline._destination,
+        dataset_name=multi_schema_pipeline.dataset_name,
+        schema=[],
+    )
+    with pytest.raises(ValueError, match="must not be empty"):
+        ds.schema
+
+
+@pytest.mark.parametrize(
+    "schema_fn, expected_names",
+    [
+        pytest.param(lambda a, b: [a, b], ["crm", "inventory"], id="sequence"),
+        pytest.param(lambda a, b: a, ["crm"], id="schema-object"),
+        pytest.param(lambda a, b: "crm", ["crm"], id="str-name"),
+        pytest.param(lambda a, b: None, ["crm", "inventory"], id="none-default"),
+    ],
+)
+def test_pipeline_dataset_with_explicit_schema(
+    multi_schema_pipeline: dlt.Pipeline,
+    schema_fn: Any,
+    expected_names: list[str],
+) -> None:
+    schema_a = multi_schema_pipeline.schemas["crm"]
+    schema_b = multi_schema_pipeline.schemas["inventory"]
+    schema_arg = schema_fn(schema_a, schema_b)
+
+    ds = multi_schema_pipeline.dataset(schema=schema_arg)
+    assert [s.name for s in ds.schemas] == expected_names
+    assert ds.schema.name == expected_names[0]
+    assert ds._pipeline_name == multi_schema_pipeline.pipeline_name
+
+
+def test_pipeline_dataset_with_empty_schema_sequence(
+    multi_schema_pipeline: dlt.Pipeline,
+) -> None:
+    ds = multi_schema_pipeline.dataset(schema=[])
+    with pytest.raises(ValueError, match="must not be empty"):
+        ds.schema
+
+
+@dlt.source
+def src_a():
+    @dlt.resource(name="shared_users")
+    def shared_users_a():
+        yield [{"id": 1, "name": "Alice"}]
+
+    return [shared_users_a]
+
+
+@dlt.source
+def src_b():
+    @dlt.resource(name="shared_users")
+    def shared_users_b():
+        yield [{"id": 2, "email": "bob@example.com"}]
+
+    return [shared_users_b]
+
+
+@pytest.fixture(scope="module")
+def overlapping_tables_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
+    pipeline = dlt.pipeline(
+        pipeline_name="overlapping_tables",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "overlapping_tables.db")),
+        dev_mode=True,
+    )
+    pipeline.run(src_a())
+    pipeline.run(src_b())
+    ds = pipeline.dataset()
+    for s in ds.schemas:
+        s.naming.max_length = None
+    return ds
+
+
+def test_shared_table_merge(overlapping_tables_dataset: dlt.Dataset) -> None:
+    ds = overlapping_tables_dataset
+
+    sg_columns = ds.sqlglot_schema.column_names(sge.Table(this=sge.to_identifier("shared_users")))
+    assert sorted(sg_columns) == sorted(["id", "name", "_dlt_load_id", "_dlt_id", "email"])
+
+    rel_columns = ds["shared_users"].columns
+    assert sorted(rel_columns) == sorted(["id", "name", "_dlt_load_id", "_dlt_id", "email"])
+
+    rows = ds.query("SELECT id, name, email FROM shared_users ORDER BY id").fetchall()
+    assert rows == [(1, "Alice", None), (2, None, "bob@example.com")]
+
+
+def test_multi_schema_row_counts_by_load_id(
+    multi_schema_dataset: dlt.Dataset,
+) -> None:
+    ds = multi_schema_dataset
+    crm_load_id = ds.load_ids()[0]
+    inventory_load_id = ds.load_ids(schema_name="inventory")[0]
+
+    crm_counts = dict(ds.row_counts(load_id=crm_load_id).fetchall())
+    assert crm_counts == {
+        "users": 2,
+        "products": 2,
+        "items": 0,
+        "warehouses": 0,
+    }
+    inventory_counts = dict(ds.row_counts(load_id=inventory_load_id).fetchall())
+    assert inventory_counts == {
+        "users": 0,
+        "products": 0,
+        "items": 2,
+        "warehouses": 1,
+    }
