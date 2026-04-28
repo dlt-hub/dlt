@@ -408,6 +408,7 @@ const sidebars = {
       label: 'Performance',
       items: [
         { type: 'doc', id: 'reference/performance', label: 'Overview' },
+        'dlt-ecosystem/file-formats',
       ],
     },
     {
@@ -416,23 +417,6 @@ const sidebars = {
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
-        {
-          type: 'category',
-          label: 'File formats',
-          link: {
-            type: 'generated-index',
-            title: 'File formats',
-            description: 'Overview of our loader file formats',
-            slug: 'dlt-ecosystem/file-formats',
-            keywords: ['destination', 'file formats'],
-          },
-          items: [
-            'dlt-ecosystem/file-formats/jsonl',
-            'dlt-ecosystem/file-formats/parquet',
-            'dlt-ecosystem/file-formats/csv',
-            'dlt-ecosystem/file-formats/insert-format',
-          ]
-        },
         'walkthroughs/create-new-destination',
         'general-usage/dataset-access/sql-client',
         'general-usage/destination-tables',
