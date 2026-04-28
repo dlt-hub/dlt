@@ -407,7 +407,7 @@ const sidebars = {
       type: 'category',
       label: 'Performance',
       items: [
-        { type: 'doc', id: 'reference/performance', label: 'Performance' },
+        { type: 'doc', id: 'reference/performance', label: 'Overview' },
       ],
     },
     {
