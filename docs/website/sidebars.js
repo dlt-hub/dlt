@@ -34,13 +34,35 @@ const sidebars = {
       items: [
         { type: 'doc', id: 'intro', label: 'dlt' },
         'reference/installation',
+        {
+          type: 'category',
+          label: 'Quickstart',
+          items: [
+            {
+              type: 'doc',
+              id: 'tutorial/rest-api',
+              label: 'REST API',
+            },
+            {
+              type: 'doc',
+              id: 'tutorial/sql-database',
+              label: 'SQL database',
+            },
+            {
+              type: 'doc',
+              id: 'tutorial/filesystem',
+              label: 'Object store & filesystem',
+            },
+            {
+              type: 'doc',
+              id: 'tutorial/load-data-from-an-api',
+              label: 'Custom Python function',
+            },
+          ]
+        },
+        'general-usage/dashboard',
         "dlt-ecosystem/llm-tooling/llm-native-workflow",
         "dlt-ecosystem/llm-tooling/explore-and-transform",
-        'general-usage/dashboard',
-        'tutorial/rest-api',
-        'tutorial/sql-database',
-        'tutorial/filesystem',
-        'tutorial/load-data-from-an-api',
       ]
     },
     {
