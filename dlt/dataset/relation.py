@@ -467,9 +467,10 @@ class Relation(WithSqlClient):
 
         Raises:
             ValueError: If the cursor path is a JSONPath expression, if a dotted
-                cursor is used on a non-base-table relation, if the referenced
-                table is not in the dataset schema, or if `last_value_func` is
-                not `min` or `max`.
+                cursor is used on a relation whose FROM is not a bare base table
+                (e.g. after `.from_loads()` or on a `.query(...)` relation), if
+                the referenced table is not in the dataset schema, or if
+                `last_value_func` is not `min` or `max`.
         """
         table_name, column_name = _parse_incremental_cursor_path(incremental.cursor_path)
 
@@ -494,6 +495,16 @@ class Relation(WithSqlClient):
         if table_name not in self._dataset.schema.tables:
             raise ValueError(
                 f"Incremental cursor target table `{table_name}` not found in dataset schema."
+            )
+        if self._table_name not in _extract_joined_table_aliases(self.sqlglot_expression):
+            raise ValueError(
+                f"Incremental cursor `{incremental.cursor_path}` requires a "
+                f"base-table relation to resolve the join to `{table_name}`. "
+                f"This relation is derived from base table `{self._table_name}` "
+                "(e.g. via `.from_loads()`, `dataset.table(load_ids=...)`, or "
+                "`.select()`), so a dotted cursor cannot be applied. Use a "
+                f"cursor on a column of `{self._table_name}` instead, or drop "
+                "the derivation."
             )
 
         query = _apply_join(

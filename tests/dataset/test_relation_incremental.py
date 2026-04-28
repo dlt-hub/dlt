@@ -348,6 +348,40 @@ def test_incremental_dotted_cursor_on_query_relation_raises(
 
 
 @pytest.mark.parametrize(
+    "build_rel",
+    [
+        pytest.param(
+            lambda ds, load_ids, inc: ds.table("events", load_ids=load_ids, incremental=inc),
+            id="kwargs",
+        ),
+        pytest.param(
+            lambda ds, load_ids, inc: ds.table("events").from_loads(load_ids).incremental(inc),
+            id="chained",
+        ),
+    ],
+)
+def test_incremental_dotted_cursor_after_from_loads_raises(
+    incremental_pipeline: dlt.Pipeline, build_rel: Any
+) -> None:
+    """`.from_loads()` wraps FROM in a subquery, so a subsequent dotted-cursor
+    `.incremental()` cannot resolve the join. Both the kwargs combo on
+    `dataset.table()` and the chained form must fail with a clear, user-facing
+    message rather than the internal `_discover_join_params` error.
+    """
+    dataset = incremental_pipeline.dataset()
+    load_ids = dataset.load_ids()
+    assert load_ids, "fixture must produce at least one load"
+
+    inc = dlt.sources.incremental(
+        "_dlt_loads.inserted_at",
+        initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
+        end_value=END_VALUE_DT,
+    )
+    with pytest.raises(ValueError, match="dotted cursor cannot be applied"):
+        build_rel(dataset, load_ids, inc)
+
+
+@pytest.mark.parametrize(
     "cursor_path",
     [
         pytest.param("$.items[*].name", id="jsonpath-wildcard"),
