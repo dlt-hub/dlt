@@ -137,7 +137,7 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'SQL database via SQLAlchemy',
+          label: 'SQL database',
           description: 'PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more',
           link: {
             type: 'doc',
