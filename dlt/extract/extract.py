@@ -355,40 +355,20 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 continue
             for table in tables_by_resources[resource.name]:
                 write_disposition = table.get("write_disposition") or resource.write_disposition
-                if write_disposition != "replace" or (resource.name, table["name"]) in tables_with_items:
+                if write_disposition != "replace" or table["name"] in tables_with_items:
                     continue
                 # we only need to write empty files for the root tables
                 if not utils.is_nested_table(table):
                     json_extractor.write_empty_items_file(table["name"])
 
-        # collect resources that received empty materialized lists and had no items
+        # collect tables that received empty materialized lists and had no items
         tables_with_empty = (
             set()
             .union(*[e.tables_with_empty for e in extractors.values()])
             .difference(tables_with_items)
         )
-        # get all possible tables
-        data_tables = {t["name"]: t for t in schema.data_tables()}
-        tables_by_resources = utils.group_tables_by_resource(data_tables)
-
-        resources_and_tables: Dict[str, List[str]] = {}
-        for resource_name, table_name in tables_with_empty:
-            resources_and_tables.setdefault(resource_name, []).append(table_name)
-
-        for resource_name, table_names in resources_and_tables.items():
-            if resource := source.resources.selected.get(resource_name):
-                if tables := tables_by_resources.get(resource_name):
-                    # write empty tables
-                    for table in tables:
-                        if table["name"] not in table_names:
-                            continue
-                        # we only need to write empty files for the root tables
-                        if not utils.is_nested_table(table):
-                            json_extractor.write_empty_items_file(table["name"])
-                else:
-                    table_name = json_extractor._get_static_table_name(resource, None)
-                    if table_name and table_name in table_names:
-                        json_extractor.write_empty_items_file(table_name)
+        for table_name in tables_with_empty:
+            json_extractor.write_empty_items_file(table_name)
 
     def _extract_single_source(
         self,
