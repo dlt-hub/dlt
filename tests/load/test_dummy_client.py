@@ -243,6 +243,7 @@ def test_spool_job_failed_and_package_completed() -> None:
 
     # test the whole flow - disable raising exceptions on failed jobs and let package to complete
     loader_config = LoaderConfiguration(
+        auto_abort_on_terminal_error=False,
         raise_on_failed_jobs=False,
         workers=1,
         pool_type="none",
@@ -542,8 +543,9 @@ def test_resume_with_pending_failed_transition() -> None:
         assert len(all_jobs["started_jobs"]) == 0
         assert len(packages.list_pending_transitions(load_id)) == 0
 
-    # --- mode 2: raise_on_failed_jobs=False (silent completion) ---
+    # --- mode 2: raise_on_failed_jobs=False, auto_abort=False (silent completion) ---
     loader_config = LoaderConfiguration(
+        auto_abort_on_terminal_error=False,
         raise_on_failed_jobs=False,
         workers=1,
         pool_type="none",
@@ -570,8 +572,8 @@ def test_resume_with_pending_failed_transition() -> None:
         resumed_jobs = load.resume_started_jobs(load_id, schema)
         remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
         assert len(finalized) == 2
-        # no exception scheduled when raise_on_failed_jobs is False
-        assert pending_exc is None
+        # exception is created but not raised by load_single_package when raise_on_failed_jobs is False
+        assert isinstance(pending_exc, LoadClientJobFailed)
 
 
 def test_resume_without_pending_transition() -> None:

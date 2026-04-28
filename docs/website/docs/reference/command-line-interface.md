@@ -119,7 +119,7 @@ Operations on pipelines that were ran locally.
 ```sh
 dlt pipeline [-h] [--list-pipelines] [--pipelines-dir PIPELINES_DIR] [--verbose]
     [pipeline_name]
-    {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package,mcp}
+    {info,show,failed-jobs,drop-pending-packages,abort-packages,sync,trace,schema,drop,fail-job,load-package,mcp}
     ...
 ```
 
@@ -146,11 +146,13 @@ Inherits arguments from [`dlt`](#dlt).
 * [`info`](#dlt-pipeline-info) - Displays state of the pipeline, use -v or -vv for more info
 * [`show`](#dlt-pipeline-show) - Generates and launches workspace dashboard with the loading status and dataset explorer
 * [`failed-jobs`](#dlt-pipeline-failed-jobs) - Displays information on all the failed loads in all completed packages, failed jobs and associated error messages
-* [`drop-pending-packages`](#dlt-pipeline-drop-pending-packages) - Deletes all extracted and normalized packages including those that are partially loaded.
+* [`drop-pending-packages`](#dlt-pipeline-drop-pending-packages) - [deprecated: use abort-packages] deletes all extracted and normalized packages including those that are partially loaded.
+* [`abort-packages`](#dlt-pipeline-abort-packages) - Safely cancels pending loads: marks packages as aborted, records failed jobs, then resyncs pipeline state from the destination.
 * [`sync`](#dlt-pipeline-sync) - Drops the local state of the pipeline and resets all the schemas and restores it from destination. the destination state, data and schemas are left intact.
 * [`trace`](#dlt-pipeline-trace) - Displays last run trace, use -v or -vv for more info
 * [`schema`](#dlt-pipeline-schema) - Displays default schema
 * [`drop`](#dlt-pipeline-drop) - Selectively drop tables and reset state
+* [`fail-job`](#dlt-pipeline-fail-job) - Fails a pending retry job, moving it to failed_jobs in the load package.
 * [`load-package`](#dlt-pipeline-load-package) - Displays information on load package, use -v or -vv for more info
 * [`mcp`](#dlt-pipeline-mcp) - Launch mcp server attached to this pipeline
 
@@ -240,7 +242,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 ### `dlt pipeline drop-pending-packages`
 
-Deletes all extracted and normalized packages including those that are partially loaded.
+[Deprecated: use abort-packages] Deletes all extracted and normalized packages including those that are partially loaded.
 
 **Usage**
 ```sh
@@ -249,10 +251,45 @@ dlt pipeline [pipeline_name] drop-pending-packages [-h]
 
 **Description**
 
+DEPRECATED: use `abort-packages` instead. That command properly records failed jobs
+and resyncs pipeline state from the destination.
+
 Removes all extracted and normalized packages in the pipeline's working dir.
 `dlt` keeps extracted and normalized load packages in the pipeline working directory. When the `run` method is called, it will attempt to normalize and load
 pending packages first. The command above removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
 were created. Using `dlt pipeline ... sync` is recommended if your destination supports state sync.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt pipeline abort-packages`
+
+Safely cancels pending loads: marks packages as aborted, records failed jobs, then resyncs pipeline state from the destination.
+
+**Usage**
+```sh
+dlt pipeline [pipeline_name] abort-packages [-h]
+```
+
+**Description**
+
+Use this when a load is stuck or you want to discard pending work without losing track of what
+happened. Unlike `drop-pending-packages` (which silently deletes packages), this command moves
+retry/pending jobs to failed_jobs so they stay visible in `failed-jobs` output, marks normalized
+packages as aborted, and cleans up any remaining extracted packages. It then runs `load` to
+finalize the abort, wipes local pipeline state, and restores it from the destination (equivalent
+to `drop` + `sync`).
+
+After this, the pipeline is clean and its state matches what the destination has actually loaded.
+You can safely re-extract and re-run.
 
 <details>
 
@@ -456,6 +493,40 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 * `--state-paths [STATE_PATHS ...]` - State keys or json paths to drop
 * `--schema SCHEMA_NAME` - Schema name to drop from (if other than default schema).
 * `--state-only` - Only wipe state for matching resources without dropping tables.
+
+</details>
+
+### `dlt pipeline fail-job`
+
+Fails a pending retry job, moving it to failed_jobs in the load package.
+
+**Usage**
+```sh
+dlt pipeline [pipeline_name] fail-job [-h] load-id job
+```
+
+**Description**
+
+Fails a specific job that is pending retry in a normalized load package. The job is moved from
+new_jobs to failed_jobs and its exception message is preserved. Use `load-package` or
+`list_pending_retry_jobs_in_package` to find the job identifier.
+
+The `job` argument accepts either a job id (e.g. `numbers.abc12.jsonl` as shown by
+`load-package`) or the full file name including retry count (e.g. `numbers.abc12.1.jsonl`
+as returned by `list_pending_retry_jobs_in_package`).
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Positional arguments**
+* `load-id` - Load id of the normalized package containing the job.
+* `job` - Job id (e.g. table.file_id.format) or full job file name (e.g. table.file_id.retry_count.format).
+
+**Options**
+* `-h, --help` - Show this help message and exit
 
 </details>
 

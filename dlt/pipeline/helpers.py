@@ -11,7 +11,7 @@ from typing import (
 from dlt.common.jsonpath import TAnyJsonPath
 from dlt.common.exceptions import TerminalException
 from dlt.common.schema.typing import TSimpleRegex
-from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
+from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode, LoadInfo
 from dlt.common.storages.load_package import TLoadPackageDropTablesState
 from dlt.pipeline.exceptions import (
     PipelineNeverRan,
@@ -143,8 +143,8 @@ class pipeline_drop:
         try:
             self.pipeline.load()
         except Exception:
-            # Clear extracted state on failure so command can run again
-            self.pipeline.drop_pending_packages()
+            # abort all pending packages so command can run again
+            self.pipeline.abort_packages(abort_all=True)
             with self.pipeline.managed_state() as state:
                 force_state_extract(state)
             # Restore original schema file so all tables are known on next run
@@ -191,3 +191,34 @@ def prepare_refresh_source(
             # if any tables should be dropped, we force state to extract
             force_state_extract(pipeline_state)
     return load_package_state
+
+
+class pipeline_abort:
+    def __init__(self, pipeline: "Pipeline", load_ids: Sequence[str] = ()) -> None:
+        """
+        Prepares pipeline abort for load packages. You can inspect what will be aborted
+        by inspecting the `info` property before calling. The abort operation performs the following:
+        - Moves all pending retry jobs to failed_jobs
+        - Marks packages as aborted
+        - Wipes the pipeline
+        - Re-syncs pipeline state from destination
+
+        Args:
+            pipeline: Pipeline to abort packages from
+            load_ids: Specific load package IDs to abort. If empty, all normalized packages are aborted.
+        """
+        self.pipeline = pipeline
+        result = pipeline.abort_packages(load_ids, abort_all=not load_ids, dry_run=True)
+        self.info = result.info
+        self.load_ids = list(result.info["packages_to_abort"].keys())
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.load_ids
+
+    def __call__(self) -> LoadInfo:
+        self.pipeline.abort_packages(self.load_ids)
+        load_info = self.pipeline.load()
+        self.pipeline.drop()
+        self.pipeline.sync_destination()
+        return load_info

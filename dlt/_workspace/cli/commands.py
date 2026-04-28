@@ -213,14 +213,35 @@ files that got loaded and the failure message from the destination.
         pipeline_subparsers.add_parser(
             "drop-pending-packages",
             help=(
-                "Deletes all extracted and normalized packages including those that are partially"
-                " loaded."
+                "[Deprecated: use abort-packages] Deletes all extracted and normalized"
+                " packages including those that are partially loaded."
             ),
             description="""
+DEPRECATED: use `abort-packages` instead. That command properly records failed jobs
+and resyncs pipeline state from the destination.
+
 Removes all extracted and normalized packages in the pipeline's working dir.
 `dlt` keeps extracted and normalized load packages in the pipeline working directory. When the `run` method is called, it will attempt to normalize and load
 pending packages first. The command above removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
 were created. Using `dlt pipeline ... sync` is recommended if your destination supports state sync.
+""",
+        )
+        pipeline_subparsers.add_parser(
+            "abort-packages",
+            help=(
+                "Safely cancels pending loads: marks packages as aborted, records"
+                " failed jobs, then resyncs pipeline state from the destination."
+            ),
+            description="""
+Use this when a load is stuck or you want to discard pending work without losing track of what
+happened. Unlike `drop-pending-packages` (which silently deletes packages), this command moves
+retry/pending jobs to failed_jobs so they stay visible in `failed-jobs` output, marks normalized
+packages as aborted, and cleans up any remaining extracted packages. It then runs `load` to
+finalize the abort, wipes local pipeline state, and restores it from the destination (equivalent
+to `drop` + `sync`).
+
+After this, the pipeline is clean and its state matches what the destination has actually loaded.
+You can safely re-extract and re-run.
 """,
         )
         pipeline_subparsers.add_parser(
@@ -380,6 +401,33 @@ This will select the `archives` key in the `chess` source.
             action="store_true",
             help="Only wipe state for matching resources without dropping tables.",
             default=False,
+        )
+
+        pipe_cmd_fail_job = pipeline_subparsers.add_parser(
+            "fail-job",
+            help="Fails a pending retry job, moving it to failed_jobs in the load package.",
+            description="""
+Fails a specific job that is pending retry in a normalized load package. The job is moved from
+new_jobs to failed_jobs and its exception message is preserved. Use `load-package` or
+`list_pending_retry_jobs_in_package` to find the job identifier.
+
+The `job` argument accepts either a job id (e.g. `numbers.abc12.jsonl` as shown by
+`load-package`) or the full file name including retry count (e.g. `numbers.abc12.1.jsonl`
+as returned by `list_pending_retry_jobs_in_package`).
+""",
+        )
+        pipe_cmd_fail_job.add_argument(
+            "load_id",
+            metavar="load-id",
+            help="Load id of the normalized package containing the job.",
+        )
+        pipe_cmd_fail_job.add_argument(
+            "job",
+            metavar="job",
+            help=(
+                "Job id (e.g. table.file_id.format) or full job file name"
+                " (e.g. table.file_id.retry_count.format)."
+            ),
         )
 
         pipe_cmd_package = pipeline_subparsers.add_parser(

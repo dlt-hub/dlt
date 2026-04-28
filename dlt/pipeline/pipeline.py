@@ -1,5 +1,6 @@
 import contextlib
 import os
+import warnings
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy, copy
 from functools import wraps
@@ -96,7 +97,7 @@ from dlt.common.pipeline import (
 )
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive, simple_repr, without_none
-from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
+from dlt.common.warnings import deprecated, Dlt04DeprecationWarning, DltDeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
 from dlt.extract import DltSource
@@ -144,7 +145,8 @@ from dlt.pipeline.state_sync import (
     state_resource,
     default_pipeline_state,
 )
-from dlt.common.storages.load_package import TLoadPackageState
+from dlt.pipeline.abort import prepare_abort_packages, _AbortDryRunResult
+from dlt.common.storages.load_package import TLoadPackageState, TExceptionType
 from dlt.pipeline.helpers import prepare_refresh_source
 
 
@@ -959,10 +961,14 @@ class Pipeline(SupportsPipeline):
     @property
     def has_pending_data(self) -> bool:
         """Tells if the pipeline contains any pending packages to be normalized or loaded"""
-        return (
-            len(self.list_normalized_load_packages()) > 0
-            or len(self.list_extracted_load_packages()) > 0
-        )
+        if len(self.list_extracted_load_packages()) > 0:
+            return True
+        normalized = self.list_normalized_load_packages()
+        if not normalized:
+            return False
+        # abort-flagged packages are scheduled for cleanup, not real pending work
+        load_storage = self._get_load_storage()
+        return any(not load_storage.normalized_packages.has_abort_flag(lid) for lid in normalized)
 
     @property
     def schemas(self) -> SchemaStorage:
@@ -1056,8 +1062,65 @@ class Pipeline(SupportsPipeline):
         """List all failed jobs and associated error messages for a specified `load_id`"""
         return self._get_load_storage().get_load_package_info(load_id).jobs.get("failed_jobs", [])
 
+    def list_pending_retry_jobs_in_package(
+        self,
+        load_id: str,
+        exception_type: Optional[TExceptionType] = None,
+    ) -> Sequence[str]:
+        """List retried jobs still pending in a normalized package.
+
+        Args:
+            load_id (str): Load package ID.
+            exception_type (Optional[TExceptionType]): Filter by `"terminal"` or `"transient"`.
+                Returns all retried jobs when `None`.
+
+        Returns:
+            Sequence[str]: Job file names that can be passed to `fail_pending_job` or
+                `retry_failed_job`.
+        """
+        return self._get_load_storage().normalized_packages.list_pending_jobs(
+            load_id, exception_type
+        )
+
+    def fail_pending_job(self, load_id: str, job_file_name: str) -> str:
+        """Move a retried pending job to failed_jobs.
+
+        The exception recorded during retry is copied to failed_jobs so it appears in
+        `list_failed_jobs_in_package`.
+
+        Args:
+            load_id (str): Load package ID.
+            job_file_name (str): File name as returned by `list_pending_retry_jobs_in_package`.
+
+        Returns:
+            str: New file path of the job in failed_jobs.
+        """
+        return self._get_load_storage().normalized_packages.fail_pending_job(load_id, job_file_name)
+
+    def retry_failed_job(self, load_id: str, job_file_name: str) -> str:
+        """Move a failed job back to new_jobs for retry.
+
+        The retry count is incremented and the exception is preserved in the exceptions
+        folder.
+
+        Args:
+            load_id (str): Load package ID.
+            job_file_name (str): File name of the job in failed_jobs.
+
+        Returns:
+            str: New file path of the job in new_jobs.
+        """
+        return self._get_load_storage().normalized_packages.retry_failed_job(load_id, job_file_name)
+
     def drop_pending_packages(self, with_partial_loads: bool = True) -> None:
         """Deletes all extracted and normalized packages, including those that are partially loaded by default"""
+        warnings.warn(
+            DltDeprecationWarning(
+                "drop_pending_packages is deprecated. Use abort_packages instead",
+                since="1.24.0",
+            ),
+            stacklevel=2,
+        )
         # delete normalized packages
         load_storage = self._get_load_storage()
         for load_id in load_storage.normalized_packages.list_packages():
@@ -1069,6 +1132,45 @@ class Pipeline(SupportsPipeline):
         normalize_storage = self._get_normalize_storage()
         for load_id in normalize_storage.extracted_packages.list_packages():
             normalize_storage.extracted_packages.delete_package(load_id)
+
+    def abort_packages(
+        self,
+        load_ids: Sequence[str] = (),
+        abort_all: bool = False,
+        dry_run: bool = False,
+    ) -> _AbortDryRunResult:
+        """Marks pending normalized packages for abort. Abort is processed on next `load()`.
+
+        Args:
+            load_ids (Sequence[str]): Specific load package IDs to abort. If empty and
+                `abort_all` is `False`, nothing is aborted.
+            abort_all (bool): If `True`, abort all pending normalized packages
+                (overrides `load_ids`).
+            dry_run (bool): If `True`, return abort info without applying any changes.
+
+        Returns:
+            _AbortDryRunResult: Result containing information about packages to abort,
+                delete, and extracted packages to delete.
+        """
+        load_storage = self._get_load_storage()
+        normalize_storage = self._get_normalize_storage()
+
+        result = prepare_abort_packages(
+            load_storage,
+            normalize_storage,
+            load_ids=list(load_ids) if load_ids else None,
+            abort_all=abort_all,
+        )
+
+        if not dry_run:
+            for lid in result.info["extracted_packages_to_delete"]:
+                normalize_storage.extracted_packages.delete_package(lid)
+            for lid in result.info["packages_to_delete"]:
+                load_storage.normalized_packages.delete_package(lid)
+            for lid in result.info["packages_to_abort"]:
+                load_storage.normalized_packages.set_abort_flag(lid)
+
+        return result
 
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None) -> TSchemaTables:
