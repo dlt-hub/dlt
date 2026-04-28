@@ -348,6 +348,11 @@ const sidebars = {
       label: 'Deploy',
       items: [
         {
+          id: 'walkthroughs/deploy-a-pipeline/index',
+          type: 'doc',
+          label: 'Overview',
+        },
+        {
           type: "category",
           label: "Snowflake",
           description: 'How to run dlt in Snowflake.',
