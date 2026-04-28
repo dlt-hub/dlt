@@ -220,6 +220,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_tz_aware_datetime: bool = True
     """The destination can store datetime with timezone"""
 
+    supports_tz_aware_datetime_in_cast: Optional[bool] = None
+    """Can use tz aware literals in CAST"""
+
     supports_naive_datetime: bool = True
     """The destination can store datetime without timezone"""
 

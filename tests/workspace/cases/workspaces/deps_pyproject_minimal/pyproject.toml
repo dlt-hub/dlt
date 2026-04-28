@@ -1,0 +1,4 @@
+[project]
+name = "minimal"
+version = "0.1.0"
+dependencies = ["requests>=2.0"]

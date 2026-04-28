@@ -19,10 +19,9 @@ from typing import (
     Generator,
     cast,
 )
-from typing_extensions import NotRequired
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.common.typing import TFun, TypedDict, Self
+from dlt.common.typing import TFun, TypedDict, Self, NotRequired
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
