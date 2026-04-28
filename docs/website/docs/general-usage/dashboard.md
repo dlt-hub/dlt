@@ -1,10 +1,10 @@
 ---
-title: "Dashboard: inspect the pipeline"
+title: dltHub Dashboard
 description: Open a comprehensive dashboard with information about your pipeline
 keywords: [pipeline, schema, data, inspect]
 ---
 
-# Dashboard: inspect the pipeline
+# dltHub Dashboard
 
 Once you have run a [pipeline](pipeline.md) locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the [marimo](https://marimo.io/) Python notebook framework. For this to work, you will need to have the `dlt[workspace]` package installed.
 

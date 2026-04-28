@@ -36,6 +36,7 @@ const sidebars = {
         'reference/installation',
         "dlt-ecosystem/llm-tooling/llm-native-workflow",
         "dlt-ecosystem/llm-tooling/explore-and-transform",
+        'general-usage/dashboard',
         'tutorial/rest-api',
         'tutorial/sql-database',
         'tutorial/filesystem',
@@ -206,7 +207,6 @@ const sidebars = {
       type: 'category',
       label: 'Using dlt',
       items: [
-        'general-usage/dashboard',
         {
           type: 'category',
           label: 'Access loaded data',
