@@ -16,7 +16,7 @@ jobs:
     name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
 
-  # gate for secret-requiring jobs: secrets are only available for internal (same-repo) PRs under pull_request.
+  # check for secret-requiring jobs: secrets are only available for internal (same-repo) PRs under pull_request.
   # fork PRs with the `ci from fork` label are handled separately by fork_tests_with_secrets.yml (pull_request_target).
   authorize_secrets:
     name: secrets available (internal PRs only)
