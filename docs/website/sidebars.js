@@ -122,10 +122,6 @@ const sidebars = {
           type: 'category',
           label: 'REST API',
           description:'Load data from any REST API',
-           link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/verified-sources/rest_api/index',
-          },
           items: [
             {
               type: 'doc',
@@ -144,10 +140,6 @@ const sidebars = {
           type: 'category',
           label: 'SQL database',
           description: 'PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more',
-          link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/verified-sources/sql_database/index',
-           },
           items: [
             'dlt-ecosystem/verified-sources/sql_database/setup',
             'dlt-ecosystem/verified-sources/sql_database/configuration',
@@ -167,10 +159,6 @@ const sidebars = {
           type: 'category',
           label: 'Verified sources',
           description: 'Verified sources maintained by dltHub and the community',
-          link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/verified-sources/rest_api/index',
-          },
           items: [
             'dlt-ecosystem/verified-sources/airtable',
             'dlt-ecosystem/verified-sources/amazon_kinesis',
@@ -239,10 +227,6 @@ const sidebars = {
     {
       type: 'category',
       label: 'Configuration & secrets',
-       link: {
-        type: 'doc',
-        id: 'general-usage/credentials/index',
-      },
       items: [
         'general-usage/credentials/setup',
         'general-usage/credentials/advanced',
@@ -355,14 +339,8 @@ const sidebars = {
       items: [
         {
           type: "category",
-          label: "On Snowflake",
-          link: {
-            type: 'generated-index',
-            title: 'On Snowflake',
-            description: 'How to run dlt in Snowflake.',
-            slug: 'run-in-snowflake',
-            keywords: ['Snowflake'],
-          },
+          label: "Snowflake",
+          description: 'How to run dlt in Snowflake.',
           items: [
             {
               id: "walkthroughs/run-in-snowflake/run-in-snowflake",
@@ -379,12 +357,6 @@ const sidebars = {
         {
           type: 'category',
           label: 'Orchestrators',
-          link: {
-            type: 'generated-index',
-            title: 'Deploy a pipeline',
-            description: 'Deploy dlt pipelines with different methods.',
-            slug: 'walkthroughs/deploy-a-pipeline',
-          },
           items: [
             {
               id: 'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
