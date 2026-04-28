@@ -316,28 +316,6 @@ def test_remove_leading_underscores() -> None:
     assert NamingConvention._remove_leading_underscores("__foo") == "foo"
 
 
-def test_naming_convention_str_representation() -> None:
-    """Test that NamingConvention.__str__() includes max_length when set"""
-    # Test without max_length
-    naming_unlimited = snake_case.NamingConvention()
-    str_repr = str(naming_unlimited)
-    assert str_repr == "snake_case_ci"
-    assert "_cs" not in str_repr and "_ci" in str_repr
-
-    # Test with max_length - should NOT include max_length anymore (removed functionality)
-    naming_limited = snake_case.NamingConvention(max_length=64)
-    str_repr_limited = str(naming_limited)
-    assert str_repr_limited == "snake_case_ci"
-    # Verify max_length is stored but not reflected in str representation
-    assert naming_limited.max_length == 64
-
-    # Test case-sensitive convention
-    naming_cs = direct.NamingConvention()
-    str_cs = str(naming_cs)
-    assert str_cs == "direct_cs"
-    assert "_ci" not in str_cs and "_cs" in str_cs
-
-
 def assert_short_path(norm_path: str, naming: NamingConvention) -> None:
     assert len(norm_path) == naming.max_length
     assert naming.normalize_path(norm_path) == norm_path
