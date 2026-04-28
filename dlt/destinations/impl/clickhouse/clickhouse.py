@@ -20,7 +20,7 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.typing import TColumnType, C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID
 from dlt.common import logger
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
@@ -311,6 +311,8 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def prepare_load_table(self, table_name: str) -> Optional[PreparedTableSchema]:
         table = super().prepare_load_table(table_name)
 
+        self._set_internal_table_sort_hints(table)
+
         if SORT_HINT not in table:
             table[SORT_HINT] = get_columns_names_with_prop(table, "sort")  # type: ignore[typeddict-unknown-key]
 
@@ -318,6 +320,17 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             table[PARTITION_HINT] = get_columns_names_with_prop(table, "partition")  # type: ignore[typeddict-unknown-key]
 
         return table
+
+    def _set_internal_table_sort_hints(self, table: PreparedTableSchema) -> None:
+        # Match dlt metadata access patterns to avoid ORDER BY tuple() full scans
+        if SORT_HINT in table:
+            return
+        if table["name"] == self.schema.version_table_name:
+            table[SORT_HINT] = ["schema_name", "inserted_at"]  # type: ignore[typeddict-unknown-key]
+        elif table["name"] == self.schema.state_table_name:
+            table[SORT_HINT] = ["pipeline_name", C_DLT_LOAD_ID]  # type: ignore[typeddict-unknown-key]
+        elif table["name"] == self.schema.loads_table_name:
+            table[SORT_HINT] = [C_DLT_LOADS_TABLE_LOAD_ID]  # type: ignore[typeddict-unknown-key]
 
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
