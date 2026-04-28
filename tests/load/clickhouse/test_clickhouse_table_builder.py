@@ -1,4 +1,5 @@
 from copy import deepcopy
+from typing import Callable, Optional, Tuple
 
 import pytest
 
@@ -132,27 +133,43 @@ def test_clickhouse_alter_table(clickhouse_client: ClickHouseClient) -> None:
 
 
 @pytest.mark.parametrize(
-    "schema_table_name,expected_order_by",
+    "naming,case",
     [
-        ("version_table_name", "(schema_name, inserted_at)"),
-        ("state_table_name", "(pipeline_name, _dlt_load_id)"),
-        ("loads_table_name", "(load_id)"),
+        (None, str.lower),
+        ("tests.common.cases.normalizers.sql_upper", str.upper),
+    ],
+    ids=["snake_case", "sql_upper"],
+)
+@pytest.mark.parametrize(
+    "schema_table_name,expected_columns",
+    [
+        ("version_table_name", ("schema_name", "inserted_at")),
+        ("state_table_name", ("pipeline_name", "_dlt_load_id")),
+        ("loads_table_name", ("load_id",)),
     ],
     ids=["version", "pipeline_state", "loads"],
 )
 def test_clickhouse_internal_metadata_tables_have_sort_keys(
     clickhouse_client: ClickHouseClient,
     schema_table_name: str,
-    expected_order_by: str,
+    expected_columns: Tuple[str, ...],
+    naming: Optional[str],
+    case: Callable[[str], str],
 ) -> None:
-    table_name = getattr(clickhouse_client.schema, schema_table_name)
+    if naming is not None:
+        with custom_environ({"SCHEMA__NAMING": naming}):
+            clickhouse_client.schema.update_normalizers()
+
     if schema_table_name == "state_table_name":
         clickhouse_client.schema.update_table(pipeline_state_table())
 
+    table_name = getattr(clickhouse_client.schema, schema_table_name)
     new_columns = list(clickhouse_client.schema.tables[table_name]["columns"].values())
 
     sql = clickhouse_client._get_table_update_sql(table_name, new_columns, False)[0]
 
+    # uses casing function to approximate UPPER naming convention
+    expected_order_by = "(" + ", ".join(case(c) for c in expected_columns) + ")"
     assert f"ORDER BY {expected_order_by}" in sql
 
 
