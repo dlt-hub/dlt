@@ -436,8 +436,6 @@ const sidebars = {
         'walkthroughs/create-new-destination',
         'general-usage/dataset-access/sql-client',
         'general-usage/destination-tables',
-        'general-usage/dataset-access/ibis-backend',
-        'general-usage/dataset-access/marimo',
         'reference/frequently-asked-questions',
       ],
     },

@@ -234,10 +234,6 @@ Since the `iter_arrow` and `iter_df` methods are generators that iterate over th
 
 Learn more about [transforming data in Python with Arrow tables or DataFrames](../../dlt-ecosystem/transformations/python).
 
-### Using `ibis` to query data
-
-Visit the [Native Ibis integration](./ibis-backend.md) guide to learn more.
-
 ### Datasets with multiple schemas
 
 When a pipeline loads data from several [sources](../../general-usage/source.md), each source produces its own schema. By default, all schemas share one physical dataset and `pipeline.dataset()` includes every schema automatically, so tables from all sources are queryable together. If two schemas define a table with the same name, dlt merges their columns and combines rows from both — missing columns are filled with `NULL`.
@@ -261,6 +257,149 @@ ds = pipeline.dataset()
 ds = pipeline.dataset(schema=pipeline.default_schema_name)
 ```
 :::
+
+## Ibis
+
+Ibis is a powerful portable Python dataframe library. Learn more about what it is and how to use it in the [official documentation](https://ibis-project.org/).
+
+`dlt` provides an easy way to hand over your loaded dataset to an Ibis backend connection.
+
+:::tip
+Not all destinations supported by `dlt` have an equivalent Ibis backend. Natively supported destinations include DuckDB (including Motherduck), Postgres (Redshift is supported via the Postgres backend for Ibis versions lower than 10.4.0), Snowflake, Clickhouse, MSSQL (including Synapse), and BigQuery. The filesystem destination is supported via the [Filesystem SQL client](./sql-client#the-filesystem-sql-client); please install the DuckDB backend for Ibis to use it. Mutating data with Ibis on the filesystem will not result in any actual changes to the persisted files.
+:::
+
+### Prerequisites
+
+To use the Ibis backend, you will need to have the `ibis-framework` package with the correct Ibis extra installed. The following example will install the DuckDB backend:
+
+```sh
+pip install ibis-framework[duckdb]
+```
+
+### Get an Ibis connection from your dataset
+
+`dlt` datasets have a helper method to return an Ibis connection to the destination they live on. The returned object is a native Ibis connection to the destination, which you can use to read and even transform data. Please consult the [Ibis documentation](https://ibis-project.org) to learn more about what you can do with Ibis.
+
+:::caution Breaking change in dlt 1.25.0
+`dataset.ibis()` now passes all schemas from the dataset to the Ibis backend. On filesystem destinations, this means Ibis will see tables from every schema in the dataset and not just the default one. If two schemas define the same table name, the Ibis table will contain rows from both schemas combined. To get the previous single-schema behavior, create the dataset with an explicit schema: `pipeline.dataset(schema="my_schema").ibis()`.
+:::
+
+```py
+# get the dataset from the pipeline
+dataset = pipeline.dataset()
+dataset_name = pipeline.dataset_name
+
+# get the native ibis connection from the dataset
+ibis_connection = dataset.ibis()
+
+# list all tables in the dataset
+# NOTE: You need to provide the dataset name to ibis, in ibis datasets are named databases
+print(ibis_connection.list_tables(database=dataset_name))
+
+# get the items table
+table = ibis_connection.table("items", database=dataset_name)
+
+# print the first 10 rows
+print(table.limit(10).execute())
+
+# Visit the ibis docs to learn more about the available methods
+```
+
+## Marimo
+
+[marimo](https://github.com/marimo-team/marimo) is a reactive Python notebook. It completely revamps the Jupyter notebook experience. Whenever code is executed or you interact with a UI element, dependent cells are re-executed ensuring consistency between code and displayed outputs.
+
+This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich environment to explore loaded data, write data transformations, and create data applications.
+
+### Prerequisites
+
+To install marimo and ibis with the duckdb extras, run the following command:
+
+```sh
+pip install marimo "ibis-framework[duckdb]"
+```
+
+### Launch marimo
+
+Use this command to launch marimo (replace `my_notebook.py` with desired name). It will print a link to access the notebook web app.
+
+```sh
+marimo edit my_notebook.py
+
+> Edit my_notebook.py in your browser 📝
+>   ➜  URL: http://localhost:2718?access_token=Qfo_Hj2RbXqiqM4VT3XOwA 
+```
+
+Here's a screenshot of the interface you should see:
+
+![](./static/marimo_notebook.png)
+
+
+### Features
+
+#### Use custom dlt widgets
+
+Inside your marimo notebook, you can use composable widgets built and maintained by the dlt team. This requires the `mowidgets` package (Python 3.11+).
+
+Import them from `dlt.helpers.marimo` and pass them to the `render()` function:
+
+```py
+#%% cell 1
+from dlt.helpers.marimo import render, load_package_viewer, pipeline_selector
+
+#%% cell 2
+render(pipeline_selector)
+
+#%% cell 3
+render(load_package_viewer, pipeline_path="/path/to/pipeline")
+```
+
+Available widgets: `pipeline_selector`, `load_package_viewer`, `schema_viewer`.
+
+![Example marimo widget](https://storage.googleapis.com/dlt-blog-images/marimo-widget-screenshot.png)
+
+
+#### View dataset tables and columns
+
+After loading data with dlt, you can access it via the dataset interface, including a [native ibis connection](#ibis).
+
+In marimo, the **Datasources** panel provides a GUI to explore data tables and columns. When a cell contains a variable that's an ibis connection, it is automatically registered.
+
+![](./static/marimo_dataset.png)
+
+#### Accessing data with SQL
+
+Clicking on the **Add table to notebook** button will create a new SQL cell that you can use to query data. The output cell provides a rich and interactive results dataframe.
+
+:::note
+The **Datasources** displays a limited range of data types.
+:::
+
+![](./static/marimo_sql.png)
+
+
+#### Accessing data with Python
+
+You can also retrieve Ibis tables (lazy expressions) using Python. The **Datasources** panel will show under **Python** the output schema of your Ibis query, and the cell output will display detailed query planning.
+
+Use `.execute()`, `.to_pandas()`, `.to_polars()`, or `.to_pyarrow()` to execute the Ibis expression and retrieve data that can displayed in a rich and interactive dataframe.
+
+:::note
+The **Datasources** displays a limited range of data types.
+:::
+
+![](./static/marimo_python.png)
+
+#### Create a dashboard and data apps
+
+marimo notebooks can be [deployed as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/) and the code hidden. Try adding [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), rich markdown, and charts (matplotlib, plotly, altair, etc.). Combined, dlt + marimo + ibis make it easy to build a simple dashboard on top of fresh data.
+
+
+### Further reading
+
+- [Learn about marimo dataframe and SQL features](https://docs.marimo.io/guides/working_with_data/)
+- [Explore databases using the marimo GUI](https://docs.marimo.io/guides/coming_from/streamlit/)
+- [Learn about marimo if you're coming from Streamlit](https://docs.marimo.io/guides/coming_from/streamlit/)
 
 ## Important considerations
 
