@@ -258,6 +258,146 @@ ds = pipeline.dataset(schema=pipeline.default_schema_name)
 ```
 :::
 
+
+## Staging dataset
+
+So far, we've been using the `append` write disposition in our example pipeline. This means that each time we run the pipeline, the data is appended to the existing tables. When you use the [merge write disposition](../incremental-loading.md), dlt creates a staging database schema for staging data. This schema is named `<dataset_name>_staging` [by default](../../dlt-ecosystem/staging#staging-dataset) and contains the same tables as the destination schema. When you run the pipeline, the data from the staging tables is loaded into the destination tables in a single atomic transaction.
+
+Let's illustrate this with an example. We change our pipeline to use the `merge` write disposition:
+
+```py
+import dlt
+
+@dlt.resource(primary_key="id", write_disposition="merge")
+def users():
+    yield [
+        {'id': 1, 'name': 'Alice 2'},
+        {'id': 2, 'name': 'Bob 2'}
+    ]
+
+pipeline = dlt.pipeline(
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata'
+)
+
+load_info = pipeline.run(users)
+```
+
+Running this pipeline will create a schema in the destination database with the name `mydata_staging`.
+If you inspect the tables in this schema, you will find the `mydata_staging.users` table identical to the `mydata.users` table in the previous example.
+
+Here is what the tables may look like after running the pipeline:
+
+**mydata_staging.users**
+
+| id | name | _dlt_id | _dlt_load_id |
+| --- | --- | --- | --- |
+| 1 | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
+| 2 | Bob 2 | rX8ybgTeEmAmmA | 2345672350.98417 |
+
+**mydata.users**
+
+| id | name | _dlt_id | _dlt_load_id |
+| --- | --- | --- | --- |
+| 1 | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
+| 2 | Bob 2 | rX8ybgTeEmAmmA | 2345672350.98417 |
+| 3 | Charlie | h8lehZEvT3fASQ | 1234563456.12345 |
+
+Notice that the `mydata.users` table now contains the data from both the previous pipeline run and the current one.
+
+## `dev_mode` (versioned datasets)
+
+When you set the `dev_mode` argument to `True` in the `dlt.pipeline` call, dlt creates a versioned dataset.
+This means that each time you run the pipeline, the data is loaded into a new dataset (a new database schema).
+The dataset name is the same as the `dataset_name` you provided in the pipeline definition with a datetime-based suffix.
+
+We modify our pipeline to use the `dev_mode` option to see how this works:
+
+```py
+import dlt
+
+data = [
+    {'id': 1, 'name': 'Alice'},
+    {'id': 2, 'name': 'Bob'}
+]
+
+pipeline = dlt.pipeline(
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata',
+    dev_mode=True # <-- add this line
+)
+load_info = pipeline.run(data, table_name="users")
+```
+
+Every time you run this pipeline, a new schema will be created in the destination database with a datetime-based suffix. The data will be loaded into tables in this schema.
+For example, the first time you run the pipeline, the schema will be named `mydata_20230912064403`, the second time it will be named `mydata_20230912064407`, and so on.
+
+## Internal `dlt` tables
+
+dlt automatically creates internal tables in the destination schema to track pipeline runs, support incremental loading, and manage schema versions. These tables use the `_dlt_` prefix.
+
+### `_dlt_loads`
+This table records each pipeline run. Every time you execute a pipeline, a new row is added to this table with a unique `load_id`. This table tracks which loads have been completed and supports chaining of transformations.
+
+
+| Column name          | Type      | Description                               |
+|----------------------|-----------|-------------------------------------------|
+| `load_id`            | STRING    | Unique identifier for the load job        |
+| `schema_name`        | STRING    | Name of the schema used during the load   |
+| `schema_version_hash`| STRING    | Hash of the schema version                |
+| `status`             | INTEGER   | Load status. Value `0` means completed    |
+| `inserted_at`        | TIMESTAMP | When the load was recorded                |
+
+Only rows with `status = 0` are considered complete. Other values represent incomplete or interrupted loads. The status column can also be used to coordinate multi-step transformations.
+
+### `_dlt_pipeline_state`
+This table stores the internal state of the pipeline for each run. This state enables incremental loading and allows the pipeline to resume from where it left off if a previous run was interrupted.
+
+
+| Column name       | Type            | Description                                          |
+|-------------------|------------------|------------------------------------------------------|
+| `version`         | INTEGER          | Version of this state entry                         |
+| `engine_version`  | INTEGER          | Version of the dlt engine used                      |
+| `pipeline_name`   | STRING           | Name of the pipeline                                |
+| `state`           | STRING or BLOB   | Serialized Python dictionary of pipeline state      |
+| `created_at`      | TIMESTAMP        | When this state entry was created                   |
+| `version_hash`    | STRING           | Hash to detect changes in the state                 |
+| `_dlt_load_id`    | STRING           | Reference to related load in `_dlt_loads`           |
+| `_dlt_id`         | STRING           | Unique identifier for the pipeline state row        |
+ 
+
+The state column contains a serialized Python dictionary that includes:
+
+    - Incremental progress (e.g. last item or timestamp processed).
+    - Checkpoints for transformations.
+    - Source-specific metadata and settings.
+
+This allows dlt to resume interrupted pipelines, avoid reloading already processed data, and ensure pipelines are idempotent and efficient.
+
+The `version_hash` is recalculated on each update. dlt uses this table to implement last-value incremental loading. If a run fails or stops, this table ensures the next run picks up from the correct checkpoint.
+
+### `_dlt_version`
+This table tracks the history of all schema versions used by the pipeline. Every time dlt updates the schema. For example, when new columns or tables are added, a new entry is written to this table.
+
+| Column name     | Type            | Description                                      |
+|------------------|------------------|--------------------------------------------------|
+| `version`        | INTEGER          | Numeric version of the schema                   |
+| `engine_version` | INTEGER          | Version of the dlt engine used                  |
+| `inserted_at`    | TIMESTAMP        | Time the schema version entry was created       |
+| `schema_name`    | STRING           | Name of the schema                              |
+| `version_hash`   | STRING           | Unique hash representing the schema content     |
+| `schema`         | STRING or JSON   | Full schema in JSON format                      |
+
+By keeping previous schema definitions, `_dlt_version` ensures that:
+
+- Older data remains readable
+- New data uses updated schema rules
+- Backward compatibility is maintained
+
+This table also supports troubleshooting and compatibility checks. It lets you track which schema and engine version were used for any load. This helps with debugging and ensures safe evolution of your data model.
+
 ## Ibis
 
 Ibis is a powerful portable Python dataframe library. Learn more about what it is and how to use it in the [official documentation](https://ibis-project.org/).

@@ -417,9 +417,6 @@ const sidebars = {
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
-        'walkthroughs/create-new-destination',
-        'general-usage/dataset-access/sql-client',
-        'general-usage/destination-tables',
         'reference/frequently-asked-questions',
       ],
     },
@@ -500,6 +497,7 @@ const sidebars = {
       items: [
         'walkthroughs/dispatch-to-multiple-tables',
         'walkthroughs/share-a-dataset',
+        'walkthroughs/create-new-destination',
       ],
     },
   ],
