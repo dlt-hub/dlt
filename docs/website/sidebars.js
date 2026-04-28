@@ -305,6 +305,11 @@ const sidebars = {
       label: 'Transformations',
       items: [
         {
+          type: 'doc',
+          id: 'dlt-ecosystem/transformations/index',
+          label: 'Overview',
+        },
+        {
           type: 'category',
           label: 'Extract, Transform, Load (ETL)',
           items: [
