@@ -99,6 +99,11 @@ const sidebars = {
         'general-usage/resource',
         'general-usage/pipeline',
         'general-usage/destination',
+        {
+          type: 'doc',
+          id: 'general-usage/dataset-access/dataset',
+          label: 'Dataset',
+        },
         'general-usage/state',
         'general-usage/schema',
       ]
@@ -231,28 +236,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/community-destinations',
       ]
     },
-    {
-      type: 'category',
-      label: 'Using dlt',
-      items: [
-        {
-          type: 'category',
-          label: 'Access loaded data',
-           link: {
-            type: 'doc',
-            id: 'general-usage/dataset-access/index',
-          },
-          items: [
-            'general-usage/dataset-access/marimo',
-            'general-usage/dataset-access/dataset',
-            'general-usage/dataset-access/ibis-backend',
-            'general-usage/dataset-access/sql-client',
-            'general-usage/destination-tables',
-          ]
-        },
-        'general-usage/data-quality-lifecycle',
-      ]
-    },
+    'general-usage/data-quality-lifecycle',
     {
       type: 'category',
       label: 'Configuration & secrets',
@@ -454,6 +438,10 @@ const sidebars = {
         },
         'walkthroughs/create-new-destination',
         'general-usage/dataset-access/data-quality-dashboard',
+        'general-usage/dataset-access/sql-client',
+        'general-usage/destination-tables',
+        'general-usage/dataset-access/ibis-backend',
+        'general-usage/dataset-access/marimo',
         'reference/frequently-asked-questions',
       ],
     },
