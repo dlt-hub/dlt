@@ -407,21 +407,31 @@ class Schema:
                 for chain_table in utils.get_nested_tables(schema._schema_tables, table["name"]):
                     self.update_table(chain_table)
 
-    def unify_schemas(self, schemas: Sequence["Schema"]) -> "Schema":
+    def unify_schemas(
+        self,
+        schemas: Sequence["Schema"],
+        check_naming_convention: bool = False,
+    ) -> "Schema":
         """Create a new schema containing tables from self and all given schemas.
 
-        All schemas must use the same naming convention (type, case sensitivity,
-        and max_length). Tables are merged without normalizing identifiers
-        (assumed already normalized). Parent tables are added before children.
+        Tables are merged without normalizing identifiers (assumed already normalized).
+        Parent tables are added before children.
+
+        Args:
+            schemas: Schemas to merge into a clone of this schema.
+            check_naming_convention: When True, require all input schemas to
+                share the same naming convention (type, case sensitivity, and
+                `max_length`).
 
         Raises:
-            IncompatibleSchemaException: when naming conventions differ
+            IncompatibleSchemaException: when `check_naming_convention=True`
+                and naming conventions differ.
         """
         all_names = sorted([self.name] + [s.name for s in schemas])
         unified_name = utils.normalize_schema_name("u_" + "_".join(all_names))
         unified = self.clone(with_name=unified_name)
         for schema in schemas:
-            if str(unified.naming) != str(schema.naming):
+            if check_naming_convention and str(unified.naming) != str(schema.naming):
                 raise IncompatibleSchemaException(
                     unified.name,
                     schema.name,
