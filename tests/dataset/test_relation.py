@@ -567,3 +567,37 @@ def test_multi_schema_row_counts_by_load_id(
         "items": 2,
         "warehouses": 1,
     }
+
+
+def test_unify_schemas_across_naming_conventions(
+    module_tmp_path: pathlib.Path,
+) -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="multi_naming",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(
+            str(module_tmp_path / "multi_naming.db"),
+            enable_dataset_name_normalization=False,
+        ),
+        dataset_name="multi_naming_ds",
+    )
+    # default snake_case schema
+    pipeline.run([{"id": 1, "name": "alice"}, {"id": 2, "name": "bob"}], table_name="users")
+
+    upper_schema = dlt.Schema("events")
+    upper_schema._configure_normalizers(
+        {"names": "tests.common.cases.normalizers.sql_upper", "json": None}
+    )
+    pipeline.run(
+        [{"id": 7, "value": "hello"}],
+        table_name="events📊",
+        schema=upper_schema,
+    )
+    assert "users" in pipeline.schemas["multi_naming"].data_table_names()
+    assert "EVENTS📊" in pipeline.schemas["events"].data_table_names()
+
+    dataset = pipeline.dataset()
+    users = sorted(row[:2] for row in dataset.users.fetchall())
+    assert users == [(1, "alice"), (2, "bob")]
+    events = [row[:2] for row in dataset["EVENTS📊"].fetchall()]
+    assert events == [(7, "hello")]
