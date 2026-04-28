@@ -858,7 +858,7 @@ dlt runtime job [selector_or_job_name ...] list [-h]
 
 **Description**
 
-List jobs registered in the workspace. Pass selectors before `list` to filter: batch, interactive, schedule:*, tag:<name>, manual:*, etc.
+List jobs registered in the workspace. Pass selectors before `list` to filter: batch, interactive, schedule:*, tag:&lt;name&gt;, manual:*, etc.
 
 <details>
 
