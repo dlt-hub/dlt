@@ -236,7 +236,6 @@ const sidebars = {
         'dlt-ecosystem/destinations/community-destinations',
       ]
     },
-    'general-usage/data-quality-lifecycle',
     {
       type: 'category',
       label: 'Configuration & secrets',
@@ -339,6 +338,18 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'Data quality',
+      items: [
+        {
+          type: 'doc',
+          id: 'general-usage/data-quality-lifecycle',
+          label: 'Overview'
+        },
+        'general-usage/dataset-access/data-quality-dashboard',
+      ]
+    },
+    {
+      type: 'category',
       label: 'Deploy',
       items: [
         {
@@ -422,22 +433,7 @@ const sidebars = {
             'dlt-ecosystem/file-formats/insert-format',
           ]
         },
-        {
-          type: 'category',
-          label: 'Table formats',
-          link: {
-            type: 'generated-index',
-            title: 'Table formats',
-            slug: 'dlt-ecosystem/table-formats',
-            keywords: ['destination, table formats'],
-          },
-          items: [
-            'dlt-ecosystem/table-formats/delta',
-            'dlt-ecosystem/table-formats/iceberg',
-          ]
-        },
         'walkthroughs/create-new-destination',
-        'general-usage/dataset-access/data-quality-dashboard',
         'general-usage/dataset-access/sql-client',
         'general-usage/destination-tables',
         'general-usage/dataset-access/ibis-backend',
