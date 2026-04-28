@@ -292,7 +292,8 @@ const sidebars = {
               label: 'Troubleshoot',
             },
           ]
-        }
+        },
+        'dlt-ecosystem/staging',
       ]
     },
     {
@@ -415,7 +416,6 @@ const sidebars = {
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
-        'dlt-ecosystem/staging',
         {
           type: 'category',
           label: 'File formats',
