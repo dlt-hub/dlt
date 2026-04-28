@@ -196,7 +196,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             # referencing an staged files via a bucket URL requires explicit AWS credentials
             if bucket_scheme == "s3":
                 assert isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
-                s3_creds = staging_credentials.to_session_credentials()
+                s3_creds = staging_credentials.to_sts_credentials()
                 credentials_clause = f"""WITH(CREDENTIAL(
                     AWS_ACCESS_KEY='{s3_creds["aws_access_key_id"]}',
                     AWS_SECRET_KEY='{s3_creds["aws_secret_access_key"]}',

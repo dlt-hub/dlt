@@ -110,5 +110,11 @@ def prompt(
     )
 
 
-def text_input(text: str) -> str:
-    return click.prompt(text)  # type: ignore[no-any-return]
+def text_input(text: str, default: str = None) -> str:
+    if ALWAYS_CHOOSE_VALUE:
+        return str(ALWAYS_CHOOSE_VALUE)
+    if ALWAYS_CHOOSE_DEFAULT:
+        if default is None:
+            raise NotImplementedError("non interactive mode not supported")
+        return default
+    return click.prompt(text, default=default)  # type: ignore[no-any-return]
