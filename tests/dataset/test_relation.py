@@ -317,16 +317,7 @@ def multi_schema_pipeline(module_tmp_path: pathlib.Path) -> dlt.Pipeline:
 
 @pytest.fixture(scope="module")
 def multi_schema_dataset(multi_schema_pipeline: dlt.Pipeline) -> dlt.Dataset:
-    ds = multi_schema_pipeline.dataset()
-    # we need to reset max_length here to avoid IncompatibleSchemaException
-    # down the line in unify_schemas: max_length is resolved from
-    # DestinationCapabilitiesContext at schema construction time
-    # The deactivate_pipeline autouse fixture removes caps from the Container
-    # between tests, so clone() inside unify_schemas would create schemas without
-    # max_length.
-    for s in ds.schemas:
-        s.naming.max_length = None
-    return ds
+    return multi_schema_pipeline.dataset()
 
 
 def test_multi_schema_schemas_property(multi_schema_dataset: dlt.Dataset) -> None:

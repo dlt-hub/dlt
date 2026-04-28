@@ -1184,8 +1184,11 @@ def test_unify_schemas_naming_mismatch() -> None:
     schema_a = Schema("alpha")
     schema_b = Schema("beta")
     schema_b._configure_normalizers({"names": "dlt.common.normalizers.naming.direct", "json": None})
+    unified = schema_a.unify_schemas([schema_b])
+    assert unified.name == "u_alpha_beta"
+
     with pytest.raises(IncompatibleSchemaException, match="naming convention mismatch"):
-        schema_a.unify_schemas([schema_b])
+        schema_a.unify_schemas([schema_b], check_naming_convention=True)
 
 
 def test_unify_schemas_nested_tables() -> None:
@@ -1239,6 +1242,6 @@ def test_unify_schemas_sql_naming_convention_mismatch() -> None:
     schema_b._configure_normalizers(
         {"names": "dlt.common.normalizers.naming.sql_ci_v1", "json": None}
     )
-
+    schema_a.unify_schemas([schema_b])
     with pytest.raises(IncompatibleSchemaException, match="naming convention mismatch"):
-        schema_a.unify_schemas([schema_b])
+        schema_a.unify_schemas([schema_b], check_naming_convention=True)
