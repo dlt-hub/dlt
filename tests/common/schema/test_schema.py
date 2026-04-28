@@ -1206,7 +1206,7 @@ def test_unify_schemas_with_matching_max_length() -> None:
     schema_b = Schema("beta")
     schema_a.naming.max_length = 65536
     schema_b.naming.max_length = 65536
-    unified = schema_a.unify_schemas([schema_b])
+    unified = schema_a.unify_schemas([schema_b], check_naming_convention=True)
     assert unified.naming.max_length == 65536
 
 
