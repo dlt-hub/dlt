@@ -577,7 +577,7 @@ Congratulations on completing the tutorial! You've come a long way since the [ge
 
 Interested in learning more? Here are some suggestions:
 1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
-2. Dive deeper into how dlt works by reading the [Using dlt](../general-usage) section. Some highlights:
+2. Dive deeper into how dlt works by reading:
     - [Set up "last value" incremental loading](../general-usage/incremental/cursor.md).
     - Learn about data loading strategies: append, [replace](../general-usage/full-loading.md), and [merge](../general-usage/merge-loading.md).
     - [Connect the transformers to the resources](../general-usage/resource#process-resources-with-dlttransformer) to load additional data or enrich it.
