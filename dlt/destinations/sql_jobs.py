@@ -7,6 +7,8 @@ from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.typing import TAnyDateTime, TypedDict
 
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
+    LOADS_TABLE_NAME,
     TSortOrder,
     TColumnProp,
 )
@@ -749,6 +751,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         deleted_cond: Optional[str],
         insert_only: bool = False,
         not_deleted_cond: Optional[str] = None,
+        scope: Optional[str] = None,
+        dlt_load_id_col: Optional[str] = None,
+        loads_table_name: Optional[str] = None,
+        escaped_load_id: Optional[str] = None,
+        escaped_status: Optional[str] = None,
     ) -> List[str]:
         """Generate MERGE statement for upsert/insert-only on root table.
 
@@ -760,17 +767,42 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
 
         if insert_only:
-            staging_source = staging_root_table_name
-            if hard_delete_col is not None and not_deleted_cond is not None:
-                staging_source = (
-                    f"(SELECT * FROM {staging_root_table_name} WHERE {not_deleted_cond})"
+            if scope == "previous_load" and dlt_load_id_col is not None and loads_table_name:
+                # pre-filter hard-deleted records from staging before scope filter
+                if hard_delete_col is not None and not_deleted_cond is not None:
+                    sql.append(
+                        f"DELETE FROM {staging_root_table_name} WHERE NOT ({not_deleted_cond});"
+                    )
+                # remove from staging keys already present in the previous load
+                pk_join = " AND ".join([f"s.{c} = prev.{c}" for c in primary_keys])
+                sql.append(
+                    f"DELETE FROM {staging_root_table_name} s"
+                    " WHERE EXISTS ("
+                    f"SELECT 1 FROM {root_table_name} prev"
+                    f" WHERE {pk_join}"
+                    f" AND prev.{dlt_load_id_col} = ("
+                    f"SELECT MAX({escaped_load_id}) FROM {loads_table_name}"
+                    f" WHERE {escaped_status} = 0));"
                 )
-            sql.append(f"""
-                MERGE INTO {root_table_name} d USING {staging_source} s
-                ON {on_str}
-                WHEN NOT MATCHED
-                    THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
-            """)
+                # merge remaining staging rows — all are NOT MATCHED by construction
+                sql.append(f"""
+                    MERGE INTO {root_table_name} d USING {staging_root_table_name} s
+                    ON 1 = 0
+                    WHEN NOT MATCHED
+                        THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+                """)
+            else:
+                staging_source = staging_root_table_name
+                if hard_delete_col is not None and not_deleted_cond is not None:
+                    staging_source = (
+                        f"(SELECT * FROM {staging_root_table_name} WHERE {not_deleted_cond})"
+                    )
+                sql.append(f"""
+                    MERGE INTO {root_table_name} d USING {staging_source} s
+                    ON {on_str}
+                    WHEN NOT MATCHED
+                        THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+                """)
         else:
             update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
             delete_str = (
@@ -815,6 +847,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             escape_lit,
         )
 
+        # read insert-only scope hint
+        scope: Optional[str] = root_table.get("x-insert-only-scope") if insert_only else None  # type: ignore[assignment]
+        dlt_load_id_col = escape_column_id(C_DLT_LOAD_ID) if scope else None
+        loads_table_name = sql_client.make_qualified_table_name(LOADS_TABLE_NAME) if scope else None
+        escaped_load_id = escape_column_id("load_id") if scope else None
+        escaped_status = escape_column_id("status") if scope else None
+
         # generate merge statement for root table
         root_table_column_names = list(map(escape_column_id, root_table["columns"]))
         # we need not_deleted_cond to filter out hard deleted rows before insert
@@ -833,6 +872,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 deleted_cond,
                 insert_only=insert_only,
                 not_deleted_cond=not_deleted_cond,
+                scope=scope,
+                dlt_load_id_col=dlt_load_id_col,
+                loads_table_name=loads_table_name,
+                escaped_load_id=escaped_load_id,
+                escaped_status=escaped_status,
             )
         )
 
@@ -865,13 +909,41 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     update_str = f"WHEN MATCHED THEN UPDATE SET {update_str}"
                 col_str = ", ".join(["{alias}" + c for c in table_column_names])
 
-                sql.append(f"""
-                    MERGE INTO {table_name} d USING {staging_table_name} s
-                    ON d.{nested_row_key_column} = s.{nested_row_key_column}
-                    {update_str}
-                    WHEN NOT MATCHED
-                        THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
-                """)
+                if scope == "previous_load" and dlt_load_id_col is not None and loads_table_name:
+                    # nested tables lack _dlt_load_id; join through root table
+                    root_key_column = escape_column_id(
+                        cls.get_root_key_col(
+                            table_chain,
+                            table,
+                            sql_client.fully_qualified_dataset_name(),
+                            sql_client.fully_qualified_dataset_name(staging=True),
+                        )
+                    )
+                    sql.append(
+                        f"DELETE FROM {staging_table_name} s"
+                        " WHERE EXISTS ("
+                        f"SELECT 1 FROM {table_name} n"
+                        f" INNER JOIN {root_table_name} r"
+                        f" ON n.{root_key_column} = r.{root_row_key_column}"
+                        f" WHERE n.{nested_row_key_column} = s.{nested_row_key_column}"
+                        f" AND r.{dlt_load_id_col} = ("
+                        f"SELECT MAX({escaped_load_id}) FROM {loads_table_name}"
+                        f" WHERE {escaped_status} = 0));"
+                    )
+                    sql.append(f"""
+                        MERGE INTO {table_name} d USING {staging_table_name} s
+                        ON 1 = 0
+                        WHEN NOT MATCHED
+                            THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+                    """)
+                else:
+                    sql.append(f"""
+                        MERGE INTO {table_name} d USING {staging_table_name} s
+                        ON d.{nested_row_key_column} = s.{nested_row_key_column}
+                        {update_str}
+                        WHEN NOT MATCHED
+                            THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+                    """)
 
                 if not insert_only:
                     root_key_column = escape_column_id(
