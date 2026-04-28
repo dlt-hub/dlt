@@ -42,7 +42,7 @@ Once you have a `Relation`, you can read data in various formats and sizes.
 ### Fetch the entire table
 
 :::warning
-Loading full tables into memory without limiting or iterating over them can consume a large amount of memory and may cause your program to crash if the table is too large. It's recommended to use chunked iteration or apply limits when dealing with large datasets. 
+Loading full tables into memory without limiting or iterating over them can consume a large amount of memory and may cause your program to crash if the table is too large. It's recommended to use chunked iteration or apply limits when dealing with large datasets.
 :::
 
 #### As a Pandas DataFrame
@@ -119,6 +119,12 @@ You can refine your data retrieval by limiting the number of records, selecting 
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::aggregate-->
 
+### Join related tables
+
+Use `join()` to navigate dlt's schema references between related tables, such as parent/child tables created from nested data, or tables where you explicitly annotate the relationship. Joined columns are prefixed with the joined table name, or with the alias you provide.
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::join_related_tables-->
+
 ### Chain operations
 
 You can combine `select`, `limit`, and other methods.
@@ -141,7 +147,7 @@ A previous version of dlt allowed to use ibis expressions in a slightly differen
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::ibis_expressions-->
 
-You can learn more about the available expressions on the [ibis for sql users](https://ibis-project.org/tutorials/ibis-for-sql-users) page. 
+You can learn more about the available expressions on the [ibis for sql users](https://ibis-project.org/tutorials/ibis-for-sql-users) page.
 
 
 ### Migrating from the previous dlt / ibis implementation
@@ -232,6 +238,30 @@ Learn more about [transforming data in Python with Arrow tables or DataFrames](.
 
 Visit the [Native Ibis integration](./ibis-backend.md) guide to learn more.
 
+### Datasets with multiple schemas
+
+When a pipeline loads data from several [sources](../../general-usage/source.md), each source produces its own schema. By default, all schemas share one physical dataset and `pipeline.dataset()` includes every schema automatically, so tables from all sources are queryable together. If two schemas define a table with the same name, dlt merges their columns and combines rows from both — missing columns are filled with `NULL`.
+
+:::note
+Multi-schema datasets are not recommended for most use cases. They arise naturally when multiple sources are loaded into one pipeline, and dlt handles them transparently. You can restrict the dataset to a single schema with `pipeline.dataset(schema="source_name")` or pass a list of schemas to select a subset. Load history is tracked per schema — use `dataset.load_ids(schema_name="...")` to query a specific one.
+:::
+
+#### Breaking changes
+
+:::caution Breaking changes introduced in dlt 1.25.0
+The following changes affect existing code that uses `pipeline.dataset()`:
+
+**`pipeline.dataset()` now includes all schemas by default.** Previously, calling `pipeline.dataset()` without a `schema` argument returned only the default schema's tables. Now, when `use_single_dataset` is enabled (the default) and the pipeline has multiple schemas, all schemas are included automatically. Code that assumed only one schema's tables are visible may now see additional tables or extra rows in shared table names. To restore the previous single-schema behavior, pass the schema explicitly:
+
+```py
+# Before (implicit single schema):
+ds = pipeline.dataset()
+
+# After (explicit single schema, equivalent to the old behavior):
+ds = pipeline.dataset(schema=pipeline.default_schema_name)
+```
+:::
+
 ## Important considerations
 
 - **Memory usage:** Loading full tables into memory without iterating or limiting can consume significant memory, potentially leading to crashes if the dataset is large. Always consider using limits or chunked iteration.
@@ -239,4 +269,3 @@ Visit the [Native Ibis integration](./ibis-backend.md) guide to learn more.
 - **Lazy evaluation:** `Dataset` and `Relation` objects delay data retrieval until necessary. This design improves performance and resource utilization.
 
 - **Custom SQL queries:** When executing custom SQL queries, remember that additional methods like `limit()` or `select()` won't modify the query. Include all necessary clauses directly in your SQL statement.
-

@@ -12,7 +12,7 @@ from dlt.common.schema.schema import Schema
 from dlt.destinations.impl.snowflake.snowflake import SUPPORTED_HINTS, SnowflakeClient
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from dlt.destinations.sql_client import TJobQueryTags
+from dlt.destinations.sql_client import TQueryTags
 
 from tests.cases import TABLE_UPDATE
 from tests.load.utils import yield_client_with_storage, cm_yield_client, empty_schema
@@ -22,10 +22,11 @@ from tests.load.utils import yield_client_with_storage, cm_yield_client, empty_s
 pytestmark = pytest.mark.essential
 
 QUERY_TAG = (
-    '{{"source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}",'
-    ' "pipeline_name":"{pipeline_name}"}}'
+    '{{"operation":"{operation}", "source":"{source}", "resource":"{resource}", "table": "{table}",'
+    ' "load_id":"{load_id}", "pipeline_name":"{pipeline_name}"}}'
 )
-QUERY_TAGS_DICT: TJobQueryTags = {
+QUERY_TAGS_DICT: TQueryTags = {
+    "operation": "load",
     "source": "test_source",
     "resource": "test_resource",
     "table": "test_table",
@@ -81,25 +82,23 @@ def test_query_tag(client: SnowflakeClient, mocker: MockerFixture):
     client.sql_client.set_query_tags(None)
     execute_sql_spy.assert_called_once_with(sql="ALTER SESSION UNSET QUERY_TAG")
     execute_sql_spy.reset_mock()
-    client.sql_client.set_query_tags({})  # type: ignore[typeddict-item]
-    execute_sql_spy.assert_called_once_with(sql="ALTER SESSION UNSET QUERY_TAG")
-    execute_sql_spy.reset_mock()
     # set query tags
     client.sql_client.set_query_tags(QUERY_TAGS_DICT)
     execute_sql_spy.assert_called_once_with(
         sql=(
-            'ALTER SESSION SET QUERY_TAG = \'{"source":"test_source", "resource":"test_resource",'
-            ' "table": "test_table", "load_id":"1109291083091", "pipeline_name":"test_pipeline"}\''
+            'ALTER SESSION SET QUERY_TAG = \'{"operation":"load", "source":"test_source",'
+            ' "resource":"test_resource", "table": "test_table", "load_id":"1109291083091",'
+            ' "pipeline_name":"test_pipeline"}\''
         )
     )
     # remove query tag from config
     client.sql_client.query_tag = None
     execute_sql_spy.reset_mock()
     client.sql_client.set_query_tags(QUERY_TAGS_DICT)
-    execute_sql_spy.assert_not_called
+    execute_sql_spy.assert_not_called()
     execute_sql_spy.reset_mock()
     client.sql_client.set_query_tags(None)
-    execute_sql_spy.assert_not_called
+    execute_sql_spy.assert_not_called()
 
 
 def test_session_autocommit() -> None:

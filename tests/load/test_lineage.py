@@ -54,7 +54,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
     destination = destination_config.destination_factory(dataset_name="d1")
     caps = destination.client(example_schema).sql_client.capabilities
     dialect = caps.sqlglot_dialect
-    sqlglot_schema = lineage.create_sqlglot_schema(example_schema, "d1", dialect)
+    sqlglot_schema = lineage.create_sqlglot_schema({"d1": [example_schema]}, dialect)
 
     # test star select
     sql_query = "SELECT * FROM customers"

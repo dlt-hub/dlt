@@ -1,4 +1,5 @@
 import argparse
+from typing import List
 
 from dlt.common.configuration.specs.pluggable_run_context import (
     RunContextBase,
@@ -6,10 +7,11 @@ from dlt.common.configuration.specs.pluggable_run_context import (
 
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace._workspace_context import WorkspaceRunContext
-from dlt._workspace.typing import TLocationInfo
+from dlt._workspace.typing import TDeploymentManifestInfo, TLocationInfo
 from dlt._workspace.cli.utils import (
     check_delete_local_data,
     delete_local_data,
+    fetch_deployment_info,
     fetch_workspace_info,
 )
 from dlt._workspace.cli._pipeline_command import list_pipelines
@@ -85,6 +87,47 @@ def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -
     # list pipelines in the workspace
     fmt.echo()
     list_pipelines(run_context.get_data_entity("pipelines"), verbosity)
+
+    # deployment manifest summary
+    fmt.echo()
+    _print_deployment_info(fetch_deployment_info(), verbosity)
+
+
+def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> None:
+    status = info["status"]
+    if status == "not_found":
+        fmt.echo("Deployment: no manifest found (create __deployment__.py)")
+        return
+    if status == "generation_failed":
+        fmt.warning("Deployment: manifest generation failed")
+        if verbosity > 0 and info.get("error"):
+            fmt.echo(info["error"])
+        return
+
+    counts = info["counts_by_category"]
+    total = info["total_jobs"]
+    # sort by descending count, then by category name for stability
+    parts = [
+        "%d %s(s)" % (n, cat) for cat, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    ]
+    breakdown = ", ".join(parts)
+    fmt.echo("Deployment: %s job(s): %s" % (fmt.bold(str(total)), breakdown))
+
+    if verbosity == 0:
+        return
+
+    max_name = max((len(j["display_label"]) for j in info["jobs"]), default=8)
+    for job in info["jobs"]:
+        triggers: List[str] = []
+        if "default_trigger" in job:
+            triggers.append("🎯 %s" % job["default_trigger"])
+        triggers.extend(job["triggers"])
+        if not triggers:
+            if job["category"] in ("interactive", "mcp", "dashboard", "notebook"):
+                triggers = ["(interactive)"]
+            else:
+                triggers = ["(manual only)"]
+        fmt.echo("  %s  %s" % (job["display_label"].ljust(max_name), ", ".join(triggers)))
 
 
 @utils.track_command("workspace", track_before=False, operation="clean")

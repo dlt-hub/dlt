@@ -21,7 +21,8 @@ from typing import (
 )
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.common.typing import TFun, TypedDict, Self
+from dlt.common.typing import TFun, TypedDict, Self, NotRequired
+from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
@@ -41,14 +42,19 @@ from dlt.destinations.typing import (
 from dlt.common.destination.dataset import DBApiCursor
 
 
-class TJobQueryTags(TypedDict):
-    """Applied to sql client when a job using it starts. Using to tag queries"""
+class TQueryTags(TypedDict):
+    """Query-tag values applied to a SQL client session for a dlt operation."""
 
     source: str
     resource: str
     table: str
     load_id: str
     pipeline_name: str
+    operation: NotRequired[str]
+
+
+# compatibility export, query tags are no longer job scoped
+TJobQueryTags = TQueryTags
 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):
@@ -74,7 +80,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         self.staging_dataset_name = staging_dataset_name
         self.database_name = database_name
         self.capabilities = capabilities
-        self._query_tags: TJobQueryTags = None
+        self._query_tags: Optional[TQueryTags] = None
 
     @abstractmethod
     def open_connection(self) -> TNativeConn:
@@ -290,8 +296,8 @@ SELECT 1
         """Checks if staging dataset is currently active"""
         return self.dataset_name == self.staging_dataset_name
 
-    def set_query_tags(self, tags: TJobQueryTags) -> None:
-        """Sets current schema (source), resource, load_id and table name when a job starts"""
+    def set_query_tags(self, tags: Optional[TQueryTags]) -> None:
+        """Sets the query-tag payload for the current SQL client session."""
         self._query_tags = tags
 
     def _ensure_native_conn(self) -> None:
@@ -348,6 +354,15 @@ class WithSqlClient(ABC):
     @abstractmethod
     def sql_client_class(self) -> Type[SqlClientBase[TNativeConn]]:
         pass
+
+
+class WithSchemas(ABC):
+    """Mixin for SQL clients that can manage tables across multiple dlt schemas."""
+
+    schemas: Dict[str, Schema]
+
+    @abstractmethod
+    def set_schemas(self, schemas: Sequence[Schema]) -> None: ...
 
 
 class DBApiCursorImpl(DBApiCursor):

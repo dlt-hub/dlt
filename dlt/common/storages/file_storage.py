@@ -4,6 +4,7 @@ import re
 import stat
 import errno
 import shutil
+import time
 import pathvalidate
 from typing import IO, Any, Optional, List, cast
 from dlt.common.typing import AnyFun
@@ -12,6 +13,8 @@ from dlt.common.utils import encoding_for_mode, uniq_id
 
 
 FILE_COMPONENT_INVALID_CHARACTERS = re.compile(r"[.%{}]")
+WINDOWS_TREE_RENAME_RETRIES = 3
+WINDOWS_TREE_RENAME_RETRY_ERRNOS = {errno.EACCES, errno.EPERM}
 
 
 class FileStorage:
@@ -208,15 +211,28 @@ class FileStorage:
     def rename_tree(self, from_relative_path: str, to_relative_path: str) -> None:
         """Renames a tree using os.rename if possible making it atomic
 
-        If we get 'too many open files': in that case `rename_tree_files is used
+        If we get 'too many open files' or a transient Windows access denied
+        during directory rename, `rename_tree_files` is used.
         """
+        to_path = self.make_full_path(to_relative_path)
 
-        try:
-            self.atomic_rename(from_relative_path, to_relative_path)
-            return
-        except OSError as ex:
-            if ex.errno != errno.EMFILE:
-                raise
+        for attempt in range(WINDOWS_TREE_RENAME_RETRIES if os.name == "nt" else 1):
+            try:
+                self.atomic_rename(from_relative_path, to_relative_path)
+                return
+            except OSError as ex:
+                if ex.errno == errno.EMFILE:
+                    break
+                if not (
+                    os.name == "nt"
+                    and ex.errno in WINDOWS_TREE_RENAME_RETRY_ERRNOS
+                    and not os.path.exists(to_path)
+                ):
+                    raise
+                if attempt + 1 < WINDOWS_TREE_RENAME_RETRIES:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                break
         self.rename_tree_files(from_relative_path, to_relative_path)
 
     def rename_tree_files(self, from_relative_path: str, to_relative_path: str) -> None:

@@ -66,7 +66,15 @@ def validate_dict(
         spec,
         globalns=sys.modules[spec.__module__].__dict__ if spec.__module__ in sys.modules else None,
     )
-    required_props = {k: v for k, v in allowed_props.items() if not is_optional_type(v)}
+    # exclude NotRequired[T] via __required_keys__ and Optional[T] via is_optional_type.
+    # Optional[T] treated as not-required for backward compat (existing schemas use it to mean "key may be absent").
+    required_keys = getattr(spec, "__required_keys__", None)
+    if required_keys is not None:
+        required_props = {
+            k: v for k, v in allowed_props.items() if k in required_keys and not is_optional_type(v)
+        }
+    else:
+        required_props = {k: v for k, v in allowed_props.items() if not is_optional_type(v)}
     # remove optional props
     props = {k: v for k, v in doc.items() if filter_f(k)}
     # check missing props

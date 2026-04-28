@@ -12,10 +12,10 @@ This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich envi
 
 ## Prerequisites
 
-To install marimo and ibis with the duckdb extras, run the following command: 
+Install the workspace extra, which includes marimo, ibis, and DuckDB:
 
 ```sh
-pip install marimo "ibis-framework[duckdb]"
+pip install "dlt[workspace]"
 ```
 
 ## Launch marimo
@@ -33,6 +33,10 @@ Here's a screenshot of the interface you should see:
 
 ![](./static/marimo_notebook.png)
 
+To run an existing local marimo notebook:
+```sh
+marimo run my_notebook.py
+```
 
 ## Features
 
@@ -91,7 +95,7 @@ The **Datasources** displays a limited range of data types.
 
 ### Create a dashboard and data apps
 
-marimo notebooks can be [deployed as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/) and the code hidden. Try adding [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), rich markdown, and charts (matplotlib, plotly, altair, etc.). Combined, dlt + marimo + ibis make it easy to build a simple dashboard on top of fresh data.
+Marimo notebooks can also be [deployed as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/) and the code hidden. Try adding [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), rich markdown, and charts (matplotlib, plotly, altair, etc.). Combined, dlt + marimo + ibis make it easy to build a simple dashboard on top of fresh data.
 
 
 ## Further reading

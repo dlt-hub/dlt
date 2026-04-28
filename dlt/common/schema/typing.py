@@ -13,7 +13,7 @@ from typing import (
     NewType,
     Union,
 )
-from typing_extensions import Never, NotRequired, Required
+from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig

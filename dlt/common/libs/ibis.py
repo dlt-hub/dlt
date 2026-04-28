@@ -266,4 +266,5 @@ def get_native_ibis_backend(dataset: dlt.Dataset, *, read_only: bool = False) ->
         destination=dataset._destination,
         client=dataset.destination_client,
         read_only=read_only,
+        schemas=dataset.schemas,
     )

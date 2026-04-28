@@ -112,7 +112,7 @@ def get_row_counts(
     try:
         row_counts = {
             i["table_name"]: i["row_count"]
-            for i in pipeline.dataset(schema=selected_schema_name)
+            for i in pipeline.dataset(schema=selected_schema_name or pipeline.default_schema_name)
             .row_counts(dlt_tables=True, load_id=load_id)
             .arrow()
             .to_pylist()
