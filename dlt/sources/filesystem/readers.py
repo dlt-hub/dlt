@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional
-
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common import json
 from dlt.common.typing import copy_sig_any
 from dlt.sources import TDataItems, DltResource, DltSource
@@ -23,7 +23,10 @@ def _read_csv(
     Returns:
         TDataItem: The file content
     """
-    import pandas as pd
+    try:
+        import pandas as pd
+    except ImportError:
+        raise MissingDependencyException("filesystem reader (read_csv)", ["pandas"])
 
     # apply defaults to pandas kwargs
     kwargs = {**{"header": "infer", "chunksize": chunksize}, **pandas_kwargs}
