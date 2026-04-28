@@ -115,7 +115,7 @@ To get started with your data pipeline, follow these steps:
    with the filesystem as the source and [duckdb](../../destinations/duckdb.md) as the destination.
 
 2. If you would like to use a different destination, simply replace `duckdb` with the name of your
-   preferred [destination](../../destinations).
+   preferred [destination](../destinations).
 
 3. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
@@ -189,7 +189,7 @@ dlt supports several authentication methods:
 3. Username/Password authentication
 4. GSS-API authentication
 
-Learn more about SFTP authentication options in the [SFTP section](../../destinations/filesystem#sftp). To obtain credentials, contact your server administrator.
+Learn more about SFTP authentication options in the [SFTP section](../destinations/filesystem#sftp). To obtain credentials, contact your server administrator.
 </TabItem>
 
 <TabItem value="local">
@@ -265,7 +265,7 @@ bucket_url="gs://<bucket_name>/<path_to_files>/"
 
 <TabItem value="sftp">
 
-Learn how to set up SFTP credentials for each authentication method in the [SFTP section](../../destinations/filesystem#sftp).
+Learn how to set up SFTP credentials for each authentication method in the [SFTP section](../destinations/filesystem#sftp).
 For example, in the case of key-based authentication, you can configure the source the following way:
 
 ```toml
