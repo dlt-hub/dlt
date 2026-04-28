@@ -291,6 +291,14 @@ def test_clone(schema: Schema) -> None:
     assert cloned.is_modified
     assert cloned._normalizers_config["names"] == "direct"
 
+    # max_length is in-memory state on the naming instance and is not serialized,
+    # but clone must still preserve it across the to_dict/from_stored_schema round-trip
+    simple.naming.max_length = 65536
+    cloned = simple.clone()
+    assert cloned.naming.max_length == 65536
+    cloned = simple.clone(with_name="renamed")
+    assert cloned.naming.max_length == 65536
+
 
 def test_new_schema_alt_name() -> None:
     schema = Schema("model")
@@ -1189,6 +1197,17 @@ def test_unify_schemas_naming_mismatch() -> None:
 
     with pytest.raises(IncompatibleSchemaException, match="naming convention mismatch"):
         schema_a.unify_schemas([schema_b], check_naming_convention=True)
+
+
+def test_unify_schemas_with_matching_max_length() -> None:
+    # regression for #3816: max_length is destination-derived runtime state and is lost
+    # by the to_dict/from_stored_schema round-trip inside clone unless explicitly preserved
+    schema_a = Schema("alpha")
+    schema_b = Schema("beta")
+    schema_a.naming.max_length = 65536
+    schema_b.naming.max_length = 65536
+    unified = schema_a.unify_schemas([schema_b], check_naming_convention=True)
+    assert unified.naming.max_length == 65536
 
 
 def test_unify_schemas_nested_tables() -> None:

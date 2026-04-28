@@ -947,6 +947,8 @@ class Schema:
             d["name"] = with_name
             d["previous_hashes"] = []
         schema = Schema.from_stored_schema(d)
+        # max_length will not be cloned - it is not serialized in schema, propagate it explicitly
+        schema.naming.max_length = self.naming.max_length
         # update normalizers and possibly all schema identifiers
         if update_normalizers:
             schema.update_normalizers()
