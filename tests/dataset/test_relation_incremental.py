@@ -364,6 +364,14 @@ def test_incremental_rejects_jsonpath_cursor(
 
 
 @pytest.mark.parametrize(
+    "bounds_kwargs,bind_via_resource",
+    [
+        pytest.param({"initial_value": 2}, True, id="start-only"),
+        pytest.param({"end_value": END_VALUE_ID}, False, id="end-only"),
+        pytest.param({"initial_value": 2, "end_value": END_VALUE_ID}, False, id="start-and-end"),
+    ],
+)
+@pytest.mark.parametrize(
     "policy,expected_root_cls",
     [
         pytest.param("include", sge.Or, id="include-or-is-null"),
@@ -371,15 +379,47 @@ def test_incremental_rejects_jsonpath_cursor(
     ],
 )
 def test_incremental_on_cursor_value_missing(
-    incremental_dataset: dlt.Dataset,
+    incremental_pipeline: dlt.Pipeline,
+    bounds_kwargs: dict[str, Any],
+    bind_via_resource: bool,
     policy: Literal["include", "exclude"],
     expected_root_cls: type,
 ) -> None:
-    """`on_cursor_value_missing` adds IS [NOT] NULL wrapping to the condition."""
-    inc = dlt.sources.incremental(
-        "id", initial_value=2, end_value=END_VALUE_ID, on_cursor_value_missing=policy
-    )
-    rel = incremental_dataset.table("events").incremental(inc)
+    dataset = incremental_pipeline.dataset()
+
+    if bind_via_resource:
+        bounds_id = "_".join(sorted(bounds_kwargs))
+        resource_name = f"probe_null_guard_{policy}_{bounds_id}"
+        captured: List[dlt.Relation] = []
+
+        @dlt.resource(name=resource_name)
+        def probe(
+            cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+                "id", on_cursor_value_missing=policy, **bounds_kwargs
+            ),
+        ) -> Iterator[Any]:
+            captured.append(dataset.table("events").incremental(cursor))
+            yield from []
+
+        incremental_pipeline.extract(probe())
+        rel = captured[0]
+    else:
+        inc: dlt.sources.incremental[Any] = dlt.sources.incremental(
+            "id", on_cursor_value_missing=policy, **bounds_kwargs
+        )
+        rel = dataset.table("events").incremental(inc)
 
     condition = _where(rel)
-    assert isinstance(condition, expected_root_cls)
+    assert isinstance(condition, expected_root_cls), (
+        f"Expected `{expected_root_cls.__name__}` root for policy={policy} "
+        f"bounds={bounds_kwargs}, got {type(condition).__name__}: "
+        f"{condition.sql()}"
+    )
+    # right-hand side of the wrapper is the null-guard on the cursor column:
+    # `Is(col, Null)` for include, `Not(Is(col, Null))` for exclude
+    null_guard = condition.expression
+    if isinstance(null_guard, sge.Not):
+        null_guard = null_guard.this
+    assert isinstance(null_guard, sge.Is)
+    assert isinstance(null_guard.expression, sge.Null)
+    assert _column_name(null_guard.this) == "id"

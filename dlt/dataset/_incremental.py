@@ -168,7 +168,7 @@ def _build_incremental_condition(
         # still sees a WHERE clause tagged as incremental
         condition = sge.Boolean(this=True)
 
-    if inc.on_cursor_value_missing == "include" and start_value is not None:
+    if inc.on_cursor_value_missing == "include":
         is_null = sge.Is(this=column_ref.copy(), expression=sge.Null())
         condition = sge.Or(this=condition, expression=is_null)
     elif inc.on_cursor_value_missing == "exclude":
