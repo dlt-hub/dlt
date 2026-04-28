@@ -252,7 +252,7 @@ and `updated_at.last_value` to tell GitHub to return issues updated only **after
 
 ## Using pagination helper
 
-In the previous examples, we used the `requests` library to make HTTP requests to the GitHub API and handled pagination manually. `dlt` has a built-in [REST client](../dlt-ecosystem/verified-sources/rest_api/advanced.md##restclient) that simplifies API requests. We'll use the `paginate()` helper from it for the next example. The `paginate` function takes a URL and optional parameters (quite similar to `requests`) and returns a generator that yields pages of data.
+In the previous examples, we used the `requests` library to make HTTP requests to the GitHub API and handled pagination manually. `dlt` has a built-in [REST client](../dlt-ecosystem/verified-sources/rest_api/advanced#restclient) that simplifies API requests. We'll use the `paginate()` helper from it for the next example. The `paginate` function takes a URL and optional parameters (quite similar to `requests`) and returns a generator that yields pages of data.
 
 Here's how the updated script looks:
 
@@ -297,7 +297,7 @@ Let's zoom in on the changes:
 
 1. The `while` loop that handled pagination is replaced with reading pages from the `paginate()` generator.
 2. `paginate()` takes the URL of the API endpoint and optional parameters. In this case, we pass the `since` parameter to get only issues updated after the last pipeline run.
-3. We're not explicitly setting up pagination; `paginate()` handles it for us. Magic! Under the hood, `paginate()` analyzes the response and detects the pagination method used by the API. Read more about pagination in the [REST client documentation](../dlt-ecosystem/verified-sources/rest_api/advanced.md##-paginating-API-responses).
+3. We're not explicitly setting up pagination; `paginate()` handles it for us. Magic! Under the hood, `paginate()` analyzes the response and detects the pagination method used by the API. Read more about pagination in the [REST client documentation](../dlt-ecosystem/verified-sources/rest_api/advanced#paginating-api-responses).
 
 If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing building blocks:
 To make the most of `dlt`, consider the following:
