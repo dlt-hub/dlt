@@ -77,8 +77,6 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
-
 ### Add credentials
 
 1. In `.dlt/secrets.toml`, you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe. Here's what the file looks like:
@@ -258,4 +256,3 @@ If you wish to create your own pipelines, you can leverage source and resource m
    It is optional to use `access_token` or make anonymous API calls.
 
 <!--@@@DLT_TUBA github-->
-

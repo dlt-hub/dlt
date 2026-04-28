@@ -32,9 +32,6 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the guide on
-[how to add a verified source.](../../walkthroughs/add-a-verified-source)
-
 ### Add credentials
 
 1. The `config.toml`, looks like:
@@ -189,4 +186,3 @@ If you wish to create your data pipeline, follow these steps:
    scraping_host.pipeline_runner.scraping_resource.add_limit(2)
    scraping_host.run(dataset_name="quotes", write_disposition="append")
    ```
-

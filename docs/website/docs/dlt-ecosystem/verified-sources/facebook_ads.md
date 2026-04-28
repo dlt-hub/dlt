@@ -101,8 +101,6 @@ To get started with your data pipeline, follow these steps:
 
 1. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
-For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
-
 ### Add credential
 
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe. Here's what the file looks like:
@@ -396,4 +394,3 @@ If you wish to create your own pipelines, you can leverage source and resource m
 > By default, daily reports are generated from `initial_load_past_days` ago to today. On subsequent runs, only new reports are loaded, with the past `attribution_window_days_lag` days (default is 7) being refreshed to accommodate any changes. You can adjust `time_increment_days` to change report frequency (default set to one).
 
 <!--@@@DLT_TUBA facebook_ads-->
-

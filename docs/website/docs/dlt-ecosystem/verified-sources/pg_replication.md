@@ -86,9 +86,6 @@ To get started with your data pipeline, follow these steps:
    ```
        
 3. After running the command, a new directory will be created with the necessary files and configuration settings to get started.
-   
-   For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
-
 
 ### Add credentials
 

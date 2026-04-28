@@ -200,8 +200,6 @@ You can modify an existing verified source in place.
 Together, these sources cover the most common data ingestion scenarios — from APIs and databases to files.
 :::
 
-[Read more about verified sources](../../walkthroughs/add-a-verified-source)
-
 ## Step 2: Add credentials
 
 Most pipelines require authentication or connection details such as API keys, passwords, or database credentials.
