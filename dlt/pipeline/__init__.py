@@ -244,15 +244,24 @@ def attach(
         )
 
         # we cannot restore the pipeline if the destination is not provided
-        # or found in the env, wipe the working folder and re-raise
+        # or found in the config, wipe the working folder and re-raise
         if not p.destination:
             p._wipe_working_folder()
             raise CannotRestorePipelineException(
                 pipeline_name,
                 p.working_dir,
-                f"the pipeline was not found in {p.working_dir} found and no destination was"
-                " provided to restore from.",
-            )
+                f"No local pipeline state found in '{p.working_dir}'.\n\n"
+                "dlt can restore pipeline state from a destination, but requires a destination."
+                " Pass it as an argument to dlt.attach() or configure it via dlt's"
+                " config system.\n\n"
+                f'`dlt.attach(pipeline_name="{pipeline_name}", destination="<your-destination>",'
+                ' dataset_name="<your-dataset>")`\n\n'
+                f"Note: if no dataset_name is provided, dlt looks in '{pipeline_name}_dataset'"
+                " by default.\n\n"
+                "If you only need to read or query data without pipeline state, use"
+                " `dlt.dataset()` instead:\n\n"
+                '`dlt.dataset(destination="<your-destination>", dataset_name="<your-dataset>")`',
+            ) from None
         p.sync_destination()
 
         # if remote state was not found,
@@ -262,9 +271,16 @@ def attach(
             raise CannotRestorePipelineException(
                 pipeline_name,
                 p.working_dir,
-                f"the pipeline was not found in {p.working_dir} found and provided destination and"
-                " dataset do not contain state for this pipeline.",
-            )
+                f"Checked local state in '{p.working_dir}' and remote state in dataset"
+                f" '{p.dataset_name}' on destination '{p.destination.destination_name}'."
+                " No state found for this pipeline in either location.\n\n"
+                "If the pipeline was run with a different dataset name, pass the correct"
+                " dataset_name= to dlt.attach() or configure it via dlt's config system.\n\n"
+                "If you only need to read or query data without pipeline state, use"
+                " `dlt.dataset()` instead:\n\n"
+                f'`dlt.dataset(destination="{p.destination.destination_name}",'
+                f' dataset_name="{p.dataset_name}")`',
+            ) from None
         return p
 
 
