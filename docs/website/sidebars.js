@@ -197,6 +197,11 @@ const sidebars = {
       type: 'category',
       label: 'Destinations',
       items: [
+        {
+          type: 'doc',
+          id: 'dlt-ecosystem/destinations/index',
+          label: 'Overview',
+        },
         'dlt-ecosystem/destinations/filesystem',
         'dlt-ecosystem/destinations/sqlalchemy',
         'dlt-ecosystem/destinations/athena',
