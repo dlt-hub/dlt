@@ -62,7 +62,7 @@ Manage current Workspace.
 
 **Usage**
 ```sh
-dlt workspace [-h] [--verbose] {clean,info,show} ...
+dlt workspace [-h] [--verbose] {clean,info,show,run} ...
 ```
 
 **Description**
@@ -84,6 +84,7 @@ Inherits arguments from [`dlt`](#dlt).
 * [`clean`](#dlt-workspace-clean) - Cleans local data for the selected profile. locally loaded data will be deleted. pipelines working directories are also deleted by default. data in remote destinations is not affected.
 * [`info`](#dlt-workspace-info) - Displays workspace info.
 * [`show`](#dlt-workspace-show) - Shows workspace dashboard for the pipelines and data in this workspace.
+* [`run`](#dlt-workspace-run) - Run a single workspace job locally
 
 </details>
 
@@ -158,6 +159,42 @@ Inherits arguments from [`dlt workspace`](#dlt-workspace).
 **Options**
 * `-h, --help` - Show this help message and exit
 * `--edit` - Eject dashboard and start editable version
+
+</details>
+
+### `dlt workspace run`
+
+Run a single workspace job locally.
+
+**Usage**
+```sh
+dlt workspace run [-h] [--file FILE] [--profile NAME] [--start ISO] [--end ISO]
+    [--dry-run] [-v] [-c KEY=VALUE] [--refresh] [selector_or_job_ref]
+```
+
+**Description**
+
+Run a single job from a deployment module locally. Loads the manifest, matches exactly one job by selector or job reference, builds a runtime entry point, and spawns the launcher subprocess. Freshness checks are skipped — use runtime for scheduled execution.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt workspace`](#dlt-workspace).
+
+**Positional arguments**
+* `selector_or_job_ref` - Job reference (backfill, batch.backfill), trigger selector (tag:backfill, schedule:*), or a .py file path (auto-promoted to --file). if omitted, the job's default trigger is used.
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--file FILE, -f FILE` - Path to a .py deployment module. if omitted, loads the default '__deployment__' module from the workspace.
+* `--profile NAME` - Override require.profile and the workspace pinned profile.
+* `--start ISO` - Override interval start (iso 8601). naive values use the job's timezone.
+* `--end ISO` - Override interval end (iso 8601). defaults to now if --start is set.
+* `--dry-run` - Resolve the job and print the entry point without launching
+* `-v, --verbose` - Print the resolved entry point before running
+* `-c KEY=VALUE, --config KEY=VALUE` - Config key=value pairs passed to the job (repeatable)
+* `--refresh` - Request a refresh run. respects tjobdefinition.refresh: `always` forces refresh regardless, `block` ignores the flag with a warning (run proceeds), `auto` honors it.
 
 </details>
 
@@ -273,8 +310,8 @@ Connect to dltHub Runtime and run your code remotely.
 
 **Usage**
 ```sh
-dlt runtime [-h]
-    {login,logout,launch,serve,publish,schedule,logs,cancel,dashboard,deploy,info,deployment,job,jobs,job-run,job-runs,configuration}
+dlt runtime [-h] [--help-all] [--timestamps]
+    {login,logout,launch,serve,publish,unpublish,trigger,run-pipeline,logs,cancel,dashboard,deploy,info,deployment,job,jobs,job-run,job-runs,configuration,workspace}
     ...
 ```
 
@@ -290,25 +327,28 @@ Inherits arguments from [`dlt`](#dlt).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--help-all` - Show all commands including subcommands
+* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 
 **Available subcommands**
 * [`login`](#dlt-runtime-login) - Log in to dlthub runtime and connect the current workspace to the remote one
 * [`logout`](#dlt-runtime-logout) - Log out from dlthub runtime
-* [`launch`](#dlt-runtime-launch) - Deploy code/config and run a script (follow status and logs by default)
+* [`launch`](#dlt-runtime-launch) - Deploy code/config and run a script
 * [`serve`](#dlt-runtime-serve) - Deploy and serve an interactive notebook/app (read-only) and follow until ready
 * [`publish`](#dlt-runtime-publish) - Generate or revoke a public link for an interactive notebook/app
-* [`schedule`](#dlt-runtime-schedule) - Deploy and schedule a script with a cron timetable, or cancel the scheduled script from future runs
-* [`logs`](#dlt-runtime-logs) - Show logs for latest or selected job run
-* [`cancel`](#dlt-runtime-cancel) - Cancel latest or selected job run
+* [`unpublish`](#dlt-runtime-unpublish) - Revoke the public link for an interactive notebook/app
+* [`trigger`](#dlt-runtime-trigger) - Trigger jobs matching selectors (does not sync or deploy)
+* [`run-pipeline`](#dlt-runtime-run-pipeline) - Run a job by pipeline name
+* [`logs`](#dlt-runtime-logs) - Show logs for latest or selected job run (shortcut for 'job-run logs')
+* [`cancel`](#dlt-runtime-cancel) - Cancel active runs for matching jobs
 * [`dashboard`](#dlt-runtime-dashboard) - Open the runtime dashboard for this workspace
-* [`deploy`](#dlt-runtime-deploy) - Sync code and configuration to runtime without running anything
-* [`info`](#dlt-runtime-info) - Show overview of current runtime workspace
+* [`deploy`](#dlt-runtime-deploy) - Sync code/config and deploy jobs from __deployment__ manifest
+* [`info`](#dlt-runtime-info) - Show overview of current runtime workspace (shows workspace, job count, latest run, latest deployment, and latest configuration)
 * [`deployment`](#dlt-runtime-deployment) - Manipulate deployments in the workspace
 * [`job`](#dlt-runtime-job) - List, create and inspect jobs
-* [`jobs`](#dlt-runtime-jobs) - List, create and inspect jobs
 * [`job-run`](#dlt-runtime-job-run) - List, create and inspect job runs
-* [`job-runs`](#dlt-runtime-job-runs) - List, create and inspect job runs
 * [`configuration`](#dlt-runtime-configuration) - Manipulate configurations in the workspace
+* [`workspace`](#dlt-runtime-workspace) - List and manage workspaces
 
 </details>
 
@@ -318,7 +358,7 @@ Log in to dltHub Runtime and connect the current workspace to the remote one.
 
 **Usage**
 ```sh
-dlt runtime login [-h]
+dlt runtime login [-h] [--workspace WORKSPACE] [--resume DEVICE_CODE]
 ```
 
 **Description**
@@ -333,6 +373,8 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--workspace WORKSPACE, -w WORKSPACE` - Select workspace by name or id (skip interactive prompt)
+* `--resume DEVICE_CODE` - Resume a previously started device flow login. the device_code is printed by `dlt runtime login` when no tty is attached.
 
 </details>
 
@@ -362,16 +404,16 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 ### `dlt runtime launch`
 
-Deploy code/config and run a script (follow status and logs by default).
+Deploy code/config and run a script.
 
 **Usage**
 ```sh
-dlt runtime launch [-h] [-d] script_path
+dlt runtime launch [-h] [--file FILE] [-f] [--refresh] [selector_or_job_ref]
 ```
 
 **Description**
 
-Deploy current workspace and run a batch script remotely.
+Deploy current workspace and run a batch script remotely. Use -f/--follow to tail logs until completion.
 
 <details>
 
@@ -380,11 +422,13 @@ Deploy current workspace and run a batch script remotely.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `script_path` - Local path to the script
+* `selector_or_job_ref` - Selector or job ref to pick a job from the manifest
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `-d, --detach` - Do not follow status changes and logs after starting
+* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `-f, --follow` - Follow status changes and stream logs until the run completes
+* `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
 
 </details>
 
@@ -394,7 +438,7 @@ Deploy and serve an interactive notebook/app (read-only) and follow until ready.
 
 **Usage**
 ```sh
-dlt runtime serve [-h] [--app-type {marimo,mcp,streamlit}] script_path
+dlt runtime serve [-h] [--file FILE] [-f] [selector_or_job_ref]
 ```
 
 **Description**
@@ -408,11 +452,12 @@ Deploy current workspace and run a notebook as a read-only web app.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `script_path` - Local path to the notebook/app
+* `selector_or_job_ref` - Selector or job ref to pick an interactive app from the manifest
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--app-type {marimo,mcp,streamlit}` - Specify if the interactive job is a marimo notebook, streamlit app, or mcp server
+* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `-f, --follow` - Stream logs until the app stops
 
 </details>
 
@@ -444,18 +489,18 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 </details>
 
-### `dlt runtime schedule`
+### `dlt runtime unpublish`
 
-Deploy and schedule a script with a cron timetable, or cancel the scheduled script from future runs.
+Revoke the public link for an interactive notebook/app.
 
 **Usage**
 ```sh
-dlt runtime schedule [-h] [--current] script_path cron_expr_or_cancel
+dlt runtime unpublish [-h] script_path
 ```
 
 **Description**
 
-Schedule a batch script to run on a cron timetable, or cancel the scheduled script from future runs.
+Revoke the public link for an interactive notebook/app.
 
 <details>
 
@@ -464,27 +509,86 @@ Schedule a batch script to run on a cron timetable, or cancel the scheduled scri
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `script_path` - Local path to the script
-* `cron_expr_or_cancel` - Either a cron schedule string if you want to schedule the script, or the literal 'cancel' command if you want to cancel it
+* `script_path` - Local path to the notebook/app
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--current` - When cancelling the schedule, also cancel the currently running instance if any
+
+</details>
+
+### `dlt runtime trigger`
+
+Trigger jobs matching selectors (does not sync or deploy).
+
+**Usage**
+```sh
+dlt runtime trigger [-h] [--dry-run] [--profile PROFILE] [--refresh] selectors
+    [selectors ...]
+```
+
+**Description**
+
+Trigger runs for jobs matching the given selectors. Does not sync code or deploy jobs. Examples: 'tag:backfill', 'manual:jobs.etl.*', 'schedule:*'.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Positional arguments**
+* `selectors` - Trigger selectors (fnmatch patterns), e.g. 'tag:backfill', 'manual:jobs.etl.*'
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--dry-run` - Preview matched jobs without creating runs
+* `--profile PROFILE` - Profile override for all triggered runs
+* `--refresh` - Force a refresh on every triggered job (jobs skipped by freshness are not refreshed).
+
+</details>
+
+### `dlt runtime run-pipeline`
+
+Run a job by pipeline name.
+
+**Usage**
+```sh
+dlt runtime run-pipeline [-h] [--job-ref JOB_REF] [-f] [--refresh] pipeline_name
+```
+
+**Description**
+
+Run a job that uses the given pipeline. Uses 'pipeline_name:' trigger selector.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Positional arguments**
+* `pipeline_name` - Name of the pipeline to run
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--job-ref JOB_REF` - Specific job ref if multiple jobs use the same pipeline
+* `-f, --follow` - Follow status changes and stream logs until the run completes
+* `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
 
 </details>
 
 ### `dlt runtime logs`
 
-Show logs for latest or selected job run.
+Show logs for latest or selected job run (shortcut for 'job-run logs').
 
 **Usage**
 ```sh
-dlt runtime logs [-h] selector_or_job_name [run_number]
+dlt runtime logs [-h] [-f] selector_or_job_name [run_number]
 ```
 
 **Description**
 
-Show logs for the latest run of a job or a specific run number.
+Show logs for the latest run of a job or a specific run number. Use -f/--follow to stream logs in real-time.
 
 <details>
 
@@ -493,26 +597,28 @@ Show logs for the latest run of a job or a specific run number.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `selector_or_job_name` - Local path or job name
+* `selector_or_job_name` - Job name, script path, or selector (e.g. batch, schedule:*).
 * `run_number` - Run number (optional)
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `-f, --follow` - Follow logs in real-time until the run completes
 
 </details>
 
 ### `dlt runtime cancel`
 
-Cancel latest or selected job run.
+Cancel active runs for matching jobs.
 
 **Usage**
 ```sh
-dlt runtime cancel [-h] selector_or_job_name [run_number]
+dlt runtime cancel [-h] [--dry-run] selector_or_job_name [selector_or_job_name
+    ...]
 ```
 
 **Description**
 
-Cancel the latest run of a job or a specific run number.
+Cancel active (non-terminal) runs for jobs matching selectors or names. Accepts one or more selectors (batch, schedule:*, tag:ops, etc.) or job names. Use --dry-run to preview.
 
 <details>
 
@@ -521,11 +627,11 @@ Cancel the latest run of a job or a specific run number.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `selector_or_job_name` - Local path or job name
-* `run_number` - Run number (optional)
+* `selector_or_job_name` - Job name, script path, or selector (e.g. batch, schedule:*). multiple values cancel active runs for all matching jobs.
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--dry-run` - Show what would be cancelled without actually cancelling
 
 </details>
 
@@ -555,16 +661,16 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 ### `dlt runtime deploy`
 
-Sync code and configuration to Runtime without running anything.
+Sync code/config and deploy jobs from __deployment__ manifest.
 
 **Usage**
 ```sh
-dlt runtime deploy [-h]
+dlt runtime deploy [-h] [--file FILE] [--dry-run] [--show-manifest]
 ```
 
 **Description**
 
-Upload deployment and configuration if changed.
+Sync workspace files, generate job manifest from __deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
 
 <details>
 
@@ -574,12 +680,15 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--dry-run` - Preview changes without applying them
+* `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
 
 </details>
 
 ### `dlt runtime info`
 
-Show overview of current Runtime workspace.
+Show overview of current Runtime workspace (shows workspace, job count, latest run, latest deployment, and latest configuration).
 
 **Usage**
 ```sh
@@ -687,7 +796,7 @@ Create new deployment if local workspace content changed.
 
 **Usage**
 ```sh
-dlt runtime deployment [deployment_version_no] sync [-h]
+dlt runtime deployment [deployment_version_no] sync [-h] [--dry-run] [-v]
 ```
 
 **Description**
@@ -702,6 +811,8 @@ Inherits arguments from [`dlt runtime deployment`](#dlt-runtime-deployment).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--dry-run` - Compare local files to latest deployment without uploading
+* `-v, --verbose` - Print per-file added/updated/deleted tree alongside the summary
 
 </details>
 
@@ -711,7 +822,7 @@ List, create and inspect jobs.
 
 **Usage**
 ```sh
-dlt runtime job [-h] [selector_or_job_name] {list,info,create} ...
+dlt runtime job [-h] [selector_or_job_name ...] {list,info} ...
 ```
 
 **Description**
@@ -725,30 +836,29 @@ List and manipulate jobs registered in the workspace.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `selector_or_job_name` - Local script path or job name. required for all commands except `list`
+* `selector_or_job_name` - Job name, script path, or selector (e.g. batch, schedule:*). multiple selectors narrow the listing. required for `info`.
 
 **Options**
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
-* [`list`](#dlt-runtime-job-list) - List the jobs registered in the workspace
+* [`list`](#dlt-runtime-job-list) - List jobs (filter with selectors: batch, schedule:*, tag:ops, ...)
 * [`info`](#dlt-runtime-job-info) - Show job info
-* [`create`](#dlt-runtime-job-create) - Create a job without running it
 
 </details>
 
 ### `dlt runtime job list`
 
-List the jobs registered in the workspace.
+List jobs (filter with selectors: batch, schedule:*, tag:ops, ...).
 
 **Usage**
 ```sh
-dlt runtime job [selector_or_job_name] list [-h]
+dlt runtime job [selector_or_job_name ...] list [-h]
 ```
 
 **Description**
 
-List the jobs registered in the workspace.
+List jobs registered in the workspace. Pass selectors before `list` to filter: batch, interactive, schedule:*, tag:<name>, manual:*, etc.
 
 <details>
 
@@ -767,7 +877,7 @@ Show job info.
 
 **Usage**
 ```sh
-dlt runtime job [selector_or_job_name] info [-h]
+dlt runtime job [selector_or_job_name ...] info [-h]
 ```
 
 **Description**
@@ -782,148 +892,6 @@ Inherits arguments from [`dlt runtime job`](#dlt-runtime-job).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt runtime job create`
-
-Create a job without running it.
-
-**Usage**
-```sh
-dlt runtime job [selector_or_job_name] create [-h] [--name [NAME]]
-    [--schedule [SCHEDULE]] [--interactive] [--app-type {marimo,mcp,streamlit}]
-    [--description [DESCRIPTION]]
-```
-
-**Description**
-
-Manually create the job.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime job`](#dlt-runtime-job).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--name [NAME]` - Job name to create
-* `--schedule [SCHEDULE]` - Cron schedule for the job if it's a scheduled one
-* `--interactive` - Run the job interactively, e.g. for a notebook
-* `--app-type {marimo,mcp,streamlit}` - Specify if the interactive app is a marimo notebook, streamlit app, or mcp server.
-* `--description [DESCRIPTION]` - Job description
-
-</details>
-
-### `dlt runtime jobs`
-
-List, create and inspect jobs.
-
-**Usage**
-```sh
-dlt runtime jobs [-h] [selector_or_job_name] {list,info,create} ...
-```
-
-**Description**
-
-List and manipulate jobs registered in the workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime`](#dlt-runtime).
-
-**Positional arguments**
-* `selector_or_job_name` - Local script path or job name. required for all commands except `list`
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`list`](#dlt-runtime-jobs-list) - List the jobs registered in the workspace
-* [`info`](#dlt-runtime-jobs-info) - Show job info
-* [`create`](#dlt-runtime-jobs-create) - Create a job without running it
-
-</details>
-
-### `dlt runtime jobs list`
-
-List the jobs registered in the workspace.
-
-**Usage**
-```sh
-dlt runtime jobs [selector_or_job_name] list [-h]
-```
-
-**Description**
-
-List the jobs registered in the workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime jobs`](#dlt-runtime-jobs).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt runtime jobs info`
-
-Show job info.
-
-**Usage**
-```sh
-dlt runtime jobs [selector_or_job_name] info [-h]
-```
-
-**Description**
-
-Display detailed information about the job.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime jobs`](#dlt-runtime-jobs).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt runtime jobs create`
-
-Create a job without running it.
-
-**Usage**
-```sh
-dlt runtime jobs [selector_or_job_name] create [-h] [--name [NAME]]
-    [--schedule [SCHEDULE]] [--interactive] [--app-type {marimo,mcp,streamlit}]
-    [--description [DESCRIPTION]]
-```
-
-**Description**
-
-Manually create the job.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime jobs`](#dlt-runtime-jobs).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--name [NAME]` - Job name to create
-* `--schedule [SCHEDULE]` - Cron schedule for the job if it's a scheduled one
-* `--interactive` - Run the job interactively, e.g. for a notebook
-* `--app-type {marimo,mcp,streamlit}` - Specify if the interactive app is a marimo notebook, streamlit app, or mcp server.
-* `--description [DESCRIPTION]` - Job description
 
 </details>
 
@@ -934,7 +902,7 @@ List, create and inspect job runs.
 **Usage**
 ```sh
 dlt runtime job-run [-h] [selector_or_job_name] [run_number]
-    {list,info,create,logs,cancel} ...
+    {list,info,logs,cancel} ...
 ```
 
 **Description**
@@ -948,16 +916,15 @@ List and manipulate job runs registered in the workspace.
 Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
-* `selector_or_job_name` - Local script path or job name. required for all commands except `list`
+* `selector_or_job_name` - Job name, script path, or selector (e.g. batch, schedule:*). for `list`: filters runs by matching jobs. required for `info`, `logs`, `cancel`.
 * `run_number` - Run number. used in all commands except `list` and `create` as optional argument. if not specified, the latest run of the given script will be used.
 
 **Options**
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
-* [`list`](#dlt-runtime-job-run-list) - List the job runs registered in the workspace
+* [`list`](#dlt-runtime-job-run-list) - List job runs (filter with a selector: batch, schedule:*, ...)
 * [`info`](#dlt-runtime-job-run-info) - Show job run info
-* [`create`](#dlt-runtime-job-run-create) - Create a job run without running it
 * [`logs`](#dlt-runtime-job-run-logs) - Show logs for the latest or selected job run
 * [`cancel`](#dlt-runtime-job-run-cancel) - Cancel the latest or selected job run
 
@@ -965,7 +932,7 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 ### `dlt runtime job-run list`
 
-List the job runs registered in the workspace.
+List job runs (filter with a selector: batch, schedule:*, ...).
 
 **Usage**
 ```sh
@@ -974,7 +941,7 @@ dlt runtime job-run [selector_or_job_name] [run_number] list [-h]
 
 **Description**
 
-List the job runs registered in the workspace.
+List job runs registered in the workspace. Pass a selector before `list` to filter by matching jobs.
 
 <details>
 
@@ -1011,42 +978,18 @@ Inherits arguments from [`dlt runtime job-run`](#dlt-runtime-job-run).
 
 </details>
 
-### `dlt runtime job-run create`
-
-Create a job run without running it.
-
-**Usage**
-```sh
-dlt runtime job-run [selector_or_job_name] [run_number] create [-h]
-```
-
-**Description**
-
-Manually create the job run.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime job-run`](#dlt-runtime-job-run).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
 ### `dlt runtime job-run logs`
 
 Show logs for the latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime job-run [selector_or_job_name] [run_number] logs [-h]
+dlt runtime job-run [selector_or_job_name] [run_number] logs [-h] [-f]
 ```
 
 **Description**
 
-Show logs for the latest or selected job run. Will follow logs if the run is not in a terminal state.
+Show logs for the latest or selected job run. Use -f/--follow to stream logs in real-time until completion.
 
 <details>
 
@@ -1056,6 +999,7 @@ Inherits arguments from [`dlt runtime job-run`](#dlt-runtime-job-run).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `-f, --follow` - Follow logs in real-time until the run completes
 
 </details>
 
@@ -1077,162 +1021,6 @@ Cancel the latest or selected job run.
 <summary>Show Arguments and Options</summary>
 
 Inherits arguments from [`dlt runtime job-run`](#dlt-runtime-job-run).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt runtime job-runs`
-
-List, create and inspect job runs.
-
-**Usage**
-```sh
-dlt runtime job-runs [-h] [selector_or_job_name] [run_number]
-    {list,info,create,logs,cancel} ...
-```
-
-**Description**
-
-List and manipulate job runs registered in the workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime`](#dlt-runtime).
-
-**Positional arguments**
-* `selector_or_job_name` - Local script path or job name. required for all commands except `list`
-* `run_number` - Run number. used in all commands except `list` and `create` as optional argument. if not specified, the latest run of the given script will be used.
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`list`](#dlt-runtime-job-runs-list) - List the job runs registered in the workspace
-* [`info`](#dlt-runtime-job-runs-info) - Show job run info
-* [`create`](#dlt-runtime-job-runs-create) - Create a job run without running it
-* [`logs`](#dlt-runtime-job-runs-logs) - Show logs for the latest or selected job run
-* [`cancel`](#dlt-runtime-job-runs-cancel) - Cancel the latest or selected job run
-
-</details>
-
-### `dlt runtime job-runs list`
-
-List the job runs registered in the workspace.
-
-**Usage**
-```sh
-dlt runtime job-runs [selector_or_job_name] [run_number] list [-h]
-```
-
-**Description**
-
-List the job runs registered in the workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime job-runs`](#dlt-runtime-job-runs).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt runtime job-runs info`
-
-Show job run info.
-
-**Usage**
-```sh
-dlt runtime job-runs [selector_or_job_name] [run_number] info [-h]
-```
-
-**Description**
-
-Display detailed information about the job run.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime job-runs`](#dlt-runtime-job-runs).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt runtime job-runs create`
-
-Create a job run without running it.
-
-**Usage**
-```sh
-dlt runtime job-runs [selector_or_job_name] [run_number] create [-h]
-```
-
-**Description**
-
-Manually create the job run.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime job-runs`](#dlt-runtime-job-runs).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt runtime job-runs logs`
-
-Show logs for the latest or selected job run.
-
-**Usage**
-```sh
-dlt runtime job-runs [selector_or_job_name] [run_number] logs [-h]
-```
-
-**Description**
-
-Show logs for the latest or selected job run. Will follow logs if the run is not in a terminal state.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime job-runs`](#dlt-runtime-job-runs).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt runtime job-runs cancel`
-
-Cancel the latest or selected job run.
-
-**Usage**
-```sh
-dlt runtime job-runs [selector_or_job_name] [run_number] cancel [-h]
-```
-
-**Description**
-
-Cancel the latest or selected job run.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime job-runs`](#dlt-runtime-job-runs).
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -1325,7 +1113,7 @@ Create new configuration if local config content changed.
 
 **Usage**
 ```sh
-dlt runtime configuration [configuration_version_no] sync [-h]
+dlt runtime configuration [configuration_version_no] sync [-h] [--dry-run] [-v]
 ```
 
 **Description**
@@ -1337,6 +1125,87 @@ Create new configuration if local config content changed.
 <summary>Show Arguments and Options</summary>
 
 Inherits arguments from [`dlt runtime configuration`](#dlt-runtime-configuration).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--dry-run` - Compare local config to latest configuration without uploading
+* `-v, --verbose` - Print per-file added/updated/deleted tree alongside the summary
+
+</details>
+
+### `dlt runtime workspace`
+
+List and manage workspaces.
+
+**Usage**
+```sh
+dlt runtime workspace [-h] {list,switch} ...
+```
+
+**Description**
+
+List and manage workspaces in your organization.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`list`](#dlt-runtime-workspace-list) - List all workspaces you have access to
+* [`switch`](#dlt-runtime-workspace-switch) - Switch to a different workspace by name or id
+
+</details>
+
+### `dlt runtime workspace list`
+
+List all workspaces you have access to.
+
+**Usage**
+```sh
+dlt runtime workspace list [-h]
+```
+
+**Description**
+
+List all workspaces you have access to.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime workspace`](#dlt-runtime-workspace).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime workspace switch`
+
+Switch to a different workspace by name or ID.
+
+**Usage**
+```sh
+dlt runtime workspace switch [-h] [workspace]
+```
+
+**Description**
+
+Switch the locally connected workspace without re-running login.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime workspace`](#dlt-runtime-workspace).
+
+**Positional arguments**
+* `workspace` - Workspace name or id to switch to. if omitted, an interactive picker is shown with an option to create a new workspace.
 
 **Options**
 * `-h, --help` - Show this help message and exit
