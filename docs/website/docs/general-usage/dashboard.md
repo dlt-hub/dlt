@@ -55,7 +55,7 @@ Use the pipeline name you defined in your Python code with the `pipeline_name` a
 
 ## Credentials
 
-`dlt` will resolve your destination [credentials](credentials/index.md) from:
+`dlt` will resolve your destination [credentials](credentials/setup.md) from:
 * `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD), which is the directory you started the dashboard from 
 * `secrets.toml` and `config.toml` in the global `dlt` folder at `~/.dlt`. 
 * Environment variables
