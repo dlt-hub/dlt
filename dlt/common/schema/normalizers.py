@@ -9,7 +9,6 @@ from dlt.common import known_env
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import known_sections
 from dlt.common.schema.configuration import SchemaConfiguration
-from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.json import SupportsDataItemNormalizer, DataItemNormalizer
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.naming.exceptions import (
@@ -107,20 +106,18 @@ def import_normalizers(
     if "." not in json_module_name:
         json_module_name = f"{DEFAULT_JSON_NAMESPACE}.{json_module_name}"
         item_normalizer["module"] = json_module_name
+    json_module = cast(SupportsDataItemNormalizer, import_module(json_module_name))
     # if max_table_nesting is set, we need to set the max_table_nesting in the json_normalizer
     if destination_capabilities and destination_capabilities.max_table_nesting is not None:
         # TODO: this is a hack, we need a better method to do this
         from dlt.common.normalizers.json.relational import DataItemNormalizer
 
-        try:
-            DataItemNormalizer.ensure_this_normalizer(item_normalizer)
+        if issubclass(json_module.DataItemNormalizer, DataItemNormalizer):
             item_normalizer.setdefault("config", {})
             item_normalizer["config"]["max_nesting"] = destination_capabilities.max_table_nesting  # type: ignore[index]
-        except InvalidJsonNormalizer:
+        else:
             # not a right normalizer
             logger.warning(f"JSON Normalizer {item_normalizer} does not support max_nesting")
-            pass
-    json_module = cast(SupportsDataItemNormalizer, import_module(json_module_name))
     explicit_normalizers["json"] = item_normalizer
     return (
         explicit_normalizers,
