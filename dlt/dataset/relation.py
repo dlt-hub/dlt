@@ -589,16 +589,14 @@ class Relation(WithSqlClient):
     def with_load_id_col(self) -> dlt.Relation:
         """Return the relation with the `_dlt_load_id` included.
 
-        This only works on relations created via ``.table()``.
+        This only works on relations created via `.table()`.
 
-        There are 3 cases:
-        - If the relation is a root table, this is a no-op
-        - If the relation has a root key, join relation to root table
-        - If the relation has a parent key, iteratively join the root to the relation
-        - Else raise
+        If the relation already includes `_dlt_load_id`, it is returned unchanged.
+        Otherwise, the root table is joined to add the column to the current relation.
 
-        This should only raise if the `dlt.Schema` was tempered, breaking the
-        dlt-generated root and parent relationships.
+        Raises:
+            ValueError: If called on a non-table relation, a root table without
+                `_dlt_load_id`, or a relation whose root load ID column cannot be located.
         """
         if not self._table_name or self._query is not None:
             raise ValueError(
