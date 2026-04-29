@@ -13,6 +13,7 @@ from dlt.common.storages import (
 )
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import TTableNames, TDataItems
+from dlt.common.utils import uniq_id
 
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourceExtractionError
@@ -611,6 +612,55 @@ def test_materialize_table_schema_with_pipe_items():
         if job.job_file_info.table_name == "empty_list":
             found_empty_list = True
     assert found_empty_list
+
+
+@pytest.mark.parametrize(
+    "yield_one,yield_two",
+    [(True, False), (False, True), (False, False), (True, True)],
+    ids=["only_first", "only_second", "neither", "both"],
+)
+def test_materialize_table_schema_multi_table(yield_one: bool, yield_two: bool) -> None:
+    """Empty table materialization works correctly for resources that produce multiple tables."""
+
+    @dlt.resource
+    def multi_table():
+        yield dlt.mark.with_hints(
+            dlt.mark.materialize_table_schema(),
+            dlt.mark.make_hints(
+                table_name="table_one",
+                write_disposition="replace",
+                columns={"col_one": {"data_type": "text"}},
+            ),
+            create_table_variant=True,
+        )
+        yield dlt.mark.with_hints(
+            dlt.mark.materialize_table_schema(),
+            dlt.mark.make_hints(
+                table_name="table_two",
+                write_disposition="replace",
+                columns={"col_two": {"data_type": "bigint"}},
+            ),
+            create_table_variant=True,
+        )
+        if yield_one:
+            yield dlt.mark.with_table_name({"col_one": "val"}, table_name="table_one")
+        if yield_two:
+            yield dlt.mark.with_table_name({"col_two": 5}, table_name="table_two")
+
+    p = dlt.pipeline(
+        pipeline_name="materialize_multi_" + uniq_id(),
+        destination="duckdb",
+        dev_mode=True,
+    )
+    extract_info = p.extract(multi_table())
+
+    extracted_tables = {
+        job.job_file_info.table_name
+        for job in extract_info.load_packages[0].jobs["new_jobs"]
+    }
+    # both tables should always have jobs — either with data or empty files
+    assert "table_one" in extracted_tables
+    assert "table_two" in extracted_tables
 
 
 @pytest.mark.parametrize(
