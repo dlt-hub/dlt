@@ -29,9 +29,8 @@ from dlt.common.schema.typing import (
     TTableSchema,
     TTableSchemaColumns,
     C_DLT_LOAD_ID,
-    TTableReference,
 )
-from dlt.common.schema import utils as schema_utils, TSchemaTables
+from dlt.common.schema import utils as schema_utils
 from dlt.common.typing import Self, TSortOrder, TypedDict
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
@@ -590,16 +589,14 @@ class Relation(WithSqlClient):
     def with_load_id_col(self) -> dlt.Relation:
         """Return the relation with the `_dlt_load_id` included.
 
-        This only works on relations created via ``.table()``.
+        This only works on relations created via `.table()`.
 
-        There are 3 cases:
-        - If the relation is a root table, this is a no-op
-        - If the relation has a root key, join relation to root table
-        - If the relation has a parent key, iteratively join the root to the relation
-        - Else raise
+        If the relation already includes `_dlt_load_id`, it is returned unchanged.
+        Otherwise, the root table is joined to add the column to the current relation.
 
-        This should only raise if the `dlt.Schema` was tempered, breaking the
-        dlt-generated root and parent relationships.
+        Raises:
+            ValueError: If called on a non-table relation, a root table without
+                `_dlt_load_id`, or a relation whose root load ID column cannot be located.
         """
         if not self._table_name or self._query is not None:
             raise ValueError(
@@ -607,16 +604,34 @@ class Relation(WithSqlClient):
                 " It can't be applied to arbitrary relation."
             )
 
-        table_schema = self._dataset.schema.tables[self._table_name]
+        normalized_load_id = self._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
 
-        if self._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID) in self.columns:
+        if normalized_load_id in self.columns:
             return self
-        elif schema_utils.has_column_with_prop(table_schema, "root_key"):
-            return _add_load_id_via_root_key(self)
-        elif schema_utils.has_column_with_prop(table_schema, "parent_key"):
-            return _add_load_id_via_parent_key(self)
-        else:
-            raise ValueError
+
+        root_table_name = schema_utils.get_root_table(
+            self._dataset.schema.tables, self._table_name
+        )["name"]
+        if root_table_name == self._table_name:
+            raise ValueError(f"{root_table_name} is a root table, but load id column is not present.")
+
+        join_alias = "_dlt_root"
+        joined = self.join(root_table_name, alias=join_alias)
+        joined_expression = joined.sqlglot_expression.copy()
+        left_projection = joined_expression.selects[: len(self.sqlglot_expression.selects)]
+        load_id_output_name = f"{join_alias}__{normalized_load_id}"
+        load_id_expr = next(
+            (expr for expr in joined_expression.selects if expr.output_name == load_id_output_name),
+            None,
+        )
+        if load_id_expr is None:
+            raise ValueError(f"Could not locate column {normalized_load_id}")
+
+        joined_expression.set("expressions", [*left_projection, load_id_expr.this.copy()])
+
+        rel = self.__copy__()
+        rel._sqlglot_expression = joined_expression
+        return rel
 
     def from_loads(
         self,
@@ -726,154 +741,3 @@ def _get_relation_output_columns_schema(
         allow_partial=allow_partial,
     )
     return columns_schema, normalized_query
-
-
-def _add_load_id_via_root_key_query(
-    table_name: str,
-    root_table_name: str,
-    child_root_key: str,
-    root_row_key: str,
-    *,
-    normalized_load_id: str = C_DLT_LOAD_ID,
-) -> sge.Select:
-    child_table = sge.Table(
-        this=sge.to_identifier(table_name, quoted=True),
-        alias=sge.TableAlias(this=sge.to_identifier("child", quoted=False)),
-    )
-    root_table_expr = sge.Table(
-        this=sge.to_identifier(root_table_name, quoted=True),
-        alias=sge.TableAlias(this=sge.to_identifier("root", quoted=False)),
-    )
-
-    # Build column list: child.*, root._dlt_load_id
-    columns = [
-        sge.Column(table=sge.to_identifier("child", quoted=False), this=sge.Star()),
-        sge.Column(
-            table=sge.to_identifier("root", quoted=False),
-            this=sge.to_identifier(normalized_load_id, quoted=True),
-        ),
-    ]
-
-    join_condition = sge.EQ(
-        this=sge.Column(
-            table=sge.to_identifier("child", quoted=False),
-            this=sge.to_identifier(child_root_key, quoted=True),
-        ),
-        expression=sge.Column(
-            table=sge.to_identifier("root", quoted=False),
-            this=sge.to_identifier(root_row_key, quoted=True),
-        ),
-    )
-
-    query = (
-        sge.Select(expressions=columns)
-        .from_(child_table)
-        .join(root_table_expr, on=join_condition, join_type="INNER")
-    )
-    return query
-
-
-def _add_load_id_via_root_key(relation: dlt.Relation) -> dlt.Relation:
-    """Return the input relation with the `_dlt_load_id` column added.
-
-    This is done by joining the `root_table._dlt_id` with the `table._dlt_root_id`
-    """
-    origin_table_name: str = relation._table_name
-    tables_schema = relation._dataset.schema.tables
-    root_table = schema_utils.get_root_table(tables_schema, origin_table_name)
-    root_table_name = root_table["name"]
-
-    ref = schema_utils.create_root_child_reference(tables_schema, origin_table_name)
-    child_root_key = ref["columns"][0]
-    root_row_key = ref["referenced_columns"][0]
-
-    # Construct SELECT with INNER JOIN
-    query = _add_load_id_via_root_key_query(
-        table_name=origin_table_name,
-        root_table_name=root_table_name,
-        child_root_key=child_root_key,
-        root_row_key=root_row_key,
-        normalized_load_id=relation._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID),
-    )
-
-    rel = relation.__copy__()
-    rel._sqlglot_expression = query
-    return rel
-
-
-def _add_load_id_via_parent_key_query(
-    table_name: str, table_schemas: TSchemaTables, normalized_load_id: str = C_DLT_LOAD_ID
-) -> sge.Select:
-    # The reference_chain goes from root to the queried table
-    # Each reference contains: child table -> parent table relationship
-    # We need to build joins from the queried table back to root
-    reference_chain = []
-    root_table_name = schema_utils.get_root_table(table_schemas, table_name)["name"]
-    for reference in schema_utils.get_all_parent_child_references_from_root(
-        table_schemas, root_table_name
-    ):
-        reference_chain.append(reference)
-        if reference["table"] == table_name:
-            break
-
-    queried_table = sge.Table(
-        this=sge.to_identifier(table_name, quoted=True),
-        alias=sge.TableAlias(this=sge.to_identifier("t0", quoted=False)),
-    )
-
-    # build final table query with all columns explicitly + _dlt_load_id from root table
-    columns = [
-        sge.Column(
-            table=sge.to_identifier("t0", quoted=False),
-            this=sge.to_identifier(col_name, quoted=True),
-        )
-        for col_name in table_schemas[table_name]["columns"]
-    ]
-    columns.append(
-        sge.Column(
-            table=sge.to_identifier(f"t{len(reference_chain)}", quoted=False),
-            this=sge.to_identifier(normalized_load_id, quoted=True),
-        )
-    )
-    query = sge.Select(expressions=columns).from_(queried_table)
-
-    # loop through references from table to root to append INNER JOINs
-    for i, ref in enumerate(reversed(reference_chain)):
-        parent_alias = f"t{i + 1}"
-        parent_table = sge.Table(
-            this=sge.to_identifier(ref["referenced_table"], quoted=True),
-            alias=sge.TableAlias(this=sge.to_identifier(parent_alias, quoted=False)),
-        )
-        join_condition = sge.EQ(
-            this=sge.Column(
-                table=sge.to_identifier(f"t{i}", quoted=False),
-                this=sge.to_identifier(ref["columns"][0], quoted=True),
-            ),
-            expression=sge.Column(
-                table=sge.to_identifier(parent_alias, quoted=False),
-                this=sge.to_identifier(ref["referenced_columns"][0], quoted=True),
-            ),
-        )
-        query = query.join(parent_table, on=join_condition, join_type="INNER")
-
-    return query
-
-
-def _add_load_id_via_parent_key(relation: dlt.Relation) -> dlt.Relation:
-    """Return the input relation with the `_dlt_load_id` column added.
-
-    This is done by iteratively joining the `root_table._dlt_id` with `child._dlt_parent_id`
-    until the input relation is reached.
-    """
-    origin_table_name: str = relation._table_name
-    table_schemas = relation._dataset.schema.tables
-
-    query = _add_load_id_via_parent_key_query(
-        table_name=origin_table_name,
-        table_schemas=table_schemas,
-        normalized_load_id=relation._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID),
-    )
-
-    rel = relation.__copy__()
-    rel._sqlglot_expression = query
-    return rel

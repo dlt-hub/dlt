@@ -6,6 +6,7 @@ import pytest
 from sqlglot import expressions as sge
 
 import dlt
+from dlt.common.utils import uniq_id
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import C_DLT_LOAD_ID, LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.schema.utils import new_table
@@ -193,6 +194,45 @@ def test_relation_with_load_id(
 
     assert len(df) == len(table.df())
     assert list(df.columns) == expected_columns
+
+
+def test_relation_with_load_id_on_parallel_child_branch(tmp_path) -> None:
+    data = [
+        {
+            "id": 1,
+            "orders": [{"order_id": 101, "total_amount": 100.0}],
+            "profiles": [{"type": "personal"}],
+        },
+        {
+            "id": 2,
+            "orders": [{"order_id": 102, "total_amount": 200.0}],
+            "profiles": [{"type": "work"}],
+        },
+    ]
+
+    @dlt.resource(name="users")
+    def users():
+        yield data
+
+    pipeline = dlt.pipeline(
+        pipeline_name="parallel_child_branch_" + uniq_id(),
+        pipelines_dir=str(tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(tmp_path / "parallel_child_branch.duckdb")),
+        dev_mode=True,
+    )
+    pipeline.run(users(), dataset_name="test")
+
+    table = pipeline.dataset().table("users__profiles")
+    output = table.with_load_id_col()
+    expected_columns = table.columns + [C_DLT_LOAD_ID]
+
+    assert output.columns == expected_columns
+
+    df = output.df()
+
+    assert len(df) == len(data)
+    assert list(df.columns) == expected_columns
+    assert set(df[C_DLT_LOAD_ID]) == {pipeline.last_trace.last_normalize_info.loads_ids[0]}
 
 
 @pytest.mark.parametrize("selected_load_id_idx", [[0], [1], [0, 1]])
