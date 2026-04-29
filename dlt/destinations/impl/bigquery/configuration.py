@@ -3,7 +3,6 @@ from typing import ClassVar, List, Final, Optional, Union
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import GcpServiceAccountCredentials, GcpOAuthCredentials
-from dlt.common.utils import digest128
 
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 
@@ -38,8 +37,9 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     def get_location(self) -> str:
         return self.location
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of project_id"""
-        if self.credentials and self.credentials.project_id:
-            return digest128(self.credentials.project_id)
-        return ""
+    def physical_destination(self) -> str:
+        """Returns configured project id, falling back to credentials."""
+        project_id = self.project_id
+        if not project_id and self.credentials:
+            project_id = self.credentials.project_id
+        return project_id or ""

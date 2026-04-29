@@ -59,6 +59,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
 from dlt.common.typing import is_optional_type
+from dlt.common.utils import digest128
 
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
 
@@ -163,9 +164,28 @@ class DestinationClientConfiguration(BaseConfiguration):
 
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
-    def fingerprint(self) -> str:
-        """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
+    def physical_destination(self) -> str:
+        """Returns a non-secret destination identity, or "" when unavailable."""
         return ""
+
+    def fingerprint(self) -> str:
+        """Returns a hash of physical_destination(), or "" when unavailable."""
+        phys_dest = self.physical_destination()
+        if phys_dest:
+            return digest128(phys_dest)
+        return ""
+
+    def can_join_with(self, other: "DestinationClientConfiguration") -> bool:
+        """Returns True for same-type destinations with the same non-empty identity."""
+        if not isinstance(other, DestinationClientConfiguration):
+            return False
+        if self.destination_type != other.destination_type:
+            return False
+        self_phys = self.physical_destination()
+        other_phys = other.physical_destination()
+        if self_phys and other_phys and self_phys == other_phys:
+            return True
+        return False
 
     def __str__(self) -> str:
         """Return displayable destination location"""

@@ -13,7 +13,6 @@ from dlt.common.storages.configuration import (
     FilesystemConfigurationWithLocalFiles,
     WithLocalFiles,
 )
-from dlt.common.utils import digest128
 from dlt.destinations.impl.duckdb.configuration import DuckDbConnectionPool, DuckDbBaseCredentials
 from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
 
@@ -141,11 +140,24 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
     create_indexes: bool = False  # does nothing but required
     override_data_path: bool = False
 
-    def fingerprint(self) -> str:
-        """Use fingerprint of underlying storage. This is precise to bucket level"""
-        if self.credentials.storage is None:
+    def physical_destination(self) -> str:
+        """Returns credential-free catalog identity plus ducklake name."""
+        if not self.credentials or not self.credentials.catalog:
             return ""
-        return self.credentials.storage.fingerprint()
+
+        catalog = self.credentials.catalog
+        ducklake_name = self.credentials.ducklake_name or DEFAULT_DUCKLAKE_NAME
+
+        if catalog.host:
+            port_str = f":{catalog.port}" if catalog.port else ""
+            db_str = f"/{catalog.database}" if catalog.database else ""
+            catalog_id = f"{catalog.drivername}://{catalog.host}{port_str}{db_str}"
+        elif catalog.database:
+            catalog_id = f"{catalog.drivername}://{catalog.database}"
+        else:
+            catalog_id = catalog.drivername or "unknown"
+
+        return f"{catalog_id}#{ducklake_name}"
 
     def on_resolved(self) -> None:
         # redirect local catalog database file to `local_dir`

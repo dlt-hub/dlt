@@ -10,6 +10,7 @@ from dlt.common.configuration import configspec, resolve_type
 from dlt.common.configuration.specs.hf_credentials import HfCredentials
 from dlt.common.destination.client import (
     CredentialsConfiguration,
+    DestinationClientConfiguration,
     DestinationClientStagingConfiguration,
 )
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
@@ -43,6 +44,37 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return super().resolve_credentials_type()
+
+    def physical_destination(self) -> str:
+        """Returns scheme://netloc for remote filesystems, or "" for local."""
+        if not self.bucket_url:
+            return ""
+
+        if self.is_local_path(self.bucket_url):
+            return ""
+
+        from urllib.parse import urlparse
+
+        url = urlparse(self.bucket_url)
+        return f"{url.scheme}://{url.netloc}"
+
+    def fingerprint(self) -> str:
+        # Explicit override to resolve MRO ambiguity: without it, Python picks
+        # FilesystemConfiguration.fingerprint() (which hashes the raw bucket URL)
+        # over DestinationClientConfiguration.fingerprint() (which hashes
+        # physical_destination()).  Do not remove.
+        return DestinationClientStagingConfiguration.fingerprint(self)
+
+    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True for any other filesystem destination.
+
+        Filesystem tables are queried through a local engine (e.g. DuckDB) that
+        can access multiple storage backends in a single query, so join
+        compatibility is determined by the engine, not by the storage location.
+        """
+        if isinstance(other, FilesystemDestinationClientConfiguration):
+            return True
+        return False
 
     def on_resolved(self) -> None:
         # Validate layout and show unused placeholders

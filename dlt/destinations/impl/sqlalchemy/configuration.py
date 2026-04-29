@@ -8,7 +8,10 @@ from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.base_configuration import NotResolved
-from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+)
 from dlt.common.storages.configuration import WithLocalFiles
 from dlt.common.typing import Annotated
 from dlt.common.warnings import DltDeprecationWarning
@@ -262,3 +265,66 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
                     self.credentials.database = os.path.normpath(
                         self.make_location(db or None, SQLITE_DB_NAME_PAT)
                     )
+
+    def physical_destination(self) -> str:
+        """Returns sqlite path for sqlite, otherwise host:port."""
+        if not self.credentials:
+            return ""
+
+        drivername = self.credentials.drivername or ""
+        database = self.credentials.database
+        host = self.credentials.host
+        port = self.credentials.port
+
+        if drivername == "sqlite":
+            if SqlalchemyCredentials.is_memory_database(database, self.credentials.query):
+                return ":memory:"
+            return database or ""
+
+        if host:
+            # Default-vs-explicit port mismatches may reject otherwise valid joins.
+            if port:
+                return f"{host}:{port}"
+            return host
+        return ""
+
+    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True when dialect-specific destination identities match."""
+        if not isinstance(other, SqlalchemyClientConfiguration):
+            return False
+
+        if not self.credentials or not other.credentials:
+            return False
+
+        self_dialect = (self.credentials.drivername or "").lower()
+        other_dialect = (other.credentials.drivername or "").lower()
+
+        if self_dialect != other_dialect:
+            return False
+
+        if self_dialect == "sqlite":
+            self_phys = self.physical_destination()
+            other_phys = other.physical_destination()
+            return bool(self_phys and other_phys and self_phys == other_phys)
+
+        if self_dialect == "postgresql":
+            self_phys = self.physical_destination()
+            other_phys = other.physical_destination()
+            if not self_phys or not other_phys or self_phys != other_phys:
+                return False
+            self_db = self.credentials.database
+            other_db = other.credentials.database
+            return self_db is not None and other_db is not None and self_db == other_db
+
+        if self_dialect in ("mysql", "mssql", "oracle", "db2"):
+            self_phys = self.physical_destination()
+            other_phys = other.physical_destination()
+            return bool(self_phys and other_phys and self_phys == other_phys)
+
+        self_phys = self.physical_destination()
+        other_phys = other.physical_destination()
+        if not self_phys or not other_phys or self_phys != other_phys:
+            return False
+        self_db = self.credentials.database
+        other_db = other.credentials.database
+        return self_db is not None and other_db is not None and self_db == other_db

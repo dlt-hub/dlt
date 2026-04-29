@@ -8,10 +8,13 @@ from dlt.common.configuration.specs.connection_string_credentials import Connect
 from dlt.version import __version__
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.exceptions import NativeValueError
-from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhWithStagingConfiguration,
+)
 from dlt.common.destination.exceptions import DestinationTerminalException
-from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
+from dlt.common.typing import TSecretStrValue
 
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials, DuckDbConnectionPool
 
@@ -123,11 +126,28 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
         False  # should unique indexes be created, this slows loading down massively
     )
 
+    def physical_destination(self) -> str:
+        """Returns "" because MotherDuck has no non-secret account identity."""
+        return ""
+
     def fingerprint(self) -> str:
-        """Returns a fingerprint of user access token"""
+        """Returns a fingerprint of user access token."""
         if self.credentials and self.credentials.password:
             return digest128(self.credentials.password)
         return ""
+
+    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True for MotherDuck configs with the same token."""
+        if not isinstance(other, MotherDuckClientConfiguration):
+            return False
+
+        self_token = self.credentials.password if self.credentials else None
+        other_token = other.credentials.password if other.credentials else None
+
+        if not self_token or not other_token:
+            return False
+
+        return self_token == other_token
 
 
 class MotherDuckCatalogMissing(NativeValueError):

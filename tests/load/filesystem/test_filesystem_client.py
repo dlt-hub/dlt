@@ -79,7 +79,7 @@ def _client_factory(fs: filesystem) -> FilesystemClient:
     "url, exp",
     (
         (None, ""),
-        ("/path/path2", digest128("")),
+        ("/path/path2", ""),
         ("file:///home/ducklake.d", digest128("file://")),
         ("s3://cool", digest128("s3://cool")),
         ("s3://cool.domain/path/path2", digest128("s3://cool.domain")),
