@@ -627,7 +627,7 @@ class Relation(WithSqlClient):
             None,
         )
         if load_id_expr is None:
-            raise ValueError
+            raise ValueError(f"Could not locate column {normalized_load_id}")
 
         joined_expression.set("expressions", [*left_projection, load_id_expr.this.copy()])
 
