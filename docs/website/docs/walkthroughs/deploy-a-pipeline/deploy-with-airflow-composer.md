@@ -525,8 +525,6 @@ This setup will allow you to deploy the main branch of your Airflow project from
 
 ### Airflow setup
 
-### Adding the libraries needed
-
 Assuming you have already spun up a Cloud Composer:
 
 - Make sure the user you added has rights to change the base image (add libraries). I already had these added; you may get away with fewer (not clear in docs):
@@ -535,7 +533,7 @@ Assuming you have already spun up a Cloud Composer:
   - Artifact Registry Repository Administrator;
   - Remote Build Execution Artifact Admin;
 
-- Navigate to your composer environment and add the needed libraries. In the case of this example pipedrive pipeline, we only need the sdf library, so add the `dlt` library.
+- Navigate to your composer environment and add the needed libraries. In the case of this example pipedrive pipeline, we only need the `dlt` library.
 
   ![add-package](/img/add-package.png)
 
