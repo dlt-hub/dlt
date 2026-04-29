@@ -41,7 +41,7 @@ def _build_incremental_aggregate(
     inner = base_query.copy()
     # ORDER BY on the inner is meaningless for aggregation and some dialects
     # reject it inside a subquery without LIMIT.
-    if inner.args.get("order"):
+    if inner.args.get("order") and inner.args.get("limit") is None:
         inner.set("order", None)
 
     inner.set(
