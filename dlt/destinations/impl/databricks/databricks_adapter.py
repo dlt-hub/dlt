@@ -2,10 +2,13 @@ from typing import Any, Optional, Literal, Dict, List, Union, cast
 
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import TColumnNames
+from dlt.destinations.impl.databricks.typing import (
+    TDatabricksInsertApi,
+    TDatabricksTableSchemaColumns,
+)
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
-from dlt.destinations.impl.databricks.typing import TDatabricksTableSchemaColumns
 
 
 CLUSTER_HINT: Literal["x-databricks-cluster"] = "x-databricks-cluster"
@@ -14,6 +17,7 @@ TABLE_TAGS_HINT: Literal["x-databricks-table-tags"] = "x-databricks-table-tags"
 TABLE_PROPERTIES_HINT: Literal["x-databricks-table-properties"] = "x-databricks-table-properties"
 COLUMN_COMMENT_HINT: Literal["x-databricks-column-comment"] = "x-databricks-column-comment"
 COLUMN_TAGS_HINT: Literal["x-databricks-column-tags"] = "x-databricks-column-tags"
+INSERT_API_HINT: Literal["x-insert-api"] = "x-insert-api"
 
 
 def databricks_adapter(
@@ -25,6 +29,7 @@ def databricks_adapter(
     table_tags: Optional[List[Union[str, Dict[str, str]]]] = None,
     table_properties: Optional[Dict[str, Union[str, int, bool, float]]] = None,
     column_hints: Optional[TDatabricksTableSchemaColumns] = None,
+    insert_api: Optional[TDatabricksInsertApi] = None,
 ) -> DltResource:
     """
     Prepares data for loading into Databricks.
@@ -54,6 +59,12 @@ def databricks_adapter(
             The supported hints are:
             - `column_comment` - adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
             - `column_tags` - adds tags to the column. Supports a list of strings and/or key-value pairs.
+        insert_api (Optional[TDatabricksInsertApi], optional): Backend for `append` write disposition.
+            Supported values are:
+            - `copy_into`: insert records using Databricks `COPY INTO` command
+            - `zerobus`: insert records using Databricks Zerobus
+
+            Destination uses `copy_into` if `insert_api` is not specified.
 
     Returns:
         A `DltResource` object that is ready to be loaded into Databricks.
@@ -197,8 +208,18 @@ def databricks_adapter(
 
         additional_table_hints[TABLE_PROPERTIES_HINT] = table_properties
 
+    if insert_api:
+        if insert_api == "zerobus" and resource.write_disposition != "append":
+            raise ValueError(
+                f"Cannot use `zerobus` insert API with `{resource.write_disposition}` write"
+                " disposition. `zerobus` insert API only supports `append` write disposition."
+            )
+        additional_table_hints[INSERT_API_HINT] = insert_api
+
     resource.apply_hints(
-        columns=cast(TTableSchemaColumns, additional_column_hints),
+        columns=(
+            cast(TTableSchemaColumns, additional_column_hints) if additional_column_hints else None
+        ),
         additional_table_hints=additional_table_hints,
     )
 

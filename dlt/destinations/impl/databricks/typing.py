@@ -1,6 +1,10 @@
-from typing import Optional, List, Dict, Union, Literal
-from dlt.common.schema.typing import TColumnSchema, TColumnHint
+from typing import Dict, List, Literal, Optional, Union
 
+from dlt.common.schema.typing import TColumnHint, TColumnSchema
+
+DEFAULT_DATABRICKS_INSERT_API: Literal["copy_into"] = "copy_into"
+
+TDatabricksInsertApi = Literal["copy_into", "zerobus"]
 TDatabricksColumnHint = Union[TColumnHint, Literal["foreign_key"]]
 
 

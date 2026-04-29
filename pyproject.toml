@@ -162,6 +162,7 @@ databricks = [
     "databricks-sql-connector>=2.9.3 ; python_version <= '3.12'",
     "databricks-sql-connector>=3.6.0 ; python_version >= '3.13'",
     "databricks-sdk>=0.38.0",
+    "databricks-zerobus-ingest-sdk>=1.1.0",
 ]
 clickhouse = [
    "clickhouse-driver>=0.2.7",
@@ -503,6 +504,7 @@ module = [
     "adbc_driver_manager.*",
     "playwright.*",
     "lancedb.*",
+    "zerobus.*",
 ]
 ignore_missing_imports = true
 

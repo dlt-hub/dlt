@@ -2,13 +2,17 @@ from typing import Iterator, Dict, Any
 import pytest
 
 import dlt
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import uniq_id
 from dlt.destinations.adapters import databricks_adapter
 from dlt.destinations import databricks
 from dlt.destinations.impl.databricks.databricks_adapter import (
-    CLUSTER_HINT,
-    TABLE_PROPERTIES_HINT,
+    COLUMN_COMMENT_HINT,
+    INSERT_API_HINT,
 )
+from dlt.destinations.impl.databricks.factory import DatabricksTypeMapper
+from dlt.destinations.impl.databricks.typing import DEFAULT_DATABRICKS_INSERT_API
+from tests.cases import table_update_and_row
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -540,19 +544,22 @@ def test_databricks_adapter_iceberg_format(
 def test_databricks_adapter_iceberg_all_data_types(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Test ICEBERG table format with all supported dlt data types"""
-    from tests.cases import TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES
+    """Test ICEBERG table format with all supported data types."""
+
+    columns, data_row = table_update_and_row(
+        exclude_types=tuple(
+            DatabricksTypeMapper.UNSUPPORTED_TYPES[(DEFAULT_DATABRICKS_INSERT_API, "parquet")]
+        ),
+        exclude_columns=("col1_precision",),
+    )
 
     pipeline = destination_config.setup_pipeline(
         f"databricks_{uniq_id()}", dev_mode=True, destination=databricks()
     )
 
-    # Create columns dict from TABLE_UPDATE
-    columns = {col["name"]: col for col in TABLE_UPDATE}
-
     @dlt.resource(columns=columns, primary_key="col1")
     def iceberg_all_types() -> Iterator[Dict[str, Any]]:
-        yield TABLE_ROW_ALL_DATA_TYPES
+        yield data_row
 
     # Apply ICEBERG format
     databricks_adapter(iceberg_all_types, table_format="ICEBERG")
@@ -592,10 +599,10 @@ def test_databricks_adapter_iceberg_all_data_types(
             f" {pipeline.dataset_name}.iceberg_all_types"
         ) as cur:
             row = cur.fetchone()
-            assert row[0] == TABLE_ROW_ALL_DATA_TYPES["col1"]  # bigint
-            assert abs(row[1] - TABLE_ROW_ALL_DATA_TYPES["col2"]) < 0.001  # double
-            assert row[2] == TABLE_ROW_ALL_DATA_TYPES["col3"]  # bool
-            assert row[3] == TABLE_ROW_ALL_DATA_TYPES["col5"]  # text
+            assert row[0] == data_row["col1"]  # bigint
+            assert abs(row[1] - data_row["col2"]) < 0.001  # double
+            assert row[2] == data_row["col3"]  # bool
+            assert row[3] == data_row["col5"]  # text
 
 
 def test_databricks_adapter_invalid_table_format():
@@ -683,3 +690,49 @@ def test_databricks_adapter_invalid_property_types():
             dummy_resource,
             table_properties={"test_prop": {"nested": "value"}},  # type: ignore[dict-item]
         )
+
+
+def test_databricks_adapter_preserves_existing_columns() -> None:
+    # define resource with column hint
+    res = dlt.resource([{"id": 1}], name="foo", columns={"id": {"data_type": "bigint"}})
+
+    # apply adapter without `column_hints`
+    column_hints = None
+    databricks_adapter(res, column_hints=column_hints)
+    column = res.compute_table_schema()["columns"]["id"]
+    assert column["data_type"] == "bigint"  # existing column hint preserved
+
+    # apply adapter with `column_hints`
+    column_hints = {"id": {"column_comment": "foo"}}
+    databricks_adapter(res, column_hints=column_hints)  # type: ignore[arg-type]
+    column = res.compute_table_schema()["columns"]["id"]
+    assert column["data_type"] == "bigint"  # existing column hint preserved
+    assert (  # new column hint added
+        column[COLUMN_COMMENT_HINT] == "foo"  # type: ignore[typeddict-item]
+    )
+
+
+def test_databricks_adapter_insert_api() -> None:
+    default_res = dlt.resource([{"id": 1}], name="default", write_disposition="append")
+    zerobus_res = dlt.resource([{"id": 1}], name="zerobus", write_disposition="append")
+
+    databricks_adapter(default_res, insert_api=None)
+    databricks_adapter(zerobus_res, insert_api="zerobus")
+
+    default_table_schema = default_res.compute_table_schema()
+    zerobus_table_schema = zerobus_res.compute_table_schema()
+
+    assert INSERT_API_HINT not in default_table_schema
+    assert zerobus_table_schema[INSERT_API_HINT] == "zerobus"  # type: ignore[typeddict-item]
+
+
+@pytest.mark.parametrize("write_disposition", ("replace", "merge"))
+def test_databricks_adapter_zerobus_insert_api_requires_append(
+    write_disposition: TWriteDisposition,
+) -> None:
+    res = dlt.resource([{"id": 1}], name="foo", write_disposition=write_disposition)
+
+    with pytest.raises(ValueError):
+        databricks_adapter(res, insert_api="zerobus")
+
+    databricks_adapter(res, insert_api="copy_into")  # `copy_into` should not raise

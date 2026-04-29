@@ -1,55 +1,109 @@
-import os
-from typing import Dict, Optional, Sequence, List, cast, Union
-from urllib.parse import urlparse
-from pathlib import Path
+from __future__ import annotations
 
-from dlt.common.configuration.specs.azure_credentials import (
-    AzureServicePrincipalCredentialsWithoutDefaults,
+import os
+from abc import ABC, abstractmethod
+from functools import cached_property
+from pathlib import Path
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Union,
+    cast,
 )
-from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.client import (
-    HasFollowupJobs,
-    FollowupJobRequest,
-    PreparedTableSchema,
-    RunnableLoadJob,
-    SupportsStagingDestination,
-    LoadJob,
+from urllib.parse import urlparse
+
+from zerobus.sdk.shared import RecordType, StreamConfigurationOptions, TableProperties
+from zerobus.sdk.sync import ZerobusSdk, ZerobusStream
+
+from dlt.common.json import json, to_json_value
+from dlt.common.typing import (
+    TAnyDateTime,
+    TDataRecord,
+    TDataRecordBatch,
+    TJsonDataRecord,
+    TJsonDataRecordBatch,
+    TJsonValue,
 )
+
+from dlt.common import logger
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
+from dlt.common.configuration.specs.azure_credentials import (
+    AzureServicePrincipalCredentialsWithoutDefaults,
+)
+from dlt.common.data_writers.escape import escape_databricks_literal
+from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.client import (
+    HasFollowupJobs,
+    FollowupJobRequest,
+    LoadJob,
+    PreparedTableSchema,
+    RunnableLoadJob,
+    SupportsStagingDestination,
+)
+from dlt.common.destination.exceptions import (
+    DestinationInvalidFileFormat,
+    WriteDispositionNotSupported,
+)
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.time import (
+    date_to_epoch_days,
+    datetime_to_timestamp_us,
+    ensure_pendulum_date,
+    ensure_pendulum_datetime_utc,
+)
+from dlt.common.schema import Schema, TColumnSchema, TTableSchema
+from dlt.common.schema.typing import TColumnType, TTableSchemaColumns
 from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.common.storages.configuration import ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.fsspec_filesystem import (
     AZURE_BLOB_STORAGE_PROTOCOLS,
-    S3_PROTOCOLS,
     GCS_PROTOCOLS,
+    S3_PROTOCOLS,
 )
+from dlt.common.storages.load_package import (
+    ParsedLoadJobFileName,
+    destination_state,
+    group_jobs_by_table_name,
+)
+from dlt.common.utils import uniq_id
+from dlt.destinations.exceptions import LoadJobTerminalException
+from dlt.destinations.file_batching import (
+    JsonlFileBatchIterator,
+    ParquetFileBatchIterator,
+    TRecordBatch,
+)
+from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.databricks_adapter import (
     CLUSTER_HINT,
-    TABLE_PROPERTIES_HINT,
-    TABLE_COMMENT_HINT,
-    TABLE_TAGS_HINT,
     COLUMN_COMMENT_HINT,
     COLUMN_TAGS_HINT,
+    INSERT_API_HINT,
+    TABLE_COMMENT_HINT,
+    TABLE_PROPERTIES_HINT,
+    TABLE_TAGS_HINT,
 )
-from dlt.common.schema import TColumnSchema, Schema, TTableSchema, TColumnHint
-from dlt.common.schema.typing import TColumnType
-from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
-from dlt.common.utils import uniq_id
-from dlt.common import logger
-from dlt.common.data_writers.escape import escape_databricks_literal
-from dlt.common.exceptions import TerminalValueError
-from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
-from dlt.destinations.exceptions import LoadJobTerminalException
-from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
-from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.impl.databricks.typing import TDatabricksColumnHint
+from dlt.destinations.impl.databricks.utils import get_databricks_insert_api
+from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
+from dlt.destinations.job_impl import BatchedFileLoadJob, ReferenceFollowupJobRequest
 from dlt.destinations.path_utils import get_file_format_and_compression
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+
+if TYPE_CHECKING:
+    from dlt.common.libs.pyarrow import pyarrow
+
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
@@ -302,6 +356,108 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
         """
 
 
+class DatabricksZerobusJsonRecordEncoder:
+    def __init__(self, columns: TTableSchemaColumns) -> None:
+        self.columns = columns
+
+    def encode_value(self, value: object, data_type: Optional[str]) -> TJsonValue:
+        if value is None:
+            return None
+        # Zerobus requires `DATE` and `TIMESTAMP` types to be based on Unix epoch
+        # https://learn.microsoft.com/en-us/azure/databricks/ingestion/zerobus-limits#type-support
+        if data_type == "date":
+            return date_to_epoch_days(ensure_pendulum_date(cast(TAnyDateTime, value)))
+        if data_type == "timestamp":
+            return datetime_to_timestamp_us(ensure_pendulum_datetime_utc(cast(TAnyDateTime, value)))
+        # convert `json` to string to match type mapper
+        if data_type == "json":
+            if not isinstance(value, str):
+                return json.dumps(to_json_value(value))
+        return to_json_value(value)
+
+    def encode_record(self, record: TDataRecord) -> TJsonDataRecord:
+        for column_name, value in record.items():
+            data_type = self.columns[column_name]["data_type"]
+            record[column_name] = self.encode_value(value, data_type)
+        return cast(TJsonDataRecord, record)
+
+    def encode_records(self, records: TDataRecordBatch) -> TJsonDataRecordBatch:
+        return [self.encode_record(record) for record in records]
+
+
+class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TRecordBatch]):
+    def __init__(
+        self,
+        file_path: str,
+        config: DatabricksClientConfiguration,
+        destination_state: Dict[str, int],
+    ) -> None:
+        assert config.zerobus is not None
+        super().__init__(file_path, config.zerobus.batch_size, destination_state)
+        self._config = config
+        self._job_client: DatabricksClient = None
+        self.zerobus_config = config.zerobus
+
+    def run(self) -> None:
+        stream = None
+        try:
+            self._job_client.grant_zerobus_permissions(self.load_table_name)
+            stream = self._create_stream()
+
+            def process_batch(batch: TRecordBatch) -> int:
+                records = self.to_json_records(batch)
+                if not records:
+                    return 0
+                offset = stream.ingest_records_offset(records)
+                stream.wait_for_offset(offset)
+                return len(records)
+
+            self._process_batches(process_batch)
+        finally:
+            if stream is not None:
+                stream.close()
+
+    @abstractmethod
+    def to_json_records(self, batch: TRecordBatch) -> TJsonDataRecordBatch:
+        pass
+
+    @cached_property
+    def record_encoder(self) -> DatabricksZerobusJsonRecordEncoder:
+        return DatabricksZerobusJsonRecordEncoder(self._load_table["columns"])
+
+    @cached_property
+    def zerobus_sdk(self) -> ZerobusSdk:
+        return ZerobusSdk(
+            host=self.zerobus_config.endpoint_url,
+            unity_catalog_url=self._config.credentials.to_workspace_url(),
+        )
+
+    def _create_stream(self) -> ZerobusStream:
+        client_id = self.zerobus_config.credentials.client_id
+        client_secret = self.zerobus_config.credentials.client_secret
+        table_properties = TableProperties(
+            self._job_client.sql_client.make_qualified_table_name(self.load_table_name, quote=False)
+        )
+        stream_options = StreamConfigurationOptions(record_type=RecordType.JSON)
+        return self.zerobus_sdk.create_stream(
+            client_id, client_secret, table_properties, stream_options
+        )
+
+
+class DatabricksZerobusJsonlLoadJob(DatabricksZerobusLoadJob[TDataRecordBatch]):
+    file_batch_iterator_class = JsonlFileBatchIterator
+
+    def to_json_records(self, batch: TDataRecordBatch) -> TJsonDataRecordBatch:
+        return self.record_encoder.encode_records(batch)
+
+
+class DatabricksZerobusParquetLoadJob(DatabricksZerobusLoadJob["pyarrow.RecordBatch"]):
+    file_batch_iterator_class = ParquetFileBatchIterator
+
+    def to_json_records(self, batch: pyarrow.RecordBatch) -> TJsonDataRecordBatch:
+        return self.record_encoder.encode_records(cast(TDataRecordBatch, batch.to_pylist()))
+
+
 class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
         self,
@@ -333,16 +489,105 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             column_def_sql = f"{column_def_sql} COMMENT {escaped_comment}"
         return column_def_sql
 
+    def _verify_zerobus_write_disposition(self, table: PreparedTableSchema) -> None:
+        if table.get(INSERT_API_HINT) != "zerobus":
+            return
+        if table["write_disposition"] != "append":
+            raise WriteDispositionNotSupported(
+                table["write_disposition"],
+                f"The `zerobus` insert API does not support the `{table['write_disposition']}`"
+                " write disposition.",
+            )
+
+    def _verify_zerobus_file_format(
+        self,
+        table: PreparedTableSchema,
+        table_jobs: list[ParsedLoadJobFileName],
+    ) -> None:
+        if table.get(INSERT_API_HINT) != "zerobus":
+            return
+        if model_job := next((job for job in table_jobs if job.file_format == "model"), None):
+            raise DestinationInvalidFileFormat(
+                self.config.destination_type,
+                model_job.file_format,
+                model_job.file_name(),
+                "The `zerobus` insert API does not support the `model` file format.",
+            )
+
+    def _verify_zerobus_tables(
+        self,
+        loaded_tables: list[PreparedTableSchema],
+        new_jobs: Optional[list[ParsedLoadJobFileName]],
+    ) -> list[PreparedTableSchema]:
+        zerobus_tables = [
+            table for table in loaded_tables if table.get(INSERT_API_HINT) == "zerobus"
+        ]
+        jobs_by_table_name = group_jobs_by_table_name(new_jobs or [])
+        for table in zerobus_tables:
+            self._verify_zerobus_write_disposition(table)
+            self._verify_zerobus_file_format(
+                table, table_jobs=jobs_by_table_name.get(table["name"], [])
+            )
+        return zerobus_tables
+
+    def _verify_zerobus_configuration(self) -> None:
+        if self.config.zerobus is None:
+            raise ConfigurationValueError(
+                "Databricks Zerobus configuration is required when using the `zerobus` insert API."
+            )
+
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> list[PreparedTableSchema]:
+        new_jobs = list(new_jobs) if new_jobs is not None else None
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
+        zerobus_tables = self._verify_zerobus_tables(loaded_tables, new_jobs)
+        if zerobus_tables:
+            self._verify_zerobus_configuration()
+        return loaded_tables
+
+    def get_load_job_class(
+        self, table: PreparedTableSchema, file_path: str
+    ) -> Union[type[DatabricksLoadJob], type[DatabricksZerobusLoadJob[Any]]]:
+        databricks_insert_api = get_databricks_insert_api(table)
+        if databricks_insert_api == "copy_into":
+            return DatabricksLoadJob
+        elif databricks_insert_api == "zerobus":
+            if ReferenceFollowupJobRequest.is_reference_job(file_path):
+                raise LoadJobTerminalException(
+                    file_path,
+                    "The `zerobus` insert API does not support using a staging destination.",
+                )
+            file_format = ParsedLoadJobFileName.parse(file_path).file_format
+            if file_format == "jsonl":
+                return DatabricksZerobusJsonlLoadJob
+            if file_format == "parquet":
+                return DatabricksZerobusParquetLoadJob
+            raise ValueError(
+                f"The `zerobus` insert API does not support the `{file_path}` file format."
+            )
+
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
 
         if not job:
-            job = DatabricksLoadJob(
-                file_path,
-                staging_config=cast(FilesystemConfiguration, self.config.staging_config),
-            )
+            job_cls = self.get_load_job_class(table, file_path)
+            if job_cls is DatabricksLoadJob:
+                job_cls = cast(type[DatabricksLoadJob], job_cls)
+                job = job_cls(
+                    file_path,
+                    staging_config=cast(FilesystemConfiguration, self.config.staging_config),
+                )
+            else:
+                job_cls = cast(type[DatabricksZerobusLoadJob[Any]], job_cls)
+                job = job_cls(
+                    file_path,
+                    self.config,
+                    destination_state(),
+                )
+
         return job
 
     def _create_merge_followup_jobs(
@@ -601,3 +846,17 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
+
+    def _make_zerobus_grant_sql(self, table_name: str) -> list[str]:
+        zerobus = self.config.zerobus
+        assert zerobus is not None
+        principal = self.sql_client.capabilities.escape_identifier(zerobus.credentials.client_id)
+        schema = self.sql_client.fully_qualified_dataset_name()
+        table = self.sql_client.make_qualified_table_name(table_name)
+        return [
+            f"GRANT USE SCHEMA ON SCHEMA {schema} TO {principal}",
+            f"GRANT MODIFY, SELECT ON TABLE {table} TO {principal}",
+        ]
+
+    def grant_zerobus_permissions(self, table_name: str) -> None:
+        self.sql_client.execute_many(self._make_zerobus_grant_sql(table_name))
