@@ -370,8 +370,8 @@ PHYSICAL_DEST_CASES = [
     ),
     # DuckDB
     pytest.param(
-        lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("/p/db.duckdb")),
-        "/p/db.duckdb",
+        lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb")),
+        "p/db.duckdb",
         id="duckdb_path",
     ),
     pytest.param(
@@ -625,14 +625,14 @@ REDSHIFT_JOIN_CASES = [
 
 DUCKDB_JOIN_CASES = [
     pytest.param(
-        lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("/p/db.duckdb")),
-        lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("/p/db.duckdb")),
+        lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb")),
+        lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb")),
         True,
         id="duckdb_same_path",
     ),
     pytest.param(
-        lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("/p/db1.duckdb")),
-        lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("/p/db2.duckdb")),
+        lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db1.duckdb")),
+        lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db2.duckdb")),
         False,
         id="duckdb_diff_path",
     ),
