@@ -101,6 +101,8 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
 
         Token initialization is cached per client_id to prevent excessive API calls during bulk loads.
         """
+        if not credentials.azure_client_secret:
+            return
         cache_key = credentials.azure_client_id
 
         # Check if we've already initialized the token for this client

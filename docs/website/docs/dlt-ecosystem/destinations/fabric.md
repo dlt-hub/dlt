@@ -44,6 +44,75 @@ Fabric Warehouse requires Azure Active Directory Service Principal authenticatio
 - Select **SQL endpoint**
 - Copy the **SQL connection string** - it should be in the format: `<guid>.datawarehouse.fabric.microsoft.com`
 
+### Notebook user identity (Microsoft Fabric notebooks)
+
+When running dlt from inside a Microsoft Fabric Python notebook, a Service Principal is typically not available -- the canonical auth source is `notebookutils.credentials.getToken(...)`. The Fabric destination supports two additional credential shapes for this scenario.
+
+#### Option A: raw `access_token` string
+
+Pass a pre-fetched AAD bearer token as the `access_token` field on `FabricCredentials`. Simplest pattern, suitable for pipelines that complete before the token expires (typically ~50 minutes):
+
+```py
+import os
+
+import dlt
+
+os.environ["DESTINATION__FABRIC__CREDENTIALS__ACCESS_TOKEN"] = (
+    notebookutils.credentials.getToken("pbi")
+)
+os.environ["DESTINATION__FABRIC__CREDENTIALS__HOST"] = (
+    "<workspace-guid>.datawarehouse.fabric.microsoft.com"
+)
+os.environ["DESTINATION__FABRIC__CREDENTIALS__DATABASE"] = "<warehouse-name>"
+
+pipeline = dlt.pipeline(
+    pipeline_name="fabric_notebook_demo",
+    destination="fabric",
+    staging="filesystem",
+    dataset_name="demo",
+)
+```
+
+The bearer token is consumed via `pyodbc.connect(..., attrs_before={1256: token_struct})` (`SQL_COPT_SS_ACCESS_TOKEN`) and the ODBC DSN omits `AUTHENTICATION`, `UID`, and `PWD`.
+
+**Token refresh:** the `access_token` string is static. For pipelines that may run longer than the token's validity window, use Option B.
+
+#### Option B: injectable `TokenCredential` (refreshing)
+
+Pass an `azure.core.credentials.TokenCredential` instance as the `azure_credential` field. The Fabric destination will call `get_token("https://database.windows.net/.default")` on each connection, delegating token caching and refresh to the credential implementation:
+
+```py
+import time
+
+import dlt
+from azure.core.credentials import AccessToken, TokenCredential
+
+from dlt.destinations.impl.fabric.configuration import FabricCredentials
+
+
+class NotebookTokenCredential(TokenCredential):
+    def get_token(self, *scopes, **kwargs) -> AccessToken:
+        token = notebookutils.credentials.getToken("pbi")
+        return AccessToken(token, int(time.time()) + 3000)
+
+
+creds = FabricCredentials()
+creds.host = "<workspace-guid>.datawarehouse.fabric.microsoft.com"
+creds.database = "<warehouse-name>"
+creds.azure_credential = NotebookTokenCredential()
+
+pipeline = dlt.pipeline(
+    pipeline_name="fabric_notebook_demo_long",
+    destination=dlt.destinations.fabric(credentials=creds),
+    staging="filesystem",
+    dataset_name="demo",
+)
+```
+
+#### Pairing with OneLake staging
+
+Under notebook user identity the filesystem staging side must also skip the Service Principal auth path. Use `OneLakeNotebookIdentityCredentials` on the filesystem staging config -- see the [filesystem destination OneLake section](filesystem.md#onelake-under-notebook-identity) for details.
+
 ### Create a pipeline
 
 **1. Initialize a project with a pipeline that loads to Fabric by running:**
@@ -205,7 +274,7 @@ driver="ODBC Driver 18 for SQL Server"
 
 While Fabric Warehouse is based on SQL Server, there are key differences:
 
-1. **Authentication**: Fabric requires Service Principal; username/password auth is not supported
+1. **Authentication**: Fabric supports Service Principal, raw `access_token`, and injectable `TokenCredential`; username/password auth is not supported
 2. **Type System**: Uses `varchar` and `datetime2` instead of `nvarchar` and `datetimeoffset`
 3. **Collation**: Optimized for UTF-8 collations with automatic `LongAsMax` configuration
 4. **SQL Dialect**: Uses `fabric` SQLglot dialect for proper SQL generation

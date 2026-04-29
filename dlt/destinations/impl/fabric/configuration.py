@@ -5,6 +5,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.typing import TSecretStrValue
 from dlt import version
 
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
@@ -38,33 +39,56 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     azure_storage_account_name: Optional[str] = None
     """Not used for Fabric Warehouse credentials (only staging credentials need this)"""
 
+    access_token: Optional[TSecretStrValue] = None
+    """Pre-fetched AAD bearer token for Fabric Warehouse."""
+
+    azure_credential: Optional[Any] = None
+    """Injectable `azure.core.credentials.TokenCredential` for Fabric Warehouse."""
+
+    def get_access_token(self) -> Optional[str]:
+        """Return an AAD bearer token for Fabric Warehouse, or `None`."""
+        if self.access_token is not None:
+            return str(self.access_token)
+        if self.azure_credential is not None:
+            return self.azure_credential.get_token("https://database.windows.net/.default").token  # type: ignore[no-any-return]
+        return None
+
     def on_partial(self) -> None:
-        """Enable fallback to DefaultAzureCredential if explicit credentials not provided."""
+        """Resolve partial credentials.
+
+        When `access_token` or `azure_credential` is set, skip the
+        `DefaultAzureCredential` fallback -- the user has already provided auth.
+        """
+        if self.access_token is not None or self.azure_credential is not None:
+            if self.host and self.database:
+                self.resolve()
+            return
+
         try:
             from azure.identity import DefaultAzureCredential
         except ModuleNotFoundError:
             raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
 
-        # If no explicit Service Principal credentials, use default credentials
         if not self.azure_client_id or not self.azure_client_secret or not self.azure_tenant_id:
             self._set_default_credentials(DefaultAzureCredential())
-            # Resolve if we have warehouse connection details (not storage account name)
             if self.host and self.database:
                 self.resolve()
 
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
-        """Build ODBC DSN dictionary with Fabric-specific settings."""
-        params = {
+        """Build the ODBC DSN dictionary with Fabric-specific settings."""
+        params: Dict[str, Any] = {
             "DRIVER": "{ODBC Driver 18 for SQL Server}",
             "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,
-            "AUTHENTICATION": "ActiveDirectoryServicePrincipal",
-            "LongAsMax": "yes",  # Required for UTF-8 collation support
+            "LongAsMax": "yes",
             "Encrypt": "yes",
             "TrustServerCertificate": "no",
         }
 
-        # Add Service Principal credentials if provided
+        if self.get_access_token() is not None:
+            return params
+
+        params["AUTHENTICATION"] = "ActiveDirectoryServicePrincipal"
         if self.azure_client_id and self.azure_tenant_id and self.azure_client_secret:
             params["UID"] = f"{self.azure_client_id}@{self.azure_tenant_id}"
             params["PWD"] = str(self.azure_client_secret)
