@@ -104,7 +104,7 @@ Jason Walonoski, Mark Kramer, Joseph Nichols, Andre Quina, Chris Moesel, Dylan H
 </details>
 :::
 
-Next, we need to configure the connection. Specifically, we’ll set the bucket URL and credentials. This example uses Google Cloud Storage. For other cloud storage services, see the [Filesystem configuration section](../dlt-ecosystem/verified-sources/filesystem/basic#configuration).
+Next, we need to configure the connection. Specifically, we’ll set the bucket URL and credentials. This example uses Google Cloud Storage. For other cloud storage services, see the [Filesystem configuration section](../dlt-ecosystem/verified-sources/filesystem#configuration).
 
 Let's specify the bucket URL and credentials. We can do this using the following methods:
 
@@ -282,7 +282,7 @@ Note that we applied incremental loading both for `files` and for `reader`. Ther
 
 If you run `dlt pipeline hospital_data_pipeline show`, you can see the pipeline now has new information in the state about the incremental variable.
 
-To learn more about incremental loading, check out the [filesystem incremental loading section](../dlt-ecosystem/verified-sources/filesystem/basic#5-incremental-loading).
+To learn more about incremental loading, check out the [filesystem incremental loading section](../dlt-ecosystem/verified-sources/filesystem#5-incremental-loading).
 
 
 ## 8. Enrich records with the files metadata
@@ -327,7 +327,7 @@ After executing this code, you'll see a new column in the `encounters` table.
 
 ## 9. Load any other type of files
 
-dlt natively supports three file types: CSV, Parquet, and JSONL (more details in [filesystem readers](../dlt-ecosystem/verified-sources/filesystem/basic#2-choose-the-right-reader)). But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
+dlt natively supports three file types: CSV, Parquet, and JSONL (more details in [filesystem readers](../dlt-ecosystem/verified-sources/filesystem#2-choose-the-right-reader)). But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
 
 Let's create and apply a transformer that reads JSON files instead of CSV (the implementation for JSON is a little bit different from JSONL).
 
@@ -356,7 +356,7 @@ info = pipeline.run(json_resource, write_disposition="replace")
 print(info)
 ```
 
-Check out [other examples](../dlt-ecosystem/verified-sources/filesystem/advanced#create-your-own-readers) showing how to read data from `excel` and `xml` files.
+Check out [other examples](../dlt-ecosystem/verified-sources/filesystem#create-your-own-readers) showing how to read data from `excel` and `xml` files.
 
 ## What's next?
 

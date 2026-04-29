@@ -1,11 +1,11 @@
 ---
-title: Arrow Table / Pandas
+title: Dataframe (pandas, pyarrow)
 description: dlt source for Arrow tables and Pandas dataframes
 keywords: [arrow, pandas, parquet, source, schema mismatch]
 ---
 import Header from './_source-info-header.md';
 
-# Arrow table / Pandas
+# Dataframe
 
 <Header/>
 
@@ -197,4 +197,3 @@ pipeline.run(df.to_dict(orient='records'), table_name="orders")
 pipeline.run(table.to_pylist(), table_name="orders")
 ```
 Both Pandas and Arrow allow streaming records in batches.
-

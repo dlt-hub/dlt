@@ -69,6 +69,21 @@ tool printed out a `github.com/.../actions/workflows/run_chess_workflow.yml` lin
 monitor (and manually trigger) the GitHub Actions workflow that runs your pipeline in your
 repository.
 
+## Monitoring
+
+In GitHub Actions, at the top level, we can monitor:
+
+- The workflows scheduled to (not) run.
+- Run history (e.g., success/failure).
+
+GitHub Actions workflows:
+
+![GitHub Actions workflows](../../running-in-production/images/github_actions_workflows.png)
+
+GitHub Actions workflow DAG:
+
+![GitHub Actions workflow DAG](../../running-in-production/images/github_actions_workflow_dag.png)
+
 ## Known limitations
 
 The GitHub cron scheduler has a fidelity of ~30 minutes. You cannot expect that your job will be run

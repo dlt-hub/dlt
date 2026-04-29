@@ -1,5 +1,5 @@
 ---
-title: Incremental loading guide
+title: Incremental loading
 description: Incremental SQL data loading strategies
 keywords: [how to, load data incrementally from SQL]
 slug: sql-incremental-configuration
@@ -291,4 +291,3 @@ Here’s a walkthrough:
 The pipeline updates the record for Alice with the new data, including the updated `last_modified_at` timestamp, and adds a new record for Hank. This method is beneficial when you need to ensure that records are both updated and inserted based on a specific timestamp and ID.
 
 The examples provided explain how to use `dlt` to achieve different incremental loading scenarios, highlighting the changes before and after running each pipeline.
-

@@ -33,11 +33,6 @@ must associate each customer call with a customer. We could test that all ticket
 our production database. If not, we could alert customer support to collect the necessary
 information.
 
-## Sentry
-
-Using `dlt` [tracing](./tracing.md), you can configure [Sentry](https://sentry.io) DSN to start
-receiving rich information on executed pipelines, including encountered errors and exceptions.
-
 ## Slack
 
 Alerts can be sent to a Slack channel via Slack's incoming webhook URL. The code snippet below demonstrates automated Slack notifications for database table updates using the `send_slack_message` function.
@@ -69,4 +64,3 @@ for package in load_info.load_packages:
 Refer to this [example](../examples/chess_production/) for a practical application of the method in a production environment.
 
 Similarly, Slack notifications can be extended to include information on pipeline execution times, loading durations, schema modifications, and more. For comprehensive details on configuring and sending messages to Slack, please read [here](./running#using-slack-to-send-messages).
-

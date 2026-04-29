@@ -64,3 +64,19 @@ class IncrementalPrimaryKeyMissing(PipeException):
             " document."
         )
         super().__init__(pipe_name, msg)
+
+
+class JoinSchedulerError(PipeException):
+    def __init__(self, pipe_name: str, msg: str) -> None:
+        super().__init__(pipe_name, msg)
+
+
+class ExternalSchedulerNotAvailable(PipeException):
+    def __init__(self, pipe_name: str) -> None:
+        super().__init__(
+            pipe_name,
+            "External scheduler interval is not available. The resource has"
+            " allow_external_schedulers=True but no interval was provided by the runtime"
+            " (no DLT_INTERVAL_START/DLT_INTERVAL_END env vars, no Airflow context, and no"
+            " interval injected by the launcher).",
+        )

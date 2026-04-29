@@ -1,5 +1,5 @@
 ---
-title: 🧪 Dremio
+title: Dremio
 description: Dremio `dlt` destination
 keywords: [dremio, iceberg, aws, glue catalog]
 ---
@@ -125,4 +125,3 @@ This will result in `PARTITION BY ("foo","bar")` and `LOCALSORT BY ("baz")` clau
 - This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA dremio-->
-

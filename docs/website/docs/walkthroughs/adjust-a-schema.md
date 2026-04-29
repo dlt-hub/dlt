@@ -1,10 +1,10 @@
 ---
-title: Adjust a schema
-description: How to adjust a schema
-keywords: [how to, adjust a schema]
+title: Manually edit a schema
+description: How to manually edit a schema
+keywords: [tutorial, schema]
 ---
 
-# Adjust a schema
+# Manually edit a schema
 
 When you [create](create-a-pipeline.md) and then [run](run-a-pipeline.md) a pipeline, you may want
 to manually inspect and change the [schema](../general-usage/schema.md) that `dlt` generated for
@@ -225,4 +225,3 @@ It is possible to adjust schemas in Python, [for example in @dlt.source decorate
 
 Just add and push the import folder to git. It will be used automatically when cloned. Alternatively,
 [bundle such schema with your source](../general-usage/schema.md#attaching-schemas-to-sources).
-

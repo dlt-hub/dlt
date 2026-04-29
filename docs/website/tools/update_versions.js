@@ -113,6 +113,15 @@ function backfillVersionedSidebars(versionedSidebarsFolder, sidebarIds) {
                         },
                         items: [],
                     },
+                    {
+                        type: 'category',
+                        label: 'Education',
+                        link: {
+                            type: 'doc',
+                            id: 'tutorial/education',
+                        },
+                        items: [],
+                    },
                 ];
                 patched = true;
             }
@@ -151,7 +160,7 @@ for (const version of selectedVersions) {
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_DOCS_FOLDER, VERSIONED_DOCS_FOLDER, {recursive: true})
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_SIDEBARS_FOLDER, VERSIONED_SIDEBARS_FOLDER, {recursive: true})
 
-    backfillVersionedSidebars(VERSIONED_SIDEBARS_FOLDER, ['cookbookSidebar']);
+    backfillVersionedSidebars(VERSIONED_SIDEBARS_FOLDER, ['cookbookSidebar', "educationSidebar"]);
 }
 
 fs.cpSync(REPO_DOCS_DIR+"/versions.json", "versions.json")
