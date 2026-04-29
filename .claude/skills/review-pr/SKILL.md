@@ -96,6 +96,12 @@ Using absolute paths under `WORKTREE`:
 - If **reviewer instructions** were provided, pay special attention to the areas or concerns they describe during this analysis.
 - Mention only crucial finding to the user in the initial overview. Avoid code snippets except if critical bugs were found
 
+### 6a. Pay attention to special cases
+
+Some areas of the codebase have rules that are easy to miss in a generic code read. The references below are intentionally not loaded by default — read the linked file ONLY when the PR's diff matches the trigger, and apply its checklist before producing the review.
+
+- **Identifier normalization** — read [identifier-normalization.md](identifier-normalization.md) when the PR's diff includes any of: `dlt/destinations/impl/**`, `dlt/dataset/**`, `dlt/destinations/sql_client*`, code that builds SQL/relations/lineage, or schema-generation paths involving sqlglot or ibis. Covers when raw-string table/column identifiers must pass through the schema's naming normalizer, and how to distinguish first-time normalization from re-normalization.
+
 ### 7. Review test coverage
 
 #### 7a. Define the testing scope

@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.25.0"
+version = "1.26.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.15"
@@ -64,8 +64,8 @@ dependencies = [
 
 [project.optional-dependencies]
 hub = [
-    "dlthub>=0.22.1,<0.26 ; python_version >= '3.10'",
-    "dlt-runtime>=0.24.0,<0.26 ; python_version >= '3.10'",
+    "dlthub>=0.22.1,<0.27 ; python_version >= '3.10'",
+    "dlt-runtime>=0.24.0,<0.27 ; python_version >= '3.10'",
 ]
 gcp = [
     "grpcio>=1.50.0",
@@ -216,6 +216,7 @@ workspace = [
     "mowidgets>=0.2.1 ; python_version >= '3.11'",
     "pathspec>=0.11.2",
     "pydbml>=1.2.0",
+    "croniter>=6.0.0",
 ]
 dbml = [
     "pydbml"
@@ -266,6 +267,7 @@ dev = [
     "pytest-asyncio>=0.23.5,<0.24",
     "types-sqlalchemy>=1.4.53.38,<2",
     "types-pytz>=2024.1.0.20240203",
+    "types-croniter>=6.0.0",
     "ruff>=0.3.2,<0.4",
     "pyjwt>=2.8.0,<3",
     "pytest-mock>=3.14.0,<4",
@@ -319,6 +321,7 @@ dashboard-tests = [
 # NOTE: required to use google secrets config provider
 providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
+streamlit = ["streamlit>1.50 ; python_version >= '3.10'"]
 dbt = [
     "dbt-core>=1.7.0",
     "dbt-redshift>=1.7.0",
@@ -435,6 +438,9 @@ exclude = [
     "tests/reflection/module_cases/",
     "tests/common/reflection/cases/modules/",
     "dlt/helpers/marimo/_",
+    "tests/workspace/deployment/cases/local_workspace/*",
+    "tests/workspace/cases/workspaces/launcher_flat/*",
+    "tests/workspace/cases/workspaces/launcher_package/*",
 ]
 
 [[tool.mypy.overrides]]
@@ -509,6 +515,7 @@ module = [
     "pymongo.*",
     "fastmcp.*",
     "dbt.*",
+    "streamlit.*",
 ]
 follow_imports = "skip"
 ignore_missing_imports = true
