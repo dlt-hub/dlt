@@ -86,8 +86,6 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
-
 ### Add credentials
 
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe. Here's what the file looks like:
@@ -289,4 +287,3 @@ info = p.run(hubspot(include_custom_props=False))
 Or, if you wish to include them, you can modify `settings.py`.
 
 <!--@@@DLT_TUBA hubspot-->
-

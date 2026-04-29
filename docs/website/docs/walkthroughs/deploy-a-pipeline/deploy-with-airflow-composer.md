@@ -428,14 +428,7 @@ There are two ways to pass the credentials:
 
 ### 5. Configure `build/cloudbuild.yaml` to run it with Google Cloud Platform \[[Cloud Composer](https://console.cloud.google.com/composer/environments)\]
 
-- Read our doc
-  [How to deploy the main branch of your Airflow project from GitHub to Cloud Composer](../../reference/explainers/airflow-gcp-cloud-composer.md).
-
-  There you can find:
-
-  - How to set up the Cloud Composer Environment.
-  - How to create a trigger.
-  - How to add the libraries needed.
+- See the [Continuous Deployment (CD)](#continuous-deployment-cd) section below to set up the Cloud Composer environment, create a trigger, and add the libraries needed.
 
 - Set **\_BUCKET_NAME** up in the `build/cloudbuild.yaml` file.
 
@@ -501,6 +494,63 @@ There are two ways to pass the credentials:
 
 1. Wait a minute, and check if your files arrived in the bucket. In our case, we added a whole
    repository with the `pipedrive` project, and we can see it appeared.
+
+## Continuous Deployment (CD)
+
+### CI/CD setup
+
+This setup will allow you to deploy the main branch of your Airflow project from GitHub to Cloud Composer.
+
+- In the Google Cloud web interface, go to Source Repositories and create a repository that mirrors your GitHub repository. This will simplify authentication by using this mirroring service.
+
+- In Cloud Build, add a trigger on commit to the main branch.
+
+- Point it to your Cloud Build file. In our example, we place our file at `build/cloudbuild.yaml`.
+
+  ![trigger-config](/img/trigger-config.png)
+
+- Go to Cloud Composer, click on the dags folder, and get the bucket name.
+
+  ![test-composer](/img/test-composer.png)
+
+- In your `cloudbuild.yaml`, set the bucket name.
+
+- Make sure your repository code is pushed to the main branch.
+
+- Run the trigger you built (in Cloud Build).
+
+- Wait a minute, and check if your files have arrived in the bucket. In our case, we added a `pipedrive` folder, and we can see it appeared.
+
+  ![bucket-details](/img/bucket-details.png)
+
+### Airflow setup
+
+Assuming you have already spun up a Cloud Composer:
+
+- Make sure the user you added has rights to change the base image (add libraries). I already had these added; you may get away with fewer (not clear in docs):
+
+  - Artifact Registry Administrator;
+  - Artifact Registry Repository Administrator;
+  - Remote Build Execution Artifact Admin;
+
+- Navigate to your composer environment and add the needed libraries. In the case of this example pipedrive pipeline, we only need the `dlt` library.
+
+  ![add-package](/img/add-package.png)
+
+## Monitoring
+
+In Airflow, at the top level, we can monitor:
+
+- The tasks scheduled to (not) run.
+- Run history (e.g., success/failure).
+
+Airflow DAGs:
+
+![Airflow DAGs](../../running-in-production/images/airflow_dags.png)
+
+Airflow DAG tasks:
+
+![Airflow DAG tasks](../../running-in-production/images/airflow_dag_tasks.png)
 
 ## Troubleshooting
 
@@ -584,4 +634,3 @@ activities_source = pipedrive_source(
     since_timestamp="2023-03-01 00:00:00Z"
 ).with_resources("activities")
 ```
-

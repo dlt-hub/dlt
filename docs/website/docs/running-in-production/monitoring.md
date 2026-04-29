@@ -1,52 +1,8 @@
 ---
 title: Monitoring
 description: How to monitor a dlt pipeline
-keywords: [monitoring, run monitoring, data monitoring, airflow, github actions]
+keywords: [monitoring, run monitoring, data monitoring, github actions]
 ---
-
-# Monitoring
-
-Monitoring and [alerting](alerting.md) are used together to provide a more complete picture of the
-health of a data product. With monitoring, we examine much more information than we consider when
-alerting. Monitoring is meant to give a fast, simple overview of the health of the system. How to
-best monitor a `dlt` pipeline will depend on your [deployment method](../walkthroughs/deploy-a-pipeline/).
-
-## Run monitoring
-
-### Airflow
-
-In Airflow, at the top level, we can monitor:
-
-- The tasks scheduled to (not) run.
-- Run history (e.g., success/failure).
-
-Airflow DAGs:
-
-![Airflow DAGs](images/airflow_dags.png)
-
-Airflow DAG tasks:
-
-![Airflow DAG tasks](images/airflow_dag_tasks.png)
-
-### GitHub Actions
-
-In GitHub Actions, at the top level, we can monitor:
-
-- The workflows scheduled to (not) run.
-- Run history (e.g., success/failure).
-
-GitHub Actions workflows:
-
-![GitHub Actions workflows](images/github_actions_workflows.png)
-
-GitHub Actions workflow DAG:
-
-![GitHub Actions workflow DAG](images/github_actions_workflow_dag.png)
-
-### Sentry
-
-Using `dlt` [tracing](tracing.md), you can configure [Sentry](https://sentry.io) DSN to start
-receiving rich information on executed pipelines, including encountered errors and exceptions.
 
 ## Data monitoring
 
@@ -117,4 +73,3 @@ info = pipeline.run(source, table_name="table_name", write_disposition='append')
 print(info.load_packages[0])
 ```
 > `load_packages[0]` will print the information of the first load package in the list of load packages.
-

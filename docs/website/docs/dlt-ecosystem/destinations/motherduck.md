@@ -1,10 +1,10 @@
 ---
-title: MotherDuck / DuckLake
-description: MotherDuck and DuckLake `dlt` destination
+title: MotherDuck
+description: MotherDuck `dlt` destination for hosted DuckDB and DuckLake.
 keywords: [MotherDuck, duckdb, destination, data warehouse, DuckLake]
 ---
 
-# MotherDuck / DuckLake
+# MotherDuck
 
 ## Install dlt with MotherDuck
 **To install the dlt library with MotherDuck dependencies:**
@@ -149,4 +149,3 @@ before opening the connection.
 
 
 <!--@@@DLT_TUBA motherduck-->
-

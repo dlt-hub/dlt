@@ -1,12 +1,12 @@
 ---
-title: Troubleshooting
+title: Troubleshoot
 description: common troubleshooting use-cases for the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
 
 import Header from '../_source-info-header.md';
 
-# Troubleshooting
+# Troubleshoot
 
 <Header/>
 
@@ -132,4 +132,4 @@ data type properties of a particular column.)
 
 #### Arrow loading
 
-Using the configuration `sql_database(backend="pyarrow")` improves performance by pivoting all records (row-major) into a arrow table (column-major). The library `pyarrow` doesn't have a utility for this pivot operation, which is why `numpy` or `pandas` is necessary. Either library is required for this pivot operation only, then `pyarrow` handles the rest of type conversion and applying dlt constraints. 
+Using the configuration `sql_database(backend="pyarrow")` improves performance by pivoting all records (row-major) into a arrow table (column-major). The library `pyarrow` doesn't have a utility for this pivot operation, which is why `numpy` or `pandas` is necessary. Either library is required for this pivot operation only, then `pyarrow` handles the rest of type conversion and applying dlt constraints.

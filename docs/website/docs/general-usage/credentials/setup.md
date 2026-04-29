@@ -1,8 +1,18 @@
 ---
-title: Overview and examples
+title: Overview
 description: Learn where configs are stored and how to write them
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---
+
+## Key features
+
+1. **Separation of secrets and configs from code** - The main role of the configuration system is to keep sensitive information out of your source code.
+
+2. **Built-in credentials** - `dlt` provides built-in support for most common systems with default/machine credential access.
+
+3. **Auto-generated configurations** - For functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`, `dlt` automatically generates appropriate configuration specs so they behave like built-in configs and credentials.
+
+4. **Comprehensive configurability** - Nearly all aspects of `dlt` are configurable, including pipelines, normalizers, loaders, and logging, allowing you to change behavior without modifying code. This capability enables performance optimization and other adjustments at runtime.
 
 `dlt` retrieves configuration and secrets from several [locations](#choose-where-to-store-configuration) like environment variables, dedicated
 files or secure vaults. It understands both simple and verbose layouts of [configuration sections](#select-a-configuration-layout). You can use one of
@@ -794,4 +804,3 @@ This error message shows exactly:
 4. That it searched environment variables first, then `secrets.toml`
 
 Note that `config.toml` wasn't checked since it's not appropriate for storing secrets.
-
