@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Optional, Tuple, Type
 
 import sqlglot.expressions as sge
+from jsonpath_ng.exceptions import JSONPathError
 
 from dlt.common.jsonpath import extract_simple_field_name
 from dlt.common.libs.sqlglot import build_typed_literal, to_sqlglot_type
@@ -85,21 +86,29 @@ def _parse_incremental_cursor_path(cursor_path: str) -> Tuple[Optional[str], str
             "`Relation.incremental()` only supports plain `column` or `table.column` cursors."
         )
 
+    invalid_msg = (
+        f"Incremental `cursor_path={cursor_path!r}` is not a plain column identifier. "
+        "Use `column` or `table.column`."
+    )
+
     if "." in cursor_path:
         table_part, column_part = cursor_path.rsplit(".", 1)
-        column_name = extract_simple_field_name(column_part)
+        if not table_part:
+            raise ValueError(invalid_msg)
+        try:
+            column_name = extract_simple_field_name(column_part)
+        except JSONPathError as e:
+            raise ValueError(invalid_msg) from e
         if column_name is None:
-            raise ValueError(
-                f"Incremental `cursor_path={cursor_path!r}` has a complex right-hand segment. "
-                "Only simple identifiers are supported after the dot."
-            )
+            raise ValueError(invalid_msg)
         return table_part, column_name
 
-    column_name = extract_simple_field_name(cursor_path)
+    try:
+        column_name = extract_simple_field_name(cursor_path)
+    except JSONPathError as e:
+        raise ValueError(invalid_msg) from e
     if column_name is None:
-        raise ValueError(
-            f"Incremental `cursor_path={cursor_path!r}` is not a plain column identifier."
-        )
+        raise ValueError(invalid_msg)
     return None, column_name
 
 

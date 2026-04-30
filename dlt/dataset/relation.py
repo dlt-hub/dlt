@@ -473,6 +473,12 @@ class Relation(WithSqlClient):
                 the referenced table is not in the dataset schema, or if
                 `last_value_func` is not `min` or `max`.
         """
+        if self._incremental_ctx is not None:
+            raise ValueError(
+                "`.incremental()` has already been applied to this relation with "
+                f"cursor `{self._incremental_ctx.incremental.cursor_path}`."
+            )
+
         table_name, column_name = _parse_incremental_cursor_path(incremental.cursor_path)
 
         if table_name is None:
