@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from types import TracebackType
 from typing import (
     Dict,
@@ -15,7 +14,6 @@ from typing import (
 )
 
 import lance
-import lancedb
 from lance import LanceDataset
 from lance.namespace import (
     CreateNamespaceRequest,
@@ -27,6 +25,7 @@ from lance.namespace import (
 )
 from lancedb.table import LanceTable, _append_vector_columns
 from lancedb.embeddings import EmbeddingFunctionConfig, EmbeddingFunctionRegistry
+from lancedb.namespace import LanceNamespaceDBConnection
 
 from dlt.common import json, pendulum, logger
 from dlt.common.libs.numpy import numpy
@@ -234,13 +233,8 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         This provides access to LanceDB-specific features like vector search.
         """
-        table_uri = self.get_table_uri(table_name)
-        db_uri = self.config.storage.bucket_url if self.config.storage else Path(table_uri).parent
-        db = lancedb.connect(
-            db_uri,
-            storage_options=self.config.storage_options,
-        )
-        return LanceTable.open(db, table_name, location=table_uri)
+        db = LanceNamespaceDBConnection(self.namespace, storage_options=self.config.storage_options)
+        return db.open_table(table_name, namespace=[self.dataset_name])
 
     @raise_destination_error
     def _write_records(
