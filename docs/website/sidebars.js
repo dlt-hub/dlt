@@ -418,13 +418,6 @@ const sidebars = {
         'hub/getting-started/runtime-tutorial',
       ]
     },
-        {
-      type: 'category',
-      label: 'AI Workbench',
-      items: [
-        'dlt-ecosystem/llm-tooling/llm-native-workflow',
-      ]
-    },
     {
       type: 'category',
       label: 'Ingestion',
