@@ -418,13 +418,6 @@ const sidebars = {
         'hub/getting-started/runtime-tutorial',
       ]
     },
-        {
-      type: 'category',
-      label: 'AI Workbench',
-      items: [
-        'dlt-ecosystem/llm-tooling/llm-native-workflow',
-      ]
-    },
     {
       type: 'category',
       label: 'Ingestion',
@@ -506,19 +499,17 @@ const sidebars = {
 
  // insert examples
 for (const item of sidebars.cookbookSidebar) {
-    if (item.label === 'Cookbook') {
-      for (let examplePath of walkSync("./docs_processed/examples")) {
-        examplePath = examplePath.replace(/\\/g, "/");
-        examplePath = examplePath.replace("docs_processed/", "");
-        examplePath = examplePath.replace(".mdx", "");
-        examplePath = examplePath.replace(".md", "");
-        item.items.push(examplePath);
-    }
+  for (let examplePath of walkSync("./docs_processed/examples")) {
+    examplePath = examplePath.replace(/\\/g, "/");
+    examplePath = examplePath.replace("docs_processed/", "");
+    examplePath = examplePath.replace(".mdx", "");
+    examplePath = examplePath.replace(".md", "");
+    item.items.push(examplePath);
   }
 }
 
 
- // inject api reference if it exists
+// inject api reference if it exists
 if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
   for (const item of sidebars.docsSidebar) {
     if (item.label === 'Reference') {
