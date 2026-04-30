@@ -48,8 +48,6 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source.md).
-
 ### Add credentials
 
 To add credentials to your destination, follow the instructions in the
@@ -224,4 +222,3 @@ To create your data loading pipeline for players and load data, follow these ste
    ```
 
 <!--@@@DLT_TUBA chess-->
-

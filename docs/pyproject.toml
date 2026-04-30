@@ -44,6 +44,7 @@ dependencies = [
     "pytest-forked>=1.6.0",
     "databind>=4.5.2",
     "marimo>=0.17.4",
+    "logfire>=4.32.1",
 ]
 
 

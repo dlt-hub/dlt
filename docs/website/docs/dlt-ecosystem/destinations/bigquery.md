@@ -1,5 +1,5 @@
 ---
-title: Google BigQuery
+title: BigQuery
 description: Google BigQuery `dlt` destination
 keywords: [bigquery, destination, data warehouse]
 ---
@@ -366,4 +366,3 @@ Refer to the [full API specification](../../api_reference/dlt/destinations/impl/
 :::
 
 <!--@@@DLT_TUBA bigquery-->
-

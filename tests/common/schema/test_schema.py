@@ -291,6 +291,14 @@ def test_clone(schema: Schema) -> None:
     assert cloned.is_modified
     assert cloned._normalizers_config["names"] == "direct"
 
+    # max_length is in-memory state on the naming instance and is not serialized,
+    # but clone must still preserve it across the to_dict/from_stored_schema round-trip
+    simple.naming.max_length = 65536
+    cloned = simple.clone()
+    assert cloned.naming.max_length == 65536
+    cloned = simple.clone(with_name="renamed")
+    assert cloned.naming.max_length == 65536
+
 
 def test_new_schema_alt_name() -> None:
     schema = Schema("model")
@@ -1184,8 +1192,22 @@ def test_unify_schemas_naming_mismatch() -> None:
     schema_a = Schema("alpha")
     schema_b = Schema("beta")
     schema_b._configure_normalizers({"names": "dlt.common.normalizers.naming.direct", "json": None})
+    unified = schema_a.unify_schemas([schema_b])
+    assert unified.name == "u_alpha_beta"
+
     with pytest.raises(IncompatibleSchemaException, match="naming convention mismatch"):
-        schema_a.unify_schemas([schema_b])
+        schema_a.unify_schemas([schema_b], check_naming_convention=True)
+
+
+def test_unify_schemas_with_matching_max_length() -> None:
+    # regression for #3816: max_length is destination-derived runtime state and is lost
+    # by the to_dict/from_stored_schema round-trip inside clone unless explicitly preserved
+    schema_a = Schema("alpha")
+    schema_b = Schema("beta")
+    schema_a.naming.max_length = 65536
+    schema_b.naming.max_length = 65536
+    unified = schema_a.unify_schemas([schema_b], check_naming_convention=True)
+    assert unified.naming.max_length == 65536
 
 
 def test_unify_schemas_nested_tables() -> None:
@@ -1239,6 +1261,102 @@ def test_unify_schemas_sql_naming_convention_mismatch() -> None:
     schema_b._configure_normalizers(
         {"names": "dlt.common.normalizers.naming.sql_ci_v1", "json": None}
     )
+    schema_a.unify_schemas([schema_b])
+    with pytest.raises(IncompatibleSchemaException, match="naming convention mismatch"):
+        schema_a.unify_schemas([schema_b], check_naming_convention=True)
+
+
+def test_unify_schemas_max_length_mismatch() -> None:
+    schema_a = Schema("alpha")
+    schema_a.update_table(utils.new_table("items", columns=[{"name": "id", "data_type": "bigint"}]))
+
+    schema_b = Schema("beta")
+    schema_b.update_table(
+        utils.new_table("digits", columns=[{"name": "value", "data_type": "bigint"}])
+    )
+    schema_b.naming.max_length = 63
+    assert str(schema_a.naming) != str(schema_b.naming)
+
+    unified = schema_a.unify_schemas([schema_b])
+    assert "items" in unified.tables
+    assert "digits" in unified.tables
+    assert "id" in unified.get_table_columns("items")
+    assert "value" in unified.get_table_columns("digits")
 
     with pytest.raises(IncompatibleSchemaException, match="naming convention mismatch"):
-        schema_a.unify_schemas([schema_b])
+        schema_a.unify_schemas([schema_b], check_naming_convention=True)
+
+
+def test_unify_schemas_verbatim_across_conventions() -> None:
+    schema_snake = Schema("snake")
+    schema_snake._configure_normalizers(
+        {"names": "dlt.common.normalizers.naming.snake_case", "json": None}
+    )
+    schema_snake.update_table(
+        utils.new_table("users", columns=[{"name": "id", "data_type": "bigint"}])
+    )
+    schema_snake.update_table(
+        utils.new_table(
+            "users__orders",
+            parent_table_name="users",
+            columns=[{"name": "amount", "data_type": "double"}],
+        )
+    )
+
+    schema_direct = Schema("direct")
+    schema_direct._configure_normalizers(
+        {"names": "dlt.common.normalizers.naming.direct", "json": None}
+    )
+    schema_direct.update_table(
+        utils.new_table("Inventory📦", columns=[{"name": "Sku🔖", "data_type": "text"}])
+    )
+    schema_direct.update_table(
+        utils.new_table(
+            "Inventory📦▶Stock",
+            parent_table_name="Inventory📦",
+            columns=[{"name": "Qty", "data_type": "bigint"}],
+        )
+    )
+
+    schema_upper = Schema("upper")
+    schema_upper._configure_normalizers(
+        {"names": "tests.common.cases.normalizers.sql_upper", "json": None}
+    )
+    schema_upper.update_table(
+        utils.new_table("EVENTS📊", columns=[{"name": "EVENT_ID", "data_type": "bigint"}])
+    )
+    schema_upper.update_table(
+        utils.new_table(
+            "EVENTS📊__DETAILS",
+            parent_table_name="EVENTS📊",
+            columns=[{"name": "PAYLOAD", "data_type": "text"}],
+        )
+    )
+
+    unified = schema_snake.unify_schemas([schema_direct, schema_upper])
+
+    expected_tables = {
+        "_dlt_version",
+        "_dlt_loads",
+        "_DLT_VERSION",
+        "_DLT_LOADS",
+        "users",
+        "users__orders",
+        "Inventory📦",
+        "Inventory📦▶Stock",
+        "EVENTS📊",
+        "EVENTS📊__DETAILS",
+    }
+    assert set(unified.tables) == expected_tables
+
+    assert unified.get_table_columns("users").keys() == {"id"}
+    assert unified.get_table_columns("users__orders").keys() == {"amount"}
+    assert unified.get_table("users__orders")["parent"] == "users"
+
+    assert unified.get_table_columns("Inventory📦").keys() == {"Sku🔖"}
+    assert unified.get_table_columns("Inventory📦▶Stock").keys() == {"Qty"}
+    assert unified.get_table("Inventory📦▶Stock")["parent"] == "Inventory📦"
+
+    assert unified.get_table_columns("EVENTS📊").keys() == {"EVENT_ID"}
+    assert unified.get_table_columns("EVENTS📊__DETAILS").keys() == {"PAYLOAD"}
+    assert unified.get_table("EVENTS📊__DETAILS")["parent"] == "EVENTS📊"

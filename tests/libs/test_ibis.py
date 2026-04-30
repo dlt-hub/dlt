@@ -76,6 +76,7 @@ def test_get_schema(populated_pipeline: dlt.Pipeline):
             "id": ibis.dtype("int64", nullable=True),
             "decimal": ibis.dtype("decimal", nullable=True),
             "other_decimal": ibis.dtype("decimal", nullable=True),
+            "created_at": ibis.dtype("timestamp", nullable=True),
             "_dlt_load_id": ibis.dtype("string", nullable=False),
             "_dlt_id": ibis.dtype("string", nullable=False),
         }
@@ -93,6 +94,7 @@ def test_get_bound_table(populated_pipeline: dlt.Pipeline):
             "id": ibis.dtype("int64", nullable=True),
             "decimal": ibis.dtype("decimal", nullable=True),
             "other_decimal": ibis.dtype("decimal", nullable=True),
+            "created_at": ibis.dtype("timestamp", nullable=True),
             "_dlt_load_id": ibis.dtype("string", nullable=False),
             "_dlt_id": ibis.dtype("string", nullable=False),
         }
@@ -139,7 +141,7 @@ def test_user_workflow(populated_pipeline: dlt.Pipeline):
 
 
 def test_table_to_pandas(populated_pipeline: dlt.Pipeline):
-    expected_columns = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
+    expected_columns = ["id", "decimal", "other_decimal", "created_at", "_dlt_load_id", "_dlt_id"]
 
     dataset = populated_pipeline.dataset()
     con = dataset.ibis()
@@ -153,7 +155,7 @@ def test_table_to_pandas(populated_pipeline: dlt.Pipeline):
 
 
 def test_table_to_pyarrow(populated_pipeline: dlt.Pipeline):
-    expected_columns = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
+    expected_columns = ["id", "decimal", "other_decimal", "created_at", "_dlt_load_id", "_dlt_id"]
 
     dataset = populated_pipeline.dataset()
     con = dataset.ibis()

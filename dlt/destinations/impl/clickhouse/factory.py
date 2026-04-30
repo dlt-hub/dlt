@@ -212,6 +212,8 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         caps.enforces_nulls_on_alter = False
 
         caps.sqlglot_dialect = "clickhouse"
+        # Nullable(DateTime) cast rejects offset-suffixed string literals
+        caps.supports_tz_aware_datetime_in_cast = False
 
         return caps
 

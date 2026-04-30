@@ -1,7 +1,7 @@
 import base64
 import gzip
-from datetime import datetime, date, time  # noqa: I251
-from pendulum.tz import UTC
+import uuid
+from datetime import time  # noqa: I251
 from typing import (
     Any,
     Dict,
@@ -49,6 +49,7 @@ import ctypes
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 ARROW_DECIMAL_MAX_PRECISION = 76
+ARROW_UUID_EXTENSION_NAME = "arrow.uuid"
 
 
 class UnsupportedArrowTypeException(DltException):
@@ -982,6 +983,63 @@ def transpose_rows_to_columns(
     }
 
 
+def uuid_to_string(arr: Any) -> Any:  # pyarrow.Array -> pyarrow.Array
+    """Convert an array of UUIDs to canonical hyphenated lowercase string array.
+
+    Accepts a `pa.uuid()` extension array or a `fixed_size_binary[16]`. Nulls
+    are preserved. Sliced inputs (`storage.offset != 0`) are supported. Falls
+    back to pure Python if numpy is missing or the input is sliced.
+    """
+    pa = pyarrow
+
+    # accept extension arrays (pa.uuid()) and plain fixed_size_binary[16]
+    storage = arr.storage if hasattr(arr, "storage") else arr
+    n = len(storage)
+
+    try:
+        from dlt.common.libs.numpy import numpy as np
+    except MissingDependencyException:
+        np = None
+
+    # the numpy fast path reads `buffers()[1]` from byte 0 and reuses
+    # `buffers()[0]` (bit-packed validity) as-is — both wrong when the input is
+    # sliced. iterating `for scalar in storage` honors `storage.offset`, so the
+    # pure-python path is correct for sliced inputs as well.
+    if np is None or storage.offset != 0:
+        # `str(UUID)` is canonical lowercase hyphenated per RFC 4122,
+        # byte-identical to the numpy path's output.
+        return pa.array(
+            [
+                None if scalar.as_py() is None else str(uuid.UUID(bytes=scalar.as_py()))
+                for scalar in storage
+            ],
+            type=pa.string(),
+        )
+
+    if n == 0:
+        return pa.array([], type=pa.string())
+
+    # `bytes.hex()` is lowercase per the Python spec; the slice positions and
+    # hyphen placements below match `str(UUID)` exactly so both paths produce
+    # identical output.
+    raw = storage.buffers()[1].to_pybytes()  # 16*n contiguous bytes
+    hexbuf = np.frombuffer(raw.hex().encode("ascii"), dtype=np.uint8).reshape(n, 32)
+    out = np.full((n, 36), ord("-"), dtype=np.uint8)
+    out[:, 0:8] = hexbuf[:, 0:8]
+    out[:, 9:13] = hexbuf[:, 8:12]
+    out[:, 14:18] = hexbuf[:, 12:16]
+    out[:, 19:23] = hexbuf[:, 16:20]
+    out[:, 24:36] = hexbuf[:, 20:32]
+
+    # reuse storage's validity buffer (None if all valid). Output bytes are
+    # pure ASCII so the cast to string can never fail, even if null slots in
+    # the source data buffer contain garbage.
+    fsb36 = pa.FixedSizeBinaryArray.from_buffers(
+        pa.binary(36), n, [storage.buffers()[0], pa.py_buffer(out.tobytes())]
+    )
+    return fsb36.cast(pa.string())
+
+
 def convert_numpy_to_arrow(
     column_data: Any,  # 1-dimensional np.ndarray
     caps: DestinationCapabilitiesContext,
@@ -1014,6 +1072,10 @@ def convert_numpy_to_arrow(
     try:
         # type=None lets pyarrow infer the type from the data
         inferred_array = pa.array(column_data, type=inferred_arrow_type)
+        # pyarrow >=24 infers UUIDs as the `arrow.uuid` extension; coerce to string
+        # so destinations see canonical hyphenated text, matching pyarrow <24 behavior
+        if inferred_array is not None and _is_arrow_uuid_extension(inferred_array.type):
+            inferred_array = uuid_to_string(inferred_array)
     # detailed error handling should happen in fallback cases
     except (pa.ArrowInvalid, pyarrow.ArrowTypeError):
         logger.warning(
@@ -1089,34 +1151,44 @@ def convert_numpy_to_arrow(
         try:
             inferred_array = pa.array(column_data)
         except (pa.ArrowInvalid, pyarrow.ArrowTypeError) as e:
-            logger.warning(
-                f"Type can't be inferred by `pyarrow` {e.args[0]}. Values will be encoded as in a"
-                " loop, slowing extraction."
-            )
-            encoded_values: list[Union[None, Mapping[Any, Any], Sequence[Any], str]] = []
-            for value in column_data:
-                if value is None:
-                    encoded_values.append(None)
-                    continue
-                try:
-                    # the 3 types match those supported by `map_nested_in_place()`
-                    if isinstance(value, (tuple, dict, list)):
-                        encoded_value = map_nested_values_in_place(custom_encode, value)
-                    # convert set to list
-                    elif isinstance(value, set):
-                        encoded_value = map_nested_values_in_place(custom_encode, list(value))
-                    # no nesting
-                    else:
-                        encoded_value = custom_encode(value)  # type: ignore[assignment]
-                    encoded_values.append(encoded_value)
-                except TypeError as e:
-                    raise PyToArrowConversionException(
-                        data_type=dlt_data_type,
-                        inferred_arrow_type=inferred_arrow_type,
-                        details="dlt failed to encode values to an Arrow-compatible type.",
-                    ) from e
+            # UUID fast path — pyarrow <24 doesn't recognize `uuid.UUID` at
+            # inference; build fixed_size_binary[16] from `.bytes` and use the
+            # vectorized formatter instead of the slower per-row loop below.
+            if _first_non_none((uuid.UUID,)):
+                fsb = pa.array(
+                    [u.bytes if u is not None else None for u in column_data],
+                    type=pa.binary(16),
+                )
+                inferred_array = uuid_to_string(fsb)
+            else:
+                logger.warning(
+                    f"Type can't be inferred by `pyarrow` {e.args[0]}. Values will be encoded as"
+                    " in a loop, slowing extraction."
+                )
+                encoded_values: list[Union[None, Mapping[Any, Any], Sequence[Any], str]] = []
+                for value in column_data:
+                    if value is None:
+                        encoded_values.append(None)
+                        continue
+                    try:
+                        # the 3 types match those supported by `map_nested_in_place()`
+                        if isinstance(value, (tuple, dict, list)):
+                            encoded_value = map_nested_values_in_place(custom_encode, value)
+                        # convert set to list
+                        elif isinstance(value, set):
+                            encoded_value = map_nested_values_in_place(custom_encode, list(value))
+                        # no nesting
+                        else:
+                            encoded_value = custom_encode(value)  # type: ignore[assignment]
+                        encoded_values.append(encoded_value)
+                    except TypeError as e:
+                        raise PyToArrowConversionException(
+                            data_type=dlt_data_type,
+                            inferred_arrow_type=inferred_arrow_type,
+                            details="dlt failed to encode values to an Arrow-compatible type.",
+                        ) from e
 
-            inferred_array = pa.array(encoded_values)
+                inferred_array = pa.array(encoded_values)
 
     return inferred_array
 
@@ -1475,3 +1547,10 @@ def cast_date64_columns_to_timestamp(tbl: pyarrow.Table, tz: Optional[str] = Non
 
     new_schema = pyarrow.schema(fields, metadata=tbl.schema.metadata)
     return pyarrow.Table.from_arrays(arrays, schema=new_schema)
+
+
+def _is_arrow_uuid_extension(arrow_type: Any) -> bool:
+    return (
+        isinstance(arrow_type, pyarrow.BaseExtensionType)
+        and arrow_type.extension_name == ARROW_UUID_EXTENSION_NAME
+    )
