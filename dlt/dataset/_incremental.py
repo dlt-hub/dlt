@@ -103,7 +103,7 @@ def _parse_incremental_cursor_path(cursor_path: str) -> Tuple[Optional[str], str
 
 
 def _build_incremental_condition(
-    inc: Incremental[Any],
+    incremental: Incremental[Any],
     column_ref: sge.Column,
     sqlglot_type: Optional[sge.DataType],
 ) -> sge.Expression:
@@ -131,23 +131,23 @@ def _build_incremental_condition(
     Raises:
         ValueError: If `inc.last_value_func` is not `min` or `max`.
     """
-    last_value_func = inc.last_value_func
+    last_value_func = incremental.last_value_func
     start_op_cls: Type[sge.Binary]
     end_op_cls: Type[sge.Binary]
     if last_value_func is max:
-        start_op_cls = sge.GTE if inc.range_start == "closed" else sge.GT
-        end_op_cls = sge.LT if inc.range_end == "open" else sge.LTE
+        start_op_cls = sge.GTE if incremental.range_start == "closed" else sge.GT
+        end_op_cls = sge.LT if incremental.range_end == "open" else sge.LTE
     elif last_value_func is min:
-        start_op_cls = sge.LTE if inc.range_start == "closed" else sge.LT
-        end_op_cls = sge.GT if inc.range_end == "open" else sge.GTE
+        start_op_cls = sge.LTE if incremental.range_start == "closed" else sge.LT
+        end_op_cls = sge.GT if incremental.range_end == "open" else sge.GTE
     else:
         raise ValueError(
             f"Incremental `last_value_func={last_value_func!r}` cannot be pushed "
             "down to SQL. Only `min` and `max` are supported by `Relation.incremental()`."
         )
 
-    start_value = inc.last_value
-    end_value = inc.end_value
+    start_value = incremental.last_value
+    end_value = incremental.end_value
 
     condition: Optional[sge.Expression] = None
     if start_value is not None:
@@ -168,10 +168,10 @@ def _build_incremental_condition(
         # still sees a WHERE clause tagged as incremental
         condition = sge.Boolean(this=True)
 
-    if inc.on_cursor_value_missing == "include":
+    if incremental.on_cursor_value_missing == "include":
         is_null = sge.Is(this=column_ref.copy(), expression=sge.Null())
         condition = sge.Or(this=condition, expression=is_null)
-    elif inc.on_cursor_value_missing == "exclude":
+    elif incremental.on_cursor_value_missing == "exclude":
         is_not_null = sge.Not(this=sge.Is(this=column_ref.copy(), expression=sge.Null()))
         condition = sge.And(this=condition, expression=is_not_null)
 
