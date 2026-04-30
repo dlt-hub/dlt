@@ -88,7 +88,7 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
             credentials (Union[LanceCredentials, Dict[str, Any]], optional): Catalog-scoped credentials. For `"dir"`,
                 this is an optional `DirectoryCatalogCredentials` overriding the `__manifest`
                 location; when empty, catalog colocates with `storage`. For `"rest"`, this is a required
-                `RestCatalogCredentials` with `uri`.
+                `RestCatalogCredentials` with `uri` and optional `api_key` / `auth_token`.
             storage (Union[LanceStorageConfiguration, Dict[str, Any]], optional): Storage configuration for table data
                 (bucket, credentials, options, namespace subpath). Required for `"dir"` catalog,
                 optional for `"rest"` (server manages storage).

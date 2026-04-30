@@ -156,6 +156,23 @@ class RestCatalogCredentials(CredentialsConfiguration):
 
     uri: str = None
     """Base URI of the Lance REST Namespace server, e.g. `http://127.0.0.1:2333`."""
+    api_key: Optional[str] = None
+    """API key to authenticate to the Lance REST Namespace server. Mapped to `x-api-key` HTTP header."""
+    auth_token: Optional[str] = None
+    """Bearer token to authenticate to the Lance REST Namespace server. Mapped to `Authorization: Bearer <auth_token>` HTTP header."""
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["uri", "api_key", "auth_token"]
+
+    def to_namespace_properties(self) -> dict[str, str]:
+        props = {"uri": self.uri}
+
+        # https://lance.org/format/namespace/rest/catalog-spec/#identity-header-mapping
+        if self.api_key:
+            props["header.x-api-key"] = self.api_key
+        if self.auth_token:
+            props["header.Authorization"] = f"Bearer {self.auth_token}"
+
+        return props
 
 
 LanceCredentials = Union[DirectoryCatalogCredentials, RestCatalogCredentials]
@@ -333,7 +350,7 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
                 if v is not None:
                     props[f"storage.{k}"] = str(v)
         elif isinstance(self.credentials, RestCatalogCredentials):
-            props["uri"] = self.credentials.uri
+            props.update(self.credentials.to_namespace_properties())
         return connect(self.catalog_type, props)
 
     def fingerprint(self) -> str:
