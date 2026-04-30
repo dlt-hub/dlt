@@ -329,29 +329,6 @@ class DestinationTestConfiguration:
         return False
 
 
-def get_lance_configs() -> List[DestinationTestConfiguration]:
-    return [
-        # directory namespace configs
-        *[
-            DestinationTestConfiguration(
-                destination_type="lance",
-                extra_info=f"dir-{FilesystemConfiguration.parse_protocol(bucket)}",
-                env_vars={
-                    "DESTINATION__STORAGE__BUCKET_URL": bucket,
-                    "DESTINATION__STORAGE__NAMESPACE_NAME": get_lance_namespace_name(),
-                },
-            )
-            for bucket in OBJECT_STORE_RS_BUCKETS
-        ],
-        # REST namespace config
-        DestinationTestConfiguration(
-            destination_type="lance",
-            extra_info="rest-file",
-            env_vars=LanceRestServerConfig.get_destination_test_configuration_env_vars(),
-        ),
-    ]
-
-
 def destinations_configs(
     default_sql_configs: bool = False,
     default_vector_configs: bool = False,
@@ -483,6 +460,34 @@ def destinations_configs(
         ),
     ]
 
+    lance_configs = [
+        # directory namespace configs
+        *[
+            DestinationTestConfiguration(
+                destination_type="lance",
+                extra_info=f"dir-{FilesystemConfiguration.parse_protocol(bucket)}",
+                env_vars={
+                    "DESTINATION__STORAGE__BUCKET_URL": bucket,
+                    "DESTINATION__STORAGE__NAMESPACE_NAME": get_lance_namespace_name(),
+                },
+            )
+            for bucket in OBJECT_STORE_RS_BUCKETS
+        ],
+        # REST namespace configs
+        # NOTE: we exclude cloud storage-backed REST namespaces here because `RestAdapter` (which
+        # we use as test REST Namespace server) does not vend credentials — we only include a
+        # local storage-backed REST namespace, which does not need credentials
+        *[
+            DestinationTestConfiguration(
+                destination_type="lance",
+                extra_info=f"rest-{FilesystemConfiguration.parse_protocol(bucket)}",
+                env_vars=LanceRestServerConfig.get_destination_test_configuration_env_vars(),
+            )
+            for bucket in OBJECT_STORE_RS_BUCKETS
+            if bucket == FILE_BUCKET
+        ],
+    ]
+
     # default non staging sql based configs, one per destination
     if default_sql_configs:
         destination_configs += [
@@ -603,7 +608,7 @@ def destinations_configs(
                 extra_info="server",
             ),
         ]
-        destination_configs += get_lance_configs()
+        destination_configs += lance_configs
 
     if (default_sql_configs or all_staging_configs) and not default_sql_configs:
         # athena default configs not added yet
@@ -897,7 +902,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination_type="lancedb"),
         ]
-        destination_configs += get_lance_configs()
+        destination_configs += lance_configs
 
     try:
         # register additional destinations from _addons.py which must be placed in the same folder
