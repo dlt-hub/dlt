@@ -40,12 +40,16 @@ def _build_incremental_aggregate(
     the outer aggregate can reference it without having to resolve the original
     table qualifier (which may live inside an auto-join).
     """
+    if ctx.incremental.end_value is None and (
+        base_query.args.get("limit") is not None or base_query.args.get("order") is not None
+    ):
+        raise ValueError(
+            "LIMIT and ORDER BY aren't supported on stateful `.incremental()` as "
+            "state would advance past only the returned rows, silently skipping "
+            "the rest on the next run. Remove them, or set `end_value=` for a "
+            "bounded read."
+        )
     inner = base_query.copy()
-    # ORDER BY on the inner is meaningless for aggregation and some dialects
-    # reject it inside a subquery without LIMIT.
-    if inner.args.get("order") and inner.args.get("limit") is None:
-        inner.set("order", None)
-
     inner.set(
         "expressions",
         [

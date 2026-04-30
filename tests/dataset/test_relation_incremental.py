@@ -309,36 +309,37 @@ def test_incremental_aggregate_honors_min(incremental_dataset: dlt.Dataset) -> N
     assert rel._incremental_aggregate_relation().fetchscalar() == 1
 
 
-def test_incremental_aggregate_matches_user_visible_rows_under_limit(
-    incremental_dataset: dlt.Dataset,
+@pytest.mark.parametrize(
+    "shape",
+    [
+        pytest.param(lambda r: r.limit(2), id="limit-only"),
+        pytest.param(lambda r: r.order_by("id", "desc"), id="order-by-only"),
+        pytest.param(lambda r: r.order_by("id").limit(2), id="order-by-limit"),
+    ],
+)
+def test_incremental_aggregate_rejects_limit_or_order_by_in_stateful_mode(
+    incremental_pipeline: dlt.Pipeline, shape: Any
 ) -> None:
-    inc = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
-    rel = incremental_dataset.table("events").incremental(inc).order_by("id", "desc").limit(2)
+    # In stateful mode (no end_value), LIMIT/ORDER BY would advance state past
+    # only the returned rows. Rejected so callers can't silently skip rows.
+    # Empty yield -> no rows pass the pipe step -> state never advances, so a
+    # fixed resource name is safe to reuse across params.
+    dataset = incremental_pipeline.dataset()
+    captured: List[dlt.Relation] = []
 
-    id_index = rel.columns.index("id")
-    visible_ids = sorted(row[id_index] for row in rel.fetchall())
-    # filter id >= 2 -> {2,3,4,5}; ORDER BY id DESC LIMIT 2 -> {4, 5}
-    assert visible_ids == [4, 5]
-    assert rel._incremental_aggregate_relation().fetchscalar() == 5
+    @dlt.resource(name="probe_reject")
+    def probe(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "id", initial_value=0, range_start="open"
+        ),
+    ) -> Iterator[Any]:
+        captured.append(shape(dataset.table("events").incremental(cursor)))
+        yield from []
 
-
-def test_incremental_aggregate_matches_user_visible_rows_under_limit_min(
-    incremental_dataset: dlt.Dataset,
-) -> None:
-    inc = dlt.sources.incremental(
-        "id",
-        initial_value=10,
-        end_value=2,
-        last_value_func="min",
-    )
-    rel = incremental_dataset.table("events").incremental(inc).order_by("id", "desc").limit(2)
-
-    id_index = rel.columns.index("id")
-    visible_ids = sorted(row[id_index] for row in rel.fetchall())
-    # for min: closed start -> id <= 10, closed end -> id >= 2 -> {2,3,4,5}
-    # ORDER BY id DESC LIMIT 2 -> {4, 5}
-    assert visible_ids == [4, 5]
-    assert rel._incremental_aggregate_relation().fetchscalar() == 4
+    incremental_pipeline.extract(probe())
+    rel = captured[0]
+    with pytest.raises(ValueError, match="LIMIT and ORDER BY aren't supported"):
+        rel._incremental_aggregate_relation()
 
 
 def test_incremental_inside_resource_captures_bound_sql(
