@@ -445,27 +445,28 @@ class RunnableLoadJob(LoadJob, ABC):
         self._job_client = job_client
         self._done_event = done_event
 
-        # filepath is now moved to running
+        # Track terminal state locally; publish to self._state only after
+        # _on_completed() finishes to prevent the race in #3849.
+        terminal_state: TLoadJobState = "running"
         try:
             self._state = "running"
             self._job_client.prepare_load_job_execution(self)
             self.run()
-            self._state = "completed"
+            terminal_state = "completed"
         except (TerminalException, AssertionError) as e:
-            self._state = "failed"
+            terminal_state = "failed"
             self._exception = e
             logger.exception(f"Terminal exception in job {self.job_id()} in file {self._file_path}")
         except (DestinationTransientException, Exception) as e:
-            self._state = "retry"
+            terminal_state = "retry"
             self._exception = e
             logger.exception(
                 f"Transient exception in job {self.job_id()} in file {self._file_path}"
             )
         finally:
-            # sanity check
-            assert self._state in ("completed", "retry", "failed")
-            if self._state != "retry":
-                # persist terminal state so resume can skip re-execution
+            assert terminal_state in ("completed", "retry", "failed")
+            on_completed_exc = None
+            if terminal_state != "retry":
                 if self._on_completed:
                     if self._exception:
                         failed_message = "".join(
@@ -477,12 +478,20 @@ class RunnableLoadJob(LoadJob, ABC):
                         )
                     else:
                         failed_message = None
-                    self._on_completed(self._state, failed_message)
+                    try:
+                        self._on_completed(terminal_state, failed_message)
+                    except Exception as exc:
+                        terminal_state = "failed"
+                        self._exception = exc
+                        on_completed_exc = exc
                 self._finished_at = pendulum.now()
-                # wake up waiting threads
-                if self._done_event:
-                    with contextlib.suppress(ValueError):
-                        self._done_event.release()
+            # Publish only after callback and timestamp are done.
+            self._state = terminal_state
+            if terminal_state != "retry" and self._done_event:
+                with contextlib.suppress(ValueError):
+                    self._done_event.release()
+            if on_completed_exc is not None:
+                raise on_completed_exc
 
     @abstractmethod
     def run(self) -> None:
