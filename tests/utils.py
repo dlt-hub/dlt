@@ -54,6 +54,12 @@ def get_test_worker_id() -> str:
     return os.environ.get(PYTEST_XDIST_WORKER, "gw0")
 
 
+def get_test_worker_idx() -> int:
+    worker_id = get_test_worker_id()
+    assert worker_id.startswith("gw")
+    return int(worker_id.removeprefix("gw"))
+
+
 def compute_test_storage_root() -> str:
     return f"{STORAGE_ROOT_PREFIX}_{get_test_worker_id()}"
 

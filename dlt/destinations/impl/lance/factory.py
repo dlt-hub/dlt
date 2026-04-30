@@ -83,13 +83,15 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
         variables and dlt config files.
 
         Args:
-            catalog_type (LanceCatalogType, optional): Lance catalog backend. Defaults to `"dir"`
-                (directory namespace).
+            catalog_type (LanceCatalogType, optional): Lance catalog backend. `"dir"` for a
+                Directory Namespace, `"rest"` for a REST Namespace. Defaults to `"dir"`.
             credentials (Union[LanceCredentials, Dict[str, Any]], optional): Catalog-scoped credentials. For `"dir"`,
                 this is an optional `DirectoryCatalogCredentials` overriding the `__manifest`
-                location; when empty, catalog colocates with `storage`.
+                location; when empty, catalog colocates with `storage`. For `"rest"`, this is a required
+                `RestCatalogCredentials` with `uri` and optional `api_key` / `auth_token`.
             storage (Union[LanceStorageConfiguration, Dict[str, Any]], optional): Storage configuration for table data
-                (bucket, credentials, options, namespace subpath).
+                (bucket, credentials, options, namespace subpath). Required for `"dir"` catalog,
+                optional for `"rest"` (server manages storage).
             branch_name (Optional[str]): Read/write branch for Lance operations. Uses `main` if not set.
             embeddings (Union[LanceEmbeddingsConfiguration, Dict[str, Any]], optional): Embedding provider, model,
                 and credentials. If not provided, no vector column is added.

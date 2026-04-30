@@ -50,8 +50,7 @@ TEmbeddingProvider = Literal[
 ]
 
 
-LanceCatalogType = Literal["dir"]
-"""Lance catalog type discriminator. Extend with ie. with "rest as they become available"""
+LanceCatalogType = Literal["dir", "rest"]
 
 
 def _merge_cloud_options(cfg: FilesystemConfigurationWithLocalFiles) -> None:
@@ -151,8 +150,33 @@ class DirectoryCatalogCredentials(FilesystemConfigurationWithLocalFiles):
             super().on_partial()
 
 
-LanceCredentials = Union[DirectoryCatalogCredentials]
-"""Polymorphic credentials resolved per `catalog_type`. Expand as new catalogs are added."""
+@configspec
+class RestCatalogCredentials(CredentialsConfiguration):
+    """Credentials for connecting to a Lance REST Namespace server."""
+
+    uri: str = None
+    """Base URI of the Lance REST Namespace server, e.g. `http://127.0.0.1:2333`."""
+    api_key: Optional[str] = None
+    """API key to authenticate to the Lance REST Namespace server. Mapped to `x-api-key` HTTP header."""
+    auth_token: Optional[str] = None
+    """Bearer token to authenticate to the Lance REST Namespace server. Mapped to `Authorization: Bearer <auth_token>` HTTP header."""
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["uri", "api_key", "auth_token"]
+
+    def to_namespace_properties(self) -> dict[str, str]:
+        props = {"uri": self.uri}
+
+        # https://lance.org/format/namespace/rest/catalog-spec/#identity-header-mapping
+        if self.api_key:
+            props["header.x-api-key"] = self.api_key
+        if self.auth_token:
+            props["header.Authorization"] = f"Bearer {self.auth_token}"
+
+        return props
+
+
+LanceCredentials = Union[DirectoryCatalogCredentials, RestCatalogCredentials]
+"""Polymorphic credentials resolved per `catalog_type`."""
 
 
 @configspec
@@ -172,6 +196,11 @@ class DirectoryCatalogCapabilities(LanceCatalogCapabilities):
     """
     dir_listing_enabled: bool = True
     """V1 fallback: discover tables by scanning directories for `.lance` suffixes."""
+
+
+@configspec
+class RestCatalogCapabilities(LanceCatalogCapabilities):
+    pass
 
 
 @configspec
@@ -246,9 +275,11 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
 
     CATALOG_CREDENTIALS: ClassVar[Dict[LanceCatalogType, Any]] = {
         "dir": DirectoryCatalogCredentials,
+        "rest": RestCatalogCredentials,
     }
     CATALOG_CAPABILITIES: ClassVar[Dict[LanceCatalogType, Any]] = {
         "dir": DirectoryCatalogCapabilities,
+        "rest": RestCatalogCapabilities,
     }
     CATALOG_STORAGE: ClassVar[Dict[LanceCatalogType, Any]] = {
         "dir": LanceStorageConfiguration,
@@ -256,12 +287,16 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
 
     credentials: LanceCredentials = None  # type: ignore[assignment]
     capabilities: LanceCatalogCapabilities = None
-    storage: LanceStorageConfiguration = None
-    """Storage configuration for table data (bucket, credentials, options, namespace subpath)."""
+    storage: Optional[LanceStorageConfiguration] = None
+    """Storage configuration for table data. Required for `"dir"` catalog, optional for `"rest"`."""
     branch_name: Optional[str] = None
     """Name of branch to use for read/write table operations. Uses `main` branch if not set."""
     embeddings: Optional[LanceEmbeddingsConfiguration] = None
     """Optional embeddings configuration to add a vector embedding column."""
+
+    @property
+    def storage_options(self) -> Optional[Dict[str, str]]:
+        return self.storage.options if self.storage else None
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -311,9 +346,11 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
             assert isinstance(self.capabilities, DirectoryCatalogCapabilities)
             props["manifest_enabled"] = str(self.capabilities.manifest_enabled).lower()
             props["dir_listing_enabled"] = str(self.capabilities.dir_listing_enabled).lower()
-        for k, v in (self.credentials.options or {}).items():
-            if v is not None:
-                props[f"storage.{k}"] = str(v)
+            for k, v in (self.credentials.options or {}).items():
+                if v is not None:
+                    props[f"storage.{k}"] = str(v)
+        elif isinstance(self.credentials, RestCatalogCredentials):
+            props.update(self.credentials.to_namespace_properties())
         return connect(self.catalog_type, props)
 
     def fingerprint(self) -> str:

@@ -65,6 +65,7 @@ from dlt.destinations.impl.filesystem.configuration import FilesystemDestination
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
+from tests.load.lance_utils import LanceRestServerConfig, get_lance_namespace_name
 from tests.utils import (
     ACTIVE_DESTINATIONS,
     ACTIVE_TABLE_FORMATS,
@@ -459,6 +460,34 @@ def destinations_configs(
         ),
     ]
 
+    lance_configs = [
+        # directory namespace configs
+        *[
+            DestinationTestConfiguration(
+                destination_type="lance",
+                extra_info=f"dir-{FilesystemConfiguration.parse_protocol(bucket)}",
+                env_vars={
+                    "DESTINATION__STORAGE__BUCKET_URL": bucket,
+                    "DESTINATION__STORAGE__NAMESPACE_NAME": get_lance_namespace_name(),
+                },
+            )
+            for bucket in OBJECT_STORE_RS_BUCKETS
+        ],
+        # REST namespace configs
+        # NOTE: we exclude cloud storage-backed REST namespaces here because `RestAdapter` (which
+        # we use as test REST Namespace server) does not vend credentials — we only include a
+        # local storage-backed REST namespace, which does not need credentials
+        *[
+            DestinationTestConfiguration(
+                destination_type="lance",
+                extra_info=f"rest-{FilesystemConfiguration.parse_protocol(bucket)}",
+                env_vars=LanceRestServerConfig.get_destination_test_configuration_env_vars(),
+            )
+            for bucket in OBJECT_STORE_RS_BUCKETS
+            if bucket == FILE_BUCKET
+        ],
+    ]
+
     # default non staging sql based configs, one per destination
     if default_sql_configs:
         destination_configs += [
@@ -579,20 +608,7 @@ def destinations_configs(
                 extra_info="server",
             ),
         ]
-        for bucket in OBJECT_STORE_RS_BUCKETS:
-            destination_configs += [
-                DestinationTestConfiguration(
-                    destination_type="lance",
-                    extra_info=FilesystemConfiguration.parse_protocol(bucket),
-                    env_vars={
-                        "DESTINATION__STORAGE__BUCKET_URL": bucket,
-                        # isolate per xdist worker — Lance __manifest writes conflict on S3
-                        "DESTINATION__STORAGE__NAMESPACE_NAME": (
-                            f"dlt_lance_root_{os.environ.get('PYTEST_XDIST_WORKER', 'gw0')}"
-                        ),
-                    },
-                ),
-            ]
+        destination_configs += lance_configs
 
     if (default_sql_configs or all_staging_configs) and not default_sql_configs:
         # athena default configs not added yet
@@ -886,20 +902,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination_type="lancedb"),
         ]
-        for bucket in OBJECT_STORE_RS_BUCKETS:
-            destination_configs += [
-                DestinationTestConfiguration(
-                    destination_type="lance",
-                    extra_info=FilesystemConfiguration.parse_protocol(bucket),
-                    env_vars={
-                        "DESTINATION__STORAGE__BUCKET_URL": bucket,
-                        # isolate per xdist worker — Lance __manifest writes conflict on S3
-                        "DESTINATION__STORAGE__NAMESPACE_NAME": (
-                            f"dlt_lance_root_{os.environ.get('PYTEST_XDIST_WORKER', 'gw0')}"
-                        ),
-                    },
-                ),
-            ]
+        destination_configs += lance_configs
 
     try:
         # register additional destinations from _addons.py which must be placed in the same folder
