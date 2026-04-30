@@ -95,21 +95,16 @@ def _parse_incremental_cursor_path(cursor_path: str) -> Tuple[Optional[str], str
         table_part, column_part = cursor_path.rsplit(".", 1)
         if not table_part:
             raise ValueError(invalid_msg)
-        try:
-            column_name = extract_simple_field_name(column_part)
-        except JSONPathError as e:
-            raise ValueError(invalid_msg) from e
-        if column_name is None:
-            raise ValueError(invalid_msg)
-        return table_part, column_name
+    else:
+        table_part, column_part = None, cursor_path
 
     try:
-        column_name = extract_simple_field_name(cursor_path)
+        column_name = extract_simple_field_name(column_part)
     except JSONPathError as e:
         raise ValueError(invalid_msg) from e
     if column_name is None:
         raise ValueError(invalid_msg)
-    return None, column_name
+    return table_part, column_name
 
 
 def _build_incremental_condition(
@@ -176,6 +171,8 @@ def _build_incremental_condition(
     if condition is None:
         # no bounds at all: fall back to an always-true marker so the caller
         # still sees a WHERE clause tagged as incremental
+        # TODO: drop this filler once/if `is_incremental` switches off the meta
+        # marker (see `Relation.is_incremental`).
         condition = sge.Boolean(this=True)
 
     if incremental.on_cursor_value_missing == "include":
@@ -199,6 +196,8 @@ def _build_incremental_condition(
 
 def _has_incremental_marker(expression: sge.Expression) -> bool:
     """True when any node in `expression` carries the incremental meta marker."""
+    # TODO: remove once `Relation.is_incremental` switches to checking
+    # `_incremental_ctx is not None`
     for node in expression.walk():
         if node.meta.get(_INCREMENTAL_META_KEY):
             return True
