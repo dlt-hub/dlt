@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple, Type
 
@@ -19,7 +20,7 @@ _AGG_CURSOR_ALIAS = "__dlt_inc_cursor"
 class _RelationIncrementalContext:
     """Private per-relation marker tying a `Relation` back to its `Incremental`.
 
-    Set by `Relation.incremental(inc)` and consumed by downstream lifecycle
+    Set by `Relation.incremental()` and consumed by downstream lifecycle
     code (e.g. `dlthub` transformations) that needs to advance the cursor
     state after the relation executes.
     """
@@ -117,7 +118,7 @@ def _build_incremental_condition(
     - `min` + open end -> `>`, closed end -> `>=`
 
     Args:
-        inc (Incremental): The incremental carrying cursor bounds, range, and
+        incremental (Incremental): The incremental carrying cursor bounds, range, and
             `on_cursor_value_missing` policy.
         column_ref (sge.Column): Reference to the cursor column in the target query.
         sqlglot_type (Optional[sge.DataType]): SQLGlot data type used to CAST the
@@ -129,7 +130,7 @@ def _build_incremental_condition(
             caller can detect incremental filters later.
 
     Raises:
-        ValueError: If `inc.last_value_func` is not `min` or `max`.
+        ValueError: If `incremental.last_value_func` is not `min` or `max`.
     """
     last_value_func = incremental.last_value_func
     start_op_cls: Type[sge.Binary]
@@ -171,9 +172,17 @@ def _build_incremental_condition(
     if incremental.on_cursor_value_missing == "include":
         is_null = sge.Is(this=column_ref.copy(), expression=sge.Null())
         condition = sge.Or(this=condition, expression=is_null)
-    elif incremental.on_cursor_value_missing == "exclude":
+    elif incremental.on_cursor_value_missing in ("exclude", "raise"):
+        # "raise" can't raise mid-query in SQL pushdown, so we do explicit IS NOT NULL
+        # and warn users
         is_not_null = sge.Not(this=sge.Is(this=column_ref.copy(), expression=sge.Null()))
         condition = sge.And(this=condition, expression=is_not_null)
+    else:
+        raise ValueError(
+            "Incremental `on_cursor_value_missing="
+            f"{incremental.on_cursor_value_missing!r}` is not supported by "
+            "`Relation.incremental()`. Expected one of: 'include', 'exclude', 'raise'."
+        )
 
     condition.meta[_INCREMENTAL_META_KEY] = True
     return condition
@@ -185,6 +194,26 @@ def _has_incremental_marker(expression: sge.Expression) -> bool:
         if node.meta.get(_INCREMENTAL_META_KEY):
             return True
     return False
+
+
+def _maybe_warn_on_cursor_missing_raise(
+    incremental: Incremental[Any],
+    columns_schema: TTableSchemaColumns,
+    column_name: str,
+) -> None:
+    """Warn when `on_cursor_value_missing="raise"` is bound against a nullable cursor."""
+    if incremental.on_cursor_value_missing != "raise":
+        return
+    column_schema = columns_schema.get(column_name) or {}
+    if column_schema.get("nullable") is False:
+        return
+    warnings.warn(
+        "Can't raise on NULL cursor values; rows with NULL "
+        "cursors will be excluded. Set on_cursor_value_missing explicitly "
+        "to silence.",
+        UserWarning,
+        stacklevel=3,
+    )
 
 
 def _sqlglot_type_for_column(

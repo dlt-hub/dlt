@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+import warnings
 from typing import Any, Iterator, List, Literal
 
 import pytest
@@ -83,8 +84,10 @@ def test_incremental_emits_where_on_simple_cursor(incremental_dataset: dlt.Datas
 
     condition = _where(rel)
     assert isinstance(condition, sge.And)
-    assert isinstance(condition.this, sge.GTE)
-    assert _column_name(condition.this.this) == "id"
+    bound_pair = condition.this
+    assert isinstance(bound_pair, sge.And)
+    assert isinstance(bound_pair.this, sge.GTE)
+    assert _column_name(bound_pair.this.this) == "id"
     # no join is added for a simple cursor path
     assert (rel.sqlglot_expression.args.get("joins") or []) == []
 
@@ -157,8 +160,10 @@ def test_incremental_operators_matrix(
 
     condition = _where(rel)
     assert isinstance(condition, sge.And)
-    start_op = condition.this
-    end_op = condition.expression
+    bound_pair = condition.this
+    assert isinstance(bound_pair, sge.And)
+    start_op = bound_pair.this
+    end_op = bound_pair.expression
     assert isinstance(start_op, expected_start_cls)
     assert isinstance(end_op, expected_end_cls)
     assert isinstance(start_op, sge.Binary) and isinstance(end_op, sge.Binary)
@@ -171,7 +176,10 @@ def test_incremental_datetime_cursor_renders_as_sql_literal(
 ) -> None:
     ts = pendulum.datetime(2026, 1, 5, tz="UTC")
     inc = dlt.sources.incremental("created_at", initial_value=ts, end_value=END_VALUE_DT)
-    rel = incremental_dataset.table("events").incremental(inc)
+    # `created_at` is nullable, below silence "raise" warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        rel = incremental_dataset.table("events").incremental(inc)
 
     sql = rel.sqlglot_expression.sql(dialect=incremental_dataset.destination_dialect)
     assert "2026-01-05" in sql
@@ -187,14 +195,19 @@ def test_incremental_dotted_cursor_auto_joins_target(
         initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
         end_value=END_VALUE_DT,
     )
+    # _dlt_loads.inserted_at is `nullable=False` in the system schema, so the
+    # default "raise" policy stays silent here — no warnings.catch_warnings needed
     rel = incremental_dataset.table("events").incremental(inc)
 
     # exactly one JOIN added, targeting _dlt_loads
     assert _join_target_names(rel) == ["_dlt_loads"]
 
+    # bound pair is wrapped with AND IS NOT NULL by the default "raise" policy
     condition = _where(rel)
     assert isinstance(condition, sge.And)
-    start_op = condition.this
+    bound_pair = condition.this
+    assert isinstance(bound_pair, sge.And)
+    start_op = bound_pair.this
     assert isinstance(start_op, sge.Binary)
     # WHERE column is qualified to the joined table
     assert _column_name(start_op.this) == "inserted_at"
@@ -342,10 +355,11 @@ def test_incremental_inside_resource_captures_bound_sql(
         yield from []
 
     incremental_pipeline.extract(probe())
-    # bound cursor produced a start-only GTE on `id` at initial_value=2
     condition = _where(captured[0])
-    assert isinstance(condition, sge.GTE)
-    assert _column_name(condition.this) == "id"
+    assert isinstance(condition, sge.And)
+    start_op = condition.this
+    assert isinstance(start_op, sge.GTE)
+    assert _column_name(start_op.this) == "id"
 
 
 def test_incremental_custom_last_value_func_raises(
@@ -489,3 +503,84 @@ def test_incremental_on_cursor_value_missing(
     assert isinstance(null_guard, sge.Is)
     assert isinstance(null_guard.expression, sge.Null)
     assert _column_name(null_guard.this) == "id"
+
+
+def test_incremental_raise_emits_is_not_null_pushdown(
+    incremental_dataset: dlt.Dataset,
+) -> None:
+    # We can't raise on NULL cursor values, so `"raise"` (the default)
+    # falls back to `... AND col IS NOT NULL`, same shape as `"exclude"`
+    inc = dlt.sources.incremental(
+        "id",
+        initial_value=2,
+        end_value=END_VALUE_ID,
+        on_cursor_value_missing="raise",
+    )
+    rel = incremental_dataset.table("events").incremental(inc)
+
+    condition = _where(rel)
+    assert isinstance(condition, sge.And), (
+        "raise pushdown must wrap with `AND IS NOT NULL`, got "
+        f"{type(condition).__name__}: {condition.sql()}"
+    )
+    null_guard = condition.expression
+    assert isinstance(null_guard, sge.Not)
+    inner = null_guard.this
+    assert isinstance(inner, sge.Is)
+    assert isinstance(inner.expression, sge.Null)
+    assert _column_name(inner.this) == "id"
+
+
+def test_incremental_raise_warns_on_nullable_cursor(
+    incremental_dataset: dlt.Dataset,
+) -> None:
+    inc = dlt.sources.incremental(
+        "created_at",
+        initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
+        end_value=END_VALUE_DT,
+        on_cursor_value_missing="raise",
+    )
+    with pytest.warns(UserWarning, match="Can't raise on NULL cursor"):
+        incremental_dataset.table("events").incremental(inc)
+
+
+def test_incremental_raise_no_warn_on_non_nullable_cursor(
+    incremental_dataset: dlt.Dataset,
+) -> None:
+    inc = dlt.sources.incremental(
+        "_dlt_loads.inserted_at",
+        initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
+        end_value=END_VALUE_DT,
+        on_cursor_value_missing="raise",
+    )
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always", UserWarning)
+        incremental_dataset.table("events").incremental(inc)
+    pushdown_warnings = [w for w in captured if "Can't raise on NULL cursor" in str(w.message)]
+    assert pushdown_warnings == [], (
+        "unexpected pushdown warning on a non-nullable cursor: "
+        f"{[str(w.message) for w in pushdown_warnings]}"
+    )
+
+
+def test_incremental_no_warn_when_policy_explicit(
+    incremental_dataset: dlt.Dataset,
+) -> None:
+    """The warning is gated on `on_cursor_value_missing == 'raise'` — explicit
+    `"include"`/`"exclude"` on the same nullable cursor must stay silent."""
+    for policy in ("include", "exclude"):
+        inc: dlt.sources.incremental[Any] = dlt.sources.incremental(
+            "created_at",
+            initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
+            end_value=END_VALUE_DT,
+            on_cursor_value_missing=policy,
+        )
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always", UserWarning)
+            incremental_dataset.table("events").incremental(inc)
+
+        pushdown_warnings = [w for w in captured if "Can't raise on NULL cursor" in str(w.message)]
+        assert pushdown_warnings == [], (
+            f"unexpected pushdown warning for policy={policy!r}: "
+            f"{[str(w.message) for w in pushdown_warnings]}"
+        )
