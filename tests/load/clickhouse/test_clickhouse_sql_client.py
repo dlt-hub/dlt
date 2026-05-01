@@ -1,12 +1,9 @@
 import datetime
-from types import SimpleNamespace
-from unittest.mock import Mock
 
 import pendulum
 import pytest
 
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
-from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseMergeJob
 
 from tests.load.clickhouse.utils import clickhouse_client
 
@@ -96,55 +93,3 @@ def test_clickhouse_datetime_param_round_trip(
             assert (
                 result_dt == expected_utc_naive
             ), f"Expected {expected_utc_naive}, got {result_dt} for input {input_dt}"
-
-
-def test_clickhouse_merge_job_detects_replica_safe_delete_temp_engine() -> None:
-    sql_client = Mock()
-    sql_client.config = SimpleNamespace(table_engine_type="merge_tree")
-    sql_client.make_qualified_table_name_path.return_value = ["default", "dataset___items"]
-    sql_client.execute_sql.return_value = [("ReplicatedReplacingMergeTree",)]
-
-    temp_engine = ClickHouseMergeJob._get_delete_temp_engine("items", sql_client)
-
-    assert temp_engine == "ReplicatedMergeTree"
-
-
-def test_clickhouse_merge_job_uses_config_engine_when_table_lookup_is_empty() -> None:
-    sql_client = Mock()
-    sql_client.config = SimpleNamespace(table_engine_type="shared_merge_tree")
-    sql_client.make_qualified_table_name_path.return_value = ["default", "dataset___items"]
-    sql_client.execute_sql.return_value = []
-
-    temp_engine = ClickHouseMergeJob._get_delete_temp_engine("items", sql_client)
-
-    assert temp_engine == "SharedMergeTree"
-
-
-def test_clickhouse_merge_job_generates_delete_temp_sql_with_replica_safe_engine(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        ClickHouseMergeJob,
-        "_new_temp_table_name",
-        classmethod(lambda cls, table_name, op, sql_client: "staging.tmp_delete"),
-    )
-    monkeypatch.setattr(
-        ClickHouseMergeJob,
-        "_get_delete_temp_engine",
-        classmethod(lambda cls, table_name, sql_client: "ReplicatedMergeTree"),
-    )
-
-    sql, temp_table_name = ClickHouseMergeJob.gen_delete_temp_table_sql(
-        "items",
-        "`_dlt_id`",
-        ["FROM prod.items AS d JOIN staging.items AS s ON d.id = s.id"],
-        Mock(),
-    )
-
-    assert temp_table_name == "staging.tmp_delete"
-    assert (
-        sql[0]
-        == "CREATE OR REPLACE TABLE staging.tmp_delete ENGINE = ReplicatedMergeTree"
-        " PRIMARY KEY `_dlt_id` AS SELECT d.`_dlt_id` FROM prod.items AS d JOIN"
-        " staging.items AS s ON d.id = s.id"
-    )

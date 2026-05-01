@@ -132,6 +132,12 @@ your configuration:
 select_sequential_consistency = 0
 ```
 
+### Merge on replicated clusters
+
+When merging tables that have nested children, `dlt` creates short-lived temp tables to stage delete
+keys and insert keys. The temp tables follow the configured `table_engine_type` so the staged rows replicate the same way the destination tables do. Single-table merges use lightweight `DELETE` directly
+and don't need temp tables.
+
 ## Datasets
 
 ClickHouse does not support multiple datasets in one database; dlt relies on datasets to exist for multiple reasons.
