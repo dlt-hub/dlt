@@ -47,6 +47,8 @@ from dlt.common.libs.pydantic import (
 )
 from dlt.common.warnings import Dlt100DeprecationWarning
 from pydantic import (
+    AfterValidator,
+    VERSION as PYDANTIC_VERSION,
     UUID4,
     BaseModel,
     Field,
@@ -1126,6 +1128,125 @@ def test_apply_contract_root_model_discriminator_preserved() -> None:
         mutated.model_validate({"kind": "unknown", "id": 3})
 
 
+def test_apply_contract_root_model_preserves_root_after_validator() -> None:
+    """Root-level validator metadata must survive RootModel reconstruction."""
+
+    def validate_click(value: Any) -> Any:
+        if isinstance(value, Click) and value.element_id == "forbidden":
+            raise ValueError("forbidden element")
+        return value
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[
+        Union[Click, Purchase],
+        Field(discriminator="kind"),
+        AfterValidator(validate_click),
+    ]
+
+    class Event(RootModel[U]):
+        pass
+
+    mutated: Any = apply_schema_contract_to_model(Event, "freeze", "freeze")
+    validated = mutated.model_validate({"kind": "click", "element_id": "btn_1"})
+
+    assert isinstance(validated.root, Click)
+    assert validated.root.kind == "click"
+    with pytest.raises(ValidationError, match="forbidden element"):
+        mutated.model_validate({"kind": "click", "element_id": "forbidden"})
+
+
+def test_apply_contract_preserves_non_root_after_validator() -> None:
+    """Non-root Annotated validator metadata must survive model reconstruction."""
+
+    def reject_negative(value: int) -> int:
+        if value < 0:
+            raise ValueError("negative value")
+        return value
+
+    class ModelWithAnnotatedValidator(BaseModel):
+        value: Annotated[int, AfterValidator(reject_negative)]
+
+    mutated: Any = apply_schema_contract_to_model(ModelWithAnnotatedValidator, "freeze", "freeze")
+    validated = mutated.model_validate({"value": 1})
+
+    assert validated.value == 1
+    with pytest.raises(ValidationError, match="negative value"):
+        mutated.model_validate({"value": -1})
+
+
+def test_apply_contract_preserves_multiple_annotated_metadata_entries() -> None:
+    """Annotated metadata entries stay separate after model reconstruction."""
+
+    class Child(BaseModel):
+        x: int
+
+    class ModelWithAnnotatedMetadata(BaseModel):
+        field: Annotated[Child, "meta1", "meta2"]
+
+    mutated: Any = apply_schema_contract_to_model(ModelWithAnnotatedMetadata, "freeze", "freeze")
+    rebuilt = mutated.model_fields["field"].rebuild_annotation()
+
+    assert get_origin(rebuilt) is Annotated
+    assert get_args(rebuilt)[1:] == ("meta1", "meta2")
+
+
+@pytest.mark.skipif(
+    tuple(int(part) for part in PYDANTIC_VERSION.split(".")[:2]) < (2, 13),
+    reason="Requires pydantic >= 2.13 field.discriminator behavior",
+)
+def test_build_discriminator_map_preserves_new_root_discriminator_with_extra_metadata() -> None:
+    """Discriminator extraction works when pydantic stores it on the root field."""
+
+    def validate_event(value: Any) -> Any:
+        return value
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[
+        Union[Click, Purchase],
+        AfterValidator(validate_event),
+        Field(discriminator="kind"),
+    ]
+
+    class Event(RootModel[U]):
+        pass
+
+    root_field = Event.model_fields["root"]
+    assert root_field.discriminator == "kind"
+
+    result = _build_discriminator_map(Event)
+    assert result is not None
+    disc_field, mapping = result
+    assert disc_field == "kind"
+    assert set(mapping.keys()) == {"click", "purchase"}
+
+    mutated: Any = apply_schema_contract_to_model(Event, "freeze", "freeze")
+    root_field = mutated.model_fields["root"]
+    assert root_field.discriminator == "kind"
+
+    result = _build_discriminator_map(mutated)
+    assert result is not None
+    disc_field, mapping = result
+    assert disc_field == "kind"
+    assert set(mapping.keys()) == {"click", "purchase"}
+
+    validated = mutated.model_validate({"kind": "click", "element_id": "btn_1"})
+    assert validated.model_dump() == {"kind": "click", "element_id": "btn_1"}
+
+
 def test_extra_schema_contract_conflict_warning() -> None:
     """Warns when model extra contradicts schema_contract columns setting."""
 
@@ -1304,20 +1425,20 @@ def test_nested_model_transformation_in_containers() -> None:
     # user_labels: List[UserLabel] — inner model should be transformed
     user_labels_ann = model.model_fields["user_labels"].annotation
     inner_names = get_inner_model_names(user_labels_ann)
-    assert any(
-        "ExtraAllow" in n for n in inner_names
-    ), f"UserLabel in List not transformed: {inner_names}"
+    assert any("ExtraAllow" in n for n in inner_names), (
+        f"UserLabel in List not transformed: {inner_names}"
+    )
 
     # unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
     unity_ann = model.model_fields["unity"].annotation
     inner_names = get_inner_model_names(unity_ann)
     # should have transformed versions of UserAddress and UserLabel
-    assert any(
-        "UserAddress" in n and "ExtraAllow" in n for n in inner_names
-    ), f"UserAddress in Union not transformed: {inner_names}"
-    assert any(
-        "UserLabel" in n and "ExtraAllow" in n for n in inner_names
-    ), f"UserLabel in Union not transformed: {inner_names}"
+    assert any("UserAddress" in n and "ExtraAllow" in n for n in inner_names), (
+        f"UserAddress in Union not transformed: {inner_names}"
+    )
+    assert any("UserLabel" in n and "ExtraAllow" in n for n in inner_names), (
+        f"UserLabel in Union not transformed: {inner_names}"
+    )
 
     # address field itself is Annotated[UserAddress, ...] — check the inner type
     address_ann = model.model_fields["address"].annotation
@@ -1327,9 +1448,9 @@ def test_nested_model_transformation_in_containers() -> None:
     addr_model = address_ann
     ro_labels_ann = addr_model.model_fields["ro_labels"].annotation
     inner_names = get_inner_model_names(ro_labels_ann)
-    assert any(
-        "ExtraAllow" in n for n in inner_names
-    ), f"UserLabel in Mapping not transformed: {inner_names}"
+    assert any("ExtraAllow" in n for n in inner_names), (
+        f"UserLabel in Mapping not transformed: {inner_names}"
+    )
 
 
 def test_child_model_cache_shared_across_nesting_levels() -> None:

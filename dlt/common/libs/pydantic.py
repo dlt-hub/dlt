@@ -46,6 +46,7 @@ try:
         raise ImportError(f"Found pydantic {PYDANTIC_VERSION} but dlt requires pydantic>=2.0")
     from pydantic import (
         BaseModel,
+        Field,
         ValidationError,
         Json,
         create_model,
@@ -127,28 +128,18 @@ def _build_discriminator_map(
         return None
 
     ann = root_field.annotation
-    discriminator: Optional[str] = None
+    discriminator = _get_field_discriminator(root_field)
     union_args: Tuple[Any, ...] = ()
 
-    if is_annotated(ann):
+    if root_field.discriminator is not None:
+        # on pydantic >= 2.13 the discriminator is stored on the field object, and the
+        # annotation may be either the bare union or Annotated[Union[A, B], <other metadata>]
+        union_ann = get_args(ann)[0] if is_annotated(ann) else ann
+        union_args = get_args(union_ann)
+    elif is_annotated(ann):
+        # on pydantic < 2.13 `ann` is an annotated union type, e.g. Annotated[Union[A, B], Field(discriminator="kind")]
         args = get_args(ann)
-        # metadata may be FieldInfo directly or wrapped in a tuple by _process_annotation
-        for a in args[1:]:
-            items = a if isinstance(a, (list, tuple)) else (a,)
-            for item in items:
-                if isinstance(item, FieldInfo) and isinstance(item.discriminator, str):
-                    discriminator = item.discriminator
-                    break
-            if discriminator:
-                break
         union_args = get_args(args[0])
-
-    # pydantic 2.13+: annotation is plain Union (not Annotated), discriminator
-    # is on root_field directly
-    if not discriminator and isinstance(root_field.discriminator, str):
-        discriminator = root_field.discriminator
-    if not union_args:
-        union_args = get_args(ann)
 
     if not discriminator or not union_args:
         return None
@@ -160,6 +151,25 @@ def _build_discriminator_map(
             for lit_val in get_args(member_field.annotation):
                 mapping[str(lit_val)] = member
     return discriminator, mapping
+
+
+def _get_field_discriminator(field: FieldInfo) -> Optional[str]:
+    # pydantic >= 2.13 stores the discriminator field name directly on the field object
+    if isinstance(field.discriminator, str):
+        return field.discriminator
+
+    if not is_annotated(field.annotation):
+        return None
+
+    # on pydantic < 2.13 `ann` is an annotated union type, e.g. Annotated[Union[A, B], Field(discriminator="kind")]
+    args = get_args(field.annotation)
+    for a in args[1:]:
+        items = a if isinstance(a, (list, tuple)) else (a,)
+        for item in items:
+            if isinstance(item, FieldInfo) and isinstance(item.discriminator, str):
+                return item.discriminator
+
+    return None
 
 
 def resolve_variant_model(
@@ -344,7 +354,9 @@ def apply_schema_contract_to_model(
                 {"__module__": model.__module__},
             )
         else:
-            model = create_model(model.__name__ + "Any", **{n: (Any, None) for n in model.model_fields})  # type: ignore
+            model = create_model(
+                model.__name__ + "Any", **{n: (Any, None) for n in model.model_fields}
+            )  # type: ignore
     elif data_mode == "discard_value":
         raise NotImplementedError(
             "`data_mode='discard_value'`. Cannot discard defined fields with validation errors"
@@ -369,7 +381,7 @@ def apply_schema_contract_to_model(
         """Recursively recreates models with applied schema contract"""
         if is_annotated(t_):
             a_t, *a_m = get_args(t_)
-            return Annotated[_process_annotation(a_t), tuple(a_m)]  # type: ignore[return-value]
+            return Annotated[(_process_annotation(a_t), *a_m)]  # type: ignore[return-value]
         origin = get_origin(t_)
         # tuple must be checked before is_list_generic_type (tuple is a Sequence)
         if origin is tuple:
@@ -417,13 +429,23 @@ def apply_schema_contract_to_model(
     if getattr(model, "__pydantic_root_model__", False):
         root_field = model.model_fields.get("root")
         if root_field:
-            processed_ann = _process_annotation(_rebuild_annotated(root_field))
-            # preserve discriminator that pydantic 2.13+ strips from Annotated metadata
-            if isinstance(root_field.discriminator, str) and not is_annotated(processed_ann):
-                processed_ann = Annotated[processed_ann, FieldInfo(discriminator=root_field.discriminator)]  # type: ignore[assignment]
+            # on pydantic >= 2.13 `_rebuild_annotated` might not return an annotated type,
+            # so processed_ann could be the bare Union type, e.g. Union[A, B]
+            processed_ann: Any = _process_annotation(_rebuild_annotated(root_field))
+            discriminator = _get_field_discriminator(root_field)
+            if discriminator is not None and root_field.discriminator is not None:
+                if is_annotated(processed_ann):
+                    # we have other metadata (besides the discriminator) that we should preserve
+                    args = get_args(processed_ann)
+                    processed_ann = Annotated[
+                        (args[0], Field(discriminator=discriminator), *args[1:])
+                    ]
+                else:
+                    # no other metadata, so we can rebuild the annotated type with the discriminator
+                    processed_ann = Annotated[processed_ann, Field(discriminator=discriminator)]
             new_rm = type(
                 model.__name__ + "Extra" + extra.title(),
-                (PydanticRootModel[processed_ann],),  # type: ignore[valid-type]
+                (PydanticRootModel[processed_ann],),
                 {"__module__": model.__module__},
             )
             if original_dlt_config:
@@ -431,7 +453,7 @@ def apply_schema_contract_to_model(
             return new_rm
 
     processed_fields = {
-        n: (_process_annotation(_rebuild_annotated(f)), f) for n, f in model.model_fields.items()
+        n: (_process_annotation(f.annotation), f) for n, f in model.model_fields.items()
     }
 
     # use __base__ to inherit validators (@field_validator, @model_validator)
