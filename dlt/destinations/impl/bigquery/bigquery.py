@@ -485,6 +485,62 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             column_def_sql += option_str
         return column_def_sql
 
+    def _get_dest_column_descriptions(self, table_name: str) -> Dict[str, Optional[str]]:
+        """Fetch current column descriptions from BigQuery."""
+        try:
+            bq_table = self.sql_client.native_connection.get_table(
+                self.sql_client.make_qualified_table_name(table_name, quote=False),
+                retry=self.sql_client._default_retry,
+                timeout=self.config.http_timeout,
+            )
+            return {field.name: field.description for field in bq_table.schema}
+        except gcp_exceptions.NotFound:
+            return {}
+
+    def _alter_existing_column_hints_sql(
+        self, table_name: str, storage_columns: TTableSchemaColumns
+    ) -> List[str]:
+        """Emit ALTER COLUMN SET OPTIONS for columns whose descriptions differ.
+
+        Compares schema descriptions against the current BigQuery state and only
+        emits statements when they differ. Handles both adding/updating and
+        removing descriptions (via SET OPTIONS(description=NULL)).
+        """
+        schema_columns = self.schema.get_table_columns(table_name)
+        if not schema_columns:
+            return []
+
+        dest_descriptions = self._get_dest_column_descriptions(table_name)
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
+        sql_updates: List[str] = []
+
+        for col_name, schema_col in schema_columns.items():
+            if col_name not in storage_columns:
+                # New column — handled by _get_table_update_sql, not here.
+                continue
+
+            # Normalize empty strings to None for comparison
+            schema_desc = schema_col.get("description") or None
+            dest_desc = dest_descriptions.get(col_name) or None
+
+            if schema_desc == dest_desc:
+                continue
+
+            escaped_col = self.sql_client.escape_column_name(col_name)
+            if schema_desc:
+                escaped_desc = escape_bigquery_literal(schema_desc)
+                sql_updates.append(
+                    f"ALTER TABLE {qualified_name}\n"
+                    f"ALTER COLUMN {escaped_col} SET OPTIONS(description={escaped_desc})"
+                )
+            else:
+                # Description removed from schema — clear it in BigQuery
+                sql_updates.append(
+                    f"ALTER TABLE {qualified_name}\n"
+                    f"ALTER COLUMN {escaped_col} SET OPTIONS(description=NULL)"
+                )
+        return sql_updates
+
     def _create_load_job(self, table: PreparedTableSchema, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends.
         table_name = table["name"]

@@ -687,10 +687,28 @@ WHERE """
                 for sql in post_sql_statements:
                     post_sql_updates.append(sql)
 
+            # For existing tables, update column hints (e.g. descriptions) on columns
+            # that already exist in the destination but have changed in the schema.
+            if generate_alter:
+                sql_updates.extend(
+                    self._alter_existing_column_hints_sql(table_name, storage_columns)
+                )
+
         # add post sql updates at the end
         sql_updates.extend(post_sql_updates)
 
         return sql_updates, schema_update
+
+    def _alter_existing_column_hints_sql(
+        self, table_name: str, storage_columns: TTableSchemaColumns
+    ) -> List[str]:
+        """Generates SQL to update hints (e.g. descriptions) on existing columns.
+
+        Called for tables that already exist in the destination. Override in
+        destination-specific clients to emit ALTER COLUMN statements for hint
+        changes. The base implementation returns an empty list.
+        """
+        return []
 
     def _make_add_column_sql(
         self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
