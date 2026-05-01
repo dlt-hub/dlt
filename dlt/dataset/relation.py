@@ -38,7 +38,17 @@ from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import bind_query, build_select_expr
 from dlt.common.destination.dataset import SupportsDataAccess
-from dlt.dataset._join import _apply_join
+from dlt.dataset._incremental import (
+    _build_incremental_aggregate,
+    _build_incremental_condition,
+    _has_incremental_marker,
+    _maybe_warn_on_cursor_missing_raise,
+    _parse_incremental_cursor_path,
+    _RelationIncrementalContext,
+    _sqlglot_type_for_column,
+)
+from dlt.dataset._join import _apply_join, _extract_joined_table_aliases
+from dlt.extract.incremental import Incremental
 
 
 if TYPE_CHECKING:
@@ -107,6 +117,7 @@ class Relation(WithSqlClient):
         self._opened_sql_client: SqlClientBase[Any] = None
         self._sqlglot_expression: sge.Query = None
         self._schema: Optional[TTableSchemaColumns] = None
+        self._incremental_ctx: Optional[_RelationIncrementalContext] = None
 
     def df(self, *args: Any, **kwargs: Any) -> pd.DataFrame | None:
         with self._cursor() as cursor:
@@ -439,6 +450,123 @@ class Relation(WithSqlClient):
         rel._sqlglot_expression = query
         return rel
 
+    def incremental(self, incremental: Incremental[Any]) -> Self:
+        """Filter this relation to a cursor range using an Incremental.
+
+        Translates the `Incremental` bounds (`initial_value`/`end_value`, `range_start`/
+        `range_end`, `last_value_func`) into a SQL `WHERE` clause. When the cursor
+        path is `table.column`, joins the referenced table via the dataset schema
+        without adding its columns to the projection, then filters on the joined
+        column. If the target is already joined, the existing JOIN is reused.
+
+        Args:
+            incremental (Incremental[Any]): The incremental whose cursor path and
+                range define the filter. `last_value_func` must be `min` or `max`.
+
+        Returns:
+            Self: A new relation with the incremental filter applied.
+
+        Raises:
+            ValueError: If the cursor path is a JSONPath expression, if a dotted
+                cursor is used on a relation whose FROM is not a bare base table
+                (e.g. after `.from_loads()` or on a `.query(...)` relation), if
+                the referenced table is not in the dataset schema, or if
+                `last_value_func` is not `min` or `max`.
+        """
+        if self._incremental_ctx is not None:
+            raise ValueError(
+                "`.incremental()` has already been applied to this relation with "
+                f"cursor `{self._incremental_ctx.incremental.cursor_path}`."
+            )
+
+        table_name, column_name = _parse_incremental_cursor_path(incremental.cursor_path)
+
+        if table_name is None:
+            column_ref = sge.Column(this=sge.to_identifier(column_name, quoted=True))
+            sqlglot_type = _sqlglot_type_for_column(self.columns_schema, column_name)
+            _maybe_warn_on_cursor_missing_raise(incremental, self.columns_schema, column_name)
+            condition = _build_incremental_condition(incremental, column_ref, sqlglot_type)
+            rel = self.__copy__()
+            rel._sqlglot_expression = rel.sqlglot_expression.where(condition)
+            rel._incremental_ctx = _RelationIncrementalContext(
+                incremental=incremental,
+                cursor_column=column_ref.copy(),
+            )
+            return rel
+
+        if not self._table_name:
+            raise ValueError(
+                f"Incremental cursor `{incremental.cursor_path}` references table "
+                f"`{table_name}` but the relation has no base table to resolve joins. "
+                "Call `.incremental()` on `dataset.table(...)`, not on a `.query(...)`."
+            )
+        if table_name not in self._dataset.schema.tables:
+            raise ValueError(
+                f"Incremental cursor target table `{table_name}` not found in dataset schema."
+            )
+        if self._table_name not in _extract_joined_table_aliases(self.sqlglot_expression):
+            raise ValueError(
+                f"Incremental cursor `{incremental.cursor_path}` requires a "
+                f"base-table relation to resolve the join to `{table_name}`. "
+                f"This relation is derived from base table `{self._table_name}` "
+                "(e.g. via `.from_loads()`, `dataset.table(load_ids=...)`, or "
+                "`.select()`), so a dotted cursor cannot be applied. Use a "
+                f"cursor on a column of `{self._table_name}` instead, or drop "
+                "the derivation."
+            )
+
+        query = _apply_join(
+            self.sqlglot_expression,
+            schema=self._dataset.schema,
+            left_table=self._table_name,
+            right_table=table_name,
+            projection_prefix=table_name,
+            kind="inner",
+            project=False,
+        )
+        qualifier_map = _extract_joined_table_aliases(query)
+        target_qualifier = qualifier_map[table_name]
+
+        column_ref = sge.Column(
+            this=sge.to_identifier(column_name, quoted=True),
+            table=sge.to_identifier(target_qualifier, quoted=False),
+        )
+        target_columns = self._dataset.schema.tables[table_name].get("columns", {})
+        sqlglot_type = _sqlglot_type_for_column(target_columns, column_name)
+        _maybe_warn_on_cursor_missing_raise(incremental, target_columns, column_name)
+
+        condition = _build_incremental_condition(incremental, column_ref, sqlglot_type)
+        rel = self.__copy__()
+        rel._sqlglot_expression = query.where(condition)
+        rel._incremental_ctx = _RelationIncrementalContext(
+            incremental=incremental,
+            cursor_column=column_ref.copy(),
+        )
+        return rel
+
+    @property
+    def is_incremental(self) -> bool:
+        """True if any clause on this relation was produced by `.incremental()`."""
+        # TODO: leaks True on aggregate relations because the inner subquery still
+        # carries the meta marker. Switch to `self._incremental_ctx is not None`.
+        return _has_incremental_marker(self.sqlglot_expression)
+
+    def _incremental_aggregate_relation(self) -> Optional[Self]:
+        """Return a relation computing `<last_value_func>(cursor)` over this relation.
+
+        Used by downstream lifecycle code (e.g. dlthub transformations) to advance
+        incremental state after the relation executes. Returns `None` when this
+        relation was not produced by `.incremental()`.
+        """
+        if self._incremental_ctx is None:
+            return None
+        agg_query = _build_incremental_aggregate(self.sqlglot_expression, self._incremental_ctx)
+        rel = self.__copy__()
+        rel._sqlglot_expression = agg_query
+        # Derived relation — do not re-advance state from the aggregate itself.
+        rel._incremental_ctx = None
+        return rel
+
     # NOTE we currently force to have one column selected; we could be more flexible
     # and rewrite the query to compute the AGG of all selected columns
     # `SELECT AGG(col1), AGG(col2), ... FROM table``
@@ -706,6 +834,7 @@ class Relation(WithSqlClient):
     def __copy__(self) -> Self:
         rel = self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
         rel._table_name = self._table_name
+        rel._incremental_ctx = self._incremental_ctx
         return rel
 
 

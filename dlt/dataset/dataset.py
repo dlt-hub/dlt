@@ -47,6 +47,7 @@ from dlt.common.destination.exceptions import (
 if TYPE_CHECKING:
     from dlt.common.libs.ibis import ir
     from dlt.common.libs.ibis import BaseBackend as IbisBackend
+    from dlt.extract.incremental import Incremental
 
 
 class Dataset:
@@ -262,9 +263,22 @@ class Dataset:
         return self.query(query, query_dialect, _execute_raw_query=_execute_raw_query)
 
     def table(
-        self, table_name: str, *, load_ids: Optional[Collection[str]] = None, **kwargs: Any
+        self,
+        table_name: str,
+        *,
+        load_ids: Optional[Collection[str]] = None,
+        incremental: Optional[Incremental[Any]] = None,
+        **kwargs: Any,
     ) -> dlt.Relation:
-        """Get a `dlt.Relation` associated with a table from the dataset."""
+        """Get a `dlt.Relation` associated with a table from the dataset.
+
+        Args:
+            table_name (str): Name of the table in the dataset schema.
+            load_ids (Optional[Collection[str]]): If provided, restrict rows to the
+                given load ids via `Relation.from_loads()`.
+            incremental (Optional[Incremental[Any]]): If provided, apply the cursor
+                range as a `WHERE` clause via `Relation.incremental()`.
+        """
         if table_name not in self.tables:
             # TODO: raise TableNotFound
             raise ValueError(f"Table `{table_name}` not found. Available table(s): {self.tables}")
@@ -277,10 +291,12 @@ class Dataset:
                 " Ibis Table."
             )
 
+        relation = dlt.Relation(dataset=self, table_name=table_name)
         if load_ids:
-            return dlt.Relation(dataset=self, table_name=table_name).from_loads(load_ids)
-        else:
-            return dlt.Relation(dataset=self, table_name=table_name)
+            relation = relation.from_loads(load_ids)
+        if incremental is not None:
+            relation = relation.incremental(incremental)
+        return relation
 
     def loads_table(self) -> dlt.Relation:
         """Get `_dlt_loads` table from the dataset."""
