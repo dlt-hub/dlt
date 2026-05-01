@@ -6,7 +6,7 @@ import pytest
 from dlt.common.configuration import resolve_configuration
 from dlt.common.utils import custom_environ, digest128
 from dlt.common.utils import uniq_id
-from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
+from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient, ClickHouseMergeJob
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
     ClickHouseClientConfiguration,
@@ -294,3 +294,44 @@ def test_clickhouse_replacing_merge_tree_fallback_non_append(
     sql = clickhouse_client._get_table_update_sql(table_name, columns, False)[0]
     assert "ENGINE = MergeTree" in sql
     assert "ReplacingMergeTree" not in sql
+
+
+@pytest.mark.parametrize(
+    "table_engine_type,expected_engine",
+    [
+        ("merge_tree", "MergeTree"),
+        # ReplacingMergeTree's dedup args don't apply to temp tables — collapses to MergeTree
+        ("replacing_merge_tree", "MergeTree"),
+        ("shared_merge_tree", "SharedMergeTree"),
+        ("replicated_merge_tree", "ReplicatedMergeTree"),
+    ],
+    ids=lambda x: x if isinstance(x, str) else "",
+)
+def test_clickhouse_merge_temp_table_engine(
+    clickhouse_client: ClickHouseClient,
+    table_engine_type: str,
+    expected_engine: str,
+) -> None:
+    """Merge delete/insert temp tables follow `config.table_engine_type` so they replicate
+    consistently with the destination tables.
+    """
+    clickhouse_client.config.table_engine_type = table_engine_type  # type: ignore[assignment]
+    sql_client = clickhouse_client.sql_client
+
+    delete_sql, _ = ClickHouseMergeJob.gen_delete_temp_table_sql(
+        "items",
+        "`_dlt_id`",
+        ["FROM dest AS d JOIN staging AS s ON d.`id` = s.`id`"],
+        sql_client,
+    )
+    assert f"ENGINE = {expected_engine}" in delete_sql[0]
+
+    insert_sql, _ = ClickHouseMergeJob.gen_insert_temp_table_sql(
+        "items",
+        "staging",
+        sql_client,
+        primary_keys=["`id`"],
+        unique_column="`_dlt_id`",
+        condition="1 = 1",
+    )
+    assert f"ENGINE = {expected_engine}" in insert_sql[0]

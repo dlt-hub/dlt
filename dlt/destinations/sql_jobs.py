@@ -248,7 +248,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         sql: List[str] = []
         temp_table_name = cls._new_temp_table_name(table_name, "delete", sql_client)
         select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
-        sql.append(cls._to_temp_table(select_statement, temp_table_name, unique_column))
+        sql.append(cls._to_temp_table(select_statement, temp_table_name, unique_column, sql_client))
         for clause in key_table_clauses[1:]:
             sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause}")
         return sql, temp_table_name
@@ -354,7 +354,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         else:
             # don't deduplicate
             select_sql = f"SELECT {unique_column} FROM {staging_root_table_name} WHERE {condition}"
-        return [cls._to_temp_table(select_sql, temp_table_name, unique_column)], temp_table_name
+        return [
+            cls._to_temp_table(select_sql, temp_table_name, unique_column, sql_client)
+        ], temp_table_name
 
     @classmethod
     def gen_delete_from_sql(
@@ -389,13 +391,20 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return cls._shorten_table_name(f"{table_name}_{op}_{uniq_id()}", sql_client)
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
         """Generate sql that creates temp table from select statement. May return several statements.
 
         Args:
             select_sql: select statement to create temp table from
             temp_table_name: name of the temp table (unqualified)
             unique_column: column in the select list that is unique. used by Clickhouse only
+            sql_client: sql client used to execute the resulting sql.
 
         Returns:
             sql statement that inserts data from selects into temp table
