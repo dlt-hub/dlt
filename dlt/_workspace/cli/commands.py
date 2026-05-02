@@ -1276,3 +1276,44 @@ Pin a profile to the Workspace, this will be the new default profile while it is
             pin_profile(workspace_context, args.profile_name)
         else:
             self.parser.print_usage()
+
+
+class _ProfilePlaceholder(SupportsCliCommand):
+    """Registered when workspace context is not active so `dlt profile` is always discoverable."""
+
+    command = "profile"
+    help_string = "Manage Workspace built-in profiles (requires .dlt/.workspace)"
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+        # Accept but ignore any subcommands/args so the command never errors on parse
+        parser.add_argument("remainder", nargs="*", help=argparse.SUPPRESS)
+
+    def execute(self, args: argparse.Namespace) -> None:
+        fmt.warning(
+            "Profiles require an initialized workspace.\n"
+            "Create the workspace marker to enable profile support:\n\n"
+            "  mkdir -p .dlt && touch .dlt/.workspace\n\n"
+            "Then run 'dlt profile' again."
+        )
+        raise CliCommandException(error_code=-1)
+
+
+class _WorkspacePlaceholder(SupportsCliCommand):
+    """Registered when workspace context is not active so `dlt workspace` is always discoverable."""
+
+    command = "workspace"
+    help_string = "Manage current Workspace (requires .dlt/.workspace)"
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+        parser.add_argument("remainder", nargs="*", help=argparse.SUPPRESS)
+
+    def execute(self, args: argparse.Namespace) -> None:
+        fmt.warning(
+            "Workspace commands require an initialized workspace.\n"
+            "Create the workspace marker to enable workspace support:\n\n"
+            "  mkdir -p .dlt && touch .dlt/.workspace\n\n"
+            "Then run 'dlt workspace' again."
+        )
+        raise CliCommandException(error_code=-1)
