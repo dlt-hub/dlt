@@ -1243,6 +1243,84 @@ def test_set_default_value_for_incremental_cursor(item_type: TestDataItemFormat)
     assert s["last_value"] == 4
 
 
+def test_insert_at_ordering_preserved_after_clone() -> None:
+    """Step ordering via insert_at must survive the eject/inject cycle triggered by resource clone"""
+
+    @dlt.source
+    def my_source():
+        @dlt.resource
+        def events():
+            yield [
+                {"id": 1, "updated_at": 1},
+                {"id": 2, "updated_at": 2},
+                {"id": 3, "updated_at": 3},
+            ]
+
+        return events
+
+    def count_rows(items, meta, metrics):
+        if isinstance(items, list):
+            metrics["row_count"] = metrics.get("row_count", 0) + len(items)
+
+    source = my_source()
+    r = source.events
+    r.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=2))
+    r.add_metrics(count_rows, insert_at=len(r._pipe))
+
+    # verify step layout is preserved across clone
+    layout_before = [type(s).__name__ for s in r._pipe._steps]
+    incr_idx_before = r._pipe.find(Incremental, IncrementalResourceWrapper)
+
+    cloned = r._clone()
+
+    layout_after = [type(s).__name__ for s in cloned._pipe._steps]
+    incr_idx_after = cloned._pipe.find(Incremental, IncrementalResourceWrapper)
+    assert layout_after == layout_before
+    assert incr_idx_after == incr_idx_before
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination="duckdb", dev_mode=True)
+    p.run(r)
+
+    extract_info = p.last_trace.last_extract_info
+    resource_metrics = extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+        "events"
+    ]
+    assert resource_metrics.custom_metrics["row_count"] == 2
+
+
+def test_insert_at_ordering_preserved_after_clone_arg_based() -> None:
+    """Step ordering via insert_at must survive clone with argument-based incremental"""
+
+    @dlt.source
+    def my_source():
+        @dlt.resource
+        def events(updated_at=dlt.sources.incremental("updated_at", initial_value=2)):
+            yield [
+                {"id": 1, "updated_at": 1},
+                {"id": 2, "updated_at": 2},
+                {"id": 3, "updated_at": 3},
+            ]
+
+        return events
+
+    source = my_source()
+    r = source.events
+
+    # add a filter after the incremental step
+    r.add_filter(lambda item: item["id"] != 999, insert_at=len(r._pipe))
+
+    # verify step layout is preserved across clone
+    layout_before = [type(s).__name__ for s in r._pipe._steps]
+    incr_idx_before = r._pipe.find(Incremental, IncrementalResourceWrapper)
+
+    cloned = r._clone()
+
+    layout_after = [type(s).__name__ for s in cloned._pipe._steps]
+    incr_idx_after = cloned._pipe.find(Incremental, IncrementalResourceWrapper)
+    assert layout_after == layout_before
+    assert incr_idx_after == incr_idx_before
+
+
 def test_json_path_cursor() -> None:
     @dlt.resource
     def some_data(last_timestamp=dlt.sources.incremental("item.timestamp|modifiedAt")):
