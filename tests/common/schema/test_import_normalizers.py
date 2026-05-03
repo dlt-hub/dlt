@@ -214,7 +214,7 @@ def test_import_normalizers_with_caps() -> None:
         assert naming.max_length == 127
 
     # max table nesting generates relational normalizer
-    default_: TNormalizersConfig = {
+    subclass_default: TNormalizersConfig = {
         "names": "dlt.destinations.impl.weaviate.naming",
         "json": {"module": "tests.common.normalizers.custom_normalizers"},
     }
@@ -224,8 +224,17 @@ def test_import_normalizers_with_caps() -> None:
         assert config["json"]["config"]["max_nesting"] == 0
         assert relational is RelationalNormalizer
 
-        # wrong normalizer
-        config, _, relational = import_normalizers(configured_normalizers(), default_)
+        # subclass of relational normalizer is recognized; max_nesting is set
+        config, _, relational = import_normalizers(configured_normalizers(), subclass_default)
+        assert config["json"]["config"]["max_nesting"] == 0
+        assert relational is CustomRelationalNormalizer
+
+        # unrelated normalizer (abstract base class, not a relational subclass): no config set
+        non_relational_default: TNormalizersConfig = {
+            "names": "dlt.destinations.impl.weaviate.naming",
+            "json": {"module": "dlt.common.normalizers.json"},
+        }
+        config, _, _ = import_normalizers(configured_normalizers(), non_relational_default)
         assert "config" not in config["json"]
 
 
