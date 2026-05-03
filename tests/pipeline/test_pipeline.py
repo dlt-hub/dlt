@@ -76,7 +76,7 @@ from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 from dlt.pipeline.typing import TPipelineStep
 
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import get_test_storage_root, skipifwindows
+from tests.utils import capture_dlt_logger, get_test_storage_root, skipifwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_table_counts,
@@ -1080,15 +1080,6 @@ def test_state_extracted_once_for_same_schema_multiple_sources(use_single_datase
     p.normalize()
 
     # Second extraction: state not extracted (unchanged hash)
-    p.extract([s1, s2])
-    storage = ExtractStorage(p._normalize_storage_config())
-    _assert_extracted_file_exists(
-        storage, "shared_schema", schema.state_table_name, should_exist=False
-    )
-
-    p.normalize()
-
-    # Third extraction: state extracted (incremental data changed)
     new_s2 = _create_simple_source(
         schema, "resource_2", [{"id": 7}, {"id": 8}, {"id": 9}], use_incremental=True
     )
@@ -1240,7 +1231,7 @@ def test_state_extraction_mixed_schemas(use_single_dataset: bool) -> None:
 
     p.normalize()
 
-    # Second extraction: no state change, no extraction
+    # Second extraction: incremental emits a final status change (caught up, no new data)
     p.extract([s1, s2, s3])
     storage = ExtractStorage(p._normalize_storage_config())
     for s in [shared, unique]:
@@ -1248,7 +1239,7 @@ def test_state_extraction_mixed_schemas(use_single_dataset: bool) -> None:
 
     p.normalize()
 
-    # Third extraction: incremental data changed in shared schema
+    # third extraction: incremental data changed in shared schema
     new_s1 = _create_simple_source(
         shared, "resource_1", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
     )
@@ -1582,13 +1573,8 @@ def test_restore_state_on_destination_dataset_name_change(caplog: Any) -> None:
     pipeline = dlt.pipeline(pipeline_name, destination="duckdb", dataset_name="new_dataset")
 
     # state restored from new_dataset must not revert dataset_name to original_dataset
-    dlt_logger = logging.getLogger("dlt")
-    dlt_logger.propagate = True
-    try:
-        with caplog.at_level(logging.WARNING, logger="dlt"):
-            load_info = pipeline.run(items([{"id": 1, "name": "Bob"}, {"id": 2, "name": "Alice"}]))
-    finally:
-        dlt_logger.propagate = False
+    with capture_dlt_logger(caplog) as caplog:
+        load_info = pipeline.run(items([{"id": 1, "name": "Bob"}, {"id": 2, "name": "Alice"}]))
     assert_load_info(load_info)
     assert pipeline.dataset_name == "new_dataset"
     assert pipeline.state["dataset_name"] == "new_dataset"

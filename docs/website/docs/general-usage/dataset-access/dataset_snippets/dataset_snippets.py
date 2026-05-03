@@ -1,6 +1,8 @@
 # flake8: noqa
 import dlt
 import pytest
+from pathlib import Path
+from typing import Any, Generator
 
 from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
@@ -198,6 +200,37 @@ def aggregate_snippet(default_dataset: dlt.Dataset) -> None:
     min_id = customers_relation.select("id").min().fetchscalar()
 
     # @@@DLT_SNIPPET_END aggregate
+
+
+def join_related_tables_snippet(tmp_path: Path) -> None:
+    @dlt.resource(primary_key="id")
+    def users() -> Generator[list[dict[str, Any]], None, None]:
+        yield [
+            {
+                "id": 1,
+                "name": "Alice",
+                "orders": [
+                    {"order_id": 101, "total": 42},
+                    {"order_id": 102, "total": 14},
+                ],
+            },
+            {"id": 2, "name": "Bob", "orders": [{"order_id": 103, "total": 20}]},
+        ]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="dataset_join_snippet",
+        destination=dlt.destinations.duckdb(
+            str(tmp_path / "dataset_join_snippet.duckdb")
+        ),
+        dataset_name="dataset_join_snippet_data",
+    )
+    pipeline.run(users())
+    dataset = pipeline.dataset()
+
+    # @@@DLT_SNIPPET_START join_related_tables
+    users_with_orders = dataset["users"].join("users__orders", alias="orders")
+    df = users_with_orders.select("name", "orders__order_id", "orders__total").df()
+    # @@@DLT_SNIPPET_END join_related_tables
 
 
 def chain_operations_snippet(dataset: dlt.Dataset) -> None:

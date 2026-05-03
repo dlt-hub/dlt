@@ -1,5 +1,5 @@
 ---
-title: Azure Synapse
+title: Synapse
 description: Azure Synapse `dlt` destination
 keywords: [synapse, destination, data warehouse]
 ---
@@ -237,4 +237,3 @@ Integration with [dbt](../transformations/dbt/dbt.md) is supported via `dbt-syna
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA synapse-->
-

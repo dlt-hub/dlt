@@ -1,7 +1,6 @@
 import gzip
 import os
 import re
-import sys
 import stat
 import time
 import errno
@@ -14,6 +13,8 @@ from dlt.common.utils import encoding_for_mode, uniq_id
 
 
 FILE_COMPONENT_INVALID_CHARACTERS = re.compile(r"[.%{}]")
+WINDOWS_TREE_RENAME_RETRIES = 3
+WINDOWS_TREE_RENAME_RETRY_ERRNOS = {errno.EACCES, errno.EPERM}
 
 
 class FileStorage:
@@ -210,30 +211,32 @@ class FileStorage:
     def rename_tree(self, from_relative_path: str, to_relative_path: str) -> None:
         """Renames a tree using os.rename if possible making it atomic
 
-        Falls back to `rename_tree_files` on too many open files. On Windows,
-        retries on PermissionError (0.25s wait, 1s deadline) caused by NTFS
-        holding a transient directory handle after recent file operations
-        within the tree.
+        If we get 'too many open files' or a transient Windows access denied
+        during directory rename, `rename_tree_files` is used. On Windows, NTFS
+        may briefly hold directory handles after file operations inside the
+        tree, so EACCES/EPERM are retried with a short backoff before falling
+        back (same strategy as pip).
         """
-
         try:
             self.atomic_rename(from_relative_path, to_relative_path)
             return
         except OSError as ex:
             if ex.errno == errno.EMFILE:
                 pass
-            elif isinstance(ex, PermissionError) and sys.platform == "win32":
-                # NTFS may briefly hold directory handles after file operations
-                # inside the tree, causing os.rename to fail. retry for up to
-                # 1s with 0.25s wait, same strategy as pip.
-                deadline = time.monotonic() + 1.0
-                while True:
-                    time.sleep(0.25)
+            elif (
+                os.name == "nt"
+                and ex.errno in WINDOWS_TREE_RENAME_RETRY_ERRNOS
+                and not os.path.exists(self.make_full_path(to_relative_path))
+            ):
+                for attempt in range(1, WINDOWS_TREE_RENAME_RETRIES):
+                    time.sleep(0.05 * attempt)
                     try:
                         self.atomic_rename(from_relative_path, to_relative_path)
                         return
-                    except PermissionError:
-                        if time.monotonic() > deadline:
+                    except OSError as retry_ex:
+                        if retry_ex.errno == errno.EMFILE:
+                            break
+                        if retry_ex.errno not in WINDOWS_TREE_RENAME_RETRY_ERRNOS:
                             raise
             else:
                 raise

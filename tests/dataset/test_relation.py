@@ -1,79 +1,24 @@
-import sys
 import pathlib
+import sys
 from typing import Any
 
 import pytest
 from sqlglot import expressions as sge
 
 import dlt
-from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.common.schema.schema import Schema
+from dlt.common.schema.typing import C_DLT_LOAD_ID, LOADS_TABLE_NAME, VERSION_TABLE_NAME
+from dlt.common.schema.utils import new_table
 from dlt.dataset.dataset import _get_load_ids, _get_latest_load_id
+from dlt.dataset.exceptions import LineageFailedException
+from tests.dataset.utils import TLoadsFixture, crm
 
 # TODO move destination-independent tests from `test_read_interfaces.py` to this module
 
-USERS_DATA_0 = [
-    {
-        "id": 1,
-        "name": "Alice",
-        "orders": [
-            {"order_id": 101, "amount": 100.0, "items": [{"item": "A"}, {"item": "B"}]},
-            {"order_id": 102, "amount": 200.0, "items": [{"item": "C"}]},
-        ],
-    },
-    {
-        "id": 2,
-        "name": "Bob",
-        "orders": [{"order_id": 103, "amount": 150.0, "items": [{"item": "D"}]}],
-    },
-]
 
-USERS_DATA_1 = [
-    {
-        "id": 3,
-        "name": "Charlie",
-        "orders": [{"order_id": 104, "amount": 300.0, "items": [{"item": "E"}]}],
-    }
-]
-
-PRODUCTS_DATA_0 = [{"product_id": 1, "name": "Widget"}, {"product_id": 2, "name": "Gadget"}]
-PRODUCTS_DATA_1 = [{"product_id": 3, "name": "Doohickey"}]
-
-
-@dlt.source(root_key=False)
-def crm(i: int = 0):
-    @dlt.resource
-    def users(i: int):
-        if i == 0:
-            yield USERS_DATA_0
-        elif i == 1:
-            yield USERS_DATA_1
-
-    @dlt.resource
-    def products(i: int):
-        if i == 0:
-            yield PRODUCTS_DATA_0
-        elif i == 1:
-            yield PRODUCTS_DATA_1
-
-    return [users(i), products(i)]
-
-
-LOAD_0_STATS = {
-    "users": len(USERS_DATA_0),
-    "products": len(PRODUCTS_DATA_0),
-    "users__orders": sum(len(user["orders"]) for user in USERS_DATA_0),  # type: ignore[misc,arg-type]
-    "users__orders__items": sum(
-        len(order["items"]) for user in USERS_DATA_0 for order in user["orders"]  # type: ignore[misc,attr-defined]
-    ),
-}
-LOAD_1_STATS = {
-    "users": len(USERS_DATA_1),
-    "products": len(PRODUCTS_DATA_1),
-    "users__orders": sum(len(user["orders"]) for user in USERS_DATA_1),  # type: ignore[misc,arg-type]
-    "users__orders__items": sum(
-        len(order["items"]) for user in USERS_DATA_1 for order in user["orders"]  # type: ignore[misc,attr-defined]
-    ),
-}
+def _set_name_normalizer_on_schema(schema: dlt.Schema, name_normalizer_ref: str) -> None:
+    schema._normalizers_config["names"] = name_normalizer_ref
+    schema.update_normalizers()
 
 
 ITEMS_DATA = [{"item_id": 1, "name": "Widget"}, {"item_id": 2, "name": "Gadget"}]
@@ -93,75 +38,10 @@ def inventory():
     return [items, warehouses]
 
 
-TLoadsFixture = tuple[dlt.Dataset, tuple[str, str], tuple[dict[str, Any], dict[str, Any]]]
-
-
-@pytest.fixture(scope="module")
-def loads_with_root_key(module_tmp_path: pathlib.Path) -> TLoadsFixture:
-    """Create a pipeline with nested data across multiple loads."""
-    pipeline = dlt.pipeline(
-        pipeline_name="with_root_key",
-        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
-        destination=dlt.destinations.duckdb(str(module_tmp_path / "duckdb.db")),
-        dev_mode=True,
-    )
-
-    source = crm(0)
-    source.root_key = True
-    pipeline.run(source)
-    load_id_1 = pipeline.last_trace.last_normalize_info.loads_ids[0]
-
-    source = crm(1)
-    source.root_key = True
-    pipeline.run(source)
-    load_id_2 = pipeline.last_trace.last_normalize_info.loads_ids[0]
-
-    return (pipeline.dataset(), (load_id_1, load_id_2), (LOAD_0_STATS, LOAD_1_STATS))
-
-
-@pytest.fixture(scope="module")
-def loads_without_root_key(module_tmp_path: pathlib.Path) -> TLoadsFixture:
-    """Create a pipeline with nested data across multiple loads."""
-    pipeline = dlt.pipeline(
-        pipeline_name="without_root_key",
-        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
-        destination=dlt.destinations.duckdb(str(module_tmp_path / "duckdb.db")),
-        dev_mode=True,
-    )
-
-    source = crm(0)
-    source.root_key = False
-    pipeline.run(source)
-    load_id_1 = pipeline.last_trace.last_normalize_info.loads_ids[0]
-
-    source = crm(1)
-    source.root_key = False
-    pipeline.run(source)
-    load_id_2 = pipeline.last_trace.last_normalize_info.loads_ids[0]
-
-    return (pipeline.dataset(), (load_id_1, load_id_2), (LOAD_0_STATS, LOAD_1_STATS))
-
-
-# params= sets the default value for tests not specifying
-@pytest.fixture(params=["with_root_key"])
-def dataset_with_loads(
-    request: pytest.FixtureRequest,
-    loads_with_root_key: TLoadsFixture,
-    loads_without_root_key: TLoadsFixture,
-) -> TLoadsFixture:
-    """Router fixture for indirect parametrization of dataset fixtures."""
-    if request.param == "with_root_key":
-        return loads_with_root_key
-    elif request.param == "without_root_key":
-        return loads_without_root_key
-    else:
-        raise ValueError(f"Unknown dataset fixture: {request.param}")
-
-
 @pytest.fixture(scope="module")
 def dataset() -> dlt.Dataset:
-    @dlt.resource
-    def purchases():
+    @dlt.resource(name="purchases")
+    def purchases_data():
         yield from (
             {"id": 1, "name": "alice", "city": "berlin"},
             {"id": 2, "name": "bob", "city": "paris"},
@@ -171,7 +51,7 @@ def dataset() -> dlt.Dataset:
     pipeline = dlt.pipeline(
         "_relation_to_ibis", destination="duckdb", full_refresh=True, dev_mode=True
     )
-    pipeline.run([purchases])
+    pipeline.run([purchases_data])
     return pipeline.dataset()
 
 
@@ -180,11 +60,6 @@ def purchases(dataset: dlt.Dataset) -> dlt.Relation:
     purchases = dataset.table("purchases")
     assert isinstance(purchases, dlt.Relation)
     return purchases
-
-
-def _set_name_normalizer_on_schema(schema: dlt.Schema, name_normalizer_ref: str) -> None:
-    schema._normalizers_config["names"] = name_normalizer_ref
-    schema.update_normalizers()
 
 
 @pytest.mark.skipif(
@@ -228,8 +103,28 @@ def test_transformed_relation_to_ibis_(purchases: dlt.Relation) -> None:
 
     table = purchases.where("id", "gt", 2).select("name").to_ibis()
     assert isinstance(table, ir.Table)
-    # executes without error
-    table.execute()
+    out = table.execute()
+    assert list(out["name"]) == ["charlie"]
+
+
+def test_relation_from_loads_rejects_non_table_relations(dataset: dlt.Dataset) -> None:
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.query("SELECT * FROM purchases").from_loads(["load_1"])
+
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.table("purchases").where("id", "gt", 1).from_loads(["load_1"])
+
+
+def test_relation_with_load_id_rejects_non_table_relations(
+    dataset_with_loads: TLoadsFixture,
+) -> None:
+    dataset, _, _ = dataset_with_loads
+
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.query("SELECT * FROM users").with_load_id_col()
+
+    with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
+        dataset.table("users__orders").where("order_id", "gt", 1).with_load_id_col()
 
 
 def test_dataset_load_ids(dataset_with_loads: TLoadsFixture):
@@ -425,16 +320,7 @@ def multi_schema_pipeline(module_tmp_path: pathlib.Path) -> dlt.Pipeline:
 
 @pytest.fixture(scope="module")
 def multi_schema_dataset(multi_schema_pipeline: dlt.Pipeline) -> dlt.Dataset:
-    ds = multi_schema_pipeline.dataset()
-    # we need to reset max_length here to avoid IncompatibleSchemaException
-    # down the line in unify_schemas: max_length is resolved from
-    # DestinationCapabilitiesContext at schema construction time
-    # The deactivate_pipeline autouse fixture removes caps from the Container
-    # between tests, so clone() inside unify_schemas would create schemas without
-    # max_length.
-    for s in ds.schemas:
-        s.naming.max_length = None
-    return ds
+    return multi_schema_pipeline.dataset()
 
 
 def test_multi_schema_schemas_property(multi_schema_dataset: dlt.Dataset) -> None:
@@ -647,10 +533,7 @@ def overlapping_tables_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
     )
     pipeline.run(src_a())
     pipeline.run(src_b())
-    ds = pipeline.dataset()
-    for s in ds.schemas:
-        s.naming.max_length = None
-    return ds
+    return pipeline.dataset()
 
 
 def test_shared_table_merge(overlapping_tables_dataset: dlt.Dataset) -> None:
@@ -687,3 +570,226 @@ def test_multi_schema_row_counts_by_load_id(
         "items": 2,
         "warehouses": 1,
     }
+
+
+def test_unify_schemas_across_naming_conventions(
+    module_tmp_path: pathlib.Path,
+) -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="multi_naming",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(
+            str(module_tmp_path / "multi_naming.db"),
+            enable_dataset_name_normalization=False,
+        ),
+        dataset_name="multi_naming_ds",
+    )
+    # default snake_case schema
+    pipeline.run([{"id": 1, "name": "alice"}, {"id": 2, "name": "bob"}], table_name="users")
+
+    upper_schema = dlt.Schema("events")
+    upper_schema._configure_normalizers(
+        {"names": "tests.common.cases.normalizers.sql_upper", "json": None}
+    )
+    pipeline.run(
+        [{"id": 7, "value": "hello"}],
+        table_name="events📊",
+        schema=upper_schema,
+    )
+    assert "users" in pipeline.schemas["multi_naming"].data_table_names()
+    assert "EVENTS📊" in pipeline.schemas["events"].data_table_names()
+
+    dataset = pipeline.dataset()
+    users = sorted(row[:2] for row in dataset.users.fetchall())
+    assert users == [(1, "alice"), (2, "bob")]
+    events = [row[:2] for row in dataset["EVENTS📊"].fetchall()]
+    assert events == [(7, "hello")]
+
+
+@pytest.fixture
+def mock_dataset() -> dlt.Dataset:
+    s = Schema("my_schema")
+    t = new_table(
+        "my_table",
+        columns=[
+            {"name": "col1", "data_type": "text"},
+            {"name": "col2", "data_type": "text"},
+        ],
+    )
+    s.update_table(t)
+    return dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        schema=s,
+    )
+
+
+def test_dataset_autocompletion(mock_dataset: dlt.Dataset) -> None:
+    expected_suggestions = ["my_table", LOADS_TABLE_NAME, VERSION_TABLE_NAME]
+    suggestions = mock_dataset._ipython_key_completions_()
+    assert set(expected_suggestions) == set(suggestions)
+
+
+def test_relation_autocompletion(mock_dataset: dlt.Dataset) -> None:
+    expected_suggestions = ["col1", "col2"]
+    suggestions = mock_dataset["my_table"]._ipython_key_completions_()
+    assert set(expected_suggestions) == set(suggestions)
+
+
+def test_query_builder(mock_dataset: dlt.Dataset) -> None:
+    relation = mock_dataset.my_table
+
+    # default query for a table
+    assert (
+        relation.to_sql().strip()
+        == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
+        ' "pipeline_dataset"."my_table" AS "my_table"'
+    )
+
+    # head query
+    assert (
+        relation.head().to_sql().strip()
+        == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
+        ' "pipeline_dataset"."my_table" AS "my_table" LIMIT 5'
+    )
+
+    # limit query
+    assert (
+        relation.limit(24).to_sql().strip()
+        == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
+        ' "pipeline_dataset"."my_table" AS "my_table" LIMIT 24'
+    )
+
+    # select columns
+    assert (
+        relation.select("col1").to_sql().strip()
+        == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
+    )
+    # also indexer notation
+    assert (
+        relation[["col2"]].to_sql().strip()
+        == 'SELECT "my_table"."col2" AS "col2" FROM "pipeline_dataset"."my_table" AS "my_table"'
+    )
+
+    # limit and select chained
+    assert (
+        relation.select("col1").limit(24).to_sql().strip()
+        == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
+        " LIMIT 24"
+    )
+
+
+def test_copy_and_chaining() -> None:
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+    )
+
+    dataset.schema.tables["items"] = new_table(
+        "items",
+        columns=[{"data_type": "text", "name": "one"}, {"data_type": "json", "name": "two"}],
+    )
+
+    # create relation and set some stuff on it
+    relation = dataset.items
+    relation = relation.limit(34)
+    relation = relation[["one", "two"]]
+
+    relation2 = relation.__copy__()
+    assert relation != relation2
+    assert relation.sqlglot_expression == relation2.sqlglot_expression
+
+    # test copy while chaining limit
+    relation3 = relation2.limit(22)
+    assert relation2 != relation3
+    assert relation2.sqlglot_expression != relation3.sqlglot_expression
+
+    # test last setting prevails chaining
+    limit_expr = relation.limit(23).limit(67).limit(11).sqlglot_expression.args["limit"]
+    literal_expr = limit_expr.args["expression"]
+    assert int(literal_expr.this) == 11
+
+
+def test_computed_schema_columns() -> None:
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+    )
+
+    # missing attribute should raise Attribute error
+    with pytest.raises(AttributeError):
+        dataset.items
+
+    # missing key should raise KeyError
+    with pytest.raises(KeyError):
+        dataset["items"]
+
+    with pytest.raises(ValueError):
+        dataset.table("items")
+
+    dataset.schema.tables["items"] = new_table(
+        "items",
+        columns=[{"data_type": "text", "name": "one"}, {"data_type": "json", "name": "two"}],
+    )
+
+    # now add columns
+    relation = dataset.items
+
+    # computed columns are same as above
+    assert relation.columns_schema == {
+        "one": {"data_type": "text", "name": "one"},
+        "two": {"data_type": "json", "name": "two"},
+    }
+
+    # when selecting only one column, computing schema columns will only show that one
+    assert relation.select("one").columns_schema == {"one": {"data_type": "text", "name": "one"}}
+    assert relation["one"].columns_schema == {"one": {"data_type": "text", "name": "one"}}
+    assert relation[["one"]].columns_schema == {"one": {"data_type": "text", "name": "one"}}
+
+    # selecting unknown column fails
+    with pytest.raises(KeyError):
+        relation[["unknown_columns"]]
+    with pytest.raises(KeyError):
+        relation["unknown_columns"]
+
+
+def test_changing_relation_with_query() -> None:
+    s = Schema("my_schema")
+    t = new_table(
+        "something",
+        columns=[
+            {"name": "this", "data_type": "text"},
+            {"name": "that", "data_type": "text"},
+        ],
+    )
+
+    s.update_table(t)
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        schema=s,
+    )
+
+    relation = dataset("SELECT * FROM something")
+    query = relation.to_sql()
+    assert (
+        'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
+        ' "pipeline_dataset"."something" AS "something"'
+        == query
+    )
+
+    query = dataset("SELECT this, that FROM something").limit(5).to_sql()
+    assert (
+        'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
+        ' "pipeline_dataset"."something" AS "something" LIMIT 5'
+        == query
+    )
+
+    query = relation.select("this").to_sql()
+    assert (
+        'SELECT "something"."this" AS "this" FROM "pipeline_dataset"."something" AS "something"'
+        == query
+    )
+
+    with pytest.raises(LineageFailedException):
+        relation.select("hello", "hillo").to_sql()

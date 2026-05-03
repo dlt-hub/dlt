@@ -1,10 +1,10 @@
 ---
-title: Database Connector App
-description: How to use the database connector app
-keywords: [snowflake, native app, database connector app]
+title: dlt Connector App
+description: How to use the dlt Connector App
+keywords: [snowflake, native app, dlt connector app]
 ---
 
-# Snowflake Native App
+# dlt Connector App
 
 The dlt Connector App is a Snowflake Native App that lets you move data from external SQL databases (PostgreSQL, MySQL, MSSQL) into Snowflake using a simple web UI. It runs entirely within your Snowflake account — no external infrastructure required.
 
@@ -37,7 +37,7 @@ Before creating your first pipeline, make sure you have:
 4. (Optional) An S3 bucket if you plan to stage data externally
 
 ## Install and open the app
-Use the link we provided to you or find and install the app via the [Snowflake Marketplace](https://app.snowflake.com/marketplace).
+Find and install the app via the [dlt Connector App listing on the Snowflake Marketplace](https://app.snowflake.com/marketplace/listing/GZ1MMZ1IPICU/dlthub-dlt-connector-app).
 
 
 ## Set up connection

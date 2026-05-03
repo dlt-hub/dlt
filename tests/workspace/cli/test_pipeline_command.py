@@ -154,7 +154,7 @@ def test_pipeline_command_operations(repo_dir: str) -> None:
             )
         _out = buf.getvalue()
 
-        assert "could not be restored: the pipeline was not found in " in _out
+        assert "No local pipeline state found" in _out
         assert "Selected resource(s): ['players_profiles']" in _out
 
         # Command was executed
