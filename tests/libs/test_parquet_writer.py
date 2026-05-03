@@ -489,3 +489,164 @@ def test_empty_tables_get_flushed() -> None:
         assert len(writer._buffered_items) == 1
         writer.write_data_item(single_elem_table, columns=c1)
         assert len(writer._buffered_items) == 0
+
+
+def test_cross_batch_schema_promotion_narrower_cast() -> None:
+    c1 = {"val": new_column("val", "double")}
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=1,
+        caps=_caps_with_promote("permissive"),
+    ) as writer:
+        t1 = pa.Table.from_pydict({"val": pa.array([1.5], type=pa.float64())})
+        writer.write_data_item(t1, columns=c1)
+        writer._flush_items()
+
+        t2 = pa.Table.from_pydict({"val": pa.array([2.5], type=pa.float32())})
+        writer.write_data_item(t2, columns=c1)
+
+    assert len(writer.closed_files) == 1
+    table = pq.read_table(writer.closed_files[0].file_path)
+    assert table.schema.field("val").type == pa.float64()
+    assert table.column("val").to_pylist() == [1.5, 2.5]
+
+
+def test_cross_batch_schema_promotion_wider_rotates() -> None:
+    c1 = {"val": new_column("val", "double")}
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=1,
+        caps=_caps_with_promote("permissive"),
+    ) as writer:
+        t1 = pa.Table.from_pydict({"val": pa.array([1.5], type=pa.float32())})
+        writer.write_data_item(t1, columns=c1)
+        writer._flush_items()
+
+        t2 = pa.Table.from_pydict({"val": pa.array([2.5], type=pa.float64())})
+        writer.write_data_item(t2, columns=c1)
+
+    assert len(writer.closed_files) == 2
+    t_file1 = pq.read_table(writer.closed_files[0].file_path)
+    assert t_file1.schema.field("val").type == pa.float32()
+    t_file2 = pq.read_table(writer.closed_files[1].file_path)
+    assert t_file2.schema.field("val").type == pa.float64()
+
+
+def test_cross_batch_schema_promotion_int_widening() -> None:
+    c1 = {"val": new_column("val", "bigint")}
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=1,
+        caps=_caps_with_promote("permissive"),
+    ) as writer:
+        t1 = pa.Table.from_pydict({"val": pa.array([1000], type=pa.int32())})
+        writer.write_data_item(t1, columns=c1)
+        writer._flush_items()
+
+        t2 = pa.Table.from_pydict({"val": pa.array([1], type=pa.int8())})
+        writer.write_data_item(t2, columns=c1)
+
+    assert len(writer.closed_files) == 1
+    table = pq.read_table(writer.closed_files[0].file_path)
+    assert table.schema.field("val").type == pa.int32()
+    assert table.column("val").to_pylist() == [1000, 1]
+
+
+def test_cross_batch_schema_mixed_wider_and_narrower() -> None:
+    c1 = {
+        "a": new_column("a", "double"),
+        "b": new_column("b", "bigint"),
+    }
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=1,
+        caps=_caps_with_promote("permissive"),
+    ) as writer:
+        t1 = pa.Table.from_pydict({
+            "a": pa.array([1.5], type=pa.float64()),
+            "b": pa.array([1], type=pa.int8()),
+        })
+        writer.write_data_item(t1, columns=c1)
+        writer._flush_items()
+
+        t2 = pa.Table.from_pydict({
+            "a": pa.array([2.5], type=pa.float32()),
+            "b": pa.array([1000], type=pa.int32()),
+        })
+        writer.write_data_item(t2, columns=c1)
+
+    assert len(writer.closed_files) == 2
+    t_file1 = pq.read_table(writer.closed_files[0].file_path)
+    assert t_file1.schema.field("a").type == pa.float64()
+    assert t_file1.schema.field("b").type == pa.int8()
+    t_file2 = pq.read_table(writer.closed_files[1].file_path)
+    assert t_file2.schema.field("a").type == pa.float64()
+    assert t_file2.schema.field("b").type == pa.int32()
+
+
+def test_cross_batch_schema_metadata_only_diff_no_rotation() -> None:
+    c1 = {"val": new_column("val", "double")}
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=1,
+        caps=_caps_with_promote("permissive"),
+    ) as writer:
+        schema1 = pa.schema([
+            pa.field("val", pa.float64(), metadata={b"source": b"file1"})
+        ])
+        t1 = pa.Table.from_pydict(
+            {"val": pa.array([1.5], type=pa.float64())}, schema=schema1
+        )
+        writer.write_data_item(t1, columns=c1)
+        writer._flush_items()
+
+        schema2 = pa.schema([
+            pa.field("val", pa.float64(), metadata={b"source": b"file2"})
+        ])
+        t2 = pa.Table.from_pydict(
+            {"val": pa.array([2.5], type=pa.float64())}, schema=schema2
+        )
+        writer.write_data_item(t2, columns=c1)
+
+    assert len(writer.closed_files) == 1
+    table = pq.read_table(writer.closed_files[0].file_path)
+    assert table.column("val").to_pylist() == [1.5, 2.5]
+
+
+def test_cross_batch_schema_no_promotion_when_none() -> None:
+    c1 = {"val": new_column("val", "double")}
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=1,
+        caps=_caps_with_promote("none"),
+    ) as writer:
+        t1 = pa.Table.from_pydict({"val": pa.array([1.5], type=pa.float64())})
+        writer.write_data_item(t1, columns=c1)
+        writer._flush_items()
+
+        t2 = pa.Table.from_pydict({"val": pa.array([2.5], type=pa.float32())})
+        with pytest.raises((pa.lib.ArrowInvalid, ValueError)):
+            writer.write_data_item(t2, columns=c1)
+
+
+def test_cross_batch_schema_incompatible_types() -> None:
+    c1 = {"val": new_column("val", "text")}
+
+    with pytest.raises((pa.lib.ArrowInvalid, pa.lib.ArrowTypeError)):
+        with get_writer(
+            ArrowToParquetWriter,
+            buffer_max_items=1,
+            caps=_caps_with_promote("permissive"),
+        ) as writer:
+            t1 = pa.Table.from_pydict({"val": pa.array(["hello"], type=pa.string())})
+            writer.write_data_item(t1, columns=c1)
+            writer._flush_items()
+
+            t2 = pa.Table.from_pydict({"val": pa.array([1.5], type=pa.float64())})
+            writer.write_data_item(t2, columns=c1)
