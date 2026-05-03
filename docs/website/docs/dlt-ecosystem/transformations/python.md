@@ -1,12 +1,12 @@
 ---
 title: Transform data in Python with Arrow tables or DataFrames
-description: Transforming data loaded by a dlt pipeline with pandas dataframes or arrow tables
-keywords: [transform, pandas, pyarrow]
+description: Transforming data loaded by a dlt pipeline with Pandas or Polars DataFrames and Arrow tables
+keywords: [transform, pandas, polars, arrow]
 ---
 
 # Transform data in Python with Arrow tables or DataFrames
 
-You can transform your data in Python using Pandas DataFrames or Arrow tables. To get started, please read the [dataset docs](../../general-usage/dataset-access/dataset).
+You can transform your data in Python using Pandas DataFrames, Arrow tables, or Polars DataFrames. To get started, please read the [dataset docs](../../general-usage/dataset-access/dataset).
 
 
 ## Interactively transforming your data in Python
@@ -44,7 +44,7 @@ reactions = github_issues.select(
 
 ## Persisting your transformed data
 
-Since dlt supports DataFrames and Arrow tables from resources directly, you can use the same pipeline to load the transformed data back into the destination.
+Since dlt supports Arrow tables, Pandas or Polars DataFrames from resources directly, you can use the same pipeline to load the transformed data back into the destination.
 
 
 ### A simple example
@@ -99,6 +99,40 @@ def users_clean():
 
         # yield the transformed arrow table
         yield arrow_table
+
+
+pipeline.run(users_clean())
+```
+
+### A Polars example
+
+You can also use Polars for transformations. Polars DataFrames and LazyFrames are automatically converted to Arrow tables when yielded from a resource.
+
+```py
+import polars as pl
+
+pipeline = dlt.pipeline(
+    pipeline_name="users_pipeline",
+    destination="duckdb",
+    dataset_name="users_raw",
+    dev_mode=True
+)
+
+@dlt.resource(table_name="users_clean")
+def users_clean():
+    users = pipeline.dataset().table("users")
+    for arrow_table in users.iter_arrow(chunk_size=1000):
+        # convert to Polars for transformation
+        df = pl.from_arrow(arrow_table)
+
+        # filter out users under 18
+        df = df.filter(pl.col("age") >= 18)
+
+        # drop sensitive columns
+        df = df.drop(["email", "name"])
+
+        # yield the Polars DataFrame directly; dlt converts it to Arrow
+        yield df
 
 
 pipeline.run(users_clean())

@@ -287,7 +287,7 @@ Unlike column-level hints, direct key hints provided through `apply_hints` are t
 
 ### Handling of timestamp and time zones
 By default, `dlt` normalizes timestamps (tz-aware and naive) into time zone aware types in UTC timezone. Since `1.16.0`, it fully honors the `timezone` boolean hint if set 
-explicitly on a column or by a source/resource. Normalizers do not infer this hint from data. The same rules apply for tabular data (arrow/pandas) and Python objects:
+explicitly on a column or by a source/resource. Normalizers do not infer this hint from data. The same rules apply for tabular data (arrow/pandas/polars) and Python objects:
 
 | input timestamp | `timezone` hint | normalized timestamp  |
 | --------------- | --------------- | --------------------- |
@@ -318,7 +318,7 @@ The precision for **bigint** is mapped to available integer types, i.e., TINYINT
 Selected destinations honor precision hint on **timestamp**. Precision is a numeric value in range of 0 (seconds) to 9 (nanoseconds) and sets the fractional
 number of seconds stored in a column. The default value is 6 (microseconds) which is Python `datetime` precision. `postgres`, `duckdb`, `snowflake`, `synapse` and `mssql` allow setting precision. Additionally, `duckdb` and `filesystem` (via parquet) allow for nanosecond precision if:
 * you configure [parquet version](../dlt-ecosystem/file-formats/parquet.md#writer-settings) to **2.6**
-* you yield tabular data (arrow tables/pandas). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
+* you yield tabular data (arrow tables/pandas/polars). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
 
 ### Handling nulls
 In general, destinations are responsible for NULL enforcement. `dlt` does not verify nullability of data in arrow tables and Python objects. Note that:

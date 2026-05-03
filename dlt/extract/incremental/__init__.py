@@ -76,6 +76,11 @@ try:
 except MissingDependencyException:
     pandas = None
 
+try:
+    from dlt.common.libs.polars import polars
+except MissingDependencyException:
+    polars = None
+
 
 class IncrementalMetricsRow(TypedDict, total=False):
     unfiltered_items_count: int
@@ -656,6 +661,10 @@ class Incremental(
             if is_arrow_item(item):
                 return self._make_or_get_transformer(ArrowIncremental)
             elif pandas is not None and isinstance(item, pandas.DataFrame):
+                return self._make_or_get_transformer(ArrowIncremental)
+            elif polars is not None and isinstance(
+                item, (polars.DataFrame, polars.LazyFrame)
+            ):
                 return self._make_or_get_transformer(ArrowIncremental)
             return self._make_or_get_transformer(JsonIncremental)
         return self._make_or_get_transformer(JsonIncremental)

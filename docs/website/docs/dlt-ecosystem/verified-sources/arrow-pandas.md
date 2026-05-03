@@ -1,15 +1,15 @@
 ---
-title: Dataframe (pandas, pyarrow)
-description: dlt source for Arrow tables and Pandas dataframes
-keywords: [arrow, pandas, parquet, source, schema mismatch]
+title: Dataframe (pandas, pyarrow, polars)
+description: dlt source for Arrow tables, Pandas dataframes, and Polars DataFrames
+keywords: [arrow, pandas, polars, parquet, source, schema mismatch]
 ---
 import Header from './_source-info-header.md';
 
-# Dataframe
+# Arrow table / Pandas / Polars
 
 <Header/>
 
-You can load data directly from an Arrow table or Pandas dataframe.
+You can load data directly from an Arrow table, Pandas dataframe, or Polars DataFrame.
 This is supported by all destinations, but it is especially recommended when using destinations that support the Parquet file format natively (e.g., [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
 See the [destination support](#destination-support) section for more information.
 
@@ -18,7 +18,7 @@ When used with a Parquet supported destination, this is a more performant way to
 
 ## Usage
 
-To write an Arrow source, pass any `pyarrow.Table`, `pyarrow.RecordBatch`, or `pandas.DataFrame` object (or list thereof) to the pipeline's `run` or `extract` method, or yield table(s)/dataframe(s) from a `@dlt.resource` decorated function.
+To write an Arrow source, pass any `pyarrow.Table`, `pyarrow.RecordBatch`, `pandas.DataFrame`, `polars.DataFrame`, or `polars.LazyFrame` object (or list thereof) to the pipeline's `run` or `extract` method, or yield table(s)/dataframe(s) from a `@dlt.resource` decorated function.
 
 This example loads a Pandas dataframe to a Snowflake table:
 
@@ -54,6 +54,40 @@ table = pa.Table.from_pandas(df)
 pipeline.run(table, table_name="orders")
 ```
 
+### Polars
+
+You can yield Polars DataFrames and LazyFrames directly from a `@dlt.resource`. They are automatically converted to Arrow tables before extraction, so all Arrow-based optimizations (Parquet direct loading, schema translation, etc.) apply.
+
+```py
+import dlt
+import polars as pl
+
+df = pl.DataFrame({
+    "order_id": [1, 2, 3],
+    "customer_id": [1, 2, 3],
+    "order_amount": [100.0, 200.0, 300.0],
+})
+
+pipeline = dlt.pipeline("orders_pipeline", destination="duckdb")
+pipeline.run(df, table_name="orders")
+```
+
+LazyFrames are collected automatically before conversion:
+
+```py
+import dlt
+import polars as pl
+
+@dlt.resource
+def orders():
+    lf = pl.scan_csv("orders.csv")
+    # filter lazily; dlt collects and converts to Arrow on extraction
+    yield lf.filter(pl.col("amount") > 100)
+
+pipeline = dlt.pipeline("orders_pipeline", destination="duckdb")
+pipeline.run(orders)
+```
+
 Note: The data in the table must be compatible with the destination database as no data conversion is performed. Refer to the documentation of the destination for information about supported data types.
 
 ## Destination support
@@ -63,7 +97,7 @@ Destinations that support the Parquet format natively will have the data files u
 When the destination does not support Parquet, the rows are extracted from the table and written in the destination's native format (usually `insert_values`), and this is generally much slower
 as it requires processing the table row by row and rewriting data to disk.
 
-The output file format is chosen automatically based on the destination's capabilities, so you can load arrow or pandas frames to any destination, but performance will vary.
+The output file format is chosen automatically based on the destination's capabilities, so you can load arrow, pandas, or polars frames to any destination, but performance will vary.
 
 ### Destinations that support parquet natively for direct loading
 * duckdb & motherduck
@@ -79,7 +113,7 @@ The output file format is chosen automatically based on the destination's capabi
 
 ## Handling schema mismatches across batches
 
-When a resource yields multiple Arrow tables or DataFrames, `dlt` concatenates them before writing to disk. By default, all batches must have **identical schemas** — any type difference (e.g., `int64` vs `float64`) raises an `ArrowInvalid` error. This is common when reading multiple source files where pandas infers slightly different types per file.
+When a resource yields multiple Arrow tables, DataFrames, or Polars DataFrames, `dlt` concatenates them before writing to disk. By default, all batches must have **identical schemas** — any type difference (e.g., `int64` vs `float64`) raises an `ArrowInvalid` error. This is common when reading multiple source files where pandas infers slightly different types per file.
 
 The `arrow_concat_promote_options` setting controls how type differences are resolved:
 
@@ -121,7 +155,7 @@ Keep in mind that enabling these incurs some performance overhead:
 
 ## Incremental loading with Arrow tables
 
-You can use incremental loading with Arrow tables as well.
+You can use incremental loading with Arrow tables, Pandas DataFrames, and Polars DataFrames.
 Usage is the same as with other dlt resources. Refer to the [incremental loading](../../general-usage/incremental-loading.md) guide for more information.
 
 Example:
@@ -188,12 +222,15 @@ The Arrow data types are translated to dlt data types as follows:
 All struct types are represented as `json` and will be loaded as JSON (if the destination permits) or a string. Currently, we do not support **struct** types,
 even if they are present in the destination (except **BigQuery** which can be [configured to handle them](../destinations/bigquery.md#use-bigquery-schema-autodetect-for-nested-fields))
 
-If you want to represent nested data as separate tables, you must yield pandas DataFrames and arrow tables as records. In the examples above:
+If you want to represent nested data as separate tables, you must yield DataFrames and Arrow tables as records. In the examples above:
 ```py
 # yield pandas DataFrame as records
 pipeline.run(df.to_dict(orient='records'), table_name="orders")
 
 # yield arrow table
 pipeline.run(table.to_pylist(), table_name="orders")
+
+# yield polars DataFrame as records
+pipeline.run(df.to_dicts(), table_name="orders")
 ```
-Both Pandas and Arrow allow streaming records in batches.
+Pandas, Arrow and Polars all allow streaming records in batches.
