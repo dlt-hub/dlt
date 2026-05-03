@@ -23,7 +23,15 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
 )
 from dlt.common.schema.utils import simple_regex_validator
-from dlt.common.typing import DictStrStr, StrStr, TDataItem, TSortOrder, TColumnNames, TypedDict
+from dlt.common.typing import (
+    DictStrStr,
+    NotRequired,
+    StrStr,
+    TDataItem,
+    TSortOrder,
+    TColumnNames,
+    TypedDict,
+)
 
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
 
@@ -46,6 +54,23 @@ class SubClassTest(ClassTest):
 
 class TDict(TypedDict):
     field: TLiteral
+
+
+class TNotRequiredRecord(TypedDict):
+    required_field: str
+    optional_field: NotRequired[str]
+    optional_int: NotRequired[int]
+    optional_list: NotRequired[List[str]]
+
+
+class TNotRequiredNested(TypedDict):
+    name: str
+    config: NotRequired[TNotRequiredRecord]
+
+
+class TInheritedNotRequired(TNotRequiredRecord):
+    extra_required: int
+    extra_optional: NotRequired[str]
 
 
 class TTestRecord(TypedDict):
@@ -426,3 +451,84 @@ def test_class() -> None:
 
 #     test_item = {}
 #     validate_dict(TTestRecordNoName, test_item, path=".")
+
+
+def test_not_required_present() -> None:
+    """All fields present — passes."""
+    doc = {
+        "required_field": "hello",
+        "optional_field": "world",
+        "optional_int": 42,
+        "optional_list": ["a", "b"],
+    }
+    validate_dict(TNotRequiredRecord, doc, ".")
+
+
+def test_not_required_absent() -> None:
+    """NotRequired fields can be omitted."""
+    doc = {"required_field": "hello"}
+    validate_dict(TNotRequiredRecord, doc, ".")
+
+
+def test_not_required_partial() -> None:
+    """Some NotRequired fields present, some absent."""
+    doc = {"required_field": "hello", "optional_int": 7}
+    validate_dict(TNotRequiredRecord, doc, ".")
+
+
+def test_not_required_missing_required_fails() -> None:
+    """Missing a required field still fails."""
+    doc = {"optional_field": "hello"}
+    with pytest.raises(DictValidationException) as e:
+        validate_dict(TNotRequiredRecord, doc, ".")
+    assert "required_field" in str(e.value)
+
+
+def test_not_required_wrong_type_fails() -> None:
+    """NotRequired field with wrong type fails."""
+    doc = {"required_field": "hello", "optional_int": "not_an_int"}
+    with pytest.raises(DictValidationException) as e:
+        validate_dict(TNotRequiredRecord, doc, ".")
+    assert "optional_int" in str(e.value)
+
+
+def test_not_required_unexpected_field_fails() -> None:
+    """Unknown fields still rejected."""
+    doc = {"required_field": "hello", "unknown": 1}
+    with pytest.raises(DictValidationException) as e:
+        validate_dict(TNotRequiredRecord, doc, ".")
+    assert "unknown" in str(e.value)
+
+
+def test_not_required_nested() -> None:
+    """NotRequired works with nested TypedDicts."""
+    # nested omitted
+    validate_dict(TNotRequiredNested, {"name": "test"}, ".")
+
+    # nested present with only required field
+    validate_dict(TNotRequiredNested, {"name": "test", "config": {"required_field": "x"}}, ".")
+
+    # nested present with all fields
+    validate_dict(
+        TNotRequiredNested,
+        {"name": "test", "config": {"required_field": "x", "optional_int": 5}},
+        ".",
+    )
+
+
+def test_not_required_inherited() -> None:
+    """NotRequired respected in inherited TypedDicts."""
+    # only required fields from both parent and child
+    validate_dict(TInheritedNotRequired, {"required_field": "a", "extra_required": 1}, ".")
+
+    # with optional fields
+    validate_dict(
+        TInheritedNotRequired,
+        {"required_field": "a", "extra_required": 1, "optional_field": "b", "extra_optional": "c"},
+        ".",
+    )
+
+    # missing child required field
+    with pytest.raises(DictValidationException) as e:
+        validate_dict(TInheritedNotRequired, {"required_field": "a"}, ".")
+    assert "extra_required" in str(e.value)

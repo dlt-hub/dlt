@@ -1,7 +1,10 @@
-from typing import Iterable, Iterator, Optional, List, Tuple
+from typing import Iterable, Iterator, Optional, List, Tuple, TYPE_CHECKING
 from pathlib import Path
-from pathspec import PathSpec
-from pathspec.util import iter_tree_files
+
+
+if TYPE_CHECKING:
+    from pathspec import PathSpec
+
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
@@ -51,10 +54,12 @@ class WorkspaceFileSelector(BaseFileSelector):
         self.settings_dir: Path = Path(context.settings_dir).resolve()
         self.ignore_file: str = ignore_file
         self.ignore_file_found: bool = False
-        self.ignore_spec: PathSpec = self._build_pathspec(additional_excludes or [])
+        self.ignore_spec: "PathSpec" = self._build_pathspec(additional_excludes or [])
 
-    def _build_pathspec(self, additional_excludes: List[str]) -> PathSpec:
+    def _build_pathspec(self, additional_excludes: List[str]) -> "PathSpec":
         """Build PathSpec from ignore file + defaults + additional excludes"""
+        from pathspec import PathSpec
+
         patterns: List[str] = [f"{self.settings_dir.relative_to(self.root_path)}/"]
 
         # load ignore file if exists, otherwise fall back to default ignores
@@ -69,10 +74,12 @@ class WorkspaceFileSelector(BaseFileSelector):
         # Add caller-provided excludes
         patterns.extend(additional_excludes)
 
-        return PathSpec.from_lines("gitwildmatch", patterns)
+        return PathSpec.from_lines("gitignore", patterns)
 
     def __iter__(self) -> Iterator[Tuple[Path, Path]]:
         """Yield paths of files eligible for deployment"""
+        from pathspec.util import iter_tree_files
+
         root_path = Path(self.root_path)
         for file_path in iter_tree_files(self.root_path):
             if not self.ignore_spec.match_file(file_path):
@@ -90,6 +97,8 @@ class ConfigurationFileSelector(BaseFileSelector):
 
     def __iter__(self) -> Iterator[Tuple[Path, Path]]:
         """Yield paths of config and secrets paths"""
+        from pathspec.util import iter_tree_files
+
         for file_path in iter_tree_files(self.settings_dir):
             if file_path.endswith("config.toml") or file_path.endswith("secrets.toml"):
                 yield self.settings_dir / file_path, Path(file_path)

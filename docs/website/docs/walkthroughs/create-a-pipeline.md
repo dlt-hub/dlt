@@ -6,7 +6,7 @@ keywords: [how to, create a pipeline, rest client]
 
 # Create a pipeline
 
-This guide walks you through creating a pipeline that uses our [REST API Client](../general-usage/http/rest-client)
+This guide walks you through creating a pipeline that uses our [REST API Client](../dlt-ecosystem/verified-sources/rest_api/advanced#restclient)
 to connect to [DuckDB](../dlt-ecosystem/destinations/duckdb).
 :::tip
 We're using DuckDB as a destination here, but you can adapt the steps to any [source](../dlt-ecosystem/verified-sources/) and [destination](../dlt-ecosystem/destinations/) by
@@ -26,7 +26,7 @@ To achieve this, you need to write code that accomplishes the following:
 3. Fetches and handles paginated issue data.
 4. Stores the data for analysis.
 
-This may sound complicated, but dlt provides a [REST API Client](../general-usage/http/rest-client) that allows you to focus more on your data rather than on managing API interactions.
+This may sound complicated, but dlt provides a [REST API Client](../dlt-ecosystem/verified-sources/rest_api/advanced#restclient) that allows you to focus more on your data rather than on managing API interactions.
 
 
 ## 1. Initialize project
@@ -161,9 +161,8 @@ This will open the workspace dashboard app that gives you an overview of the dat
 
 With a functioning pipeline, consider exploring:
 
-- Our [REST Client](../general-usage/http/rest-client).
+- Our [REST Client](../dlt-ecosystem/verified-sources/rest_api/advanced#restclient).
 - [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that the data is automatically loaded on a schedule.
 - Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in Python using Pandas, Arrow, or Polars.
 - Learn how to [run](../running-in-production/running), [monitor](../running-in-production/monitoring), and [alert](../running-in-production/alerting) when you put your pipeline in production.
 - Try loading data to a different destination like [Google BigQuery](../dlt-ecosystem/destinations/bigquery), [Amazon Redshift](../dlt-ecosystem/destinations/redshift), or [Postgres](../dlt-ecosystem/destinations/postgres).
-

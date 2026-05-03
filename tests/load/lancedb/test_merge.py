@@ -1,39 +1,45 @@
-from typing import List, Generator, Any
+from typing import TYPE_CHECKING, List, Generator, Any, cast
 
 import numpy as np
 import pandas as pd
 import pytest
-from lancedb.table import Table
 from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
 import dlt
 from dlt.common import pendulum
 from dlt.common.typing import DictStrAny, DictStrStr
-from dlt.common.utils import uniq_id
 
-from dlt.destinations.impl.lancedb.lancedb_adapter import (
-    lancedb_adapter,
-)
-
-from tests.load.lancedb.utils import chunk_document
+from tests.load.lancedb.utils import LANCE_DEST_CONFS, chunk_document, get_adapter, open_lance_table
 from tests.load.utils import (
+    DestinationTestConfiguration,
+    destinations_configs,
     sequence_generator,
 )
 from tests.pipeline.utils import (
     assert_load_info,
 )
 
+if TYPE_CHECKING:
+    from tests.load.lancedb.utils import TLanceDestinationClient
+else:
+    TLanceDestinationClient = Any
+
 
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
 
 
-def test_lancedb_remove_nested_orphaned_records() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="test_lancedb_remove_orphaned_records",
-        destination="lancedb",
-        dataset_name=f"test_lancedb_remove_orphaned_records_{uniq_id()}",
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_lancedb_remove_nested_orphaned_records(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_lancedb_remove_nested_orphaned_records",
         dev_mode=True,
     )
 
@@ -82,6 +88,7 @@ def test_lancedb_remove_nested_orphaned_records() -> None:
     assert_load_info(info)
 
     with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
         expected_parent_data = pd.DataFrame(
             data=[
                 {"id": 1},
@@ -109,15 +116,9 @@ def test_lancedb_remove_nested_orphaned_records() -> None:
             ]
         )
 
-        parent_table_name = client.make_qualified_table_name("parent")  # type: ignore[attr-defined]
-        child_table_name = client.make_qualified_table_name("parent__child")  # type: ignore[attr-defined]
-        grandchild_table_name = client.make_qualified_table_name(  # type: ignore[attr-defined]
-            "parent__child__grandchild"
-        )
-
-        parent_tbl = client.db_client.open_table(parent_table_name)  # type: ignore[attr-defined]
-        child_tbl = client.db_client.open_table(child_table_name)  # type: ignore[attr-defined]
-        grandchild_tbl = client.db_client.open_table(grandchild_table_name)  # type: ignore[attr-defined]
+        parent_tbl = open_lance_table(client, "parent")
+        child_tbl = open_lance_table(client, "parent__child")
+        grandchild_tbl = open_lance_table(client, "parent__child__grandchild")
 
         actual_parent_df = parent_tbl.to_pandas().sort_values(by="id").reset_index(drop=True)
         actual_child_df = child_tbl.to_pandas().sort_values(by="bar").reset_index(drop=True)
@@ -136,11 +137,16 @@ def test_lancedb_remove_nested_orphaned_records() -> None:
         assert_frame_equal(actual_grandchild_df[["baz"]], expected_grandchild_data)
 
 
-def test_lancedb_remove_orphaned_records_root_table() -> None:
-    pipeline = dlt.pipeline(
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_lancedb_remove_orphaned_records_root_table(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records_root_table",
-        destination="lancedb",
-        dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
         dev_mode=True,
     )
 
@@ -155,7 +161,7 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    lancedb_adapter(identity_resource)
+    get_adapter(destination_config)(identity_resource)
 
     run_1 = [
         {"doc_id": 1, "chunk_hash": "1a"},
@@ -177,6 +183,7 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
     assert_load_info(info)
 
     with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
         expected_root_table_df = (
             pd.DataFrame(
                 data=[
@@ -190,8 +197,7 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
             .reset_index(drop=True)
         )
 
-        root_table_name = client.make_qualified_table_name("root")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(root_table_name)  # type: ignore[attr-defined]
+        tbl = open_lance_table(client, "root")
 
         actual_root_df: DataFrame = (
             tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash"]).reset_index(drop=True)
@@ -200,11 +206,16 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
         assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
-def test_lancedb_remove_orphaned_records_root_table_string_doc_id() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="test_lancedb_remove_orphaned_records_root_table",
-        destination="lancedb",
-        dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_lancedb_remove_orphaned_records_root_table_string_doc_id(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_lancedb_remove_orphaned_records_root_table_string_doc_id",
         dev_mode=True,
     )
 
@@ -219,7 +230,7 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id() -> None:
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    lancedb_adapter(identity_resource)
+    get_adapter(destination_config)(identity_resource)
 
     run_1 = [
         {"doc_id": "A", "chunk_hash": "1a"},
@@ -241,6 +252,7 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id() -> None:
     assert_load_info(info)
 
     with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
         expected_root_table_df = (
             pd.DataFrame(
                 data=[
@@ -254,8 +266,7 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id() -> None:
             .reset_index(drop=True)
         )
 
-        root_table_name = client.make_qualified_table_name("root")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(root_table_name)  # type: ignore[attr-defined]
+        tbl = open_lance_table(client, "root")
 
         actual_root_df: DataFrame = (
             tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash"]).reset_index(drop=True)
@@ -264,7 +275,14 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id() -> None:
         assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
-def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="document",
@@ -287,15 +305,13 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
     ) -> Any:
         return documents(docs)
 
-    lancedb_adapter(
+    get_adapter(destination_config)(
         documents,
         embed=["chunk"],
     )
 
-    pipeline = dlt.pipeline(
-        pipeline_name="test_lancedb_remove_orphaned_records_with_embeddings",
-        destination="lancedb",
-        dataset_name=f"test_lancedb_remove_orphaned_records_{uniq_id()}",
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_lancedb_root_table_remove_orphaned_records_with_real_embeddings",
         dev_mode=True,
     )
 
@@ -333,8 +349,8 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
     assert_load_info(info)
 
     with pipeline.destination_client() as client:
-        embeddings_table_name = client.make_qualified_table_name("document")  # type: ignore[attr-defined]
-        tbl: Table = client.db_client.open_table(embeddings_table_name)  # type: ignore[attr-defined]
+        client = cast(TLanceDestinationClient, client)
+        tbl = open_lance_table(client, "document")
         df = tbl.to_pandas()
 
         # Check (non-empty) embeddings as present, and that orphaned embeddings have been discarded.
@@ -345,11 +361,16 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
             assert vector.size > 0
 
 
-def test_lancedb_compound_merge_key_root_table() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="test_lancedb_compound_merge_key",
-        destination="lancedb",
-        dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_lancedb_compound_merge_key_root_table(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_lancedb_compound_merge_key_root_table",
         dev_mode=True,
     )
 
@@ -364,23 +385,24 @@ def test_lancedb_compound_merge_key_root_table() -> None:
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    lancedb_adapter(identity_resource, no_remove_orphans=True)
+    get_adapter(destination_config)(identity_resource, no_remove_orphans=True)
 
     run_1 = [
-        {"doc_id": 1, "chunk_hash": "a", "foo": "bar"},
-        {"doc_id": 1, "chunk_hash": "b", "foo": "coo"},
+        {"doc_id": 1, "chunk_hash": "a", "foo": "bar", "child": [{"val": 1}, {"val": 2}]},
+        {"doc_id": 1, "chunk_hash": "b", "foo": "coo", "child": [{"val": 3}]},
     ]
     info = pipeline.run(identity_resource(run_1))
     assert_load_info(info)
 
     run_2 = [
-        {"doc_id": 1, "chunk_hash": "a", "foo": "aat"},
-        {"doc_id": 1, "chunk_hash": "c", "foo": "loot"},
+        {"doc_id": 1, "chunk_hash": "a", "foo": "aat", "child": [{"val": 1}]},
+        {"doc_id": 1, "chunk_hash": "c", "foo": "loot", "child": [{"val": 4}]},
     ]
     info = pipeline.run(identity_resource(run_2))
     assert_load_info(info)
 
     with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
         expected_root_table_df = (
             pd.DataFrame(
                 data=[
@@ -393,17 +415,36 @@ def test_lancedb_compound_merge_key_root_table() -> None:
             .reset_index(drop=True)
         )
 
-        root_table_name = client.make_qualified_table_name("root")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(root_table_name)  # type: ignore[attr-defined]
+        tbl = open_lance_table(client, "root")
 
         actual_root_df: DataFrame = (
             tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash", "foo"]).reset_index(drop=True)
         )[["doc_id", "chunk_hash", "foo"]]
 
-    assert_frame_equal(actual_root_df, expected_root_table_df)
+        assert_frame_equal(actual_root_df, expected_root_table_df)
+
+        expected_child_df = (
+            pd.DataFrame(data=[{"val": 1}, {"val": 2}, {"val": 3}, {"val": 4}])
+            .sort_values(by="val")
+            .reset_index(drop=True)
+        )
+
+        child_tbl = open_lance_table(client, "root__child")
+        actual_child_df = (child_tbl.to_pandas().sort_values(by="val").reset_index(drop=True))[
+            ["val"]
+        ]
+
+        assert_frame_equal(actual_child_df, expected_child_df)
 
 
-def test_must_provide_at_least_primary_key_on_merge_disposition() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_must_provide_at_least_primary_key_on_merge_disposition(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     """We need upsert merge's deterministic _dlt_id to perform orphan removal.
     Hence, we require at least the primary key required (raises exception if missing).
     Specify a merge key for custom orphan identification."""
@@ -413,12 +454,9 @@ def test_must_provide_at_least_primary_key_on_merge_disposition() -> None:
     def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
 
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         pipeline_name="test_must_provide_both_primary_and_merge_key_on_merge_disposition",
-        destination="lancedb",
-        dataset_name=(
-            f"test_must_provide_both_primary_and_merge_key_on_merge_disposition{uniq_id()}"
-        ),
+        dev_mode=True,
     )
     with pytest.raises(Exception):
         load_info = pipeline.run(

@@ -1,33 +1,78 @@
 ---
-title: Ensuring data quality
+title: Monitoring
 description: Monitoring and testing data quality
 keywords: [destination, schema, data, monitoring, testing, quality]
 ---
 
-# Data quality dashboards
+# Data monitoring
 
-After deploying a `dlt` pipeline, you might ask yourself: How can we know if the data is and remains high quality?
+Data quality monitoring is concerned with ensuring that quality data arrives at the data warehouse
+on time. The reason we do monitoring instead of alerting for this is because we cannot easily define
+alerts for what could go wrong.
 
-There are two ways to catch errors:
+This is why we want to capture enough context to allow a person to decide if the data looks OK or
+requires further investigation when monitoring the data quality. A staple of monitoring are line
+charts and time-series charts that provide a baseline or a pattern that a person can interpret.
 
-1. Tests.
-1. People [monitoring.](../../running-in-production/monitoring.md)
+For example, to monitor data loading, consider plotting "count of records by `loaded_at` date/hour",
+"created at", "modified at", or other recency markers.
 
-## Tests
+## Rows count
+To find the number of rows loaded per table, use the following command:
 
-The first time you load data from a pipeline you have built, you will likely want to test it. Plot the data on time series line charts and look for any interruptions or spikes, which will highlight any gaps or loading issues.
+```sh
+dlt pipeline <pipeline_name> trace
+```
 
-### Data usage as monitoring
+This command will display the names of the tables that were loaded and the number of rows in each table.
+The above command provides the row count for the Chess source. As shown below:
 
-Setting up monitoring is a good idea. However, in practice, often by the time you notice something is wrong through reviewing charts, someone in the business has likely already noticed something is wrong. That is, if there is usage of the data, then that usage will act as a sort of monitoring.
+```sh
+Step normalize COMPLETED in 2.37 seconds.
+Normalized data for the following tables:
+- _dlt_pipeline_state: 1 row(s)
+- payments: 1329 row(s)
+- tickets: 1492 row(s)
+- orders: 2940 row(s)
+- shipment: 2382 row(s)
+- retailers: 1342 row(s)
+```
 
-### Plotting main metrics on line charts
+To load this information back to the destination, you can use the following:
+```py
+# Create a pipeline with the specified name, destination, and dataset
+# Run the pipeline
 
-In cases where data is not being used much (e.g., only one marketing analyst is using some data alone), then it is a good idea to have them plot their main metrics on "last 7 days" line charts, so it's visible to them that something may be off when they check their metrics.
+# Get the trace of the last run of the pipeline
+# The trace contains timing information on extract, normalize, and load steps
+trace = pipeline.last_trace
 
-It's important to think about granularity here. A daily line chart, for example, would not catch hourly issues well. Typically, you will want to match the granularity of the time dimension (day/hour/etc.) of the line chart with the things that could go wrong, either in the loading process or in the tracked process.
+# Load the trace information into a table named "_trace" in the destination
+pipeline.run([trace], table_name="_trace")
+```
+This process loads several additional tables to the destination, which provide insights into
+the extract, normalize, and load steps. Information on the number of rows loaded for each table,
+along with the `load_id`, can be found in the `_trace__steps__extract_info__table_metrics` table.
+The `load_id` is an epoch timestamp that indicates when the loading was completed. Here's a graphical
+representation of the rows loaded with `load_id` for different tables:
 
-If a dashboard is the main product of an analyst, they will generally watch it closely. Therefore, it's probably not necessary for a data engineer to include monitoring in their daily activities in these situations.
+![image](https://storage.googleapis.com/dlt-blog-images/docs_monitoring_count_of_rows_vs_load_id.jpg)
+
+## Data load time
+Data loading time for each table can be obtained by using the following command:
+
+```sh
+dlt pipeline <pipeline_name> load-package
+```
+
+The above information can also be obtained from the script as follows:
+
+```py
+info = pipeline.run(source, table_name="table_name", write_disposition='append')
+
+print(info.load_packages[0])
+```
+> `load_packages[0]` will print the information of the first load package in the list of load packages.
 
 ## Tools to create dashboards
 
@@ -37,4 +82,3 @@ If a dashboard is the main product of an analyst, they will generally watch it c
 - Tools like [Looker Studio](https://lookerstudio.google.com/u/0/) and [Tableau](https://www.tableau.com/) are intended for minimal interaction curated dashboards that business users can filter and read as-is with limited training.
 - Tools like [Marimo](https://marimo.app/) allow you to build powerful dashboards in the style of iPython notebooks.
 - Tools like [Streamlit](https://streamlit.io/) enable powerful customizations and the building of complex apps by Python-first developers, but they generally do not support self-service out of the box.
-

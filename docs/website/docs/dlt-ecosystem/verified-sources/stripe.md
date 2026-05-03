@@ -67,9 +67,6 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
-
-
 ### Add credentials
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
@@ -229,4 +226,3 @@ If you wish to create your own pipelines, you can leverage source and resource m
     > To load data, maintain the pipeline name and destination dataset name. The pipeline name is vital for accessing the last run's [state](../../general-usage/state), which determines the incremental data load's end date. Altering these names can trigger a [“dev_mode”](../../general-usage/pipeline#do-experiments-with-dev-mode), disrupting the metadata (state) tracking for [incremental data loading](../../general-usage/incremental-loading).
 
 <!--@@@DLT_TUBA stripe_analytics-->
-

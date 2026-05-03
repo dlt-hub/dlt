@@ -1,5 +1,5 @@
 ---
-title: Arrow Table / Pandas / Polars
+title: Dataframe (pandas, pyarrow, polars)
 description: dlt source for Arrow tables, Pandas dataframes, and Polars DataFrames
 keywords: [arrow, pandas, polars, parquet, source, schema mismatch]
 ---
@@ -233,5 +233,4 @@ pipeline.run(table.to_pylist(), table_name="orders")
 # yield polars DataFrame as records
 pipeline.run(df.to_dicts(), table_name="orders")
 ```
-Pandas, Arrow, and Polars all allow streaming records in batches.
-
+Pandas, Arrow and Polars all allow streaming records in batches.

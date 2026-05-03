@@ -1,10 +1,10 @@
 ---
-title: AWS Athena / Glue Catalog
+title: Athena
 description: AWS Athena `dlt` destination
 keywords: [aws, athena, glue catalog]
 ---
 
-# AWS Athena / Glue Catalog
+# AWS Athena
 
 The Athena destination stores data as Parquet files in S3 buckets and creates [external tables in AWS Athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with Athena SQL commands, which will scan the entire folder of Parquet files and return the results. This destination works very similarly to other SQL-based destinations, with the exception that the merge write disposition is not supported at this time. The `dlt` metadata will be stored in the same bucket as the Parquet files, but as iceberg tables. Athena also supports writing individual data tables as Iceberg tables, so they may be manipulated later. A common use case would be to strip GDPR data from them.
 
@@ -343,4 +343,3 @@ pipeline = dlt.pipeline("athena_example")
 pipeline.run(partitioned_data)
 ```
 <!--@@@DLT_TUBA athena-->
-

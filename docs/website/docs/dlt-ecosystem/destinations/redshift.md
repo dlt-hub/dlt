@@ -1,10 +1,10 @@
 ---
-title: Amazon Redshift
+title: Redshift
 description: Amazon Redshift `dlt` destination
 keywords: [redshift, destination, data warehouse]
 ---
 
-# Amazon Redshift
+# Redshift
 
 ## Install dlt with Redshift
 **To install the dlt library with Redshift dependencies:**
@@ -164,4 +164,3 @@ pipeline = dlt.pipeline(
 Supported loader file formats for Redshift are `sql` and `insert_values` (default). When using a staging location, Redshift supports Parquet and JSONL.
 
 <!--@@@DLT_TUBA redshift-->
-

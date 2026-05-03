@@ -614,7 +614,7 @@ def _(mo):
 def _(mo):
     mo.md(r"""
     You can read how to configure **Cloud Storage** in the official
-    [dlt documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/filesystem/basic#configuration).
+    [dlt documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/filesystem#configuration).
     """)
     return
 

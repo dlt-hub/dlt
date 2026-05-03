@@ -1,5 +1,5 @@
 ---
-title: Schema and data contracts
+title: Schema contract
 description: Controlling schema evolution and validating data
 keywords: [data contracts, schema, dlt schema, pydantic]
 ---

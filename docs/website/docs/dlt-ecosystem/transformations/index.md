@@ -1,14 +1,14 @@
 ---
-title: Transforming your data
-description: How to transform your data
-keywords: [datasets, data, access, transformations]
+title: Overview
+description: dlt supports both ETL and ELT transformation patterns
+keywords: [elt, etl, transformer, transformations]
 ---
-import DocCardList from '@theme/DocCardList';
 
-# Transforming data
+`dlt` supports both Extract, Transform, Load (ETL) and Extract, Load, Transform (ELT) patterns.
 
-If you'd like to transform your data after a pipeline load, you have 3 options available to you:
+In ETL, the data is transformed before being loaded into the destination. This is useful for light processing such as adding columns, removing sensitive data, or type casting. `dlt` offers built-in utilities like `add_map()` and custom processors via `@dlt.transformer`
 
+<<<<<<< HEAD
 * [Using dbt](./dbt/dbt.md) - dlt provides a convenient dbt wrapper to make integration easier.
 * [Using the `dlt` SQL client](./sql.md) - dlt exposes an SQL client to transform data on your destination directly using SQL.
 * [Using Python with DataFrames or Arrow tables](./python.md) - you can also transform your data using Arrow tables, Pandas or Polars DataFrames in Python.
@@ -24,4 +24,8 @@ This is particularly useful if you are trying to remove data related to PII or o
 
 # Learn more
 <DocCardList />
+=======
+In ELT, the data is loaded as-is in the destination. This raw data is transformed directly on the destination where more powerful compute is available (e.g., data warehouse, data lake). `dlt` supports this via several patterns.
+>>>>>>> devel
 
+The two approaches can be used together in a single project.

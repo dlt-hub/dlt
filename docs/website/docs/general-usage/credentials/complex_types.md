@@ -10,7 +10,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 `dlt` provides built-in credential (**specs**) for seamless integration with common external systems. These specs can be configured using the methods described in the [overview](setup.md) documentation. For major cloud providers like AWS, Azure, and Google Cloud, `dlt` also calls client-specific code to authenticate users and can automatically retrieve default credentials from the running environment. Additionally, `dlt` understands common string representations for credentials such as connection strings or service json, making it easier to work with different credential formats beyond the typical dictionary representation.
 
 :::tip
-Learn about the authentication methods supported by the `dlt` RestAPI Client in detail in the [RESTClient section](../http/rest-client.md#authentication).
+Learn about the authentication methods supported by the `dlt` RestAPI Client in detail in the [RESTClient section](../../dlt-ecosystem/verified-sources/rest_api/advanced.md#authentication).
 :::
 
 

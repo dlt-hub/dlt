@@ -145,4 +145,3 @@ data after loading, you can use Pandas or one of the following:
 
 1. [dbt.](dbt/dbt.md) (recommended)
 2. [`dlt` SQL client.](sql.md)
-
