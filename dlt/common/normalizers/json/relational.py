@@ -1,4 +1,5 @@
 from functools import lru_cache, partial
+from importlib import import_module
 from typing import (
     ClassVar,
     Dict,
@@ -431,10 +432,17 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     @classmethod
     def ensure_this_normalizer(cls, norm_config: TJSONNormalizer) -> None:
-        # make sure schema has right normalizer
+        # make sure schema has right normalizer (or a subclass of it)
         present_normalizer = norm_config["module"]
-        if present_normalizer != cls.__module__:
-            raise InvalidJsonNormalizer(cls.__module__, present_normalizer)
+        if present_normalizer == cls.__module__:
+            return
+        try:
+            mod = import_module(present_normalizer)
+            if issubclass(mod.DataItemNormalizer, cls):
+                return
+        except (ImportError, AttributeError):
+            pass
+        raise InvalidJsonNormalizer(cls.__module__, present_normalizer)
 
     @classmethod
     def update_normalizer_config(cls, schema: Schema, config: RelationalNormalizerConfig) -> None:

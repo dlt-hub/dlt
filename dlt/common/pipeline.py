@@ -340,7 +340,13 @@ class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):
             assert len(metrics_list) == 1
             metrics = metrics_list[0]
             for job_metrics in metrics["job_metrics"].values():
-                load_metrics["job_metrics"].append({"load_id": load_id, **job_metrics._asdict()})
+                load_metrics["job_metrics"].append(
+                    {
+                        "load_id": load_id,
+                        "dataset_name": metrics.get("dataset_name"),
+                        **job_metrics._asdict(),
+                    }
+                )
 
         d.update(load_metrics)
         return d
