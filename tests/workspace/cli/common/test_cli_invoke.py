@@ -1,11 +1,14 @@
 import os
 import sys
+from typing import Iterator
+
 import pytest
 import shutil
 from pathlib import Path
 from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
 
+import dlt
 from dlt.common.runners.venv import Venv
 from dlt.common.utils import custom_environ
 
@@ -20,6 +23,13 @@ BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
 def disable_debug() -> None:
     # reset debug flag so other tests may pass
     _debug.disable_debug()
+
+
+@pytest.fixture(autouse=True)
+def reset_always_choose_value() -> Iterator[None]:
+    # reset ALWAYS_CHOOSE_VALUE after each test so -y flag doesn't leak
+    yield
+    fmt.ALWAYS_CHOOSE_VALUE = None
 
 
 def test_invoke_basic(script_runner: ScriptRunner) -> None:
@@ -220,6 +230,66 @@ def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
             "command": "deploy",
             "secrets_format": "env",
         }
+
+
+@pytest.mark.parametrize(
+    "flags,confirms",
+    [
+        (["-y"], True),
+        (["--yes"], True),
+        (["--yes", "--non-interactive"], True),
+        (["-y", "--non-interactive"], True),
+        (["--non-interactive"], False),
+    ],
+    ids=["short", "long", "yes-and-non-interactive", "y-and-non-interactive", "non-interactive-only"],
+)
+def test_yes_flag_auto_confirms(
+    script_runner: ScriptRunner, flags: list[str], confirms: bool
+) -> None:
+    """Destructive commands like sync and drop ask for confirmation with default=False.
+    --non-interactive uses the default, so nothing happens. -y/--yes overrides to True, so the commands actually execute.
+    """
+    result = script_runner.run(["dlt", "init", "chess", "duckdb"])
+    assert result.returncode == 0
+
+    os.environ.pop("DESTINATION__DUCKDB__CREDENTIALS", None)
+    venv = Venv.restore_current()
+    venv.run_script("chess_pipeline.py")
+
+    # sync
+    result = script_runner.run(
+        ["dlt", *flags, "pipeline", "chess_pipeline", "sync"]
+    )
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    if confirms:
+        assert "Dropping local state" in result.stdout
+        assert "Restoring from destination" in result.stdout
+    else:
+        assert "Dropping local state" not in result.stdout
+
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    assert "players_games" in pipeline.default_schema.tables
+
+    # drop
+    result = script_runner.run(
+        ["dlt", *flags, "pipeline", "chess_pipeline", "drop", "players_games"]
+    )
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    if confirms:
+        assert "Selected resource(s): ['players_games']" in result.stdout
+        assert "players_games" not in pipeline.default_schema.tables
+    else:
+        assert "players_games" in pipeline.default_schema.tables
+
+
+def test_yes_flag_raises_on_prompt() -> None:
+    """prompt() raises ValueError when ALWAYS_CHOOSE_VALUE is not a valid choice.
+    This may happen, for example, when -y is used with a command that has a multi-choice prompt.
+    """
+    with fmt.always_choose(False, True):
+        with pytest.raises(ValueError, match="Cannot auto-accept"):
+            fmt.prompt("Pick action", choices="sam")
 
 
 @pytest.mark.skipif(sys.stdin.isatty(), reason="stdin connected, test skipped")

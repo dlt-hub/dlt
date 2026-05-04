@@ -95,7 +95,10 @@ def prompt(
     show_default: bool = True,
 ) -> Any:
     if ALWAYS_CHOOSE_VALUE:
-        assert ALWAYS_CHOOSE_VALUE in choices
+        if ALWAYS_CHOOSE_VALUE not in choices:
+            raise ValueError(
+                f"Cannot auto-accept prompt: {ALWAYS_CHOOSE_VALUE!r} is not in {list(choices)}"
+            )
         return ALWAYS_CHOOSE_VALUE
     if ALWAYS_CHOOSE_DEFAULT:
         assert default is not None

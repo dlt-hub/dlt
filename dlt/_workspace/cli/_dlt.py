@@ -153,7 +153,7 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
         "--yes",
         "-y",
         action=YesAction,
-        help="Automatically accept all confirmations without prompting.",
+        help="Automatically accept all confirmations.",
     )
     parser.add_argument(
         "--debug",
