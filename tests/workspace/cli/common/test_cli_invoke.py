@@ -242,7 +242,13 @@ def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
         (["-y", "--non-interactive"], True),
         (["--non-interactive"], False),
     ],
-    ids=["short", "long", "yes-and-non-interactive", "y-and-non-interactive", "non-interactive-only"],
+    ids=[
+        "short",
+        "long",
+        "yes-and-non-interactive",
+        "y-and-non-interactive",
+        "non-interactive-only",
+    ],
 )
 def test_yes_flag_auto_confirms(
     script_runner: ScriptRunner, flags: list[str], confirms: bool
@@ -258,9 +264,7 @@ def test_yes_flag_auto_confirms(
     venv.run_script("chess_pipeline.py")
 
     # sync
-    result = script_runner.run(
-        ["dlt", *flags, "pipeline", "chess_pipeline", "sync"]
-    )
+    result = script_runner.run(["dlt", *flags, "pipeline", "chess_pipeline", "sync"])
     assert result.returncode == 0, f"STDERR: {result.stderr}"
     if confirms:
         assert "Dropping local state" in result.stdout
@@ -282,7 +286,6 @@ def test_yes_flag_auto_confirms(
         assert "players_games" not in pipeline.default_schema.tables
     else:
         assert "players_games" in pipeline.default_schema.tables
-
 
 
 @pytest.mark.skipif(sys.stdin.isatty(), reason="stdin connected, test skipped")

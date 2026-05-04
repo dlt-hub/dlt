@@ -229,7 +229,7 @@ def test_workspace_pipeline() -> None:
         assert ctx._profile_has_pipelines("tests") is True
 
         # test wipe function
-        with always_choose(always_choose_default=False, always_choose_value=True, always_confirm=False):
+        with always_choose(always_choose_default=False, always_choose_value=True):
             delete_local_data(ctx, check_delete_local_data(ctx, skip_data_dir=False))
         # must recreate pipeline
         pipeline = pipeline.drop()

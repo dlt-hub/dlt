@@ -69,10 +69,6 @@ class NonInteractiveAction(argparse.Action):
         option_string: str = None,
     ) -> None:
         fmt.ALWAYS_CHOOSE_DEFAULT = True
-        fmt.note(
-            "Non interactive mode. Default choices are automatically made for confirmations and"
-            " prompts."
-        )
 
 
 class YesAction(argparse.Action):
@@ -95,7 +91,6 @@ class YesAction(argparse.Action):
         option_string: str = None,
     ) -> None:
         fmt.ALWAYS_CONFIRM = True
-        fmt.note("Automatically accepting all confirmations.")
 
 
 class DebugAction(argparse.Action):
@@ -150,8 +145,8 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
         ),
     )
     parser.add_argument(
-        "--yes",
         "-y",
+        "--yes",
         action=YesAction,
         help="Automatically accept all confirmations.",
     )

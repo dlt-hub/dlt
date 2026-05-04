@@ -20,6 +20,21 @@ from tests.workspace.cli.utils import (
 )
 
 
+CHOOSE_PRIORITY_CASES = [
+    # always_confirm=True overrides everything
+    (dict(always_choose_default=True, always_choose_value=False, always_confirm=True), True),
+    # always_choose_value overrides always_choose_default
+    (dict(always_choose_default=True, always_choose_value=True, always_confirm=False), True),
+    # always_choose_default kicks in only when value/confirm are off
+    (dict(always_choose_default=True, always_choose_value=None, always_confirm=False), False),
+]
+CHOOSE_PRIORITY_IDS = [
+    "always-confirm-overrides-everything",
+    "always-choose-value-overrides-always-choose-default",
+    "always-choose-default-kicks-in-if-allowed",
+]
+
+
 def test_pipeline_command_operations(repo_dir: str) -> None:
     _init_command.init_command("chess", "duckdb", repo_dir)
 
@@ -109,7 +124,7 @@ def test_pipeline_command_operations(repo_dir: str) -> None:
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         # execute sync
-        with echo.always_choose(False, True, False):
+        with echo.always_choose(False, True):
             _pipeline_command.pipeline_command("sync", "chess_pipeline", None, 0)
         _out = buf.getvalue()
     print(_out)
@@ -123,7 +138,7 @@ def test_pipeline_command_operations(repo_dir: str) -> None:
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        with echo.always_choose(False, True, False):
+        with echo.always_choose(False, True):
             _pipeline_command.pipeline_command(
                 "drop", "chess_pipeline", None, 0, resources=["players_games"]
             )
@@ -143,7 +158,7 @@ def test_pipeline_command_operations(repo_dir: str) -> None:
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         # Test sync destination and drop when local state is missing
         pipeline._pipeline_storage.delete_folder("", recursively=True)
-        with echo.always_choose(False, True, False):
+        with echo.always_choose(False, True):
             _pipeline_command.pipeline_command(
                 "drop",
                 "chess_pipeline",
@@ -200,22 +215,7 @@ def test_pipeline_command_failed_jobs(repo_dir: str) -> None:
         assert "JOB file type: jsonl" in _out
 
 
-@pytest.mark.parametrize(
-    "choose_kwargs,confirms",
-    [
-        # always_confirm=True overrides everything
-        (dict(always_choose_default=True, always_choose_value=False, always_confirm=True), True),
-        # always_choose_value overrides always_choose_default
-        (dict(always_choose_default=True, always_choose_value=True, always_confirm=False), True),
-        # always_choose_default sets in if always_choose_value allows and always_confirm is turned off
-        (dict(always_choose_default=True, always_choose_value=None, always_confirm=False), False),
-    ],
-    ids=[
-        "always-confirm-overrides-everything",
-        "always-choose-value-overrides-always-choose-default",
-        "always-choose-default-kicks-in-if-allowed",
-    ],
-)
+@pytest.mark.parametrize("choose_kwargs,confirms", CHOOSE_PRIORITY_CASES, ids=CHOOSE_PRIORITY_IDS)
 def test_pipeline_command_drop_partial_loads(
     repo_dir: str, choose_kwargs: dict[str, Any], confirms: bool
 ) -> None:
@@ -262,9 +262,7 @@ def test_pipeline_command_drop_partial_loads(
         assert "Pending packages deleted" in _out
         # verify packages are gone
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            _pipeline_command.pipeline_command(
-                "drop-pending-packages", "chess_pipeline", None, 1
-            )
+            _pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
             _out = buf.getvalue()
             assert "No pending packages found" in _out
         print(_out)
@@ -315,22 +313,7 @@ def test_drop_from_wrong_dir(repo_dir: str) -> None:
         assert "WARNING: You should run this from the same directory as the pipeline script" in _out
 
 
-@pytest.mark.parametrize(
-    "choose_kwargs,confirms",
-    [
-        # always_confirm=True overrides everything
-        (dict(always_choose_default=True, always_choose_value=False, always_confirm=True), True),
-        # always_choose_value overrides always_choose_default
-        (dict(always_choose_default=True, always_choose_value=True, always_confirm=False), True),
-        # always_choose_default sets in if always_choose_value allows and always_confirm is turned off
-        (dict(always_choose_default=True, always_choose_value=None, always_confirm=False), False),
-    ],
-    ids=[
-        "always-confirm-overrides-everything",
-        "always-choose-value-overrides-always-choose-default",
-        "always-choose-default-kicks-in-if-allowed",
-    ],
-)
+@pytest.mark.parametrize("choose_kwargs,confirms", CHOOSE_PRIORITY_CASES, ids=CHOOSE_PRIORITY_IDS)
 def test_pipeline_command_drop_with_global_args(
     repo_dir: str, choose_kwargs: dict[str, Any], confirms: bool
 ) -> None:

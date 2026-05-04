@@ -70,7 +70,7 @@ def test_delete_local_data_recreate_behavior(
     ctx = fruitshop_pipeline_context
 
     # list dirs to delete and auto-confirm
-    with echo.always_choose(always_choose_default=False, always_choose_value=True, always_confirm=False):
+    with echo.always_choose(always_choose_default=False, always_choose_value=True):
         attrs = check_delete_local_data(ctx, skip_data_dir=skip_data_dir)
     # perform deletion (which will only recreate when requested)
     delete_local_data(ctx, attrs, recreate_dirs=recreate_dirs)

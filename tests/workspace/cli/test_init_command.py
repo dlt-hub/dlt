@@ -487,7 +487,7 @@ def test_init_code_update_index_diff(repo_dir: str, workspace_files: FileStorage
     assert sel_modified == {}
     assert sel_deleted == {}
     # Apply option - local changes will be lost
-    with echo.always_choose(False, "a", False):
+    with echo.always_choose(False, "a"):
         res, sel_modified, sel_deleted = _select_source_files(
             "pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted
         )
@@ -495,7 +495,7 @@ def test_init_code_update_index_diff(repo_dir: str, workspace_files: FileStorage
         assert sel_modified == modified
         assert sel_deleted == deleted
     # merge only non conflicting changes are applied
-    with echo.always_choose(False, "m", False):
+    with echo.always_choose(False, "m"):
         res, sel_modified, sel_deleted = _select_source_files(
             "pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted
         )
@@ -622,7 +622,7 @@ def test_init_code_update_conflict(
     # change local
     workspace_files.save(mod_local_path, "'''VERSION 2'''")
 
-    with echo.always_choose(False, resolution, False):
+    with echo.always_choose(False, resolution):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
             _init_command.init_command("pipedrive", "duckdb", repo_dir)
             _out = buf.getvalue()
