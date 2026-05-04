@@ -482,7 +482,8 @@ class RunnableLoadJob(LoadJob, ABC):
                         self._on_completed(terminal_state, failed_message)
                     except Exception as exc:
                         terminal_state = "failed"
-                        self._exception = exc
+                        if self._exception is None:
+                            self._exception = exc
                         on_completed_exc = exc
                 self._finished_at = pendulum.now()
             # Publish only after callback and timestamp are done.

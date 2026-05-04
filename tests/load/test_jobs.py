@@ -320,6 +320,33 @@ def test_on_completed_exception_releases_semaphore() -> None:
     assert sem.acquire(blocking=False), "semaphore was not released"
 
 
+def test_on_completed_exception_preserves_terminal_job_exception() -> None:
+    """Keep the destination failure on the job when both run() and _on_completed fail."""
+    file_path = "/table.1234.0.jsonl"
+
+    class TerminalJob(RunnableLoadJob):
+        def run(self) -> None:
+            raise DestinationTerminalException("destination broke")
+
+    def bad_callback(state: TLoadJobState, msg: Optional[str]) -> None:
+        raise OSError("state persistence broke")
+
+    j = TerminalJob(file_path)
+    j.set_run_vars(
+        load_id="1",
+        schema=None,
+        load_table=None,
+        on_completed=bad_callback,
+    )
+    with pytest.raises(OSError, match="state persistence broke"):
+        j.run_managed(MockClient(), None)  # type: ignore
+
+    assert j.state() == "failed"
+    assert j._finished_at is not None
+    assert isinstance(j.exception(), DestinationTerminalException)
+    assert str(j.exception()) == "destination broke"
+
+
 def test_set_final_state_completed() -> None:
     """set_final_state puts a job into completed state."""
     file_path = "/table.1234.0.jsonl"
