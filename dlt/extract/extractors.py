@@ -1,6 +1,6 @@
 from copy import copy
 from functools import lru_cache, partial
-from typing import Set, Dict, Any, Optional, List, Union
+from typing import Set, Dict, Any, Optional, List, Union, TYPE_CHECKING
 
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger, json
@@ -9,7 +9,7 @@ from dlt.common.destination.capabilities import (
     DestinationCapabilitiesContext,
     adjust_schema_to_capabilities,
 )
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.libs import is_pandas_frame, is_polars_frame
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.typing import TDataItems, TDataItem, TLoaderFileFormat
@@ -31,22 +31,21 @@ from dlt.extract.items import DataItemWithMeta, TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
 from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
-try:
-    from dlt.common.libs import pyarrow
-    from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem, UnsupportedArrowTypeException
-except MissingDependencyException:
-    pyarrow = None
-    pa = None
+if TYPE_CHECKING:
+    from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
 
-try:
-    from dlt.common.libs.pandas import pandas, pandas_to_arrow
-except MissingDependencyException:
-    pandas = None
 
-try:
-    from dlt.common.libs.polars import polars, polars_to_arrow
-except MissingDependencyException:
-    polars = None
+def _to_arrow_table(item: Any) -> Any:
+    """Convert a pandas or polars frame to a pyarrow Table; pass arrow items through."""
+    if is_pandas_frame(item):
+        from dlt.common.libs.pandas import pandas_to_arrow
+
+        return pandas_to_arrow(item)
+    if is_polars_frame(item):
+        from dlt.common.libs.polars import polars_to_arrow
+
+        return polars_to_arrow(item)
+    return item
 
 
 class MaterializedEmptyList(List[Any]):
@@ -390,21 +389,8 @@ class ArrowExtractor(Extractor):
         static_table_name = self._get_static_table_name(resource, meta)
         items = [
             # 2. remove columns and rows in data contract filters
-            self._apply_contract_filters(tbl, resource, static_table_name)
-            for tbl in (
-                (
-                    # 1. Convert pandas/polars frame(s) to arrow Table
-                    pandas_to_arrow(item)
-                    if (pandas and isinstance(item, pandas.DataFrame))
-                    else polars_to_arrow(item)
-                    if (
-                        polars
-                        and isinstance(item, (polars.DataFrame, polars.LazyFrame))
-                    )
-                    else item
-                )
-                for item in items_list
-            )
+            self._apply_contract_filters(_to_arrow_table(item), resource, static_table_name)
+            for item in items_list
         ]
         super().write_items(resource, items, meta)
 
@@ -419,6 +405,8 @@ class ArrowExtractor(Extractor):
         self, item: "TAnyArrowItem", resource: DltResource, static_table_name: Optional[str]
     ) -> "TAnyArrowItem":
         """Removes the columns (discard value) or rows (discard rows) as indicated by contract filters."""
+        from dlt.common.libs import pyarrow
+
         # convert arrow schema names into normalized names
         rename_mapping = pyarrow.get_normalized_arrow_fields_mapping(item.schema, self.naming)
         # find matching columns and delete by original name
@@ -457,6 +445,8 @@ class ArrowExtractor(Extractor):
         items: TDataItems,
         columns: TTableSchemaColumns = None,
     ) -> None:
+        from dlt.common.libs import pyarrow
+
         columns = columns or self.schema.get_table_columns(table_name)
         # Note: `items` is always a list here due to the conversion in `write_table`
         items = [
@@ -487,6 +477,8 @@ class ArrowExtractor(Extractor):
     def _compute_tables(
         self, resource: DltResource, items: TDataItems, meta: Any
     ) -> List[TPartialTableSchema]:
+        from dlt.common.libs import pyarrow
+
         arrow_tables: Dict[str, TTableSchema] = {}
 
         if isinstance(items, list):
