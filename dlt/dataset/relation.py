@@ -41,7 +41,6 @@ from dlt.common.destination.dataset import SupportsDataAccess
 from dlt.dataset._incremental import (
     _build_incremental_aggregate,
     _build_incremental_condition,
-    _has_incremental_marker,
     _maybe_warn_on_cursor_missing_raise,
     _parse_incremental_cursor_path,
     _RelationIncrementalContext,
@@ -487,7 +486,8 @@ class Relation(WithSqlClient):
             _maybe_warn_on_cursor_missing_raise(incremental, self.columns_schema, column_name)
             condition = _build_incremental_condition(incremental, column_ref, sqlglot_type)
             rel = self.__copy__()
-            rel._sqlglot_expression = rel.sqlglot_expression.where(condition)
+            if condition is not None:
+                rel._sqlglot_expression = rel.sqlglot_expression.where(condition)
             rel._incremental_ctx = _RelationIncrementalContext(
                 incremental=incremental,
                 cursor_column=column_ref.copy(),
@@ -537,7 +537,7 @@ class Relation(WithSqlClient):
 
         condition = _build_incremental_condition(incremental, column_ref, sqlglot_type)
         rel = self.__copy__()
-        rel._sqlglot_expression = query.where(condition)
+        rel._sqlglot_expression = query.where(condition) if condition is not None else query
         rel._incremental_ctx = _RelationIncrementalContext(
             incremental=incremental,
             cursor_column=column_ref.copy(),
@@ -547,9 +547,7 @@ class Relation(WithSqlClient):
     @property
     def is_incremental(self) -> bool:
         """True if any clause on this relation was produced by `.incremental()`."""
-        # TODO: leaks True on aggregate relations because the inner subquery still
-        # carries the meta marker. Switch to `self._incremental_ctx is not None`.
-        return _has_incremental_marker(self.sqlglot_expression)
+        return self._incremental_ctx is not None
 
     def _incremental_aggregate_relation(self) -> Optional[Self]:
         """Return a relation computing `<last_value_func>(cursor)` over this relation.

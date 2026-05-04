@@ -13,7 +13,6 @@ from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.extract.incremental import Incremental
 
 
-_INCREMENTAL_META_KEY = "dlt_incremental"
 _AGG_CURSOR_ALIAS = "__dlt_inc_cursor"
 
 
@@ -115,7 +114,7 @@ def _build_incremental_condition(
     incremental: Incremental[Any],
     column_ref: sge.Column,
     sqlglot_type: Optional[sge.DataType],
-) -> sge.Expression:
+) -> Optional[sge.Expression]:
     """Build the WHERE condition for an Incremental cursor on `column_ref`.
 
     Operator matrix (closed/open bounds):
@@ -133,12 +132,12 @@ def _build_incremental_condition(
             bound literals; pass `None` to skip casting.
 
     Returns:
-        sge.Expression: A boolean expression ready to be attached via `.where(...)`.
-            The root node is tagged with `meta["dlt_incremental"] = True` so the
-            caller can detect incremental filters later.
+        Optional[sge.Expression]: A boolean expression ready to be attached via
+            `.where(...)`, or `None`.
 
     Raises:
-        ValueError: If `incremental.last_value_func` is not `min` or `max`.
+        ValueError: If `incremental.last_value_func` is not `min` or `max`, or if
+            `on_cursor_value_missing` is not one of `"include"`, `"exclude"`, `"raise"`.
     """
     last_value_func = incremental.last_value_func
     start_op_cls: Type[sge.Binary]
@@ -155,57 +154,39 @@ def _build_incremental_condition(
             "down to SQL. Only `min` and `max` are supported by `Relation.incremental()`."
         )
 
+    on_missing = incremental.on_cursor_value_missing
+    if on_missing not in ("include", "exclude", "raise"):
+        raise ValueError(
+            "Incremental `on_cursor_value_missing="
+            f"{on_missing!r}` is not supported by "
+            "`Relation.incremental()`. Expected one of: 'include', 'exclude', 'raise'."
+        )
+
     start_value = incremental.last_value
     end_value = incremental.end_value
 
-    condition: Optional[sge.Expression] = None
+    bounds: Optional[sge.Expression] = None
     if start_value is not None:
         start_literal = build_typed_literal(start_value, sqlglot_type)
-        condition = start_op_cls(this=column_ref.copy(), expression=start_literal)
+        bounds = start_op_cls(this=column_ref.copy(), expression=start_literal)
 
     if end_value is not None:
         end_literal = build_typed_literal(end_value, sqlglot_type)
         end_condition: sge.Expression = end_op_cls(this=column_ref.copy(), expression=end_literal)
-        condition = (
-            end_condition
-            if condition is None
-            else sge.And(this=condition, expression=end_condition)
-        )
+        bounds = end_condition if bounds is None else sge.And(this=bounds, expression=end_condition)
 
-    if condition is None:
-        # no bounds at all: fall back to an always-true marker so the caller
-        # still sees a WHERE clause tagged as incremental
-        # TODO: drop this filler once/if `is_incremental` switches off the meta
-        # marker (see `Relation.is_incremental`).
-        condition = sge.Boolean(this=True)
-
-    if incremental.on_cursor_value_missing == "include":
+    if on_missing == "include":
+        if bounds is None:
+            return None
         is_null = sge.Is(this=column_ref.copy(), expression=sge.Null())
-        condition = sge.Or(this=condition, expression=is_null)
-    elif incremental.on_cursor_value_missing in ("exclude", "raise"):
-        # "raise" can't raise mid-query in SQL pushdown, so we do explicit IS NOT NULL
-        # and warn users
-        is_not_null = sge.Not(this=sge.Is(this=column_ref.copy(), expression=sge.Null()))
-        condition = sge.And(this=condition, expression=is_not_null)
-    else:
-        raise ValueError(
-            "Incremental `on_cursor_value_missing="
-            f"{incremental.on_cursor_value_missing!r}` is not supported by "
-            "`Relation.incremental()`. Expected one of: 'include', 'exclude', 'raise'."
-        )
+        return sge.Or(this=bounds, expression=is_null)
 
-    condition.meta[_INCREMENTAL_META_KEY] = True
-    return condition
-
-
-def _has_incremental_marker(expression: sge.Expression) -> bool:
-    """True when any node in `expression` carries the incremental meta marker."""
-    # TODO: remove once `Relation.is_incremental` switches to checking
-    # `_incremental_ctx is not None`
-    for node in expression.walk():
-        if node.meta.get(_INCREMENTAL_META_KEY):
-            return True
-    return False
+    # "exclude" or "raise" both pin nulls out via IS NOT NULL.
+    # "raise" can't raise mid-query in SQL pushdown; so we warn users
+    is_not_null = sge.Not(this=sge.Is(this=column_ref.copy(), expression=sge.Null()))
+    if bounds is None:
+        return is_not_null
+    return sge.And(this=bounds, expression=is_not_null)
 
 
 def _maybe_warn_on_cursor_missing_raise(

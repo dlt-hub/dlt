@@ -100,7 +100,7 @@ def test_incremental_sets_is_incremental_flag(incremental_dataset: dlt.Dataset) 
     flagged = base.incremental(inc)
     assert flagged.is_incremental is True
 
-    # flag survives further chaining — meta must propagate through copies
+    # flag survives further chaining, context propagates through copies
     chained = flagged.select("id", "value").where("value", "gt", 0)
     assert chained.is_incremental is True
 
@@ -597,6 +597,71 @@ def test_incremental_raise_no_warn_on_non_nullable_cursor(
         "unexpected pushdown warning on a non-nullable cursor: "
         f"{[str(w.message) for w in pushdown_warnings]}"
     )
+
+
+def test_incremental_no_bounds_include_emits_no_where(
+    incremental_pipeline: dlt.Pipeline,
+) -> None:
+    """An unbounded incremental with `on_cursor_value_missing="include"` would
+    push down `WHERE TRUE OR col IS NULL` — a tautology. We skip the WHERE
+    entirely; the relation is still flagged as incremental so the aggregate
+    can advance state on the next run.
+    """
+    dataset = incremental_pipeline.dataset()
+    captured: List[dlt.Relation] = []
+
+    @dlt.resource(name="probe_no_bounds_include")
+    def probe(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "id", on_cursor_value_missing="include"
+        ),
+    ) -> Iterator[Any]:
+        captured.append(dataset.table("events").incremental(cursor))
+        yield from []
+
+    incremental_pipeline.extract(probe())
+    rel = captured[0]
+
+    assert rel.sqlglot_expression.args.get("where") is None
+    assert rel.is_incremental is True
+    # the aggregate over the unfiltered base should still observe the full max id (5)
+    assert rel._incremental_aggregate_relation().fetchscalar() == 5
+
+
+@pytest.mark.parametrize("policy", ["exclude", "raise"])
+def test_incremental_no_bounds_exclude_or_raise_emits_only_is_not_null(
+    incremental_pipeline: dlt.Pipeline, policy: Literal["exclude", "raise"]
+) -> None:
+    """Without bounds, `"exclude"` and `"raise"` collapse to a bare `IS NOT NULL`
+    pushdown — no leading `TRUE AND` filler.
+    """
+    dataset = incremental_pipeline.dataset()
+    captured: List[dlt.Relation] = []
+
+    @dlt.resource(name=f"probe_no_bounds_{policy}")
+    def probe(
+        # `id` is the (non-nullable) primary key, so `"raise"` does not warn here.
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "id", on_cursor_value_missing=policy
+        ),
+    ) -> Iterator[Any]:
+        captured.append(dataset.table("events").incremental(cursor))
+        yield from []
+
+    incremental_pipeline.extract(probe())
+    rel = captured[0]
+
+    condition = _where(rel)
+    # bare `NOT (col IS NULL)` — no `And` wrapper around a `True` filler
+    assert isinstance(condition, sge.Not), (
+        f"expected bare `IS NOT NULL` for no-bounds policy={policy!r}, "
+        f"got {type(condition).__name__}: {condition.sql()}"
+    )
+    inner = condition.this
+    assert isinstance(inner, sge.Is)
+    assert isinstance(inner.expression, sge.Null)
+    assert _column_name(inner.this) == "id"
+    assert rel.is_incremental is True
 
 
 def test_incremental_no_warn_when_policy_explicit(
