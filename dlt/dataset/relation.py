@@ -24,7 +24,7 @@ import sqlglot.expressions as sge
 import dlt
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
-from dlt.common.libs.utils import is_instance_lib
+from dlt.common.libs import is_instance_lib
 from dlt.common.schema.typing import (
     TTableSchema,
     TTableSchemaColumns,

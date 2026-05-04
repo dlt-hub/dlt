@@ -1,18 +1,15 @@
-from typing import Any, AnyStr, List, Type, Optional, Protocol, Tuple, TypeVar, Generator
+from typing import Any, AnyStr, List, Optional, Protocol, Tuple, TypeVar, Generator, TYPE_CHECKING
 
 
 # native connection
 TNativeConn = TypeVar("TNativeConn", bound=Any)
 
-try:
+if TYPE_CHECKING:
     from pandas import DataFrame
-except ImportError:
-    DataFrame: Type[Any] = None  # type: ignore
-
-try:
     from pyarrow import Table as ArrowTable
-except ImportError:
-    ArrowTable: Type[Any] = None  # type: ignore
+else:
+    DataFrame = Any
+    ArrowTable = Any
 
 
 class DBTransaction(Protocol):

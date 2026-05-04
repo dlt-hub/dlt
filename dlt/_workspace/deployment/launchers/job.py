@@ -3,12 +3,12 @@
 import asyncio
 import inspect
 import os
-import sys
 from contextlib import nullcontext
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from dlt.common.configuration.container import Container
+from dlt.common.libs import is_instance_lib
 from dlt.common.reflection.ref import object_from_ref
 from dlt.common.runtime import signals
 from dlt.common.time import ensure_datetime_utc
@@ -56,42 +56,27 @@ def _check_return_value(
         return
 
     # fastmcp — delegate to MCP launcher
-    try:
-        from fastmcp import FastMCP
+    if is_instance_lib(result, class_ref="fastmcp.FastMCP"):
+        from dlt._workspace.deployment.launchers.mcp import run_mcp_instance
 
-        if isinstance(result, FastMCP):
-            from dlt._workspace.deployment.launchers.mcp import run_mcp_instance
-
-            port = get_run_args_port(entry_point)
-            sections = (ws_known_sections.JOBS, job.section, job.name)
-            run_mcp_instance(result, port, sections)
-            return
-    except ImportError:
-        pass
+        port = get_run_args_port(entry_point)
+        sections = (ws_known_sections.JOBS, job.section, job.name)
+        run_mcp_instance(result, port, sections)
+        return
 
     # starlette / fastapi
-    try:
-        from starlette.applications import Starlette
-
-        if isinstance(result, Starlette):
-            raise NotImplementedError(
-                f"Job returned an ASGI app ({type(result).__name__}). "
-                "Use an interactive launcher with an ASGI server."
-            )
-    except ImportError:
-        pass
+    if is_instance_lib(result, class_ref="starlette.applications.Starlette"):
+        raise NotImplementedError(
+            f"Job returned an ASGI app ({type(result).__name__}). "
+            "Use an interactive launcher with an ASGI server."
+        )
 
     # flask
-    try:
-        from flask import Flask  # type: ignore[import-not-found,unused-ignore]
-
-        if isinstance(result, Flask):
-            raise NotImplementedError(
-                f"Job returned a Flask app ({type(result).__name__}). "
-                "Use an interactive launcher with a WSGI server."
-            )
-    except ImportError:
-        pass
+    if is_instance_lib(result, class_ref="flask.Flask"):
+        raise NotImplementedError(
+            f"Job returned a Flask app ({type(result).__name__}). "
+            "Use an interactive launcher with a WSGI server."
+        )
 
     # generic ASGI
     if _is_asgi_app(result):

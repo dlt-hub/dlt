@@ -9,9 +9,11 @@ is local to the workspace (below or equal to the parent module).
 """
 
 import os
+import sys
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
+from dlt.common.libs import is_instance_lib
 from dlt.common.utils import get_module_name
 
 from dlt._workspace.deployment._job_ref import make_job_ref
@@ -42,19 +44,20 @@ def detect_module_job(module: ModuleType) -> Optional[TJobDefinition]:
 
 def _find_instance(
     module: ModuleType,
-    type_class: type,
+    class_ref: str,
     preferred_names: Tuple[str, ...] = (),
 ) -> Optional[Tuple[str, Any]]:
-    """Find an instance of type_class in module namespace."""
+    """Find an instance of class_ref (e.g., 'marimo.App') in module namespace."""
+
     for name in preferred_names:
         obj = module.__dict__.get(name)
-        if obj is not None and isinstance(obj, type_class):
+        if obj is not None and is_instance_lib(obj, class_ref=class_ref):
             return name, obj
 
     for name, obj in module.__dict__.items():
         if name.startswith("_"):
             continue
-        if isinstance(obj, type_class):
+        if is_instance_lib(obj, class_ref=class_ref):
             return name, obj
 
     return None
@@ -98,12 +101,10 @@ def _apply_module_dunders(module: ModuleType, job_def: TJobDefinition) -> None:
 
 def _detect_marimo(module: ModuleType) -> Optional[TJobDefinition]:
     """Detect a marimo.App instance."""
-    try:
-        from marimo import App as MarimoApp
-    except ImportError:
+    if "marimo" not in sys.modules:
         return None
 
-    match = _find_instance(module, MarimoApp, ("app",))
+    match = _find_instance(module, "marimo.App", ("app",))
     if match is None:
         return None
 
@@ -140,12 +141,10 @@ def _detect_marimo(module: ModuleType) -> Optional[TJobDefinition]:
 
 def _detect_mcp(module: ModuleType) -> Optional[TJobDefinition]:
     """Detect a FastMCP instance."""
-    try:
-        from fastmcp import FastMCP
-    except ImportError:
+    if "fastmcp" not in sys.modules:
         return None
 
-    match = _find_instance(module, FastMCP, ("mcp", "server", "app"))
+    match = _find_instance(module, "fastmcp.FastMCP", ("mcp", "server", "app"))
     if match is None:
         return None
 

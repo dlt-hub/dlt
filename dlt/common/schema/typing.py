@@ -11,9 +11,9 @@ from typing import (
     Tuple,
     Type,
     NewType,
+    TYPE_CHECKING,
     Union,
 )
-from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
@@ -26,10 +26,10 @@ from dlt.common.typing import (
     get_args,
 )
 
-try:
+if TYPE_CHECKING:
     from pydantic import BaseModel as _PydanticBaseModel
-except ImportError:
-    _PydanticBaseModel = Never  # type: ignore[assignment, misc]
+else:
+    _PydanticBaseModel = Any
 
 
 # current version of schema engine
