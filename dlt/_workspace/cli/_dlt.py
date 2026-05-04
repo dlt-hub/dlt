@@ -24,6 +24,11 @@ class _LazyMarkdown:
         self._text = text
         self._kwargs = kwargs
 
+    @property
+    def markup(self) -> str:
+        """Original markdown source; mirrors `rich.markdown.Markdown.markup`."""
+        return self._text
+
     def __rich__(self) -> Any:
         from rich.markdown import Markdown
 
