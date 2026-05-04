@@ -155,7 +155,7 @@ def test_deploy_command(deployment_method: str, deployment_args: StrAny) -> None
 
             # drop env value so command below does not see it and will trigger display callback
             os.environ.pop("API_KEY", None)
-            with echo.always_choose(False, always_choose_value=True):
+            with echo.always_choose(False, always_choose_value=True, always_confirm=False):
                 with io.StringIO() as buf, contextlib.redirect_stdout(buf):
                     _deploy_command.deploy_command(
                         "debug_pipeline.py",
@@ -184,7 +184,7 @@ def test_deploy_command(deployment_method: str, deployment_args: StrAny) -> None
                 _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                 **deployment_args,
             )
-        with echo.always_choose(False, always_choose_value=True):
+        with echo.always_choose(False, always_choose_value=True, always_confirm=False):
             with pytest.raises(CliCommandException) as ex:
                 _deploy_command.deploy_command_wrapper(
                     "no_pipeline.py",

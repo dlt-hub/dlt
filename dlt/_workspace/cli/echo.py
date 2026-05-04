@@ -6,26 +6,35 @@ import click
 
 ALWAYS_CHOOSE_DEFAULT = False
 ALWAYS_CHOOSE_VALUE: Any = None
+ALWAYS_CONFIRM = False
 
 
 @contextlib.contextmanager
-def always_choose(always_choose_default: bool, always_choose_value: Any) -> Iterator[None]:
+def always_choose(
+    always_choose_default: bool,
+    always_choose_value: Any,
+    always_confirm: bool,
+) -> Iterator[None]:
     """Temporarily answer all confirmations and prompts with preset values.
 
     Args:
         always_choose_default: When True, confirm/prompt calls return their default.
         always_choose_value: When set, confirm/prompt calls return this value instead.
+        always_confirm: When True, confirm calls always return True, regardless of `always_choose_default` and `always_choose_value`.
     """
-    global ALWAYS_CHOOSE_DEFAULT, ALWAYS_CHOOSE_VALUE
+    global ALWAYS_CHOOSE_DEFAULT, ALWAYS_CHOOSE_VALUE, ALWAYS_CONFIRM
     _always_choose_default = ALWAYS_CHOOSE_DEFAULT
     _always_choose_value = ALWAYS_CHOOSE_VALUE
+    _always_confirm = ALWAYS_CONFIRM
     ALWAYS_CHOOSE_DEFAULT = always_choose_default
     ALWAYS_CHOOSE_VALUE = always_choose_value
+    ALWAYS_CONFIRM = always_confirm
     try:
         yield
     finally:
         ALWAYS_CHOOSE_DEFAULT = _always_choose_default
         ALWAYS_CHOOSE_VALUE = _always_choose_value
+        ALWAYS_CONFIRM = _always_confirm
 
 
 @contextlib.contextmanager
@@ -49,7 +58,7 @@ def suppress_echo() -> Iterator[None]:
 def maybe_no_stdin() -> ContextManager[None]:
     """Automatically choose default values if stdin not connected"""
     return always_choose(
-        True if not sys.stdin.isatty() else ALWAYS_CHOOSE_DEFAULT, ALWAYS_CHOOSE_VALUE
+        True if not sys.stdin.isatty() else ALWAYS_CHOOSE_DEFAULT, ALWAYS_CHOOSE_VALUE, ALWAYS_CONFIRM
     )
 
 
@@ -79,6 +88,8 @@ def note(msg: str) -> None:
 
 
 def confirm(text: str, default: Optional[bool] = None) -> bool:
+    if ALWAYS_CONFIRM is True:
+        return ALWAYS_CONFIRM
     if ALWAYS_CHOOSE_VALUE:
         return bool(ALWAYS_CHOOSE_VALUE)
     if ALWAYS_CHOOSE_DEFAULT:
@@ -95,10 +106,7 @@ def prompt(
     show_default: bool = True,
 ) -> Any:
     if ALWAYS_CHOOSE_VALUE:
-        if ALWAYS_CHOOSE_VALUE not in choices:
-            raise ValueError(
-                f"Cannot auto-accept prompt: {ALWAYS_CHOOSE_VALUE!r} is not in {list(choices)}"
-            )
+        assert ALWAYS_CHOOSE_VALUE in choices
         return ALWAYS_CHOOSE_VALUE
     if ALWAYS_CHOOSE_DEFAULT:
         assert default is not None

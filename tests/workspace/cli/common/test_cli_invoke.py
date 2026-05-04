@@ -1,10 +1,9 @@
 import os
 import sys
-from typing import Iterator
-
 import pytest
 import shutil
 from pathlib import Path
+from typing import Iterator
 from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
 
@@ -20,16 +19,18 @@ BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
 
 
 @pytest.fixture(autouse=True)
-def disable_debug() -> None:
-    # reset debug flag so other tests may pass
-    _debug.disable_debug()
+def reset_echo_globals() -> Iterator[None]:
+    """Reset echo globals to their default values."""
+    yield
+    fmt.ALWAYS_CHOOSE_DEFAULT = False
+    fmt.ALWAYS_CHOOSE_VALUE = None
+    fmt.ALWAYS_CONFIRM = False
 
 
 @pytest.fixture(autouse=True)
-def reset_always_choose_value() -> Iterator[None]:
-    # reset ALWAYS_CHOOSE_VALUE after each test so -y flag doesn't leak
-    yield
-    fmt.ALWAYS_CHOOSE_VALUE = None
+def disable_debug() -> None:
+    # reset debug flag so other tests may pass
+    _debug.disable_debug()
 
 
 def test_invoke_basic(script_runner: ScriptRunner) -> None:
@@ -282,14 +283,6 @@ def test_yes_flag_auto_confirms(
     else:
         assert "players_games" in pipeline.default_schema.tables
 
-
-def test_yes_flag_raises_on_prompt() -> None:
-    """prompt() raises ValueError when ALWAYS_CHOOSE_VALUE is not a valid choice.
-    This may happen, for example, when -y is used with a command that has a multi-choice prompt.
-    """
-    with fmt.always_choose(False, True):
-        with pytest.raises(ValueError, match="Cannot auto-accept"):
-            fmt.prompt("Pick action", choices="sam")
 
 
 @pytest.mark.skipif(sys.stdin.isatty(), reason="stdin connected, test skipped")

@@ -94,7 +94,7 @@ class YesAction(argparse.Action):
         values: Any,
         option_string: str = None,
     ) -> None:
-        fmt.ALWAYS_CHOOSE_VALUE = True
+        fmt.ALWAYS_CONFIRM = True
         fmt.note("Automatically accepting all confirmations.")
 
 
