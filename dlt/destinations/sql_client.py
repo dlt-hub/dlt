@@ -17,6 +17,7 @@ from typing import (
     AnyStr,
     List,
     Generator,
+    TYPE_CHECKING,
     cast,
 )
 
@@ -35,11 +36,13 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.typing import (
     DBApi,
     TNativeConn,
-    DataFrame,
     DBTransaction,
-    ArrowTable,
 )
 from dlt.common.destination.dataset import DBApiCursor
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
+    from pyarrow import Table as ArrowTable
 
 
 class TQueryTags(TypedDict):
@@ -404,7 +407,7 @@ class DBApiCursorImpl(DBApiCursor):
             TTableSchemaColumns, {c: {"name": c, "nullable": True} for c in self._get_columns()}
         )
 
-    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional["DataFrame"]:
         """Fetches results as data frame in full or in specified chunks.
 
         May use native pandas/arrow reader if available. Depending on
@@ -415,7 +418,7 @@ class DBApiCursorImpl(DBApiCursor):
         except StopIteration:
             return None
 
-    def arrow(self, chunk_size: int = None, **kwargs: Any) -> Optional[ArrowTable]:
+    def arrow(self, chunk_size: int = None, **kwargs: Any) -> Optional["ArrowTable"]:
         """Fetches results as data frame in full or in specified chunks.
 
         May use native pandas/arrow reader if available. Depending on
@@ -432,7 +435,7 @@ class DBApiCursorImpl(DBApiCursor):
                 return
             yield result
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator["DataFrame", None, None]:
         """Default implementation converts arrow to df"""
         from dlt.common.libs.pandas import pandas as pd
 
@@ -441,7 +444,7 @@ class DBApiCursorImpl(DBApiCursor):
             # https://github.com/apache/arrow/issues/38644 for reference on types_mapper
             yield table.to_pandas()
 
-    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+    def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
         """Default implementation converts query result to arrow table"""
         from dlt.common.libs.pyarrow import row_tuples_to_arrow
         from dlt.common.configuration.container import Container

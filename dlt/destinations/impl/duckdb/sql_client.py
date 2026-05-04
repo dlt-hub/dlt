@@ -21,6 +21,7 @@ from typing import (
     Tuple,
     Generator,
     Type,
+    TYPE_CHECKING,
     cast,
 )
 
@@ -46,7 +47,7 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
 )
 from dlt.destinations.impl.duckdb.exceptions import IcebergViewException
-from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
+from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
@@ -54,6 +55,10 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
+    from pyarrow import Table as ArrowTable
 
 from dlt.destinations.impl.duckdb.configuration import (
     DuckDbBaseCredentials,
@@ -74,7 +79,7 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             return 1
         return math.floor(chunk_size / self.vector_size)
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator["DataFrame", None, None]:
         # full frame
         if not chunk_size:
             yield self.native_cursor.fetch_df()
@@ -86,10 +91,13 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
                 break
             yield df
 
-    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+    def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
         if not chunk_size:
             yield self.native_cursor.fetch_arrow_table()
             return
+        # resolve pa at runtime; `ArrowTable` is a TYPE_CHECKING-only alias above
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
         # iterate
         method = (
             "to_arrow_reader"
@@ -97,7 +105,7 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             else "fetch_record_batch"
         )
         for item in getattr(self.native_cursor, method)(chunk_size):
-            yield ArrowTable.from_batches([item])
+            yield pa.Table.from_batches([item])
 
     def close(self, *args: Any, **kwargs: Any) -> None:
         # duckdb cursor is just original connection so we cannot close it
