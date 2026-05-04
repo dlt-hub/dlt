@@ -1,8 +1,6 @@
 import sys
 from typing import Any, Sequence, Type, cast, List, Dict, Tuple
 import argparse
-import rich_argparse
-from rich.markdown import Markdown
 
 from dlt.version import __version__
 from dlt.common.runners import Venv
@@ -17,6 +15,22 @@ from dlt._workspace.cli.utils import display_run_context_info
 
 ACTION_EXECUTED = False
 DEFAULT_DOCS_URL = "https://dlthub.com/docs/intro"
+
+
+class _LazyMarkdown:
+    """Renderable wrapper that defers `rich.markdown.Markdown` instantiation"""
+
+    def __init__(self, text: str, **kwargs: Any) -> None:
+        self._text = text
+        self._kwargs = kwargs
+
+    def __rich__(self) -> Any:
+        from rich.markdown import Markdown
+
+        return Markdown(self._text, **self._kwargs)
+
+    def __str__(self) -> str:
+        return self._text
 
 
 def print_help(parser: argparse.ArgumentParser) -> None:
@@ -167,11 +181,12 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
 
     # recursively add formatter class
     def add_formatter_class(parser: argparse.ArgumentParser) -> None:
+        import rich_argparse
+
         parser.formatter_class = rich_argparse.RichHelpFormatter
 
-        # NOTE: make markup available for console output
-        if parser.description:
-            parser.description = Markdown(parser.description, style="argparse.text")  # type: ignore
+        if parser.description and isinstance(parser.description, str):
+            parser.description = _LazyMarkdown(parser.description, style="argparse.text")  # type: ignore[assignment]
         for action in parser._actions:
             if isinstance(action, argparse._SubParsersAction):
                 for _subcmd, subparser in action.choices.items():
