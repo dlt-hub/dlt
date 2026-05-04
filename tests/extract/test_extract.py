@@ -655,8 +655,7 @@ def test_materialize_table_schema_multi_table(yield_one: bool, yield_two: bool) 
     extract_info = p.extract(multi_table())
 
     extracted_tables = {
-        job.job_file_info.table_name
-        for job in extract_info.load_packages[0].jobs["new_jobs"]
+        job.job_file_info.table_name for job in extract_info.load_packages[0].jobs["new_jobs"]
     }
     # both tables should always have jobs — either with data or empty files
     assert "table_one" in extracted_tables

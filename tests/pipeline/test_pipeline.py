@@ -85,6 +85,7 @@ from tests.pipeline.utils import (
     load_table_counts,
     load_tables_to_dicts,
     many_delayed,
+    table_exists,
 )
 
 from dlt.destinations.dataset import get_destination_client_initial_config
@@ -3554,6 +3555,109 @@ def test_yielding_empty_list_creates_table() -> None:
             rows = list(cur.fetchall())
             assert len(rows) == 1
             assert rows[0] == (1, None)
+
+
+@pytest.mark.parametrize(
+    "yield_one,yield_two",
+    [(True, False), (False, True), (False, False), (True, True)],
+    ids=["only_first", "only_second", "neither", "both"],
+)
+def test_materialize_table_schema_multi_table_duckdb(yield_one: bool, yield_two: bool) -> None:
+    """End-to-end check that a multi-table resource materializes both tables in duckdb,
+    whether they receive data or not. Dispatch happens via `with_table_name` and table
+    variants are pre-declared with `materialize_table_schema()`.
+    """
+
+    @dlt.resource
+    def multi_table():
+        yield dlt.mark.with_hints(
+            dlt.mark.materialize_table_schema(),
+            dlt.mark.make_hints(
+                table_name="table_one",
+                write_disposition="replace",
+                columns={"col_one": {"data_type": "text"}},
+            ),
+            create_table_variant=True,
+        )
+        yield dlt.mark.with_hints(
+            dlt.mark.materialize_table_schema(),
+            dlt.mark.make_hints(
+                table_name="table_two",
+                write_disposition="replace",
+                columns={"col_two": {"data_type": "bigint"}},
+            ),
+            create_table_variant=True,
+        )
+        if yield_one:
+            yield dlt.mark.with_table_name({"col_one": "val"}, table_name="table_one")
+        if yield_two:
+            yield dlt.mark.with_table_name({"col_two": 5}, table_name="table_two")
+
+    pipeline = dlt.pipeline(
+        pipeline_name="materialize_multi_e2e_" + uniq_id(),
+        destination="duckdb",
+        dev_mode=True,
+    )
+    load_info = pipeline.run(multi_table())
+    assert_load_info(load_info)
+
+    expected = {
+        "table_one": 1 if yield_one else 0,
+        "table_two": 1 if yield_two else 0,
+    }
+    assert_table_counts(pipeline, expected)
+
+    schema_tables = pipeline.default_schema.tables
+    assert "col_one" in schema_tables["table_one"]["columns"]
+    assert "col_two" in schema_tables["table_two"]["columns"]
+
+
+def test_materialize_table_schema_with_nested_hints_duckdb() -> None:
+    """Pre-declared nested table via `nested_hints` is added to the schema but does NOT
+    materialize at the destination when only the root yields `materialize_table_schema()`.
+    The normalizer attaches parent/child linking columns only when real nested data flows
+    through it, so an empty nested table cannot be meaningfully created up front.
+    """
+
+    @dlt.resource(
+        name="users",
+        write_disposition="replace",
+        columns=[
+            {"name": "id", "data_type": "bigint", "nullable": False},
+            {"name": "name", "data_type": "text"},
+        ],
+        nested_hints={
+            "purchases": dlt.mark.make_nested_hints(
+                columns=[{"name": "price", "data_type": "decimal"}],
+            ),
+        },
+    )
+    def users_with_nested():
+        yield dlt.mark.materialize_table_schema()
+
+    pipeline = dlt.pipeline(
+        pipeline_name="materialize_nested_e2e_" + uniq_id(),
+        destination="duckdb",
+        dev_mode=True,
+    )
+    load_info = pipeline.run(users_with_nested())
+    assert_load_info(load_info)
+
+    # root table is materialized empty in duckdb with declared columns
+    assert table_exists(pipeline, "users")
+    assert load_table_counts(pipeline, "users") == {"users": 0}
+    users_columns = pipeline.default_schema.tables["users"]["columns"]
+    assert {"id", "name", "_dlt_load_id", "_dlt_id"}.issubset(users_columns.keys())
+
+    # nested table is computed into the schema from `nested_hints`
+    assert "users__purchases" in pipeline.default_schema.tables
+    nested_columns = pipeline.default_schema.tables["users__purchases"]["columns"]
+    assert "price" in nested_columns
+
+    # but it is NOT created at the destination — no MaterializedEmptyList ever flows
+    # through `_write_item` for the nested name, and parent linkage columns are produced
+    # by the normalizer only on real nested rows
+    assert not table_exists(pipeline, "users__purchases")
 
 
 @pytest.mark.parametrize(
