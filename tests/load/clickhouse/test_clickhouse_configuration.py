@@ -84,7 +84,9 @@ def test_clickhouse_configuration() -> None:
         ClickHouseCredentials(),
         explicit_value="clickhouse://user1:pass1@host1:9000/db1",
     )
-    assert ClickHouseClientConfiguration(credentials=config).fingerprint() == digest128("host1")
+    assert ClickHouseClientConfiguration(credentials=config).fingerprint() == digest128(
+        "host1:9000"
+    )
 
 
 def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
