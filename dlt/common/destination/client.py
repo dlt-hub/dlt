@@ -448,8 +448,10 @@ class RunnableLoadJob(LoadJob, ABC):
         # filepath is now moved to running
         try:
             self._state = "running"
-            self._job_client.prepare_load_job_execution(self)
-            self.run()
+            # open client connection only when running
+            with self._job_client:
+                self._job_client.prepare_load_job_execution(self)
+                self.run()
             self._state = "completed"
         except (TerminalException, AssertionError) as e:
             self._state = "failed"
@@ -462,27 +464,31 @@ class RunnableLoadJob(LoadJob, ABC):
                 f"Transient exception in job {self.job_id()} in file {self._file_path}"
             )
         finally:
-            # sanity check
-            assert self._state in ("completed", "retry", "failed")
-            if self._state != "retry":
-                # persist terminal state so resume can skip re-execution
-                if self._on_completed:
-                    if self._exception:
-                        failed_message = "".join(
-                            traceback.format_exception(
-                                type(self._exception),
-                                self._exception,
-                                self._exception.__traceback__,
-                            )
+            self.release()
+
+    def release(self) -> None:
+        """Release job from polling"""
+        # sanity check
+        assert self._state in ("completed", "retry", "failed")
+        if self._state != "retry":
+            # persist terminal state so resume can skip re-execution
+            if self._on_completed:
+                if self._exception:
+                    failed_message = "".join(
+                        traceback.format_exception(
+                            type(self._exception),
+                            self._exception,
+                            self._exception.__traceback__,
                         )
-                    else:
-                        failed_message = None
-                    self._on_completed(self._state, failed_message)
-                self._finished_at = pendulum.now()
-                # wake up waiting threads
-                if self._done_event:
-                    with contextlib.suppress(ValueError):
-                        self._done_event.release()
+                    )
+                else:
+                    failed_message = None
+                self._on_completed(self._state, failed_message)
+            self._finished_at = pendulum.now()
+            # wake up waiting threads
+            if self._done_event:
+                with contextlib.suppress(ValueError):
+                    self._done_event.release()
 
     @abstractmethod
     def run(self) -> None:

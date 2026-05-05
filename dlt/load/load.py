@@ -283,9 +283,15 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             if use_staging_client
             else self.get_destination_client(schema)
         )
-        with active_job_client as client:
-            with self.maybe_with_staging_dataset(client, use_staging_dataset):
+        try:
+            with self.maybe_with_staging_dataset(active_job_client, use_staging_dataset):
                 job.run_managed(active_job_client, self._done_event)
+        except Exception as e:
+            # worker died in uncontrollable manner
+            logger.exception()
+            job._state = "retry"
+            job._exception = e
+            job.release()
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
@@ -301,6 +307,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         available_slots = get_available_worker_slots(self.config, caps, running_jobs)
         if available_slots <= 0:
             return []
+        logger.debug(f"Free worker slots: {available_slots}")
 
         # get a list of jobs eligible to be started
         load_files = filter_new_jobs(
