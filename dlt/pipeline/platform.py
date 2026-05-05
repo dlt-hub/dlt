@@ -1,6 +1,5 @@
 """Implements SupportsTracking"""
-from typing import Any, cast, List
-from requests import Session
+from typing import Any, cast, List, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.json import json
@@ -11,10 +10,13 @@ from dlt.common.typing import TypedDict
 
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
 
+if TYPE_CHECKING:
+    from requests import Session
+
 _THREAD_POOL: ManagedThreadPool = None
 TRACE_URL_SUFFIX = "/trace"
 STATE_URL_SUFFIX = "/state"
-requests: Session = None
+requests: "Session" = None
 
 
 class TPipelineSyncPayload(TypedDict):

@@ -584,7 +584,13 @@ def destinations_configs(
                 DestinationTestConfiguration(
                     destination_type="lance",
                     extra_info=FilesystemConfiguration.parse_protocol(bucket),
-                    env_vars={"DESTINATION__STORAGE__BUCKET_URL": bucket},
+                    env_vars={
+                        "DESTINATION__STORAGE__BUCKET_URL": bucket,
+                        # isolate per xdist worker — Lance __manifest writes conflict on S3
+                        "DESTINATION__STORAGE__NAMESPACE_NAME": (
+                            f"dlt_lance_root_{os.environ.get('PYTEST_XDIST_WORKER', 'gw0')}"
+                        ),
+                    },
                 ),
             ]
 
@@ -885,7 +891,13 @@ def destinations_configs(
                 DestinationTestConfiguration(
                     destination_type="lance",
                     extra_info=FilesystemConfiguration.parse_protocol(bucket),
-                    env_vars={"DESTINATION__STORAGE__BUCKET_URL": bucket},
+                    env_vars={
+                        "DESTINATION__STORAGE__BUCKET_URL": bucket,
+                        # isolate per xdist worker — Lance __manifest writes conflict on S3
+                        "DESTINATION__STORAGE__NAMESPACE_NAME": (
+                            f"dlt_lance_root_{os.environ.get('PYTEST_XDIST_WORKER', 'gw0')}"
+                        ),
+                    },
                 ),
             ]
 

@@ -1,5 +1,5 @@
 ---
-title: Custom destination
+title: Reverse ETL
 description: Custom `dlt` destination function for reverse ETL
 keywords: [reverse etl, sink, function, decorator, destination, custom destination]
 ---
@@ -204,4 +204,3 @@ While we are working on a pluggable state storage, you can fix the problem above
 
 * Check out our [Custom BigQuery Destination](../../examples/custom_destination_bigquery/) example.
 * Need help with building a custom destination? Ask your questions in our [Slack Community](https://dlthub.com/community) technical help channel.
-

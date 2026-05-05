@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Literal, NamedTuple, Optional
-from typing_extensions import NotRequired
+from dlt.common.typing import NotRequired
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.storages.configuration import TSchemaFileFormat
@@ -120,6 +120,44 @@ class TWorkspaceInfo(TypedDict):
     dlthub_version: Optional[str]
     initialized: bool
     installed_toolkits: Dict[str, TToolkitIndexEntry]
+
+
+TDeploymentManifestStatus = Literal["ok", "not_found", "generation_failed"]
+
+
+class TDeploymentJobInfo(TypedDict):
+    """A single job entry in the deployment manifest summary."""
+
+    job_ref: str
+    display_label: str
+    category: str
+    default_trigger: NotRequired[str]
+    triggers: List[str]
+
+
+class TDeploymentManifestInfo(TypedDict):
+    """Summary of the workspace deployment manifest."""
+
+    status: TDeploymentManifestStatus
+    error: NotRequired[str]
+    total_jobs: NotRequired[int]
+    counts_by_category: NotRequired[Dict[str, int]]
+    jobs: NotRequired[List[TDeploymentJobInfo]]
+
+
+class TRunJobInfo(TypedDict):
+    """Resolved `workspace run` request — all data needed to launch the job."""
+
+    job_ref: str
+    display_label: str
+    trigger: str
+    trigger_humanized: str
+    launcher: str
+    run_id: str
+    entry_point: Dict[str, Any]
+    manifest_warnings: List[str]
+    refresh_warning: NotRequired[str]
+    profile_warning: NotRequired[str]
 
 
 class TSourceItem(TypedDict):

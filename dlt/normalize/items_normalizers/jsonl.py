@@ -65,11 +65,11 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         self._null_only_columns: Dict[str, Set[str]] = {}
         self._shorten_fragments = lru_cache(maxsize=None)(self.schema.naming.shorten_fragments)
         # cache coercion interface from data item normalizer
-        _din = self.schema.data_item_normalizer
-        self._type_map = _din.py_type_to_sc_type_map
-        self._can_coerce_type = _din.can_coerce_type
-        self._coerce_type = _din.coerce_type
-        self._py_type_to_sc_type = _din.py_type_to_sc_type
+        _item_normalizer = self.schema.data_item_normalizer
+        self._type_map = _item_normalizer.py_type_to_sc_type_map
+        self._can_coerce_type = _item_normalizer.can_coerce_type
+        self._coerce_type = _item_normalizer.coerce_type
+        self._py_type_to_sc_type = _item_normalizer.py_type_to_sc_type
 
     @property
     def null_only_columns(self) -> Dict[str, Set[str]]:

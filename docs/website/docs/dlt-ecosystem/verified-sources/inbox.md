@@ -79,9 +79,6 @@ To get started with your data pipeline, follow these steps:
 3. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the
-[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
-
 ### Add credential
 
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe. Here's what the file looks like:
@@ -293,4 +290,3 @@ verified source.
    ```
 
 <!--@@@DLT_TUBA inbox-->
-

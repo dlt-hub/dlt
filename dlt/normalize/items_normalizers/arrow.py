@@ -13,18 +13,10 @@ from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.storages import NormalizeStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
-from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.items_normalizers.base import ItemsNormalizer
-
-try:
-    from dlt.common.libs import pyarrow
-    from dlt.common.libs.pyarrow import pyarrow as pa
-except MissingDependencyException:
-    pyarrow = None
-    pa = None
 
 
 class ArrowItemsNormalizer(ItemsNormalizer):
@@ -79,6 +71,9 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         root_table_name: str,
         add_dlt_id: bool,
     ) -> List[TSchemaUpdate]:
+        from dlt.common.libs import pyarrow
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
         new_columns: List[Any] = []
         schema = self.schema
         load_id = self.load_id
@@ -161,6 +156,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
         self._maybe_cancel()
         # read schema and counts from file metadata
+        from dlt.common.libs import pyarrow
         from dlt.common.libs.pyarrow import get_parquet_metadata
 
         with self.normalize_storage.extracted_packages.storage.open_file(

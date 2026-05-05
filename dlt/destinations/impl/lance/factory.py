@@ -1,24 +1,30 @@
 from __future__ import annotations
 
-from typing import Any, Type, TYPE_CHECKING
+from typing import Any, Dict, Optional, Type, TYPE_CHECKING, Union
 
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.exceptions import MissingDependencyException
 from dlt.destinations.impl.lance.configuration import (
+    LanceCatalogType,
     LanceClientConfiguration,
+    LanceCredentials,
     LanceEmbeddingsConfiguration,
     LanceStorageConfiguration,
 )
 
-LanceTypeMapper: Type[DataTypeMapper]
-try:
-    # lance type mapper cannot be used without pyarrow installed
-    from dlt.destinations.impl.lance.type_mapper import LanceTypeMapper
-except MissingDependencyException:
-    # assign mock type mapper if no arrow
-    from dlt.common.destination.capabilities import UnsupportedTypeMapper as LanceTypeMapper
+
+def _get_type_mapper() -> Type[DataTypeMapper]:
+    # lance type mapper cannot be used without pyarrow installed; load on demand
+    try:
+        from dlt.destinations.impl.lance.type_mapper import LanceTypeMapper
+
+        return LanceTypeMapper
+    except MissingDependencyException:
+        from dlt.common.destination.capabilities import UnsupportedTypeMapper
+
+        return UnsupportedTypeMapper
 
 
 if TYPE_CHECKING:
@@ -32,7 +38,7 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "parquet"
         caps.supported_loader_file_formats = ["parquet", "reference"]
-        caps.type_mapper = LanceTypeMapper
+        caps.type_mapper = _get_type_mapper()
 
         caps.max_identifier_length = 200
         caps.max_column_identifier_length = 1024
@@ -66,26 +72,40 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
 
     def __init__(
         self,
-        storage: LanceStorageConfiguration = None,
-        embeddings: LanceEmbeddingsConfiguration = None,
+        catalog_type: LanceCatalogType = None,
+        credentials: Union[LanceCredentials, Dict[str, Any]] = None,
+        storage: Union[LanceStorageConfiguration, Dict[str, Any]] = None,
+        branch_name: Optional[str] = None,
+        embeddings: Union[LanceEmbeddingsConfiguration, Dict[str, Any]] = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
     ) -> None:
         """Configure the Lance destination to use in a pipeline.
 
-        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+        All arguments provided here supersede other configuration sources such as environment
+        variables and dlt config files.
 
         Args:
-            storage (LanceStorageConfiguration): Configuration for storage where lance datasets are stored.
-            embeddings (LanceEmbeddingsConfiguration, optional): Embeddings configuration including model provider,
-                model, provider credentials, and vector field settings. If not provided, no vector column is added.
+            catalog_type (LanceCatalogType, optional): Lance catalog backend. Defaults to `"dir"`
+                (directory namespace).
+            credentials (Union[LanceCredentials, Dict[str, Any]], optional): Catalog-scoped credentials. For `"dir"`,
+                this is an optional `DirectoryCatalogCredentials` overriding the `__manifest`
+                location; when empty, catalog colocates with `storage`.
+            storage (Union[LanceStorageConfiguration, Dict[str, Any]], optional): Storage configuration for table data
+                (bucket, credentials, options, namespace subpath).
+            branch_name (Optional[str]): Read/write branch for Lance operations. Uses `main` if not set.
+            embeddings (Union[LanceEmbeddingsConfiguration, Dict[str, Any]], optional): Embedding provider, model,
+                and credentials. If not provided, no vector column is added.
             destination_name (str, optional): Name of the destination.
             environment (str, optional): Environment of the destination.
             **kwargs (Any): Additional arguments forwarded to the destination config.
         """
         super().__init__(
+            catalog_type=catalog_type,
+            credentials=credentials,
             storage=storage,
+            branch_name=branch_name,
             embeddings=embeddings,
             destination_name=destination_name,
             environment=environment,

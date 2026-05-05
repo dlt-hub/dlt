@@ -1,7 +1,7 @@
 ---
 title: Lance
 description: Lance is an open-source columnar format for AI/ML that can be used as a destination in dlt.
-keywords: [lance, lakehouse, vector database, destination, dlt, embeddings, branching]
+keywords: [lance, lakehouse, vector database, destination, dlt, embeddings, branching, catalog]
 ---
 
 # Lance
@@ -126,22 +126,25 @@ allow_http = "true"
 timeout = "300s"
 ```
 
-## Namespace architecture
+## Catalog and storage
 
-The `lance` destination uses the [Lance Directory Namespace](https://lance.org/format/namespace/dir/catalog-spec/) (V2 Catalog Spec) to organize tables. The root namespace is a physical directory on disk. Child namespaces (e.g. per dataset) are logical groupings tracked by the catalog (`__manifest/`).
+The `lance` destination uses the [Lance Directory Namespace](https://lance.org/format/namespace/dir/catalog-spec/) (V2 Catalog Spec) to organize tables. Two concepts are configured separately:
 
-The logical layout is:
+- **Storage** — where table data files are written. Configured under `[destination.lance.storage]`.
+- **Catalog** — a `__manifest` table that tracks namespaces and tables. By default the catalog is colocated with storage (the `__manifest` lives under `storage.bucket_url/storage.namespace_name`). For advanced setups you can point the catalog at a separate location via `[destination.lance.credentials]` — see [Advanced: separate catalog location](#advanced-separate-catalog-location).
+
+The logical layout of the default (colocated) case is:
 
 ```text
 bucket_url/
-└── namespace_name/                ← root namespace directory (default: "dlt_lance_namespace")
+└── namespace_name/                ← root namespace directory (default: "dlt_lance_root")
     ├── __manifest/                ← catalog tracking namespaces and tables
     ├── <hash>_<dataset>$movies/   ← lance table data
     ├── <hash>_<dataset>$_dlt_version/
     └── ...
 ```
 
-- **Root namespace** — a physical directory at `bucket_url/namespace_name`. The `namespace_name` defaults to `"dlt_lance_namespace"` and can be set to `""` to use `bucket_url` directly.
+- **Root namespace** — a physical directory at `bucket_url/namespace_name`. The `namespace_name` defaults to `"dlt_lance_root"` and can be set to `""` to use `bucket_url` directly.
 - **Dataset namespace** — a logical child namespace named after `dataset_name`, tracked in the `__manifest/` catalog. Created automatically when the pipeline runs. All tables for the dataset are registered inside it.
 - **Tables** — stored as hash-prefixed directories at the root namespace level, not nested under a dataset subdirectory.
 
@@ -151,24 +154,37 @@ bucket_url = "s3://my-bucket"
 namespace_name = "production"  # root namespace subdirectory
 ```
 
+## Catalog capabilities
+
+Two capability flags control how the directory catalog tracks tables and namespaces. The defaults work for almost everyone:
+
+```toml
+[destination.lance.capabilities]
+manifest_enabled = true
+dir_listing_enabled = true
+```
+
+- **`manifest_enabled`** (default `true`) — enables the [V2 catalog](https://lance.org/format/namespace/dir/impl-spec/): a single `__manifest` Lance table at the root that tracks every namespace and table. Enables fast listing, nested namespaces, and multi-level table ids (which dlt uses to place tables under their dataset namespace). Recommended for single-writer or low-concurrency scenarios.
+- **`dir_listing_enabled`** (default `true`) — enables the V1 fallback that discovers tables by scanning directories for `.lance` suffixes. Safe to leave on.
+
+**When to disable `manifest_enabled`**: if many writers hit the same catalog root concurrently (for example, multiple pipelines or parallel jobs sharing one `bucket_url`/`namespace_name`), conflicting commits to the shared `__manifest` table on S3/GCS can cause contention and retries. Disabling the manifest eliminates the shared write point at the cost of slower listing and no nested-namespace support. If you disable it, give each pipeline run its own `namespace_name` to isolate datasets.
+
 ## Branching
 
 Lance datasets support [branches](https://lance.org/guide/tags_and_branches/) — lightweight version pointers for isolated reads and writes. Configure a branch name to direct all pipeline operations to that branch:
 
 ```toml
-[destination.lance.storage]
+[destination.lance]
 branch_name = "staging"
 ```
 
 Or in Python:
 
 ```py
-from dlt.destinations.impl.lance.configuration import LanceStorageConfiguration
+import dlt
 
 pipeline = dlt.pipeline(
-    destination=dlt.destinations.lance(
-        storage=LanceStorageConfiguration(branch_name="staging"),
-    ),
+    destination=dlt.destinations.lance(branch_name="staging"),
     dataset_name="my_data",
 )
 ```
@@ -176,6 +192,25 @@ pipeline = dlt.pipeline(
 When `branch_name` is not set, the default `main` branch is used. Branches are created automatically on first write if they don't exist.
 
 Branching is dataset-wide — all tables, including dlt system tables (`_dlt_version`, `_dlt_loads`, `_dlt_pipeline_state`), are read from and written to the configured branch. This means each branch maintains its own pipeline state, schema history, and load metadata, providing full isolation between branches. Schemas can evolve independently in different branches.
+
+## Advanced: separate catalog location
+
+By default the catalog `__manifest` lives under `storage.bucket_url`. You can put it in a completely different location — for example on fast local storage while data stays on cheap object storage, or in a shared bucket while each team writes data to its own bucket. Populate `[destination.lance.credentials]` with its own bucket/credentials/options:
+
+```toml
+[destination.lance.storage]
+bucket_url = "s3://data-bucket"
+
+[destination.lance.credentials]
+bucket_url = "s3://catalog-bucket/production"
+
+[destination.lance.credentials.credentials]
+aws_access_key_id = "AKIA..."
+aws_secret_access_key = "..."
+region_name = "us-east-1"
+```
+
+Any field left empty under `credentials` falls back to the corresponding `storage` value, so you only specify what actually differs. When `credentials` is omitted entirely, the catalog colocates with storage (the common case).
 
 ## Write dispositions
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Final, ClassVar, List, Type
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Final, ClassVar, List, Type, Union
 
 from dlt.common import logger
 from dlt.common.configuration import configspec
@@ -15,12 +15,13 @@ from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.storages.configuration import (
     FileSystemCredentials,
+    FilesystemConfiguration,
     FilesystemConfigurationWithLocalFiles,
     WithLocalFiles,
 )
 
 if TYPE_CHECKING:
-    from lance.namespace import DirectoryNamespace
+    from lance_namespace import LanceNamespace
     from lancedb.embeddings import EmbeddingFunction, EmbeddingFunctionRegistry
 
 DEFAULT_LANCE_BUCKET_URL = "."  # active run dir
@@ -49,12 +50,28 @@ TEmbeddingProvider = Literal[
 ]
 
 
+LanceCatalogType = Literal["dir"]
+"""Lance catalog type discriminator. Extend with ie. with "rest as they become available"""
+
+
+def _merge_cloud_options(cfg: FilesystemConfigurationWithLocalFiles) -> None:
+    """Merges credentials-derived object-store options into `cfg.options` with cloud timeouts."""
+    credentials = (
+        cfg.credentials.to_object_store_rs_credentials()
+        if isinstance(cfg.credentials, WithObjectStoreRsCredentials)
+        else {}
+    )
+    if not cfg.is_local_filesystem:
+        defaults = {"connect_timeout": "30s", "timeout": "120s"}
+        cfg.options = defaults | (cfg.options or {})  # type: ignore[attr-defined]
+    if credentials or cfg.options:  # type: ignore[attr-defined]
+        cfg.options = credentials | (cfg.options or {})  # type: ignore[attr-defined]
+
+
 @configspec(init=False)
 class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
     namespace_name: Optional[str] = DEFAULT_LANCE_NAMESPACE_NAME
     """Name of subdirectory in `bucket_url` to use as namespace root. Leave empty to use `bucket_url` as namespace root."""
-    branch_name: Optional[str] = None
-    """Name of branch to use for read/write table operations. Uses `main` branch if not set."""
     options: Optional[Dict[str, str]] = None
     """Options to pass to storage client. See available options at https://lance.org/guide/object_store/#general-configuration.
 
@@ -67,13 +84,11 @@ class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
         self,
         bucket_url: str = DEFAULT_LANCE_BUCKET_URL,
         namespace_name: Optional[str] = DEFAULT_LANCE_NAMESPACE_NAME,
-        branch_name: Optional[str] = None,
         credentials: Optional[FileSystemCredentials] = None,
         options: Optional[Dict[str, str]] = None,
     ) -> None:
         super().__init__(bucket_url=bucket_url, credentials=credentials)
         self.namespace_name = namespace_name
-        self.branch_name = branch_name
         self.options = options
 
     @property
@@ -89,23 +104,74 @@ class LanceStorageConfiguration(FilesystemConfigurationWithLocalFiles):
 
     def on_resolved(self) -> None:
         super().on_resolved()
-        credentials = (
-            self.credentials.to_object_store_rs_credentials()
-            if isinstance(self.credentials, WithObjectStoreRsCredentials)
-            else {}
-        )
-        # set default timeouts for cloud storage to prevent infinite hangs in the Rust object_store
-        if not self.is_local_filesystem:
-            defaults = {"connect_timeout": "30s", "timeout": "120s"}
-            self.options = defaults | (self.options or {})
-        if credentials or self.options:
-            self.options = credentials | (self.options or {})
+        _merge_cloud_options(self)
 
-    def make_directory_namespace(self) -> DirectoryNamespace:
-        from lance.namespace import DirectoryNamespace
 
-        storage_props = {f"storage.{k}": v for k, v in (self.options or {}).items()}
-        return DirectoryNamespace(root=self.namespace_uri, **storage_props)
+@configspec(init=False)
+class DirectoryCatalogCredentials(FilesystemConfigurationWithLocalFiles):
+    """Optional filesystem location for Lance directory catalog (`__manifest` root).
+
+    When `bucket_url` is empty, the catalog colocates with data (`storage`)
+    Setting `bucket_url` explicitly enables
+    Lance multi-base layout: `__manifest` in one bucket, data in another.
+    """
+
+    options: Optional[Dict[str, str]] = None
+    """Object-store options for the catalog filesystem. Merged with credentials-derived options."""
+
+    __config_gen_annotations__: ClassVar[List[str]] = []
+
+    def __init__(
+        self,
+        bucket_url: Optional[str] = None,
+        credentials: Optional[FileSystemCredentials] = None,
+        options: Optional[Dict[str, str]] = None,
+    ) -> None:
+        super().__init__(bucket_url=bucket_url, credentials=credentials)
+        self.options = options
+
+    @resolve_type("credentials")
+    def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
+        return super().resolve_credentials_type()
+
+    def verify_bucket_url(self) -> None:
+        # accept empty bucket_url — inheritance from storage happens at parent level
+        if self.bucket_url:
+            super().verify_bucket_url()
+
+    def on_resolved(self) -> None:
+        if self.bucket_url:
+            _merge_cloud_options(self)
+
+    def on_partial(self) -> None:
+        # allow unresolved state when bucket_url is not set; parent fills from storage
+        if not self.bucket_url:
+            self.resolve()
+        else:
+            super().on_partial()
+
+
+LanceCredentials = Union[DirectoryCatalogCredentials]
+"""Polymorphic credentials resolved per `catalog_type`. Expand as new catalogs are added."""
+
+
+@configspec
+class LanceCatalogCapabilities(BaseConfiguration):
+    max_identifier_length: int = 200
+    max_column_identifier_length: int = 1024
+    supports_nested_namespaces: bool = True
+
+
+@configspec
+class DirectoryCatalogCapabilities(LanceCatalogCapabilities):
+    manifest_enabled: bool = True
+    """V2 catalog tracking via a shared `__manifest` Lance table.
+
+    Enables fast listing and nested namespaces. Disable to fall back to directory scanning
+    if concurrent writers on the same root cause manifest contention.
+    """
+    dir_listing_enabled: bool = True
+    """V1 fallback: discover tables by scanning directories for `.lance` suffixes."""
 
 
 @configspec
@@ -176,10 +242,39 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lance", init=False, repr=False, compare=False
     )
+    catalog_type: LanceCatalogType = "dir"
+
+    CATALOG_CREDENTIALS: ClassVar[Dict[LanceCatalogType, Any]] = {
+        "dir": DirectoryCatalogCredentials,
+    }
+    CATALOG_CAPABILITIES: ClassVar[Dict[LanceCatalogType, Any]] = {
+        "dir": DirectoryCatalogCapabilities,
+    }
+    CATALOG_STORAGE: ClassVar[Dict[LanceCatalogType, Any]] = {
+        "dir": LanceStorageConfiguration,
+    }
+
+    credentials: LanceCredentials = None  # type: ignore[assignment]
+    capabilities: LanceCatalogCapabilities = None
     storage: LanceStorageConfiguration = None
-    """Storage configuration including URI and cloud credentials."""
+    """Storage configuration for table data (bucket, credentials, options, namespace subpath)."""
+    branch_name: Optional[str] = None
+    """Name of branch to use for read/write table operations. Uses `main` branch if not set."""
     embeddings: Optional[LanceEmbeddingsConfiguration] = None
-    """Optional embeddings configuration to add a vector embedding column. Leave empty to skip embedding generation."""
+    """Optional embeddings configuration to add a vector embedding column."""
+
+    @resolve_type("credentials")
+    def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
+        return self.CATALOG_CREDENTIALS.get(self.catalog_type) or CredentialsConfiguration
+
+    @resolve_type("capabilities")
+    def resolve_capabilities_type(self) -> Type[LanceCatalogCapabilities]:
+        return self.CATALOG_CAPABILITIES.get(self.catalog_type) or LanceCatalogCapabilities
+
+    @resolve_type("storage")
+    def resolve_storage_type(self) -> Type[FilesystemConfiguration]:
+        # mypy can't narrow the ClassVar lookup; fall through is acceptable for now
+        return self.CATALOG_STORAGE.get(self.catalog_type) or Optional[FilesystemConfiguration]  # type: ignore[return-value]
 
     def on_resolved(self) -> None:
         # propagate pipeline context (local_dir, pipeline_name, etc.) to nested storage
@@ -190,5 +285,36 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
             else:
                 self.storage.normalize_bucket_url()
 
+        # propagate pipeline context to catalog credentials too
+        if isinstance(self.credentials, WithLocalFiles):
+            self.credentials.attach_from(self)
+
+        # DirectoryCatalogCredentials falls back to storage's location/auth when unset
+        if isinstance(self.credentials, DirectoryCatalogCredentials) and self.storage is not None:
+            if not self.credentials.bucket_url:
+                self.credentials.bucket_url = self.storage.namespace_uri
+                if self.credentials.credentials is None:
+                    self.credentials.credentials = self.storage.credentials
+                if self.credentials.options is None:
+                    # storage.options is already merged (cloud defaults + creds)
+                    self.credentials.options = self.storage.options
+            elif isinstance(self.credentials, FilesystemConfigurationWithLocalFiles):
+                # explicit catalog location may be relative — re-run normalization under local_dir
+                self.credentials.normalize_bucket_url()
+
+    def make_namespace(self) -> "LanceNamespace":
+        from lance_namespace import connect
+
+        props: Dict[str, str] = {}
+        if isinstance(self.credentials, DirectoryCatalogCredentials):
+            props["root"] = self.credentials.bucket_url.rstrip("/")
+            assert isinstance(self.capabilities, DirectoryCatalogCapabilities)
+            props["manifest_enabled"] = str(self.capabilities.manifest_enabled).lower()
+            props["dir_listing_enabled"] = str(self.capabilities.dir_listing_enabled).lower()
+        for k, v in (self.credentials.options or {}).items():
+            if v is not None:
+                props[f"storage.{k}"] = str(v)
+        return connect(self.catalog_type, props)
+
     def fingerprint(self) -> str:
-        return self.storage.fingerprint()
+        return self.storage.fingerprint() if self.storage else ""

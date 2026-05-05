@@ -122,6 +122,11 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
 
         from dlt.common.configuration.container import Container
         from dlt.common.configuration.specs import PluggableRunContext
+        from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
+
+        run_ctx = Container()[PluggableRunContext].context
+        if isinstance(run_ctx, ProfilesRunContext):
+            msg += f"\nActive profile: `{run_ctx.profile}`\n"
 
         # print locations for config providers
         providers = Container()[PluggableRunContext].providers

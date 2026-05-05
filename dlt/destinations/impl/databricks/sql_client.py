@@ -7,6 +7,7 @@ from typing import (
     Iterator,
     Optional,
     Sequence,
+    TYPE_CHECKING,
 )
 from databricks import sql as databricks_lib
 from databricks.sql.client import (
@@ -27,9 +28,13 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import ArrowTable, DBApi, DBTransaction, DataFrame
+from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
 from dlt.common.destination.dataset import DBApiCursor
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
+    from pyarrow import Table as ArrowTable
 
 
 class DatabricksCursorImpl(DBApiCursorImpl):
@@ -38,7 +43,7 @@ class DatabricksCursorImpl(DBApiCursorImpl):
     native_cursor: DatabricksSqlCursor  # type: ignore[assignment, unused-ignore]
     vector_size: ClassVar[int] = 2048  # vector size is 2048
 
-    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+    def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
         if chunk_size is None:
             yield self.native_cursor.fetchall_arrow()
             return
@@ -48,7 +53,7 @@ class DatabricksCursorImpl(DBApiCursorImpl):
                 return
             yield table
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator["DataFrame", None, None]:
         for table in self.iter_arrow(chunk_size=chunk_size):
             yield table.to_pandas()
 

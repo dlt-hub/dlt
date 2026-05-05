@@ -170,6 +170,7 @@ def test_date_coercion() -> None:
 
 def test_no_next_execution_date() -> None:
     now = pendulum.now()
+    execution_date = now.subtract(hours=1)
 
     @dag(
         schedule=None,
@@ -186,7 +187,10 @@ def test_no_next_execution_date() -> None:
             @dlt.resource()
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[datetime.datetime](
-                    "updated_at", allow_external_schedulers=True
+                    # use closed range so single yield happens
+                    "updated_at",
+                    allow_external_schedulers=True,
+                    range_end="closed",
                 )
             ):
                 yield {
@@ -210,7 +214,7 @@ def test_no_next_execution_date() -> None:
             @dlt.resource()  # type: ignore[no-redef]
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[datetime.datetime](
-                    "updated_at", allow_external_schedulers=True
+                    "updated_at", allow_external_schedulers=True, range_end="closed"
                 )
             ):
                 yield {
@@ -226,7 +230,8 @@ def test_no_next_execution_date() -> None:
     now = pendulum.now()
 
     dag_def: DAG = dag_no_schedule()
-    run_task(dag_def, "unscheduled", execution_date=now.subtract(hours=1))
+    # execution date is a "logical date" - identifies run, does not set interval
+    run_task(dag_def, "unscheduled", execution_date=execution_date)
 
     @dag(
         schedule="@daily",
@@ -242,7 +247,10 @@ def test_no_next_execution_date() -> None:
             @dlt.resource()
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[datetime.datetime](
-                    "updated_at", allow_external_schedulers=True
+                    # use closed range so single yield happens
+                    "updated_at",
+                    allow_external_schedulers=True,
+                    range_end="closed",
                 )
             ):
                 yield {

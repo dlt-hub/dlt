@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import pytest
 from lancedb.embeddings import CohereEmbeddingFunction, OllamaEmbeddings, OpenAIEmbeddings
@@ -14,6 +15,8 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lance.configuration import (
     DEFAULT_LANCE_BUCKET_URL,
     DEFAULT_LANCE_NAMESPACE_NAME,
+    DirectoryCatalogCapabilities,
+    DirectoryCatalogCredentials,
     LanceClientConfiguration,
     LanceEmbeddingsConfiguration,
     LanceEmbeddingsCredentials,
@@ -199,39 +202,120 @@ def test_lance_embeddings_configuration_warns_on_unknown_provider_api_key(
     assert "ignored" in caplog.text
 
 
-def test_lance_follows_local_dir() -> None:
+def test_lance_client_configuration_catalog_dispatch() -> None:
+    # default catalog_type "dir" routes to DirectoryCatalog* resolved types
+    c = resolve_configuration(
+        LanceClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
+        sections=("destination", "lance"),
+    )
+    assert c.catalog_type == "dir"
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
+    assert isinstance(c.capabilities, DirectoryCatalogCapabilities)
+    assert isinstance(c.storage, LanceStorageConfiguration)
+    assert c.capabilities.manifest_enabled is True
+    assert c.capabilities.dir_listing_enabled is True
+
+
+def test_directory_catalog_credentials_inherit_from_storage() -> None:
+    # empty catalog credentials fall back to storage location, credentials, and merged options
+    c = resolve_configuration(
+        LanceClientConfiguration(
+            storage=LanceStorageConfiguration(bucket_url="s3://my-bucket", namespace_name="my-ns")
+        )._bind_dataset_name(dataset_name="test_dataset"),
+        sections=("destination", "lance"),
+    )
+    assert c.storage.bucket_url == "s3://my-bucket"
+    assert c.storage.namespace_uri == "s3://my-bucket/my-ns"
+    assert c.credentials.bucket_url == c.storage.namespace_uri
+    assert c.credentials.options == c.storage.options
+
+
+def test_directory_catalog_credentials_override_storage() -> None:
+    # explicit catalog bucket_url points __manifest at a different location than data
+    os.environ["DESTINATION__STORAGE__BUCKET_URL"] = "s3://data-bucket"
+    os.environ["DESTINATION__CREDENTIALS__BUCKET_URL"] = "s3://catalog-bucket/catalog"
+    os.environ["AWS_ACCESS_KEY_ID"] = "AKIAFAKE"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "fake"
+    os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+
+    c = resolve_configuration(
+        LanceClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
+        sections=("destination", "lance"),
+    )
+    assert c.storage.bucket_url == "s3://data-bucket"
+    assert c.credentials.bucket_url == "s3://catalog-bucket/catalog"
+    # catalog credentials ran their own merge — options carry AWS creds + cloud timeouts
+    assert c.credentials.options is not None
+    for key in ("aws_access_key_id", "aws_secret_access_key", "region", "connect_timeout"):
+        assert key in c.credentials.options
+
+
+@pytest.mark.parametrize(
+    "catalog_bucket_url,inherits_from_storage",
+    [
+        (None, True),
+        ("catalog_data", False),
+    ],
+    ids=["catalog_inherits_storage", "catalog_own_relative_path"],
+)
+def test_lance_follows_local_dir(
+    catalog_bucket_url: Optional[str], inherits_from_storage: bool
+) -> None:
+    # WithLocalFiles context (local_dir, pipeline_name) must propagate to BOTH storage and
+    # catalog credentials so relative paths resolve under the isolated test storage
     local_dir = os.path.join(get_test_storage_root(), uniq_id())
     os.makedirs(local_dir)
     os.environ[DLT_LOCAL_DIR] = local_dir
     abs_local_dir = os.path.abspath(local_dir)
 
-    # default bucket_url="." resolves to local_dir
+    # default bucket_url="." resolves to local_dir on both storage and credentials
     c = resolve_configuration(
-        LanceClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
+        LanceClientConfiguration(
+            credentials=DirectoryCatalogCredentials(bucket_url=catalog_bucket_url)
+        )._bind_dataset_name(dataset_name="test_dataset"),
         sections=("destination", "lance"),
     )
     assert c.storage.bucket_url == f"file://{abs_local_dir}"
     assert c.storage.namespace_uri == f"file://{abs_local_dir}/{DEFAULT_LANCE_NAMESPACE_NAME}"
+    if inherits_from_storage:
+        assert c.credentials.bucket_url == c.storage.namespace_uri
+    else:
+        expected_catalog = os.path.join(abs_local_dir, catalog_bucket_url)
+        assert c.credentials.bucket_url == f"file://{expected_catalog}"
 
-    # explicit relative bucket_url resolves relative to local_dir
+    # explicit relative storage.bucket_url also resolves under local_dir
     c = resolve_configuration(
         LanceClientConfiguration(
-            storage=LanceStorageConfiguration(bucket_url="my_lance_data")
+            storage=LanceStorageConfiguration(bucket_url="my_lance_data"),
+            credentials=DirectoryCatalogCredentials(bucket_url=catalog_bucket_url),
         )._bind_dataset_name(dataset_name="test_dataset"),
         sections=("destination", "lance"),
     )
-    expected = os.path.join(abs_local_dir, "my_lance_data")
-    assert c.storage.bucket_url == f"file://{expected}"
-    assert c.storage.namespace_uri == f"file://{expected}/{DEFAULT_LANCE_NAMESPACE_NAME}"
+    expected_storage = os.path.join(abs_local_dir, "my_lance_data")
+    assert c.storage.bucket_url == f"file://{expected_storage}"
+    assert c.storage.namespace_uri == f"file://{expected_storage}/{DEFAULT_LANCE_NAMESPACE_NAME}"
+    if inherits_from_storage:
+        assert c.credentials.bucket_url == c.storage.namespace_uri
+    else:
+        expected_catalog = os.path.join(abs_local_dir, catalog_bucket_url)
+        assert c.credentials.bucket_url == f"file://{expected_catalog}"
 
-    # pipeline context propagates through _bind_local_files into storage
+    # pipeline context propagates through _bind_local_files to BOTH nested configs
     pipeline = dlt.pipeline("test_lance_follows_local_dir")
     c = resolve_configuration(
         pipeline._bind_local_files(
-            LanceClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
+            LanceClientConfiguration(
+                credentials=DirectoryCatalogCredentials(bucket_url=catalog_bucket_url)
+            )._bind_dataset_name(dataset_name="test_dataset")
         ),
         sections=("destination", "lance"),
     )
     assert c.storage.pipeline_name == "test_lance_follows_local_dir"
     assert c.storage.bucket_url == f"file://{abs_local_dir}"
     assert c.storage.namespace_uri == f"file://{abs_local_dir}/{DEFAULT_LANCE_NAMESPACE_NAME}"
+    assert c.credentials.pipeline_name == "test_lance_follows_local_dir"
+    if inherits_from_storage:
+        assert c.credentials.bucket_url == c.storage.namespace_uri
+    else:
+        expected_catalog = os.path.join(abs_local_dir, catalog_bucket_url)
+        assert c.credentials.bucket_url == f"file://{expected_catalog}"

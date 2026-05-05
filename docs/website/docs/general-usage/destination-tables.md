@@ -373,4 +373,3 @@ For nested tables, you may also need to create:
 | --- | --- |
 | _dlt_parent_id | text/string/varchar |
 | _dlt_root_id | text/string/varchar |
-
