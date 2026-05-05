@@ -1197,6 +1197,59 @@ def test_apply_contract_preserves_multiple_annotated_metadata_entries() -> None:
     assert get_args(rebuilt)[1:] == ("meta1", "meta2")
 
 
+def test_apply_contract_preserves_nested_annotated_metadata_entries() -> None:
+    """Nested Annotated metadata entries must remain separate slots, not be packed
+    into a single tuple, when _process_annotation recurses through containers."""
+
+    class Child(BaseModel):
+        x: int
+
+    class M(BaseModel):
+        items: List[Annotated[Child, "meta1", "meta2"]]
+
+    mutated: Any = apply_schema_contract_to_model(M, "freeze", "freeze")
+    inner = get_args(mutated.model_fields["items"].annotation)[0]
+    inner_args = get_args(inner)
+
+    assert inner_args[0].__name__.endswith("ExtraForbid")
+    assert inner_args[1:] == ("meta1", "meta2")
+
+
+def test_apply_contract_non_root_discriminated_union_with_validator() -> None:
+    """Non-root field with a discriminated union plus extra metadata keeps both
+    the discriminator and the validator after model reconstruction."""
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    def reject_forbidden(value: Any) -> Any:
+        if isinstance(value, Click) and value.element_id == "forbidden":
+            raise ValueError("forbidden element")
+        return value
+
+    class Container(BaseModel):
+        event: Annotated[
+            Union[Click, Purchase],
+            Field(discriminator="kind"),
+            AfterValidator(reject_forbidden),
+        ]
+
+    mutated: Any = apply_schema_contract_to_model(Container, "freeze", "freeze")
+
+    ok = mutated.model_validate({"event": {"kind": "click", "element_id": "btn_1"}})
+    assert ok.event.kind == "click"
+    with pytest.raises(ValidationError):
+        mutated.model_validate({"event": {"kind": "unknown", "element_id": "btn_1"}})
+
+    with pytest.raises(ValidationError, match="forbidden element"):
+        mutated.model_validate({"event": {"kind": "click", "element_id": "forbidden"}})
+
+
 @pytest.mark.skipif(
     tuple(int(part) for part in PYDANTIC_VERSION.split(".")[:2]) < (2, 13),
     reason="Requires pydantic >= 2.13 field.discriminator behavior",
@@ -1425,20 +1478,20 @@ def test_nested_model_transformation_in_containers() -> None:
     # user_labels: List[UserLabel] — inner model should be transformed
     user_labels_ann = model.model_fields["user_labels"].annotation
     inner_names = get_inner_model_names(user_labels_ann)
-    assert any("ExtraAllow" in n for n in inner_names), (
-        f"UserLabel in List not transformed: {inner_names}"
-    )
+    assert any(
+        "ExtraAllow" in n for n in inner_names
+    ), f"UserLabel in List not transformed: {inner_names}"
 
     # unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
     unity_ann = model.model_fields["unity"].annotation
     inner_names = get_inner_model_names(unity_ann)
     # should have transformed versions of UserAddress and UserLabel
-    assert any("UserAddress" in n and "ExtraAllow" in n for n in inner_names), (
-        f"UserAddress in Union not transformed: {inner_names}"
-    )
-    assert any("UserLabel" in n and "ExtraAllow" in n for n in inner_names), (
-        f"UserLabel in Union not transformed: {inner_names}"
-    )
+    assert any(
+        "UserAddress" in n and "ExtraAllow" in n for n in inner_names
+    ), f"UserAddress in Union not transformed: {inner_names}"
+    assert any(
+        "UserLabel" in n and "ExtraAllow" in n for n in inner_names
+    ), f"UserLabel in Union not transformed: {inner_names}"
 
     # address field itself is Annotated[UserAddress, ...] — check the inner type
     address_ann = model.model_fields["address"].annotation
@@ -1448,9 +1501,9 @@ def test_nested_model_transformation_in_containers() -> None:
     addr_model = address_ann
     ro_labels_ann = addr_model.model_fields["ro_labels"].annotation
     inner_names = get_inner_model_names(ro_labels_ann)
-    assert any("ExtraAllow" in n for n in inner_names), (
-        f"UserLabel in Mapping not transformed: {inner_names}"
-    )
+    assert any(
+        "ExtraAllow" in n for n in inner_names
+    ), f"UserLabel in Mapping not transformed: {inner_names}"
 
 
 def test_child_model_cache_shared_across_nesting_levels() -> None:
