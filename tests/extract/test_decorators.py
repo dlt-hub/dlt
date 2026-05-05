@@ -987,8 +987,11 @@ def test_source_factory_clone(cloner: str) -> None:
 
     # check typing - no type ignore below!
     # do not override anything
-    source = factory()(data=["AXA"])
+    cloned_factory = factory()
+    source = cloned_factory(data=["AXA"])
     assert list(source) == ["AXA"]
+    # source keeps back-reference to the factory that created it
+    assert source._factory is cloned_factory
 
     # there are some overrides from decorator
     assert with_shorthand_registry.name == "shorthand_registry"
@@ -1047,6 +1050,8 @@ def test_source_factory_clone(cloner: str) -> None:
     assert source.section == "special"
     assert source.max_table_nesting == 1
     assert source.schema_contract == "evolve"
+    # cloned factory is the back-reference, not the original
+    assert source._factory is source_f_3
 
     # when section / name are changed, config location follows
     @dlt.source

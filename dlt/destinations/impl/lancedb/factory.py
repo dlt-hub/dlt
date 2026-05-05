@@ -10,13 +10,17 @@ from dlt.destinations.impl.lancedb.configuration import (
     TEmbeddingProvider,
 )
 
-LanceDBTypeMapper: Type[DataTypeMapper]
-try:
-    # lancedb type mapper cannot be used without pyarrow installed
-    from dlt.destinations.impl.lancedb.type_mapper import LanceDBTypeMapper
-except MissingDependencyException:
-    # assign mock type mapper if no arrow
-    from dlt.common.destination.capabilities import UnsupportedTypeMapper as LanceDBTypeMapper
+
+def _get_type_mapper() -> Type[DataTypeMapper]:
+    # lancedb type mapper cannot be used without pyarrow installed; load on demand
+    try:
+        from dlt.destinations.impl.lancedb.type_mapper import LanceDBTypeMapper
+
+        return LanceDBTypeMapper
+    except MissingDependencyException:
+        from dlt.common.destination.capabilities import UnsupportedTypeMapper
+
+        return UnsupportedTypeMapper
 
 
 if TYPE_CHECKING:
@@ -31,7 +35,7 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "parquet"
         caps.supported_loader_file_formats = ["parquet", "reference"]
-        caps.type_mapper = LanceDBTypeMapper
+        caps.type_mapper = _get_type_mapper()
 
         caps.max_identifier_length = 200
         caps.max_column_identifier_length = 1024

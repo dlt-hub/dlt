@@ -1,8 +1,16 @@
 from __future__ import annotations
-from collections.abc import Collection
-
+from collections.abc import Collection, Sequence
 from functools import partial
-from typing import overload, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING
+from typing import (
+    overload,
+    Union,
+    Any,
+    Generator,
+    Optional,
+    Type,
+    TYPE_CHECKING,
+    Literal,
+)
 from textwrap import indent
 from contextlib import contextmanager
 from dlt.common.utils import simple_repr, without_none
@@ -16,24 +24,20 @@ import sqlglot.expressions as sge
 import dlt
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
-from dlt.common.libs.utils import is_instance_lib
+from dlt.common.libs import is_instance_lib
 from dlt.common.schema.typing import (
     TTableSchema,
     TTableSchemaColumns,
-    LOADS_TABLE_NAME,
-    C_DLT_LOADS_TABLE_LOAD_ID,
     C_DLT_LOAD_ID,
-    TTableReference,
-    TTableReferenceStandalone,
 )
-from dlt.common.schema import utils as schema_utils, TSchemaTables
-from dlt.common.typing import Self, TSortOrder
+from dlt.common.schema import utils as schema_utils
+from dlt.common.typing import Self, TSortOrder, TypedDict
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import bind_query, build_select_expr
-from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.dataset import SupportsDataAccess
+from dlt.dataset._join import _apply_join
 
 
 if TYPE_CHECKING:
@@ -53,6 +57,9 @@ _FILTER_OP_MAP = {
     "in": sge.In,
     "not_in": sge.Not,
 }
+
+
+TJoinType = Literal["left", "right", "inner", "full"]
 
 
 class Relation(WithSqlClient):
@@ -293,7 +300,7 @@ class Relation(WithSqlClient):
 
         backend = _DltBackend.from_dataset(self._dataset)
 
-        if self._table_name:
+        if self._table_name and self._query is None:
             ibis_table = backend.table(self._table_name)
         else:
             # pass raw query before any identifiers are expanded, quoted or normalized
@@ -348,6 +355,87 @@ class Relation(WithSqlClient):
         )
         rel = self.__copy__()
         rel._sqlglot_expression = rel.sqlglot_expression.order_by(order_expr)
+        return rel
+
+    def join(
+        self,
+        other: str | Self,
+        *,
+        kind: TJoinType = "inner",
+        alias: Optional[str] = None,
+    ) -> Self:
+        """Join this relation to another table using dlt schema references.
+
+        Join conditions are discovered automatically from the schema's reference
+        chain (parent/child/root relationships created by dlt during loading).
+        Both the current relation and ``other`` must be base-table relations
+        (i.e., created via ``dataset[table_name]``, not transformed with
+        ``.select()``/``.where()`` etc.).
+
+        This method is designed for the common case of navigating dlt's
+        built-in table hierarchy. For more complex join scenarios — such as
+        custom join predicates, joining on non-reference columns, self-joins,
+        or multi-way joins with mixed conditions — use ``Relation.to_ibis()``
+        to obtain an ibis table expression and construct the join manually::
+
+            t1 = dataset["orders"].to_ibis()
+            t2 = dataset["products"].to_ibis()
+            joined = t1.join(t2, t1.product_id == t2.id, how="left")
+
+        Args:
+            other: Table name or base-table relation to join.
+            kind: Type of SQL join: ``"inner"``, ``"left"``, ``"right"``,
+                or ``"full"``.
+            alias: Projection prefix for the joined table's columns. Columns
+                from ``other`` appear as ``{alias}__{column}``. Defaults to
+                the target table name.
+
+        Returns:
+            A new relation with the join(s) applied and the target table's
+            columns appended to the projection.
+
+        Raises:
+            ValueError: If schema references between the two tables cannot be
+                resolved, or if either relation is not join-eligible.
+        """
+        if alias == "":
+            raise ValueError("`alias` must be a non-empty string when provided.")
+
+        if not self._table_name:
+            raise ValueError("This relation has no base table to resolve references.")
+
+        if isinstance(other, dlt.Relation):
+            # TODO: remove once we allow cross-dataset joins
+            if not (
+                self._dataset.is_same_physical_destination(other._dataset)
+                and self._dataset.dataset_name == other._dataset.dataset_name
+            ):
+                raise ValueError(
+                    "Cannot join relations from different datasets: "
+                    f"'{other._dataset.dataset_name}' vs '{self._dataset.dataset_name}'"
+                )
+            target_table = other._table_name
+            if not target_table:
+                raise ValueError(f"Relation `{other}` has no base table to resolve references.")
+        else:
+            target_table = other
+
+        if not target_table or not isinstance(target_table, str):
+            raise ValueError("`other` must be a table name or a base table relation.")
+        if target_table not in self._dataset.schema.tables:
+            raise ValueError(f"Table `{target_table}` not found in dataset schema")
+
+        projection_prefix = alias or target_table
+        query = _apply_join(
+            self.sqlglot_expression,
+            schema=self._dataset.schema,
+            left_table=self._table_name,
+            right_table=target_table,
+            projection_prefix=projection_prefix,
+            kind=kind,
+        )
+        rel = self.__copy__()
+        rel._sqlglot_expression = query
         return rel
 
     # NOTE we currently force to have one column selected; we could be more flexible
@@ -501,25 +589,49 @@ class Relation(WithSqlClient):
     def with_load_id_col(self) -> dlt.Relation:
         """Return the relation with the `_dlt_load_id` included.
 
-        There are 3 cases:
-        - If the relation is a root table, this is a no-op
-        - If the relation has a root key, join relation to root table
-        - If the relation has a parent key, iteratively join the root to the relation
-        - Else raise
+        This only works on relations created via `.table()`.
 
-        This should only raise if the `dlt.Schema` was tempered, breaking the
-        dlt-generated root and parent relationships.
+        If the relation already includes `_dlt_load_id`, it is returned unchanged.
+        Otherwise, the root table is joined to add the column to the current relation.
+
+        Raises:
+            ValueError: If called on a non-table relation, a root table without
+                `_dlt_load_id`, or a relation whose root load ID column cannot be located.
         """
-        table_schema = self._dataset.schema.tables[self._table_name]
+        if not self._table_name or self._query is not None:
+            raise ValueError(
+                "`with_load_id_col()` only works on relations created via .table()."
+                " It can't be applied to arbitrary relation."
+            )
 
-        if self._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID) in self.columns:
+        normalized_load_id = self._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
+
+        if normalized_load_id in self.columns:
             return self
-        elif schema_utils.has_column_with_prop(table_schema, "root_key"):
-            return _add_load_id_via_root_key(self)
-        elif schema_utils.has_column_with_prop(table_schema, "parent_key"):
-            return _add_load_id_via_parent_key(self)
-        else:
-            raise ValueError
+
+        root_table_name = schema_utils.get_root_table(
+            self._dataset.schema.tables, self._table_name
+        )["name"]
+        if root_table_name == self._table_name:
+            raise ValueError(f"{root_table_name} is a root table, but load id column is not present.")
+
+        join_alias = "_dlt_root"
+        joined = self.join(root_table_name, alias=join_alias)
+        joined_expression = joined.sqlglot_expression.copy()
+        left_projection = joined_expression.selects[: len(self.sqlglot_expression.selects)]
+        load_id_output_name = f"{join_alias}__{normalized_load_id}"
+        load_id_expr = next(
+            (expr for expr in joined_expression.selects if expr.output_name == load_id_output_name),
+            None,
+        )
+        if load_id_expr is None:
+            raise ValueError(f"Could not locate column {normalized_load_id}")
+
+        joined_expression.set("expressions", [*left_projection, load_id_expr.this.copy()])
+
+        rel = self.__copy__()
+        rel._sqlglot_expression = joined_expression
+        return rel
 
     def from_loads(
         self,
@@ -532,9 +644,9 @@ class Relation(WithSqlClient):
         current relation. `include_load_id` allows to keep the `_dlt_load_id` column
         or exclude it after filtering.
         """
-        if not self._table_name:
+        if not self._table_name or self._query is not None:
             raise ValueError(
-                "`filter_loads()` only works on relations created via .table()."
+                "`from_loads()` only works on relations created via .table()."
                 " It can't be applied to arbitrary relation."
             )
 
@@ -607,7 +719,9 @@ class Relation(WithSqlClient):
         return simple_repr("dlt.Relation", **without_none(kwargs))
 
     def __copy__(self) -> Self:
-        return self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
+        rel = self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
+        rel._table_name = self._table_name
+        return rel
 
 
 def _get_relation_output_columns_schema(
@@ -627,154 +741,3 @@ def _get_relation_output_columns_schema(
         allow_partial=allow_partial,
     )
     return columns_schema, normalized_query
-
-
-def _add_load_id_via_root_key_query(
-    table_name: str,
-    root_table_name: str,
-    child_root_key: str,
-    root_row_key: str,
-    *,
-    normalized_load_id: str = C_DLT_LOAD_ID,
-) -> sge.Select:
-    child_table = sge.Table(
-        this=sge.to_identifier(table_name, quoted=True),
-        alias=sge.TableAlias(this=sge.to_identifier("child", quoted=False)),
-    )
-    root_table_expr = sge.Table(
-        this=sge.to_identifier(root_table_name, quoted=True),
-        alias=sge.TableAlias(this=sge.to_identifier("root", quoted=False)),
-    )
-
-    # Build column list: child.*, root._dlt_load_id
-    columns = [
-        sge.Column(table=sge.to_identifier("child", quoted=False), this=sge.Star()),
-        sge.Column(
-            table=sge.to_identifier("root", quoted=False),
-            this=sge.to_identifier(normalized_load_id, quoted=True),
-        ),
-    ]
-
-    join_condition = sge.EQ(
-        this=sge.Column(
-            table=sge.to_identifier("child", quoted=False),
-            this=sge.to_identifier(child_root_key, quoted=True),
-        ),
-        expression=sge.Column(
-            table=sge.to_identifier("root", quoted=False),
-            this=sge.to_identifier(root_row_key, quoted=True),
-        ),
-    )
-
-    query = (
-        sge.Select(expressions=columns)
-        .from_(child_table)
-        .join(root_table_expr, on=join_condition, join_type="INNER")
-    )
-    return query
-
-
-def _add_load_id_via_root_key(relation: dlt.Relation) -> dlt.Relation:
-    """Return the input relation with the `_dlt_load_id` column added.
-
-    This is done by joining the `root_table._dlt_id` with the `table._dlt_root_id`
-    """
-    origin_table_name: str = relation._table_name
-    tables_schema = relation._dataset.schema.tables
-    root_table = schema_utils.get_root_table(tables_schema, origin_table_name)
-    root_table_name = root_table["name"]
-
-    ref = schema_utils.create_root_child_reference(tables_schema, origin_table_name)
-    child_root_key = ref["columns"][0]
-    root_row_key = ref["referenced_columns"][0]
-
-    # Construct SELECT with INNER JOIN
-    query = _add_load_id_via_root_key_query(
-        table_name=origin_table_name,
-        root_table_name=root_table_name,
-        child_root_key=child_root_key,
-        root_row_key=root_row_key,
-        normalized_load_id=relation._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID),
-    )
-
-    rel = relation.__copy__()
-    rel._sqlglot_expression = query
-    return rel
-
-
-def _add_load_id_via_parent_key_query(
-    table_name: str, table_schemas: TSchemaTables, normalized_load_id: str = C_DLT_LOAD_ID
-) -> sge.Select:
-    # The reference_chain goes from root to the queried table
-    # Each reference contains: child table -> parent table relationship
-    # We need to build joins from the queried table back to root
-    reference_chain = []
-    root_table_name = schema_utils.get_root_table(table_schemas, table_name)["name"]
-    for reference in schema_utils.get_all_parent_child_references_from_root(
-        table_schemas, root_table_name
-    ):
-        reference_chain.append(reference)
-        if reference["table"] == table_name:
-            break
-
-    queried_table = sge.Table(
-        this=sge.to_identifier(table_name, quoted=True),
-        alias=sge.TableAlias(this=sge.to_identifier("t0", quoted=False)),
-    )
-
-    # build final table query with all columns explicitly + _dlt_load_id from root table
-    columns = [
-        sge.Column(
-            table=sge.to_identifier("t0", quoted=False),
-            this=sge.to_identifier(col_name, quoted=True),
-        )
-        for col_name in table_schemas[table_name]["columns"]
-    ]
-    columns.append(
-        sge.Column(
-            table=sge.to_identifier(f"t{len(reference_chain)}", quoted=False),
-            this=sge.to_identifier(normalized_load_id, quoted=True),
-        )
-    )
-    query = sge.Select(expressions=columns).from_(queried_table)
-
-    # loop through references from table to root to append INNER JOINs
-    for i, ref in enumerate(reversed(reference_chain)):
-        parent_alias = f"t{i + 1}"
-        parent_table = sge.Table(
-            this=sge.to_identifier(ref["referenced_table"], quoted=True),
-            alias=sge.TableAlias(this=sge.to_identifier(parent_alias, quoted=False)),
-        )
-        join_condition = sge.EQ(
-            this=sge.Column(
-                table=sge.to_identifier(f"t{i}", quoted=False),
-                this=sge.to_identifier(ref["columns"][0], quoted=True),
-            ),
-            expression=sge.Column(
-                table=sge.to_identifier(parent_alias, quoted=False),
-                this=sge.to_identifier(ref["referenced_columns"][0], quoted=True),
-            ),
-        )
-        query = query.join(parent_table, on=join_condition, join_type="INNER")
-
-    return query
-
-
-def _add_load_id_via_parent_key(relation: dlt.Relation) -> dlt.Relation:
-    """Return the input relation with the `_dlt_load_id` column added.
-
-    This is done by iteratively joining the `root_table._dlt_id` with `child._dlt_parent_id`
-    until the input relation is reached.
-    """
-    origin_table_name: str = relation._table_name
-    table_schemas = relation._dataset.schema.tables
-
-    query = _add_load_id_via_parent_key_query(
-        table_name=origin_table_name,
-        table_schemas=table_schemas,
-        normalized_load_id=relation._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID),
-    )
-
-    rel = relation.__copy__()
-    rel._sqlglot_expression = query
-    return rel

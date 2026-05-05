@@ -6,6 +6,7 @@ from pendulum.tz import UTC, FixedTimezone, Timezone, fixed_timezone
 from contextlib import contextmanager
 from datetime import datetime, date, timezone, timedelta, time as dt_time  # noqa: I251
 from unittest import mock
+from zoneinfo import ZoneInfo
 
 from pendulum.tz import UTC, fixed_timezone
 
@@ -19,6 +20,9 @@ from dlt.common.time import (
     parse_iso_like_datetime,
     timestamp_before,
     timestamp_within,
+    ensure_datetime,
+    ensure_datetime_in_tz,
+    ensure_datetime_utc,
     ensure_pendulum_datetime_utc,
     ensure_pendulum_date,
     datetime_to_timestamp,
@@ -978,3 +982,99 @@ def test_create_load_id_strictly_increasing() -> None:
     # after removing the mock the real singleton still has its high-water mark
     restored = float(create_load_id())
     assert restored >= baseline
+
+
+@pytest.mark.parametrize(
+    "fn, args",
+    [
+        (ensure_datetime, ("2021-01-01T12:00:00+02:00",)),
+        (ensure_datetime_utc, ("2021-01-01T12:00:00+02:00",)),
+        (ensure_datetime_in_tz, ("2021-01-01T12:00:00+02:00", ZoneInfo("Europe/Berlin"))),
+    ],
+    ids=["ensure_datetime", "ensure_datetime_utc", "ensure_datetime_in_tz"],
+)
+def test_ensure_datetime_helpers_return_stdlib(fn, args) -> None:
+    """All three helpers return stdlib `datetime.datetime`, not `pendulum.DateTime`."""
+    result = fn(*args)
+    # `type(...) is` not `isinstance(...)`: pendulum.DateTime is a datetime subclass
+    assert type(result) is datetime
+
+
+@pytest.mark.parametrize(
+    "value, default_tz, expected",
+    [
+        # naive + Berlin (UTC+1 in January) → 11:00 UTC
+        (
+            "2021-01-15T12:00:00",
+            ZoneInfo("Europe/Berlin"),
+            datetime(2021, 1, 15, 11, tzinfo=timezone.utc),
+        ),
+        # naive + default_tz omitted → naive treated as UTC (regression guard)
+        (
+            "2021-01-15T12:00:00",
+            None,
+            datetime(2021, 1, 15, 12, tzinfo=timezone.utc),
+        ),
+        # aware input ignores default_tz: only the input's own +02:00 offset matters
+        (
+            datetime(2021, 1, 15, 12, tzinfo=timezone(timedelta(hours=2))),
+            ZoneInfo("Asia/Tokyo"),
+            datetime(2021, 1, 15, 10, tzinfo=timezone.utc),
+        ),
+    ],
+    ids=["naive-with-berlin", "naive-default-utc", "aware-ignores-default"],
+)
+def test_ensure_datetime_utc_default_tz(value, default_tz, expected: datetime) -> None:
+    """`default_tz` is the interpretation for naive inputs only; aware inputs ignore it."""
+    if default_tz is None:
+        result = ensure_datetime_utc(value)
+    else:
+        result = ensure_datetime_utc(value, default_tz=default_tz)
+    assert result == expected
+    assert result.tzinfo == timezone.utc
+
+
+@pytest.mark.parametrize(
+    "value, tz, expected_wall_clock",
+    [
+        # naive str → wall-clock preserved, tz attached
+        ("2021-01-15T12:00:00", ZoneInfo("Europe/Berlin"), (2021, 1, 15, 12, 0)),
+        # naive datetime → same
+        (datetime(2021, 1, 15, 12, 0), ZoneInfo("Asia/Kolkata"), (2021, 1, 15, 12, 0)),
+        # aware utc → converted to Berlin (UTC+1 in January)
+        (
+            datetime(2021, 1, 15, 12, tzinfo=timezone.utc),
+            ZoneInfo("Europe/Berlin"),
+            (2021, 1, 15, 13, 0),
+        ),
+        # aware string +05:00 → converted to Tokyo (+09:00) → +4h
+        ("2021-01-15T12:00:00+05:00", ZoneInfo("Asia/Tokyo"), (2021, 1, 15, 16, 0)),
+    ],
+    ids=[
+        "naive-str-attach",
+        "naive-datetime-attach",
+        "aware-convert-to-berlin",
+        "aware-string-convert-to-tokyo",
+    ],
+)
+def test_ensure_datetime_in_tz(value, tz, expected_wall_clock) -> None:
+    """Naive inputs get `tz` attached; aware inputs are converted to `tz`."""
+    result = ensure_datetime_in_tz(value, tz)
+    assert result.tzinfo is tz
+    assert (
+        result.year,
+        result.month,
+        result.day,
+        result.hour,
+        result.minute,
+    ) == expected_wall_clock
+
+
+def test_ensure_datetime_preserves_tz_and_naive() -> None:
+    """Sanity: `ensure_datetime` keeps original tz and leaves naive inputs naive."""
+    aware = ensure_datetime("2021-01-15T12:00:00+05:00")
+    assert aware.tzinfo is not None
+    assert aware.utcoffset() == timedelta(hours=5)
+
+    naive = ensure_datetime("2021-01-15T12:00:00")
+    assert naive.tzinfo is None

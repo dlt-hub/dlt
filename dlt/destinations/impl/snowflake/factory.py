@@ -188,7 +188,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             stage_name (Optional[str], optional): Name of an existing stage to use for loading data. Default uses implicit stage per table
             keep_staged_files (bool, optional): Whether to delete or keep staged files after loading
             csv_format (Optional[CsvFormatConfiguration]): Optional csv format configuration
-            query_tag (Optional[str]): A tag with placeholders to tag sessions executing jobs
+            query_tag (Optional[str]): A template with placeholders used to tag Snowflake sessions for dlt operations
             create_indexes (bool, optional): Whether UNIQUE or PRIMARY KEY constrains should be created
             use_decfloat (bool, optional): Whether to use DECFLOAT type for unbound decimals. DECFLOAT stores
                 exact decimal values with up to 36 significant digits and a dynamic exponent.

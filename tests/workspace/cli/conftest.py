@@ -1,8 +1,10 @@
 import sys
-from typing import Iterator
+from typing import Any, Iterator
 import pytest
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.cli import _run_command as run_cmd_mod
+from dlt._workspace.cli import utils as cli_utils_mod
 
 from tests.workspace.utils import isolated_workspace
 
@@ -19,3 +21,18 @@ def auto_isolated_workspace(
     # and this profile will be assumed automatically
     with isolated_workspace("empty", profile="dev") as ctx:
         yield ctx
+
+
+@pytest.fixture(autouse=True)
+def isolated_manifest_loading(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force manifest_from_module (via _run_command.load_manifest) to run in a
+    subprocess so tests don't accumulate sys.modules / sys.path / FileFinder
+    cache entries across the workspace rmtree+recreate cycle between tests.
+    """
+    original = run_cmd_mod.manifest_from_module
+
+    def _isolated(name_or_path: str, use_all: bool = True) -> Any:
+        return original(name_or_path, use_all=use_all, isolated=True)
+
+    monkeypatch.setattr(run_cmd_mod, "manifest_from_module", _isolated)
+    monkeypatch.setattr(cli_utils_mod, "manifest_from_module", _isolated)

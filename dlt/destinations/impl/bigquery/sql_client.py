@@ -1,5 +1,16 @@
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Generator, Union
+from typing import (
+    Any,
+    AnyStr,
+    ClassVar,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Generator,
+    TYPE_CHECKING,
+    Union,
+)
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -26,8 +37,12 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
+from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.common.destination.dataset import DBApiCursor
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
+    from pyarrow import Table as ArrowTable
 
 
 # terminal reasons as returned in BQ gRPC error response
@@ -52,10 +67,10 @@ class BigQueryDBApiCursorImpl(DBApiCursorImpl):
     def __init__(self, curr: DBApiCursor) -> None:
         super().__init__(curr)
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator["DataFrame", None, None]:
         yield from self.native_cursor.query_job.result(page_size=chunk_size).to_dataframe_iterable()
 
-    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+    def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
         yield from self.native_cursor.query_job.result(page_size=chunk_size).to_arrow_iterable()
 
 

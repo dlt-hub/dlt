@@ -252,7 +252,7 @@ and `updated_at.last_value` to tell GitHub to return issues updated only **after
 
 ## Using pagination helper
 
-In the previous examples, we used the `requests` library to make HTTP requests to the GitHub API and handled pagination manually. `dlt` has a built-in [REST client](../general-usage/http/rest-client.md) that simplifies API requests. We'll use the `paginate()` helper from it for the next example. The `paginate` function takes a URL and optional parameters (quite similar to `requests`) and returns a generator that yields pages of data.
+In the previous examples, we used the `requests` library to make HTTP requests to the GitHub API and handled pagination manually. `dlt` has a built-in [REST client](../dlt-ecosystem/verified-sources/rest_api/advanced#restclient) that simplifies API requests. We'll use the `paginate()` helper from it for the next example. The `paginate` function takes a URL and optional parameters (quite similar to `requests`) and returns a generator that yields pages of data.
 
 Here's how the updated script looks:
 
@@ -297,7 +297,7 @@ Let's zoom in on the changes:
 
 1. The `while` loop that handled pagination is replaced with reading pages from the `paginate()` generator.
 2. `paginate()` takes the URL of the API endpoint and optional parameters. In this case, we pass the `since` parameter to get only issues updated after the last pipeline run.
-3. We're not explicitly setting up pagination; `paginate()` handles it for us. Magic! Under the hood, `paginate()` analyzes the response and detects the pagination method used by the API. Read more about pagination in the [REST client documentation](../general-usage/http/rest-client.md#paginating-api-responses).
+3. We're not explicitly setting up pagination; `paginate()` handles it for us. Magic! Under the hood, `paginate()` analyzes the response and detects the pagination method used by the API. Read more about pagination in the [REST client documentation](../dlt-ecosystem/verified-sources/rest_api/advanced#paginating-api-responses).
 
 If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing building blocks:
 To make the most of `dlt`, consider the following:
@@ -577,7 +577,7 @@ Congratulations on completing the tutorial! You've come a long way since the [ge
 
 Interested in learning more? Here are some suggestions:
 1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
-2. Dive deeper into how dlt works by reading the [Using dlt](../general-usage) section. Some highlights:
+2. Dive deeper into how dlt works by reading:
     - [Set up "last value" incremental loading](../general-usage/incremental/cursor.md).
     - Learn about data loading strategies: append, [replace](../general-usage/full-loading.md), and [merge](../general-usage/merge-loading.md).
     - [Connect the transformers to the resources](../general-usage/resource#process-resources-with-dlttransformer) to load additional data or enrich it.
@@ -588,7 +588,6 @@ Interested in learning more? Here are some suggestions:
     - [Pass config and credentials into your sources and resources](../general-usage/credentials).
     - [Run in production: inspecting, tracing, retry policies, and cleaning up](../running-in-production/running).
     - [Run resources in parallel, optimize buffers, and local storage](../reference/performance.md)
-    - [Use REST API client helpers](../general-usage/http/rest-client.md) to simplify working with REST APIs.
+    - [Use REST API client helpers](../dlt-ecosystem/verified-sources/rest_api/advanced.md) to simplify working with REST APIs.
 3. Explore [destinations](../dlt-ecosystem/destinations/) and [sources](../dlt-ecosystem/verified-sources/) provided by us and the community.
 4. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios.
-
