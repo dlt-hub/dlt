@@ -9,7 +9,7 @@ from dlt.common.destination.capabilities import (
     DestinationCapabilitiesContext,
     adjust_schema_to_capabilities,
 )
-from dlt.common.libs import is_pandas_frame, is_polars_frame
+from dlt.common.libs.narwhals import df_to_arrow
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.typing import TDataItems, TDataItem, TLoaderFileFormat
@@ -33,19 +33,6 @@ from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
-
-
-def _to_arrow_table(item: Any) -> Any:
-    """Convert a pandas or polars frame to a pyarrow Table; pass arrow items through."""
-    if is_pandas_frame(item):
-        from dlt.common.libs.pandas import pandas_to_arrow
-
-        return pandas_to_arrow(item)
-    if is_polars_frame(item):
-        from dlt.common.libs.polars import polars_to_arrow
-
-        return polars_to_arrow(item)
-    return item
 
 
 class MaterializedEmptyList(List[Any]):
@@ -388,8 +375,7 @@ class ArrowExtractor(Extractor):
 
         static_table_name = self._get_static_table_name(resource, meta)
         items = [
-            # 2. remove columns and rows in data contract filters
-            self._apply_contract_filters(_to_arrow_table(item), resource, static_table_name)
+            self._apply_contract_filters(df_to_arrow(item), resource, static_table_name)
             for item in items_list
         ]
         super().write_items(resource, items, meta)
