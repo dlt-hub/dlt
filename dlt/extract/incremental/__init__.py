@@ -17,7 +17,8 @@ from functools import wraps
 from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import ValueErrorWithKnownValues
-from dlt.common.libs import is_arrow_object, is_pandas_frame, is_polars_frame
+from dlt.common.libs import is_arrow_object
+from dlt.common.libs.narwhals import is_dataframe
 from dlt.common.jsonpath import compile_path, extract_simple_field_name
 from dlt.common.typing import (
     TDataItem,
@@ -644,7 +645,7 @@ class Incremental(
         """Gets transform implementation that handles particular data item type"""
         # assume list is all of the same type
         for item in items if isinstance(items, list) else [items]:
-            if is_arrow_object(item) or is_pandas_frame(item) or is_polars_frame(item):
+            if is_arrow_object(item) or is_dataframe(item):
                 return self._make_or_get_transformer(ArrowIncremental)
             return self._make_or_get_transformer(JsonIncremental)
         return self._make_or_get_transformer(JsonIncremental)
