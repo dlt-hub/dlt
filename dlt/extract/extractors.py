@@ -9,6 +9,7 @@ from dlt.common.destination.capabilities import (
     DestinationCapabilitiesContext,
     adjust_schema_to_capabilities,
 )
+from dlt.common.libs import is_arrow_object
 from dlt.common.libs.narwhals import df_to_arrow
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -371,13 +372,22 @@ class ArrowExtractor(Extractor):
         )
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
-        items_list = items if isinstance(items, list) else [items]
-
         static_table_name = self._get_static_table_name(resource, meta)
-        items = [
-            self._apply_contract_filters(df_to_arrow(item), resource, static_table_name)
-            for item in items_list
-        ]
+
+        items_list = items if isinstance(items, list) else [items]
+        items = []
+        for item in items_list:
+            if not is_arrow_object(item):
+                try:
+                    item = df_to_arrow(item)
+                except TypeError:
+                    raise TypeError(
+                        f"Received unsupported type `{type(item)}`. Not supported by pyarrow nor"
+                        " narwhals."
+                    )
+
+            items.append(self._apply_contract_filters(item, resource, static_table_name))
+
         super().write_items(resource, items, meta)
 
     def _write_to_static_table(
