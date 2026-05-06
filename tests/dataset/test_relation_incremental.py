@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import pathlib
 import warnings
-from typing import Any, Iterator, List, Literal
+from typing import Any, Iterator, Literal
 
 import pytest
 from sqlglot import expressions as sge
 
 import dlt
 from dlt.common.pendulum import pendulum
+from dlt.extract.incremental.transform import ModelIncremental
 
 
 EVENTS_LOAD_0 = [
@@ -51,8 +52,8 @@ def incremental_dataset(incremental_pipeline: dlt.Pipeline) -> dlt.Dataset:
     return incremental_pipeline.dataset()
 
 
-def _where(rel: dlt.Relation) -> sge.Expression:
-    where_node = rel.sqlglot_expression.args.get("where")
+def _where(relation: dlt.Relation) -> sge.Expression:
+    where_node = relation.sqlglot_expression.args.get("where")
     assert isinstance(where_node, sge.Where), f"Expected WHERE clause, got {where_node!r}"
     return where_node.this
 
@@ -68,8 +69,8 @@ def _column_table(expr: sge.Expression) -> str | None:
     return table.name if table is not None else None
 
 
-def _join_target_names(rel: dlt.Relation) -> list[str]:
-    joins = rel.sqlglot_expression.args.get("joins") or []
+def _join_target_names(relation: dlt.Relation) -> list[str]:
+    joins = relation.sqlglot_expression.args.get("joins") or []
     names: list[str] = []
     for join in joins:
         target = join.this
@@ -79,25 +80,25 @@ def _join_target_names(rel: dlt.Relation) -> list[str]:
 
 
 def test_incremental_emits_where_on_simple_cursor(incremental_dataset: dlt.Dataset) -> None:
-    inc = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
-    rel = incremental_dataset.table("events").incremental(inc)
+    incremental = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
+    relation = incremental_dataset.table("events").incremental(incremental)
 
-    condition = _where(rel)
+    condition = _where(relation)
     assert isinstance(condition, sge.And)
     bound_pair = condition.this
     assert isinstance(bound_pair, sge.And)
     assert isinstance(bound_pair.this, sge.GTE)
     assert _column_name(bound_pair.this.this) == "id"
     # no join is added for a simple cursor path
-    assert (rel.sqlglot_expression.args.get("joins") or []) == []
+    assert (relation.sqlglot_expression.args.get("joins") or []) == []
 
 
 def test_incremental_sets_is_incremental_flag(incremental_dataset: dlt.Dataset) -> None:
     base = incremental_dataset.table("events")
     assert base.is_incremental is False
 
-    inc = dlt.sources.incremental("id", initial_value=1, end_value=END_VALUE_ID)
-    flagged = base.incremental(inc)
+    incremental = dlt.sources.incremental("id", initial_value=1, end_value=END_VALUE_ID)
+    flagged = base.incremental(incremental)
     assert flagged.is_incremental is True
 
     # flag survives further chaining, context propagates through copies
@@ -111,10 +112,14 @@ def test_incremental_sets_is_incremental_flag(incremental_dataset: dlt.Dataset) 
 def test_incremental_kwarg_on_table_equivalent_to_method(
     incremental_dataset: dlt.Dataset,
 ) -> None:
-    inc = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
+    incremental = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
 
-    via_kwarg = incremental_dataset.table("events", incremental=inc).sqlglot_expression.sql()
-    via_method = incremental_dataset.table("events").incremental(inc).sqlglot_expression.sql()
+    via_kwarg = incremental_dataset.table(
+        "events", incremental=incremental
+    ).sqlglot_expression.sql()
+    via_method = (
+        incremental_dataset.table("events").incremental(incremental).sqlglot_expression.sql()
+    )
 
     assert via_kwarg == via_method
 
@@ -123,8 +128,8 @@ def test_incremental_returns_new_relation(incremental_dataset: dlt.Dataset) -> N
     base = incremental_dataset.table("events")
     sql_before = base.sqlglot_expression.sql()
 
-    inc = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
-    filtered = base.incremental(inc)
+    incremental = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
+    filtered = base.incremental(incremental)
 
     assert filtered is not base
     assert base.sqlglot_expression.sql() == sql_before
@@ -148,7 +153,7 @@ def test_incremental_operators_matrix(
     expected_start_cls: type,
     expected_end_cls: type,
 ) -> None:
-    inc = dlt.sources.incremental(
+    incremental = dlt.sources.incremental(
         "id",
         initial_value=2,
         end_value=4,
@@ -156,9 +161,9 @@ def test_incremental_operators_matrix(
         range_start=range_start,
         range_end=range_end,
     )
-    rel = incremental_dataset.table("events").incremental(inc)
+    relation = incremental_dataset.table("events").incremental(incremental)
 
-    condition = _where(rel)
+    condition = _where(relation)
     assert isinstance(condition, sge.And)
     bound_pair = condition.this
     assert isinstance(bound_pair, sge.And)
@@ -175,13 +180,13 @@ def test_incremental_datetime_cursor_renders_as_sql_literal(
     incremental_dataset: dlt.Dataset,
 ) -> None:
     ts = pendulum.datetime(2026, 1, 5, tz="UTC")
-    inc = dlt.sources.incremental("created_at", initial_value=ts, end_value=END_VALUE_DT)
+    incremental = dlt.sources.incremental("created_at", initial_value=ts, end_value=END_VALUE_DT)
     # `created_at` is nullable, below silence "raise" warning
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        rel = incremental_dataset.table("events").incremental(inc)
+        relation = incremental_dataset.table("events").incremental(incremental)
 
-    sql = rel.sqlglot_expression.sql(dialect=incremental_dataset.destination_dialect)
+    sql = relation.sqlglot_expression.sql(dialect=incremental_dataset.destination_dialect)
     assert "2026-01-05" in sql
     assert "DateTime(" not in sql
     assert "datetime.datetime" not in sql
@@ -190,20 +195,20 @@ def test_incremental_datetime_cursor_renders_as_sql_literal(
 def test_incremental_dotted_cursor_auto_joins_target(
     incremental_dataset: dlt.Dataset,
 ) -> None:
-    inc = dlt.sources.incremental(
+    incremental = dlt.sources.incremental(
         "_dlt_loads.inserted_at",
         initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
         end_value=END_VALUE_DT,
     )
     # _dlt_loads.inserted_at is `nullable=False` in the system schema, so the
     # default "raise" policy stays silent here — no warnings.catch_warnings needed
-    rel = incremental_dataset.table("events").incremental(inc)
+    relation = incremental_dataset.table("events").incremental(incremental)
 
     # exactly one JOIN added, targeting _dlt_loads
-    assert _join_target_names(rel) == ["_dlt_loads"]
+    assert _join_target_names(relation) == ["_dlt_loads"]
 
     # bound pair is wrapped with AND IS NOT NULL by the default "raise" policy
-    condition = _where(rel)
+    condition = _where(relation)
     assert isinstance(condition, sge.And)
     bound_pair = condition.this
     assert isinstance(bound_pair, sge.And)
@@ -219,14 +224,14 @@ def test_incremental_dotted_cursor_does_not_pollute_projection(
 ) -> None:
     # end-only: valid unbound mode, last_value is None -> single LT condition,
     # enough to trigger the auto-join without needing a start bound.
-    inc: dlt.sources.incremental[Any] = dlt.sources.incremental(
+    incremental: dlt.sources.incremental[Any] = dlt.sources.incremental(
         "_dlt_loads.inserted_at", end_value=END_VALUE_DT
     )
-    rel = incremental_dataset.table("events").incremental(inc)
+    relation = incremental_dataset.table("events").incremental(incremental)
 
     # no column from _dlt_loads appears in the SELECT list — the auto-join
     # is filter-only (project=False path).
-    selects = rel.sqlglot_expression.selects
+    selects = relation.sqlglot_expression.selects
     output_names = [expr.output_name for expr in selects]
     assert not any(name.startswith("_dlt_loads__") for name in output_names)
 
@@ -234,20 +239,20 @@ def test_incremental_dotted_cursor_does_not_pollute_projection(
 def test_incremental_dotted_cursor_runtime_columns_base_only(
     incremental_dataset: dlt.Dataset,
 ) -> None:
-    inc: dlt.sources.incremental[Any] = dlt.sources.incremental(
+    incremental: dlt.sources.incremental[Any] = dlt.sources.incremental(
         "_dlt_loads.inserted_at",
         initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
         end_value=END_VALUE_DT,
     )
-    rel = incremental_dataset.table("events").incremental(inc)
+    relation = incremental_dataset.table("events").incremental(incremental)
 
     expected_columns = set(incremental_dataset.table("events").columns)
-    assert set(rel.columns) == expected_columns
-    assert not any(c.startswith("_dlt_loads__") for c in rel.columns)
+    assert set(relation.columns) == expected_columns
+    assert not any(c.startswith("_dlt_loads__") for c in relation.columns)
 
-    row = rel.fetchone()
+    row = relation.fetchone()
     assert row is not None
-    assert len(row) == len(rel.columns)
+    assert len(row) == len(relation.columns)
 
 
 def test_incremental_dotted_cursor_reuses_existing_join(
@@ -260,31 +265,31 @@ def test_incremental_dotted_cursor_reuses_existing_join(
     existing_targets = _join_target_names(pre_joined)
     assert existing_targets.count("_dlt_loads") == 1
 
-    inc: dlt.sources.incremental[Any] = dlt.sources.incremental(
+    incremental: dlt.sources.incremental[Any] = dlt.sources.incremental(
         "_dlt_loads.inserted_at", end_value=END_VALUE_DT
     )
-    rel = pre_joined.incremental(inc)
+    relation = pre_joined.incremental(incremental)
 
-    assert _join_target_names(rel).count("_dlt_loads") == 1
+    assert _join_target_names(relation).count("_dlt_loads") == 1
 
 
 def test_incremental_aggregate_on_simple_cursor(incremental_dataset: dlt.Dataset) -> None:
     """`_incremental_aggregate_relation` returns the MAX cursor over the filter."""
-    inc = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
-    rel = incremental_dataset.table("events").incremental(inc)
+    incremental = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
+    relation = incremental_dataset.table("events").incremental(incremental)
     # max id across EVENTS_LOAD_0 + EVENTS_LOAD_1 with id >= 2 is 5
-    assert rel._incremental_aggregate_relation().fetchscalar() == 5
+    assert relation._incremental_aggregate_relation().fetchscalar() == 5
 
 
 def test_incremental_aggregate_on_dotted_cursor(incremental_dataset: dlt.Dataset) -> None:
-    inc: dlt.sources.incremental[Any] = dlt.sources.incremental(
+    incremental: dlt.sources.incremental[Any] = dlt.sources.incremental(
         "_dlt_loads.inserted_at",
         initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
         end_value=END_VALUE_DT,
     )
-    rel = incremental_dataset.table("events").incremental(inc)
+    relation = incremental_dataset.table("events").incremental(incremental)
     # exact value depends on load timing, but a MAX of inserted_at should be non-null
-    agg_value = rel._incremental_aggregate_relation().fetchscalar()
+    agg_value = relation._incremental_aggregate_relation().fetchscalar()
     assert agg_value is not None
 
 
@@ -298,15 +303,15 @@ def test_incremental_aggregate_returns_none_when_not_incremental(
 def test_incremental_aggregate_honors_min(incremental_dataset: dlt.Dataset) -> None:
     """`last_value_func=min` flips the aggregate to SQL `MIN`."""
     # for min: closed start -> `<=`, closed end -> `>=`. Window [0, 5] contains ids 1-5.
-    inc = dlt.sources.incremental(
+    incremental = dlt.sources.incremental(
         "id",
         initial_value=5,
         end_value=0,
         last_value_func="min",
         range_end="closed",
     )
-    rel = incremental_dataset.table("events").incremental(inc)
-    assert rel._incremental_aggregate_relation().fetchscalar() == 1
+    relation = incremental_dataset.table("events").incremental(incremental)
+    assert relation._incremental_aggregate_relation().fetchscalar() == 1
 
 
 @pytest.mark.parametrize(
@@ -325,7 +330,7 @@ def test_incremental_aggregate_rejects_limit_or_order_by_in_stateful_mode(
     # Empty yield -> no rows pass the pipe step -> state never advances, so a
     # fixed resource name is safe to reuse across params.
     dataset = incremental_pipeline.dataset()
-    captured: List[dlt.Relation] = []
+    captured: dlt.Relation | None = None
 
     @dlt.resource(name="probe_reject")
     def probe(
@@ -333,30 +338,33 @@ def test_incremental_aggregate_rejects_limit_or_order_by_in_stateful_mode(
             "id", initial_value=0, range_start="open"
         ),
     ) -> Iterator[Any]:
-        captured.append(shape(dataset.table("events").incremental(cursor)))
+        nonlocal captured
+        captured = shape(dataset.table("events").incremental(cursor))
         yield from []
 
     incremental_pipeline.extract(probe())
-    rel = captured[0]
+    assert captured is not None
     with pytest.raises(ValueError, match="LIMIT and ORDER BY aren't supported"):
-        rel._incremental_aggregate_relation()
+        captured._incremental_aggregate_relation()
 
 
 def test_incremental_inside_resource_captures_bound_sql(
     incremental_pipeline: dlt.Pipeline,
 ) -> None:
     dataset = incremental_pipeline.dataset()
-    captured: List[dlt.Relation] = []
+    captured: dlt.Relation | None = None
 
     @dlt.resource(name="probe_simple_cursor")
     def probe(
         cursor: dlt.sources.incremental[int] = dlt.sources.incremental("id", initial_value=2),
     ) -> Iterator[Any]:
-        captured.append(dataset.table("events").incremental(cursor))
+        nonlocal captured
+        captured = dataset.table("events").incremental(cursor)
         yield from []
 
     incremental_pipeline.extract(probe())
-    condition = _where(captured[0])
+    assert captured is not None
+    condition = _where(captured)
     assert isinstance(condition, sge.And)
     start_op = condition.this
     assert isinstance(start_op, sge.GTE)
@@ -367,57 +375,61 @@ def test_incremental_custom_last_value_func_raises(
     incremental_dataset: dlt.Dataset,
 ) -> None:
     """Only `min` and `max` can be pushed down to SQL; custom callables can't."""
-    inc = dlt.sources.incremental("id", initial_value=1, last_value_func=lambda xs: max(xs))
+    incremental = dlt.sources.incremental("id", initial_value=1, last_value_func=lambda xs: max(xs))
     with pytest.raises(ValueError, match="last_value_func"):
-        incremental_dataset.table("events").incremental(inc)
+        incremental_dataset.table("events").incremental(incremental)
 
 
 def test_incremental_unknown_dotted_target_raises(
     incremental_dataset: dlt.Dataset,
 ) -> None:
-    inc = dlt.sources.incremental("not_a_table.ts", initial_value=1)
+    incremental = dlt.sources.incremental("not_a_table.ts", initial_value=1)
     with pytest.raises(ValueError, match="not found in dataset schema"):
-        incremental_dataset.table("events").incremental(inc)
+        incremental_dataset.table("events").incremental(incremental)
 
 
 def test_incremental_dotted_cursor_on_query_relation_raises(
     incremental_dataset: dlt.Dataset,
 ) -> None:
     """Dotted cursors need a base-table relation to resolve the join chain."""
-    q_rel = incremental_dataset.query("SELECT * FROM events")
-    inc = dlt.sources.incremental(
+    query_relation = incremental_dataset.query("SELECT * FROM events")
+    incremental = dlt.sources.incremental(
         "_dlt_loads.inserted_at",
         initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
         end_value=END_VALUE_DT,
     )
     with pytest.raises(ValueError, match="no base table"):
-        q_rel.incremental(inc)
+        query_relation.incremental(incremental)
 
 
 def test_incremental_chained_call_raises(incremental_dataset: dlt.Dataset) -> None:
-    inc1 = dlt.sources.incremental("id", initial_value=1, end_value=END_VALUE_ID)
-    inc2 = dlt.sources.incremental("value", initial_value=0.0, end_value=10.0)
+    incremental_a = dlt.sources.incremental("id", initial_value=1, end_value=END_VALUE_ID)
+    incremental_b = dlt.sources.incremental("value", initial_value=0.0, end_value=10.0)
 
-    rel = incremental_dataset.table("events").incremental(inc1)
+    relation = incremental_dataset.table("events").incremental(incremental_a)
     with pytest.raises(ValueError, match="already been applied"):
-        rel.incremental(inc2)
+        relation.incremental(incremental_b)
 
 
 @pytest.mark.parametrize(
-    "build_rel",
+    "build_relation",
     [
         pytest.param(
-            lambda ds, load_ids, inc: ds.table("events", load_ids=load_ids, incremental=inc),
+            lambda ds, load_ids, incremental: ds.table(
+                "events", load_ids=load_ids, incremental=incremental
+            ),
             id="kwargs",
         ),
         pytest.param(
-            lambda ds, load_ids, inc: ds.table("events").from_loads(load_ids).incremental(inc),
+            lambda ds, load_ids, incremental: ds.table("events")
+            .from_loads(load_ids)
+            .incremental(incremental),
             id="chained",
         ),
     ],
 )
 def test_incremental_dotted_cursor_after_from_loads_raises(
-    incremental_pipeline: dlt.Pipeline, build_rel: Any
+    incremental_pipeline: dlt.Pipeline, build_relation: Any
 ) -> None:
     """`.from_loads()` wraps FROM in a subquery, so a subsequent dotted-cursor
     `.incremental()` cannot resolve the join. Both the kwargs combo on
@@ -428,13 +440,13 @@ def test_incremental_dotted_cursor_after_from_loads_raises(
     load_ids = dataset.load_ids()
     assert load_ids, "fixture must produce at least one load"
 
-    inc = dlt.sources.incremental(
+    incremental = dlt.sources.incremental(
         "_dlt_loads.inserted_at",
         initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
         end_value=END_VALUE_DT,
     )
     with pytest.raises(ValueError, match="dotted cursor cannot be applied"):
-        build_rel(dataset, load_ids, inc)
+        build_relation(dataset, load_ids, incremental)
 
 
 @pytest.mark.parametrize(
@@ -448,9 +460,9 @@ def test_incremental_dotted_cursor_after_from_loads_raises(
 def test_incremental_rejects_jsonpath_cursor(
     incremental_dataset: dlt.Dataset, cursor_path: str
 ) -> None:
-    inc = dlt.sources.incremental(cursor_path, initial_value=1)
+    incremental = dlt.sources.incremental(cursor_path, initial_value=1)
     with pytest.raises(ValueError, match="JSONPath|plain column"):
-        incremental_dataset.table("events").incremental(inc)
+        incremental_dataset.table("events").incremental(incremental)
 
 
 @pytest.mark.parametrize(
@@ -474,9 +486,9 @@ def test_parse_incremental_cursor_path_rejects_malformed(cursor_path: str, match
 def test_incremental_rejects_quoted_cursor_with_inner_dot(
     incremental_dataset: dlt.Dataset,
 ) -> None:
-    inc = dlt.sources.incremental('"col with.dot"', initial_value=1)
+    incremental = dlt.sources.incremental('"col with.dot"', initial_value=1)
     with pytest.raises(ValueError, match="not a plain column identifier"):
-        incremental_dataset.table("events").incremental(inc)
+        incremental_dataset.table("events").incremental(incremental)
 
 
 @pytest.mark.parametrize(
@@ -506,7 +518,7 @@ def test_incremental_on_cursor_value_missing(
     if bind_via_resource:
         bounds_id = "_".join(sorted(bounds_kwargs))
         resource_name = f"probe_null_guard_{policy}_{bounds_id}"
-        captured: List[dlt.Relation] = []
+        captured: dlt.Relation | None = None
 
         @dlt.resource(name=resource_name)
         def probe(
@@ -514,18 +526,20 @@ def test_incremental_on_cursor_value_missing(
                 "id", on_cursor_value_missing=policy, **bounds_kwargs
             ),
         ) -> Iterator[Any]:
-            captured.append(dataset.table("events").incremental(cursor))
+            nonlocal captured
+            captured = dataset.table("events").incremental(cursor)
             yield from []
 
         incremental_pipeline.extract(probe())
-        rel = captured[0]
+        assert captured is not None
+        relation = captured
     else:
-        inc: dlt.sources.incremental[Any] = dlt.sources.incremental(
+        incremental: dlt.sources.incremental[Any] = dlt.sources.incremental(
             "id", on_cursor_value_missing=policy, **bounds_kwargs
         )
-        rel = dataset.table("events").incremental(inc)
+        relation = dataset.table("events").incremental(incremental)
 
-    condition = _where(rel)
+    condition = _where(relation)
     assert isinstance(condition, expected_root_cls), (
         f"Expected `{expected_root_cls.__name__}` root for policy={policy} "
         f"bounds={bounds_kwargs}, got {type(condition).__name__}: "
@@ -546,15 +560,15 @@ def test_incremental_raise_emits_is_not_null_pushdown(
 ) -> None:
     # We can't raise on NULL cursor values, so `"raise"` (the default)
     # falls back to `... AND col IS NOT NULL`, same shape as `"exclude"`
-    inc = dlt.sources.incremental(
+    incremental = dlt.sources.incremental(
         "id",
         initial_value=2,
         end_value=END_VALUE_ID,
         on_cursor_value_missing="raise",
     )
-    rel = incremental_dataset.table("events").incremental(inc)
+    relation = incremental_dataset.table("events").incremental(incremental)
 
-    condition = _where(rel)
+    condition = _where(relation)
     assert isinstance(condition, sge.And), (
         "raise pushdown must wrap with `AND IS NOT NULL`, got "
         f"{type(condition).__name__}: {condition.sql()}"
@@ -570,20 +584,20 @@ def test_incremental_raise_emits_is_not_null_pushdown(
 def test_incremental_raise_warns_on_nullable_cursor(
     incremental_dataset: dlt.Dataset,
 ) -> None:
-    inc = dlt.sources.incremental(
+    incremental = dlt.sources.incremental(
         "created_at",
         initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
         end_value=END_VALUE_DT,
         on_cursor_value_missing="raise",
     )
     with pytest.warns(UserWarning, match="Can't raise on NULL cursor"):
-        incremental_dataset.table("events").incremental(inc)
+        incremental_dataset.table("events").incremental(incremental)
 
 
 def test_incremental_raise_no_warn_on_non_nullable_cursor(
     incremental_dataset: dlt.Dataset,
 ) -> None:
-    inc = dlt.sources.incremental(
+    incremental = dlt.sources.incremental(
         "_dlt_loads.inserted_at",
         initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
         end_value=END_VALUE_DT,
@@ -591,7 +605,7 @@ def test_incremental_raise_no_warn_on_non_nullable_cursor(
     )
     with warnings.catch_warnings(record=True) as captured:
         warnings.simplefilter("always", UserWarning)
-        incremental_dataset.table("events").incremental(inc)
+        incremental_dataset.table("events").incremental(incremental)
     pushdown_warnings = [w for w in captured if "Can't raise on NULL cursor" in str(w.message)]
     assert pushdown_warnings == [], (
         "unexpected pushdown warning on a non-nullable cursor: "
@@ -603,7 +617,7 @@ def test_incremental_no_bounds_include_emits_no_where(
     incremental_pipeline: dlt.Pipeline,
 ) -> None:
     dataset = incremental_pipeline.dataset()
-    captured: List[dlt.Relation] = []
+    captured: dlt.Relation | None = None
 
     @dlt.resource(name="probe_no_bounds_include")
     def probe(
@@ -611,16 +625,18 @@ def test_incremental_no_bounds_include_emits_no_where(
             "id", on_cursor_value_missing="include"
         ),
     ) -> Iterator[Any]:
-        captured.append(dataset.table("events").incremental(cursor))
+        nonlocal captured
+        captured = dataset.table("events").incremental(cursor)
         yield from []
 
     incremental_pipeline.extract(probe())
-    rel = captured[0]
+    assert captured is not None
+    relation = captured
 
-    assert rel.sqlglot_expression.args.get("where") is None
-    assert rel.is_incremental is True
+    assert relation.sqlglot_expression.args.get("where") is None
+    assert relation.is_incremental is True
     # the aggregate over the unfiltered base should still observe the full max id (5)
-    assert rel._incremental_aggregate_relation().fetchscalar() == 5
+    assert relation._incremental_aggregate_relation().fetchscalar() == 5
 
 
 @pytest.mark.parametrize("policy", ["exclude", "raise"])
@@ -628,7 +644,7 @@ def test_incremental_no_bounds_exclude_or_raise_emits_only_is_not_null(
     incremental_pipeline: dlt.Pipeline, policy: Literal["exclude", "raise"]
 ) -> None:
     dataset = incremental_pipeline.dataset()
-    captured: List[dlt.Relation] = []
+    captured: dlt.Relation | None = None
 
     @dlt.resource(name=f"probe_no_bounds_{policy}")
     def probe(
@@ -636,13 +652,15 @@ def test_incremental_no_bounds_exclude_or_raise_emits_only_is_not_null(
             "id", on_cursor_value_missing=policy
         ),
     ) -> Iterator[Any]:
-        captured.append(dataset.table("events").incremental(cursor))
+        nonlocal captured
+        captured = dataset.table("events").incremental(cursor)
         yield from []
 
     incremental_pipeline.extract(probe())
-    rel = captured[0]
+    assert captured is not None
+    relation = captured
 
-    condition = _where(rel)
+    condition = _where(relation)
     assert isinstance(condition, sge.Not), (
         f"expected bare `IS NOT NULL` for no-bounds policy={policy!r}, "
         f"got {type(condition).__name__}: {condition.sql()}"
@@ -651,14 +669,14 @@ def test_incremental_no_bounds_exclude_or_raise_emits_only_is_not_null(
     assert isinstance(inner, sge.Is)
     assert isinstance(inner.expression, sge.Null)
     assert _column_name(inner.this) == "id"
-    assert rel.is_incremental is True
+    assert relation.is_incremental is True
 
 
 @pytest.mark.parametrize("policy", ["include", "exclude"])
 def test_incremental_no_warn_when_policy_explicit(
     incremental_dataset: dlt.Dataset, policy: Literal["include", "exclude"]
 ) -> None:
-    inc: dlt.sources.incremental[Any] = dlt.sources.incremental(
+    incremental: dlt.sources.incremental[Any] = dlt.sources.incremental(
         "created_at",
         initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
         end_value=END_VALUE_DT,
@@ -666,8 +684,147 @@ def test_incremental_no_warn_when_policy_explicit(
     )
     with warnings.catch_warnings(record=True) as captured:
         warnings.simplefilter("always", UserWarning)
-        incremental_dataset.table("events").incremental(inc)
-    assert captured == [], (
-        f"unexpected warning for policy={policy!r}: "
-        f"{[str(w.message) for w in captured]}"
+        incremental_dataset.table("events").incremental(incremental)
+    assert (
+        captured == []
+    ), f"unexpected warning for policy={policy!r}: {[str(w.message) for w in captured]}"
+
+
+def _model_transformer(
+    *,
+    cursor_path: str = "id",
+    start_value: Any = 0,
+    end_value: Any = None,
+    last_value_func: Any = max,
+    range_start: Literal["open", "closed"] = "open",
+    range_end: Literal["open", "closed"] = "open",
+) -> ModelIncremental:
+    return ModelIncremental(
+        resource_name="test",
+        cursor_path=cursor_path,
+        initial_value=start_value,
+        start_value=start_value,
+        end_value=end_value,
+        last_value_func=last_value_func,
+        primary_key=None,
+        unique_hashes=set(),
+        range_start=range_start,
+        range_end=range_end,
     )
+
+
+def _capture_stateful_relation(
+    pipeline: dlt.Pipeline,
+    *,
+    resource_name: str,
+    initial_value: int,
+    range_start: Literal["open", "closed"] = "open",
+) -> dlt.Relation:
+    """Build an `.incremental()`-applied Relation against a bound stateful cursor.
+
+    Stateful incrementals need an active pipeline to resolve
+    `get_state()`, so we wrap the build in a no-op resource and `extract()` it
+    just to bind.
+    """
+    dataset = pipeline.dataset()
+    captured: dlt.Relation | None = None
+
+    @dlt.resource(name=resource_name)
+    def probe(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "id", initial_value=initial_value, range_start=range_start
+        ),
+    ) -> Iterator[Any]:
+        nonlocal captured
+        captured = dataset.table("events").incremental(cursor)
+        yield from []
+
+    pipeline.extract(probe())
+    assert captured is not None
+    return captured
+
+
+def test_get_transform_dispatches_modelincremental_for_relation(
+    incremental_dataset: dlt.Dataset,
+) -> None:
+    incremental: dlt.sources.incremental[int] = dlt.sources.incremental(
+        "id", initial_value=0, end_value=END_VALUE_ID
+    )
+    incremental._cached_state = {
+        "unique_hashes": [],
+        "initial_value": 0,
+        "last_value": 0,
+        "start_value": 0,
+    }
+    relation = incremental_dataset.table("events")
+    incremental_transform = incremental._get_transform(relation)
+    assert isinstance(incremental_transform, ModelIncremental)
+    assert incremental_transform.cursor_path == "id"
+
+
+def test_model_incremental_advances_last_value_for_open_range(
+    incremental_pipeline: dlt.Pipeline,
+) -> None:
+    relation = _capture_stateful_relation(
+        incremental_pipeline, resource_name="probe_advance", initial_value=2
+    )
+    transformer = _model_transformer(start_value=2)
+    out, start_out_of_range, end_out_of_range = transformer(relation)
+
+    assert out is relation
+    assert (start_out_of_range, end_out_of_range) == (False, False)
+    assert transformer.last_value == 5
+
+
+def test_model_incremental_no_advance_in_scheduler_mode(
+    incremental_dataset: dlt.Dataset,
+) -> None:
+    incremental = dlt.sources.incremental("id", initial_value=0, end_value=END_VALUE_ID)
+    relation = incremental_dataset.table("events").incremental(incremental)
+
+    transformer = _model_transformer(start_value=0, end_value=END_VALUE_ID, range_start="closed")
+    transformer(relation)
+
+    assert transformer.last_value == 0
+
+
+def test_model_incremental_rejects_closed_range_stateful(
+    incremental_pipeline: dlt.Pipeline,
+) -> None:
+    relation = _capture_stateful_relation(
+        incremental_pipeline,
+        resource_name="probe_reject_closed",
+        initial_value=0,
+        range_start="closed",
+    )
+
+    transformer = _model_transformer(start_value=0, range_start="closed")
+    with pytest.raises(ValueError, match="range_start='open'"):
+        transformer(relation)
+
+
+def test_model_incremental_passes_through_bare_relation(
+    incremental_dataset: dlt.Dataset,
+) -> None:
+    bare = incremental_dataset.table("events")
+
+    transformer = _model_transformer(start_value=42)
+    out, start_out_of_range, end_out_of_range = transformer(bare)
+
+    assert out is bare
+    assert (start_out_of_range, end_out_of_range) == (False, False)
+    assert transformer.last_value == 42
+
+
+def test_model_incremental_does_not_clobber_last_value_on_empty_filter(
+    incremental_pipeline: dlt.Pipeline,
+) -> None:
+    # initial_value above all data (max is 5) so the WHERE excludes everything.
+    relation = _capture_stateful_relation(
+        incremental_pipeline, resource_name="probe_empty_filter", initial_value=10**9
+    )
+
+    transformer = _model_transformer(start_value=10**9)
+    transformer(relation)
+
+    assert transformer.last_value == 10**9
