@@ -95,6 +95,34 @@ if (branch != "devel") {
  * @param {string} versionedSidebarsFolder - Path to the versioned_sidebars directory.
  * @param {string[]} sidebarIds - Sidebar IDs to backfill if absent from a snapshot.
  */
+const SIDEBAR_FALLBACKS = {
+    cookbookSidebar: [
+        {
+            type: 'category',
+            label: 'Cookbook',
+            link: {
+                type: 'doc',
+                id: 'examples/index',
+            },
+            items: [],
+        },
+    ],
+    educationSidebar: [
+        {
+            type: 'category',
+            label: 'Education',
+            link: {
+                type: 'doc',
+                id: 'tutorial/education',
+            },
+            items: [
+              'tutorial/fundamentals-course',
+              'tutorial/advanced-course',
+            ]
+        },
+    ],
+};
+
 function backfillVersionedSidebars(versionedSidebarsFolder, sidebarIds) {
     const files = fs.readdirSync(versionedSidebarsFolder).filter(f => f.endsWith('.json'));
     for (const file of files) {
@@ -102,27 +130,8 @@ function backfillVersionedSidebars(versionedSidebarsFolder, sidebarIds) {
         const snapshot = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         let patched = false;
         for (const id of sidebarIds) {
-            if (!snapshot[id]) {
-                snapshot[id] = [
-                    {
-                        type: 'category',
-                        label: 'Cookbook',
-                        link: {
-                            type: 'doc',
-                            id: 'examples/index',
-                        },
-                        items: [],
-                    },
-                    {
-                        type: 'category',
-                        label: 'Education',
-                        link: {
-                            type: 'doc',
-                            id: 'tutorial/education',
-                        },
-                        items: [],
-                    },
-                ];
+            if (!snapshot[id] && SIDEBAR_FALLBACKS[id]) {
+                snapshot[id] = SIDEBAR_FALLBACKS[id];
                 patched = true;
             }
         }

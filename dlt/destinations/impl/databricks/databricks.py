@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional, Sequence, List, cast, Union
+from typing import Any, Dict, Optional, Sequence, List, cast, Union
 from urllib.parse import urlparse
 from pathlib import Path
 
@@ -46,6 +46,7 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.impl.databricks.typing import TDatabricksColumnHint
@@ -287,7 +288,13 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 class DatabricksMergeJob(SqlMergeFollowupJob):
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
         return f"CREATE TEMPORARY VIEW {temp_table_name} AS {select_sql}"
 
     @classmethod

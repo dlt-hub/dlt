@@ -38,6 +38,7 @@ from dlt.common.destination.exceptions import (
     UnknownDestinationModule,
 )
 from dlt.common.exceptions import PipelineStateNotAvailable, SignalReceivedException
+from dlt.common.normalizers.typing import TNormalizersConfig
 from dlt.common.pipeline import ExtractInfo, LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import DictCollector, LogCollector
@@ -85,6 +86,7 @@ from tests.pipeline.utils import (
     load_table_counts,
     load_tables_to_dicts,
     many_delayed,
+    table_exists,
 )
 
 from dlt.destinations.dataset import get_destination_client_initial_config
@@ -3486,6 +3488,22 @@ def test_load_info_dataset_name_per_load_id(use_single_dataset: bool) -> None:
     step_dict = load_step.asdict()
     assert "dataset_name" in step_dict["load_info"]
 
+    # verify dataset_name is propagated into serialized job_metrics
+    asdict_job_metrics = load_info.asdict()["job_metrics"]
+    assert all("dataset_name" in jm for jm in asdict_job_metrics)
+    # each job's dataset_name must match the per-load-id value from LoadMetrics
+    for jm in asdict_job_metrics:
+        assert jm["dataset_name"] == ds_names[jm["load_id"]]
+
+    # same for the trace step dict
+    trace_job_metrics = step_dict["load_info"]["job_metrics"]
+    assert all("dataset_name" in jm for jm in trace_job_metrics)
+    trace_ds_names = {jm["dataset_name"] for jm in trace_job_metrics}
+    if use_single_dataset:
+        assert trace_ds_names == {"test_data"}
+    else:
+        assert trace_ds_names == {"test_data", "test_data_schema_b"}
+
 
 def test_load_info_dataset_name_none_for_non_dwh_destination() -> None:
     """Destinations without DestinationClientDwhConfiguration (e.g. dummy, custom)
@@ -3554,6 +3572,109 @@ def test_yielding_empty_list_creates_table() -> None:
             rows = list(cur.fetchall())
             assert len(rows) == 1
             assert rows[0] == (1, None)
+
+
+@pytest.mark.parametrize(
+    "yield_one,yield_two",
+    [(True, False), (False, True), (False, False), (True, True)],
+    ids=["only_first", "only_second", "neither", "both"],
+)
+def test_materialize_table_schema_multi_table_duckdb(yield_one: bool, yield_two: bool) -> None:
+    """End-to-end check that a multi-table resource materializes both tables in duckdb,
+    whether they receive data or not. Dispatch happens via `with_table_name` and table
+    variants are pre-declared with `materialize_table_schema()`.
+    """
+
+    @dlt.resource
+    def multi_table():
+        yield dlt.mark.with_hints(
+            dlt.mark.materialize_table_schema(),
+            dlt.mark.make_hints(
+                table_name="table_one",
+                write_disposition="replace",
+                columns={"col_one": {"data_type": "text"}},
+            ),
+            create_table_variant=True,
+        )
+        yield dlt.mark.with_hints(
+            dlt.mark.materialize_table_schema(),
+            dlt.mark.make_hints(
+                table_name="table_two",
+                write_disposition="replace",
+                columns={"col_two": {"data_type": "bigint"}},
+            ),
+            create_table_variant=True,
+        )
+        if yield_one:
+            yield dlt.mark.with_table_name({"col_one": "val"}, table_name="table_one")
+        if yield_two:
+            yield dlt.mark.with_table_name({"col_two": 5}, table_name="table_two")
+
+    pipeline = dlt.pipeline(
+        pipeline_name="materialize_multi_e2e_" + uniq_id(),
+        destination="duckdb",
+        dev_mode=True,
+    )
+    load_info = pipeline.run(multi_table())
+    assert_load_info(load_info)
+
+    expected = {
+        "table_one": 1 if yield_one else 0,
+        "table_two": 1 if yield_two else 0,
+    }
+    assert_table_counts(pipeline, expected)
+
+    schema_tables = pipeline.default_schema.tables
+    assert "col_one" in schema_tables["table_one"]["columns"]
+    assert "col_two" in schema_tables["table_two"]["columns"]
+
+
+def test_materialize_table_schema_with_nested_hints_duckdb() -> None:
+    """Pre-declared nested table via `nested_hints` is added to the schema but does NOT
+    materialize at the destination when only the root yields `materialize_table_schema()`.
+    The normalizer attaches parent/child linking columns only when real nested data flows
+    through it, so an empty nested table cannot be meaningfully created up front.
+    """
+
+    @dlt.resource(
+        name="users",
+        write_disposition="replace",
+        columns=[
+            {"name": "id", "data_type": "bigint", "nullable": False},
+            {"name": "name", "data_type": "text"},
+        ],
+        nested_hints={
+            "purchases": dlt.mark.make_nested_hints(
+                columns=[{"name": "price", "data_type": "decimal"}],
+            ),
+        },
+    )
+    def users_with_nested():
+        yield dlt.mark.materialize_table_schema()
+
+    pipeline = dlt.pipeline(
+        pipeline_name="materialize_nested_e2e_" + uniq_id(),
+        destination="duckdb",
+        dev_mode=True,
+    )
+    load_info = pipeline.run(users_with_nested())
+    assert_load_info(load_info)
+
+    # root table is materialized empty in duckdb with declared columns
+    assert table_exists(pipeline, "users")
+    assert load_table_counts(pipeline, "users") == {"users": 0}
+    users_columns = pipeline.default_schema.tables["users"]["columns"]
+    assert {"id", "name", "_dlt_load_id", "_dlt_id"}.issubset(users_columns.keys())
+
+    # nested table is computed into the schema from `nested_hints`
+    assert "users__purchases" in pipeline.default_schema.tables
+    nested_columns = pipeline.default_schema.tables["users__purchases"]["columns"]
+    assert "price" in nested_columns
+
+    # but it is NOT created at the destination — no MaterializedEmptyList ever flows
+    # through `_write_item` for the nested name, and parent linkage columns are produced
+    # by the normalizer only on real nested rows
+    assert not table_exists(pipeline, "users__purchases")
 
 
 @pytest.mark.parametrize(
@@ -5414,6 +5535,60 @@ def test_merge_no_child_duplicates_on_duplicate_staging_data(skip_dedup: bool) -
     else:
         # dedup enabled: nested table deduplicated by _dlt_id
         assert_table_counts(p, {"items": 2, "items__nested": 2})
+
+
+def test_no_coercion_normalizer_creates_variant_columns() -> None:
+    """relational_no_coercion normalizer produces variant columns on type mismatch
+    instead of coercing values. Also verifies ensure_this_normalizer accepts the subclass
+    so update/get_normalizer_config work correctly.
+    """
+    no_coercion: TNormalizersConfig = {
+        "names": "snake_case",
+        "json": {"module": "relational_no_coercion"},
+    }
+    schema = Schema("no_coercion", no_coercion)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_no_coercion_variants",
+        destination="duckdb",
+    )
+    # first batch establishes column types: double and text
+    pipeline.run(
+        [{"id": 1, "score": 3.14, "value": 100}],
+        table_name="items",
+        schema=schema,
+        schema_contract={"data_type": "evolve"},
+    )
+    # second batch: int into double column (relational would coerce), text into bigint column
+    pipeline.run(
+        [{"id": 2, "score": 42, "value": "not_a_number"}],
+        table_name="items",
+    )
+
+    columns = pipeline.default_schema.tables["items"]["columns"]
+    # int into double creates variant (relational normalizer would coerce this)
+    assert "score__v_bigint" in columns
+    assert columns["score__v_bigint"]["data_type"] == "bigint"
+    assert columns["score__v_bigint"]["variant"] is True
+    # text into bigint creates variant
+    assert "value__v_text" in columns
+    assert columns["value__v_text"]["data_type"] == "text"
+    assert columns["value__v_text"]["variant"] is True
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            "SELECT id, score, score__v_bigint, value, value__v_text FROM items ORDER BY id"
+        )
+    # row 1: original columns populated, variants NULL
+    assert rows[0][1] == 3.14
+    assert rows[0][2] is None
+    assert rows[0][3] == 100
+    assert rows[0][4] is None
+    # row 2: originals NULL, values in variant columns
+    assert rows[1][1] is None
+    assert rows[1][2] == 42
+    assert rows[1][3] is None
+    assert rows[1][4] == "not_a_number"
 
 
 def test_cleanup() -> None:

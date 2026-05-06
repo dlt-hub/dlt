@@ -4,6 +4,7 @@ import contextlib
 import pytest
 import logging
 from subprocess import CalledProcessError
+from typing import Any
 
 import dlt
 from dlt.common.runners.venv import Venv
@@ -17,6 +18,21 @@ from tests.workspace.cli.utils import (
     cloned_init_repo,
     _cached_init_repo,
 )
+
+
+CHOOSE_PRIORITY_CASES = [
+    # always_confirm=True overrides everything
+    (dict(always_choose_default=True, always_choose_value=False, always_confirm=True), True),
+    # always_choose_value overrides always_choose_default
+    (dict(always_choose_default=True, always_choose_value=True, always_confirm=False), True),
+    # always_choose_default kicks in only when value/confirm are off
+    (dict(always_choose_default=True, always_choose_value=None, always_confirm=False), False),
+]
+CHOOSE_PRIORITY_IDS = [
+    "always-confirm-overrides-everything",
+    "always-choose-value-overrides-always-choose-default",
+    "always-choose-default-kicks-in-if-allowed",
+]
 
 
 def test_pipeline_command_operations(repo_dir: str) -> None:
@@ -199,7 +215,10 @@ def test_pipeline_command_failed_jobs(repo_dir: str) -> None:
         assert "JOB file type: jsonl" in _out
 
 
-def test_pipeline_command_drop_partial_loads(repo_dir: str) -> None:
+@pytest.mark.parametrize("choose_kwargs,confirms", CHOOSE_PRIORITY_CASES, ids=CHOOSE_PRIORITY_IDS)
+def test_pipeline_command_drop_partial_loads(
+    repo_dir: str, choose_kwargs: dict[str, Any], confirms: bool
+) -> None:
     _init_command.init_command("chess", "dummy", repo_dir)
     os.environ["EXCEPTION_PROB"] = "1.0"
 
@@ -234,17 +253,21 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str) -> None:
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        with echo.always_choose(False, True):
+        with echo.always_choose(**choose_kwargs):
             _pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
             _out = buf.getvalue()
-            assert "Pending packages deleted" in _out
     print(_out)
 
-    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        _pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
-        _out = buf.getvalue()
-        assert "No pending packages found" in _out
-    print(_out)
+    if confirms:
+        assert "Pending packages deleted" in _out
+        # verify packages are gone
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            _pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
+            _out = buf.getvalue()
+            assert "No pending packages found" in _out
+        print(_out)
+    else:
+        assert "Pending packages deleted" not in _out
 
 
 def test_drop_from_wrong_dir(repo_dir: str) -> None:
@@ -290,7 +313,10 @@ def test_drop_from_wrong_dir(repo_dir: str) -> None:
         assert "WARNING: You should run this from the same directory as the pipeline script" in _out
 
 
-def test_pipeline_command_drop_with_global_args(repo_dir: str) -> None:
+@pytest.mark.parametrize("choose_kwargs,confirms", CHOOSE_PRIORITY_CASES, ids=CHOOSE_PRIORITY_IDS)
+def test_pipeline_command_drop_with_global_args(
+    repo_dir: str, choose_kwargs: dict[str, Any], confirms: bool
+) -> None:
     """Test that global CLI arguments don't cause errors in pipeline drop command."""
     _init_command.init_command("chess", "duckdb", repo_dir)
 
@@ -303,9 +329,8 @@ def test_pipeline_command_drop_with_global_args(repo_dir: str) -> None:
         print(cpe.stderr)
         raise
 
-    # Test drop command with global arguments that should be ignored
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        with echo.always_choose(False, True):
+        with echo.always_choose(**choose_kwargs):
             _pipeline_command.pipeline_command(
                 "drop",
                 "chess_pipeline",
@@ -316,8 +341,10 @@ def test_pipeline_command_drop_with_global_args(repo_dir: str) -> None:
                 debug=False,  # Another global arg
             )
         _out = buf.getvalue()
-        assert "Selected resource(s): ['players_games']" in _out
 
-    # Verify the command actually executed
     pipeline = dlt.attach(pipeline_name="chess_pipeline")
-    assert "players_games" not in pipeline.default_schema.tables
+    if confirms:
+        assert "Selected resource(s): ['players_games']" in _out
+        assert "players_games" not in pipeline.default_schema.tables
+    else:
+        assert "players_games" in pipeline.default_schema.tables

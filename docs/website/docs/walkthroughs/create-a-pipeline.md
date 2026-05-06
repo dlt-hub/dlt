@@ -163,6 +163,6 @@ With a functioning pipeline, consider exploring:
 
 - Our [REST Client](../dlt-ecosystem/verified-sources/rest_api/advanced#restclient).
 - [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that the data is automatically loaded on a schedule.
-- Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in Pandas DataFrames.
+- Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in Python using Pandas, Arrow, or Polars.
 - Learn how to [run](../running-in-production/running), [monitor](../running-in-production/monitoring), and [alert](../running-in-production/alerting) when you put your pipeline in production.
 - Try loading data to a different destination like [Google BigQuery](../dlt-ecosystem/destinations/bigquery), [Amazon Redshift](../dlt-ecosystem/destinations/redshift), or [Postgres](../dlt-ecosystem/destinations/postgres).

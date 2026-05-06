@@ -4,8 +4,10 @@
 import contextlib
 import os
 import base64
-from typing import Iterator, Literal, Optional
-from requests import Session
+from typing import Any, Iterator, Literal, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from requests import Session
 
 from dlt.common import logger
 from dlt.common.managed_thread_pool import ManagedThreadPool
@@ -24,7 +26,7 @@ _WRITE_KEY: str = None
 _REQUEST_TIMEOUT = (1.0, 1.0)  # short connect & send timeouts
 _ANON_TRACKER_ENDPOINT: str = None
 _TRACKER_CONTEXT: TExecutionContext = None
-requests: Session = None
+requests: "Session" = None
 
 
 def init_anon_tracker(config: RuntimeConfiguration) -> None:

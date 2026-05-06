@@ -1,6 +1,6 @@
 from copy import deepcopy
 from textwrap import dedent
-from typing import Any, Literal, Optional, List, Sequence, cast
+from typing import Any, Dict, Literal, Optional, List, Sequence, cast
 from urllib.parse import ParseResult, urlparse
 
 import clickhouse_connect
@@ -237,15 +237,27 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
                 )
             )
 
+    # temp table engine should match configured table engine
+    TEMP_TABLE_ENGINE: Dict[TTableEngineType, str] = {
+        "merge_tree": "MergeTree",
+        "replacing_merge_tree": "MergeTree",
+        "shared_merge_tree": "SharedMergeTree",
+        "replicated_merge_tree": "ReplicatedMergeTree",
+    }
+
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
-        # Use CREATE OR REPLACE to avoid slow DROP TABLE ... SYNC on replicated ClickHouse clusters.
-        # The Atomic database engine (default since ClickHouse 20.5) handles this via atomic swap
-        # using renameat2(), which is nearly instant. The old table is cleaned up asynchronously.
-        # See: https://github.com/dlt-hub/dlt/issues/3562
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
+        # CREATE OR REPLACE avoids slow DROP TABLE ... SYNC on replicated clusters.
+        engine = cls.TEMP_TABLE_ENGINE.get(sql_client.config.table_engine_type, "MergeTree")
         return (
             f"CREATE OR REPLACE TABLE {temp_table_name} ENGINE ="
-            f" MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
+            f" {engine} PRIMARY KEY {unique_column} AS {select_sql}"
         )
 
     @classmethod
@@ -259,8 +271,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
     ) -> List[str]:
         if for_delete:
             # ClickHouse lightweight DELETE doesn't support table aliases or
-            # correlated subqueries with qualified column references. Use IN
-            # with one DELETE per key group (like BigQuery's OR-split pattern).
+            # correlated subqueries with qualified column references.
             sql: List[str] = []
             for cols in (primary_keys, merge_keys):
                 if cols:

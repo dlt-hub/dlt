@@ -30,7 +30,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 **Usage**
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
-    [--non-interactive] [--debug] [--no-pwd]
+    [--non-interactive] [-y] [--debug] [--no-pwd]
     {telemetry,schema,pipeline,init,deploy,dashboard,ai} ...
 ```
 
@@ -44,6 +44,7 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 * `--disable-telemetry` - Disables telemetry before command is executed
 * `--enable-telemetry` - Enables telemetry before command is executed
 * `--non-interactive` - Non interactive mode. default choices are automatically made for confirmations and prompts.
+* `-y, --yes` - Automatically accept all confirmations.
 * `--debug` - Displays full stack traces on exceptions. useful for debugging if the output is not clear enough.
 * `--no-pwd` - Do not add current working directory to sys.path. by default $pwd is added to reproduce python behavior when running scripts.
 

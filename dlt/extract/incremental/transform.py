@@ -1,10 +1,14 @@
 from datetime import datetime  # noqa: I251
-from typing import Any, Optional, Set, Tuple, List, Type
+from typing import Any, Optional, Set, Tuple, List, Type, TYPE_CHECKING
 from pendulum.tz import UTC
 from pendulum import DateTime  # noqa: I251
 
 from dlt.common import logger
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.libs import (
+    get_polars_module,
+    is_pandas_frame,
+    is_polars_frame,
+)
 from dlt.common.utils import digest128
 from dlt.common.json import json
 from dlt.common.pendulum import create_dt, pendulum
@@ -25,24 +29,8 @@ from dlt.common.incremental.typing import (
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.items import TTableHintTemplate
 
-try:
-    from dlt.common.libs import pyarrow
+if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
-    from dlt.common.libs.pyarrow import from_arrow_scalar, to_arrow_scalar
-except MissingDependencyException:
-    pa = None
-    pyarrow = None
-
-try:
-    from dlt.common.libs.numpy import numpy
-except MissingDependencyException:
-    numpy = None
-
-# NOTE: always import pandas independently from pyarrow
-try:
-    from dlt.common.libs.pandas import pandas, pandas_to_arrow
-except MissingDependencyException:
-    pandas = None
 
 
 class IncrementalTransform:
@@ -369,6 +357,8 @@ class ArrowIncremental(IncrementalTransform):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
         if self.last_value_func is max:
             self.compute = pa.compute.max
             self.end_compare = (
@@ -412,6 +402,9 @@ class ArrowIncremental(IncrementalTransform):
 
     def _add_unique_index(self, tbl: "pa.Table") -> "pa.Table":
         """Creates unique index if necessary."""
+        from dlt.common.libs import pyarrow
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
         # create unique index if necessary
         if self._dlt_index not in tbl.schema.names:
             # indices = pa.compute.sequence(start=0, step=1, length=tbl.num_rows,
@@ -423,9 +416,19 @@ class ArrowIncremental(IncrementalTransform):
         self,
         tbl: "TAnyArrowItem",
     ) -> Tuple[TDataItem, bool, bool]:
-        is_pandas = pandas is not None and isinstance(tbl, pandas.DataFrame)
+        from dlt.common.libs import pyarrow
+        from dlt.common.libs.pyarrow import pyarrow as pa, from_arrow_scalar, to_arrow_scalar
+
+        is_pandas = is_pandas_frame(tbl)
         if is_pandas:
+            from dlt.common.libs.pandas import pandas_to_arrow
+
             tbl = pandas_to_arrow(tbl)
+        is_polars = is_polars_frame(tbl)
+        if is_polars:
+            from dlt.common.libs.polars import polars_to_arrow
+
+            tbl = polars_to_arrow(tbl)
 
         primary_key = self._primary_key(tbl) if callable(self._primary_key) else self._primary_key
         if primary_key:
@@ -593,9 +596,13 @@ class ArrowIncremental(IncrementalTransform):
             return None, start_out_of_range, end_out_of_range
         if is_pandas:
             tbl = tbl.to_pandas()
+        elif is_polars:
+            tbl = get_polars_module().from_arrow(tbl)
         return tbl, start_out_of_range, end_out_of_range
 
     def _process_null_at_cursor_path(self, tbl: "pa.Table") -> Tuple["pa.Table", "pa.Table"]:
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
         mask = pa.compute.is_valid(tbl[self.cursor_path])
         rows_without_null = tbl.filter(mask)
         rows_with_null = tbl.filter(pa.compute.invert(mask))

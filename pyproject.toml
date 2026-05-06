@@ -89,6 +89,9 @@ redshift = [
 parquet = [
     "pyarrow>=16.0.0",
 ]
+polars = [
+    "polars>=1.0.0",
+]
 duckdb = [
     "duckdb>=0.9"
     ]

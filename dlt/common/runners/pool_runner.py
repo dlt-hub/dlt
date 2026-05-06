@@ -133,6 +133,12 @@ def get_default_start_method(method_: str) -> str:
         if detected is not None:
             logger.info(f"Switching pool start method to `spawn` because `{detected}` is True")
             return "spawn"
+        if threading.current_thread() is not threading.main_thread():
+            logger.info(
+                "Switching pool start method to `spawn` because"
+                " forking from a non-main thread may deadlock"
+            )
+            return "spawn"
     return method_
 
 
