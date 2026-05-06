@@ -603,3 +603,49 @@ class ArrowIncremental(IncrementalTransform):
             if rows_with_null.num_rows > 0:
                 raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path)
         return rows_without_null, rows_with_null
+
+
+class ModelIncremental(IncrementalTransform):
+    """Incremental transform for `Relation` items.
+
+    Filtering happens via SQL pushdown when `Relation.incremental(cursor)` is
+    applied.
+
+    Modes:
+    - `end_value` is set: external scheduler/ephemeral: no aggregate, state is not
+      advanced from observed data.
+    - `range_start="open"`, no `end_value`: stateful open-range: aggregate runs
+      and `last_value` advances. Open range on the next run excludes the
+      boundary, so no deduplication is required.
+    - Otherwise (closed-range stateful): rejected as boundary deduplication via
+      `unique_hashes` cannot be reproduced from a single aggregate.
+    """
+
+    def __call__(self, relation: TDataItem) -> Tuple[Optional[TDataItem], bool, bool]:
+        ctx = getattr(relation, "_incremental_ctx", None)
+        if ctx is None:
+            # Bare relation, no `.incremental()` applied.
+            return relation, False, False
+
+        if self.end_value is not None:
+            # External scheduler/ephemeral mode: state not advanced from observed data.
+            self.seen_data = True
+            return relation, False, False
+
+        if self.range_start != "open":
+            raise ValueError(
+                f"Stateful incremental on resource '{self.resource_name}' over a "
+                "Relation requires `range_start='open'`. Closed-range semantics "
+                "rely on boundary deduplication via `unique_hashes`, which a "
+                "SQL aggregate cannot reproduce. Either set `range_start='open'` "
+                "on the Incremental, or provide `end_value=` for scheduler mode."
+            )
+
+        agg_rel = relation._incremental_aggregate_relation()
+        if agg_rel is not None:
+            new_value = agg_rel.fetchscalar()
+            if new_value is not None:
+                self.last_value = new_value
+
+        self.seen_data = True
+        return relation, False, False

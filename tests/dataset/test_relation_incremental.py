@@ -602,11 +602,6 @@ def test_incremental_raise_no_warn_on_non_nullable_cursor(
 def test_incremental_no_bounds_include_emits_no_where(
     incremental_pipeline: dlt.Pipeline,
 ) -> None:
-    """An unbounded incremental with `on_cursor_value_missing="include"` would
-    push down `WHERE TRUE OR col IS NULL` — a tautology. We skip the WHERE
-    entirely; the relation is still flagged as incremental so the aggregate
-    can advance state on the next run.
-    """
     dataset = incremental_pipeline.dataset()
     captured: List[dlt.Relation] = []
 
@@ -632,15 +627,11 @@ def test_incremental_no_bounds_include_emits_no_where(
 def test_incremental_no_bounds_exclude_or_raise_emits_only_is_not_null(
     incremental_pipeline: dlt.Pipeline, policy: Literal["exclude", "raise"]
 ) -> None:
-    """Without bounds, `"exclude"` and `"raise"` collapse to a bare `IS NOT NULL`
-    pushdown — no leading `TRUE AND` filler.
-    """
     dataset = incremental_pipeline.dataset()
     captured: List[dlt.Relation] = []
 
     @dlt.resource(name=f"probe_no_bounds_{policy}")
     def probe(
-        # `id` is the (non-nullable) primary key, so `"raise"` does not warn here.
         cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
             "id", on_cursor_value_missing=policy
         ),
@@ -652,7 +643,6 @@ def test_incremental_no_bounds_exclude_or_raise_emits_only_is_not_null(
     rel = captured[0]
 
     condition = _where(rel)
-    # bare `NOT (col IS NULL)` — no `And` wrapper around a `True` filler
     assert isinstance(condition, sge.Not), (
         f"expected bare `IS NOT NULL` for no-bounds policy={policy!r}, "
         f"got {type(condition).__name__}: {condition.sql()}"
@@ -664,24 +654,20 @@ def test_incremental_no_bounds_exclude_or_raise_emits_only_is_not_null(
     assert rel.is_incremental is True
 
 
+@pytest.mark.parametrize("policy", ["include", "exclude"])
 def test_incremental_no_warn_when_policy_explicit(
-    incremental_dataset: dlt.Dataset,
+    incremental_dataset: dlt.Dataset, policy: Literal["include", "exclude"]
 ) -> None:
-    """The warning is gated on `on_cursor_value_missing == 'raise'` — explicit
-    `"include"`/`"exclude"` on the same nullable cursor must stay silent."""
-    for policy in ("include", "exclude"):
-        inc: dlt.sources.incremental[Any] = dlt.sources.incremental(
-            "created_at",
-            initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
-            end_value=END_VALUE_DT,
-            on_cursor_value_missing=policy,
-        )
-        with warnings.catch_warnings(record=True) as captured:
-            warnings.simplefilter("always", UserWarning)
-            incremental_dataset.table("events").incremental(inc)
-
-        pushdown_warnings = [w for w in captured if "Can't raise on NULL cursor" in str(w.message)]
-        assert pushdown_warnings == [], (
-            f"unexpected pushdown warning for policy={policy!r}: "
-            f"{[str(w.message) for w in pushdown_warnings]}"
-        )
+    inc: dlt.sources.incremental[Any] = dlt.sources.incremental(
+        "created_at",
+        initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
+        end_value=END_VALUE_DT,
+        on_cursor_value_missing=policy,
+    )
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always", UserWarning)
+        incremental_dataset.table("events").incremental(inc)
+    assert captured == [], (
+        f"unexpected warning for policy={policy!r}: "
+        f"{[str(w.message) for w in captured]}"
+    )

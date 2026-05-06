@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Any, Optional, Tuple, Type
+from typing import Any, Optional, Tuple, Type, TYPE_CHECKING
 
 import sqlglot.expressions as sge
 from jsonpath_ng.exceptions import JSONPathError
@@ -10,7 +10,9 @@ from jsonpath_ng.exceptions import JSONPathError
 from dlt.common.jsonpath import extract_simple_field_name
 from dlt.common.libs.sqlglot import build_typed_literal, to_sqlglot_type
 from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.extract.incremental import Incremental
+
+if TYPE_CHECKING:
+    from dlt.extract.incremental import Incremental
 
 
 _AGG_CURSOR_ALIAS = "__dlt_inc_cursor"

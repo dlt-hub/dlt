@@ -47,12 +47,12 @@ from dlt.dataset._incremental import (
     _sqlglot_type_for_column,
 )
 from dlt.dataset._join import _apply_join, _extract_joined_table_aliases
-from dlt.extract.incremental import Incremental
 
 
 if TYPE_CHECKING:
     from dlt.common.libs.ibis import ir
     from dlt.common.libs.pandas import pandas as pd
+    from dlt.extract.incremental import Incremental
     from dlt.common.libs.pyarrow import pyarrow as pa
     from dlt.helpers.ibis import Expr as IbisExpr
 
