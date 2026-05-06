@@ -6,8 +6,6 @@ import dlt
 
 from dlt.extract.hints import make_hints
 
-from dlt.pipeline.exceptions import PipelineStepFailed
-
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import uniq_id
 
@@ -52,17 +50,25 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
-    # TODO: incremental is not supported for models yet
     @dlt.resource()
-    def copied_table(incremental_field=dlt.sources.incremental("a")) -> Any:
-        rel = dataset["example_table"].limit(8)
+    def copied_table(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "a", initial_value=2, end_value=100, on_cursor_value_missing="exclude"
+        ),
+    ) -> Any:
+        rel = dataset["example_table"].incremental(cursor)
         yield dlt.mark.with_hints(
             rel,
             hints=make_hints(columns=example_table_columns),
         )
 
-    with pytest.raises(PipelineStepFailed):
-        pipeline.run([copied_table()])
+    info = pipeline.run(
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "copied_table") == {"copied_table": 8}
 
 
 @pytest.mark.parametrize(
