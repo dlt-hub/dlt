@@ -10,7 +10,6 @@ from fastmcp.exceptions import ToolError
 import dlt
 from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 from dlt.common.runtime.run_context import active as active_run_context
-from dlt.common.schema.exceptions import IncompatibleSchemaException
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import Annotated
 from dlt._workspace.cli import formatters
@@ -31,19 +30,13 @@ def _attach(pipeline_name: str) -> dlt.Pipeline:
 
 
 def _get_unified_schema(pipeline: dlt.Pipeline) -> Schema:
-    """Build a unified schema from all pipeline schemas.
-
-    Falls back to default schema if naming conventions are incompatible.
-    """
+    """Build a unified schema from all pipeline schemas."""
     schema_names = list(pipeline.schemas)
     if len(schema_names) <= 1:
         return pipeline.default_schema
     default = pipeline.default_schema
     others = [pipeline.schemas[n] for n in schema_names if n != default.name]
-    try:
-        return default.unify_schemas(others)
-    except IncompatibleSchemaException:
-        return default
+    return default.unify_schemas(others)
 
 
 def _get_dataset(pipeline_name: str) -> dlt.Dataset:

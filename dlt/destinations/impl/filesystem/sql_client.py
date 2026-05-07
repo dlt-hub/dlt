@@ -1,10 +1,11 @@
-from typing import Any, TYPE_CHECKING, Tuple, List
+from typing import Any, Optional, TYPE_CHECKING, Tuple, List
 from packaging.version import Version
 import duckdb
 
 from dlt.common import logger
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.schema import Schema
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.configuration import FileSystemCredentials
 
@@ -52,10 +53,10 @@ class FilesystemSqlClient(WithTableScanners):
         return True
 
     def get_file_format_and_files(
-        self, table_schema: PreparedTableSchema
+        self, table_schema: PreparedTableSchema, schema_name: Optional[str] = None
     ) -> Tuple[str, List[str], bool]:
         table_name = table_schema["name"]
-        files = self.remote_client.list_table_files(table_name)
+        files = self.remote_client.list_table_files(table_name, schema_name=schema_name)
         if len(files) == 0:
             raise DestinationUndefinedEntity(table_name)
         file_format, is_compressed = get_file_format_and_compression(files[0])
@@ -119,19 +120,27 @@ class FilesystemSqlClient(WithTableScanners):
                 return False
         return self.remote_client.config.always_refresh_views
 
-    @raise_database_error
-    def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
+    def create_view_select(
+        self, table_schema: PreparedTableSchema, schema: Schema = None
+    ) -> Optional[Tuple[str, str]]:
         # NOTE: data freshness
         # iceberg - currently we glob the most recent snapshot (via built in duckdb mechanism) so data is fresh
         #           (but not very efficient)
         # delta - newest version is always read
         # files - newest files
+        schema = schema or self.schema
         table_name = table_schema["name"]
+
+        if table_name in schema.dlt_table_names():
+            table_schema.pop("table_format", None)
+
         table_format = table_schema.get("table_format")
         protocol = self.remote_client.config.protocol
-        table_location = self.remote_client.get_open_table_location(table_format, table_name)
+        table_location = self.remote_client.get_open_table_location(
+            table_format, table_name, schema_name=schema.name
+        )
 
-        dlt_table_names = self.remote_client.schema.dlt_table_names()
+        dlt_table_names = schema.dlt_table_names()
 
         def _escape_column_name(col_name: str) -> str:
             col_name = self.escape_column_name(col_name)
@@ -140,8 +149,10 @@ class FilesystemSqlClient(WithTableScanners):
                 col_name = col_name.lower()
             return col_name
 
-        # get columns to select from table schema
-        columns = [_escape_column_name(c) for c in self.schema.get_table_columns(table_name).keys()]
+        # get columns to select from the prepared table schema (may include
+        # columns merged from multiple dlt schemas sharing the same location)
+        table_columns = table_schema.get("columns", {})
+        columns = [_escape_column_name(c) for c in table_columns.keys()]
 
         # create from statement
         from_statement = ""
@@ -178,7 +189,9 @@ class FilesystemSqlClient(WithTableScanners):
             # NOTE: this does not support cases where table contains many different file formats
             # NOTE: since we must list all the files anyway we just pass them to duckdb without further globbing
             #   list is in the memory already and query size in duckdb is very large
-            first_file_type, files, _ = self.get_file_format_and_files(table_schema)
+            first_file_type, files, _ = self.get_file_format_and_files(
+                table_schema, schema_name=schema.name
+            )
             if protocol == "file":
                 resolved_files_string = ",".join(map(lambda f: f"'{f}'", files))
             else:
@@ -191,7 +204,7 @@ class FilesystemSqlClient(WithTableScanners):
             elif first_file_type in ("jsonl", "csv"):
                 # build columns definition
                 type_mapper = self.capabilities.get_type_mapper()
-                columns_defs = self.schema.get_table_columns(table_name).values()
+                columns_defs = table_columns.values()
                 column_types = ",".join(
                     map(
                         lambda c: (
@@ -240,17 +253,7 @@ class FilesystemSqlClient(WithTableScanners):
             else:
                 # we skipped checking file type in can_create_view to not repeat globs which are expensive
                 # so we skip here.
-                return
-                # raise NotImplementedError(
-                #     f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
-                #     " jsonl and parquet files as well as delta and iceberg tables are"
-                #     " supported."
-                # )
+                return None
 
-        # create table
-        view_name = self.make_qualified_table_name(view_name)
-        create_table_sql_base = (
-            f"CREATE OR REPLACE VIEW {view_name} AS SELECT {', '.join(columns)} FROM"
-            f" {from_statement}"
-        )
-        self._conn.execute(create_table_sql_base)
+        select_sql = f"SELECT {', '.join(columns)} FROM {from_statement}"
+        return (table_location, select_sql)

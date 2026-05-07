@@ -44,7 +44,13 @@ try:
 
     if not PYDANTIC_VERSION.startswith("2."):
         raise ImportError(f"Found pydantic {PYDANTIC_VERSION} but dlt requires pydantic>=2.0")
-    from pydantic import BaseModel, ValidationError, Json, create_model
+    from pydantic import (
+        BaseModel,
+        ValidationError,
+        Json,
+        create_model,
+        RootModel as PydanticRootModel,
+    )
     from pydantic.fields import FieldInfo
     from pydantic.warnings import PydanticDeprecationWarning
 
@@ -122,6 +128,7 @@ def _build_discriminator_map(
 
     ann = root_field.annotation
     discriminator: Optional[str] = None
+    union_args: Tuple[Any, ...] = ()
 
     if is_annotated(ann):
         args = get_args(ann)
@@ -135,8 +142,13 @@ def _build_discriminator_map(
             if discriminator:
                 break
         union_args = get_args(args[0])
-    else:
-        return None
+
+    # pydantic 2.13+: annotation is plain Union (not Annotated), discriminator
+    # is on root_field directly
+    if not discriminator and isinstance(root_field.discriminator, str):
+        discriminator = root_field.discriminator
+    if not union_args:
+        union_args = get_args(ann)
 
     if not discriminator or not union_args:
         return None
@@ -326,8 +338,6 @@ def apply_schema_contract_to_model(
     if data_mode == "evolve":
         # create a lenient model that accepts any data
         if getattr(model, "__pydantic_root_model__", False):
-            from pydantic import RootModel as PydanticRootModel
-
             model = type(
                 model.__name__ + "Any",
                 (PydanticRootModel[Any],),
@@ -405,11 +415,12 @@ def apply_schema_contract_to_model(
             return f.annotation  # type: ignore[no-any-return]
 
     if getattr(model, "__pydantic_root_model__", False):
-        from pydantic import RootModel as PydanticRootModel
-
         root_field = model.model_fields.get("root")
         if root_field:
             processed_ann = _process_annotation(_rebuild_annotated(root_field))
+            # preserve discriminator that pydantic 2.13+ strips from Annotated metadata
+            if isinstance(root_field.discriminator, str) and not is_annotated(processed_ann):
+                processed_ann = Annotated[processed_ann, FieldInfo(discriminator=root_field.discriminator)]  # type: ignore[assignment]
             new_rm = type(
                 model.__name__ + "Extra" + extra.title(),
                 (PydanticRootModel[processed_ann],),  # type: ignore[valid-type]

@@ -19,13 +19,12 @@ from typing import (
     Sequence,
 )
 from urllib.parse import urlparse
-from typing_extensions import NotRequired
 
 from fsspec import AbstractFileSystem, register_implementation, get_filesystem_class
 from fsspec.core import url_to_fs
 
 from dlt import version
-from dlt.common.typing import TypedDict
+from dlt.common.typing import TypedDict, NotRequired
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration.specs import (
     GcpCredentials,

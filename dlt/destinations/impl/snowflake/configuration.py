@@ -165,7 +165,7 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     """Optional csv format configuration"""
 
     query_tag: Optional[str] = None
-    """A tag with placeholders to tag sessions executing jobs"""
+    """A template with placeholders used to tag Snowflake sessions for dlt operations."""
 
     create_indexes: bool = False
     """Whether UNIQUE or PRIMARY KEY constrains should be created"""

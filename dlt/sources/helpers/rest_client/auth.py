@@ -254,7 +254,7 @@ class OAuthJWTAuth(BearerTokenAuth):
         payload = self.create_jwt_payload()
         data = {
             "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-            "assertion": jwt.encode(payload, self.load_private_key(), algorithm="RS256"),
+            "assertion": jwt.encode(payload, self.load_private_key(), algorithm="RS256"),  # type: ignore[arg-type,unused-ignore]
         }
 
         logger.debug(f"Obtaining token from {self.auth_endpoint}")

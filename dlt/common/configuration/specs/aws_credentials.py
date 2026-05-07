@@ -32,10 +32,11 @@ class AwsCredentialsWithoutDefaults(
 
     def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
         """Dict of keyword arguments that can be passed to s3fs"""
+        sess_creds = self.to_session_credentials()
         credentials: DictStrAny = dict(
-            key=self.aws_access_key_id,
-            secret=self.aws_secret_access_key,
-            token=self.aws_session_token,
+            key=sess_creds["aws_access_key_id"],
+            secret=sess_creds["aws_secret_access_key"],
+            token=sess_creds["aws_session_token"],
             profile=self.profile_name,
             endpoint_url=self.endpoint_url,
         )
@@ -65,19 +66,19 @@ class AwsCredentialsWithoutDefaults(
         # https://docs.rs/object_store/latest/object_store/aws
         # NOTE: delta rs will set the values below in env variables of the current process
         # https://github.com/delta-io/delta-rs/blob/bdf1c4e765ca457e49d4fa53335d42736220f57f/rust/src/storage/s3.rs#L257
+        sess_creds = self.to_session_credentials()
         creds = cast(
             Dict[str, str],
             without_none(
                 dict(
-                    aws_access_key_id=self.aws_access_key_id,
-                    aws_secret_access_key=self.aws_secret_access_key,
-                    aws_session_token=self.aws_session_token,
+                    aws_access_key_id=sess_creds["aws_access_key_id"],
+                    aws_secret_access_key=sess_creds["aws_secret_access_key"],
+                    aws_session_token=sess_creds["aws_session_token"],
                     region=self.region_name,
                     endpoint_url=self.endpoint_url,
                 )
             ),
         )
-
         if not self.endpoint_url:  # AWS S3
             if not self.region_name:
                 raise ObjectStoreRsCredentialsException(
@@ -86,14 +87,14 @@ class AwsCredentialsWithoutDefaults(
         else:  # S3-compatible, e.g. MinIO
             if self.endpoint_url.startswith("http://"):
                 creds["aws_allow_http"] = "true"
-
         return creds
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        sess_creds = self.to_session_credentials()
         return {
-            "s3.access-key-id": self.aws_access_key_id,
-            "s3.secret-access-key": self.aws_secret_access_key,
-            "s3.session-token": self.aws_session_token,
+            "s3.access-key-id": sess_creds["aws_access_key_id"],
+            "s3.secret-access-key": sess_creds["aws_secret_access_key"],
+            "s3.session-token": sess_creds["aws_session_token"],
             "s3.region": self.region_name,
             "s3.endpoint": self.endpoint_url,
             "s3.connect-timeout": 300,
@@ -113,19 +114,28 @@ class AwsCredentialsWithoutDefaults(
 @configspec
 class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
     def on_partial(self) -> None:
-        # Try get default credentials
+        # try to resolve credentials from botocore's default provider chain
         session = self._to_botocore_session()
-        if self._from_session(session) and not self.is_partial():
+        session = self._from_session(session)
+        if session.get_credentials():
+            self._set_default_credentials(session)
             self.resolve()
 
     def to_session_credentials(self) -> Dict[str, str]:
-        """Return configured or new aws session token"""
-        if self.aws_session_token and self.aws_access_key_id and self.aws_secret_access_key:
+        if self.has_default_credentials():
+            frozen = self.default_credentials().get_credentials().get_frozen_credentials()
             return dict(
-                aws_access_key_id=self.aws_access_key_id,
-                aws_secret_access_key=self.aws_secret_access_key,
-                aws_session_token=self.aws_session_token,
+                aws_access_key_id=frozen.access_key,
+                aws_secret_access_key=frozen.secret_key,
+                aws_session_token=frozen.token,
             )
+        return super().to_session_credentials()
+
+    def to_sts_credentials(self) -> Dict[str, str]:
+        """Return session credentials with a session token, generating one via STS if needed."""
+        sess_creds = self.to_session_credentials()
+        if sess_creds["aws_session_token"]:
+            return sess_creds
         sess = self._to_botocore_session()
         client = sess.create_client("sts")
         token = client.get_session_token()
@@ -136,9 +146,12 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         )
 
     def _to_botocore_session(self) -> Any:
-        """Creates a botocore session out of the credentials. profile and region will be applied
-        as config variables.
+        """Creates a botocore session out of the credentials. When default credentials are
+        available, returns the stored session to preserve botocore's credential provider chain.
         """
+        if self.has_default_credentials():
+            return self.default_credentials()
+
         try:
             import botocore.session
             from botocore.config import Config
@@ -147,12 +160,11 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
                 self.__class__.__name__, [f"{version.DLT_PKG_NAME}[s3]"]
             )
 
-        # taken from boto3 Session
         session = botocore.session.get_session()
         if self.profile_name is not None:
             session.set_config_variable("profile", self.profile_name)
-
-        if self.aws_access_key_id or self.aws_secret_access_key or self.aws_session_token:
+        # set credentials if explicitly present
+        if self.aws_access_key_id and self.aws_secret_access_key:
             session.set_credentials(
                 self.aws_access_key_id, self.aws_secret_access_key, self.aws_session_token
             )
@@ -168,7 +180,7 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         return session
 
     def _from_session(self, session: Any) -> Any:
-        """Sets the credentials properties from botocore or boto3 `session` and return session's credentials if found"""
+        """Gets boto3 session from botocore and tries to set region_name"""
         import botocore.session
 
         if not isinstance(session, botocore.session.Session):
@@ -178,21 +190,17 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         # we either pass it explicitly in `_to_session` so we know it is identical
         # this is what boto3 does: return self._session.profile or 'default' which is obviously wrong (returning default when there's no session)
         self.region_name = session.get_config_variable("region")
-        default = session.get_credentials()
-        if not default:
-            return None
-        self.aws_access_key_id = default.access_key
-        self.aws_secret_access_key = TSecretStrValue(default.secret_key)
-        self.aws_session_token = cast(TSecretStrValue, default.token)
-        return default
+        return session
 
     def to_native_credentials(self) -> Optional[Any]:
         return self._to_botocore_session().get_credentials()
 
     def parse_native_representation(self, native_value: Any) -> None:
-        """Import external boto3 session"""
+        """Import external boto3 or botocore session"""
         try:
-            if self._from_session(native_value):
+            session = self._from_session(native_value)
+            if session.get_credentials():
+                self._set_default_credentials(session)
                 self.__is_resolved__ = True
         except Exception:
             raise InvalidBoto3Session(self.__class__, native_value)

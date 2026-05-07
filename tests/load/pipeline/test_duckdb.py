@@ -5,18 +5,25 @@ from datetime import datetime  # noqa: I251
 
 import dlt
 from dlt.common import json
+from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.libs.pyarrow import columns_to_arrow
 from dlt.common.libs.pydantic import DltConfig
 from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
 from dlt.common.time import ensure_pendulum_datetime_utc, pendulum
+from dlt.common.utils import custom_environ
 
-from dlt.destinations import duckdb
+from dlt.destinations import duckdb, filesystem
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import TABLE_UPDATE_ALL_INT_PRECISIONS, TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS
 from tests.load.duckdb.test_duckdb_table_builder import add_timezone_false_on_precision
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+    ALL_FILESYSTEM_DRIVERS,
+    AWS_BUCKET,
+)
 from tests.pipeline.utils import airtable_emojis, assert_table_counts, load_table_counts
 from tests.utils import data_to_item_format
 
@@ -360,3 +367,63 @@ def test_duckdb_destination_handover(destination_config: DestinationTestConfigur
 
     with p1.sql_client() as c:
         assert len(c.execute_sql("SELECT * FROM letters")) == 3
+
+
+@pytest.mark.parametrize(
+    "creds_mode",
+    ["default_chain", "explicit"],
+    ids=["default-chain", "explicit-creds"],
+)
+def test_duckdb_s3_credential_chain(creds_mode: str) -> None:
+    """DuckDB uses credential_chain provider when reading S3 via default AWS credentials."""
+    if "s3" not in ALL_FILESYSTEM_DRIVERS:
+        pytest.skip("s3 filesystem driver not configured")
+
+    fs_creds = dlt.secrets.get("destination.filesystem.credentials")  # type: ignore[var-annotated]
+    if not fs_creds or "aws_access_key_id" not in fs_creds:
+        pytest.skip("S3 filesystem credentials not configured")
+
+    import botocore.session
+
+    with custom_environ(
+        {
+            "AWS_ACCESS_KEY_ID": fs_creds["aws_access_key_id"],
+            "AWS_SECRET_ACCESS_KEY": fs_creds["aws_secret_access_key"],
+            "AWS_DEFAULT_REGION": fs_creds.get("region_name", "us-east-1"),
+        }
+    ):
+        if creds_mode == "default_chain":
+            creds = AwsCredentials.from_session(botocore.session.get_session())
+            assert creds.has_default_credentials()
+        else:
+            creds = AwsCredentials(
+                aws_access_key_id=fs_creds["aws_access_key_id"],
+                aws_secret_access_key=fs_creds["aws_secret_access_key"],
+                region_name=fs_creds.get("region_name", "us-east-1"),
+            )
+            assert not creds.has_default_credentials()
+
+        pipeline = dlt.pipeline(
+            f"test_duckdb_s3_{creds_mode}",
+            destination=filesystem(bucket_url=AWS_BUCKET, credentials=creds),
+            dev_mode=True,
+        )
+        pipeline.run(
+            [{"id": i, "value": f"row_{i}"} for i in range(5)],
+            table_name="items",
+        )
+
+        # read back via dataset() — this creates DuckDB views with S3 secrets
+        with pipeline.dataset() as ds:
+            rows = ds.items.fetchall()
+            assert len(rows) == 5
+
+        # verify the secret provider via sql_client
+        with pipeline.sql_client() as c:
+            secrets = c._conn.sql("SELECT name, type, provider FROM duckdb_secrets()").fetchall()
+            s3_secrets = [(n, t, p) for n, t, p in secrets if t == "s3"]
+            assert len(s3_secrets) > 0
+            if creds_mode == "default_chain":
+                assert all(p == "credential_chain" for _, _, p in s3_secrets)
+            else:
+                assert all(p == "config" for _, _, p in s3_secrets)

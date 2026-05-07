@@ -8,7 +8,7 @@ keywords: [resource, api endpoint, dlt.resource]
 
 ## Declare a resource
 
-A [resource](glossary.md#resource) is an ([optionally async](../reference/performance.md#parallelism-within-a-pipeline)) function that yields data. To create a resource, we add the `@dlt.resource` decorator to that function.
+A [resource](glossary.md#resource) is an ([optionally async](../reference/performance.md#parallelism-within-a-pipeline)) function that yields data. A resource can yield Python dicts/lists, Pydantic models, Arrow tables, Pandas DataFrames, or Polars DataFrames/LazyFrames. To create a resource, we add the `@dlt.resource` decorator to that function.
 
 Commonly used arguments:
 

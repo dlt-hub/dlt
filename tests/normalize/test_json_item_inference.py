@@ -3,18 +3,18 @@ from pendulum import UTC
 import pytest
 from copy import deepcopy
 from typing import Any, Iterator, List, Sequence
+
 from dlt.common.libs.hexbytes import HexBytes
 from dlt.common import Wei, Decimal, pendulum, json
 from dlt.common.configuration.container import Container
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.json import custom_pua_decode
+from dlt.common.json import custom_pua_decode, _WEI, _HEXBYTES
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import TColumnSchema, TSchemaUpdate
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
     CannotCoerceNullException,
     ParentTableNotFoundException,
-    SchemaCorruptedException,
     TablePropertiesConflictException,
 )
 from dlt.common.storages.configuration import NormalizeStorageConfiguration
@@ -445,9 +445,8 @@ def test_coerce_json_variant(item_normalizer: JsonLItemsNormalizer) -> None:
 
 def test_supports_variant_pua_decode(item_normalizer: JsonLItemsNormalizer) -> None:
     rows = load_json_case("pua_encoded_row")
-    # use actual encoding for wei
-    from dlt.common.json import _WEI, _HEXBYTES
 
+    # use actual encoding for wei
     rows[0]["_tx_transactionHash"] = rows[0]["_tx_transactionHash"].replace("", _HEXBYTES)
     rows[0]["wad"] = rows[0]["wad"].replace("", _WEI)
 

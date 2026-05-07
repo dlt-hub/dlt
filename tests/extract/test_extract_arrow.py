@@ -18,7 +18,7 @@ from dlt.common.storages import (
 from dlt.common.libs.pandas import pandas
 from dlt.common.libs.pydantic import ValidationError, BaseModel
 
-from dlt.destinations.dataset.relation import ReadableDBAPIRelation
+from dlt.dataset.relation import Relation
 from dlt.extract.validation import PydanticValidator
 from dlt.extract import DltSource
 from dlt.extract.extract import Extract
@@ -197,7 +197,7 @@ def test_pydantic_validator_passes_through_non_object_items() -> None:
     assert validator(df) is df
 
     # Relation passes through
-    class FakeRelation(ReadableDBAPIRelation):
+    class FakeRelation(Relation):
         def __init__(self) -> None:
             pass
 

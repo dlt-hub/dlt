@@ -507,25 +507,27 @@ You'll need these settings when [importing external files](../../general-usage/r
 
 ### Query tagging
 
-`dlt` [tags sessions](https://docs.snowflake.com/en/sql-reference/parameters#query-tag) that execute loading jobs with the following job properties:
+`dlt` [tags sessions](https://docs.snowflake.com/en/sql-reference/parameters#query-tag) used for Snowflake operations with the following properties:
+* **operation** - high-level dlt operation currently using the session
 * **source** - name of the source (identical with the name of the `dlt` schema)
 * **resource** - name of the resource (if known, else empty string)
-* **table** - name of the table loaded by the job
-* **load_id** - load id of the job
+* **table** - name of the table involved in the operation (if known, else empty string)
+* **load_id** - load id associated with the operation (if known, else empty string)
 * **pipeline_name** - name of the active pipeline (or empty string if not found)
 
 You can define a query tag by defining a query tag placeholder in Snowflake credentials:
 
 ```toml
 [destination.snowflake]
-query_tag='{{"source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}", "pipeline_name":"{pipeline_name}"}}'
+query_tag='{{"operation":"{operation}", "source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}", "pipeline_name":"{pipeline_name}"}}'
 ```
 which contains Python named formatters corresponding to tag names i.e., `{source}` will assume the name of the dlt source.
 
 :::note
 1. Query tagging is off by default. The `query_tag` configuration field is `None` by default and must be set to enable tagging.
-2. Only sessions associated with a job are tagged. Sessions that migrate schemas remain untagged.
-3. Jobs processing table chains (i.e., SQL merge jobs) will use the top-level table as **table**.
+2. `dlt` sets query tags for major Snowflake operations such as storage preparation, schema and state reads, schema updates, load jobs, and load completion.
+3. Fields such as **resource**, **table**, and **load_id** may be empty for operations where that context does not apply.
+4. Jobs processing table chains (i.e., SQL merge jobs) will use the top-level table as **table**.
 :::
 
 ### dbt support

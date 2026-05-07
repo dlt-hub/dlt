@@ -50,7 +50,7 @@ counts = reactions.sum(0).sort_values(0, ascending=False)
 
 - `fetchall()`: returns all rows as a list of tuples;
 - `fetchone()`: returns a single row as a tuple;
-- `fetchmany(size=None)`: returns a number of rows as a list of tuples; if no size is provided, all rows are returned;    
+- `fetchmany(size=None)`: returns a number of rows as a list of tuples; if no size is provided, all rows are returned;
 - `df(chunk_size=None, **kwargs)`: returns the data as a Pandas DataFrame; if `chunk_size` is provided, the data is retrieved in chunks of the given size;
 - `arrow(chunk_size=None, **kwargs)`: returns the data as an Arrow table; if `chunk_size` is provided, the data is retrieved in chunks of the given size;
 - `iter_fetch(chunk_size: int)`: iterates over the data in chunks of the given size as lists of tuples;
@@ -81,6 +81,7 @@ A few things to know or keep in mind when using the filesystem SQL client:
 - Keep in mind that if you do any filtering, sorting, or full table loading with the SQL client, the in-memory `DuckDB` instance will have to download and query a lot of data from your bucket or folder if you have a large table.
 - If you are accessing data on a bucket, `dlt` will temporarily store your credentials in `DuckDB` to let it connect to the bucket.
 - Some combinations of buckets and table formats may not be fully supported at this time.
+- Multi-schema support (dlt 1.25.0+): When a dataset includes multiple schemas, the filesystem SQL client creates views that span all schemas. If the same table name exists in multiple schemas at different physical locations (e.g. when the layout includes `{schema_name}/`), views are combined. If they share the same location, columns are merged into a single view. This means queries may return rows from multiple schemas — use `pipeline.dataset(schema="name")` to restrict to one schema.
 
 ### Control data freshness
 `sqlclient` creates views in which the data is immutable (each next query will access the same data). Such "snapshots" are created by:

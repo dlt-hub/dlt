@@ -212,9 +212,9 @@ def test_aws_credentials_mixins(
         return
 
     # AwsCredentials: user-provided session token
-    # use previous credentials to create session token for new credentials
+    # generate session token via STS for new credentials
     assert isinstance(creds, AwsCredentials)
-    sess_creds = creds.to_session_credentials()
+    sess_creds = creds.to_sts_credentials()
     creds = AwsCredentials(
         aws_access_key_id=sess_creds["aws_access_key_id"],
         aws_secret_access_key=sess_creds["aws_secret_access_key"],

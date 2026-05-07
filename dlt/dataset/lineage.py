@@ -1,5 +1,4 @@
-import logging
-from typing import Optional, Tuple, cast
+from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast
 
 import sqlglot.expressions as sge
 
@@ -26,43 +25,54 @@ from dlt.dataset.exceptions import LineageFailedException
 
 
 def create_sqlglot_schema(
-    schema: dlt.Schema,
-    dataset_name: str,
+    schema_map: Dict[str, Sequence[dlt.Schema]],
     dialect: TSqlGlotDialect,
 ) -> SQLGlotSchema:
-    """Create an SQLGlot schema using a dlt Schema and the destination capabilities.
+    """Create an SQLGlot schema from multiple dlt schemas grouped by dataset name.
 
-    The SQLGlot schema automatically scopes the tables to the `dataset_name`.
-    This can allow cross-dataset transformations on the same physical location.
-    No name translation nor case folding is performing. All identifiers correspond
-    to identifiers in dlt schema.
+    Each key in `schema_map` becomes a top-level qualifier (SQL schema /
+    catalog) that scopes all tables underneath it. Tables from multiple dlt
+    schemas that share a dataset name are merged via `Schema.unify_schemas`;
+    the first schema in each sequence is treated as the default and wins on
+    column-level collisions.
+
+    Args:
+        schema_map: Mapping of dataset_name to a list of dlt schemas. The dataset name
+            is used as the qualifying namespace in the generated SQLGlot
+            schema.
+        dialect: SQLGlot dialect for the target destination.
     """
+    nested_schema: Dict[str, Dict[str, Any]] = {}
 
-    sqlglot_schema = {}  # MappingSchema(empty_schema, normalize=False)
+    for dataset_name, schemas in schema_map.items():
+        if len(schemas) > 1:
+            unified_schema = schemas[0].unify_schemas(list(schemas[1:]))
+        elif schemas:
+            unified_schema = schemas[0]
+        else:
+            continue
 
-    for table_name in schema.tables.keys():
-        column_mapping = {}
-        # skip not materialized columns
-        for column_name, column in schema.get_table_columns(
-            table_name, include_incomplete=False
-        ).items():
-            sqlglot_type = to_sqlglot_type(
-                dlt_type=column["data_type"],
-                nullable=column.get("nullable"),
-                precision=column.get("precision"),
-                scale=column.get("scale"),
-                timezone=column.get("timezone"),
-            )
-            sqlglot_type = set_metadata(sqlglot_type, column)
-            # column_name = sql_client.capabilities.casefold_identifier(column_name)
-            column_mapping[column_name] = sqlglot_type
-        # skip tables without columns
-        if column_mapping:
-            # table_name = sql_client.make_qualified_table_name_path(table_name, quote=False, casefold=False)[-1]
-            sqlglot_schema[table_name] = column_mapping
+        sqlglot_tables: Dict[str, Any] = {}
 
-    # ensure proper nesting with db and catalog
-    nested_schema = {dataset_name: sqlglot_schema}
+        for table_name in unified_schema.tables.keys():
+            column_mapping = {}
+
+            for column_name, column in unified_schema.get_table_columns(
+                table_name, include_incomplete=False
+            ).items():
+                sqlglot_type = to_sqlglot_type(
+                    dlt_type=column["data_type"],
+                    nullable=column.get("nullable"),
+                    precision=column.get("precision"),
+                    scale=column.get("scale"),
+                    timezone=column.get("timezone"),
+                )
+                column_mapping[column_name] = set_metadata(sqlglot_type, column)
+
+            if column_mapping:
+                sqlglot_tables[table_name] = column_mapping
+
+        nested_schema[dataset_name] = sqlglot_tables
 
     return ensure_schema(nested_schema, dialect=dialect, normalize=False)
 
@@ -121,7 +131,7 @@ def compute_columns_schema(
             qualify(
                 select_expression,
                 schema=sqlglot_schema,
-                dialect=dialect,
+                dialect=f"{dialect}, normalization_strategy=case_sensitive" if dialect else None,
                 infer_schema=infer_sqlglot_schema,
                 quote_identifiers=False,
                 expand_stars=True,

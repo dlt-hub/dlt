@@ -106,6 +106,22 @@ jobs:
               post_install_commands: "uv run pip install openai"
               always_run_all_tests: true
 
+            # Lance — file and s3 protocols only, no need to test az and gs as all cloud storages go
+            # through same code paths thanks to `object_store` Rust crate
+            - name: lance_local
+              destinations: "[\"lance\"]"
+              filesystem_drivers: "[\"file\"]"
+              extras: "--extra lance"
+              post_install_commands: "uv run pip install openai"
+              always_run_all_tests: true
+
+            - name: lance_s3
+              destinations: "[\"lance\"]"
+              filesystem_drivers: "[\"s3\"]"
+              extras: "--extra lance --extra s3"
+              post_install_commands: "uv run pip install openai"
+              always_run_all_tests: true
+
             # Motherduck
             - name: motherduck
               destinations: "[\"motherduck\"]"

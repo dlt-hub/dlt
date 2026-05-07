@@ -1,5 +1,14 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Generator, Iterator, Optional, Sequence
+from typing import (
+    Any,
+    AnyStr,
+    ClassVar,
+    Generator,
+    Iterator,
+    Optional,
+    Sequence,
+    TYPE_CHECKING,
+)
 
 import snowflake.connector as snowflake_lib
 
@@ -12,19 +21,23 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
     SqlClientBase,
-    TJobQueryTags,
+    TQueryTags,
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
+from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
 from dlt.common.destination.dataset import DBApiCursor
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
+    from pyarrow import Table as ArrowTable
 
 
 class SnowflakeCursorImpl(DBApiCursorImpl):
     native_cursor: snowflake_lib.cursor.SnowflakeCursor  # type: ignore[assignment]
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator["DataFrame", None, None]:
         # full frame
         if not chunk_size:
             yield self.native_cursor.fetch_pandas_all()
@@ -33,7 +46,7 @@ class SnowflakeCursorImpl(DBApiCursorImpl):
         # NOTE: no way to impact chunk size
         yield from self.native_cursor.fetch_pandas_batches()
 
-    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+    def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
         # TODO: figure out if empty table should be returned (there's a test for that)
         if not chunk_size:
             yield self.native_cursor.fetch_arrow_all(force_return_table=False)
@@ -141,7 +154,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         self._conn.rollback()
         self._conn.autocommit(True)
 
-    def set_query_tags(self, tags: TJobQueryTags) -> None:
+    def set_query_tags(self, tags: Optional[TQueryTags]) -> None:
         super().set_query_tags(tags)
         if self.query_tag:
             self._tag_session()

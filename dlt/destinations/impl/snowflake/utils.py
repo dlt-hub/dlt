@@ -106,10 +106,14 @@ def gen_copy_sql(
 
     elif parsed_file_url.scheme in S3_PROTOCOLS:
         if staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+            sess_creds = staging_credentials.to_session_credentials()
             credentials_clause = (
-                f"CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' "
-                f"AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"
+                f"CREDENTIALS=(AWS_KEY_ID='{sess_creds['aws_access_key_id']}' "
+                f"AWS_SECRET_KEY='{sess_creds['aws_secret_access_key']}'"
             )
+            if sess_creds["aws_session_token"]:
+                credentials_clause += f" AWS_TOKEN='{sess_creds['aws_session_token']}'"
+            credentials_clause += ")"
             from_clause = f"FROM '{file_url}'"
         else:
             raise LoadJobTerminalException(

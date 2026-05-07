@@ -1,4 +1,5 @@
 import contextlib
+import logging
 from http import HTTPStatus
 import http.server
 import multiprocessing
@@ -53,6 +54,12 @@ def get_test_worker_id() -> str:
     return os.environ.get(PYTEST_XDIST_WORKER, "gw0")
 
 
+def get_test_worker_idx() -> int:
+    worker_id = get_test_worker_id()
+    assert worker_id.startswith("gw")
+    return int(worker_id.removeprefix("gw"))
+
+
 def compute_test_storage_root() -> str:
     return f"{STORAGE_ROOT_PREFIX}_{get_test_worker_id()}"
 
@@ -88,6 +95,7 @@ IMPLEMENTED_DESTINATIONS = {
     "mssql",
     "qdrant",
     "lancedb",
+    "lance",
     "destination",
     "synapse",
     "databricks",
@@ -102,6 +110,7 @@ NON_SQL_DESTINATIONS = {
     "dummy",
     "qdrant",
     "lancedb",
+    "lance",
     "destination",
 }
 
@@ -301,13 +310,13 @@ def _preserve_environ() -> Iterator[None]:
     try:
         yield
     finally:
-        environ.clear()
+        environ.clear()  # clear Python-level env vars
         environ.update(saved_environ)
         for key_, value_ in known_environ.items():
-            if value_ is not None or key_ not in environ:
-                environ[key_] = value_ or ""
+            if value_ is None:
+                os.unsetenv(key_)  # unset C-level env var
             else:
-                del environ[key_]
+                environ[key_] = value_
 
 
 @pytest.fixture(autouse=True)
@@ -574,10 +583,13 @@ def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
     assert all(not key.startswith(key_prefix) for key in d.keys())
 
 
-def skip_if_not_active(destination: str) -> None:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
-    if destination not in ACTIVE_DESTINATIONS:
-        pytest.skip(f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True)
+def skip_if_not_active(*destinations: str) -> None:
+    for destination in destinations:
+        assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
+    if all(d not in ACTIVE_DESTINATIONS for d in destinations):
+        pytest.skip(
+            f"{', '.join(destinations)} not in ACTIVE_DESTINATIONS", allow_module_level=True
+        )
 
 
 def is_running_in_github_fork() -> bool:
@@ -650,3 +662,17 @@ def _inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvide
         yield ctx
     finally:
         container[PluggableRunContext].providers = old_providers
+
+
+@contextlib.contextmanager
+def capture_dlt_logger(
+    caplog: pytest.LogCaptureFixture, level: int = logging.WARNING
+) -> Iterator[pytest.LogCaptureFixture]:
+    """Temporarily enables propagation on `dlt` logger so `caplog` can capture logs."""
+    dlt_logger = logging.getLogger("dlt")
+    dlt_logger.propagate = True
+    try:
+        with caplog.at_level(level, logger="dlt"):
+            yield caplog
+    finally:
+        dlt_logger.propagate = False

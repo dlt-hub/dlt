@@ -2,7 +2,7 @@ import pytest
 from typing import Any, Dict
 
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
-from dlt.common.utils import digest128
+from dlt.common.utils import custom_environ, digest128
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs.aws_credentials import (
     AwsCredentials,
@@ -26,11 +26,16 @@ def test_aws_credentials_resolved_from_default(environment: Dict[str, str]) -> N
 
     config = resolve_configuration(AwsCredentials())
 
-    assert config.aws_access_key_id == "fake_access_key"
-    assert config.aws_secret_access_key == "fake_secret_key"
-    assert config.aws_session_token == "fake_session_token"
-    # we do not set the profile
+    # default credentials: botocore session is stored, fields are NOT populated
+    assert config.has_default_credentials()
     assert config.profile_name is None
+    assert config.aws_access_key_id is None
+    assert config.aws_secret_access_key is None
+    # frozen credentials from the stored session should match env vars
+    sess_creds = config.to_session_credentials()
+    assert sess_creds["aws_access_key_id"] == "fake_access_key"
+    assert sess_creds["aws_secret_access_key"] == "fake_secret_key"
+    assert sess_creds["aws_session_token"] == "fake_session_token"
 
     # use profile name other than default
     import botocore
@@ -54,12 +59,14 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
 
     c = AwsCredentials.from_session(session)
     assert c.profile_name is None
-    assert c.aws_access_key_id == "fake_access_key"
     assert c.region_name == region_name
-    assert c.profile_name is None
     assert c.is_resolved()
     assert not c.is_partial()
+    assert c.has_default_credentials()
+    # fields are not populated from default credentials
+    assert c.aws_access_key_id is None
 
+    # s3fs credentials should include frozen values from the stored session
     s3_cred = c.to_s3fs_credentials()
     assert s3_cred == {
         "key": "fake_access_key",
@@ -70,11 +77,18 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
         "client_kwargs": {"region_name": region_name},
     }
 
+    # frozen session credentials should match the original values
+    sess_creds = c.to_session_credentials()
+    assert sess_creds["aws_access_key_id"] == "fake_access_key"
+    assert sess_creds["aws_secret_access_key"] == "fake_secret_key"
+    assert sess_creds["aws_session_token"] == "fake_session_token"
+
     c = AwsCredentials()
     c.parse_native_representation(botocore.session.get_session())
     assert c.is_resolved()
     assert not c.is_partial()
-    assert c.aws_access_key_id == "fake_access_key"
+    assert c.has_default_credentials()
+    assert c.aws_access_key_id is None
 
     with pytest.raises(InvalidBoto3Session):
         c.parse_native_representation("boto3")
@@ -92,17 +106,18 @@ def test_aws_credentials_from_boto3(environment: Dict[str, str]) -> None:
 
     c = AwsCredentials.from_session(session)
     assert c.profile_name is None
-    assert c.aws_access_key_id == "fake_access_key"
     assert c.region_name == session.region_name
-    assert c.profile_name is None
     assert c.is_resolved()
     assert not c.is_partial()
+    assert c.has_default_credentials()
+    assert c.aws_access_key_id is None
 
     c = AwsCredentials()
     c.parse_native_representation(boto3.Session())
     assert c.is_resolved()
     assert not c.is_partial()
-    assert c.aws_access_key_id == "fake_access_key"
+    assert c.has_default_credentials()
+    assert c.aws_access_key_id is None
 
 
 def test_aws_credentials_from_unknown_object() -> None:
@@ -122,7 +137,9 @@ def test_aws_credentials_for_profile(environment: Dict[str, str]) -> None:
     c.profile_name = "dlt-ci-user"
     try:
         c = resolve_configuration(c)
-        assert digest128(c.aws_access_key_id) == "S3r3CtEf074HjqVeHKj/"
+        assert c.has_default_credentials()
+        sess_creds = c.to_session_credentials()
+        assert digest128(sess_creds["aws_access_key_id"]) == "S3r3CtEf074HjqVeHKj/"
     except botocore.exceptions.ProfileNotFound:
         pytest.skip("This test requires dlt-ci-user aws profile to be present")
 
@@ -134,19 +151,14 @@ def test_aws_credentials_with_endpoint_url(environment: Dict[str, str]) -> None:
     config = resolve_configuration(AwsCredentials())
 
     assert config.endpoint_url == "https://123.r2.cloudflarestorage.com"
+    assert config.has_default_credentials()
 
-    assert config.to_s3fs_credentials() == {
-        "key": "fake_access_key",
-        "secret": "fake_secret_key",
-        "token": "fake_session_token",
-        "profile": None,
-        "endpoint_url": "https://123.r2.cloudflarestorage.com",
-        "client_kwargs": {"region_name": "eu-central-1"},
-        "config_kwargs": {
-            "request_checksum_calculation": "when_required",
-            "response_checksum_validation": "when_required",
-        },
-    }
+    s3fs_creds = config.to_s3fs_credentials()
+    assert s3fs_creds["key"] == "fake_access_key"
+    assert s3fs_creds["secret"] == "fake_secret_key"
+    assert s3fs_creds["endpoint_url"] == "https://123.r2.cloudflarestorage.com"
+    assert s3fs_creds["client_kwargs"] == {"region_name": "eu-central-1"}
+    assert "config_kwargs" in s3fs_creds
 
 
 def test_explicit_filesystem_credentials() -> None:
@@ -159,12 +171,22 @@ def test_explicit_filesystem_credentials() -> None:
         destination=filesystem(
             bucket_url="s3://test",
             destination_name="uniq_s3_bucket",
-            credentials={"aws_access_key_id": "key_id", "aws_secret_access_key": "key"},
+            credentials={
+                "aws_access_key_id": "key_id",
+                "aws_secret_access_key": "key",
+                "aws_session_token": "token",
+            },
         ),
     )
     config = p.destination_client().config
     assert isinstance(config.credentials, AwsCredentials)
     assert config.credentials.is_resolved()
+    # explicit credentials should not use default credentials pattern
+    assert not config.credentials.has_default_credentials()
+    # s3fs credentials should include static key/secret
+    s3fs_creds = config.credentials.to_s3fs_credentials()
+    assert s3fs_creds["key"] == "key_id"
+    assert s3fs_creds["secret"] == "key"
 
 
 def test_aws_credentials_pyiceberg_export_import(fs_creds: Dict[str, Any]) -> None:
@@ -232,6 +254,51 @@ def test_aws_r2_credentials_pyiceberg_export_import() -> None:
     assert imported_creds.aws_access_key_id == original_creds.aws_access_key_id
     assert imported_creds.aws_secret_access_key == original_creds.aws_secret_access_key
     assert imported_creds.endpoint_url == original_creds.endpoint_url
+
+
+@pytest.mark.parametrize("mode", ["from_session", "on_partial"])
+def test_aws_default_credentials_s3_connectivity(fs_creds: Dict[str, Any], mode: str) -> None:
+    """Test that AwsCredentials resolved via botocore default chain can connect to S3."""
+    with custom_environ(
+        {
+            "AWS_ACCESS_KEY_ID": fs_creds["aws_access_key_id"],
+            "AWS_SECRET_ACCESS_KEY": fs_creds["aws_secret_access_key"],
+            "AWS_DEFAULT_REGION": fs_creds.get("region_name", "us-east-1"),
+        }
+    ):
+        import s3fs
+
+        if mode == "from_session":
+            import botocore.session
+
+            creds = AwsCredentials.from_session(botocore.session.get_session())
+        else:
+            # resolve via config resolution — on_partial fires because key/secret
+            # are not in dlt config, only in AWS env vars
+            creds = resolve_configuration(AwsCredentials())
+
+        assert creds.has_default_credentials()
+        assert creds.is_resolved()
+        # credential fields are not populated — stored in botocore session
+        assert creds.aws_access_key_id is None
+        # region is extracted from the session
+        assert creds.region_name == fs_creds.get("region_name", "us-east-1")
+
+        # s3fs credentials should include frozen values from default session
+        s3fs_creds = creds.to_s3fs_credentials()
+        assert s3fs_creds["key"] == fs_creds["aws_access_key_id"]
+        assert s3fs_creds["secret"] == fs_creds["aws_secret_access_key"]
+
+        # actual S3 connectivity via s3fs
+        fs = s3fs.S3FileSystem(**s3fs_creds)
+        bucket = AWS_BUCKET.replace("s3://", "").rstrip("/")
+        with pytest.raises(FileNotFoundError):
+            fs.info(f"{bucket}/non_existing_key_{__name__}")
+
+        # frozen session credentials should match originals
+        sess_creds = creds.to_session_credentials()
+        assert sess_creds["aws_access_key_id"] == fs_creds["aws_access_key_id"]
+        assert sess_creds["aws_secret_access_key"] is not None
 
 
 def set_aws_credentials_env(environment: Dict[str, str]) -> None:

@@ -55,6 +55,7 @@ from dlt.common.schema.typing import TTableFormat, TTableSchema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import LoadJobInfo, create_load_id
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
@@ -64,6 +65,7 @@ from dlt.destinations.impl.filesystem.configuration import FilesystemDestination
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
+from tests.load.lance_utils import LanceRestServerConfig, get_lance_namespace_name
 from tests.utils import (
     ACTIVE_DESTINATIONS,
     ACTIVE_TABLE_FORMATS,
@@ -134,6 +136,14 @@ WITH_GDRIVE_BUCKETS = [
 # temporary solution to include gdrive bucket in tests,
 # while gdrive is not working as a destination
 DEFAULT_BUCKETS = [bucket for bucket in WITH_GDRIVE_BUCKETS if bucket != GDRIVE_BUCKET]
+
+# NOTE: we can't include MEMORY_BUCKET here — unlike fsspec, `object_store`'s memory impl does
+# not use a global singleton storage as required by dlt
+OBJECT_STORE_RS_BUCKETS = [
+    bucket
+    for bucket in (FILE_BUCKET, AWS_BUCKET, GCS_BUCKET, AZ_BUCKET)
+    if FilesystemDestinationClientConfiguration.parse_protocol(bucket) in ALL_FILESYSTEM_DRIVERS
+]
 
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
@@ -450,6 +460,34 @@ def destinations_configs(
         ),
     ]
 
+    lance_configs = [
+        # directory namespace configs
+        *[
+            DestinationTestConfiguration(
+                destination_type="lance",
+                extra_info=f"dir-{FilesystemConfiguration.parse_protocol(bucket)}",
+                env_vars={
+                    "DESTINATION__STORAGE__BUCKET_URL": bucket,
+                    "DESTINATION__STORAGE__NAMESPACE_NAME": get_lance_namespace_name(),
+                },
+            )
+            for bucket in OBJECT_STORE_RS_BUCKETS
+        ],
+        # REST namespace configs
+        # NOTE: we exclude cloud storage-backed REST namespaces here because `RestAdapter` (which
+        # we use as test REST Namespace server) does not vend credentials — we only include a
+        # local storage-backed REST namespace, which does not need credentials
+        *[
+            DestinationTestConfiguration(
+                destination_type="lance",
+                extra_info=f"rest-{FilesystemConfiguration.parse_protocol(bucket)}",
+                env_vars=LanceRestServerConfig.get_destination_test_configuration_env_vars(),
+            )
+            for bucket in OBJECT_STORE_RS_BUCKETS
+            if bucket == FILE_BUCKET
+        ],
+    ]
+
     # default non staging sql based configs, one per destination
     if default_sql_configs:
         destination_configs += [
@@ -556,9 +594,9 @@ def destinations_configs(
     if default_vector_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type="weaviate"),
-            DestinationTestConfiguration(
-                destination_type="lancedb",
-            ),
+            DestinationTestConfiguration(destination_type="lancedb"),
+        ]
+        destination_configs += [
             DestinationTestConfiguration(
                 destination_type="qdrant",
                 credentials=dict(path="qdrant_data"),
@@ -570,6 +608,7 @@ def destinations_configs(
                 extra_info="server",
             ),
         ]
+        destination_configs += lance_configs
 
     if (default_sql_configs or all_staging_configs) and not default_sql_configs:
         # athena default configs not added yet
@@ -863,6 +902,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination_type="lancedb"),
         ]
+        destination_configs += lance_configs
 
     try:
         # register additional destinations from _addons.py which must be placed in the same folder
