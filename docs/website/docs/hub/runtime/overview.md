@@ -98,7 +98,6 @@ log_level = "WARNING"
 dlthub_telemetry = true
 
 # Runtime connection settings (set automatically by `dlt runtime login`)
-auth_base_url = "https://dlthub.app/api/auth"
 api_base_url = "https://dlthub.app/api/api"
 workspace_id = "your-workspace-id"
 ```
