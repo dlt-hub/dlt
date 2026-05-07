@@ -37,9 +37,10 @@ def _build_incremental_aggregate(
 ) -> sge.Select:
     """Build `SELECT <func>(alias) FROM (SELECT cursor AS alias FROM <filtered>)`.
 
-    The inner SELECT is rewritten to project the cursor under a stable alias so
-    the outer aggregate can reference it without having to resolve the original
-    table qualifier (which may live inside an auto-join).
+    Bare cursor: wraps the base query as a subquery so projections, GROUP BY,
+    HAVING and aliased computed cursors are preserved. Qualified cursor
+    (`table.column`, from an auto-join): replaces the base query's projection
+    list inline so the join qualifier resolves.
     """
     if ctx.incremental.end_value is None and (
         base_query.args.get("limit") is not None or base_query.args.get("order") is not None
@@ -50,16 +51,19 @@ def _build_incremental_aggregate(
             "the rest on the next run. Remove them, or set `end_value=` for a "
             "bounded read."
         )
-    inner = base_query.copy()
-    inner.set(
-        "expressions",
-        [
-            sge.Alias(
-                this=ctx.cursor_column.copy(),
-                alias=sge.to_identifier(_AGG_CURSOR_ALIAS, quoted=True),
-            )
-        ],
-    )
+
+    cursor_alias = sge.to_identifier(_AGG_CURSOR_ALIAS, quoted=True)
+    if ctx.cursor_column.table:
+        inner = base_query.copy()
+        inner.set(
+            "expressions",
+            [sge.Alias(this=ctx.cursor_column.copy(), alias=cursor_alias)],
+        )
+    else:
+        bare_cursor = sge.Column(this=ctx.cursor_column.this.copy())
+        inner = sge.Select(
+            expressions=[sge.Alias(this=bare_cursor, alias=cursor_alias)]
+        ).from_(base_query.copy().subquery())
 
     agg_cls: Type[sge.AggFunc]
     if ctx.incremental.last_value_func is max:
@@ -72,7 +76,7 @@ def _build_incremental_aggregate(
             f"`last_value_func`, got {ctx.incremental.last_value_func!r}."
         )
 
-    outer_ref = sge.Column(this=sge.to_identifier(_AGG_CURSOR_ALIAS, quoted=True))
+    outer_ref = sge.Column(this=cursor_alias.copy())
     return sge.Select(expressions=[agg_cls(this=outer_ref)]).from_(inner.subquery())
 
 

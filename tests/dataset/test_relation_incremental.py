@@ -314,6 +314,71 @@ def test_incremental_aggregate_honors_min(incremental_dataset: dlt.Dataset) -> N
     assert relation._incremental_aggregate_relation().fetchscalar() == 1
 
 
+def test_incremental_aggregate_on_query_with_group_by(incremental_dataset: dlt.Dataset) -> None:
+    incremental = dlt.sources.incremental(
+        "day",
+        initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
+        end_value=END_VALUE_DT,
+    )
+    sql = (
+        "SELECT CAST(date_trunc('day', created_at) AS TIMESTAMP WITH TIME ZONE) AS day,"
+        " COUNT(*) AS total FROM events GROUP BY day"
+    )
+    relation = incremental_dataset(sql).incremental(incremental)
+    assert relation._incremental_aggregate_relation().fetchscalar() == pendulum.datetime(
+        2026, 1, 20, tz="UTC"
+    )
+
+
+def test_incremental_aggregate_on_query_relation_bare_cursor(
+    incremental_dataset: dlt.Dataset,
+) -> None:
+    incremental = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
+    relation = incremental_dataset("SELECT id, value FROM events WHERE value > 0").incremental(
+        incremental
+    )
+    assert relation._incremental_aggregate_relation().fetchscalar() == 5
+
+
+def test_incremental_aggregate_preserves_distinct(incremental_dataset: dlt.Dataset) -> None:
+    incremental = dlt.sources.incremental("id", initial_value=2, end_value=END_VALUE_ID)
+    relation = incremental_dataset("SELECT DISTINCT id FROM events").incremental(incremental)
+    assert relation._incremental_aggregate_relation().fetchscalar() == 5
+
+
+def test_incremental_aggregate_branches_on_cursor_qualifier(
+    incremental_dataset: dlt.Dataset,
+) -> None:
+    bare = dlt.sources.incremental("id", initial_value=0, end_value=END_VALUE_ID)
+    bare_rel = incremental_dataset.table("events").incremental(bare)
+    bare_agg = bare_rel._incremental_aggregate_relation().sqlglot_expression
+    bare_inner_subq = bare_agg.args["from_"].this
+    assert isinstance(bare_inner_subq, sge.Subquery)
+    bare_inner_select = bare_inner_subq.this
+    bare_inner_from = bare_inner_select.args["from_"].this
+    assert isinstance(
+        bare_inner_from, sge.Subquery
+    ), "Bare cursor: base query must be wrapped as a subquery"
+
+    dotted = dlt.sources.incremental(
+        "_dlt_loads.inserted_at",
+        initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
+        end_value=END_VALUE_DT,
+    )
+    dotted_rel = incremental_dataset.table("events").incremental(dotted)
+    dotted_agg = dotted_rel._incremental_aggregate_relation().sqlglot_expression
+    dotted_inner_subq = dotted_agg.args["from_"].this
+    assert isinstance(dotted_inner_subq, sge.Subquery)
+    dotted_inner_select = dotted_inner_subq.this
+    dotted_inner_from = dotted_inner_select.args["from_"].this
+    assert isinstance(
+        dotted_inner_from, sge.Table
+    ), "Qualified cursor: inline-projection path must keep the base table in FROM"
+    assert dotted_inner_select.args.get(
+        "joins"
+    ), "Qualified cursor: JOIN must be preserved so the qualifier still resolves"
+
+
 @pytest.mark.parametrize(
     "shape",
     [
