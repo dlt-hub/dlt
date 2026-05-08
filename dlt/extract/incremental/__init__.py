@@ -639,6 +639,10 @@ class Incremental(
             self.range_start,
             self.range_end,
         )
+        # ModelIncremental needs a back-reference so it can auto-apply
+        # `relation.incremental(self)` when the user yields a bare relation.
+        if isinstance(transformer, ModelIncremental):
+            transformer._incremental = self
         return transformer
 
     def _get_transform(self, items: TDataItems) -> IncrementalTransform:

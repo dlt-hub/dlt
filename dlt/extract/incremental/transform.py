@@ -628,11 +628,14 @@ class ModelIncremental(IncrementalTransform):
       `unique_hashes` cannot be reproduced from a single aggregate.
     """
 
+    # Parent `Incremental` so we can auto-apply below
+    _incremental: Optional["Incremental[Any]"] = None  # type: ignore[name-defined]  # noqa: F821
+
     def __call__(self, relation: TDataItem) -> Tuple[Optional[TDataItem], bool, bool]:
         ctx = getattr(relation, "_incremental_ctx", None)
         if ctx is None:
-            # Bare relation, no `.incremental()` applied.
-            return relation, False, False
+            # Bare relation, no `.incremental()`. Auto-apply using the parent `Incremental`
+            relation = relation.incremental(self._incremental)
 
         if self.end_value is not None:
             # External scheduler/ephemeral mode: state not advanced from observed data.

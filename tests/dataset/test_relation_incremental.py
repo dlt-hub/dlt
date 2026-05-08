@@ -969,17 +969,30 @@ def test_model_incremental_rejects_closed_range_stateful(
         transformer(relation)
 
 
-def test_model_incremental_passes_through_bare_relation(
-    incremental_dataset: dlt.Dataset,
+def test_model_incremental_auto_applies_on_bare_relation(
+    incremental_pipeline: dlt.Pipeline,
 ) -> None:
-    bare = incremental_dataset.table("events")
+    dataset = incremental_pipeline.dataset()
+    yielded: dlt.Relation | None = None
 
-    transformer = _model_transformer(start_value=42)
-    out, start_out_of_range, end_out_of_range = transformer(bare)
+    @dlt.resource(name="probe_auto_apply")
+    def probe(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "id", initial_value=2, range_start="open"
+        ),
+    ) -> Iterator[Any]:
+        nonlocal yielded
+        yielded = dataset.table("events")
+        yield yielded
 
-    assert out is bare
-    assert (start_out_of_range, end_out_of_range) == (False, False)
-    assert transformer.last_value == 42
+    resource = probe()
+    incremental_pipeline.extract(resource)
+
+    assert yielded is not None
+    assert yielded.is_incremental is False
+
+    # max(id) over the events table is 5, so `last_value` becomes 5.
+    assert resource.state["incremental"]["id"]["last_value"] == 5
 
 
 def test_model_incremental_does_not_clobber_last_value_on_empty_filter(
