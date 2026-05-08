@@ -52,6 +52,51 @@ def incremental_dataset(incremental_pipeline: dlt.Pipeline) -> dlt.Dataset:
     return incremental_pipeline.dataset()
 
 
+@pytest.fixture(scope="module")
+def dataset_with_incomplete_join_target(module_tmp_path: pathlib.Path) -> dlt.Dataset:
+    """Two sibling tables joined by an explicit reference, where the join target
+    declares an incomplete column hint via `columns=`.
+
+    `phantom_field` is declared on `categories` with no `data_type`, so it never
+    materializes at the destination. `Schema.get_table_columns()` filters it out
+    via `is_complete_column`; raw `schema.tables[...]["columns"]` does not.
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="relation_incremental_incomplete",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir_incomplete"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "incomplete.db")),
+        dev_mode=True,
+    )
+
+    @dlt.resource(
+        name="categories",
+        primary_key="id",
+        columns=[{"name": "phantom_field", "nullable": True}],
+    )
+    def categories() -> Iterator[Any]:
+        yield [{"id": 1, "name": "alpha"}, {"id": 2, "name": "beta"}]
+
+    @dlt.resource(
+        name="products",
+        primary_key="id",
+        columns=[{"name": "category_id", "data_type": "bigint"}],
+        references=[{
+            "referenced_table": "categories",
+            "columns": ["category_id"],
+            "referenced_columns": ["id"],
+        }],
+    )
+    def products() -> Iterator[Any]:
+        yield [
+            {"id": 10, "category_id": 1},
+            {"id": 11, "category_id": 2},
+            {"id": 12, "category_id": 1},
+        ]
+
+    pipeline.run([categories(), products()])
+    return pipeline.dataset()
+
+
 def _where(relation: dlt.Relation) -> sge.Expression:
     where_node = relation.sqlglot_expression.args.get("where")
     assert isinstance(where_node, sge.Where), f"Expected WHERE clause, got {where_node!r}"
@@ -253,6 +298,62 @@ def test_incremental_dotted_cursor_runtime_columns_base_only(
     row = relation.fetchone()
     assert row is not None
     assert len(row) == len(relation.columns)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Bug: `Relation.incremental` dotted-cursor branch reads target columns via raw"
+        " `schema.tables[name]['columns']`, accepting incomplete column hints (no"
+        " `data_type`) as cursors. The resulting WHERE references a column that"
+        " doesn't exist on the destination — materialization fails at lineage."
+        " Fix: source target columns via `Schema.get_table_columns(table_name)` and"
+        " reject `.incremental()` on cursors that aren't materialized."
+    ),
+)
+def test_incremental_dotted_cursor_rejects_incomplete_target_column(
+    dataset_with_incomplete_join_target: dlt.Dataset,
+) -> None:
+    """An incomplete (declared but unmaterialized) cursor column must not produce
+    a relation that emits SQL referencing a non-existent column. Materializing
+    the relation against duckdb is the source of truth.
+    """
+    incremental = dlt.sources.incremental(
+        "categories.phantom_field",
+        initial_value=0,
+        end_value=10**12,
+        on_cursor_value_missing="exclude",
+    )
+    relation = dataset_with_incomplete_join_target.table("products").incremental(incremental)
+    # Hard failure today: lineage rejects "Unknown column: phantom_field" because
+    # the SQLGlot schema filters incomplete columns but the WHERE built by
+    # `.incremental()` does not — they disagree, lineage raises.
+    relation.fetchall()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Bug: `_apply_join_projection` reads `schema.tables[target]['columns']` raw"
+        " and aliases every column into the SELECT — including incomplete columns"
+        " (no `data_type`) that don't exist on the destination. Fix: source columns"
+        " via `Schema.get_table_columns(target)` so incomplete hints are filtered"
+        " out of the projection."
+    ),
+)
+def test_join_does_not_project_incomplete_target_columns(
+    dataset_with_incomplete_join_target: dlt.Dataset,
+) -> None:
+    """`relation.join(other)` must not emit projection aliases for columns that
+    are declared as hints but were never materialized. Materializing the join is
+    the source of truth: today it raises `LineageFailedException` because the
+    projected `categories__phantom_field` has no underlying column.
+    """
+    relation = dataset_with_incomplete_join_target.table("products").join("categories")
+    rows = relation.fetchall()
+    assert rows is not None
+    # 3 products inner-joined to 2 categories on category_id → 3 rows
+    assert len(rows) == 3
 
 
 def test_incremental_dotted_cursor_reuses_existing_join(
