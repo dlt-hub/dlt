@@ -2571,8 +2571,8 @@ http = [
     { name = "aiohttp" },
 ]
 hub = [
-    { name = "dlt-runtime", marker = "python_full_version >= '3.10'" },
     { name = "dlthub", marker = "python_full_version >= '3.10'" },
+    { name = "dlthub-client", marker = "python_full_version >= '3.10'" },
 ]
 lance = [
     { name = "duckdb" },
@@ -2809,8 +2809,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.24.0,<0.27" },
     { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.22.1,<0.27" },
+    { name = "dlthub-client", marker = "python_full_version >= '3.10' and extra == 'hub'", editable = "../../../runtime/cli" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3" },
@@ -3008,23 +3008,6 @@ sources = [
 streamlit = [{ name = "streamlit", marker = "python_full_version >= '3.10'", specifier = ">1.50" }]
 
 [[package]]
-name = "dlt-runtime"
-version = "0.24.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "cron-descriptor", marker = "python_full_version >= '3.10'" },
-    { name = "httpx", marker = "python_full_version >= '3.10'" },
-    { name = "pathspec", marker = "python_full_version >= '3.10'" },
-    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "tabulate", marker = "python_full_version >= '3.10'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/72/58/ff3e41b75e27ae351fce165fe0ff39e3927c46ed980862d18d8134a15f75/dlt_runtime-0.24.1.tar.gz", hash = "sha256:a1e5d6671aa3b43fb097dee81b8d10387d177fbe0e0fcfead64e16d0104a438e", size = 76442, upload-time = "2026-04-08T12:32:42.894Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/d9/8546e610127fa1d5fee414a89d3d50481e9241a055b1697f9a01b4053bb6/dlt_runtime-0.24.1-py3-none-any.whl", hash = "sha256:226f7017c4eecdc71aaf90006ad5381de02cfc430edfa5557993908be0e3cfcb", size = 197295, upload-time = "2026-04-08T12:32:41.497Z" },
-]
-
-[[package]]
 name = "dlthub"
 version = "0.22.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3036,6 +3019,48 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f3/c2/d8ed5739c387052f18d8635c40890f7579588432f87788dc95e69f454832/dlthub-0.22.1.tar.gz", hash = "sha256:8d27dd632cb5b81e79df8215b61204592019513501f9c5e991675629f7609171", size = 169660, upload-time = "2026-02-23T22:40:36.252Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9d/50/6d98321d3eb2c4f0a77b1ea2261fc49bc5b19f768764c35f11f711c3f573/dlthub-0.22.1-py3-none-any.whl", hash = "sha256:57e4febb3bbfeff733d005a90842d1376cc4e81483ae56760037cc6863379f65", size = 226759, upload-time = "2026-02-23T22:40:33.402Z" },
+]
+
+[[package]]
+name = "dlthub-client"
+version = "0.26.1"
+source = { editable = "../../../runtime/cli" }
+dependencies = [
+    { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "cron-descriptor", marker = "python_full_version >= '3.10'" },
+    { name = "croniter", marker = "python_full_version >= '3.10'" },
+    { name = "httpx", marker = "python_full_version >= '3.10'" },
+    { name = "pathspec", marker = "python_full_version >= '3.10'" },
+    { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "tabulate", marker = "python_full_version >= '3.10'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "attrs", specifier = ">=23.2.0" },
+    { name = "cron-descriptor", specifier = ">=1.2.32" },
+    { name = "croniter", specifier = ">=6.0.0" },
+    { name = "httpx", specifier = ">=0.26.0" },
+    { name = "pathspec", specifier = ">=0.11.2" },
+    { name = "pyjwt", specifier = ">=2.12.0" },
+    { name = "tabulate", specifier = ">=0.9.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "dlt", editable = "." },
+    { name = "flake8", specifier = ">=5.0.0" },
+    { name = "isort", specifier = ">=6.1.0" },
+    { name = "marimo", specifier = ">=0.23.0" },
+    { name = "mypy", specifier = ">=1.8.0" },
+    { name = "pytest", specifier = ">=7.4.4,<8" },
+    { name = "pytest-console-scripts", specifier = ">=1.4.1,<2" },
+    { name = "pytest-timeout", specifier = ">=2.3.1,<3" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "ruff", specifier = ">=0.2.1" },
+    { name = "types-python-dateutil", specifier = ">=2.9.0.20251115" },
+    { name = "types-pyyaml", specifier = ">=5.4.1" },
+    { name = "types-tabulate", specifier = ">=0.9.0" },
 ]
 
 [[package]]

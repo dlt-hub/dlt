@@ -52,7 +52,7 @@ lint-core: ## Runs core linting (mypy, ruff, flake8)
 	uv run ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt tools
-	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
+	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/,tests/plugins/dlt_example_plugin/.venv,tests/plugins/dlt_example_plugin/build
 
 format: ## Formats code with black
 	uv run black dlt tests tools --extend-exclude='.*syntax_error.py|^_storage[^/]*/'
