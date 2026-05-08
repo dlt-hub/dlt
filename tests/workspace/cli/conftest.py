@@ -4,9 +4,18 @@ import pytest
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli import _run_command as run_cmd_mod
+from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli import utils as cli_utils_mod
 
 from tests.workspace.utils import isolated_workspace
+
+
+@pytest.fixture(autouse=True)
+def reset_echo_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resets echo interactivity globals before each test in tests/workspace/cli."""
+    monkeypatch.setattr(fmt, "ALWAYS_CHOOSE_DEFAULT", False)
+    monkeypatch.setattr(fmt, "ALWAYS_CHOOSE_VALUE", None)
+    monkeypatch.setattr(fmt, "ALWAYS_CONFIRM", False)
 
 
 @pytest.fixture(autouse=True)

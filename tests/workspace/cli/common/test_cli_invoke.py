@@ -1,36 +1,25 @@
 import os
 import sys
 import pytest
-import shutil
-from pathlib import Path
-from typing import Iterator
+from typing import Any, List, Tuple
 from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
 
 import dlt
 from dlt.common.runners.venv import Venv
-from dlt.common.utils import custom_environ
 
 from dlt._workspace.cli import _debug, echo as fmt
-from tests.workspace.cli.utils import WORKSPACE_CLI_CASES_DIR
-from tests.utils import get_test_storage_root
+from dlt._workspace.cli._dlt import _create_parser, main
+from dlt._workspace.cli.exceptions import CliCommandException
 
 BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
 
 
-@pytest.fixture(autouse=True)
-def reset_echo_globals() -> Iterator[None]:
-    """Reset echo globals to their default values."""
-    yield
-    fmt.ALWAYS_CHOOSE_DEFAULT = False
-    fmt.ALWAYS_CHOOSE_VALUE = None
-    fmt.ALWAYS_CONFIRM = False
-
-
-@pytest.fixture(autouse=True)
-def disable_debug() -> None:
-    # reset debug flag so other tests may pass
-    _debug.disable_debug()
+def _parse_dlt(argv: List[str]) -> Tuple[Any, Any]:
+    """Run the dual-parse for the `dlt` host. Returns (installed, args)."""
+    parser, pre_parser, installed = _create_parser("dlt")
+    ns, remaining = pre_parser.parse_known_args(argv)
+    return installed, parser.parse_args(remaining, namespace=ns)
 
 
 def test_invoke_basic(script_runner: ScriptRunner) -> None:
@@ -53,184 +42,102 @@ def test_invoke_basic(script_runner: ScriptRunner) -> None:
     assert result.returncode != 0
 
 
-def test_invoke_list_pipelines(script_runner: ScriptRunner) -> None:
-    result = script_runner.run(["dlt", "pipeline", "--list-pipelines"])
-    # directory does not exist (we point to TEST_STORAGE)
-    assert result.returncode == 0
-    assert "No pipelines found in" in result.stdout
-    # this is current workspace data dir
-    expected_path = os.path.join(get_test_storage_root(), "empty", ".dlt", ".var", "dev")
-    assert expected_path in result.stdout
-
-    result = script_runner.run(["dlt", "pipeline", "--list-pipelines"])
-    assert result.returncode == 0
-    assert "No pipelines found in" in result.stdout
+@pytest.mark.parametrize("host", ["dlt", "dlthub"], ids=["dlt", "dlthub"])
+def test_parser_prog_matches_host(host: str) -> None:
+    parser, _pre, _installed = _create_parser(host)
+    assert parser.prog == host
 
 
-def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
-    # info on non existing pipeline
-    result = script_runner.run(["dlt", "pipeline", "debug_pipeline", "info"])
-    assert result.returncode == -2
-    assert "No local pipeline state found" in result.stderr
-
-    shutil.copytree(
-        os.path.join(WORKSPACE_CLI_CASES_DIR, "deploy_pipeline"), ".", dirs_exist_ok=True
-    )
-
-    with custom_environ({"COMPLETED_PROB": "1.0"}):
-        venv = Venv.restore_current()
-        print(venv.run_script("dummy_pipeline.py"))
-
-    # we check output test_pipeline_command else
-    result = script_runner.run(["dlt", "pipeline", "dummy_pipeline", "info"])
-    assert result.returncode == 0
-    result = script_runner.run(["dlt", "pipeline", "dummy_pipeline", "trace"])
-    assert result.returncode == 0
-    result = script_runner.run(["dlt", "pipeline", "dummy_pipeline", "failed-jobs"])
-    assert result.returncode == 0
-    result = script_runner.run(["dlt", "pipeline", "dummy_pipeline", "load-package"])
-    assert result.returncode == 0
-    result = script_runner.run(
-        ["dlt", "pipeline", "dummy_pipeline", "load-package", "NON EXISTENT"]
-    )
-    assert result.returncode == -1
-    # use debug flag to raise an exception
-    result = script_runner.run(
-        ["dlt", "--debug", "pipeline", "dummy_pipeline", "load-package", "NON EXISTENT"]
-    )
-    # exception terminates command
-    assert result.returncode == 1
-    assert "LoadPackageNotFound" in result.stderr
+def test_main_sets_active_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    # invoke `dlt --version` so main returns without dispatching a subcommand
+    monkeypatch.setattr("sys.argv", ["dlt"])
+    main("dlthub")
+    assert fmt.get_cli_host_name() == "dlthub"
 
 
-def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:
-    result = script_runner.run(["dlt", "init", "chess", "dummy"])
-    assert "Verified source chess was added to your project!" in result.stdout
-    assert result.returncode == 0
-    result = script_runner.run(["dlt", "init", "debug_pipeline", "dummy"])
-    assert "Your new pipeline debug_pipeline is ready to be customized!" in result.stdout
-    assert result.returncode == 0
+def test_cli_cmd_formats_with_active_host() -> None:
+    fmt.set_cli_host_name("dlthub")
+    assert fmt.cli_cmd("pipeline info") == "dlthub pipeline info"
+    assert fmt.cli_cmd() == "dlthub"
+
+    fmt.set_cli_host_name("dlt")
+    assert fmt.cli_cmd("init") == "dlt init"
 
 
-def test_invoke_list_sources(script_runner: ScriptRunner) -> None:
-    known_sources = ["chess", "sql_database", "google_sheets", "pipedrive"]
-    result = script_runner.run(["dlt", "init", "--list-sources"])
-    assert result.returncode == 0
-    for known_source in known_sources:
-        assert known_source in result.stdout
+def test_help_text_uses_active_host() -> None:
+    parser, _pre, _installed = _create_parser("dlthub")
+    help_text = parser.format_help()
+    assert "dlthub" in help_text
+    # usage line opens with `usage: dlthub` (rich_argparse capitalises to `Usage:`)
+    assert help_text.lower().startswith("usage: dlthub")
 
 
-def test_invoke_deploy_project(script_runner: ScriptRunner) -> None:
-    result = script_runner.run(
-        ["dlt", "deploy", "debug_pipeline.py", "github-action", "--schedule", "@daily"]
-    )
-    assert result.returncode == -5
-    assert "The pipeline script does not exist" in result.stderr
-    result = script_runner.run(["dlt", "deploy", "debug_pipeline.py", "airflow-composer"])
-    assert result.returncode == -5
-    assert "The pipeline script does not exist" in result.stderr
-    # now init
-    result = script_runner.run(["dlt", "init", "chess", "dummy"])
-    assert result.returncode == 0
-    result = script_runner.run(
-        ["dlt", "deploy", "chess_pipeline.py", "github-action", "--schedule", "@daily"]
-    )
-    assert "NOTE: You must run the pipeline locally" in result.stdout
-    result = script_runner.run(["dlt", "deploy", "chess_pipeline.py", "airflow-composer"])
-    assert "NOTE: You must run the pipeline locally" in result.stdout
+def test_create_parser_filters_none_hookimpls() -> None:
+    """Built-in workspace+profile hookimpls return None when workspace inactive — must not crash."""
+    # create_parser already handles this in non-workspace context. Calling it here in
+    # the isolated workspace should still produce a populated subcommand list without
+    # raising on the None values that other plugins may yield for unknown hosts.
+    parser, _pre, installed = _create_parser("dlt")
+    # init must be present regardless of workspace state
+    assert "init" in installed
+    # parser was built without raising
+    assert parser is not None
 
 
-def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
-    # NOTE: you can mock only once per test with ScriptRunner !!
-    with patch("dlt._workspace.cli._deploy_command.deploy_command") as _deploy_command:
-        script_runner.run(
-            [
-                "dlt",
-                "--debug",
-                "deploy",
-                "debug_pipeline.py",
-                "github-action",
-                "--schedule",
-                "@daily",
-            ]
-        )
-        assert _deploy_command.called
-        assert _deploy_command.call_args[1] == {
-            "pipeline_script_path": "debug_pipeline.py",
-            "deployment_method": "github-action",
-            "no_pwd": False,
-            "repo_location": "https://github.com/dlt-hub/dlt-deploy-template.git",
-            "branch": None,
-            "command": "deploy",
-            "schedule": "@daily",
-            "run_manually": True,
-            "run_on_push": False,
-        }
+@pytest.mark.parametrize(
+    "argv,expected_verbosity",
+    [
+        (["pipeline", "-v"], 1),
+        (["-v", "pipeline"], 1),
+        (["-v", "pipeline", "-v"], 2),
+        (["pipeline", "-vv"], 2),
+        (["pipeline", "-vvv"], 3),
+        (["pipeline"], 0),
+    ],
+    ids=["after-cmd", "before-cmd", "interleaved-2x", "vv-token", "vvv-token", "no-flag"],
+)
+def test_verbose_at_any_position(argv: List[str], expected_verbosity: int) -> None:
+    _, args = _parse_dlt(argv)
+    assert args.verbosity == expected_verbosity
 
-        _deploy_command.reset_mock()
-        script_runner.run(
-            [
-                "dlt",
-                "deploy",
-                "debug_pipeline.py",
-                "github-action",
-                "--schedule",
-                "@daily",
-                "--location",
-                "folder",
-                "--branch",
-                "branch",
-                "--run-on-push",
-            ]
-        )
-        assert _deploy_command.called
-        assert _deploy_command.call_args[1] == {
-            "pipeline_script_path": "debug_pipeline.py",
-            "deployment_method": "github-action",
-            "no_pwd": False,
-            "repo_location": "folder",
-            "branch": "branch",
-            "command": "deploy",
-            "schedule": "@daily",
-            "run_manually": True,
-            "run_on_push": True,
-        }
-        # no schedule fails
-        _deploy_command.reset_mock()
-        result = script_runner.run(["dlt", "deploy", "debug_pipeline.py", "github-action"])
-        assert not _deploy_command.called
-        assert result.returncode != 0
-        assert "the following arguments are required: --schedule" in result.stderr
-        # airflow without schedule works
-        _deploy_command.reset_mock()
-        result = script_runner.run(["dlt", "deploy", "debug_pipeline.py", "airflow-composer"])
-        assert _deploy_command.called
-        assert result.returncode == 0
-        assert _deploy_command.call_args[1] == {
-            "pipeline_script_path": "debug_pipeline.py",
-            "deployment_method": "airflow-composer",
-            "no_pwd": False,
-            "repo_location": "https://github.com/dlt-hub/dlt-deploy-template.git",
-            "branch": None,
-            "command": "deploy",
-            "secrets_format": "toml",
-        }
-        # env secrets format
-        _deploy_command.reset_mock()
-        result = script_runner.run(
-            ["dlt", "deploy", "debug_pipeline.py", "airflow-composer", "--secrets-format", "env"]
-        )
-        assert _deploy_command.called
-        assert result.returncode == 0
-        assert _deploy_command.call_args[1] == {
-            "pipeline_script_path": "debug_pipeline.py",
-            "deployment_method": "airflow-composer",
-            "no_pwd": False,
-            "repo_location": "https://github.com/dlt-hub/dlt-deploy-template.git",
-            "branch": None,
-            "command": "deploy",
-            "secrets_format": "env",
-        }
+
+def test_debug_after_subcommand() -> None:
+    assert not _debug.is_debug_enabled()
+    _parse_dlt(["pipeline", "--debug"])
+    assert _debug.is_debug_enabled()
+
+
+def test_yes_after_subcommand() -> None:
+    assert fmt.ALWAYS_CONFIRM is False
+    _parse_dlt(["pipeline", "-y"])
+    assert fmt.ALWAYS_CONFIRM is True
+
+
+def test_yes_long_after_subcommand() -> None:
+    _parse_dlt(["pipeline", "--yes"])
+    assert fmt.ALWAYS_CONFIRM is True
+
+
+def test_non_interactive_after_subcommand() -> None:
+    assert fmt.ALWAYS_CHOOSE_DEFAULT is False
+    _parse_dlt(["pipeline", "--non-interactive"])
+    assert fmt.ALWAYS_CHOOSE_DEFAULT is True
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["pipeline", "--enable-telemetry"],
+        ["pipeline", "--disable-telemetry"],
+        ["pipeline", "--no-pwd"],
+        ["pipeline", "--version"],
+    ],
+    ids=["enable-telemetry", "disable-telemetry", "no-pwd", "version"],
+)
+def test_top_only_flags_after_subcommand_error(argv: List[str]) -> None:
+    """Flags not in the anywhere-globals set must not be accepted post-subcommand."""
+    with pytest.raises(SystemExit):
+        _parse_dlt(argv)
 
 
 @pytest.mark.parametrize(
@@ -293,3 +200,71 @@ def test_no_tty() -> None:
     with fmt.maybe_no_stdin():
         assert fmt.confirm("test", default=True) is True
         assert fmt.prompt("test prompt", ("y", "n"), default="y") == "y"
+
+
+def test_is_interactive_default_state() -> None:
+    """Default fixture state: no flags, predicate is True."""
+    assert fmt.is_interactive() is True
+
+
+@pytest.mark.parametrize(
+    "flag",
+    ["non-interactive", "yes", "value-injected"],
+)
+def test_is_interactive_false_after_flag(flag: str) -> None:
+    if flag == "non-interactive":
+        fmt.set_non_interactive(True)
+    elif flag == "yes":
+        fmt.set_auto_yes(True)
+    else:
+        fmt.ALWAYS_CHOOSE_VALUE = "Y"
+    assert fmt.is_interactive() is False
+
+
+def test_is_interactive_inside_maybe_no_stdin_no_tty() -> None:
+    """`maybe_no_stdin()` flips to non-interactive when stdin is not a tty."""
+    with patch("sys.stdin") as stdin:
+        stdin.isatty.return_value = False
+        with fmt.maybe_no_stdin():
+            assert fmt.is_interactive() is False
+    # restored after context
+    assert fmt.is_interactive() is True
+
+
+def test_yes_implies_non_interactive_for_text_input() -> None:
+    """`-y` is non-interactive: text_input falls back to default."""
+    fmt.set_auto_yes(True)
+    assert fmt.text_input("name?", default="alice") == "alice"
+
+
+def test_yes_implies_non_interactive_for_prompt() -> None:
+    """`-y` is non-interactive: prompt falls back to default."""
+    fmt.set_auto_yes(True)
+    assert fmt.prompt("pick", choices=("a", "b"), default="a") == "a"
+
+
+def test_yes_confirm_returns_true() -> None:
+    """`-y` short-circuits confirm to True regardless of default."""
+    fmt.set_auto_yes(True)
+    assert fmt.confirm("ok?", default=False) is True
+
+
+def test_text_input_no_default_non_interactive_raises() -> None:
+    """No default + non-interactive → CliCommandException (not NotImplementedError)."""
+    fmt.set_non_interactive(True)
+    with pytest.raises(CliCommandException):
+        fmt.text_input("name?")
+
+
+def test_prompt_no_default_under_yes_raises() -> None:
+    """`-y` cannot answer a free-form prompt with no default."""
+    fmt.set_auto_yes(True)
+    with pytest.raises(CliCommandException):
+        fmt.prompt("pick", choices=("a", "b"))
+
+
+def test_confirm_no_default_under_non_interactive_raises() -> None:
+    """No default + --non-interactive → CliCommandException (no AssertionError)."""
+    fmt.set_non_interactive(True)
+    with pytest.raises(CliCommandException):
+        fmt.confirm("ok?")

@@ -5,16 +5,18 @@ import sys
 import tempfile
 import shutil
 import importlib
+from typing import Any, Dict, List, Optional, Set, Type
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.destination import DestinationReference
 from dlt.common.runners import Venv
 from dlt.common.configuration import plugins
-from dlt.common.configuration.plugins import PluginContext
+from dlt.common.configuration.plugins import PluginContext, SupportsCliCommand
 from dlt.common.runtime import run_context
 
 from dlt.sources import SourceReference
+from dlt._workspace.cli._dlt import _create_parser
 from tests.utils import get_test_storage_root
 from pytest_console_scripts import ScriptRunner
 
@@ -169,3 +171,102 @@ def test_cli_hook(script_runner: ScriptRunner) -> None:
     assert result.returncode == -55
     assert "Plugin overwrote init command" in result.stdout
     assert "INIT_DOCS_URL" in result.stdout
+
+    # legacy hookimpl (no host param) keeps registering on the dlt host via pluggy default
+    result = script_runner.run(["dlt", "legacy"])
+    assert result.returncode == 0
+    assert "Legacy command executed" in result.stdout
+
+
+def test_cli_hook_host_filtering() -> None:
+    """Built-in hookimpls return None for unknown hosts; legacy impls register everywhere."""
+    m = plugins.manager()
+
+    # only top-level commands (parent is None) — subcommand registrations like
+    # DlthubPipelineInitCommand share their parent's command name and are filtered here
+    def top_level_names(results: List[Optional[Type[SupportsCliCommand]]]) -> Set[str]:
+        return {
+            c().command for c in results if c is not None and getattr(c, "parent", None) is None
+        }
+
+    dlt_results: List[Optional[Type[SupportsCliCommand]]] = m.hook.plug_cli(host="dlt")
+    dlt_command_names = top_level_names(dlt_results)
+    # dlt-only built-ins + mirrored ones + example plugin + legacy
+    assert "init" in dlt_command_names
+    assert "pipeline" in dlt_command_names
+    assert "schema" in dlt_command_names
+    assert "telemetry" in dlt_command_names
+    assert "deploy" in dlt_command_names
+    assert "dashboard" in dlt_command_names
+    assert "example" in dlt_command_names
+    assert "legacy" in dlt_command_names
+    # `ai` was moved to dlthub-only
+    assert "ai" not in dlt_command_names
+    # t_* commands are dlthub-only
+    assert "t_info" not in dlt_command_names
+
+    dlthub_results: List[Optional[Type[SupportsCliCommand]]] = m.hook.plug_cli(host="dlthub")
+    dlthub_command_names = top_level_names(dlthub_results)
+    # `local`, `profile`, `info` are gated on `is_workspace_active()` — asserted in test_workspace_command.py
+    assert "pipeline" in dlthub_command_names
+    assert "ai" in dlthub_command_names
+    assert "t_info" in dlthub_command_names
+    assert "t_workspace" in dlthub_command_names
+    assert "legacy" in dlthub_command_names
+    # dlt-only built-ins must NOT appear on dlthub
+    assert "init" not in dlthub_command_names
+    assert "deploy" not in dlthub_command_names
+    assert "dashboard" not in dlthub_command_names
+    # `schema` and `telemetry` moved under `local` on dlthub host
+    assert "schema" not in dlthub_command_names
+    assert "telemetry" not in dlthub_command_names
+    # `workspace` was renamed to `local`
+    assert "workspace" not in dlthub_command_names
+
+    # an unknown host: built-in impls return None, t_* impls return None, but the legacy impl
+    # has no host param so pluggy still calls it
+    other_results: List[Optional[Type[SupportsCliCommand]]] = m.hook.plug_cli(host="other")
+    other_command_names = top_level_names(other_results)
+    assert "init" not in other_command_names
+    assert "pipeline" not in other_command_names
+    assert "t_info" not in other_command_names
+    assert "legacy" in other_command_names
+
+
+def _build_and_run(monkeypatch: pytest.MonkeyPatch, host: str, argv: List[str]) -> None:
+    """Builds the parser for `host`, parses `argv`, and executes the resolved top-level command."""
+    monkeypatch.setattr(sys, "argv", [host, *argv])
+    parser, pre_parser, installed = _create_parser(host)
+    ns, remaining = pre_parser.parse_known_args(argv)
+    parsed = parser.parse_args(remaining, namespace=ns)
+    installed[parsed.command].execute(parsed)
+
+
+def test_compose_extend_runs_all_executes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _build_and_run(monkeypatch, "dlthub", ["t_info", "--detailed"])
+    out = capsys.readouterr().out
+    assert "t_info A: detailed=True" in out
+    assert "t_info B: detailed=True" in out
+
+
+def test_compose_additive_adds_subcommand(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _build_and_run(monkeypatch, "dlthub", ["t_workspace", "switch", "--target", "prod"])
+    assert "t_workspace switch: target=prod" in capsys.readouterr().out
+
+
+# `dlthub local pipeline <verb>` requires a workspace context; those tests live in
+# tests/workspace/cli/test_workspace_command.py where `auto_isolated_workspace` is available.
+
+
+def test_dlthub_pipeline_init_subcommand(monkeypatch: pytest.MonkeyPatch) -> None:
+    # `init` is an inline subparser of `dlthub pipeline`; OSS per-pipeline verbs live under `local pipeline`
+    monkeypatch.setattr(sys, "argv", ["dlthub", "pipeline", "init", "github", "duckdb"])
+    parser, _pre, _ = _create_parser("dlthub")
+    parsed = parser.parse_args(["pipeline", "init", "github", "duckdb"])
+    assert parsed.operation == "init"
+    assert parsed.source == "github"
+    assert parsed.destination == "duckdb"
