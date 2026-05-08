@@ -1,7 +1,9 @@
 import argparse
 import ast
 import os
+import platform
 import shutil
+import subprocess
 from typing import Any, Callable, Dict, FrozenSet, List, Optional, Set, Tuple
 
 import dlt
@@ -11,7 +13,6 @@ from dlt.common.storages.configuration import TSchemaFileFormat
 from dlt.common.time import ensure_pendulum_datetime_non_utc
 from dlt.common.typing import TAnyDateTime, TFun
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.pluggable_run_context import (
     PluggableRunContext,
@@ -46,6 +47,7 @@ from dlt._workspace.profile import BUILT_IN_PROFILES, read_profile_pin
 from dlt._workspace.typing import (
     ProviderInfo,
     ProviderLocationInfo,
+    TCurrentProfileFullInfo,
     TCurrentProfileInfo,
     TDeploymentJobInfo,
     TDeploymentManifestInfo,
@@ -150,6 +152,42 @@ def date_from_timestamp_with_ago(
     time_formatted = timestamp.format(datetime_format)
     ago = timestamp.diff_for_humans()
     return f"{ago} ({time_formatted})"
+
+
+def open_local_folder(folder: str) -> None:
+    """Open a folder in the OS file explorer."""
+    system = platform.system()
+    if system == "Windows":
+        os.startfile(folder)  # type: ignore[attr-defined,unused-ignore]
+    elif system == "Darwin":
+        subprocess.run(["open", folder], check=True)
+    elif shutil.which("wslview"):
+        subprocess.run(["wslview", folder], check=True)
+    else:
+        subprocess.run(["xdg-open", folder], check=True)
+
+
+def open_url(url: str) -> None:
+    """Open `url` in the default browser. WSL2-aware via wslview."""
+    # wslview probed first: WSL reports platform.system()=="Linux", but xdg-open
+    # would fail there with no in-WSL browser, so route to the Windows one.
+    system = platform.system()
+    try:
+        if shutil.which("wslview"):
+            subprocess.run(["wslview", url], check=True)
+        elif system == "Windows":
+            os.startfile(url)  # type: ignore[attr-defined,unused-ignore]
+        elif system == "Darwin":
+            subprocess.run(["open", url], check=True)
+        elif shutil.which("xdg-open"):
+            subprocess.run(["xdg-open", url], check=True)
+        else:
+            import webbrowser
+
+            webbrowser.open(url)
+    except Exception:
+        # Headless / CI: callers already echoed the URL, so failure is non-fatal.
+        pass
 
 
 def display_run_context_info() -> None:
@@ -553,6 +591,52 @@ def fetch_workspace_info() -> TWorkspaceInfo:
         dlthub_version=dlthub_version,
         initialized=initialized,
         installed_toolkits=installed_toolkits,
+    )
+
+
+def fetch_profile_info() -> Optional[TCurrentProfileFullInfo]:
+    """Returns the active profile's info plus filtered provider locations."""
+    ctx = Container()[PluggableRunContext].context
+    if not isinstance(ctx, ProfilesRunContext):
+        return None
+
+    configured_profiles = ctx.configured_profiles()
+    pinned = read_profile_pin(ctx)
+
+    # provider locations filtered to this profile + global. excludes other profiles'
+    # toml files that fetch_workspace_info() returns indiscriminately.
+    providers: List[TProviderInfo] = []
+    for info in get_provider_locations():
+        filtered = [
+            TLocationInfo(
+                path=loc.path,
+                present=loc.present,
+                scope=loc.scope,
+                profile_name=loc.profile_name,
+            )
+            for loc in info.locations
+            if loc.scope == "global" or loc.profile_name == ctx.profile
+        ]
+        if not filtered:
+            continue
+        providers.append(
+            TProviderInfo(
+                name=info.provider.name,
+                is_empty=info.provider.is_empty,
+                locations=filtered,
+            )
+        )
+
+    return TCurrentProfileFullInfo(
+        name=ctx.profile,
+        description="",
+        is_current=True,
+        is_pinned=ctx.profile == pinned,
+        is_configured=ctx.profile in configured_profiles,
+        data_dir=ctx.data_dir,
+        local_dir=ctx.local_dir,
+        providers=providers,
+        configured_profiles=configured_profiles,
     )
 
 

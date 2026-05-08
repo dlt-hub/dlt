@@ -7,6 +7,7 @@ import marimo as mo
 import dlt
 from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 
+from dlt._workspace.cli.utils import open_local_folder
 from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard import utils
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
@@ -159,14 +160,14 @@ def render_pipeline_home(
     _buttons.append(
         mo.ui.button(
             label=ui.small(strings.home_open_working_dir_button),
-            on_click=lambda _: utils.pipeline.open_local_folder(dlt_pipeline.working_dir),
+            on_click=lambda _: open_local_folder(dlt_pipeline.working_dir),
         )
     )
     if local_dir := utils.pipeline.get_local_data_path(dlt_pipeline):
         _buttons.append(
             mo.ui.button(
                 label=ui.small(strings.home_open_local_data_button),
-                on_click=lambda _: utils.pipeline.open_local_folder(local_dir),
+                on_click=lambda _: open_local_folder(local_dir),
             )
         )
 
