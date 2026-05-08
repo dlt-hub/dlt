@@ -7,6 +7,7 @@ import contextlib
 from subprocess import CalledProcessError
 from typing import List, Tuple, Optional
 import pytest
+from pytest_console_scripts import ScriptRunner
 from unittest import mock
 from pytest import MonkeyPatch
 import re
@@ -808,3 +809,20 @@ def assert_common_files(
         assert secrets.get_value(not_there, type, None, "destination", destination_name)[0] is None
 
     return visitor, secrets
+
+
+def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:
+    result = script_runner.run(["dlt", "init", "chess", "dummy"])
+    assert "Verified source chess was added to your project!" in result.stdout
+    assert result.returncode == 0
+    result = script_runner.run(["dlt", "init", "debug_pipeline", "dummy"])
+    assert "Your new pipeline debug_pipeline is ready to be customized!" in result.stdout
+    assert result.returncode == 0
+
+
+def test_invoke_list_sources(script_runner: ScriptRunner) -> None:
+    known_sources = ["chess", "sql_database", "google_sheets", "pipedrive"]
+    result = script_runner.run(["dlt", "init", "--list-sources"])
+    assert result.returncode == 0
+    for known_source in known_sources:
+        assert known_source in result.stdout

@@ -52,7 +52,7 @@ def test_ai_status_no_toolkits(capsys: pytest.CaptureFixture[str]) -> None:
     out = capsys.readouterr().out
     assert dlt_version in out
     assert "not yet initialized" in out.lower()
-    assert "dlt ai init" in out.lower()
+    assert "dlthub ai init" in out.lower()
     assert "no toolkit" in out.lower()
 
 
@@ -83,7 +83,7 @@ def test_ai_status_with_toolkits(capsys: pytest.CaptureFixture[str]) -> None:
     out = capsys.readouterr().out
     assert "Agent: claude" in out
     assert "not initialized" not in out.lower()
-    assert "run dlt ai init" not in out.lower()
+    assert "run dlthub ai init" not in out.lower()
 
     if sys.version_info < (3, 10):
         # fastmcp requires Python >=3.10, so the MCP warning must appear
@@ -122,7 +122,7 @@ def test_ai_init_warns_mcp(capsys: pytest.CaptureFixture[str]) -> None:
 
     out = capsys.readouterr().out
     assert "mcp server cannot be started" in out.lower()
-    assert "dlt ai status" in out.lower()
+    assert "dlthub ai status" in out.lower()
 
 
 def test_ai_secrets_list_workspace(capsys: pytest.CaptureFixture[str]) -> None:
@@ -198,7 +198,7 @@ def test_cli_secrets_update_fragment_multiline(script_runner: ScriptRunner) -> N
     """CLI: multiline fragment with real newlines (POSIX shells)."""
     result = script_runner.run(
         [
-            "dlt",
+            "dlthub",
             "ai",
             "secrets",
             "update-fragment",
@@ -217,7 +217,7 @@ def test_cli_secrets_update_fragment_escaped_newlines(script_runner: ScriptRunne
     r"""CLI: literal \n (two chars) converted to real newlines (Windows compat)."""
     result = script_runner.run(
         [
-            "dlt",
+            "dlthub",
             "ai",
             "secrets",
             "update-fragment",
@@ -237,7 +237,7 @@ def test_cli_secrets_roundtrip(script_runner: ScriptRunner) -> None:
     custom = ".dlt/cli-roundtrip.secrets.toml"
     result = script_runner.run(
         [
-            "dlt",
+            "dlthub",
             "ai",
             "secrets",
             "update-fragment",
@@ -248,7 +248,7 @@ def test_cli_secrets_roundtrip(script_runner: ScriptRunner) -> None:
     )
     assert result.returncode == 0
 
-    result = script_runner.run(["dlt", "ai", "secrets", "view-redacted", "--path", custom])
+    result = script_runner.run(["dlthub", "ai", "secrets", "view-redacted", "--path", custom])
     assert result.returncode == 0
     assert "secret-pw" not in result.stdout
     assert "[destination.postgres.credentials]" in result.stdout
@@ -271,19 +271,19 @@ def test_user_session_e2e(
         location_args = ["--location", workbench_repo]
 
         # 1. ai status — fresh workspace has warnings
-        result = script_runner.run(["dlt", "ai", "status"])
+        result = script_runner.run(["dlthub", "ai", "status"])
         assert result.returncode == 0
         if workspace_type == "empty":
             assert "not yet initialized" in result.stdout.lower()
         assert "no toolkit" in result.stdout.lower()
 
         # 2. dlt ai init
-        result = script_runner.run(["dlt", "ai", "init", "--agent", "claude"] + location_args)
+        result = script_runner.run(["dlthub", "ai", "init", "--agent", "claude"] + location_args)
         assert result.returncode == 0
         assert "item(s) installed" in result.stdout
 
         # 3. ai toolkit list — discover available toolkits
-        result = script_runner.run(["dlt", "ai", "toolkit", "list"] + location_args)
+        result = script_runner.run(["dlthub", "ai", "toolkit", "list"] + location_args)
         assert result.returncode == 0
         assert "Available toolkits:" in result.stdout
         for name in KNOWN_TOOLKITS:
@@ -296,13 +296,13 @@ def test_user_session_e2e(
 
         for toolkit_name in installable:
             result = script_runner.run(
-                ["dlt", "ai", "toolkit", toolkit_name, "install", "--agent", "claude"]
+                ["dlthub", "ai", "toolkit", "install", toolkit_name, "--agent", "claude"]
                 + location_args
             )
             assert result.returncode == 0, "install %s failed: %s" % (toolkit_name, result.stderr)
 
         # 5. ai toolkit list again — shows installed toolkits
-        result = script_runner.run(["dlt", "ai", "toolkit", "list"] + location_args)
+        result = script_runner.run(["dlthub", "ai", "toolkit", "list"] + location_args)
         assert result.returncode == 0
         assert "Installed toolkits:" in result.stdout
         for toolkit_name in installable:

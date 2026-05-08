@@ -1,10 +1,11 @@
 import argparse
 import os
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
+from dlt.common.configuration.plugins import TCliCommandCompose
 from dlt._workspace.deployment.typing import DEFAULT_DEPLOYMENT_MODULE
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli.utils import add_mcp_arg_parser, make_mcp_run_flags
@@ -22,12 +23,12 @@ from dlt.common.storages.configuration import TSchemaFileFormat
 class InitCommand(SupportsCliCommand):
     command = "init"
     help_string = (
-        "Creates a pipeline project in the current folder by adding existing verified source or"
+        "Creates a pipeline in the current folder by adding existing verified source or"
         " creating a new one from template."
     )
     docs_url = DLT_INIT_DOCS_URL
     description = """
-The `dlt init` command creates a new dlt pipeline script that loads data from `source` to `destination`. When you run the command, several things happen:
+This command creates a new dlt pipeline script that loads data from `source` to `destination`. When you run the command, several things happen:
 
 1. Creates a basic project structure if the current folder is empty by adding `.dlt/config.toml`, `.dlt/secrets.toml`, and `.gitignore` files.
 2. Checks if the `source` argument matches one of our verified sources and, if so, adds it to your project.
@@ -123,16 +124,14 @@ version if run again with an existing `source` name. You will be warned if files
 
 class PipelineCommand(SupportsCliCommand):
     command = "pipeline"
-    help_string = "Operations on pipelines that were ran locally"
+    compose: TCliCommandCompose = "additive"
+    help_string = "Inspects pipeline state, trace, load packages, provides basic maintenance"
     docs_url = DLT_PIPELINE_COMMAND_DOCS_URL
     description = """
-The `dlt pipeline` command provides a set of commands to inspect the pipeline working directory, tables, and data in the destination and check for problems encountered during data loading.
+The `pipeline` command provides a set of tools to inspect the pipeline working directory, tables, and data in the destination and check for problems encountered during data loading.
     """
 
     def configure_parser(self, pipe_cmd: argparse.ArgumentParser) -> None:
-        # keep here to avoid importing schema storages at cli startup
-        from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
-
         self.parser = pipe_cmd
 
         pipe_cmd.add_argument(
@@ -144,18 +143,28 @@ The `dlt pipeline` command provides a set of commands to inspect the pipeline wo
         )
         pipe_cmd.add_argument("pipeline_name", nargs="?", help="Pipeline name")
         pipe_cmd.add_argument("--pipelines-dir", help="Pipelines working directory", default=None)
-        pipe_cmd.add_argument(
-            "--verbose",
-            "-v",
-            action="count",
-            default=0,
-            help="Provides more information for certain commands.",
-            dest="verbosity",
-        )
 
         pipeline_subparsers = pipe_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
         )
+        self._add_operation_subparsers(pipeline_subparsers)
+
+    def _add_operation_subparsers(
+        self,
+        pipeline_subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]",
+        pre_positional_callback: Optional[Callable[[argparse.ArgumentParser, str], None]] = None,
+    ) -> None:
+        """Builds the per-operation subparsers (info/show/sync/drop/load-package/etc.)."""
+        # keep here to avoid importing schema storages at cli startup
+        from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
+
+        # `pre_positional_callback(parser, op_name)` runs BEFORE each subparser's own args
+        # are added. subclasses (e.g. DlthubPipelineCommand) use it to register a positional
+        # (`pipeline_name`) ahead of the operation-specific args, achieving the verb-first
+        # form `<verb> <pipeline> [args]` while reusing this builder.
+        def _pre(p: argparse.ArgumentParser, op: str) -> None:
+            if pre_positional_callback is not None:
+                pre_positional_callback(p, op)
 
         pipe_cmd_sync_parent = argparse.ArgumentParser(add_help=False)
         pipe_cmd_sync_parent.add_argument(
@@ -165,7 +174,7 @@ The `dlt pipeline` command provides a set of commands to inspect the pipeline wo
             "--dataset-name", help="Dataset name to sync from when local pipeline state is missing."
         )
 
-        pipeline_subparsers.add_parser(
+        info_cmd = pipeline_subparsers.add_parser(
             "info",
             help="Displays state of the pipeline, use -v or -vv for more info",
             description="""
@@ -174,6 +183,7 @@ schemas, resources in schemas, list of completed and normalized load packages, a
 pipeline state set by the resources during the extraction process.
 """,
         )
+        _pre(info_cmd, "info")
         show_cmd = pipeline_subparsers.add_parser(
             "show",
             help=(
@@ -190,6 +200,7 @@ If the --edit flag is used, will launch the editable version of the dashboard if
 Requires `marimo` to be installed in the current environment: `pip install marimo`.
 """,
         )
+        _pre(show_cmd, "show")
         show_cmd.add_argument(
             "--edit",
             default=False,
@@ -199,7 +210,7 @@ Requires `marimo` to be installed in the current environment: `pip install marim
                 " not exist there yet and launches it in edit mode."
             ),
         )
-        pipeline_subparsers.add_parser(
+        failed_jobs_cmd = pipeline_subparsers.add_parser(
             "failed-jobs",
             help=(
                 "Displays information on all the failed loads in all completed packages, failed"
@@ -210,7 +221,8 @@ This command scans all the load packages looking for failed jobs and then displa
 files that got loaded and the failure message from the destination.
 """,
         )
-        pipeline_subparsers.add_parser(
+        _pre(failed_jobs_cmd, "failed-jobs")
+        drop_pending_cmd = pipeline_subparsers.add_parser(
             "drop-pending-packages",
             help=(
                 "Deletes all extracted and normalized packages including those that are partially"
@@ -223,7 +235,8 @@ pending packages first. The command above removes such packages. Note that **pip
 were created. Using `dlt pipeline ... sync` is recommended if your destination supports state sync.
 """,
         )
-        pipeline_subparsers.add_parser(
+        _pre(drop_pending_cmd, "drop-pending-packages")
+        sync_cmd = pipeline_subparsers.add_parser(
             "sync",
             help=(
                 "Drops the local state of the pipeline and resets all the schemas and restores it"
@@ -241,7 +254,8 @@ folder where you execute the `pipeline sync` command.
 """,
             parents=[pipe_cmd_sync_parent],
         )
-        pipeline_subparsers.add_parser(
+        _pre(sync_cmd, "sync")
+        trace_cmd = pipeline_subparsers.add_parser(
             "trace",
             help="Displays last run trace, use -v or -vv for more info",
             description="""
@@ -251,11 +265,13 @@ you'll see the message of the exceptions that caused that problem. Successful `l
 will display the load info instead.
 """,
         )
+        _pre(trace_cmd, "trace")
         pipe_cmd_schema = pipeline_subparsers.add_parser(
             "schema",
             help="Displays default schema",
             description="Displays the default schema for the selected pipeline.",
         )
+        _pre(pipe_cmd_schema, "schema")
         pipe_cmd_schema.add_argument(
             "--format",
             choices=SCHEMA_FILES_EXTENSIONS,
@@ -353,6 +369,7 @@ This will select the `archives` key in the `chess` source.
                 " more info"
             ),
         )
+        _pre(pipe_cmd_drop, "drop")
         pipe_cmd_drop.add_argument(
             "resources",
             nargs="*",
@@ -393,6 +410,7 @@ messages from the destination. With the verbose flag set `dlt pipeline -v ...`, 
 list of all tables and columns created at the destination during the loading of that package.
 """,
         )
+        _pre(pipe_cmd_package, "load-package")
         pipe_cmd_package.add_argument(
             "load_id",
             metavar="load-id",
@@ -408,6 +426,11 @@ list of all tables and columns created at the destination during the loading of 
             "Launch MCP server attached to this pipeline",
             DEFAULT_PIPELINE_MCP_PORT,
         )
+        # add_mcp_arg_parser is a no-op when fastmcp isn't installed; the lookup below
+        # may yield None in that case, which the callback can ignore
+        mcp_parser = pipeline_subparsers.choices.get("mcp")
+        if mcp_parser is not None:
+            _pre(mcp_parser, "mcp")
 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli._pipeline_command import pipeline_command_wrapper
@@ -487,9 +510,9 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
 
 class DashboardCommand(SupportsCliCommand):
     command = "dashboard"
-    help_string = "Starts the dlt workspace dashboard"
+    help_string = "Shows the dlthub workspace dashboard"
     description = """
-The `dlt dashboard` command starts the dlt workspace dashboard. You can use the dashboard:
+This command shows the dlt workspace dashboard. You can use the dashboard:
 
 * to list and inspect local pipelines
 * browse the full pipeline schema and all hints
@@ -511,6 +534,15 @@ The `dlt dashboard` command starts the dlt workspace dashboard. You can use the 
         )
 
     def execute(self, args: argparse.Namespace) -> None:
+        # check if hub is connected
+        from dlt import hub
+
+        # TODO: move to common utils
+        from dlt._workspace.helpers.dashboard.utils.home import detect_dlt_hub
+
+        if not detect_dlt_hub():
+            pass
+
         @utils.track_command("dashboard", True)
         def dashboard_command_wrapper(pipelines_dir: Optional[str], edit: bool) -> None:
             from dlt._workspace.helpers.dashboard.runner import run_dashboard
@@ -677,6 +709,8 @@ the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers
         else:
             from dlt._workspace.cli._deploy_command import deploy_command_wrapper
 
+            # global flags are not part of the deploy_command surface; strip before forwarding
+            deploy_args.pop("verbosity", None)
             deploy_command_wrapper(
                 pipeline_script_path=deploy_args.pop("pipeline_script_path"),
                 deployment_method=deploy_args.pop("deployment_method"),
@@ -782,13 +816,10 @@ class AiCommand(SupportsCliCommand):
             help="Path to the secrets TOML file to write to",
         )
 
-        # toolkit command group
+        # toolkit command group — verb-first form: `ai toolkit <verb> <name>`
         toolkit_cmd = ai_subparsers.add_parser(
             "toolkit",
             help="Manage AI toolkit plugins (list, info, install)",
-        )
-        toolkit_cmd.add_argument(
-            "name", nargs="?", help="Toolkit name (required for info and install)"
         )
         toolkit_sub = toolkit_cmd.add_subparsers(dest="toolkit_operation", required=False)
 
@@ -810,16 +841,18 @@ class AiCommand(SupportsCliCommand):
             help="List available toolkits",
             parents=[toolkit_common],
         )
-        toolkit_sub.add_parser(
+        info_cmd = toolkit_sub.add_parser(
             "info",
             help="Show toolkit contents and components",
             parents=[toolkit_common],
         )
+        info_cmd.add_argument("name", help="Toolkit name")
         install_cmd = toolkit_sub.add_parser(
             "install",
             help="Install toolkit components into project",
             parents=[toolkit_common],
         )
+        install_cmd.add_argument("name", help="Toolkit name")
         install_cmd.add_argument(
             "--agent",
             choices=["claude", "cursor", "codex"],
@@ -966,313 +999,5 @@ class AiCommand(SupportsCliCommand):
                     sse=getattr(args, "sse", False),
                     features=getattr(args, "features", None),
                 )
-        else:
-            self.parser.print_usage()
-
-
-class WorkspaceCommand(SupportsCliCommand):
-    command = "workspace"
-    help_string = "Manage current Workspace"
-    description = """
-Commands to get info, cleanup local files and launch Workspace MCP. Run without command get
-workspace info.
-"""
-
-    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
-        self.parser = parser
-
-        parser.add_argument(
-            "--verbose",
-            "-v",
-            action="count",
-            default=0,
-            help="Provides more information for certain commands.",
-            dest="verbosity",
-        )
-
-        subparsers = parser.add_subparsers(
-            title="Available subcommands", dest="workspace_command", required=False
-        )
-
-        # clean command
-        clean_local_parser = subparsers.add_parser(
-            "clean",
-            help=(
-                "Cleans local data for the selected profile. Locally loaded data will be deleted. "
-                "Pipelines working directories are also deleted by default. Data in remote "
-                "destinations is not affected."
-            ),
-        )
-        clean_local_parser.add_argument(
-            "--skip-data-dir",
-            action="store_true",
-            default=False,
-            help="Do not delete pipelines working dir.",
-        )
-
-        subparsers.add_parser(
-            "info",
-            help="Displays workspace info.",
-        )
-
-        DEFAULT_DLT_MCP_PORT = 43654
-        add_mcp_arg_parser(
-            subparsers,
-            "This MCP allows to attach to any pipeline that was previously ran in this workspace"
-            " and then facilitates schema and data exploration in the pipeline's dataset.",
-            "Launch dlt MCP server in current Python environment and Workspace",
-            DEFAULT_DLT_MCP_PORT,
-        )
-
-        show_parser = subparsers.add_parser(
-            "show",
-            help="Shows Workspace Dashboard for the pipelines and data in this workspace.",
-        )
-
-        show_parser.add_argument(
-            "--edit",
-            action="store_true",
-            help="Eject Dashboard and start editable version",
-            default=None,
-        )
-
-        run_parser = subparsers.add_parser(
-            "run",
-            help="Run a single workspace job locally",
-            description=(
-                "Run a single job from a deployment module locally. Loads the"
-                " manifest, matches exactly one job by selector or job reference,"
-                " builds a runtime entry point, and spawns the launcher subprocess."
-                " Freshness checks are skipped — use runtime for scheduled execution."
-            ),
-        )
-        run_parser.add_argument(
-            "selector_or_job_ref",
-            nargs="?",
-            default=None,
-            help=(
-                "Job reference (backfill, batch.backfill), trigger selector"
-                " (tag:backfill, schedule:*), or a .py file path (auto-promoted"
-                " to --file). If omitted, the job's default trigger is used."
-            ),
-        )
-        run_parser.add_argument(
-            "--file",
-            "-f",
-            default=None,
-            metavar="FILE",
-            help=(
-                "Path to a .py deployment module. If omitted, loads the default"
-                f" {DEFAULT_DEPLOYMENT_MODULE!r} module from the workspace."
-            ),
-        )
-        run_parser.add_argument(
-            "--profile",
-            default=None,
-            metavar="NAME",
-            help="Override require.profile and the workspace pinned profile.",
-        )
-        run_parser.add_argument(
-            "--start",
-            default=None,
-            metavar="ISO",
-            help="Override interval start (ISO 8601). Naive values use the job's timezone.",
-        )
-        run_parser.add_argument(
-            "--end",
-            default=None,
-            metavar="ISO",
-            help="Override interval end (ISO 8601). Defaults to now if --start is set.",
-        )
-        run_parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Resolve the job and print the entry point without launching",
-        )
-        run_parser.add_argument(
-            "-v",
-            "--verbose",
-            action="store_true",
-            help="Print the resolved entry point before running",
-        )
-        run_parser.add_argument(
-            "-c",
-            "--config",
-            action="append",
-            default=[],
-            metavar="KEY=VALUE",
-            help="Config key=value pairs passed to the job (repeatable)",
-        )
-        run_parser.add_argument(
-            "--refresh",
-            action="store_true",
-            help=(
-                "Request a refresh run. Respects TJobDefinition.refresh:"
-                " `always` forces refresh regardless, `block` ignores the flag"
-                " with a warning (run proceeds), `auto` honors it."
-            ),
-        )
-
-    def execute(self, args: argparse.Namespace) -> None:
-        from dlt._workspace._workspace_context import active
-        from dlt._workspace.cli._workspace_command import (
-            print_workspace_info,
-            clean_workspace,
-            show_workspace,
-            start_mcp,
-        )
-
-        workspace_context = active()
-
-        if args.workspace_command == "info" or not args.workspace_command:
-            print_workspace_info(workspace_context, args.verbosity)
-        elif args.workspace_command == "clean":
-            clean_workspace(workspace_context, args)
-        elif args.workspace_command == "show":
-            show_workspace(workspace_context, args.edit)
-        elif args.workspace_command == "mcp":
-            start_mcp(workspace_context, port=args.port, stdio=args.stdio, sse=args.sse)
-        elif args.workspace_command == "run":
-            self._execute_run(args)
-        else:
-            self.parser.print_usage()
-
-    @staticmethod
-    def _parse_config_args(pairs: List[str]) -> Dict[str, str]:
-        config: Dict[str, str] = {}
-        for pair in pairs:
-            if "=" not in pair:
-                raise ValueError(f"config must be KEY=VALUE, got: {pair!r}")
-            key, value = pair.split("=", 1)
-            config[key] = value
-        return config
-
-    def _execute_run(self, args: argparse.Namespace) -> None:
-        from dlt.common import json
-
-        from dlt._workspace.cli._run_command import (
-            fetch_run_info,
-            print_run_plan,
-            print_run_starting,
-            print_run_warnings,
-        )
-        from dlt._workspace.deployment._job_ref import format_job_label
-        from dlt._workspace.deployment.launchers._launcher import exec_process
-        from dlt._workspace.deployment.typing import TJobDefinition, TTrigger
-
-        def _pick(
-            candidates: List[Tuple["TJobDefinition", "TTrigger"]],
-        ) -> Tuple["TJobDefinition", "TTrigger"]:
-            if len(candidates) == 1:
-                return candidates[0]
-
-            def _label(j: "TJobDefinition") -> str:
-                return format_job_label(j["job_ref"], j.get("expose"), j.get("deliver"))
-
-            labels = [f"{i}-{_label(j)}" for i, (j, _) in enumerate(candidates, 1)]
-            fmt.echo(f"{len(candidates)} jobs match:")
-            for i, (j, t) in enumerate(candidates, 1):
-                fmt.echo(f"  {i}. {_label(j)}  (trigger: {t})")
-            choice = fmt.prompt(
-                "Pick a job: " + ", ".join(labels),
-                choices=[str(i) for i in range(1, len(candidates) + 1)],
-                default="1",
-            )
-            return candidates[int(choice) - 1]
-
-        cli_config = self._parse_config_args(args.config) if args.config else {}
-        info = fetch_run_info(
-            selector=args.selector_or_job_ref,
-            file=args.file,
-            user_profile=args.profile,
-            user_start=args.start,
-            user_end=args.end,
-            user_refresh=args.refresh,
-            cli_config=cli_config,
-            pick=_pick,
-        )
-        if info is None:
-            fmt.echo("No jobs found in manifest.")
-            return
-
-        print_run_warnings(info)
-
-        if args.verbose or args.dry_run:
-            print_run_plan(info)
-        if args.dry_run:
-            fmt.echo("--dry-run: not launching")
-            return
-
-        print_run_starting(info)
-        exec_process(
-            [
-                sys.executable,
-                "-u",
-                "-m",
-                info["launcher"],
-                "--run-id",
-                info["run_id"],
-                "--trigger",
-                info["trigger"],
-                "--entry-point",
-                json.typed_dumps(info["entry_point"]),
-            ]
-        )
-
-
-class ProfileCommand(SupportsCliCommand):
-    command = "profile"
-    help_string = "Manage Workspace built-in profiles"
-    description = """
-Commands to list and pin profiles
-Run without arguments to list all profiles, the default profile and the
-pinned profile in current project.
-"""
-
-    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
-        self.parser = parser
-
-        parser.add_argument("profile_name", help="Name of the profile", nargs="?")
-
-        subparsers = parser.add_subparsers(
-            title="Available subcommands", dest="profile_command", required=False
-        )
-
-        subparsers.add_parser(
-            "info",
-            help="Show information about the current profile.",
-            description="Show information about the current profile.",
-        )
-
-        subparsers.add_parser(
-            "list",
-            help="Show list of built-in profiles.",
-            description="Show list of built-in profiles.",
-        )
-
-        subparsers.add_parser(
-            "pin",
-            help="Pin a profile to the Workspace.",
-            description="""
-Pin a profile to the Workspace, this will be the new default profile while it is pinned.
-""",
-        )
-
-    def execute(self, args: argparse.Namespace) -> None:
-        from dlt._workspace._workspace_context import active
-        from dlt._workspace.cli._profile_command import (
-            print_profile_info,
-            list_profiles,
-            pin_profile,
-        )
-
-        workspace_context = active()
-
-        if args.profile_command == "info" or not args.profile_command:
-            print_profile_info(workspace_context)
-        elif args.profile_command == "list":
-            list_profiles(workspace_context)
-        elif args.profile_command == "pin":
-            pin_profile(workspace_context, args.profile_name)
         else:
             self.parser.print_usage()

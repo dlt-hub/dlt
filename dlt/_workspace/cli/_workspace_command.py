@@ -1,5 +1,5 @@
 import argparse
-from typing import List
+from typing import List, Optional
 
 from dlt.common.configuration.specs.pluggable_run_context import (
     RunContextBase,
@@ -7,7 +7,12 @@ from dlt.common.configuration.specs.pluggable_run_context import (
 
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace._workspace_context import WorkspaceRunContext
-from dlt._workspace.typing import TDeploymentManifestInfo, TLocationInfo
+from dlt._workspace.typing import (
+    TCurrentProfileInfo,
+    TDeploymentManifestInfo,
+    TLocationInfo,
+    TProviderInfo,
+)
 from dlt._workspace.cli.utils import (
     check_delete_local_data,
     delete_local_data,
@@ -31,33 +36,26 @@ def _format_location_tag(loc: TLocationInfo) -> str:
     return ""
 
 
-@utils.track_command("workspace", track_before=False, operation="info")
-def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -> None:
-    info = fetch_workspace_info()
+def print_profile_section(
+    profile: TCurrentProfileInfo, configured_profiles: Optional[List[str]] = None
+) -> None:
+    """Renders the active-profile block: name, paths, pinned status, configured profiles."""
+    fmt.echo("Settings for profile %s:" % fmt.bold(profile["name"]))
+    fmt.echo("  Pipelines and other working data: %s" % fmt.bold(profile["data_dir"]))
+    fmt.echo("  Locally loaded data: %s" % fmt.bold(profile["local_dir"]))
+    if profile["is_pinned"]:
+        fmt.echo("  Profile is %s" % fmt.bold("pinned"))
+    if configured_profiles:
+        fmt.echo(
+            "Profiles with configs or pipelines: %s" % fmt.bold(", ".join(configured_profiles))
+        )
 
-    if info["name"]:
-        fmt.echo("Workspace %s:" % fmt.bold(info["name"]))
-    fmt.echo("Workspace dir: %s" % fmt.bold(info["run_dir"]))
-    fmt.echo("Settings dir: %s" % fmt.bold(info["settings_dir"]))
 
-    profile = info["profile"]
-    if profile:
-        fmt.echo()
-        fmt.echo("Settings for profile %s:" % fmt.bold(profile["name"]))
-        fmt.echo("  Pipelines and other working data: %s" % fmt.bold(profile["data_dir"]))
-        fmt.echo("  Locally loaded data: %s" % fmt.bold(profile["local_dir"]))
-        if profile["is_pinned"]:
-            fmt.echo("  Profile is %s" % fmt.bold("pinned"))
-        if info["configured_profiles"]:
-            fmt.echo(
-                "Profiles with configs or pipelines: %s"
-                % fmt.bold(", ".join(info["configured_profiles"]))
-            )
-
-    fmt.echo()
-    fmt.echo("dlt found configuration in following locations:")
+def print_providers(providers: List[TProviderInfo], verbosity: int) -> None:
+    """Renders configuration provider locations; verbosity > 0 also lists not-found locations."""
+    fmt.echo(fmt.cli_cmd("found configuration in following locations:"))
     total_not_found_count = 0
-    for prov in info["providers"]:
+    for prov in providers:
         fmt.echo("* %s" % fmt.bold(prov["name"]))
         for loc in prov["locations"]:
             if loc["present"]:
@@ -76,6 +74,24 @@ def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -
             "%s location(s) were probed but not found. Use %s to see details."
             % (fmt.bold(str(total_not_found_count)), fmt.bold("-v"))
         )
+
+
+@utils.track_command("workspace", track_before=False, operation="info")
+def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -> None:
+    info = fetch_workspace_info()
+
+    if info["name"]:
+        fmt.echo("Workspace %s:" % fmt.bold(info["name"]))
+    fmt.echo("Workspace dir: %s" % fmt.bold(info["run_dir"]))
+    fmt.echo("Settings dir: %s" % fmt.bold(info["settings_dir"]))
+
+    profile = info["profile"]
+    if profile:
+        fmt.echo()
+        print_profile_section(profile, info["configured_profiles"])
+
+    fmt.echo()
+    print_providers(info["providers"], verbosity)
     # installed toolkits
     if info["installed_toolkits"]:
         fmt.echo()
@@ -136,22 +152,6 @@ def clean_workspace(run_context: RunContextBase, args: argparse.Namespace) -> No
     deleted_dirs = check_delete_local_data(run_context, args.skip_data_dir)
     if deleted_dirs:
         delete_local_data(run_context, deleted_dirs)
-
-
-@utils.track_command("workspace", track_before=True, operation="mcp")
-def start_mcp(run_context: WorkspaceRunContext, port: int, stdio: bool, sse: bool) -> None:
-    from dlt._workspace.mcp import WorkspaceMCP
-
-    if stdio:
-        transport = "stdio"
-    elif sse:
-        transport = "sse"
-    else:
-        transport = "streamable-http"
-    if transport != "stdio":
-        fmt.echo("Starting dlt MCP server", err=True)
-    mcp_server = WorkspaceMCP(f"dlt: {run_context.name}@{run_context.profile}", port=port)
-    mcp_server.run(transport=transport)
 
 
 @utils.track_command("dashboard", True)

@@ -7,9 +7,10 @@ To add a new plugin here, do the following:
 
 this module is inspected by pluggy on dlt startup
 """
-from typing import Type
+from typing import Optional, Type
 
 from dlt.common.configuration import plugins
+from dlt.common.configuration.plugins import only_host
 from dlt.common.runtime.run_context import active as run_context_active
 
 
@@ -21,82 +22,110 @@ __all__ = [
     "plug_cli_telemetry",
     "plug_cli_deploy",
     "plug_cli_ai",
-    "plug_cli_profile",
-    "plug_cli_workspace",
+    "plug_cli_dlthub_pipeline",
+    "plug_cli_dlthub_info",
+    "plug_cli_dlthub_local",
+    "plug_cli_dlthub_profile",
 ]
 
 
 def is_workspace_active() -> bool:
     # verify run context type without importing
-
     ctx = run_context_active()
     return ctx.__class__.__name__ == "WorkspaceRunContext"
 
 
 @plugins.hookimpl(specname="plug_cli")
-def plug_cli_init() -> Type[plugins.SupportsCliCommand]:
+@only_host("dlt")
+def plug_cli_init(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
     from dlt._workspace.cli.commands import InitCommand
 
     return InitCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
-def plug_cli_pipeline() -> Type[plugins.SupportsCliCommand]:
+@only_host("dlt")
+def plug_cli_pipeline(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
     from dlt._workspace.cli.commands import PipelineCommand
 
     return PipelineCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
-def plug_cli_schema() -> Type[plugins.SupportsCliCommand]:
+@only_host("dlt")
+def plug_cli_schema(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
+    # dlt-only at the top level. The dlthub host hosts schema as `dlthub local schema`.
     from dlt._workspace.cli.commands import SchemaCommand
 
     return SchemaCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
-def plug_cli_dashboard() -> Type[plugins.SupportsCliCommand]:
+@only_host("dlt")
+def plug_cli_dashboard(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
     from dlt._workspace.cli.commands import DashboardCommand
 
     return DashboardCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
-def plug_cli_telemetry() -> Type[plugins.SupportsCliCommand]:
+@only_host("dlt")
+def plug_cli_telemetry(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
+    # dlt-only at the top level. The dlthub host hosts telemetry as `dlthub local telemetry`.
     from dlt._workspace.cli.commands import TelemetryCommand
 
     return TelemetryCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
-def plug_cli_deploy() -> Type[plugins.SupportsCliCommand]:
+@only_host("dlt")
+def plug_cli_deploy(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
     from dlt._workspace.cli.commands import DeployCommand
 
     return DeployCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
-def plug_cli_ai() -> Type[plugins.SupportsCliCommand]:
+@only_host("dlthub")
+def plug_cli_ai(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
     from dlt._workspace.cli.commands import AiCommand
 
     return AiCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
-def plug_cli_profile() -> Type[plugins.SupportsCliCommand]:
-    if is_workspace_active():
-        from dlt._workspace.cli.commands import ProfileCommand
+@only_host("dlthub")
+def plug_cli_dlthub_pipeline(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
+    from dlt._workspace.cli.dlthub._pipeline_command import PipelineCommand
 
-        return ProfileCommand
-    else:
-        return None
+    return PipelineCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
-def plug_cli_workspace() -> Type[plugins.SupportsCliCommand]:
-    if is_workspace_active():
-        from dlt._workspace.cli.commands import WorkspaceCommand
-
-        return WorkspaceCommand
-    else:
+@only_host("dlthub")
+def plug_cli_dlthub_info(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
+    if not is_workspace_active():
         return None
+    from dlt._workspace.cli.dlthub._local_workspace_command import InfoSubCommand
+
+    return InfoSubCommand
+
+
+@plugins.hookimpl(specname="plug_cli")
+@only_host("dlthub")
+def plug_cli_dlthub_local(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
+    if not is_workspace_active():
+        return None
+    from dlt._workspace.cli.dlthub._local_workspace_command import LocalWorkspaceCommand
+
+    return LocalWorkspaceCommand
+
+
+@plugins.hookimpl(specname="plug_cli")
+@only_host("dlthub")
+def plug_cli_dlthub_profile(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
+    if not is_workspace_active():
+        return None
+    from dlt._workspace.cli.dlthub._profile_command import ProfileCommand
+
+    return ProfileCommand

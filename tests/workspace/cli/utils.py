@@ -20,13 +20,9 @@ WORKSPACE_CLI_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cl
 
 
 @pytest.fixture(autouse=True)
-def auto_echo_default_choice() -> Iterator[None]:
-    """Always answer default in CLI interactions"""
-    echo.ALWAYS_CHOOSE_DEFAULT = True
-    try:
-        yield
-    finally:
-        echo.ALWAYS_CHOOSE_DEFAULT = False
+def auto_echo_default_choice(reset_echo_state: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force `ALWAYS_CHOOSE_DEFAULT=True` for tests that import this fixture, on top of the conftest reset."""
+    monkeypatch.setattr(echo, "ALWAYS_CHOOSE_DEFAULT", True)
 
 
 @pytest.fixture(scope="session")

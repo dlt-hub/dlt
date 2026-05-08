@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pytest
 
 from dlt._workspace.cli import _run_command as run_cmd_mod
-from dlt._workspace.cli import commands as commands_mod
+from dlt._workspace.cli.dlthub._local_workspace_command import LocalWorkspaceCommand
 from dlt._workspace.cli._run_command import (
     build_runtime_entry_point,
     collect_candidates,
@@ -553,8 +553,8 @@ def test_load_manifest_import_error_inside_file_surfaces_real_error(
         load_manifest("bad.py", use_all=False)
 
 
-def _invoke_workspace_run(monkeypatch: pytest.MonkeyPatch, *cli_args: str) -> Tuple[int, str, str]:
-    """Run `workspace run` in-process; intercept exec_process to run the child
+def _invoke_local_run(monkeypatch: pytest.MonkeyPatch, *cli_args: str) -> Tuple[int, str, str]:
+    """Run `local run` in-process; intercept exec_process to run the child
     synchronously into explicit buffers and return (returncode, stdout, stderr).
     """
     stdout_buf: List[str] = []
@@ -568,21 +568,21 @@ def _invoke_workspace_run(monkeypatch: pytest.MonkeyPatch, *cli_args: str) -> Tu
 
     monkeypatch.setattr(launcher_mod, "exec_process", _sync_exec)
 
-    cmd = commands_mod.WorkspaceCommand()  # type: ignore[abstract]
-    parser = argparse.ArgumentParser(prog="dlt workspace")
+    cmd = LocalWorkspaceCommand()
+    parser = argparse.ArgumentParser(prog="dlthub local")
     cmd.configure_parser(parser)
     args = parser.parse_args(["run", *cli_args])
 
     returncode = 0
     try:
-        cmd._execute_run(args)
+        cmd.execute(args)
     except SystemExit as exc:
         returncode = int(exc.code or 0)
 
     return returncode, "".join(stdout_buf), "".join(stderr_buf)
 
 
-def test_workspace_run_plain_module_end_to_end(
+def test_local_run_plain_module_end_to_end(
     auto_isolated_workspace: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -592,12 +592,12 @@ def test_workspace_run_plain_module_end_to_end(
     (Path(ws_dir) / "hello.py").write_text(
         "if __name__ == '__main__':\n    print('greetings from pipeline')\n"
     )
-    returncode, stdout, _ = _invoke_workspace_run(monkeypatch, "hello.py")
+    returncode, stdout, _ = _invoke_local_run(monkeypatch, "hello.py")
     assert returncode == 0
     assert "greetings from pipeline" in stdout
 
 
-def test_workspace_run_propagates_nonzero_exit(
+def test_local_run_propagates_nonzero_exit(
     auto_isolated_workspace: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -609,13 +609,13 @@ def test_workspace_run_propagates_nonzero_exit(
         "    print('err line', file=sys.stderr, flush=True)\n"
         "    sys.exit(7)\n"
     )
-    returncode, stdout, stderr = _invoke_workspace_run(monkeypatch, "failing.py")
+    returncode, stdout, stderr = _invoke_local_run(monkeypatch, "failing.py")
     assert returncode == 7
     assert "before exit" in stdout
     assert "err line" in stderr
 
 
-def test_workspace_run_dry_run_does_not_spawn_subprocess(
+def test_local_run_dry_run_does_not_spawn_subprocess(
     auto_isolated_workspace: Any,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -632,10 +632,10 @@ def test_workspace_run_dry_run_does_not_spawn_subprocess(
 
     monkeypatch.setattr(launcher_mod, "exec_process", _should_not_be_called)
 
-    cmd = commands_mod.WorkspaceCommand()  # type: ignore[abstract]
-    parser = argparse.ArgumentParser(prog="dlt workspace")
+    cmd = LocalWorkspaceCommand()
+    parser = argparse.ArgumentParser(prog="dlthub local")
     cmd.configure_parser(parser)
     args = parser.parse_args(["run", "dry.py", "--dry-run"])
-    cmd._execute_run(args)
+    cmd.execute(args)
     assert "argv" not in called
     assert "dry-run: not launching" in capsys.readouterr().out

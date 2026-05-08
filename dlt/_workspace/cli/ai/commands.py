@@ -113,7 +113,7 @@ def ai_mcp_install_command(
     variant = _resolve_agent(agent, project_root)
 
     resolved = resolve_features(features)
-    args = ["uv", "run", "dlt", "ai", "mcp", "run", "--stdio"]
+    args = ["uv", "run", fmt.get_cli_host_name(), "ai", "mcp", "run", "--stdio"]
     if resolved != DEFAULT_MCP_FEATURES:
         args.extend(["--features"] + sorted(resolved))
 
@@ -462,12 +462,17 @@ def _install_dependencies(
         _install_toolkit(dep, base, agent, project_root)
 
 
-_WARNING_MESSAGES = {
-    "not_initialized": "Workspace not yet initialized (dlt init not yet run)",
-    "no_init_toolkit": "MCP server and workflow rules not available (dlt ai init not yet run)",
-    "no_toolkits": "No toolkit with workflow is installed!",
-    "mcp_unavailable": "MCP server cannot be started due to:",
-}
+def _warning_message(code: str) -> str:
+    # built lazily so cli_cmd() reads the active CLI host name (e.g. dlt vs dlthub)
+    if code == "not_initialized":
+        return f"Workspace not yet initialized ({fmt.cli_cmd('init')} not yet run)"
+    if code == "no_init_toolkit":
+        return f"MCP server and workflow rules not available ({fmt.cli_cmd('ai init')} not yet run)"
+    if code == "no_toolkits":
+        return "No toolkit with workflow is installed!"
+    if code == "mcp_unavailable":
+        return "MCP server cannot be started due to:"
+    return code
 
 
 def _print_ai_status(status: TAiStatusInfo) -> None:
@@ -477,8 +482,7 @@ def _print_ai_status(status: TAiStatusInfo) -> None:
         fmt.echo("Agent: %s" % fmt.bold(status["agent_name"]))
 
     for code in status["warnings"]:
-        msg = _WARNING_MESSAGES.get(code, code)
-        fmt.warning(msg)
+        fmt.warning(_warning_message(code))
         if code == "mcp_unavailable" and "mcp_error" in status:
             fmt.echo("  %s" % status["mcp_error"])
 
@@ -521,7 +525,7 @@ def ai_init_command(
 
     status = fetch_ai_status(project_root)
     if "mcp_unavailable" in status["warnings"]:
-        fmt.warning("MCP server cannot be started. Run `dlt ai status` for details.")
+        fmt.warning(f"MCP server cannot be started. Run `{fmt.cli_cmd('ai status')}` for details.")
     if var.name == "cursor":
         fmt.warning(
             "Cursor requires you to manually enable MCP servers per-project."
@@ -531,8 +535,8 @@ def ai_init_command(
     if len(load_toolkits_index()) == 1:
         fmt.echo()
         fmt.echo(
-            "Now you can install your first toolkit. Use `dlt ai toolkit list` for more"
-            " information."
+            f"Now you can install your first toolkit. Use `{fmt.cli_cmd('ai toolkit list')}` for"
+            " more information."
         )
 
 

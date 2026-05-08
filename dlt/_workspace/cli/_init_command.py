@@ -98,9 +98,9 @@ def init_command(
         display_source_name = source_name[7:]
         fmt.warning(
             "The `dlthub:<source>` syntax is deprecated. User dltHub AI Workbench instead:\n"
-            "dlt ai init\n"
+            "%s\n"
             "will get you started. See %s for more details."
-            % fmt.bold(DLT_AI_DOCS_URL)
+            % (fmt.cli_cmd("ai init"), fmt.bold(DLT_AI_DOCS_URL))
         )
         source_name = "context_rest_api"
 
@@ -457,8 +457,9 @@ def init_pipeline_at_destination(
                     " default template." % (fmt.bold(source_name))
                 )
                 fmt.echo(
-                    "NOTE: In case you did not want to use the default template, run 'dlt init -l'"
+                    "NOTE: In case you did not want to use the default template, run '%s'"
                     " to see all available sources and templates."
+                    % fmt.cli_cmd("init -l")
                 )
             fmt.echo(
                 "Creating and configuring a new pipeline with the dlt core template %s (%s)"

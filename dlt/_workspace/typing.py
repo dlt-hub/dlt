@@ -62,6 +62,13 @@ class TCurrentProfileInfo(TProfileInfo):
     local_dir: str
 
 
+class TCurrentProfileFullInfo(TCurrentProfileInfo):
+    """The active profile plus filtered provider locations for the verbose `profile info` view."""
+
+    providers: List[TProviderInfo]
+    configured_profiles: List[str]
+
+
 class TWorkbenchComponentInfo(TypedDict):
     """A skill, command, or rule inside a workbench toolkit."""
 

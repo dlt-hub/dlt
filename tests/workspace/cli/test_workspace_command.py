@@ -1,10 +1,12 @@
 """Tests for `dlt workspace info` — fetch_deployment_info + view."""
 
+import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Tuple
 
 import pytest
 
+from dlt._workspace.cli._dlt import _create_parser
 from dlt._workspace.cli._workspace_command import _print_deployment_info
 from dlt._workspace.cli.utils import fetch_deployment_info
 from dlt._workspace.typing import TDeploymentManifestInfo
@@ -143,3 +145,184 @@ def test_print_deployment_info_ok_verbose_lists_jobs(
     assert "(interactive)" in out  # no triggers on notebook
     assert "backfill" in out
     assert "dashboard" in out
+
+
+# dlthub local + top-level info argparse routing tests
+
+
+def _build_dlthub_parser(monkeypatch: pytest.MonkeyPatch, argv: List[str]) -> Tuple[Any, Any]:
+    monkeypatch.setattr(sys, "argv", ["dlthub", *argv])
+    parser, _pre, installed = _create_parser("dlthub")
+    return parser, installed
+
+
+def _parse_dlthub(monkeypatch: pytest.MonkeyPatch, argv: List[str]) -> Tuple[Any, Any, Any]:
+    """Build parsers, run dual-parse (pre-parser extracts globals from anywhere; main
+    parser handles the rest with the populated namespace). Returns (parser, installed, args)."""
+    monkeypatch.setattr(sys, "argv", ["dlthub", *argv])
+    parser, pre_parser, installed = _create_parser("dlthub")
+    ns, remaining = pre_parser.parse_known_args(argv)
+    args = parser.parse_args(remaining, namespace=ns)
+    return parser, installed, args
+
+
+def test_dlthub_local_info_parses(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, _, args = _parse_dlthub(monkeypatch, ["local", "info"])
+    assert args.local_op == "info"
+
+
+def test_dlthub_local_info_verbose(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, _, args = _parse_dlthub(monkeypatch, ["local", "-v", "info"])
+    assert args.verbosity == 1
+
+
+def test_dlthub_local_run_parses(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, _, args = _parse_dlthub(monkeypatch, ["local", "run", "myjob"])
+    assert args.local_op == "run"
+    assert args.selector_or_job_ref == "myjob"
+
+
+def test_dlthub_local_show_parses(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, _, args = _parse_dlthub(monkeypatch, ["local", "show", "--edit"])
+    assert args.local_op == "show"
+    assert args.edit is True
+
+
+def test_dlthub_local_clean_parses(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, _, args = _parse_dlthub(monkeypatch, ["local", "clean"])
+    assert args.local_op == "clean"
+    assert args.skip_data_dir is False
+
+
+def test_dlthub_local_clean_skip_data_dir(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, _, args = _parse_dlthub(monkeypatch, ["local", "clean", "--skip-data-dir"])
+    assert args.skip_data_dir is True
+
+
+def test_dlthub_local_clean_rejects_profile_arg(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`local clean` always targets the current profile — extra positional must error."""
+    with pytest.raises(SystemExit):
+        _parse_dlthub(monkeypatch, ["local", "clean", "tests"])
+
+
+def test_dlthub_local_schema_parses(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, _, args = _parse_dlthub(monkeypatch, ["local", "schema", "schema.yaml"])
+    assert args.local_op == "schema"
+    assert args.file == "schema.yaml"
+
+
+def test_dlthub_local_telemetry_parses(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, _, args = _parse_dlthub(monkeypatch, ["local", "telemetry"])
+    assert args.local_op == "telemetry"
+
+
+@pytest.mark.parametrize(
+    "argv,expected",
+    [
+        (
+            ["local", "pipeline", "info", "mypipe"],
+            {"local_op": "pipeline", "operation": "info", "pipeline_name": "mypipe"},
+        ),
+        (
+            ["local", "pipeline", "drop", "mypipe", "events", "--drop-all"],
+            {
+                "local_op": "pipeline",
+                "operation": "drop",
+                "pipeline_name": "mypipe",
+                "resources": ["events"],
+                "drop_all": True,
+            },
+        ),
+        (
+            ["local", "pipeline", "load-package", "mypipe", "load_xyz"],
+            {
+                "local_op": "pipeline",
+                "operation": "load-package",
+                "pipeline_name": "mypipe",
+                "load_id": "load_xyz",
+            },
+        ),
+        (
+            ["local", "pipeline", "list"],
+            {"local_op": "pipeline", "operation": "list"},
+        ),
+        (
+            ["local", "pipeline"],
+            {"local_op": "pipeline", "operation": None, "pipeline_name": None},
+        ),
+    ],
+    ids=["info", "drop", "load-package", "list", "no-verb"],
+)
+def test_dlthub_local_pipeline_verb_first(
+    auto_isolated_workspace: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    argv: List[str],
+    expected: Dict[str, Any],
+) -> None:
+    _, _, args = _parse_dlthub(monkeypatch, argv)
+    for key, value in expected.items():
+        assert getattr(args, key) == value, f"{key}: got {getattr(args, key)!r} != {value!r}"
+
+
+def test_dlthub_local_pipeline_info_without_name_prints_usage(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # regression: PipelineCommand.execute calls self.parser.print_usage() when
+    # pipeline_name is missing. The DlthubLocalWorkspaceCommand reuses a single
+    # PipelineCommand instance with `parser` set to the inline pipeline subparser.
+    from dlt._workspace.cli.exceptions import CliCommandException
+
+    _, installed, args = _parse_dlthub(monkeypatch, ["local", "pipeline", "info"])
+    with pytest.raises(CliCommandException):
+        installed["local"].execute(args)
+
+
+def test_dlthub_workspace_removed(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parser, _ = _build_dlthub_parser(monkeypatch, ["workspace", "info"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["workspace", "info"])
+
+
+def test_dlthub_top_level_schema_removed(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `schema` only exists under `dlthub local schema`, not top level
+    parser, _ = _build_dlthub_parser(monkeypatch, ["schema"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["schema"])
+
+
+def test_dlthub_top_level_telemetry_removed(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parser, _ = _build_dlthub_parser(monkeypatch, ["telemetry"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["telemetry"])
+
+
+def test_dlthub_top_level_info_parses(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, installed, args = _parse_dlthub(monkeypatch, ["info"])
+    assert args.command == "info"
+    assert "info" in installed
