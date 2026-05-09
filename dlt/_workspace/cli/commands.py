@@ -917,7 +917,7 @@ class AiCommand(SupportsCliCommand):
             DEFAULT_AI_WORKBENCH_BRANCH,
             DEFAULT_AI_WORKBENCH_REPO,
         )
-        from dlt._workspace.cli.ai import (
+        from dlt._workspace.cli.dlthub.ai import (
             ai_status_command,
             ai_init_command,
             ai_mcp_run_command,

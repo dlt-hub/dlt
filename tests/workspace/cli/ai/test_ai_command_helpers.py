@@ -10,7 +10,7 @@ import pytest
 import tomlkit
 import yaml
 
-from dlt._workspace.cli.ai.commands import (
+from dlt._workspace.cli.dlthub.ai.commands import (
     _execute_install,
     _install_dependencies,
     _plan_toolkit_install,
@@ -22,13 +22,13 @@ from dlt._workspace.cli.ai.commands import (
     ai_toolkit_install_command,
     ai_toolkit_list_command,
 )
-from dlt._workspace.cli.ai.agents import (
+from dlt._workspace.cli.dlthub.ai.agents import (
     _AIAgent,
     _ClaudeAgent,
     _CodexAgent,
     _CursorAgent,
 )
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.utils import (
     build_toolkits_dependency_map,
     load_toolkits_index,
     resolve_toolkit_dependencies,

@@ -4,7 +4,7 @@ from typing import Iterator, List
 
 import pytest
 
-from dlt._workspace.cli.ai import (
+from dlt._workspace.cli.dlthub.ai import (
     ai_secrets_list_command,
     ai_secrets_view_redacted_command,
     ai_secrets_update_fragment_command,

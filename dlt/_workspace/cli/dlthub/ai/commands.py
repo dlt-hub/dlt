@@ -12,9 +12,9 @@ from dlt._workspace.cli.formatters import parse_frontmatter
 from dlt._workspace.cli.exceptions import (
     CliCommandException,
 )
-from dlt._workspace.cli.ai.agents import AI_AGENTS, TComponentType, _AIAgent, InstallAction
+from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS, TComponentType, _AIAgent, InstallAction
 from dlt._workspace.typing import TAiStatusInfo, TToolkitInfo
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.utils import (
     build_toolkits_dependency_map,
     compute_file_hash,
     extract_toolkit_info,

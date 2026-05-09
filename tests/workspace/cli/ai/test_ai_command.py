@@ -13,8 +13,8 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.version import __version__ as dlt_version
 
-from dlt._workspace.cli.ai.agents import AI_AGENTS
-from dlt._workspace.cli.ai.commands import (
+from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS
+from dlt._workspace.cli.dlthub.ai.commands import (
     ai_status_command,
     ai_init_command,
     ai_secrets_list_command,
@@ -24,7 +24,7 @@ from dlt._workspace.cli.ai.commands import (
     ai_toolkit_install_command,
     ai_toolkit_list_command,
 )
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.utils import (
     AI_WORKBENCH_BASE_DIR,
     build_toolkits_dependency_map,
     load_toolkits_index,

@@ -10,7 +10,7 @@ import tomlkit
 import yaml
 
 from dlt.common.configuration.const import TYPE_EXAMPLES
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.utils import (
     ensure_cursor_rule_frontmatter,
     extract_toolkit_info,
     fetch_ai_status,

@@ -526,7 +526,7 @@ def fetch_workspace_info() -> TWorkspaceInfo:
     Works with both OSS RunContext (no profiles) and WorkspaceRunContext.
     Always includes all provider locations (verbose mode).
     """
-    from dlt._workspace.cli.ai.utils import load_toolkits_index
+    from dlt._workspace.cli.dlthub.ai.utils import load_toolkits_index
 
     ctx = Container()[PluggableRunContext].context
 

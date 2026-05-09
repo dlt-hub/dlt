@@ -595,7 +595,7 @@ def fetch_ai_status(project_root: Path) -> TAiStatusInfo:
         Status info including dlt version, detected agent, installed toolkits,
         and any readiness warnings.
     """
-    from dlt._workspace.cli.ai.agents import _AIAgent  # circular
+    from dlt._workspace.cli.dlthub.ai.agents import _AIAgent  # circular
 
     index = load_toolkits_index()
     warnings: List[TAiStatusWarning] = []

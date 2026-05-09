@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import pytest
 
-from dlt._workspace.cli.ai.agents import (
+from dlt._workspace.cli.dlthub.ai.agents import (
     AI_AGENTS,
     _AIAgent,
     _ClaudeAgent,
@@ -242,7 +242,7 @@ def test_codex_finalize_actions_agents_md() -> None:
     variant = _CodexAgent()
 
     # simulate two rule→skill actions
-    from dlt._workspace.cli.ai.agents import InstallAction
+    from dlt._workspace.cli.dlthub.ai.agents import InstallAction
 
     skills_dir = variant.component_dir("skill", project)
     actions = [
@@ -293,7 +293,7 @@ def test_codex_finalize_actions_dedup() -> None:
     _ensure_init_agents_template(wb)
 
     variant = _CodexAgent()
-    from dlt._workspace.cli.ai.agents import InstallAction
+    from dlt._workspace.cli.dlthub.ai.agents import InstallAction
 
     skills_dir = variant.component_dir("skill", project)
     actions = [

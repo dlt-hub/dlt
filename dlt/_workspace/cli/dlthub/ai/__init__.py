@@ -1,8 +1,8 @@
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.utils import (
     DEFAULT_AI_WORKBENCH_BRANCH,
     DEFAULT_AI_WORKBENCH_REPO,
 )
-from dlt._workspace.cli.ai.commands import (
+from dlt._workspace.cli.dlthub.ai.commands import (
     ai_status_command,
     ai_init_command,
     ai_mcp_run_command,
