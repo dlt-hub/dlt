@@ -36,7 +36,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
 )
 from dlt._workspace.cli.exceptions import CliCommandException
 
-from tests.workspace.cli.ai.utils import (
+from tests.workspace.cli.dlthub.ai.utils import (
     make_mock_toolkit,
     make_mock_toolkit_info,
     make_mock_workbench,

@@ -12,7 +12,7 @@ from dlt._workspace.cli.dlthub.ai.agents import (
 )
 from dlt._workspace.cli.formatters import parse_frontmatter
 
-from tests.workspace.cli.ai.utils import _ensure_init_agents_template
+from tests.workspace.cli.dlthub.ai.utils import _ensure_init_agents_template
 
 
 @pytest.fixture()

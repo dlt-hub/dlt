@@ -33,7 +33,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
 )
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_LICENSE_URL
 
-from tests.workspace.cli.ai.utils import (
+from tests.workspace.cli.dlthub.ai.utils import (
     AGENT_NAMES,
     INSTALLABLE_TOOLKITS,
     KNOWN_TOOLKITS,

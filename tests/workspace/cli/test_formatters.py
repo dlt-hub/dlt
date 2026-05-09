@@ -13,7 +13,7 @@ from dlt._workspace.cli.formatters import (
     render_frontmatter,
 )
 from tests.utils import get_test_storage_root
-from tests.workspace.cli.ai.utils import MOCK_AGENTS_MD_TEMPLATE
+from tests.workspace.cli.dlthub.ai.utils import MOCK_AGENTS_MD_TEMPLATE
 
 
 @pytest.mark.parametrize(
