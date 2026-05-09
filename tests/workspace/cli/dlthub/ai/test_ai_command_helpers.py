@@ -869,7 +869,9 @@ def test_toolkit_index_lifecycle(capsys: pytest.CaptureFixture[str]) -> None:
 
         # 3. Bump remote version — reinstall without overwrite
         base2 = make_versioned_workbench(version="2.0.0")
-        with patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base2):
+        with patch(
+            "dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base2
+        ):
             ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
         out = capsys.readouterr().out
         assert "Use --overwrite to update" in out
@@ -878,7 +880,9 @@ def test_toolkit_index_lifecycle(capsys: pytest.CaptureFixture[str]) -> None:
         assert idx["my-toolkit"]["installed_at"] == first_date
 
         # 4. Overwrite install with new version
-        with patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base2):
+        with patch(
+            "dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base2
+        ):
             ai_toolkit_install_command(
                 name="my-toolkit", agent="claude", location="mock://repo", overwrite=True
             )

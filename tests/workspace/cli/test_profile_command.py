@@ -7,12 +7,12 @@ import pytest
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli._dlt import _create_parser
-from dlt._workspace.cli._profile_command import (
+from dlt._workspace.cli.dlthub._profile_command import (
     clean_profile,
     print_profile_info,
 )
+from dlt._workspace.cli.dlthub.utils import fetch_profile_info
 from dlt._workspace.cli.exceptions import CliCommandException
-from dlt._workspace.cli.utils import fetch_profile_info
 from dlt._workspace.profile import save_profile_pin
 
 

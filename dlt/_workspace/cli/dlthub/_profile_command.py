@@ -1,67 +1,95 @@
-"""DlthubProfileCommand — single additive class for `dlthub profile`."""
-import argparse
+import os
 from typing import Optional
 
-from dlt._workspace.cli import SupportsCliCommand
-from dlt.common.configuration.plugins import TCliCommandCompose
+from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.profile import (
+    get_profile_pin_file,
+    read_profile_pin,
+    save_profile_pin,
+)
+from dlt._workspace.cli import echo as fmt, utils
+from dlt._workspace.cli.dlthub._local_workspace_command import (
+    print_profile_section,
+    print_providers,
+)
+from dlt._workspace.cli.dlthub.typing import TCurrentProfileFullInfo
+from dlt._workspace.cli.dlthub.utils import (
+    check_delete_local_data,
+    delete_local_data,
+    fetch_profiles_list,
+)
+from dlt._workspace.cli.exceptions import CliCommandException
 
 
-class ProfileCommand(SupportsCliCommand):
-    """`dlthub profile` — additive shell with inline info / list / use."""
+@utils.track_command("profile", track_before=False, operation="info")
+def print_profile_info(info: TCurrentProfileFullInfo, verbosity: int = 0) -> None:
+    """Renders the active profile: name, paths, pinned status, providers (verbose)."""
+    print_profile_section(info, info["configured_profiles"])
+    if verbosity > 0 and info["providers"]:
+        fmt.echo()
+        print_providers(info["providers"], verbosity)
 
-    command = "profile"
-    compose: TCliCommandCompose = "additive"
-    help_string = "Manage Workspace built-in profiles"
-    description = "Show, switch, and list workspace profiles."
-    docs_url: Optional[str] = None
 
-    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
-        self.parser = parser
-        # additive parent declares the subparsers action so plugin sub-subcommands can find it
-        sub = parser.add_subparsers(title="Available subcommands", dest="operation", required=False)
-
-        sub.add_parser(
-            "info",
-            help="Display the active profile (paths, providers, pinned status)",
-        )
-        sub.add_parser("list", help="List all available profiles")
-        use_p = sub.add_parser(
-            "use",
-            help="Pin a profile so subsequent commands use it by default",
-        )
-        use_p.add_argument("profile_name", help="Profile name to pin")
-
-    def execute(self, args: argparse.Namespace) -> None:
-        # plugin sub-subcommands are dispatched by the composer via `args.execute`;
-        # only inline operations are handled here. Default (no operation) shows info.
-        op = getattr(args, "operation", None)
-        if op == "list":
-            self._list(args)
-        elif op == "use":
-            self._use(args)
+@utils.track_command("profile", track_before=False, operation="list")
+def list_profiles(workspace_run_context: WorkspaceRunContext) -> None:
+    fmt.echo("Available profiles:")
+    for p in fetch_profiles_list():
+        markers = []
+        if p["is_current"]:
+            markers.append(fmt.bold("(current)"))
+        if p["is_configured"]:
+            markers.append(fmt.bold("(configured)"))
+        marker_str = " ".join(markers)
+        if marker_str:
+            fmt.echo("* %s %s - %s" % (fmt.bold(p["name"]), marker_str, p["description"]))
         else:
-            self._info(args)
+            fmt.echo("* %s - %s" % (fmt.bold(p["name"]), p["description"]))
 
-    def _info(self, args: argparse.Namespace) -> None:
-        from dlt._workspace.cli.utils import fetch_profile_info
-        from dlt._workspace.cli._profile_command import print_profile_info
 
-        info = fetch_profile_info()
-        if info is None:
-            from dlt._workspace.cli import echo as fmt
+@utils.track_command("profile", track_before=False, operation="pin")
+def pin_profile(workspace_run_context: WorkspaceRunContext, profile_name: str) -> None:
+    if not profile_name:
+        pinned_profile = read_profile_pin(workspace_run_context)
+        if pinned_profile:
+            pin_file = get_profile_pin_file(workspace_run_context)
+            fmt.echo(
+                "Currently pinned profile is: %s. To unpin remove %s file."
+                % (fmt.bold(pinned_profile), fmt.bold(os.path.relpath(pin_file)))
+            )
+        else:
+            fmt.echo("No pinned profile.")
+    else:
+        fmt.echo("Will pin the profile %s to current Workspace." % fmt.bold(profile_name))
+        save_profile_pin(workspace_run_context, profile_name)
 
-            fmt.warning("No active profile (not running inside a workspace).")
-            return
-        print_profile_info(info, getattr(args, "verbosity", 0))
 
-    def _list(self, args: argparse.Namespace) -> None:
-        from dlt._workspace._workspace_context import active
-        from dlt._workspace.cli._profile_command import list_profiles
+@utils.track_command("profile", track_before=False, operation="clean")
+def clean_profile(
+    workspace_run_context: WorkspaceRunContext,
+    profile_name: Optional[str],
+    skip_data_dir: bool,
+) -> None:
+    """Cleans data/local dirs for the named profile (current if `profile_name` is None)."""
+    target = profile_name or workspace_run_context.profile
+    if target == workspace_run_context.profile:
+        ctx = workspace_run_context
+    else:
+        # validate the profile exists (configured + built-in/available) before switching
+        valid = set(workspace_run_context.configured_profiles()) | set(
+            workspace_run_context.available_profiles()
+        )
+        if target not in valid:
+            fmt.error(
+                "Profile %r not found in this workspace. Available profiles: %s"
+                % (target, ", ".join(sorted(valid)) or "(none)")
+            )
+            raise CliCommandException()
+        ctx = workspace_run_context.switch_profile(target)
 
-        list_profiles(active())
-
-    def _use(self, args: argparse.Namespace) -> None:
-        from dlt._workspace._workspace_context import active
-        from dlt._workspace.cli._profile_command import pin_profile
-
-        pin_profile(active(), args.profile_name)
+    fmt.echo(
+        "Local data for profile %s will be removed. Remote destinations are not affected."
+        % fmt.bold(target)
+    )
+    deleted_dirs = check_delete_local_data(ctx, skip_data_dir)
+    if deleted_dirs:
+        delete_local_data(ctx, deleted_dirs)

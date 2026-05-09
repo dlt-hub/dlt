@@ -42,7 +42,7 @@ from dlt._workspace.deployment.typing import (
     TRuntimeEntryPoint,
     TTrigger,
 )
-from dlt._workspace.typing import TRunJobInfo
+from dlt._workspace.cli.dlthub.typing import TRunJobInfo
 
 
 TPickFn = Callable[[List[Tuple[TJobDefinition, TTrigger]]], Tuple[TJobDefinition, TTrigger]]

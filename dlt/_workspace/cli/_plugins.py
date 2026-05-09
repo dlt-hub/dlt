@@ -1,7 +1,7 @@
 """Module registering command line plugins
 To add a new plugin here, do the following:
-1. create a new command class in like ie. `dlt._workspace.cli.commands `ProfileCommand(SupportsCliCommand):`
-2. provide the implementation of command functions like ie. in `dlt._workspace.cli._profile_command`
+1. create a new command class in like ie. `dlt._workspace.cli.dlthub.commands.ProfileCommand(SupportsCliCommand):`
+2. provide the implementation of command functions like ie. in `dlt._workspace.cli.dlthub._profile_command`
 3. remember to wrap command in telemetry ie. @utils.track_command("profile", track_before=False, operation="info")
 4. register the plugin here.
 
@@ -88,7 +88,7 @@ def plug_cli_deploy(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
 @plugins.hookimpl(specname="plug_cli")
 @only_host("dlthub")
 def plug_cli_ai(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
-    from dlt._workspace.cli.commands import AiCommand
+    from dlt._workspace.cli.dlthub.commands import AiCommand
 
     return AiCommand
 
@@ -96,7 +96,7 @@ def plug_cli_ai(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
 @plugins.hookimpl(specname="plug_cli")
 @only_host("dlthub")
 def plug_cli_dlthub_pipeline(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
-    from dlt._workspace.cli.dlthub._pipeline_command import PipelineCommand
+    from dlt._workspace.cli.dlthub.commands import PipelineCommand
 
     return PipelineCommand
 
@@ -106,7 +106,7 @@ def plug_cli_dlthub_pipeline(host: str) -> Optional[Type[plugins.SupportsCliComm
 def plug_cli_dlthub_info(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
     if not is_workspace_active():
         return None
-    from dlt._workspace.cli.dlthub._local_workspace_command import InfoSubCommand
+    from dlt._workspace.cli.dlthub.commands import InfoSubCommand
 
     return InfoSubCommand
 
@@ -116,7 +116,7 @@ def plug_cli_dlthub_info(host: str) -> Optional[Type[plugins.SupportsCliCommand]
 def plug_cli_dlthub_local(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
     if not is_workspace_active():
         return None
-    from dlt._workspace.cli.dlthub._local_workspace_command import LocalWorkspaceCommand
+    from dlt._workspace.cli.dlthub.commands import LocalWorkspaceCommand
 
     return LocalWorkspaceCommand
 
@@ -126,6 +126,6 @@ def plug_cli_dlthub_local(host: str) -> Optional[Type[plugins.SupportsCliCommand
 def plug_cli_dlthub_profile(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
     if not is_workspace_active():
         return None
-    from dlt._workspace.cli.dlthub._profile_command import ProfileCommand
+    from dlt._workspace.cli.dlthub.commands import ProfileCommand
 
     return ProfileCommand

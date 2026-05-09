@@ -11,11 +11,11 @@ from pytest_mock import MockerFixture
 from unittest.mock import patch, Mock
 
 from dlt.version import __version__ as dlt_version
-from dlt._workspace.cli.utils import (
-    delete_local_data,
+from dlt._workspace.cli.utils import track_command
+from dlt._workspace.cli.dlthub.utils import (
     check_delete_local_data,
+    delete_local_data,
     fetch_workspace_info,
-    track_command,
 )
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.configuration import WorkspaceRuntimeConfiguration

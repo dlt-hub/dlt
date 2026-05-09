@@ -6,7 +6,11 @@ import tempfile
 import dlt
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace._workspace_context import WorkspaceRunContext, switch_context
-from dlt._workspace.cli.utils import check_delete_local_data, delete_local_data, fetch_profiles_list
+from dlt._workspace.cli.dlthub.utils import (
+    check_delete_local_data,
+    delete_local_data,
+    fetch_profiles_list,
+)
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
 from dlt._workspace.profile import DEFAULT_PROFILE, read_profile_pin, save_profile_pin

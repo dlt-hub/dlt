@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Tuple
 import pytest
 
 from dlt._workspace.cli._dlt import _create_parser
-from dlt._workspace.cli._workspace_command import _print_deployment_info
-from dlt._workspace.cli.utils import fetch_deployment_info
-from dlt._workspace.typing import TDeploymentManifestInfo
+from dlt._workspace.cli.dlthub._local_workspace_command import _print_deployment_info
+from dlt._workspace.cli.dlthub.typing import TDeploymentManifestInfo
+from dlt._workspace.cli.dlthub.utils import fetch_deployment_info
 
 from tests.workspace.utils import isolated_workspace
 

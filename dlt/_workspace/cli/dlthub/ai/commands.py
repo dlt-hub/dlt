@@ -13,7 +13,7 @@ from dlt._workspace.cli.exceptions import (
     CliCommandException,
 )
 from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS, TComponentType, _AIAgent, InstallAction
-from dlt._workspace.typing import TAiStatusInfo, TToolkitInfo
+from dlt._workspace.cli.dlthub.ai.typing import TAiStatusInfo, TToolkitInfo
 from dlt._workspace.cli.dlthub.ai.utils import (
     build_toolkits_dependency_map,
     compute_file_hash,

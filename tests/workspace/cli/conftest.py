@@ -3,9 +3,9 @@ from typing import Any, Iterator
 import pytest
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
-from dlt._workspace.cli import _run_command as run_cmd_mod
 from dlt._workspace.cli import echo as fmt
-from dlt._workspace.cli import utils as cli_utils_mod
+from dlt._workspace.cli.dlthub import _run_command as run_cmd_mod
+from dlt._workspace.cli.dlthub import utils as dlthub_utils_mod
 
 from tests.workspace.utils import isolated_workspace
 
@@ -44,4 +44,4 @@ def isolated_manifest_loading(monkeypatch: pytest.MonkeyPatch) -> None:
         return original(name_or_path, use_all=use_all, isolated=True)
 
     monkeypatch.setattr(run_cmd_mod, "manifest_from_module", _isolated)
-    monkeypatch.setattr(cli_utils_mod, "manifest_from_module", _isolated)
+    monkeypatch.setattr(dlthub_utils_mod, "manifest_from_module", _isolated)

@@ -1,4 +1,4 @@
-"""Unit tests for dlt._workspace.cli._run_command helpers."""
+"""Unit tests for dlt._workspace.cli.dlthub._run_command helpers."""
 
 import argparse
 import subprocess
@@ -8,9 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 
-from dlt._workspace.cli import _run_command as run_cmd_mod
-from dlt._workspace.cli.dlthub._local_workspace_command import LocalWorkspaceCommand
-from dlt._workspace.cli._run_command import (
+from dlt._workspace.cli.dlthub import _run_command as run_cmd_mod
+from dlt._workspace.cli.dlthub._run_command import (
     build_runtime_entry_point,
     collect_candidates,
     fetch_run_info,
@@ -21,6 +20,7 @@ from dlt._workspace.cli._run_command import (
     resolve_profile,
     resolve_refresh,
 )
+from dlt._workspace.cli.dlthub.commands import LocalWorkspaceCommand
 from dlt._workspace.cli.exceptions import CliCommandInnerException
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.launchers import _launcher as launcher_mod
