@@ -302,13 +302,89 @@ class AiCommand(SupportsCliCommand):
             self.parser.print_usage()
 
 
+def _add_common_run_args(
+    parser: argparse.ArgumentParser, *, include_interval_and_refresh: bool
+) -> None:
+    """Shared arg surface for `dlthub local run` / `local serve` / `local pipeline run`."""
+    parser.add_argument(
+        "selector_or_job_ref",
+        nargs="?",
+        default=None,
+        help=(
+            "Job reference (backfill, batch.backfill), trigger selector"
+            " (tag:backfill, schedule:*), or a .py file path (auto-promoted"
+            " to --file). If omitted, the job's default trigger is used."
+        ),
+    )
+    parser.add_argument(
+        "--file",
+        default=None,
+        metavar="FILE",
+        help=(
+            "Path to a .py deployment module. If omitted, loads the default"
+            f" {DEFAULT_DEPLOYMENT_MODULE!r} module from the workspace."
+        ),
+    )
+    parser.add_argument(
+        "--job-ref",
+        default=None,
+        metavar="REF",
+        help=(
+            "Pick this job from the matched candidate set when the selector"
+            " matches multiple jobs. Errors if REF is not in the matched set."
+        ),
+    )
+    parser.add_argument(
+        "--profile",
+        default=None,
+        metavar="NAME",
+        help="Override require.profile and the workspace pinned profile.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Resolve the job and print the entry point without launching",
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Config key=value pairs passed to the job (repeatable)",
+    )
+    if include_interval_and_refresh:
+        parser.add_argument(
+            "--start",
+            default=None,
+            metavar="ISO",
+            help="Override interval start (ISO 8601). Naive values use the job's timezone.",
+        )
+        parser.add_argument(
+            "--end",
+            default=None,
+            metavar="ISO",
+            help="Override interval end (ISO 8601). Defaults to now if --start is set.",
+        )
+        parser.add_argument(
+            "--refresh",
+            action="store_true",
+            help=(
+                "Request a refresh run. Respects TJobDefinition.refresh:"
+                " `always` forces refresh regardless, `block` ignores the flag"
+                " with a warning (run proceeds), `auto` honors it."
+            ),
+        )
+
+
 class LocalWorkspaceCommand(SupportsCliCommand):
     """`dlthub local` — replace-mode shell hosting run/info/show/clean/schema/telemetry/pipeline."""
 
     command = "local"
     compose: TCliCommandCompose = "replace"
     help_string = (
-        "Operations on the local Workspace (run, info, show, clean, schema, telemetry, pipeline)"
+        "Operations on the local Workspace (run, serve, info, show, clean, schema,"
+        " telemetry, pipeline)"
     )
     description = "Local-only operations on the current workspace."
     docs_url: Optional[str] = None
@@ -330,73 +406,26 @@ class LocalWorkspaceCommand(SupportsCliCommand):
 
         run_p = sub.add_parser(
             "run",
-            help="Run a single workspace job locally",
+            help="Run a single batch workspace job locally",
             description=(
-                "Run a single job from a deployment module locally. Loads the manifest,"
+                "Run a single batch job from a deployment module locally. Loads the manifest,"
                 " matches exactly one job by selector or job reference, builds a runtime"
-                " entry point, and spawns the launcher subprocess."
+                " entry point, and spawns the launcher subprocess. Interactive jobs are"
+                " refused — use `dlthub local serve` for those."
             ),
         )
-        run_p.add_argument(
-            "selector_or_job_ref",
-            nargs="?",
-            default=None,
-            help=(
-                "Job reference (backfill, batch.backfill), trigger selector"
-                " (tag:backfill, schedule:*), or a .py file path (auto-promoted"
-                " to --file). If omitted, the job's default trigger is used."
+        _add_common_run_args(run_p, include_interval_and_refresh=True)
+
+        serve_p = sub.add_parser(
+            "serve",
+            help="Serve an interactive workspace job locally (notebook, dashboard, app)",
+            description=(
+                "Serve a single interactive job from a deployment module locally. Same"
+                " selector / `--job-ref` semantics as `dlthub local run`, but only matches"
+                " interactive jobs. Batch jobs are refused — use `dlthub local run` for those."
             ),
         )
-        run_p.add_argument(
-            "--file",
-            "-f",
-            default=None,
-            metavar="FILE",
-            help=(
-                "Path to a .py deployment module. If omitted, loads the default"
-                f" {DEFAULT_DEPLOYMENT_MODULE!r} module from the workspace."
-            ),
-        )
-        run_p.add_argument(
-            "--profile",
-            default=None,
-            metavar="NAME",
-            help="Override require.profile and the workspace pinned profile.",
-        )
-        run_p.add_argument(
-            "--start",
-            default=None,
-            metavar="ISO",
-            help="Override interval start (ISO 8601). Naive values use the job's timezone.",
-        )
-        run_p.add_argument(
-            "--end",
-            default=None,
-            metavar="ISO",
-            help="Override interval end (ISO 8601). Defaults to now if --start is set.",
-        )
-        run_p.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Resolve the job and print the entry point without launching",
-        )
-        run_p.add_argument(
-            "-c",
-            "--config",
-            action="append",
-            default=[],
-            metavar="KEY=VALUE",
-            help="Config key=value pairs passed to the job (repeatable)",
-        )
-        run_p.add_argument(
-            "--refresh",
-            action="store_true",
-            help=(
-                "Request a refresh run. Respects TJobDefinition.refresh:"
-                " `always` forces refresh regardless, `block` ignores the flag"
-                " with a warning (run proceeds), `auto` honors it."
-            ),
-        )
+        _add_common_run_args(serve_p, include_interval_and_refresh=False)
 
         clean_p = sub.add_parser(
             "clean",
@@ -445,6 +474,44 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             help="List local pipelines",
             description="List pipelines in the working directory.",
         )
+
+        # `pipeline run <name>` — run the job that delivers to the named pipeline.
+        # Defined here, before `_add_operation_subparsers`, because it doesn't
+        # follow the verb-first <verb> <pipeline> form of dlt-OSS verbs.
+        pipeline_run_p = pipeline_sub.add_parser(
+            "run",
+            help="Run a job by pipeline name",
+            description=(
+                "Run the job whose `deliver.pipeline_name` matches. Use --job-ref"
+                " when multiple jobs target the same pipeline."
+            ),
+        )
+        pipeline_run_p.add_argument(
+            "pipeline_name", help="Pipeline name to match against `deliver.pipeline_name`"
+        )
+        pipeline_run_p.add_argument(
+            "--job-ref",
+            default=None,
+            metavar="REF",
+            help="Narrow to this job when multiple jobs deliver to the same pipeline",
+        )
+        pipeline_run_p.add_argument(
+            "--profile",
+            default=None,
+            metavar="NAME",
+            help="Override require.profile and the workspace pinned profile.",
+        )
+        pipeline_run_p.add_argument(
+            "--refresh",
+            action="store_true",
+            help="Request a refresh run (subject to TJobDefinition.refresh policy).",
+        )
+        pipeline_run_p.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Resolve the job and print the entry point without launching",
+        )
+
         # stash so `execute` reuses the same instance with `self.parser` set —
         # PipelineCommand.execute calls `self.parser.print_usage()` when pipeline_name is missing
         from dlt._workspace.cli.dlthub._local_workspace_command import _add_pipeline_name
@@ -459,13 +526,18 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         from dlt._workspace._workspace_context import active
         from dlt._workspace.cli.dlthub._local_workspace_command import (
             clean_workspace,
+            execute_pipeline_run,
             execute_run,
+            execute_serve,
             print_workspace_info,
             show_workspace,
         )
 
         op = getattr(args, "local_op", None)
         if op == "pipeline":
+            if getattr(args, "operation", None) == "run":
+                execute_pipeline_run(args)
+                return
             self._pipeline_cmd.execute(args)
             return
         if op == "schema":
@@ -476,6 +548,9 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             return
         if op == "run":
             execute_run(args)
+            return
+        if op == "serve":
+            execute_serve(args)
             return
         if op == "show":
             show_workspace(active(), args.edit)

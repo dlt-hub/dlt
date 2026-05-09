@@ -1,11 +1,11 @@
 import argparse
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from dlt.common import json
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
-from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace._workspace_context import WorkspaceRunContext, active
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli._pipeline_command import list_pipelines
 from dlt._workspace.cli.dlthub.typing import (
@@ -175,53 +175,61 @@ def _parse_config_args(pairs: List[str]) -> Dict[str, str]:
 
 
 def execute_run(args: argparse.Namespace) -> None:
-    """Resolve and launch a single workspace job for `dlthub local run`."""
-    from dlt._workspace.cli.dlthub._run_command import (
-        fetch_run_info,
+    """Run a batch job locally — interactive job-types are forbidden."""
+    _execute_one(args, forbidden_job_type="interactive")
+
+
+def execute_serve(args: argparse.Namespace) -> None:
+    """Serve an interactive job locally — batch job-types are forbidden."""
+    _execute_one(args, forbidden_job_type="batch")
+
+
+def execute_pipeline_run(args: argparse.Namespace) -> None:
+    """Run a job by pipeline name (`dlthub local pipeline run <name>`)."""
+    selectors = [f"pipeline_name:{args.pipeline_name}"]
+    _execute_one(args, forbidden_job_type="interactive", selectors=selectors)
+
+
+def _execute_one(
+    args: argparse.Namespace,
+    *,
+    forbidden_job_type: Optional[str],
+    selectors: Optional[List[str]] = None,
+) -> None:
+    """Shared local controller for run/serve/pipeline-run."""
+    from dlt._workspace.deployment._run_helpers import fetch_run_info
+    from dlt._workspace.deployment._run_typing import TRunBannerInfo
+    from dlt._workspace.deployment._run_views import (
+        pick_one_job,
+        print_run_banner,
         print_run_plan,
-        print_run_starting,
         print_run_warnings,
     )
-    from dlt._workspace.deployment._job_ref import format_job_label
     from dlt._workspace.deployment.launchers._launcher import exec_process
-    from dlt._workspace.deployment.typing import TJobDefinition, TTrigger
 
-    def _pick(
-        candidates: List[Tuple["TJobDefinition", "TTrigger"]],
-    ) -> Tuple["TJobDefinition", "TTrigger"]:
-        if len(candidates) == 1:
-            return candidates[0]
-
-        def _label(j: "TJobDefinition") -> str:
-            return format_job_label(j["job_ref"], j.get("expose"), j.get("deliver"))
-
-        labels = [f"{i}-{_label(j)}" for i, (j, _) in enumerate(candidates, 1)]
-        fmt.echo(f"{len(candidates)} jobs match:")
-        for i, (j, t) in enumerate(candidates, 1):
-            fmt.echo(f"  {i}. {_label(j)}  (trigger: {t})")
-        choice = fmt.prompt(
-            "Pick a job: " + ", ".join(labels),
-            choices=[str(i) for i in range(1, len(candidates) + 1)],
-            default="1",
-        )
-        return candidates[int(choice) - 1]
-
-    cli_config = _parse_config_args(args.config) if args.config else {}
+    cli_config = _parse_config_args(getattr(args, "config", None) or [])
     info = fetch_run_info(
-        selector=args.selector_or_job_ref,
-        file=args.file,
-        user_profile=args.profile,
-        user_start=args.start,
-        user_end=args.end,
-        user_refresh=args.refresh,
+        selector=getattr(args, "selector_or_job_ref", None),
+        selectors=selectors,
+        file=getattr(args, "file", None),
+        user_profile=getattr(args, "profile", None),
+        user_start=getattr(args, "start", None),
+        user_end=getattr(args, "end", None),
+        user_refresh=getattr(args, "refresh", False),
         cli_config=cli_config,
-        pick=_pick,
+        job_ref=getattr(args, "job_ref", None),
+        forbidden_job_type=forbidden_job_type,
+        pick=pick_one_job,
     )
     if info is None:
         fmt.echo("No jobs found in manifest.")
         return
 
-    print_run_warnings(info)
+    print_run_warnings(
+        info["manifest_warnings"],
+        refresh_warning=info.get("refresh_warning"),
+        profile_warning=info.get("profile_warning"),
+    )
 
     if getattr(args, "verbosity", 0) or args.dry_run:
         print_run_plan(info)
@@ -229,7 +237,21 @@ def execute_run(args: argparse.Namespace) -> None:
         fmt.echo("--dry-run: not launching")
         return
 
-    print_run_starting(info)
+    banner: TRunBannerInfo = {
+        "display_label": info["display_label"],
+        "job_ref": info["job_ref"],
+        "trigger": info["trigger"],
+        "trigger_humanized": info["trigger_humanized"],
+        "profile": info["entry_point"]["profile"],
+        "location": "local",
+    }
+    if ws_name := active().name:
+        banner["workspace_name"] = ws_name
+    if info["entry_point"].get("job_type") == "interactive":
+        if port := info["entry_point"].get("run_args", {}).get("port"):
+            banner["port"] = int(port)
+    print_run_banner(banner)
+
     exec_process(
         [
             sys.executable,

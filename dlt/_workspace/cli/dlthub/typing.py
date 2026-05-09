@@ -67,18 +67,3 @@ class TDeploymentManifestInfo(TypedDict):
     total_jobs: NotRequired[int]
     counts_by_category: NotRequired[Dict[str, int]]
     jobs: NotRequired[List[TDeploymentJobInfo]]
-
-
-class TRunJobInfo(TypedDict):
-    """Resolved `workspace run` request — all data needed to launch the job."""
-
-    job_ref: str
-    display_label: str
-    trigger: str
-    trigger_humanized: str
-    launcher: str
-    run_id: str
-    entry_point: Dict[str, Any]
-    manifest_warnings: List[str]
-    refresh_warning: NotRequired[str]
-    profile_warning: NotRequired[str]

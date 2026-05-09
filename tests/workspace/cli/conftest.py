@@ -4,8 +4,8 @@ import pytest
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli import echo as fmt
-from dlt._workspace.cli.dlthub import _run_command as run_cmd_mod
 from dlt._workspace.cli.dlthub import utils as dlthub_utils_mod
+from dlt._workspace.deployment import _run_helpers as run_helpers_mod
 
 from tests.workspace.utils import isolated_workspace
 
@@ -34,14 +34,13 @@ def auto_isolated_workspace(
 
 @pytest.fixture(autouse=True)
 def isolated_manifest_loading(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force manifest_from_module (via _run_command.load_manifest) to run in a
-    subprocess so tests don't accumulate sys.modules / sys.path / FileFinder
-    cache entries across the workspace rmtree+recreate cycle between tests.
+    """Force `manifest_from_module` to run in a subprocess so tests don't accumulate
+    sys.modules / sys.path / FileFinder cache entries across workspace rmtree+recreate.
     """
-    original = run_cmd_mod.manifest_from_module
+    original = run_helpers_mod.manifest_from_module
 
     def _isolated(name_or_path: str, use_all: bool = True) -> Any:
         return original(name_or_path, use_all=use_all, isolated=True)
 
-    monkeypatch.setattr(run_cmd_mod, "manifest_from_module", _isolated)
+    monkeypatch.setattr(run_helpers_mod, "manifest_from_module", _isolated)
     monkeypatch.setattr(dlthub_utils_mod, "manifest_from_module", _isolated)
