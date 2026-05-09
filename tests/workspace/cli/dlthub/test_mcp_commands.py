@@ -19,10 +19,6 @@ from dlt._workspace.mcp.server import WorkspaceMCP
 from tests.workspace.utils import fruitshop_pipeline_context as fruitshop_pipeline_context
 
 
-# ---------------------------------------------------------------------------
-# Transport mode tests: parametrize (cli_args, expected_transport)
-# ---------------------------------------------------------------------------
-
 _TRANSPORT_CASES = [
     # (id, host, base_cmd, extra_flags, expected_transport, expect_path)
     ("pipeline-default", "dlt", ["pipeline", "fruitshop", "mcp"], [], "streamable-http", True),
@@ -63,11 +59,6 @@ def test_mcp_transport(
         assert "path" not in call_kwargs
 
 
-# ---------------------------------------------------------------------------
-# Extra features
-# ---------------------------------------------------------------------------
-
-
 def test_ai_mcp_command_extra_features(
     fruitshop_pipeline_context: RunContext, script_runner: ScriptRunner, mocker: MockerFixture
 ) -> None:
@@ -81,11 +72,6 @@ def test_ai_mcp_command_extra_features(
     features = init_kwargs.kwargs.get("features") or init_kwargs.kwargs.get("extra_features")
     assert "rest-api-pipeline" in features
     assert "data-exploration" in features
-
-
-# ---------------------------------------------------------------------------
-# Install
-# ---------------------------------------------------------------------------
 
 
 def test_ai_mcp_install_command(
