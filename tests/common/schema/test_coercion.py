@@ -153,6 +153,20 @@ def test_coerce_to_numeric(dec_cls: Type[Any], data_type: TDataType) -> None:
         coerce_value(data_type, "text", "p912.12")
 
 
+def test_coerce_double_to_decimal_no_float_expansion() -> None:
+    """Decimal(str(float)) should not exhibit IEEE 754 double-precision expansion."""
+    # 34.7 as float would expand to 34.70000000000000284... with Decimal(34.7)
+    # Using Decimal(str(34.7)) preserves "34.7"
+    result = coerce_value("decimal", "double", 34.7)
+    assert result == Decimal("34.7")
+    assert str(result) == "34.7"
+
+    # Same issue applies to Wei which extends Decimal
+    result = coerce_value("wei", "double", 34.7)
+    assert result == Wei("34.7")
+    assert str(result) == "34.7"
+
+
 def test_coerce_type_from_hex_text() -> None:
     # hex text into various types
     assert coerce_value("wei", "text", " 0xff") == 255

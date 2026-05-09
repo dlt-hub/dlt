@@ -206,12 +206,12 @@ _COERCE_DISPATCH: Dict[Tuple[TDataType, TDataType], Callable[[Any], Any]] = {
     # to decimal
     ("decimal", "text"): _text_to_decimal,
     ("decimal", "bigint"): Decimal,
-    ("decimal", "double"): Decimal,
+    ("decimal", "double"): lambda v: Decimal(str(v)),
     ("decimal", "wei"): Decimal,
     # to wei
     ("wei", "text"): _text_to_wei,
     ("wei", "bigint"): Wei,
-    ("wei", "double"): Wei,
+    ("wei", "double"): lambda v: Wei(str(v)),
     ("wei", "decimal"): Wei,
     # to bool
     ("bool", "text"): str2bool,
