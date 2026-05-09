@@ -64,7 +64,7 @@ def test_ai_status_with_toolkits(capsys: pytest.CaptureFixture[str]) -> None:
 
     with (
         patch("dlt.common.runtime.run_context.active") as mock_ctx,
-        patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base),
+        patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base),
     ):
         settings_dir = str(project_root / ".dlt")
         mock_ctx.return_value.run_dir = str(project_root)
@@ -110,7 +110,7 @@ def test_ai_init_warns_mcp(capsys: pytest.CaptureFixture[str]) -> None:
 
     with (
         patch("dlt.common.runtime.run_context.active") as mock_ctx,
-        patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base),
+        patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base),
         patch("dlt._workspace.mcp.WorkspaceMCP", side_effect=raise_mcp),
     ):
         settings_dir = str(project_root / ".dlt")
@@ -508,7 +508,7 @@ def test_init_autodetect_workbench(
     fake_home.mkdir()
     marker = AI_AGENTS[agent_name]._GLOBAL_MARKER
     (fake_home / marker).mkdir()
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: fake_home)
 
     ai_init_command(
         agent=None,

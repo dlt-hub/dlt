@@ -19,7 +19,7 @@ from tests.workspace.cli.dlthub.ai.utils import _ensure_init_agents_template
 def no_home_dir(monkeypatch: pytest.MonkeyPatch) -> None:
     """Suppress global home-directory detection so only env probes fire."""
 
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: None)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: None)
 
 
 @pytest.mark.parametrize(
@@ -372,7 +372,7 @@ def test_detect_all_project_probes(
     fake_home.mkdir()
     for m in global_markers:
         (fake_home / m).mkdir(exist_ok=True)
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: fake_home)
 
     project = Path("project")
     project.mkdir()
@@ -391,7 +391,7 @@ def test_detect_all_global_fallback(environment: Any, monkeypatch: pytest.Monkey
     fake_home = Path("home")
     fake_home.mkdir()
     (fake_home / ".cursor").mkdir()
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: fake_home)
 
     project = Path("project")
     project.mkdir()
@@ -407,7 +407,7 @@ def test_detect_all_env_before_local(
     fake_home = Path("home")
     fake_home.mkdir()
     (fake_home / ".claude").mkdir()
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: fake_home)
 
     environment["CURSOR_AGENT"] = "1"
     project = Path("project")
@@ -423,7 +423,7 @@ def test_detect_all_local_before_global(environment: Any, monkeypatch: pytest.Mo
     fake_home.mkdir()
     (fake_home / ".claude").mkdir()
     (fake_home / ".cursor").mkdir()
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: fake_home)
 
     project = Path("project")
     project.mkdir()
