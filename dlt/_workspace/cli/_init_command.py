@@ -1,17 +1,12 @@
 import os
 import ast
-import shutil
 import warnings
 from importlib.metadata import Distribution
 from typing import Dict, Optional, Sequence, Tuple
 
 from dlt.common.libs import git
 from dlt.common.configuration.specs import known_sections
-from dlt.common.configuration.providers import (
-    SECRETS_TOML,
-    ConfigTomlProvider,
-    SecretsTomlProvider,
-)
+from dlt.common.configuration.providers import SECRETS_TOML
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.version import DLT_PKG_NAME, __version__
 from dlt.common.destination import Destination
@@ -27,7 +22,7 @@ import dlt.reflection.names as n
 from dlt.reflection.script_inspector import import_pipeline_script
 
 from dlt._workspace.cli import echo as fmt, _pipeline_files as files_ops, source_detection, utils
-from dlt._workspace.cli.config_toml_writer import WritableConfigValue, write_values
+from dlt._workspace.cli.config_toml_writer import WritableConfigValue
 from dlt._workspace.cli._pipeline_files import (
     TEMPLATE_FILES,
     SOURCES_MODULE_NAME,
@@ -36,6 +31,7 @@ from dlt._workspace.cli._pipeline_files import (
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
 )
+from dlt._workspace.cli._write_state import WorkspaceWriteState
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli._urls import DLT_INIT_DOCS_URL, DLT_AI_DOCS_URL  # noqa: F401
 
@@ -482,83 +478,63 @@ def init_pipeline_at_destination(
         add_example_pipeline_script,
     )
 
-    # copy files at the very end
-    copy_files = []
-    # copy template files
-    for file_name in TEMPLATE_FILES:
-        dest_path = dest_storage.make_full_path(file_name)
-        if templates_storage.has_file(file_name):
-            if dest_storage.has_file(dest_path):
-                # do not overwrite any init files
-                continue
-            copy_files.append((templates_storage.make_full_path(file_name), dest_path))
+    # stage all writes; commit at the very end
+    state = WorkspaceWriteState(dest_storage, settings_dir)
 
-    # only those that were modified should be copied from verified sources
-    for file_name in remote_modified:
-        copy_files.append(
-            (
-                source_configuration.storage.make_full_path(file_name),
-                # copy into where "sources" reside in run context, being root dir by default
-                dest_storage.make_full_path(os.path.join(sources_dir, file_name)),
+    for file_name in TEMPLATE_FILES:
+        if templates_storage.has_file(file_name):
+            state.add_file_copy(
+                templates_storage.make_full_path(file_name),
+                dest_storage.make_full_path(file_name),
+                accept_existing=True,
             )
+
+    # verified-source files: conflicts already resolved earlier in `_select_source_files`
+    for file_name in remote_modified:
+        state.add_file_copy(
+            source_configuration.storage.make_full_path(file_name),
+            dest_storage.make_full_path(os.path.join(sources_dir, file_name)),
         )
-    # if dry-run, do not actually modify storage, just return file content
+
     pipeline_script_target_path = dest_storage.make_full_path(
         os.path.join(sources_dir, source_configuration.dest_pipeline_script)
     )
+
+    for value in required_secrets.values():
+        state.add_secrets_value(value)
+    for value in required_config.values():
+        state.add_config_value(value)
+
+    if dependency_system is None:
+        state.add_new_file(
+            dest_storage.make_full_path(utils.REQUIREMENTS_TXT),
+            "\n".join(source_configuration.requirements.compiled()),
+        )
+
     if dry_run:
-        files_to_create: Dict[str, str] = {}
-        for source_path, dest_path in copy_files:
-            try:
-                files_to_create[dest_path] = dest_storage.load(source_path)
-            except UnicodeDecodeError:
-                fmt.warning(
-                    f"File {source_path} was skipped not a text file. It will not be copied to"
-                    f" {dest_path}"
-                )
+        files_to_create = state.preview()
         if add_example_pipeline_script:
             files_to_create[pipeline_script_target_path] = dest_script_source
         # todo: handle remote index changes?
         return files_to_create, source_type
 
-    # modify storage
-    else:
-        for src_path, dest_path in copy_files:
-            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-            shutil.copy2(src_path, dest_path)
-        if remote_index:
-            # delete files
-            for file_name in remote_deleted:
-                if dest_storage.has_file(file_name):
-                    dest_storage.delete(file_name)
-            files_ops.save_verified_source_local_index(
-                source_name, remote_index, remote_modified, remote_deleted
-            )
-        # create example script
-        if (
-            not dest_storage.has_file(source_configuration.dest_pipeline_script)
-            and add_example_pipeline_script
-        ):
-            dest_storage.save(pipeline_script_target_path, dest_script_source)
+    copied_files = state.commit(allow_overwrite=True)
 
-        # generate tomls with comments
-        secrets_prov = SecretsTomlProvider(settings_dir)
-        write_values(secrets_prov._config_toml, required_secrets.values(), overwrite_existing=False)
+    if remote_index:
+        for file_name in remote_deleted:
+            if dest_storage.has_file(file_name):
+                dest_storage.delete(file_name)
+        files_ops.save_verified_source_local_index(
+            source_name, remote_index, remote_modified, remote_deleted
+        )
 
-        config_prov = ConfigTomlProvider(settings_dir)
-        write_values(config_prov._config_toml, required_config.values(), overwrite_existing=False)
+    if (
+        not dest_storage.has_file(source_configuration.dest_pipeline_script)
+        and add_example_pipeline_script
+    ):
+        dest_storage.save(pipeline_script_target_path, dest_script_source)
 
-        # write toml files
-        secrets_prov.write_toml()
-        config_prov.write_toml()
-
-        # if there's no dependency system write the requirements file
-        if dependency_system is None:
-            requirements_txt = "\n".join(source_configuration.requirements.compiled())
-            dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
-
-        copied_files: Dict[str, str] = {dest_path: src_path for src_path, dest_path in copy_files}
-        return copied_files, source_type
+    return copied_files, source_type
 
 
 def _clone_and_get_verified_sources_storage(repo_location: str, branch: str = None) -> FileStorage:
