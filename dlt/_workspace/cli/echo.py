@@ -124,7 +124,7 @@ style = click.style
 
 
 def bold(msg: str) -> str:
-    return click.style(msg, bold=True, reset=True)
+    return click.style(msg, bold=True, reset=False) + click.style("", bold=False, reset=False)
 
 
 def warning_style(msg: str) -> str:
