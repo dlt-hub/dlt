@@ -40,9 +40,30 @@ class _LazyMarkdown:
         return self._text
 
 
-def print_help(parser: argparse.ArgumentParser) -> None:
+def is_workspace_active() -> bool:
+    import dlt
+
+    ctx = dlt.current.run_context()
+    return ctx.__class__.__name__ == "WorkspaceRunContext"
+
+
+def print_help(host: str, parser: argparse.ArgumentParser) -> None:
     if not ACTION_EXECUTED:
         parser.print_help()
+        _maybe_print_workspace_hint(host)
+
+
+def _maybe_print_workspace_hint(host: str) -> None:
+    """Reminder that dlthub hides commands until a workspace is initialised."""
+
+    # TODO: hookspec extension would let plugins emit their own hints here
+    if host == "dlthub" and not is_workspace_active():
+        fmt.echo()
+        fmt.note(
+            "Not all dlthub commands are visible. "
+            "Run %s to initialize workspace or %s for coding agent assist."
+            % (fmt.bold("dlthub init"), fmt.bold("dlthub ai init"))
+        )
 
 
 class TelemetryAction(argparse.Action):
@@ -303,7 +324,13 @@ def main(host: str = "dlt") -> int:
     # pre-pass extracts anywhere-globals from any argv position and fires their Actions;
     # main parse handles the rest with namespace=ns to preserve pre-parsed values
     ns, remaining = pre_parser.parse_known_args(sys.argv[1:])
-    args = parser.parse_args(remaining, namespace=ns)
+    try:
+        args = parser.parse_args(remaining, namespace=ns)
+    except SystemExit as ex:
+        # argparse handles errors by calling `sys.exit(2)`.
+        if ex.code == 2:
+            _maybe_print_workspace_hint(host)
+        raise
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():
         fmt.warning(
@@ -344,7 +371,7 @@ def main(host: str = "dlt") -> int:
 
             return error_code
     else:
-        print_help(parser)
+        print_help(host, parser)
         return -1
 
     return 0
@@ -352,7 +379,18 @@ def main(host: str = "dlt") -> int:
 
 def _main() -> None:
     """Entry point for the `dlt` console script."""
-    exit(main("dlt"))
+    # when workpsace is active, dlt commands mirrors dlthub
+    if is_workspace_active():
+        host = "dlthub"
+        fmt.note(
+            "Please use %s as top level command. Check `%s` for former dlt commands. "
+            "Falling back to dlhub command set."
+            % (fmt.bold("dlthub"), fmt.bold("dlthub local --help"))
+        )
+        fmt.echo()
+    else:
+        host = "dlt"
+    exit(main(host))
 
 
 def _main_dlthub() -> None:

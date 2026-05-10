@@ -5,8 +5,8 @@ from typing import Callable, Dict, List, Optional
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.common.configuration.plugins import TCliCommandCompose
-from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
-from dlt._workspace.cli.utils import add_mcp_arg_parser
+from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli.utils import add_mcp_arg_parser, is_hub_available
 from dlt._workspace.cli._urls import (
     DLT_INIT_DOCS_URL,
     DLT_PIPELINE_COMMAND_DOCS_URL,
@@ -532,14 +532,8 @@ This command shows the dlt workspace dashboard. You can use the dashboard:
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        # check if hub is connected
-        from dlt import hub
-
-        # TODO: move to common utils
-        from dlt._workspace.helpers.dashboard.utils.home import detect_dlt_hub
-
-        if not detect_dlt_hub():
-            pass
+        if not is_hub_available():
+            return
 
         @utils.track_command("dashboard", True)
         def dashboard_command_wrapper(pipelines_dir: Optional[str], edit: bool) -> None:

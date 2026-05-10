@@ -33,10 +33,7 @@ def header_controls(dlt_profile_select: mo.ui.dropdown) -> Optional[List[mo.Html
 
 def detect_dlt_hub() -> bool:
     """Check whether dlt.hub is available."""
-    try:
-        return dlt.hub.__found__
-    except ImportError:
-        return False
+    return dlt.hub.__found__
 
 
 def home_header_row(
