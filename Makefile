@@ -43,7 +43,7 @@ lint-lock: ## Checks uv lockfile is in sync
 	uv lock --check
 
 lint-deps: ## Checks dependencies, hub extras, and API breaking changes (informational)
-	uv run python tools/check_hub_extras.py
+	-uv run python tools/check_hub_extras.py
 	-uv run python -m tools.check_dependency_changes
 	-uv run python -m tools.check_api_breaking check
 

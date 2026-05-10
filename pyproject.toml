@@ -64,8 +64,8 @@ dependencies = [
 
 [project.optional-dependencies]
 hub = [
-    "dlthub>=0.27.0a0,<0.28 ; python_version >= '3.10'",
-    "dlthub-client>=0.27.0a0,<0.28 ; python_version >= '3.10'",
+    # "dlthub>=0.27.0a0,<0.28 ; python_version >= '3.10'",
+    # "dlthub-client>=0.27.0a0,<0.28 ; python_version >= '3.10'",
 ]
 gcp = [
     "grpcio>=1.50.0",
@@ -352,8 +352,8 @@ override-dependencies = ["docstring-parser ; sys_platform == 'never'"]
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
-dlthub = { path = "../../../dlt-plus/packages/dlthub", editable = true }
-dlthub-client = { path = "../../../runtime/cli", editable = true }
+# dlthub = { path = "../../../dlt-plus/packages/dlthub", editable = true }
+# dlthub-client = { path = "../../../runtime/cli", editable = true }
 
 [tool.hatch.build.targets.sdist]
 packages = ["dlt"]
