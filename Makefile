@@ -29,13 +29,13 @@ has-uv:
 	uv --version
 
 dev: has-uv ## Prepares development environment
-	uv sync --all-extras --no-extra hub --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --no-extra hub --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 dev-airflow: has-uv ## Prepares development environment with airflow support
-	uv sync --all-extras --no-extra hub --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
+	uv sync --all-extras --no-extra hub --group workspace-deps --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 
 dev-hub: has-uv ## Prepares development environment with hub support
-	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 lint: lint-core lint-security lint-docstrings lint-lock lint-deps ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile, deps)
 
@@ -268,7 +268,7 @@ test-pipeline-arrow:
 # ----------------------------------------------------------------------
 
 install-workspace:
-	uv sync $(UV_SYNC_ARGS) --extra workspace --extra cli --group streamlit
+	uv sync $(UV_SYNC_ARGS) --group workspace-deps --extra cli --group streamlit
 
 TEST_WORKSPACE_PATHS = tests/workspace
 
