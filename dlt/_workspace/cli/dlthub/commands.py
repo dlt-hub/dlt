@@ -1,6 +1,7 @@
 """Parser classes for the `dlthub` CLI host."""
 
 import argparse
+import os
 import sys
 from typing import List, Optional
 
@@ -9,7 +10,7 @@ from dlt.common.configuration.plugins import TCliCommandCompose
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli import SupportsCliCommand
 from dlt._workspace.cli.exceptions import CliCommandException
-from dlt._workspace.cli.utils import add_mcp_arg_parser, make_mcp_run_flags
+from dlt._workspace.cli.utils import make_mcp_run_flags, track_command
 from dlt._workspace.cli.commands import (
     InitCommand,
     PipelineCommand as DltPipelineCommand,
@@ -558,8 +559,11 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         if op == "clean":
             clean_workspace(active(), args)
             return
-        # default and explicit `info` both render the workspace overview
-        print_workspace_info(active(), getattr(args, "verbosity", 0))
+        if op == "info":
+            print_workspace_info(active(), getattr(args, "verbosity", 0))
+            return
+        # bare `dlthub local` — print help
+        self.parser.print_help()
 
 
 class InfoSubCommand(SupportsCliCommand):
@@ -670,3 +674,96 @@ class PipelineCommand(SupportsCliCommand):
             self._init_cmd.execute(args)
             return
         self.parser.print_usage()
+
+
+class InitWorkspaceCommand(SupportsCliCommand):
+    command = "init"
+    compose: TCliCommandCompose = "replace"
+    help_string = "Initialize a new dlthub workspace"
+    description = (
+        "Creates local workspace files: config, secrets, gitignore and Python"
+        " pyproject/requirements."
+    )
+    docs_url: Optional[str] = None
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+        parser.add_argument(
+            "--name",
+            default=None,
+            help="Workspace name (defaults to current directory basename).",
+        )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Overwrite existing pyproject.toml/requirements.txt/.gitignore/config.toml.",
+        )
+        parser.add_argument(
+            "--dependencies",
+            choices=["auto", "pyproject", "requirements"],
+            default="auto",
+            help=(
+                "Dependency file to scaffold. `auto` (default) uses pyproject.toml when"
+                " uv is on PATH and requirements.txt otherwise. `pyproject` /"
+                " `requirements` force the choice."
+            ),
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Print the file plan without writing anything.",
+        )
+
+    def execute(self, args: argparse.Namespace) -> None:
+        _execute_init(
+            name=args.name,
+            force=args.force,
+            dry_run=args.dry_run,
+            dependencies=args.dependencies,
+            verbosity=getattr(args, "verbosity", 0),
+        )
+
+
+@track_command("dlthub_init", track_before=False)
+def _execute_init(
+    *,
+    name: Optional[str],
+    force: bool,
+    dry_run: bool,
+    dependencies: str = "auto",
+    verbosity: int = 0,
+) -> None:
+    from dlt._workspace.cli.dlthub.utils import fetch_init_plan
+    from dlt._workspace.cli.dlthub._init_command import (
+        _print_init_plan,
+        _print_init_welcome,
+        init_dlthub_workspace,
+    )
+
+    plan = fetch_init_plan(
+        os.getcwd(),
+        name=name,
+        force=force,
+        dependencies=dependencies,  # type: ignore[arg-type]
+    )
+
+    # bail on existing workspace before showing anything noisy; verbose still prints the plan
+    # for diagnostics
+    if plan["workspace_exists"] and not force:
+        if verbosity > 0:
+            _print_init_plan(plan)
+        fmt.error(
+            "Workspace already exists at %s. Re-run with %s to overwrite."
+            % (fmt.bold(plan["run_dir"]), fmt.bold("--force"))
+        )
+        raise CliCommandException()
+
+    # plan only shown when --dry-run or -v
+    if dry_run or verbosity > 0:
+        _print_init_plan(plan)
+
+    if dry_run:
+        return
+
+    init_dlthub_workspace(plan, force=force)
+    _print_init_welcome(plan)

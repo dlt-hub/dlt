@@ -4,6 +4,7 @@ To add a new plugin here, do the following:
 2. provide the implementation of command functions like ie. in `dlt._workspace.cli.dlthub._profile_command`
 3. remember to wrap command in telemetry ie. @utils.track_command("profile", track_before=False, operation="info")
 4. register the plugin here.
+5. no more imports in this module
 
 this module is inspected by pluggy on dlt startup
 """
@@ -22,6 +23,7 @@ __all__ = [
     "plug_cli_telemetry",
     "plug_cli_deploy",
     "plug_cli_ai",
+    "plug_cli_dlthub_init",
     "plug_cli_dlthub_pipeline",
     "plug_cli_dlthub_info",
     "plug_cli_dlthub_local",
@@ -95,7 +97,18 @@ def plug_cli_ai(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
 
 @plugins.hookimpl(specname="plug_cli")
 @only_host("dlthub")
+def plug_cli_dlthub_init(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
+    # always available — used to bootstrap a workspace
+    from dlt._workspace.cli.dlthub.commands import InitWorkspaceCommand
+
+    return InitWorkspaceCommand
+
+
+@plugins.hookimpl(specname="plug_cli")
+@only_host("dlthub")
 def plug_cli_dlthub_pipeline(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
+    if not is_workspace_active():
+        return None
     from dlt._workspace.cli.dlthub.commands import PipelineCommand
 
     return PipelineCommand

@@ -67,3 +67,34 @@ class TDeploymentManifestInfo(TypedDict):
     total_jobs: NotRequired[int]
     counts_by_category: NotRequired[Dict[str, int]]
     jobs: NotRequired[List[TDeploymentJobInfo]]
+
+
+TInitDependencySystem = Literal["pyproject.toml", "requirements.txt"]
+TInitDependencyChoice = Literal["auto", "pyproject", "requirements"]
+TInitFileStatus = Literal["create", "skip", "conflict"]
+
+
+class TInitFileEntry(TypedDict):
+    """A file the `dlthub init` plan would touch."""
+
+    path: str
+    status: TInitFileStatus
+    accept_existing: bool
+
+
+class TInitPlan(TypedDict):
+    """Plan for `dlthub init` — files to write and dependency seeds."""
+
+    run_dir: str
+    project_name: str
+    dependency_system: TInitDependencySystem
+    uv_available: bool
+    dependency_specs: List[str]
+    """`[project.dependencies]` array contents."""
+    uv_sources: Dict[str, Dict[str, Any]]
+    """`[tool.uv.sources]` map; empty for pure-PyPI installs."""
+    requirements_lines: List[str]
+    """Full `requirements.txt` body, including `-e <path>` lines for editable installs."""
+    workspace_deps: List[str]
+    files: List[TInitFileEntry]
+    workspace_exists: bool
