@@ -32,5 +32,6 @@ class TRunBannerInfo(TypedDict):
     trigger_humanized: str
     profile: str
     location: TRunLocation
+    run_id: NotRequired[str]
     workspace_name: NotRequired[str]
     port: NotRequired[int]

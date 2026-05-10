@@ -1,6 +1,6 @@
-"""Unit tests for the unified run/serve banner, warnings, and picker."""
+"""Unit tests for the unified run/serve banner, warnings, plan, and picker."""
 
-from typing import List, Tuple
+from typing import Tuple
 
 import pytest
 
@@ -38,9 +38,8 @@ def _candidate(ref: str) -> Tuple[TJobDefinition, TTrigger]:
     return jd, TTrigger(f"manual:{ref}")
 
 
-def test_print_run_banner_local_includes_chip_and_fields(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_print_run_banner_renders_every_line(capsys: pytest.CaptureFixture[str]) -> None:
+    """Single banner test — all fields populated, every line must be present."""
     info: TRunBannerInfo = {
         "display_label": "etl_daily",
         "job_ref": "jobs.etl.daily",
@@ -49,31 +48,21 @@ def test_print_run_banner_local_includes_chip_and_fields(
         "profile": "dev",
         "location": "local",
         "workspace_name": "my_ws",
-    }
-    print_run_banner(info)
-    out = capsys.readouterr().out
-    assert "Starting" in out and "etl_daily" in out
-    assert "local" in out
-    assert "jobs.etl.daily" in out
-    assert "schedule: 0 0 * * *" in out
-    assert "dev" in out
-    assert "my_ws" in out
-    assert "Listening on" not in out
-
-
-def test_print_run_banner_remote_with_port(capsys: pytest.CaptureFixture[str]) -> None:
-    info: TRunBannerInfo = {
-        "display_label": "notebook",
-        "job_ref": "jobs.notebook",
-        "trigger": "manual:jobs.notebook",
-        "trigger_humanized": "manual",
-        "profile": "access",
-        "location": "remote",
+        "run_id": "abc123",
         "port": 5000,
     }
     print_run_banner(info)
     out = capsys.readouterr().out
-    assert "remote" in out
+    # "Starting <label>  [<chip>]" header
+    assert "Starting" in out and "etl_daily" in out
+    assert "local" in out
+    # one line per field
+    assert "job_ref:" in out and "jobs.etl.daily" in out
+    assert "trigger:" in out and "schedule: 0 0 * * *" in out
+    assert "profile:" in out and "dev" in out
+    assert "workspace:" in out and "my_ws" in out
+    assert "run_id:" in out and "abc123" in out
+    # interactive port line
     assert "Listening on http://localhost:5000" in out
 
 
@@ -110,33 +99,26 @@ def test_print_run_plan_renders_entry_point(capsys: pytest.CaptureFixture[str]) 
     assert '"profile": "dev"' in out
 
 
-def test_pick_one_job_single_match_returns_it_without_prompt() -> None:
-    cands = [_candidate("jobs.a")]
-    jd, _ = pick_one_job(cands)
-    assert jd["job_ref"] == "jobs.a"
+@pytest.mark.parametrize(
+    "scenario",
+    ["single-match-passes-through", "non-tty-raises", "non-interactive-tty-raises"],
+)
+def test_pick_one_job(monkeypatch: pytest.MonkeyPatch, scenario: str) -> None:
+    """Single candidate passes through; any non-interactive context raises (never silently picks)."""
+    if scenario == "single-match-passes-through":
+        jd, _ = pick_one_job([_candidate("jobs.a")])
+        assert jd["job_ref"] == "jobs.a"
+        return
 
-
-def test_pick_one_job_non_tty_raises_ambiguous(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Non-tty must NEVER silently pick — raises so the agent re-runs with --job-ref."""
     cands = [_candidate("jobs.a"), _candidate("jobs.b")]
-    # echo's interactivity is already non-interactive in non-tty harness; explicit:
-    monkeypatch.setattr(fmt, "ALWAYS_CHOOSE_DEFAULT", True)
-    with pytest.raises(AmbiguousJobSelector):
-        pick_one_job(cands)
+    if scenario == "non-interactive-tty-raises":
+        # `--non-interactive` flips fmt.is_interactive() False even when streams are tty
+        class _FakeStream:
+            def isatty(self) -> bool:
+                return True
 
-
-def test_pick_one_job_non_interactive_flag_raises_even_in_tty(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`--non-interactive` flips `is_interactive()` False even on tty — must raise, never silently pick."""
-    cands = [_candidate("jobs.a"), _candidate("jobs.b")]
-
-    class _FakeStream:
-        def isatty(self) -> bool:
-            return True
-
-    monkeypatch.setattr("sys.stdin", _FakeStream())
-    monkeypatch.setattr("sys.stdout", _FakeStream())
+        monkeypatch.setattr("sys.stdin", _FakeStream())
+        monkeypatch.setattr("sys.stdout", _FakeStream())
     monkeypatch.setattr(fmt, "ALWAYS_CHOOSE_DEFAULT", True)
     with pytest.raises(AmbiguousJobSelector):
         pick_one_job(cands)

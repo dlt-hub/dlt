@@ -176,18 +176,23 @@ def _parse_config_args(pairs: List[str]) -> Dict[str, str]:
 
 def execute_run(args: argparse.Namespace) -> None:
     """Run a batch job locally — interactive job-types are forbidden."""
-    _execute_one(args, forbidden_job_type="interactive")
+    _execute_one(args, forbidden_job_type="interactive", available_selectors=["batch"])
 
 
 def execute_serve(args: argparse.Namespace) -> None:
     """Serve an interactive job locally — batch job-types are forbidden."""
-    _execute_one(args, forbidden_job_type="batch")
+    _execute_one(args, forbidden_job_type="batch", available_selectors=["interactive"])
 
 
 def execute_pipeline_run(args: argparse.Namespace) -> None:
     """Run a job by pipeline name (`dlthub local pipeline run <name>`)."""
     selectors = [f"pipeline_name:{args.pipeline_name}"]
-    _execute_one(args, forbidden_job_type="interactive", selectors=selectors)
+    _execute_one(
+        args,
+        forbidden_job_type="interactive",
+        selectors=selectors,
+        available_selectors=["pipeline_name:*"],
+    )
 
 
 def _execute_one(
@@ -195,6 +200,7 @@ def _execute_one(
     *,
     forbidden_job_type: Optional[str],
     selectors: Optional[List[str]] = None,
+    available_selectors: Optional[List[str]] = None,
 ) -> None:
     """Shared local controller for run/serve/pipeline-run."""
     from dlt._workspace.deployment._run_helpers import fetch_run_info
@@ -219,6 +225,7 @@ def _execute_one(
         cli_config=cli_config,
         job_ref=getattr(args, "job_ref", None),
         forbidden_job_type=forbidden_job_type,
+        available_selectors=available_selectors,
         pick=pick_one_job,
     )
     if info is None:
@@ -244,6 +251,7 @@ def _execute_one(
         "trigger_humanized": info["trigger_humanized"],
         "profile": info["entry_point"]["profile"],
         "location": "local",
+        "run_id": info["run_id"],
     }
     if ws_name := active().name:
         banner["workspace_name"] = ws_name

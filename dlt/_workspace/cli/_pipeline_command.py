@@ -75,6 +75,9 @@ def pipeline_command(
 
     # we may open the dashboard for a pipeline without checking if it exists
     if operation == "show":
+        if not utils.is_hub_available():
+            return
+
         from dlt._workspace.helpers.dashboard.runner import run_dashboard
 
         run_dashboard(pipeline_name, edit=command_kwargs.get("edit"), pipelines_dir=pipelines_dir)
@@ -144,6 +147,9 @@ def pipeline_command(
 
     # launch mcp server before outputting to stdout
     if operation == "mcp":
+        if not utils.is_hub_available():
+            return
+
         from dlt._workspace.mcp import PipelineMCP
 
         if command_kwargs["stdio"]:

@@ -16,15 +16,24 @@ from dlt._workspace.deployment.manifest import (
 )
 from dlt._workspace.deployment.package_builder import compute_package_content_hash
 from dlt._workspace.deployment.requirements import (
+    DLTHUB_CLIENT_PKG_NAME,
+    DLTHUB_PKG_NAME,
+    TInstallMode,
+    TInstallSpec,
     WorkspaceRequirementsError,
     build_dashboard_group,
     build_launcher_requirements,
     default_requirements_manifest,
     export_workspace_requirements,
     get_dlt_requirement_spec,
+    get_pkg_install_spec,
+    get_workspace_install_specs,
     load_requirements,
     migrate_requirements,
     python_version,
+    render_pep508,
+    render_requirements_lines,
+    render_uv_source,
     save_requirements,
 )
 from dlt._workspace.deployment._trigger_helpers import (

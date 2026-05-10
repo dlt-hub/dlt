@@ -26,6 +26,7 @@ from dlt._workspace.deployment.exceptions import (
     DeploymentException,
     JobRefNotInCandidates,
     ManifestImportError,
+    NoMatchingJobs,
 )
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.typing import (
@@ -246,10 +247,65 @@ def test_narrow_candidates_single_match_with_matching_job_ref() -> None:
     assert jd["job_ref"] == "jobs.a"
 
 
-def test_select_single_job_no_match_raises_lookup() -> None:
-    manifest = _manifest([_job("jobs.a")])
-    with pytest.raises(LookupError, match="No jobs matched"):
+def test_select_single_job_no_match_raises_no_matching_jobs() -> None:
+    """Default behavior (no `available_selectors`): every manifest job is listed."""
+    manifest = _manifest([_job("jobs.a"), _job("jobs.b")])
+    with pytest.raises(NoMatchingJobs, match="No jobs matched") as ei:
         select_single_job(manifest, ["tag:nope"])
+    refs = {jd["job_ref"] for jd, _ in ei.value.available}
+    assert refs == {"jobs.a", "jobs.b"}
+    # back-compat: NoMatchingJobs is also a LookupError
+    assert isinstance(ei.value, LookupError)
+
+
+def test_no_matching_jobs_lists_only_batch_when_scoped() -> None:
+    manifest = _manifest(
+        [
+            _job("jobs.b.one", job_type="batch"),
+            _job("jobs.i.app", job_type="interactive"),
+        ]
+    )
+    with pytest.raises(NoMatchingJobs) as ei:
+        select_single_job(manifest, ["tag:nope"], available_selectors=["batch"])
+    refs = {jd["job_ref"] for jd, _ in ei.value.available}
+    assert refs == {"jobs.b.one"}
+    assert "jobs.b.one" in str(ei.value)
+    assert "jobs.i.app" not in str(ei.value)
+
+
+def test_no_matching_jobs_lists_only_interactive_when_scoped() -> None:
+    manifest = _manifest(
+        [
+            _job("jobs.b.one", job_type="batch"),
+            _job("jobs.i.app", job_type="interactive"),
+        ]
+    )
+    with pytest.raises(NoMatchingJobs) as ei:
+        select_single_job(manifest, ["tag:nope"], available_selectors=["interactive"])
+    refs = {jd["job_ref"] for jd, _ in ei.value.available}
+    assert refs == {"jobs.i.app"}
+
+
+def test_no_matching_jobs_pipeline_scope_uses_synthetic_trigger() -> None:
+    """`pipeline_name:*` matches jobs declaring `deliver.pipeline_name`."""
+    pipe = _job("jobs.p", job_type="batch")
+    pipe["deliver"] = {"pipeline_name": "my_pipe"}
+    plain = _job("jobs.b", job_type="batch")
+    manifest = _manifest([pipe, plain])
+    with pytest.raises(NoMatchingJobs) as ei:
+        select_single_job(
+            manifest, ["pipeline_name:other"], available_selectors=["pipeline_name:*"]
+        )
+    refs = {jd["job_ref"] for jd, _ in ei.value.available}
+    assert refs == {"jobs.p"}
+
+
+def test_no_matching_jobs_with_no_jobs_in_scope_renders_friendly_message() -> None:
+    manifest = _manifest([_job("jobs.b", job_type="batch")])
+    with pytest.raises(NoMatchingJobs) as ei:
+        select_single_job(manifest, ["tag:nope"], available_selectors=["interactive"])
+    assert ei.value.available == []
+    assert "No matching jobs declared in the manifest." in str(ei.value)
 
 
 @pytest.mark.parametrize(

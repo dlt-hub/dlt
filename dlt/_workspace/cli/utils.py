@@ -55,6 +55,16 @@ MODULE_INIT = "__init__.py"
 DATETIME_FORMAT = "YYYY-MM-DD HH:mm:ss"
 
 
+def is_hub_available() -> bool:
+    # check if hub is connected
+    from dlt import hub
+
+    if not hub.__found__:
+        fmt.warning("Install %s for workspace dashboard and mcp support" % fmt.bold("dlt[hub]"))
+        return False
+    return True
+
+
 def get_pipeline_trace_mtime(pipelines_dir: str, pipeline_name: str) -> float:
     """Get mtime of the trace saved by pipeline, which approximates run time"""
     trace_file = get_trace_file_path(pipelines_dir, pipeline_name)

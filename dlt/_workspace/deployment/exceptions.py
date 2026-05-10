@@ -154,3 +154,22 @@ class JobRefNotInCandidates(DeploymentException):
             f"Job ref {job_ref!r} is not among the matched candidates: [{refs}]."
             " Re-run with a `--job-ref` value from this list, or change the selector."
         )
+
+
+class NoMatchingJobs(DeploymentException, LookupError):
+    """No job matched the given selectors; lists candidates to choose from instead."""
+
+    def __init__(
+        self,
+        selectors: Sequence[str],
+        available: Sequence[Tuple["TJobDefinition", str]],
+    ) -> None:
+        self.selectors = list(selectors)
+        self.available = list(available)
+        selector_str = ", ".join(selectors) or "<none>"
+        if available:
+            job_list = "\n".join(f"  - {jd['job_ref']} (trigger: {t})" for jd, t in available)
+            body = f"Available jobs:\n{job_list}"
+        else:
+            body = "No matching jobs declared in the manifest."
+        super().__init__(f"No jobs matched selector(s): {selector_str}.\n{body}")

@@ -48,6 +48,8 @@ def print_run_banner(info: TRunBannerInfo) -> None:
     fmt.echo("  job_ref:    %s" % info["job_ref"])
     fmt.echo("  trigger:    %s" % info["trigger_humanized"])
     fmt.echo("  profile:    %s" % info["profile"])
+    if "run_id" in info:
+        fmt.echo("  run_id:     %s" % info["run_id"])
     if "workspace_name" in info:
         fmt.echo("  workspace:  %s" % info["workspace_name"])
     if "port" in info:

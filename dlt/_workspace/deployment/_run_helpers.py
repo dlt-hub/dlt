@@ -31,6 +31,7 @@ from dlt._workspace.deployment.exceptions import (
     JobRefNotFound,
     JobRefNotInCandidates,
     ManifestImportError,
+    NoMatchingJobs,
 )
 from dlt._workspace.deployment.interval import (
     compute_run_interval,
@@ -193,13 +194,24 @@ def select_single_job(
     *,
     forbidden_job_type: Optional[str] = None,
     job_ref: Optional[str] = None,
+    available_selectors: Optional[List[str]] = None,
 ) -> TCandidate:
     """Resolve `selectors` (+ optional `job_ref`) to exactly one matched job."""
+
     candidates = select_candidates(manifest, selectors, forbidden_job_type=forbidden_job_type)
     if not candidates:
-        selector_str = ", ".join(selectors)
-        all_refs = ", ".join(j["job_ref"] for j in manifest["jobs"])
-        raise LookupError(f"No jobs matched selector(s): {selector_str}. Available: [{all_refs}]")
+        if available_selectors is not None:
+            try:
+                available = select_candidates(
+                    manifest, available_selectors, forbidden_job_type=forbidden_job_type
+                )
+            except DeploymentException:
+                # forbidden_job_type combined with mismatched available_selectors
+                # can raise; degrade gracefully to "no matching jobs declared".
+                available = []
+        else:
+            available = [(j, TTrigger("")) for j in manifest["jobs"]]
+        raise NoMatchingJobs(selectors=selectors, available=available)
     return narrow_candidates(candidates, job_ref)
 
 
@@ -350,6 +362,7 @@ def fetch_run_info(
     cli_config: Optional[Dict[str, str]] = None,
     job_ref: Optional[str] = None,
     forbidden_job_type: Optional[str] = None,
+    available_selectors: Optional[List[str]] = None,
     pick: Optional[TPickFn] = None,
     now_utc: Optional[datetime] = None,
 ) -> Optional[TRunJobInfo]:
@@ -358,7 +371,9 @@ def fetch_run_info(
     `selector` is the user's positional (selector or job_ref). `selectors` lets
     the controller inject pre-built selectors (e.g. `pipeline_name:<name>`)
     skipping positional resolution. `pick` is invoked when the matched set has
-    more than one candidate AND no `job_ref` was supplied.
+    more than one candidate AND no `job_ref` was supplied. `available_selectors`
+    scopes the `NoMatchingJobs.available` listing on no-match (e.g. `["batch"]`,
+    `["interactive"]`, `["pipeline_name:*"]`).
     """
     if selectors is not None:
         # caller-supplied selectors path (e.g. local pipeline run)
@@ -379,7 +394,12 @@ def fetch_run_info(
     )
 
     job_def, picked_trigger = _select_with_picker(
-        manifest, effective_selectors, forbidden_job_type, job_ref, pick
+        manifest,
+        effective_selectors,
+        forbidden_job_type,
+        job_ref,
+        pick,
+        available_selectors=available_selectors,
     )
 
     # manual: selectors are how the user asked; the actual run uses the job's
@@ -436,11 +456,16 @@ def _select_with_picker(
     forbidden_job_type: Optional[str],
     job_ref: Optional[str],
     pick: Optional[TPickFn],
+    available_selectors: Optional[List[str]] = None,
 ) -> Tuple[TJobDefinition, TTrigger]:
     """Run `select_single_job`; on `AmbiguousJobSelector`, fall back to `pick` if provided."""
     try:
         return select_single_job(
-            manifest, selectors, forbidden_job_type=forbidden_job_type, job_ref=job_ref
+            manifest,
+            selectors,
+            forbidden_job_type=forbidden_job_type,
+            job_ref=job_ref,
+            available_selectors=available_selectors,
         )
     except AmbiguousJobSelector as exc:
         if pick is None:
