@@ -227,7 +227,7 @@ def warn_missing_profiles() -> List[str]:
             "No 'prod' profile detected. Batch jobs will use default config/secrets only."
         )
     if "access" not in available:
-        warnings.append("No 'access' profile detected. Interactive jobs may have limited sharing.")
+        warnings.append("No 'access' profile detected. Interactive jobs will use `prod` profile.")
     return warnings
 
 
