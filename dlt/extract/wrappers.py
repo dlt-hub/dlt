@@ -1,7 +1,7 @@
 from typing import Any
 
 from dlt.common.libs import is_arrow_object
-from dlt.common.libs.narwhals import is_dataframe
+from dlt.common.libs.narwhals import narwhals
 
 
 def wrap_additional_type(data: Any) -> Any:
@@ -10,7 +10,7 @@ def wrap_additional_type(data: Any) -> Any:
     if data is None:
         return data
 
-    if is_arrow_object(data) or is_dataframe(data):
+    if is_arrow_object(data) or narwhals.dependencies.is_into_dataframe(data):
         return [data]
 
     return data

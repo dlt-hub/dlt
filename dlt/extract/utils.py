@@ -18,7 +18,7 @@ from functools import wraps
 
 from dlt.common.data_writers import TDataItemFormat
 from dlt.common.libs import get_pydantic_module, is_arrow_object
-from dlt.common.libs.narwhals import is_dataframe
+from dlt.common.libs.narwhals import narwhals
 from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.schema.utils import normalize_schema_name
@@ -60,7 +60,7 @@ def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     try:
         if isinstance(items, list):
             items = items[0]
-        if is_arrow_object(items) or is_dataframe(items):
+        if is_arrow_object(items) or narwhals.dependencies.is_into_dataframe(items):
             return "arrow"
     except IndexError:
         pass
