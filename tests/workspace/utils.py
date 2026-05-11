@@ -26,7 +26,7 @@ def isolated_workspace(
 ) -> Iterator[WorkspaceRunContext]:
     """Copies `name` workspace from WORKSPACE_CASES_DIR to `_storage` top level folder
     changes cwd to a workspace copy and activates it to create a fully isolated workspace.
-    Note that global_dit is patched (TODO: replace with workspace config)
+    Note that global_dir is patched (TODO: replace with workspace config)
     """
     new_run_dir = restore_clean_workspace(name)
     with set_working_dir(new_run_dir):

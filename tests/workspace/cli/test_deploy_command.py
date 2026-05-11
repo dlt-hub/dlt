@@ -197,7 +197,7 @@ def test_deploy_command(deployment_method: str, deployment_args: StrAny) -> None
             assert ex._excinfo[1].error_code == -5
 
 
-def test_invoke_deploy_project(script_runner: ScriptRunner) -> None:
+def test_invoke_deploy_project(legacy_workspace_context, script_runner: ScriptRunner) -> None:
     result = script_runner.run(
         ["dlt", "deploy", "debug_pipeline.py", "github-action", "--schedule", "@daily"]
     )
@@ -217,7 +217,7 @@ def test_invoke_deploy_project(script_runner: ScriptRunner) -> None:
     assert "NOTE: You must run the pipeline locally" in result.stdout
 
 
-def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
+def test_invoke_deploy_mock(legacy_workspace_context, script_runner: ScriptRunner) -> None:
     # NOTE: you can mock only once per test with ScriptRunner !!
     with patch("dlt._workspace.cli._deploy_command.deploy_command") as _deploy_command_mock:
         script_runner.run(

@@ -313,7 +313,7 @@ def test_dlthub_outside_workspace_registers_slim_command_set() -> None:
 
 
 @pytest.mark.parametrize(
-    "argv,id",
+    "argv,case_id",
     [
         (["dashboard"], "dashboard"),
         (["pipeline", "any_pipeline", "show"], "pipeline_show"),
@@ -323,12 +323,12 @@ def test_dlthub_outside_workspace_registers_slim_command_set() -> None:
 )
 def test_hub_feature_warns_when_not_found(
     argv: List[str],
-    id_: str,
+    case_id: str,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Without `dlt[hub]`, the gated commands warn and never reach the launcher."""
-    if id_ == "pipeline_mcp":
+    if case_id == "pipeline_mcp":
         pytest.importorskip("fastmcp")
     monkeypatch.setattr("dlt.hub.__found__", False)
     # patch the source modules — the gated callers do `from <module> import X`
@@ -336,7 +336,7 @@ def test_hub_feature_warns_when_not_found(
     dashboard_spy = MagicMock(return_value=None)
     monkeypatch.setattr("dlt._workspace.helpers.dashboard.runner.run_dashboard", dashboard_spy)
     mcp_spy = MagicMock()
-    if id_ == "pipeline_mcp":
+    if case_id == "pipeline_mcp":
         monkeypatch.setattr("dlt._workspace.mcp.PipelineMCP", mcp_spy)
 
     monkeypatch.setattr("sys.argv", ["dlt"] + argv)

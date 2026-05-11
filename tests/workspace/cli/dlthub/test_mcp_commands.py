@@ -16,7 +16,10 @@ from pytest_mock import MockerFixture
 from dlt.common.runtime.run_context import RunContext
 from dlt._workspace.mcp.server import WorkspaceMCP
 
-from tests.workspace.utils import fruitshop_pipeline_context as fruitshop_pipeline_context
+from tests.workspace.utils import (
+    fruitshop_pipeline_context as fruitshop_pipeline_context,
+    isolated_workspace,
+)
 
 
 _TRANSPORT_CASES = [
@@ -40,6 +43,7 @@ def test_mcp_transport(
     fruitshop_pipeline_context: RunContext,
     script_runner: ScriptRunner,
     mocker: MockerFixture,
+    monkeypatch: pytest.MonkeyPatch,
     host: str,
     base_cmd: List[str],
     extra_flags: List[str],
@@ -47,7 +51,23 @@ def test_mcp_transport(
     expect_path: bool,
 ) -> None:
     mock = mocker.patch.object(FastMCP, "run")
-    result = script_runner.run([host, "--debug"] + base_cmd + extra_flags)
+    # `dlt pipeline <name> mcp` is a legacy command; with an active workspace the `dlt` host
+    # falls back to `dlthub`. nest a legacy context and pass the workspace's
+    # pipelines dir via `--pipelines-dir` so `dlt.attach` still finds the fruitshop pipeline
+    if host == "dlt":
+        # `dlt pipeline ... mcp` is gated on `dlt[hub]`; `install-workspace` doesn't pull it in
+        monkeypatch.setattr("dlt.hub.__found__", True)
+        pipelines_dir = fruitshop_pipeline_context.get_data_entity("pipelines")
+        with isolated_workspace("legacy", required="RunContext"):
+            # `--pipelines-dir` is on the `pipeline` parser, before the pipeline_name positional
+            cmd = (
+                [host, "--debug", base_cmd[0], "--pipelines-dir", pipelines_dir]
+                + base_cmd[1:]
+                + extra_flags
+            )
+            result = script_runner.run(cmd)
+    else:
+        result = script_runner.run([host, "--debug"] + base_cmd + extra_flags)
     assert result.returncode == 0
     assert mock.called
     call_kwargs = mock.call_args.kwargs

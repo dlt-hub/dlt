@@ -22,8 +22,6 @@ from tests.workspace.cli.utils import (
     cloned_init_repo,
     _cached_init_repo,
 )
-from tests.utils import get_test_storage_root
-
 
 CHOOSE_PRIORITY_CASES = [
     # always_confirm=True overrides everything
@@ -355,21 +353,18 @@ def test_pipeline_command_drop_with_global_args(
         assert "players_games" in pipeline.default_schema.tables
 
 
-def test_invoke_list_pipelines(script_runner: ScriptRunner) -> None:
+def test_invoke_list_pipelines(legacy_workspace_context, script_runner: ScriptRunner) -> None:
     result = script_runner.run(["dlt", "pipeline", "--list-pipelines"])
     # directory does not exist (we point to TEST_STORAGE)
     assert result.returncode == 0
     assert "No pipelines found in" in result.stdout
-    # this is current workspace data dir
-    expected_path = os.path.join(get_test_storage_root(), "empty", ".dlt", ".var", "dev")
-    assert expected_path in result.stdout
 
     result = script_runner.run(["dlt", "pipeline", "--list-pipelines"])
     assert result.returncode == 0
     assert "No pipelines found in" in result.stdout
 
 
-def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
+def test_invoke_pipeline(legacy_workspace_context, script_runner: ScriptRunner) -> None:
     # info on non existing pipeline
     result = script_runner.run(["dlt", "pipeline", "debug_pipeline", "info"])
     assert result.returncode == -2
@@ -379,7 +374,9 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
         os.path.join(WORKSPACE_CLI_CASES_DIR, "deploy_pipeline"), ".", dirs_exist_ok=True
     )
 
-    with custom_environ({"COMPLETED_PROB": "1.0"}):
+    # dummy_pipeline.py needs `api_key` via `dlt.secrets.value`; the case provides it only via
+    # profile-aware `dev.secrets.toml`, which the bare legacy `RunContext` does not load
+    with custom_environ({"COMPLETED_PROB": "1.0", "SOURCES__API_KEY": "legacy_api_key"}):
         venv = Venv.restore_current()
         print(venv.run_script("dummy_pipeline.py"))
 

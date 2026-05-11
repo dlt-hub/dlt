@@ -811,7 +811,9 @@ def assert_common_files(
     return visitor, secrets
 
 
-def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:
+def test_invoke_init_chess_and_template(
+    legacy_workspace_context, script_runner: ScriptRunner
+) -> None:
     result = script_runner.run(["dlt", "init", "chess", "dummy"])
     assert "Verified source chess was added to your project!" in result.stdout
     assert result.returncode == 0
@@ -820,7 +822,7 @@ def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:
     assert result.returncode == 0
 
 
-def test_invoke_list_sources(script_runner: ScriptRunner) -> None:
+def test_invoke_list_sources(legacy_workspace_context, script_runner: ScriptRunner) -> None:
     known_sources = ["chess", "sql_database", "google_sheets", "pipedrive"]
     result = script_runner.run(["dlt", "init", "--list-sources"])
     assert result.returncode == 0
