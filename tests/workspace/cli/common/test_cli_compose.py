@@ -117,7 +117,7 @@ def test_additive_routes_to_subparser_via_args_func() -> None:
     def addon(args: argparse.Namespace) -> None:
         record.append("addon")
 
-    node.execute(argparse.Namespace(func=addon))
+    node.execute(argparse.Namespace(execute=addon))
     assert record == ["addon"]
 
 

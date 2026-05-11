@@ -1,9 +1,7 @@
-import os
 import sys
 from typing import Any, Iterator
 import pytest
 
-from dlt.common import known_env
 from dlt.common.runtime.run_context import RunContext
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
@@ -37,13 +35,11 @@ def auto_isolated_workspace(
 
 
 @pytest.fixture
-def legacy_workspace_context(monkeypatch: pytest.MonkeyPatch) -> Iterator[RunContext]:
+def legacy_workspace_context() -> Iterator[RunContext]:
     """Nests a legacy (non-workspace) `RunContext` inside `auto_isolated_workspace`."""
-    # with an active workspace the `dlt` host falls back to `dlthub`'s slim command set; legacy
-    # context restores the full legacy `dlt init`/`deploy`/`pipeline` command set.
+    # with an active workspace the `dlt` host falls back to `dlthub`'s slim command set; the
+    # legacy context restores the full legacy `dlt init`/`deploy`/`pipeline` command set
     with isolated_workspace("legacy", required="RunContext") as ctx:
-        # redirect working dir inside the writable `legacy/` workspace copy `ctx.run_dir` points at
-        monkeypatch.setenv(known_env.DLT_DATA_DIR, os.path.join(ctx.run_dir, ".dlt"))
         yield ctx  # type: ignore[misc]
 
 

@@ -12,7 +12,10 @@ from dlt._workspace.cli import _debug, echo as fmt
 from dlt._workspace.cli._dlt import _create_parser, _main, main
 from dlt._workspace.cli.exceptions import CliCommandException
 
-from tests.workspace.utils import isolated_workspace
+from tests.workspace.utils import (
+    fruitshop_pipeline_context as fruitshop_pipeline_context,
+    isolated_workspace,
+)
 
 BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
 
@@ -317,9 +320,8 @@ def test_dlthub_outside_workspace_registers_slim_command_set() -> None:
     [
         (["dashboard"], "dashboard"),
         (["pipeline", "any_pipeline", "show"], "pipeline_show"),
-        (["pipeline", "any_pipeline", "mcp", "--stdio"], "pipeline_mcp"),
     ],
-    ids=["dashboard", "pipeline_show", "pipeline_mcp"],
+    ids=["dashboard", "pipeline_show"],
 )
 def test_hub_feature_warns_when_not_found(
     argv: List[str],
@@ -328,16 +330,11 @@ def test_hub_feature_warns_when_not_found(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Without `dlt[hub]`, the gated commands warn and never reach the launcher."""
-    if case_id == "pipeline_mcp":
-        pytest.importorskip("fastmcp")
     monkeypatch.setattr("dlt.hub.__found__", False)
     # patch the source modules — the gated callers do `from <module> import X`
     # at call time, which resolves the (now-patched) attribute
     dashboard_spy = MagicMock(return_value=None)
     monkeypatch.setattr("dlt._workspace.helpers.dashboard.runner.run_dashboard", dashboard_spy)
-    mcp_spy = MagicMock()
-    if case_id == "pipeline_mcp":
-        monkeypatch.setattr("dlt._workspace.mcp.PipelineMCP", mcp_spy)
 
     monkeypatch.setattr("sys.argv", ["dlt"] + argv)
     rc = main("dlt")
@@ -346,8 +343,7 @@ def test_hub_feature_warns_when_not_found(
     combined = captured.out + captured.err
     assert "Install" in combined and "dlt[hub]" in combined
     assert dashboard_spy.call_count == 0
-    assert mcp_spy.call_count == 0
-    # main() returns 0 because the gate is a clean early-return, not an error
+    # main() returns 0 because the check is a clean early-return, not an error
     assert rc == 0
 
 
@@ -381,27 +377,6 @@ def test_hub_pipeline_show_passes_check_when_found(
 
     monkeypatch.setattr("dlt._workspace.helpers.dashboard.runner.run_dashboard", _raise)
     monkeypatch.setattr("sys.argv", ["dlt", "pipeline", "any_pipeline", "show"])
-    rc = main("dlt")
-    assert rc == -1
-
-
-def test_hub_pipeline_mcp_passes_gate_when_found(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """With `dlt[hub]`, `pipeline mcp` lets control through to `PipelineMCP`."""
-    pytest.importorskip("fastmcp")
-
-    class _Sentinel(Exception):
-        pass
-
-    monkeypatch.setattr("dlt.hub.__found__", True)
-
-    class _SpyMCP:
-        def __init__(self, *_a: Any, **_kw: Any) -> None:
-            raise _Sentinel()
-
-    monkeypatch.setattr("dlt._workspace.mcp.PipelineMCP", _SpyMCP)
-    monkeypatch.setattr("sys.argv", ["dlt", "pipeline", "any_pipeline", "mcp", "--stdio"])
     rc = main("dlt")
     assert rc == -1
 
