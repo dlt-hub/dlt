@@ -42,14 +42,11 @@ def _build_incremental_aggregate(
     (`table.column`, from an auto-join): replaces the base query's projection
     list inline so the join qualifier resolves.
     """
-    if ctx.incremental.end_value is None and (
-        base_query.args.get("limit") is not None or base_query.args.get("order") is not None
-    ):
+    if ctx.incremental.end_value is None and base_query.args.get("limit") is not None:
         raise ValueError(
-            "LIMIT and ORDER BY aren't supported on stateful `.incremental()` as "
-            "state would advance past only the returned rows, silently skipping "
-            "the rest on the next run. Remove them, or set `end_value=` for a "
-            "bounded read."
+            "LIMIT isn't supported on stateful `.incremental()` as state would "
+            "advance past only the returned rows, silently skipping the rest on "
+            "the next run. Remove it, or set `end_value=` for a bounded read."
         )
 
     cursor_alias = sge.to_identifier(_AGG_CURSOR_ALIAS, quoted=True)

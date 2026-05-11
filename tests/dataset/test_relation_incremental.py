@@ -396,21 +396,12 @@ def test_incremental_aggregate_branches_on_cursor_qualifier(
     ), "Qualified cursor: JOIN must be preserved so the qualifier still resolves"
 
 
-@pytest.mark.parametrize(
-    "shape",
-    [
-        pytest.param(lambda r: r.limit(2), id="limit-only"),
-        pytest.param(lambda r: r.order_by("id", "desc"), id="order-by-only"),
-        pytest.param(lambda r: r.order_by("id").limit(2), id="order-by-limit"),
-    ],
-)
-def test_incremental_aggregate_rejects_limit_or_order_by_in_stateful_mode(
-    incremental_pipeline: dlt.Pipeline, shape: Any
+def test_incremental_aggregate_rejects_limit_in_stateful_mode(
+    incremental_pipeline: dlt.Pipeline,
 ) -> None:
-    # In stateful mode (no end_value), LIMIT/ORDER BY would advance state past
-    # only the returned rows. Rejected so callers can't silently skip rows.
-    # Empty yield -> no rows pass the pipe step -> state never advances, so a
-    # fixed resource name is safe to reuse across params.
+    # In stateful mode (no end_value), LIMIT would advance state past only the
+    # returned rows. Rejected so callers can't silently skip rows. ORDER BY
+    # alone does not change the row set, so it's allowed.
     dataset = incremental_pipeline.dataset()
     captured: dlt.Relation | None = None
 
@@ -421,13 +412,36 @@ def test_incremental_aggregate_rejects_limit_or_order_by_in_stateful_mode(
         ),
     ) -> Iterator[Any]:
         nonlocal captured
-        captured = shape(dataset.table("events").incremental(cursor))
+        captured = dataset.table("events").incremental(cursor).limit(2)
         yield from []
 
     incremental_pipeline.extract(probe())
     assert captured is not None
-    with pytest.raises(ValueError, match="LIMIT and ORDER BY aren't supported"):
+    with pytest.raises(ValueError, match="LIMIT isn't supported"):
         captured._incremental_aggregate_relation()
+
+
+def test_incremental_aggregate_allows_order_by_in_stateful_mode(
+    incremental_pipeline: dlt.Pipeline,
+) -> None:
+    # ORDER BY alone doesn't change which rows are returned and MAX/MIN are
+    # order-independent, so the aggregate still reflects every row.
+    dataset = incremental_pipeline.dataset()
+    captured: dlt.Relation | None = None
+
+    @dlt.resource(name="probe_allow_order")
+    def probe(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "id", initial_value=0, range_start="open"
+        ),
+    ) -> Iterator[Any]:
+        nonlocal captured
+        captured = dataset.table("events").incremental(cursor).order_by("id", "desc")
+        yield from []
+
+    incremental_pipeline.extract(probe())
+    assert captured is not None
+    assert captured._incremental_aggregate_relation().fetchscalar() == 5
 
 
 def test_incremental_inside_resource_captures_bound_sql(
