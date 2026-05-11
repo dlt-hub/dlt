@@ -473,11 +473,6 @@ class Relation(WithSqlClient):
                 `last_value_func` is not `min` or `max`.
 
         Notes:
-            Aggregate (GROUP BY) cursors with `range_start="open"`: late
-            rows for already-emitted buckets are silently dropped. Set
-            `lag=N` to widen the lower bound and let `merge` overwrite
-            stale totals.
-
             Scheduler mode (`end_value` set): align window bounds to
             bucket boundaries (misaligned bounds shift the result by a
             bucket), use non-overlapping windows only, and re-run the
