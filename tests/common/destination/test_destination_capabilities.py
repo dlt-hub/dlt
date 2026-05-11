@@ -2,8 +2,10 @@ from typing import cast
 
 import pytest
 
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import DestinationCapabilitiesException, UnsupportedDataType
 from dlt.common.destination.utils import (
+    prepare_load_table,
     resolve_merge_strategy,
     verify_schema_capabilities,
     verify_supported_data_types,
@@ -271,3 +273,43 @@ def test_verify_capabilities_data_types() -> None:
     )
     assert len(exceptions) == 1
     assert isinstance(exceptions[0], TerminalValueError)
+
+
+def test_prepare_load_table_drops_unsupported_precision_hints() -> None:
+    schema = Schema("foo")
+    table_name = "bar"
+    table = new_table(
+        table_name,
+        columns=[
+            {"name": "ts", "data_type": "timestamp", "precision": 3},
+            {"name": "bin", "data_type": "binary", "precision": 16},
+        ],
+    )
+    schema.update_table(table)
+
+    caps = DestinationCapabilitiesContext()
+    caps.supports_timestamp_precision_configuration = True
+    caps.supports_binary_precision_configuration = True
+
+    prepared_table = prepare_load_table(
+        schema.tables,
+        schema.tables[table_name],
+        destination_capabilities=caps,
+    )
+
+    assert "precision" in prepared_table["columns"]["ts"]
+    assert "precision" in prepared_table["columns"]["bin"]
+
+    caps.supports_timestamp_precision_configuration = False
+    caps.supports_binary_precision_configuration = False
+
+    prepared_table = prepare_load_table(
+        schema.tables,
+        schema.tables[table_name],
+        destination_capabilities=caps,
+    )
+
+    assert "precision" not in prepared_table["columns"]["ts"]
+    assert "precision" not in prepared_table["columns"]["bin"]
+    assert "precision" in schema.tables[table_name]["columns"]["ts"]
+    assert "precision" in schema.tables[table_name]["columns"]["bin"]

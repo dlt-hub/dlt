@@ -179,6 +179,10 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Default precision of the timestamp type"""
     max_timestamp_precision: int = 6
     """Maximum supported timestamp precision"""
+    supports_timestamp_precision_configuration: bool = True
+    """Whether destination supports configuring precision of its timestamp type."""
+    supports_binary_precision_configuration: bool = True
+    """Whether destination supports configuring precision of its binary type."""
 
     max_rows_per_insert: Optional[int] = None
     insert_values_writer_type: str = "default"

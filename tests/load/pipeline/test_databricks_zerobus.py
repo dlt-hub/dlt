@@ -5,8 +5,10 @@ import dlt
 import pytest
 
 from dlt.common import sleep
+from dlt.common.data_types import TDataType
 from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.adapters import databricks_adapter
+from dlt.destinations.impl.databricks.databricks import DatabricksZerobusJsonlLoadJob
 from dlt.destinations.impl.databricks.factory import DatabricksTypeMapper
 from tests.cases import assert_all_data_types_row, table_update_and_row
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
@@ -43,18 +45,28 @@ def query_rows_eventually(
     destinations_configs(include_cids="databricks_zerobus"),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("file_format", ("parquet", "jsonl"))
+@pytest.mark.parametrize(
+    ("file_format", "extra_exclude_types"),
+    [
+        pytest.param("parquet", set(), id="parquet"),
+        pytest.param("jsonl", set(), id="jsonl"),
+        pytest.param(
+            "jsonl",
+            set(DatabricksZerobusJsonlLoadJob._ARRAY_CAST_TYPES),
+            id="jsonl-no-array-cast-types",
+        ),
+    ],
+)
 def test_databricks_zerobus_data_types(
     destination_config: DestinationTestConfiguration,
     file_format: TLoaderFileFormat,
+    extra_exclude_types: set[TDataType],
 ) -> None:
     """Tests all data types `dlt` supports for `zerobus` insert API."""
 
-    columns, data_row = table_update_and_row(
-        exclude_types=tuple(DatabricksTypeMapper.UNSUPPORTED_TYPES[("zerobus", file_format)]),
-        # `col12` is `timestamp` without timezone, which is not supported with `jsonl`
-        exclude_columns=("col12",) if file_format == "jsonl" else (),
-    )
+    unsupported_types = DatabricksTypeMapper.UNSUPPORTED_TYPES[("zerobus", file_format)]
+    exclude_types = set(unsupported_types) | extra_exclude_types
+    columns, data_row = table_update_and_row(exclude_types=tuple(exclude_types))
 
     @dlt.resource(
         write_disposition="append",
@@ -67,9 +79,7 @@ def test_databricks_zerobus_data_types(
     databricks_adapter(data_types, insert_api="zerobus")
 
     # insert row with all supported data types
-    pipe = destination_config.setup_pipeline(
-        f"test_databricks_zerobus_data_types_{file_format}", dev_mode=True
-    )
+    pipe = destination_config.setup_pipeline("test_databricks_zerobus_data_types", dev_mode=True)
     info = pipe.run(data_types, **destination_config.run_kwargs)
     assert_load_info(info)
 

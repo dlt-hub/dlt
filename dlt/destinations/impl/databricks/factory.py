@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Type, Union
 
-from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.data_writers.escape import escape_databricks_identifier, escape_databricks_literal
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination.typing import PreparedTableSchema
@@ -34,7 +34,7 @@ class DatabricksTypeMapper(TypeMapperImpl):
         (DEFAULT_DATABRICKS_INSERT_API, "jsonl"): frozenset({"decimal", "wei", "binary", "date"}),
         (DEFAULT_DATABRICKS_INSERT_API, "model"): frozenset(),
         ("zerobus", "parquet"): frozenset({"decimal", "wei"}),
-        ("zerobus", "jsonl"): frozenset({"decimal", "wei"}),
+        ("zerobus", "jsonl"): frozenset({"decimal", "wei", "binary", "json"}),
         ("zerobus", "model"): frozenset(),
     }
 
@@ -79,20 +79,27 @@ class DatabricksTypeMapper(TypeMapperImpl):
     ) -> None:
         insert_api = get_databricks_insert_api(table)
         unsupported_types = self.UNSUPPORTED_TYPES[(insert_api, loader_file_format)]
-        if loader_file_format == "jsonl":
-            if column["data_type"] == "timestamp" and column.get("timezone") is False:
-                raise TerminalValueError(
-                    "Cannot load naive timestamps from json, use parquet", column["data_type"]
-                )
-        elif loader_file_format == "parquet":
-            if column["data_type"] == "time" and column["data_type"] in unsupported_types:
-                raise TerminalValueError(
-                    "Spark can't read Time from parquet. Convert your time column to string or"
-                    " change file format.",
-                    column["data_type"],
-                )
+
+        if insert_api == "copy_into":
+            if loader_file_format == "jsonl":
+                if column["data_type"] == "timestamp" and column.get("timezone") is False:
+                    raise TerminalValueError(
+                        "Cannot load naive timestamps from json, use parquet", column["data_type"]
+                    )
+            elif loader_file_format == "parquet":
+                if column["data_type"] == "time":
+                    raise TerminalValueError(
+                        "Spark can't read Time from parquet. Convert your time column to string"
+                        " or change file format.",
+                        column["data_type"],
+                    )
+
         if column["data_type"] in unsupported_types:
-            raise TerminalValueError("", column["data_type"])
+            raise TerminalValueError(
+                f"The `{insert_api}` insert API does not support data type"
+                f" `{column['data_type']}` with loader file format `{loader_file_format}`.",
+                column["data_type"],
+            )
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
@@ -115,18 +122,7 @@ class DatabricksTypeMapper(TypeMapperImpl):
         column: TColumnSchema,
         table: PreparedTableSchema = None,
     ) -> str:
-        column_name = column["name"]
-        table_name = table["name"]
-        timezone = column.get("timezone", True)
-        precision = column.get("precision")
-
-        if precision and precision != self.capabilities.timestamp_precision:
-            logger.warn(
-                f"Databricks does not support precision {precision} for column '{column_name}' in"
-                f" table '{table_name}'. Will default to 6."
-            )
-
-        return "TIMESTAMP" if timezone else "TIMESTAMP_NTZ"
+        return "TIMESTAMP" if column.get("timezone", True) else "TIMESTAMP_NTZ"
 
     def from_destination_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
@@ -166,6 +162,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         caps.has_case_sensitive_identifiers = False
         caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
         caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
+        caps.supports_timestamp_precision_configuration = False
+        caps.supports_binary_precision_configuration = False
         caps.max_identifier_length = 255
         caps.max_column_identifier_length = 255
         caps.max_query_length = 2 * 1024 * 1024
@@ -185,6 +183,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             "staging-optimized",
         ]
         caps.sqlglot_dialect = "databricks"
+        # Databricks timestamps always have microsecond precision
+        caps.parquet_format = ParquetFormatConfiguration(coerce_timestamps="us")
 
         return caps
 

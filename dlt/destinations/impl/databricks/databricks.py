@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from functools import cached_property
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
+    ClassVar,
     Dict,
     Generic,
     Iterable,
@@ -18,18 +20,7 @@ from typing import (
 )
 from urllib.parse import urlparse
 
-from zerobus.sdk.shared import RecordType, StreamConfigurationOptions, TableProperties
-from zerobus.sdk.sync import ZerobusSdk, ZerobusStream
-
-from dlt.common.json import json, to_json_value
-from dlt.common.typing import (
-    TAnyDateTime,
-    TDataRecord,
-    TDataRecordBatch,
-    TJsonDataRecord,
-    TJsonDataRecordBatch,
-    TJsonValue,
-)
+from zerobus.sdk.sync import ZerobusArrowStream, ZerobusSdk
 
 from dlt.common import logger
 from dlt.common.configuration.exceptions import ConfigurationValueError
@@ -40,6 +31,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.configuration.specs.azure_credentials import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
+from dlt.common.data_types import TDataType
 from dlt.common.data_writers.escape import escape_databricks_literal
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
@@ -55,14 +47,9 @@ from dlt.common.destination.exceptions import (
     WriteDispositionNotSupported,
 )
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.time import (
-    date_to_epoch_days,
-    datetime_to_timestamp_us,
-    ensure_pendulum_date,
-    ensure_pendulum_datetime_utc,
-)
+from dlt.common.typing import TDataRecordBatch
 from dlt.common.schema import Schema, TColumnSchema, TTableSchema
-from dlt.common.schema.typing import TColumnType, TTableSchemaColumns
+from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.common.storages.configuration import ensure_canonical_az_url
@@ -356,35 +343,6 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
         """
 
 
-class DatabricksZerobusJsonRecordEncoder:
-    def __init__(self, columns: TTableSchemaColumns) -> None:
-        self.columns = columns
-
-    def encode_value(self, value: object, data_type: Optional[str]) -> TJsonValue:
-        if value is None:
-            return None
-        # Zerobus requires `DATE` and `TIMESTAMP` types to be based on Unix epoch
-        # https://learn.microsoft.com/en-us/azure/databricks/ingestion/zerobus-limits#type-support
-        if data_type == "date":
-            return date_to_epoch_days(ensure_pendulum_date(cast(TAnyDateTime, value)))
-        if data_type == "timestamp":
-            return datetime_to_timestamp_us(ensure_pendulum_datetime_utc(cast(TAnyDateTime, value)))
-        # convert `json` to string to match type mapper
-        if data_type == "json":
-            if not isinstance(value, str):
-                return json.dumps(to_json_value(value))
-        return to_json_value(value)
-
-    def encode_record(self, record: TDataRecord) -> TJsonDataRecord:
-        for column_name, value in record.items():
-            data_type = self.columns[column_name]["data_type"]
-            record[column_name] = self.encode_value(value, data_type)
-        return cast(TJsonDataRecord, record)
-
-    def encode_records(self, records: TDataRecordBatch) -> TJsonDataRecordBatch:
-        return [self.encode_record(record) for record in records]
-
-
 class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TRecordBatch]):
     def __init__(
         self,
@@ -403,27 +361,10 @@ class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TR
         try:
             self._job_client.grant_zerobus_permissions(self.load_table_name)
             stream = self._create_stream()
-
-            def process_batch(batch: TRecordBatch) -> int:
-                records = self.to_json_records(batch)
-                if not records:
-                    return 0
-                offset = stream.ingest_records_offset(records)
-                stream.wait_for_offset(offset)
-                return len(records)
-
-            self._process_batches(process_batch)
+            self._ingest_batches(stream)
         finally:
             if stream is not None:
                 stream.close()
-
-    @abstractmethod
-    def to_json_records(self, batch: TRecordBatch) -> TJsonDataRecordBatch:
-        pass
-
-    @cached_property
-    def record_encoder(self) -> DatabricksZerobusJsonRecordEncoder:
-        return DatabricksZerobusJsonRecordEncoder(self._load_table["columns"])
 
     @cached_property
     def zerobus_sdk(self) -> ZerobusSdk:
@@ -432,30 +373,83 @@ class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TR
             unity_catalog_url=self._config.credentials.to_workspace_url(),
         )
 
-    def _create_stream(self) -> ZerobusStream:
+    @cached_property
+    def _arrow_schema(self) -> pyarrow.Schema:
+        """Returns Arrow schema for the table we're streaming into."""
+
+        from dlt.common.libs.pyarrow import columns_to_arrow
+
+        columns = deepcopy(self._load_table["columns"])
+
+        for column_name, column in columns.items():
+            # DatabricksTypeMapper maps `time` to `STRING`
+            if column.get("data_type") == "time":
+                columns[column_name]["data_type"] = "text"
+
+        return columns_to_arrow(columns, self._job_client.capabilities)
+
+    def _create_stream(self) -> ZerobusArrowStream:
+        table_name = self._job_client.sql_client.make_qualified_table_name(
+            self.load_table_name, quote=False
+        )
         client_id = self.zerobus_config.credentials.client_id
         client_secret = self.zerobus_config.credentials.client_secret
-        table_properties = TableProperties(
-            self._job_client.sql_client.make_qualified_table_name(self.load_table_name, quote=False)
+        return self.zerobus_sdk.create_arrow_stream(
+            table_name,
+            self._arrow_schema,
+            client_id,
+            client_secret,
         )
-        stream_options = StreamConfigurationOptions(record_type=RecordType.JSON)
-        return self.zerobus_sdk.create_stream(
-            client_id, client_secret, table_properties, stream_options
-        )
+
+    def _ingest_batch(self, stream: ZerobusArrowStream, batch: pyarrow.RecordBatch) -> None:
+        offset = stream.ingest_batch(batch)
+        stream.wait_for_offset(offset)
+        self._advance_record_offset(int(batch.num_rows))
+
+    def _ingest_batches(self, stream: ZerobusArrowStream) -> None:
+        for batch in self.iter_batches():
+            self._ingest_batch(stream, self._ensure_arrow_record_batch(batch))
+
+    @abstractmethod
+    def _ensure_arrow_record_batch(self, batch: TRecordBatch) -> pyarrow.RecordBatch:
+        """Returns a `pyarrow.RecordBatch` with a schema compliant for ingestion."""
+        pass
 
 
 class DatabricksZerobusJsonlLoadJob(DatabricksZerobusLoadJob[TDataRecordBatch]):
     file_batch_iterator_class = JsonlFileBatchIterator
+    _ARRAY_CAST_TYPES: ClassVar[frozenset[TDataType]] = frozenset({"date", "timestamp"})
+    """Data types that require array-level casting because record batch-level casting fails."""
 
-    def to_json_records(self, batch: TDataRecordBatch) -> TJsonDataRecordBatch:
-        return self.record_encoder.encode_records(batch)
+    def _ensure_arrow_record_batch(self, batch: TDataRecordBatch) -> pyarrow.RecordBatch:
+        from dlt.common.libs.pyarrow import pyarrow
+
+        if any(
+            column.get("data_type") in self._ARRAY_CAST_TYPES
+            for column in self._load_table["columns"].values()
+        ):
+            inferred_batch = pyarrow.RecordBatch.from_pylist(batch)
+
+            return pyarrow.RecordBatch.from_arrays(
+                [
+                    (
+                        inferred_batch.column(field.name).cast(field.type)
+                        if field.name in inferred_batch.column_names
+                        else pyarrow.nulls(inferred_batch.num_rows, type=field.type)
+                    )
+                    for field in self._arrow_schema
+                ],
+                schema=self._arrow_schema,
+            )
+
+        return pyarrow.RecordBatch.from_pylist(batch, schema=self._arrow_schema)
 
 
 class DatabricksZerobusParquetLoadJob(DatabricksZerobusLoadJob["pyarrow.RecordBatch"]):
     file_batch_iterator_class = ParquetFileBatchIterator
 
-    def to_json_records(self, batch: pyarrow.RecordBatch) -> TJsonDataRecordBatch:
-        return self.record_encoder.encode_records(cast(TDataRecordBatch, batch.to_pylist()))
+    def _ensure_arrow_record_batch(self, batch: pyarrow.RecordBatch) -> pyarrow.RecordBatch:
+        return batch.cast(self._arrow_schema)
 
 
 class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
