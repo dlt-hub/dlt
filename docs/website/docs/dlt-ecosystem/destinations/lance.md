@@ -128,7 +128,14 @@ timeout = "300s"
 
 ## Catalog and storage
 
-The `lance` destination uses the [Lance Directory Namespace](https://lance.org/format/namespace/dir/catalog-spec/) (V2 Catalog Spec) to organize tables. Two concepts are configured separately:
+The `lance` destination uses a [Lance Namespace](https://lance.org/format/namespace/) as catalog. Two different namespace specs are currently supported:
+- [Directory Namespace](https://lance.org/format/namespace/dir/catalog-spec/) (V2 Catalog Spec) — used by default
+- [REST Namespace](https://lance.org/format/namespace/rest/catalog-spec/)  — experimental support only
+
+
+### Directory Namespace
+
+The destination uses a Directory Namespace by default. Two concepts are configured separately:
 
 - **Storage** — where table data files are written. Configured under `[destination.lance.storage]`.
 - **Catalog** — a `__manifest` table that tracks namespaces and tables. By default the catalog is colocated with storage (the `__manifest` lives under `storage.bucket_url/storage.namespace_name`). For advanced setups you can point the catalog at a separate location via `[destination.lance.credentials]` — see [Advanced: separate catalog location](#advanced-separate-catalog-location).
@@ -154,7 +161,7 @@ bucket_url = "s3://my-bucket"
 namespace_name = "production"  # root namespace subdirectory
 ```
 
-## Catalog capabilities
+#### Directory Namespace capabilities
 
 Two capability flags control how the directory catalog tracks tables and namespaces. The defaults work for almost everyone:
 
@@ -168,6 +175,27 @@ dir_listing_enabled = true
 - **`dir_listing_enabled`** (default `true`) — enables the V1 fallback that discovers tables by scanning directories for `.lance` suffixes. Safe to leave on.
 
 **When to disable `manifest_enabled`**: if many writers hit the same catalog root concurrently (for example, multiple pipelines or parallel jobs sharing one `bucket_url`/`namespace_name`), conflicting commits to the shared `__manifest` table on S3/GCS can cause contention and retries. Disabling the manifest eliminates the shared write point at the cost of slower listing and no nested-namespace support. If you disable it, give each pipeline run its own `namespace_name` to isolate datasets.
+
+### REST Namespace (experimental)
+
+:::warning
+Lance REST Namespace support is an **experimental feature**.
+:::
+
+To connect to a Lance REST Namespace server, set `catalog_type = "rest"` and provide the REST server URI. You may also need to set `api_key` and/or `auth_token` if the server requires authentication.
+
+```toml
+[destination.lance]
+catalog_type = "rest"
+
+[destination.lance.credentials]
+uri = "http://127.0.0.1:2333"
+
+# Optional auth, sent as HTTP headers
+api_key = "..."      # sent as x-api-key
+auth_token = "..."   # sent as Authorization: Bearer <auth_token>
+```
+
 
 ## Branching
 

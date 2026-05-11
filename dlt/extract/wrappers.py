@@ -1,22 +1,6 @@
 from typing import Any
 
-from dlt.common.typing import NoneType
-from dlt.common.exceptions import MissingDependencyException
-
-
-try:
-    from dlt.common.libs.pandas import pandas
-
-    PandaFrame = pandas.DataFrame
-except MissingDependencyException:
-    PandaFrame = NoneType
-
-try:
-    from dlt.common.libs.pyarrow import pyarrow
-
-    ArrowTable, ArrowRecords = pyarrow.Table, pyarrow.RecordBatch
-except MissingDependencyException:
-    ArrowTable, ArrowRecords = NoneType, NoneType
+from dlt.common.libs import is_arrow_object, is_pandas_frame, is_polars_frame
 
 
 def wrap_additional_type(data: Any) -> Any:
@@ -25,7 +9,7 @@ def wrap_additional_type(data: Any) -> Any:
     if data is None:
         return data
 
-    if isinstance(data, (PandaFrame, ArrowTable, ArrowRecords)):
+    if is_arrow_object(data) or is_pandas_frame(data) or is_polars_frame(data):
         return [data]
 
     return data

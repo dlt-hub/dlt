@@ -1,7 +1,7 @@
-from typing import Optional, Tuple, TypeVar, Generic, Type, Union, Any, List
+import sys
+from typing import Optional, Tuple, TypeVar, Generic, Type, Union, Any, List, TYPE_CHECKING
 
 from dlt.common import logger
-from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItems
 from dlt.common.schema.exceptions import DataValidationError
@@ -12,15 +12,10 @@ from dlt.common.schema.typing import (
     TTableSchema,
 )
 
-try:
+if TYPE_CHECKING:
     from pydantic import BaseModel as PydanticBaseModel
-    from dlt.common.libs.pydantic import (
-        ValidationError,
-        validate_and_filter_item,
-        validate_and_filter_items,
-    )
-except (ModuleNotFoundError, MissingDependencyException):
-    PydanticBaseModel = Any  # type: ignore[misc, assignment]
+else:
+    PydanticBaseModel = Any
 
 from dlt.extract.utils import get_data_item_format
 from dlt.extract.items import TTableHintTemplate
@@ -57,6 +52,12 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         """Validate a data item against the pydantic model"""
         if item is None:
             return None
+
+        from dlt.common.libs.pydantic import (
+            ValidationError,
+            validate_and_filter_item,
+            validate_and_filter_items,
+        )
 
         cfg = getattr(self.model, "dlt_config", {}) or {}
         return_models = cfg.get("return_validated_models", False)
@@ -122,10 +123,11 @@ def create_item_validator(
     Returns a tuple (validator, schema contract). If validator could not be created, returns None at first position.
     If schema_contract was not specified a default schema contract for given validator will be returned
     """
+    pydantic_module = sys.modules.get("pydantic")
     if (
-        PydanticBaseModel is not None
+        pydantic_module is not None
         and isinstance(columns, type)
-        and issubclass(columns, PydanticBaseModel)
+        and issubclass(columns, pydantic_module.BaseModel)
     ):
         assert not callable(
             schema_contract

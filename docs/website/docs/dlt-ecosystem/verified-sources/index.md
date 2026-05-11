@@ -6,17 +6,13 @@ keywords: ['source']
 
 import Link from '../../_book-onboarding-call.md';
 
-import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
-
-import DocCardList from '@theme/DocCardList';
-
 Planning to use `dlt` in production and need a source that isn't listed? We're happy to help you build it: <Link/>.
 
 ### Core sources
 
-<DocCardList items={useCurrentSidebarCategory().items.filter(
-item => item.label === '30+ SQL databases' || item.label === 'REST APIs' || item.label === 'Cloud storage and filesystem'
-)} />
+- [REST APIs](./rest_api/index.md)
+- [30+ SQL databases](./sql_database/index.md)
+- [Object store & filesystem](./filesystem/index.md)
 
 ### Verified sources
 
@@ -26,10 +22,7 @@ Choose from our collection of verified sources, developed and maintained by the 
 If you couldn't find a source implementation, you can easily create your own. Check out the [resource page](../../general-usage/resource.md) to learn how!
 :::
 
-
-<DocCardList items={useCurrentSidebarCategory().items.filter(
-item => item.label !== '30+ SQL databases' && item.label !== 'REST APIs' && item.label !== 'Cloud storage and filesystem'
-)} />
+[Airtable](./airtable.md) · [Amazon Kinesis](./amazon_kinesis.md) · [Asana](./asana.md) · [Chess](./chess.md) · [Facebook Ads](./facebook_ads.md) · [Freshdesk](./freshdesk.md) · [GitHub](./github.md) · [Google Ads](./google_ads.md) · [Google Analytics](./google_analytics.md) · [Google Sheets](./google_sheets.md) · [HubSpot](./hubspot.md) · [Inbox](./inbox.md) · [Jira](./jira.md) · [Kafka](./kafka.md) · [Matomo](./matomo.md) · [MongoDB](./mongodb.md) · [Mux](./mux.md) · [Notion](./notion.md) · [Personio](./personio.md) · [Postgres Replication](./pg_replication.md) · [Pipedrive](./pipedrive.md) · [Salesforce](./salesforce.md) · [Scrapy](./scrapy.md) · [Shopify](./shopify.md) · [Slack](./slack.md) · [Strapi](./strapi.md) · [Stripe](./stripe.md) · [Workable](./workable.md) · [Zendesk](./zendesk.md)
 
 ### What's the difference between core and verified sources?
 

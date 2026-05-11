@@ -270,7 +270,7 @@ def _(mo):
 
     - Try building a transformer for `.xml` using `xmltodict`
     - Combine multiple directories or buckets in a single pipeline
-    - Explore [more examples](https://dlthub.com/docs/dlt-ecosystem/verified-sources/filesystem/advanced)
+    - Explore [more examples](https://dlthub.com/docs/dlt-ecosystem/verified-sources/filesystem)
     """)
     return
 

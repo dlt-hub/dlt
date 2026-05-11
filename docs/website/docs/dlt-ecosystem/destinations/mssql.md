@@ -1,5 +1,5 @@
 ---
-title: Microsoft SQL Server
+title: MS SQL
 description: Microsoft SQL Server `dlt` destination
 keywords: [mssql, sqlserver, destination, data warehouse]
 ---
@@ -215,4 +215,3 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-sqlserver](https://github.com/dbt-msft/dbt-sqlserver).
 
 <!--@@@DLT_TUBA mssql-->
-

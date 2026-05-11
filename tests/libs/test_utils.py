@@ -1,4 +1,4 @@
-from dlt.common.libs.utils import is_instance_lib
+from dlt.common.libs import is_instance_lib
 
 
 def test_is_instance_lib_builtin() -> None:

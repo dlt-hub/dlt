@@ -621,7 +621,7 @@ class JobClientBase(ABC):
     def prepare_load_job_execution(  # noqa: B027, optional override
         self, job: RunnableLoadJob
     ) -> None:
-        """Prepare the connected job client for the execution of a load job (used for query tags in sql clients)"""
+        """Prepare the connected job client for a load job, including load-specific query-tag context when supported."""
         pass
 
     def should_truncate_table_before_load(self, table_name: str) -> bool:

@@ -1,8 +1,6 @@
 import sys
 from typing import Any, Sequence, Type, cast, List, Dict, Tuple
 import argparse
-import rich_argparse
-from rich.markdown import Markdown
 
 from dlt.version import __version__
 from dlt.common.runners import Venv
@@ -17,6 +15,27 @@ from dlt._workspace.cli.utils import display_run_context_info
 
 ACTION_EXECUTED = False
 DEFAULT_DOCS_URL = "https://dlthub.com/docs/intro"
+
+
+class _LazyMarkdown:
+    """Renderable wrapper that defers `rich.markdown.Markdown` instantiation"""
+
+    def __init__(self, text: str, **kwargs: Any) -> None:
+        self._text = text
+        self._kwargs = kwargs
+
+    @property
+    def markup(self) -> str:
+        """Original markdown source; mirrors `rich.markdown.Markdown.markup`."""
+        return self._text
+
+    def __rich__(self) -> Any:
+        from rich.markdown import Markdown
+
+        return Markdown(self._text, **self._kwargs)
+
+    def __str__(self) -> str:
+        return self._text
 
 
 def print_help(parser: argparse.ArgumentParser) -> None:
@@ -69,10 +88,28 @@ class NonInteractiveAction(argparse.Action):
         option_string: str = None,
     ) -> None:
         fmt.ALWAYS_CHOOSE_DEFAULT = True
-        fmt.note(
-            "Non interactive mode. Default choices are automatically made for confirmations and"
-            " prompts."
+
+
+class YesAction(argparse.Action):
+    def __init__(
+        self,
+        option_strings: Sequence[str],
+        dest: Any = argparse.SUPPRESS,
+        default: Any = argparse.SUPPRESS,
+        help: str = None,  # noqa
+    ) -> None:
+        super(YesAction, self).__init__(
+            option_strings=option_strings, dest=dest, default=default, nargs=0, help=help
         )
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Any,
+        option_string: str = None,
+    ) -> None:
+        fmt.ALWAYS_CONFIRM = True
 
 
 class DebugAction(argparse.Action):
@@ -127,6 +164,12 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
         ),
     )
     parser.add_argument(
+        "-y",
+        "--yes",
+        action=YesAction,
+        help="Automatically accept all confirmations.",
+    )
+    parser.add_argument(
         "--debug",
         action=DebugAction,
         help=(
@@ -167,11 +210,12 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
 
     # recursively add formatter class
     def add_formatter_class(parser: argparse.ArgumentParser) -> None:
+        import rich_argparse
+
         parser.formatter_class = rich_argparse.RichHelpFormatter
 
-        # NOTE: make markup available for console output
-        if parser.description:
-            parser.description = Markdown(parser.description, style="argparse.text")  # type: ignore
+        if parser.description and isinstance(parser.description, str):
+            parser.description = _LazyMarkdown(parser.description, style="argparse.text")  # type: ignore[assignment]
         for action in parser._actions:
             if isinstance(action, argparse._SubParsersAction):
                 for _subcmd, subparser in action.choices.items():

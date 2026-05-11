@@ -1,5 +1,5 @@
 ---
-title: Delta
+title: Delta Lake
 description: Delta dlt destination
 keywords: [delta, destination, data warehouse]
 ---

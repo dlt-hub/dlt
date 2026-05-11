@@ -22,7 +22,6 @@ from typing import (
     Union,
     Mapping,
 )
-from typing_extensions import NotRequired
 
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.typing import TypedDict
@@ -52,7 +51,7 @@ from dlt.common.schema.typing import (
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.time import ensure_pendulum_datetime_utc, precise_time
-from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize, TColumnNames
+from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize, TColumnNames, NotRequired
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
 from dlt.common.versioned_state import TVersionedState
@@ -341,7 +340,13 @@ class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):
             assert len(metrics_list) == 1
             metrics = metrics_list[0]
             for job_metrics in metrics["job_metrics"].values():
-                load_metrics["job_metrics"].append({"load_id": load_id, **job_metrics._asdict()})
+                load_metrics["job_metrics"].append(
+                    {
+                        "load_id": load_id,
+                        "dataset_name": metrics.get("dataset_name"),
+                        **job_metrics._asdict(),
+                    }
+                )
 
         d.update(load_metrics)
         return d

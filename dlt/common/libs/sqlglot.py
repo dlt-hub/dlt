@@ -17,6 +17,7 @@ TSqlGlotDialect = Literal[
     "databricks",
     "doris",
     "drill",
+    "dremio",
     "druid",
     "duckdb",
     "dune",

@@ -13,6 +13,7 @@ class IncrementalColumnState(TypedDict):
     initial_value: Optional[Any]
     last_value: Optional[Any]
     unique_hashes: List[str]
+    start_value: Optional[Any]
 
 
 class IncrementalArgs(TypedDict, total=False):

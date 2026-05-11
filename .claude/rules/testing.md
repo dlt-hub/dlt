@@ -37,3 +37,7 @@ paths:
 - When adding new test ALWAYS try find the right place by looking where code you make changes is tested
 - Docstrings: DESCRIBE test case. SKIP when test name is sufficient
 - Use line comments to describe and separate use cases within a single test
+
+## Running
+* DO NOT start two `pytest` processes at once!
+* when running many tests, use `-p xdist -n auto` to parallelize

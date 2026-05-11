@@ -9,6 +9,9 @@ from dlt.common.normalizers.typing import TNormalizersConfig
 from dlt.common.schema import Schema
 from dlt.common.storages import NormalizeStorage
 from dlt.common.storages.configuration import NormalizeStorageConfiguration
+from dlt.common.normalizers.json.relational import (
+    DataItemNormalizer as RelationalNormalizer,
+)
 from dlt.common.normalizers.json.relational_no_coercion import (
     DataItemNormalizer as NoCoercionNormalizer,
 )
@@ -215,3 +218,21 @@ def test_same_type_no_variant(item_normalizer: JsonLItemsNormalizer) -> None:
     new_row, new_table = item_normalizer._coerce_row("users", None, row_2)
     assert new_table is None
     assert new_row["name"] == "bob"
+
+
+def test_ensure_this_normalizer_accepts_no_coercion_subclass() -> None:
+    """ensure_this_normalizer must accept relational_no_coercion as a valid subclass."""
+    schema = Schema("test_ensure", NO_COERCION_NORMALIZERS)
+    norm_config = schema._normalizers_config["json"]
+    # must not raise
+    RelationalNormalizer.ensure_this_normalizer(norm_config)
+
+
+def test_update_and_get_normalizer_config_with_no_coercion() -> None:
+    """update_normalizer_config / get_normalizer_config must work with relational_no_coercion."""
+    schema = Schema("test_config", NO_COERCION_NORMALIZERS)
+    # update config must not raise
+    RelationalNormalizer.update_normalizer_config(schema, {"max_nesting": 3})
+    # get config must return the updated value
+    config = RelationalNormalizer.get_normalizer_config(schema)
+    assert config["max_nesting"] == 3

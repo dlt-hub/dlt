@@ -113,7 +113,7 @@ def build_dq_raw_table(
         _error_message: str = None
         with mo.status.spinner(title=strings.data_quality_loading_raw_table_spinner):
             try:
-                _raw_sql_query = dq.read_check(pipeline.dataset())
+                _raw_sql_query = dq.read_check(pipeline.dataset())  # type: ignore[attr-defined,unused-ignore]
                 _raw_query_result, _error_message, _traceback_string = queries.get_query_result(
                     pipeline, _raw_sql_query.to_sql()
                 )

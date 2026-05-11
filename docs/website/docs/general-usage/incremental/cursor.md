@@ -152,7 +152,7 @@ i.e. when two runs created new dataset at the same time.
 
 For a robust backfill of this kind you probably want to use an orchestrator to make sure that each partition is loaded and loaded only once.
 
-Also check [filesystem](../../dlt-ecosystem/verified-sources/filesystem/basic.md#6-split-large-incremental-loads) example.
+Also check [filesystem](../../dlt-ecosystem/verified-sources/filesystem#6-split-large-incremental-loads) example.
 
 ## Declare row order to not request unnecessary data
 
@@ -275,7 +275,7 @@ engine will be able to stream data using the index without the need to scan the 
 If your source returns unordered data, you will most probably miss some data items or load them twice.
 :::
 
-Check two other examples: [filesystem](../../dlt-ecosystem/verified-sources/filesystem/basic.md#6-split-large-incremental-loads) and
+Check two other examples: [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md#6-split-large-incremental-loads) and
 [sql_database](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#split-or-partition-long-incremental-loads).
 
 
@@ -423,15 +423,63 @@ If you want to run this DAG parallel with the backfill DAG, change the pipeline 
 
 **Under the hood**
 
-Before `dlt` starts executing incremental resources, it looks for `data_interval_start` and `data_interval_end` Airflow task context variables. These are mapped to `initial_value` and `end_value` of the `Incremental` class:
-1. `dlt` is smart enough to convert Airflow datetime to ISO strings or Unix timestamps if your resource is using them. In our example, we instantiate `updated_at=dlt.sources.incremental[int]`, where we declare the last value type to be **int**. `dlt` can also infer the type if you provide the `initial_value` argument.
-2. If `data_interval_end` is in the future or is None, `dlt` sets the `end_value` to **now**.
-3. If `data_interval_start` == `data_interval_end`, we have a manually triggered DAG run. In that case, `data_interval_end` will also be set to **now**.
+When `allow_external_schedulers=True`, `dlt` looks up the active `TimeIntervalContext` while binding the resource. The context resolves an interval from, in order:
+1. An interval passed directly to its constructor (programmatic injection - see [Injecting and reading the current interval](#injecting-and-reading-the-current-interval) below).
+2. `DLT_INTERVAL_START` / `DLT_INTERVAL_END` environment variables (UTC ISO 8601). An optional `DLT_INTERVAL_TIMEZONE` (IANA name) is applied after string parsing.
+3. Airflow's `data_interval_start` / `data_interval_end` from the current task context (both the modern `airflow.sdk.get_current_context()` and the older `airflow.operators.python.get_current_context()` are supported).
+
+The resolved interval is mapped onto `initial_value` and `end_value` of the `Incremental` class:
+- `dlt` converts the datetimes to your cursor type. In the example above we instantiate `dlt.sources.incremental[int]`, so `dlt` converts the interval to Unix timestamps. Other supported cursor types are `timestamp`, `date`, `double`, and `bigint`. String cursors are rejected - convert them on the resource with `add_map` first.
+- If you also configured `initial_value` / `end_value` directly on the `Incremental`, the scheduler interval is **clipped** against your bounds using `last_value_func`, so your configured limits always win.
+
+When `allow_external_schedulers=True` but no interval can be resolved, `dlt` raises `ExternalSchedulerNotAvailable` instead of silently falling back to dlt state. If the cursor type is `Any` or not coercible to a timestamp, `dlt` raises `JoinSchedulerError`.
 
 **Manual runs**
 
-You can run DAGs manually, but you must remember to specify the Airflow logical date of the run in the past (use the Run with config option). For such a run, `dlt` will load all data from that past date until now.
-If you do not specify the past date, a run with a range (now, now) will happen, yielding no data.
+When you trigger an Airflow DAG manually, the run uses whatever `data_interval` Airflow assigns it - typically `(now, now)`, which yields no data. To backfill manually, set the logical date in the past (use the Run with Config option) so Airflow sets a real interval.
+
+### Injecting and reading the current interval
+
+`dlt` exposes the active interval as an injectable context, `TimeIntervalContext`, so you can drive `Incremental` from your own scheduler, a plain cron job, a backfill script - without depending on Airflow or environment variables.
+
+Inject an interval from your code:
+
+```py
+from dlt.common.configuration.container import Container
+from dlt.extract.incremental.context import TimeIntervalContext
+
+start = pendulum.datetime(2024, 1, 15, tz="UTC")
+end = pendulum.datetime(2024, 1, 16, tz="UTC")
+
+with Container().injectable_context(TimeIntervalContext(interval=(start, end))):
+    # any Incremental with allow_external_schedulers=True picks up [start, end) from the context
+    pipeline.run(my_source)
+```
+
+`Incremental` consults the active context automatically - you don't need to wire anything else. Resources without `allow_external_schedulers=True` ignore the context and behave as usual (state-driven incremental).
+
+`TimeIntervalContext` also accepts an `allow_external_schedulers` field that **overrides** the per-incremental setting. Useful when you want a single switch at the runtime layer:
+
+```py
+ctx = TimeIntervalContext(interval=(start, end), allow_external_schedulers=True)
+with Container().injectable_context(ctx):
+    # joins the context even if individual resources didn't opt in
+    pipeline.run(my_source)
+```
+
+To read whatever the runtime resolved from inside a resource, use `dlt.current.interval()`. This is handy for resources that don't use `Incremental` but still need to know the active window (custom paginators, validation, logging):
+
+```py
+@dlt.resource
+def my_resource():
+    iv = dlt.current.interval()
+    if iv is not None:
+        start, end = iv
+        # use start/end to scope your requests
+    yield {}
+```
+
+`dlt.current.interval()` returns `None` when no context is active.
 
 ## Reading incremental loading parameters from configuration
 
