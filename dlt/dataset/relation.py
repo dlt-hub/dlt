@@ -492,18 +492,12 @@ class Relation(WithSqlClient):
         table_name, column_name = _parse_incremental_cursor_path(incremental.cursor_path)
 
         if table_name is None:
-            column_ref = sge.Column(this=sge.to_identifier(column_name, quoted=True))
-            sqlglot_type = _sqlglot_type_for_column(self.columns_schema, column_name)
-            _maybe_warn_on_cursor_missing_raise(incremental, self.columns_schema, column_name)
-            condition = _build_incremental_condition(incremental, column_ref, sqlglot_type)
-            rel = self.__copy__()
-            if condition is not None:
-                rel._sqlglot_expression = rel.sqlglot_expression.where(condition)
-            rel._incremental_ctx = _RelationIncrementalContext(
+            return self._apply_incremental(
                 incremental=incremental,
-                cursor_column=column_ref.copy(),
+                target_query=self.sqlglot_expression,
+                column_ref=sge.Column(this=sge.to_identifier(column_name, quoted=True)),
+                column_lookup_columns=self.columns_schema,
             )
-            return rel
 
         if not self._table_name:
             raise ValueError(
@@ -535,20 +529,35 @@ class Relation(WithSqlClient):
             kind="inner",
             project=False,
         )
-        qualifier_map = _extract_joined_table_aliases(query)
-        target_qualifier = qualifier_map[table_name]
-
-        column_ref = sge.Column(
-            this=sge.to_identifier(column_name, quoted=True),
-            table=sge.to_identifier(target_qualifier, quoted=False),
+        target_qualifier = _extract_joined_table_aliases(query)[table_name]
+        return self._apply_incremental(
+            incremental=incremental,
+            target_query=query,
+            column_ref=sge.Column(
+                this=sge.to_identifier(column_name, quoted=True),
+                table=sge.to_identifier(target_qualifier, quoted=False),
+            ),
+            column_lookup_columns=self._dataset.schema.tables[table_name].get("columns", {}),
         )
-        target_columns = self._dataset.schema.tables[table_name].get("columns", {})
-        sqlglot_type = _sqlglot_type_for_column(target_columns, column_name)
-        _maybe_warn_on_cursor_missing_raise(incremental, target_columns, column_name)
 
+    def _apply_incremental(
+        self,
+        *,
+        incremental: Incremental[Any],
+        target_query: sge.Query,
+        column_ref: sge.Column,
+        column_lookup_columns: TTableSchemaColumns,
+    ) -> Self:
+        """Build the WHERE for `incremental`."""
+        column_name = column_ref.name
+        sqlglot_type = _sqlglot_type_for_column(column_lookup_columns, column_name)
+        _maybe_warn_on_cursor_missing_raise(incremental, column_lookup_columns, column_name)
         condition = _build_incremental_condition(incremental, column_ref, sqlglot_type)
+
         rel = self.__copy__()
-        rel._sqlglot_expression = query.where(condition) if condition is not None else query
+        rel._sqlglot_expression = (
+            target_query.where(condition) if condition is not None else target_query
+        )
         rel._incremental_ctx = _RelationIncrementalContext(
             incremental=incremental,
             cursor_column=column_ref.copy(),

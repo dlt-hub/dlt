@@ -61,9 +61,9 @@ def _build_incremental_aggregate(
         )
     else:
         bare_cursor = sge.Column(this=ctx.cursor_column.this.copy())
-        inner = sge.Select(
-            expressions=[sge.Alias(this=bare_cursor, alias=cursor_alias)]
-        ).from_(base_query.copy().subquery())
+        inner = sge.Select(expressions=[sge.Alias(this=bare_cursor, alias=cursor_alias)]).from_(
+            base_query.copy().subquery()
+        )
 
     agg_cls: Type[sge.AggFunc]
     if ctx.incremental.last_value_func is max:
@@ -211,7 +211,7 @@ def _maybe_warn_on_cursor_missing_raise(
         "cursors will be excluded. Set on_cursor_value_missing explicitly "
         "to silence.",
         UserWarning,
-        stacklevel=3,
+        stacklevel=4,
     )
 
 

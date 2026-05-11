@@ -80,11 +80,13 @@ def dataset_with_incomplete_join_target(module_tmp_path: pathlib.Path) -> dlt.Da
         name="products",
         primary_key="id",
         columns=[{"name": "category_id", "data_type": "bigint"}],
-        references=[{
-            "referenced_table": "categories",
-            "columns": ["category_id"],
-            "referenced_columns": ["id"],
-        }],
+        references=[
+            {
+                "referenced_table": "categories",
+                "columns": ["category_id"],
+                "referenced_columns": ["id"],
+            }
+        ],
     )
     def products() -> Iterator[Any]:
         yield [
@@ -756,8 +758,9 @@ def test_incremental_raise_warns_on_nullable_cursor(
         end_value=END_VALUE_DT,
         on_cursor_value_missing="raise",
     )
-    with pytest.warns(UserWarning, match="Can't raise on NULL cursor"):
+    with pytest.warns(UserWarning, match="Can't raise on NULL cursor") as records:
         incremental_dataset.table("events").incremental(incremental)
+    assert records[0].filename == __file__
 
 
 def test_incremental_raise_no_warn_on_non_nullable_cursor(
