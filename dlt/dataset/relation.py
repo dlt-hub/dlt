@@ -42,6 +42,7 @@ from dlt.dataset._incremental import (
     _build_incremental_condition,
     _maybe_warn_on_cursor_missing_raise,
     _parse_incremental_cursor_path,
+    _raise_incomplete_cursor_column,
     _RelationIncrementalContext,
     _sqlglot_type_for_column,
 )
@@ -492,11 +493,14 @@ class Relation(WithSqlClient):
         table_name, column_name = _parse_incremental_cursor_path(incremental.cursor_path)
 
         if table_name is None:
+            relation_columns = self.columns_schema
+            if column_name not in relation_columns:
+                _raise_incomplete_cursor_column(incremental.cursor_path, "this relation")
             return self._apply_incremental(
                 incremental=incremental,
                 target_query=self.sqlglot_expression,
                 column_ref=sge.Column(this=sge.to_identifier(column_name, quoted=True)),
-                column_lookup_columns=self.columns_schema,
+                column_lookup_columns=relation_columns,
             )
 
         if not self._table_name:
@@ -509,6 +513,9 @@ class Relation(WithSqlClient):
             raise ValueError(
                 f"Incremental cursor target table `{table_name}` not found in dataset schema."
             )
+        target_columns = self._dataset.schema.get_table_columns(table_name)
+        if column_name not in target_columns:
+            _raise_incomplete_cursor_column(incremental.cursor_path, f"table `{table_name}`")
         if self._table_name not in _extract_joined_table_aliases(self.sqlglot_expression):
             raise ValueError(
                 f"Incremental cursor `{incremental.cursor_path}` requires a "
@@ -537,7 +544,7 @@ class Relation(WithSqlClient):
                 this=sge.to_identifier(column_name, quoted=True),
                 table=sge.to_identifier(target_qualifier, quoted=False),
             ),
-            column_lookup_columns=self._dataset.schema.tables[table_name].get("columns", {}),
+            column_lookup_columns=target_columns,
         )
 
     def _apply_incremental(

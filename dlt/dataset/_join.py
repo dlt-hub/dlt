@@ -313,7 +313,7 @@ def _apply_join_projection(
         if expr.output_name not in {"", "*"}
     }
 
-    target_columns = schema.tables[target_table]["columns"]
+    target_columns = schema.get_table_columns(target_table)
     target_output_names = {
         f"{projection_prefix}__{column_name}" for column_name in target_columns.keys()
     }

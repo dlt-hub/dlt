@@ -195,6 +195,14 @@ def _build_incremental_condition(
     return sge.And(this=bounds, expression=is_not_null)
 
 
+def _raise_incomplete_cursor_column(cursor_path: str, location_label: str) -> None:
+    raise ValueError(
+        f"Incremental cursor `{cursor_path}` is not a materialized column on "
+        f"{location_label}. Columns declared as hints without a `data_type` cannot "
+        "be used as cursors. Use a column that exists at the destination."
+    )
+
+
 def _maybe_warn_on_cursor_missing_raise(
     incremental: Incremental[Any],
     columns_schema: TTableSchemaColumns,
