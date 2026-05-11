@@ -76,6 +76,75 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
     destination_configs,
     ids=lambda x: x.name,
 )
+def test_model_stateful_incremental(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        "test_model_stateful_incremental", dev_mode=True
+    )
+
+    # seed: ids 1..5
+    pipeline.run(
+        [{"id": i, "value": i * 10} for i in range(1, 6)],
+        table_name="source_data",
+        **destination_config.run_kwargs,
+    )
+    dataset = pipeline.dataset()
+    source_columns = dataset.schema.tables["source_data"]["columns"]
+
+    @dlt.resource(name="copied_table", write_disposition="append")
+    def copied_table(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "id", initial_value=0, range_start="open", on_cursor_value_missing="exclude"
+        ),
+    ) -> Any:
+        rel = dataset["source_data"].incremental(cursor)
+        yield dlt.mark.with_hints(rel, hints=make_hints(columns=source_columns))
+
+    # first transformation run: no prior state, initial_value=0 + open range, the ids are 1..5
+    info = pipeline.run(
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "copied_table") == {"copied_table": 5}
+
+    # append more source rows
+    pipeline.run(
+        [{"id": i, "value": i * 10} for i in range(6, 11)],
+        table_name="source_data",
+        **destination_config.run_kwargs,
+    )
+
+    # second transformation run: last_value=5 from state, only ids 6..10 land
+    info = pipeline.run(
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "copied_table") == {"copied_table": 10}
+
+    new_load_id = info.loads_ids[0]
+    copied_df = dataset["copied_table"].df()
+    new_rows = copied_df[copied_df["_dlt_load_id"] == new_load_id]
+    assert sorted(new_rows["id"].to_list()) == [6, 7, 8, 9, 10]
+
+    # third transformation run with no source changes: nothing new should land
+    info = pipeline.run(
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert load_table_counts(pipeline, "copied_table") == {"copied_table": 10}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destination_configs,
+    ids=lambda x: x.name,
+)
 def test_aliased_column(destination_config: DestinationTestConfiguration) -> None:
     """
     Test that a column in a SQL query can be aliased correctly and processed by the pipeline.
