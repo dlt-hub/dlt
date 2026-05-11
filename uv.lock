@@ -2570,6 +2570,9 @@ hf = [
 http = [
     { name = "aiohttp" },
 ]
+hub = [
+    { name = "dlthub", marker = "python_full_version >= '3.10'" },
+]
 lance = [
     { name = "duckdb" },
     { name = "ibis-framework", marker = "python_full_version >= '3.10'" },
@@ -2804,6 +2807,7 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
+    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.22.1,<0.28" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3" },
@@ -3004,6 +3008,20 @@ workspace-deps = [
 ]
 
 [[package]]
+name = "dlthub"
+version = "0.22.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-jose", marker = "python_full_version >= '3.10'" },
+    { name = "ruamel-yaml", marker = "python_full_version >= '3.10'" },
+    { name = "sqlglot", version = "28.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f3/c2/d8ed5739c387052f18d8635c40890f7579588432f87788dc95e69f454832/dlthub-0.22.1.tar.gz", hash = "sha256:8d27dd632cb5b81e79df8215b61204592019513501f9c5e991675629f7609171", size = 169660, upload-time = "2026-02-23T22:40:36.252Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/50/6d98321d3eb2c4f0a77b1ea2261fc49bc5b19f768764c35f11f711c3f573/dlthub-0.22.1-py3-none-any.whl", hash = "sha256:57e4febb3bbfeff733d005a90842d1376cc4e81483ae56760037cc6863379f65", size = 226759, upload-time = "2026-02-23T22:40:33.402Z" },
+]
+
+[[package]]
 name = "dnspython"
 version = "2.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3099,6 +3117,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/94/5f/6225b629b64be17001b4290e8fd999f09e2efd034ab51a15b3adee8915a7/duckdb-1.4.3-cp39-cp39-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8afba22c370f06b7314aa46bfed052509269e482bcfb3f7b1ea0fa17ae49ce42", size = 18449076, upload-time = "2025-12-09T10:59:15.577Z" },
     { url = "https://files.pythonhosted.org/packages/ec/bc/ed0cf343519ef6a204eeb77e73b851bf92daf35815120402d724a7909231/duckdb-1.4.3-cp39-cp39-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2b195270ff1a661f22cbd547a215baff265b7d4469a76a215c8992b5994107c3", size = 20451540, upload-time = "2025-12-09T10:59:17.953Z" },
     { url = "https://files.pythonhosted.org/packages/05/ca/6449669aab22d78022d6ab879a95a029ff238b5dd8feffc85f37630abafa/duckdb-1.4.3-cp39-cp39-win_amd64.whl", hash = "sha256:23a3a077821bed1768a84ac9cbf6b6487ead33e28e62cb118bda5fb8f9e53dea", size = 12327213, upload-time = "2025-12-09T10:59:20.48Z" },
+]
+
+[[package]]
+name = "ecdsa"
+version = "0.19.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six", marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/25/ca/8de7744cb3bc966c85430ca2d0fcaeea872507c6a4cf6e007f7fe269ed9d/ecdsa-0.19.2.tar.gz", hash = "sha256:62635b0ac1ca2e027f82122b5b81cb706edc38cd91c63dda28e4f3455a2bf930", size = 202432, upload-time = "2026-03-26T09:58:17.675Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/79/119091c98e2bf49e24ed9f3ae69f816d715d2904aefa6a2baa039a2ba0b0/ecdsa-0.19.2-py2.py3-none-any.whl", hash = "sha256:840f5dc5e375c68f36c1a7a5b9caad28f95daa65185c9253c0c08dd952bb7399", size = 150818, upload-time = "2026-03-26T09:58:15.808Z" },
 ]
 
 [[package]]
@@ -9736,6 +9766,20 @@ wheels = [
 ]
 
 [[package]]
+name = "python-jose"
+version = "3.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ecdsa", marker = "python_full_version >= '3.10'" },
+    { name = "pyasn1", marker = "python_full_version >= '3.10'" },
+    { name = "rsa", marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c6/77/3a1c9039db7124eb039772b935f2244fbb73fc8ee65b9acf2375da1c07bf/python_jose-3.5.0.tar.gz", hash = "sha256:fb4eaa44dbeb1c26dcc69e4bd7ec54a1cb8dd64d3b4d81ef08d90ff453f2b01b", size = 92726, upload-time = "2025-05-28T17:31:54.288Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/c3/0bd11992072e6a1c513b16500a5d07f91a24017c5909b02c72c62d7ad024/python_jose-3.5.0-py2.py3-none-any.whl", hash = "sha256:abd1202f23d34dfad2c3d28cb8617b90acf34132c7afd60abd0b0b7d3cb55771", size = 34624, upload-time = "2025-05-28T17:31:52.802Z" },
+]
+
+[[package]]
 name = "python-multipart"
 version = "0.0.20"
 source = { registry = "https://pypi.org/simple" }
@@ -10263,6 +10307,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/da/8a/22b7beea3ee0d44b1916c0c1cb0ee3af23b700b6da9f04991899d0c555d4/rsa-4.9.1.tar.gz", hash = "sha256:e7bdbfdb5497da4c07dfd35530e1a902659db6ff241e39d9953cad06ebd0ae75", size = 29034, upload-time = "2025-04-16T09:51:18.218Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/64/8d/0133e4eb4beed9e425d9a98ed6e081a55d195481b7632472be1af08d2f6b/rsa-4.9.1-py3-none-any.whl", hash = "sha256:68635866661c6836b8d39430f97a996acbd61bfa49406748ea243539fe239762", size = 34696, upload-time = "2025-04-16T09:51:17.142Z" },
+]
+
+[[package]]
+name = "ruamel-yaml"
+version = "0.19.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/3b/ebda527b56beb90cb7652cb1c7e4f91f48649fbcd8d2eb2fb6e77cd3329b/ruamel_yaml-0.19.1.tar.gz", hash = "sha256:53eb66cd27849eff968ebf8f0bf61f46cdac2da1d1f3576dd4ccee9b25c31993", size = 142709, upload-time = "2026-01-02T16:50:31.84Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/0c/51f6841f1d84f404f92463fc2b1ba0da357ca1e3db6b7fbda26956c3b82a/ruamel_yaml-0.19.1-py3-none-any.whl", hash = "sha256:27592957fedf6e0b62f281e96effd28043345e0e66001f97683aa9a40c667c93", size = 118102, upload-time = "2026-01-02T16:50:29.201Z" },
 ]
 
 [[package]]

@@ -64,7 +64,7 @@ dependencies = [
 
 [project.optional-dependencies]
 hub = [
-    # "dlthub>=0.27.0a0,<0.28 ; python_version >= '3.10'",
+    "dlthub>=0.22.1,<0.28 ; python_version >= '3.10'",
     # "dlthub-client>=0.27.0a0,<0.28 ; python_version >= '3.10'",
 ]
 gcp = [
