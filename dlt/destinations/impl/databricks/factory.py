@@ -219,7 +219,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             environment (str, optional): Environment of the destination
             staging_volume_name (str, optional): Name of the staging volume to use
             create_indexes (bool, optional): Whether PRIMARY KEY or FOREIGN KEY constrains should be created
-            zerobus (DatabricksZerobusConfiguration, optional): Zerobus configuration including Zerobus endpoint, batch size, and credentials.
+            zerobus (DatabricksZerobusConfiguration, optional): Zerobus configuration including Zerobus endpoint, credentials, batch size, and optional Arrow stream settings.
             **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(

@@ -20,8 +20,6 @@ from typing import (
 )
 from urllib.parse import urlparse
 
-from zerobus.sdk.sync import ZerobusArrowStream, ZerobusSdk
-
 from dlt.common import logger
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import (
@@ -90,6 +88,7 @@ from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow
+    from zerobus.sdk.sync import ZerobusArrowStream, ZerobusSdk
 
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
@@ -368,6 +367,8 @@ class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TR
 
     @cached_property
     def zerobus_sdk(self) -> ZerobusSdk:
+        from zerobus.sdk.sync import ZerobusSdk
+
         return ZerobusSdk(
             host=self.zerobus_config.endpoint_url,
             unity_catalog_url=self._config.credentials.to_workspace_url(),
@@ -399,6 +400,7 @@ class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TR
             self._arrow_schema,
             client_id,
             client_secret,
+            options=self.zerobus_config.to_arrow_stream_configuration_options(),
         )
 
     def _ingest_batch(self, stream: ZerobusArrowStream, batch: pyarrow.RecordBatch) -> None:

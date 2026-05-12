@@ -11,12 +11,14 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.destinations.impl.databricks.databricks import DatabricksLoadJob
 from dlt.common.configuration import resolve_configuration
+from zerobus import IPCCompression
 
 from dlt.destinations import databricks
 from dlt.destinations.impl.databricks.configuration import (
     DatabricksClientConfiguration,
     DATABRICKS_APPLICATION_ID,
     DatabricksCredentials,
+    DatabricksZerobusConfiguration,
 )
 
 # mark all tests as essential, do not remove
@@ -429,3 +431,30 @@ def test_default_warehouse() -> None:
         )._bind_dataset_name(dataset_name="my-dataset-1234")
     )
     assert config.credentials.http_path == "/sql/1.0/warehouses/588dbd71bd802f4d"
+
+
+def test_databricks_zerobus_stream_options_setting() -> None:
+    options = DatabricksZerobusConfiguration(
+        stream_options={
+            "ipc_compression": "LZ4_FRAME",
+            "max_inflight_batches": 16,
+            "recovery": False,
+        },
+    ).to_arrow_stream_configuration_options()
+
+    assert options.ipc_compression == IPCCompression.LZ4_FRAME
+    assert options.max_inflight_batches == 16
+    assert options.recovery is False
+
+
+def test_databricks_zerobus_stream_options_defaults() -> None:
+    options = DatabricksZerobusConfiguration().to_arrow_stream_configuration_options()
+
+    assert options.ipc_compression == IPCCompression.ZSTD
+
+
+def test_databricks_zerobus_stream_options_reject_invalid_values() -> None:
+    with pytest.raises(AttributeError, match="foo"):
+        DatabricksZerobusConfiguration(
+            stream_options={"ipc_compression": "foo"},
+        ).to_arrow_stream_configuration_options()

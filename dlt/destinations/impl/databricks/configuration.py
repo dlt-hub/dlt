@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import dataclasses
-from typing import Any, Callable, ClassVar, Dict, Final, List, Optional, cast
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Final, List, Optional, Union, cast
 from urllib.parse import urlparse
 
 from dlt.common import logger
@@ -13,7 +16,14 @@ from dlt.common.destination.client import DestinationClientDwhWithStagingConfigu
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import digest128
 
+if TYPE_CHECKING:
+    from zerobus import ArrowStreamConfigurationOptions, IPCCompression
+
+
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
+# ZSTD was fastest in my benchmarks out of the three `ipc_compression` options
+# currently available (NONE, LZ4_FRAME, ZSTD) — NONE (no compression) was slowest
+DEFAULT_DATABRICKS_ZEROBUS_IPC_COMPRESSION = "ZSTD"
 
 
 @configspec
@@ -188,7 +198,25 @@ class DatabricksZerobusCredentials(CredentialsConfiguration):
 class DatabricksZerobusConfiguration(BaseConfiguration):
     endpoint_url: str = None
     credentials: DatabricksZerobusCredentials = None
-    batch_size: int = 500
+    batch_size: int = 25_000
+    stream_options: Optional[dict[str, Any]] = None
+
+    def to_arrow_stream_configuration_options(self) -> ArrowStreamConfigurationOptions:
+        from zerobus import ArrowStreamConfigurationOptions
+
+        options = deepcopy(self.stream_options) if self.stream_options else dict()
+        if "ipc_compression" not in options:
+            options["ipc_compression"] = DEFAULT_DATABRICKS_ZEROBUS_IPC_COMPRESSION
+        options["ipc_compression"] = self._coerce_ipc_compression(options["ipc_compression"])
+        return ArrowStreamConfigurationOptions(**options)
+
+    @staticmethod
+    def _coerce_ipc_compression(ipc_compression: Union[str, IPCCompression]) -> IPCCompression:
+        from zerobus import IPCCompression
+
+        if isinstance(ipc_compression, str):
+            return getattr(IPCCompression, ipc_compression)
+        return ipc_compression
 
 
 @configspec

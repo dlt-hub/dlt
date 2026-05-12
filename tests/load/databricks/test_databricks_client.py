@@ -1,6 +1,9 @@
-from typing import Iterator, Optional, cast
+from dataclasses import dataclass
+from typing import Any, Iterator, Optional, cast
 
 import pytest
+from pytest_mock import MockerFixture
+from zerobus import IPCCompression
 
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.destination.client import LoadJob
@@ -13,6 +16,11 @@ from dlt.common.schema.utils import new_table
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import LoadJobTerminalException
+from dlt.destinations.impl.databricks.configuration import (
+    DatabricksClientConfiguration,
+    DatabricksZerobusConfiguration,
+    DatabricksZerobusCredentials,
+)
 from dlt.destinations.impl.databricks.databricks_adapter import INSERT_API_HINT
 from dlt.destinations.impl.databricks.databricks import (
     DatabricksClient,
@@ -117,3 +125,50 @@ def test_databricks_client_get_load_job_class(
     else:
         with pytest.raises(LoadJobTerminalException, match=expected_exception_match):
             client.get_load_job_class(prepared_table, file_path)
+
+
+def test_databricks_zerobus_load_job_calls_create_arrow_stream_with_expected_args(
+    mocker: MockerFixture,
+) -> None:
+    @dataclass
+    class FakeSqlClient:
+        def make_qualified_table_name(self, table_name: str, quote: bool = False) -> str:
+            return "catalog.schema.items"
+
+    @dataclass
+    class FakeJobClient:
+        sql_client: FakeSqlClient
+
+    @dataclass
+    class FakeZerobusSdk:
+        create_arrow_stream: Any
+
+    create_arrow_stream = mocker.Mock()
+    zerobus_config = DatabricksZerobusConfiguration(
+        credentials=DatabricksZerobusCredentials(
+            client_id="client-id", client_secret="client-secret"
+        ),
+        stream_options={"ipc_compression": "LZ4_FRAME", "max_inflight_batches": 32},
+    )
+    job = DatabricksZerobusParquetLoadJob(
+        "/tmp/items.1.1.parquet",
+        DatabricksClientConfiguration(zerobus=zerobus_config),
+        {},
+    )
+    job._job_client = cast(Any, FakeJobClient(sql_client=FakeSqlClient()))
+    job._load_table = {"name": "items"}
+    job.zerobus_sdk = FakeZerobusSdk(create_arrow_stream=create_arrow_stream)
+    job._arrow_schema = object()
+
+    job._create_stream()
+
+    args, kwargs = create_arrow_stream.call_args
+    create_arrow_stream.assert_called_once()
+    assert args == (
+        "catalog.schema.items",
+        job._arrow_schema,
+        "client-id",
+        "client-secret",
+    )
+    assert kwargs["options"].ipc_compression == IPCCompression.LZ4_FRAME
+    assert kwargs["options"].max_inflight_batches == 32
