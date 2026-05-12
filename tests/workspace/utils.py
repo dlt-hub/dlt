@@ -8,7 +8,7 @@ import pytest
 from dlt.common import known_env
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase, PluggableRunContext
-from dlt.common.runtime.run_context import RunContext, switch_context
+from dlt.common.runtime.run_context import switch_context
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import set_working_dir
 
@@ -34,10 +34,10 @@ def isolated_workspace(
         ctx = switch_context(new_run_dir, profile=profile, required=required)
         assert ctx.run_dir == new_run_dir
         # also mock global dir so it does not point to default user ~
-        if isinstance(ctx, RunContext):
+        if hasattr(ctx, "_global_dir"):
             ctx._global_dir = os.path.abspath(".global_dir")
             os.makedirs(ctx._global_dir, exist_ok=True)
-            # reload toml provides after patching
+            # reload toml providers after patching
             Container()[PluggableRunContext].reload_providers()
         yield ctx  # type: ignore
 

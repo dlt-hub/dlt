@@ -11,9 +11,6 @@ from dlt._workspace.cli.dlthub.utils import fetch_profile_info
 from dlt._workspace.profile import save_profile_pin
 
 
-# fetch_profile_info() unit tests
-
-
 def test_fetch_profile_info_returns_current(
     auto_isolated_workspace: WorkspaceRunContext,
 ) -> None:
@@ -72,9 +69,6 @@ def test_fetch_profile_info_providers_filter_global_or_current(
             assert (
                 scope == "global" or profile_name == "dev"
             ), f"unexpected location {loc} on filtered provider {prov['name']}"
-
-
-# print_profile_info() view tests
 
 
 def test_print_profile_info_basic(

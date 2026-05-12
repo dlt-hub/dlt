@@ -15,22 +15,20 @@ from tests.workspace.utils import isolated_workspace
 
 
 def test_ai_secrets_list_oss(
-    autouse_test_storage: None,
-    preserve_run_context: None,
+    legacy_workspace_context,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """OSS context lists secrets.toml without profiles."""
     # note: test conftest patches RunContext.initial_providers to use tests/.dlt
     # so providers point to tests/.dlt, not the workspace's .dlt — that's expected
-    with isolated_workspace("legacy", required="RunContext"):
-        ai_secrets_list_command()
-        output = capsys.readouterr().out
+    ai_secrets_list_command()
+    output = capsys.readouterr().out
 
-        assert "Secret file locations:" in output
-        # no profile tags in OSS context
-        assert "profile:" not in output
-        # no "not found"
-        assert "not found" not in output.lower()
+    assert "Secret file locations:" in output
+    # no profile tags in OSS context
+    assert "profile:" not in output
+    # no "not found"
+    assert "not found" not in output.lower()
 
 
 def test_ai_secrets_list_workspace_with_profile(

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import dlt
 from dlt.common.runners.venv import Venv
+from dlt.common import known_env
 
 from dlt._workspace.cli import _debug, echo as fmt
 from dlt._workspace.cli._dlt import _create_parser, _main, main
@@ -27,28 +28,27 @@ def _parse_dlt(argv: List[str]) -> Tuple[Any, Any]:
     return installed, parser.parse_args(remaining, namespace=ns)
 
 
-def test_invoke_basic(script_runner: ScriptRunner) -> None:
-    # OSS context: `_main()` keeps the `dlt` host (no workspace handoff). The
-    # autouse `auto_isolated_workspace` activates a workspace; nest a legacy /
-    # non-workspace context so we exercise the `dlt` host commands directly.
-    with isolated_workspace("legacy", required="RunContext"):
-        result = script_runner.run(["dlt", "--version"])
+def test_invoke_basic(legacy_workspace_context, script_runner: ScriptRunner) -> None:
+    # legacy_workspace_context nests a non-workspace `RunContext` inside the autouse
+    # workspace so `_main()` keeps the `dlt` host (no workspace handoff) and exercises
+    # the `dlt` host commands directly.
+    result = script_runner.run(["dlt", "--version"])
+    assert result.returncode == 0
+    assert result.stdout.startswith("dlt ")
+    assert result.stderr == ""
+
+    result = script_runner.run(["dlt", "--version"], shell=True)
+    assert result.returncode == 0
+    assert result.stdout.startswith("dlt ")
+    assert result.stderr == ""
+
+    for command in BASE_COMMANDS:
+        result = script_runner.run(["dlt", command, "--help"])
         assert result.returncode == 0
-        assert result.stdout.startswith("dlt ")
-        assert result.stderr == ""
+        assert result.stdout.startswith(f"Usage: dlt {command}")
 
-        result = script_runner.run(["dlt", "--version"], shell=True)
-        assert result.returncode == 0
-        assert result.stdout.startswith("dlt ")
-        assert result.stderr == ""
-
-        for command in BASE_COMMANDS:
-            result = script_runner.run(["dlt", command, "--help"])
-            assert result.returncode == 0
-            assert result.stdout.startswith(f"Usage: dlt {command}")
-
-        result = script_runner.run(["dlt", "N/A", "--help"])
-        assert result.returncode != 0
+    result = script_runner.run(["dlt", "N/A", "--help"])
+    assert result.returncode != 0
 
 
 @pytest.mark.parametrize("host", ["dlt", "dlthub"], ids=["dlt", "dlthub"])
@@ -167,45 +167,47 @@ def test_top_only_flags_after_subcommand_error(argv: List[str]) -> None:
     ],
 )
 def test_yes_flag_auto_confirms(
-    script_runner: ScriptRunner, flags: list[str], confirms: bool
+    legacy_workspace_context,
+    script_runner: ScriptRunner,
+    flags: list[str],
+    confirms: bool,
 ) -> None:
     """Destructive commands like sync and drop ask for confirmation with default=False.
     --non-interactive uses the default, so nothing happens. -y/--yes overrides to True, so the commands actually execute.
     """
-    # OSS context: keeps `_main()` on the `dlt` host so `dlt init` and
-    # `dlt pipeline ...` route through the dlt-host plugins (workspace
-    # handoff would rewrite host to `dlthub` and change command set).
-    with isolated_workspace("legacy", required="RunContext"):
-        result = script_runner.run(["dlt", "init", "chess", "duckdb"])
-        assert result.returncode == 0
+    # legacy_workspace_context activates a legacy RunContext (keeping the full `dlt` host
+    # command set instead of the slim `dlthub` set) and pins DLT_DATA_DIR so subprocesses
+    # share the parent's pipeline state location.
+    result = script_runner.run(["dlt", "init", "chess", "duckdb"])
+    assert result.returncode == 0
 
-        os.environ.pop("DESTINATION__DUCKDB__CREDENTIALS", None)
-        venv = Venv.restore_current()
-        venv.run_script("chess_pipeline.py")
+    os.environ.pop("DESTINATION__DUCKDB__CREDENTIALS", None)
+    venv = Venv.restore_current()
+    venv.run_script("chess_pipeline.py")
 
-        # sync
-        result = script_runner.run(["dlt", *flags, "pipeline", "chess_pipeline", "sync"])
-        assert result.returncode == 0, f"STDERR: {result.stderr}"
-        if confirms:
-            assert "Dropping local state" in result.stdout
-            assert "Restoring from destination" in result.stdout
-        else:
-            assert "Dropping local state" not in result.stdout
+    # sync
+    result = script_runner.run(["dlt", *flags, "pipeline", "chess_pipeline", "sync"])
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    if confirms:
+        assert "Dropping local state" in result.stdout
+        assert "Restoring from destination" in result.stdout
+    else:
+        assert "Dropping local state" not in result.stdout
 
-        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    assert "players_games" in pipeline.default_schema.tables
+
+    # drop
+    result = script_runner.run(
+        ["dlt", *flags, "pipeline", "chess_pipeline", "drop", "players_games"]
+    )
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    if confirms:
+        assert "Selected resource(s): ['players_games']" in result.stdout
+        assert "players_games" not in pipeline.default_schema.tables
+    else:
         assert "players_games" in pipeline.default_schema.tables
-
-        # drop
-        result = script_runner.run(
-            ["dlt", *flags, "pipeline", "chess_pipeline", "drop", "players_games"]
-        )
-        assert result.returncode == 0, f"STDERR: {result.stderr}"
-        pipeline = dlt.attach(pipeline_name="chess_pipeline")
-        if confirms:
-            assert "Selected resource(s): ['players_games']" in result.stdout
-            assert "players_games" not in pipeline.default_schema.tables
-        else:
-            assert "players_games" in pipeline.default_schema.tables
 
 
 @pytest.mark.skipif(sys.stdin.isatty(), reason="stdin connected, test skipped")
@@ -304,15 +306,13 @@ def test_dlthub_in_workspace_registers_full_command_set() -> None:
     ), f"missing dlthub workspace commands: {expected - set(installed)}"
 
 
-def test_dlthub_outside_workspace_registers_slim_command_set() -> None:
+def test_dlthub_outside_workspace_registers_slim_command_set(legacy_workspace_context) -> None:
     """Outside a workspace, `dlthub` only exposes init + ai (workspace ones return None)."""
-    with isolated_workspace("legacy", required="RunContext"):
-        _, _, installed = _create_parser("dlthub")
-        assert DLTHUB_UNCONDITIONAL <= set(installed)
-        assert not (DLTHUB_WORKSPACE_ONLY & set(installed)), (
-            "workspace-only commands leaked into OSS context: "
-            f"{DLTHUB_WORKSPACE_ONLY & set(installed)}"
-        )
+    _, _, installed = _create_parser("dlthub")
+    assert DLTHUB_UNCONDITIONAL <= set(installed)
+    assert not (
+        DLTHUB_WORKSPACE_ONLY & set(installed)
+    ), f"workspace-only commands leaked into OSS context: {DLTHUB_WORKSPACE_ONLY & set(installed)}"
 
 
 @pytest.mark.parametrize(
@@ -400,34 +400,34 @@ def test_main_in_workspace_prints_dlthub_handoff_note(
 
 
 def test_main_outside_workspace_no_handoff_note(
+    legacy_workspace_context,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """In OSS context (no workspace), `_main()` does NOT emit the handoff note."""
     monkeypatch.setattr("dlt._workspace.cli._dlt.main", lambda host: 0)
     monkeypatch.setattr("sys.argv", ["dlt", "--version"])
-    with isolated_workspace("legacy", required="RunContext"):
-        with pytest.raises(SystemExit) as ei:
-            _main()
-        assert ei.value.code == 0
-        captured = capsys.readouterr()
-        combined = captured.out + captured.err
-        assert "Please use" not in combined
+    with pytest.raises(SystemExit) as ei:
+        _main()
+    assert ei.value.code == 0
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "Please use" not in combined
 
 
 def test_dlthub_invalid_subcommand_outside_workspace_prints_hint(
+    legacy_workspace_context,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr("sys.argv", ["dlthub", "pipeline"])
-    with isolated_workspace("legacy", required="RunContext"):
-        with pytest.raises(SystemExit) as ei:
-            main("dlthub")
-        assert ei.value.code == 2
-        captured = capsys.readouterr()
-        combined = captured.out + captured.err
-        assert "invalid choice" in captured.err
-        assert "Not all dlthub commands are visible" in combined
+    with pytest.raises(SystemExit) as ei:
+        main("dlthub")
+    assert ei.value.code == 2
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "invalid choice" in captured.err
+    assert "Not all dlthub commands are visible" in combined
 
 
 def test_dlthub_invalid_subcommand_inside_workspace_no_hint(
@@ -445,6 +445,7 @@ def test_dlthub_invalid_subcommand_inside_workspace_no_hint(
 
 
 def test_dlthub_no_subcommand_outside_workspace_prints_hint(
+    legacy_workspace_context,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -453,9 +454,8 @@ def test_dlthub_no_subcommand_outside_workspace_prints_hint(
     reach that wrapper, so we exercise the no-subcommand path here.
     """
     monkeypatch.setattr("sys.argv", ["dlthub"])
-    with isolated_workspace("legacy", required="RunContext"):
-        rc = main("dlthub")
-        assert rc == -1  # `else` branch returns -1
-        captured = capsys.readouterr()
-        combined = captured.out + captured.err
-        assert "Not all dlthub commands are visible" in combined
+    rc = main("dlthub")
+    assert rc == -1  # `else` branch returns -1
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "Not all dlthub commands are visible" in combined

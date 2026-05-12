@@ -402,15 +402,15 @@ def test_default_requirements_manifest_is_save_load_stable() -> None:
         "dlt",
         "dlt==1.14.0",
         "dlt>=1.0,<2.0",
-        "dlt[workspace]",
-        "dlt[workspace]==1.14.0",
+        "dlt[hub]",
+        "dlt[hub]==1.14.0",
         "dlt @ https://github.com/dlt-hub/dlt/archive/refs/heads/devel.zip",
         (
-            "dlt[workspace] @"
+            "dlt[hub] @"
             " https://github.com/dlt-hub/dlt/archive/refs/heads/feat/workspace-manifest-concept.zip"
         ),
         "dlt[workspace,providers] @ https://example.com/dlt.zip",
-        "  dlt[workspace] @ https://example.com/dlt.zip  ",
+        "  dlt[hub] @ https://example.com/dlt.zip  ",
     ],
 )
 def test_contains_package_recognizes_dlt_in_every_form(spec: str) -> None:

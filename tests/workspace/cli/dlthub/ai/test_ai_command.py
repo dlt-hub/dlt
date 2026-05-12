@@ -183,15 +183,14 @@ def test_ai_secrets_view_redacted_unified(capsys: pytest.CaptureFixture[str]) ->
     assert "***" in output
 
 
-def test_ai_secrets_oss_context() -> None:
+def test_ai_secrets_oss_context(legacy_workspace_context) -> None:
     """In OSS context (no profiles), update-fragment writes to given path."""
-    with isolated_workspace("legacy", required="RunContext"):
-        target = ".dlt/secrets.toml"
-        fragment = '[sources.oss]\nkey = "oss-value"\n'
-        ai_secrets_update_fragment_command(fragment=fragment, path=target)
-        assert Path(target).is_file()
-        content = Path(target).read_text(encoding="utf-8")
-        assert "oss-value" in content
+    target = ".dlt/secrets.toml"
+    fragment = '[sources.oss]\nkey = "oss-value"\n'
+    ai_secrets_update_fragment_command(fragment=fragment, path=target)
+    assert Path(target).is_file()
+    content = Path(target).read_text(encoding="utf-8")
+    assert "oss-value" in content
 
 
 def test_cli_secrets_update_fragment_multiline(script_runner: ScriptRunner) -> None:
