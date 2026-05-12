@@ -15,13 +15,13 @@ To install the `dlt[hub]` package, create a new [Python virtual environment](#se
 ```sh
 uv pip install "dlt[hub]"
 ```
-This will install `dlt` with two additional extras:
-* `dlthub` which enables features that require a [license](#self-licensing)
-* `dlt-runtime` which enables access to [dltHub Runtime](../runtime/overview.md)
+This installs `dlt` plus two plugin packages pulled in by the `hub` extra:
+* `dlthub` — enables features that require a [license](#licensing)
+* `dlthub-client` — enables access to the [managed dltHub Platform](../runtime/overview.md) (login, deploy, run, serve, ...)
 
-When working with locally you'll need several dependencies like `duckdb`, `marimo`, `pyarrow` or `fastmcp`. You can install them all with:
+If you also want the common local development dependencies (`duckdb`, `marimo`, `pyarrow`, `fastmcp`, ...), install them with the destination/feature extras you actually need, e.g.:
 ```sh
-uv pip install "dlt[workspace]"
+uv pip install "dlt[hub,duckdb,parquet]"
 ```
 
 If you need to install `uv` (a modern package manager), [please refer to the next section](#configuration-of-the-python-environment).
@@ -32,26 +32,31 @@ To upgrade just the `hub` extra without upgrading `dlt` itself run:
 ```sh
 uv pip install -U "dlt[hub]==1.20.0"
 ```
-This will keep current `1.20.0` `dlt` and upgrade `dlthub` and `dlt-runtime` to their newest matching versions.
+This keeps the current `1.20.0` `dlt` and upgrades `dlthub` and `dlthub-client` to their newest matching versions.
 
 :::tip
-Note that particular `dlt` version expects `dlthub` and `dlt-runtime` versions in a matching range. For example: `1.20.x` versions expects
-`0.20.x` version of a plugin. This is enforced via dependencies in `hub` extra and at import time. Installing plugin directly will not affect
-installed `dlt` version to prevent unwanted upgrades. For example if you run:
+A particular `dlt` version expects `dlthub` and `dlthub-client` versions in a matching range. For example: `1.20.x` expects
+`0.20.x` of each plugin. This is enforced via dependencies in the `hub` extra and at import time. Installing a plugin directly will not change the
+installed `dlt` version (to prevent unwanted upgrades). For example if you run:
 ```sh
 uv pip install dlthub
 ```
-and it downloads `0.21.0` version of a plugin, `dlt` `1.20.0` will still be there but it will report a wrong plugin version on import (with instructions
-how to install valid plugin version).
+and it downloads `0.21.0` of the plugin, `dlt` `1.20.0` will still be installed but it will report a wrong plugin version on import (with instructions
+how to install a compatible plugin version).
 :::
 
 ### Enable dltHub Free and Paid features
 
 :::info
-The most recent [dltHub features](../intro.md#tiers--licensing) like profiles and runtime access are hidden behind a feature flag,
-which means you need to manually enable them before use.
+The full [dltHub feature surface](../intro.md#tiers--licensing) (profiles, the `dlthub` CLI host, managed-platform commands) is enabled by switching your project into **Workspace mode**. The simplest way to do that is:
 
-To activate these features, create an empty `.dlt/.workspace` file in your project directory; this tells `dlt` to switch from the classic project mode to the Workspace mode.
+```sh
+dlthub init
+```
+
+This scaffolds a fresh dltHub workspace — it creates the `.dlt/.workspace` marker file (the toggle that activates the extended CLI surface), plus `config.toml`, `secrets.toml`, `.gitignore`, and a `pyproject.toml` (or `requirements.txt` if `uv` isn't on `PATH`).
+
+If you'd rather flip the toggle by hand in an existing project, create the empty marker file yourself:
 
 <Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]} groupId="operating-systems" defaultValue="ubuntu">
 <TabItem value="ubuntu">
@@ -117,13 +122,9 @@ source .venv/bin/activate
 ```
 
 
-## Licensing 
+## Licensing
 
-To access dltHub’s paid features, such as Iceberg support or Python-based transformations, you need a dltHub Software License.
-
-1. [Contact us](https://info.dlthub.com/waiting-list) if you want to purchase a license or get a trial license with unlimited use.
-2. Issue a [limited trial license](#self-licensing) yourself.
-
+To access dltHub’s paid features, such as Iceberg support or Python-based transformations, you need a dltHub Software License. [Contact us](https://info.dlthub.com/waiting-list) to purchase one or request a trial.
 
 #### Install your license
 
@@ -139,7 +140,7 @@ As an environment variable:
 export DLT_LICENSE_KEY="your-dlthub-license-key"
 ```
 
-#### Features requiring a license:
+#### Features requiring a license
 
 - [@dlt.hub.transformation](../features/transformations/index.md) - a powerful Python decorator to build transformation pipelines and notebooks
 - [dbt transformations](../features/transformations/dbt-transformations.md) - a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
@@ -147,43 +148,4 @@ export DLT_LICENSE_KEY="your-dlthub-license-key"
 - [Data Checks](../features/quality/data-quality.md).
 - [MSSQL Change Tracking source](../ecosystem/ms-sql.md).
 
-For more information about the feature scopes, see [Scopes](#scopes).
-Please, also review our [End User License Agreement](../EULA.md)
-
-### Self-licensing
-
-You can self-issue an anonymous 30-day trial license to explore dltHub’s paid features.
-This trial license is intended for development, education, and CI operations only. Self-issued licenses are bound to the specific machine on which they were created. They cannot be transferred or reused on other machines, workspaces, or environments.
-
-See the [Special Terms](../EULA.md#specific-terms-for-the-self-issued-trial-license-self-issued-trial-terms) in our EULA for more details.
-
-#### Issue a Trial License
-
-Choose a scope for the feature you want to test, then issue a license with:
-```sh
-dlt license issue <scope>
-```
-
-for example:
-```sh
-dlt license issue dlthub.transformation
-```
-This will do the following:
-* Issue a new license (or merge with existing scopes) for the [transformations](../features/transformations/index.md) feature.
-* Print your license key in the CLI output.
-* Put the license key into your `toml` file.
-
-#### Scopes
-
-Display available scopes by running the following command:
-
-```sh
-dlt license scopes
-```
-
-You can self-issue multiple licenses; newly issued licenses will automatically include previously granted features.
-
-To view your installed licenses:
-```sh
-dlt license info
-```
+Please also review our [End User License Agreement](../EULA.md).

@@ -13,17 +13,25 @@ This guide walks you through creating and initializing a `dlt` pipeline in dltHu
 ## Overview
 
 A `dlt` pipeline moves data from a source (like an API or database) into a destination (like DuckDB, Snowflake, or Iceberg). Initializing a pipeline is the first step in the data workflow.
-You can create one in three CLI-based ways:
+You can create one in two CLI-based ways:
 
 | Method          | Command | Best for |
 |-----------------|----------|----------|
-| Manual          | `dlt init <source> <destination>` | Developers who prefer manual setup |
-| Verified source | `dlt init <verified_source> <destination>` | Prebuilt, tested connectors from the community and dltHub team |
+| Manual          | `dlthub pipeline init <source> <destination>` | Developers who prefer manual setup |
+| Verified source | `dlthub pipeline init <verified_source> <destination>` | Prebuilt, tested connectors from the community and dltHub team |
+
+Outside of a workspace (plain OSS `dlt`), the same scaffold is reachable as `dlt init <source> <destination>`. Inside a dltHub workspace, `dlthub pipeline init` is the canonical entry point — it adds the pipeline to the current workspace.
 
 
 ## Step 0: Install dlt with workspace support
 
-Before you start, make sure that you followed [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-dlthub-free-and-paid-features)
+Before you start, make sure you followed the [installation instructions](../getting-started/installation.md) and have a dltHub workspace initialized. The fastest way is:
+
+```sh
+dlthub init
+```
+
+This scaffolds `.dlt/.workspace` (the marker that turns on the extended `dlthub` command surface) plus `config.toml`, `secrets.toml`, `.gitignore`, and `pyproject.toml`. See the [installation guide](../getting-started/installation.md#enable-dlthub-free-and-paid-features) for the manual alternative.
 
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
 
@@ -37,13 +45,13 @@ Before you start, make sure that you followed [installation instructions](../get
 A lightweight, code-first approach ideal for developers comfortable with Python.
 
 ```sh
-dlt init {source_name} duckdb
+dlthub pipeline init {source_name} duckdb
 ````
 
 for example:
 
 ```sh
-dlt init my_github_pipeline duckdb
+dlthub pipeline init my_github_pipeline duckdb
 ```
 
 It scaffolds the pipeline template — a minimal starter project with a single Python script that shows three quick ways to load data into DuckDB using dlt:
@@ -74,16 +82,16 @@ To get started, search for your API and follow the tailored instructions.
 
 ![search for your source](https://storage.googleapis.com/dlt-blog-images/workspace-images/workspace.png)
 
-To initialize a dltHub workspace, execute the following:
+To add a pipeline to a dltHub workspace, execute the following:
 
 ```sh
-dlt init {source_name} duckdb
+dlthub pipeline init {source_name} duckdb
 ```
 
 For example:
 
 ```sh
-dlt init github duckdb
+dlthub pipeline init github duckdb
 ```
 
 The command scaffolds a **workspace-ready REST API pipeline project** with AI-assisted development support.
@@ -136,13 +144,13 @@ You can also initialize a [verified source](../../dlt-ecosystem/verified-sources
 List available sources:
 
 ```sh
-dlt init -l
+dlthub pipeline init -l
 ```
 
 Pick one, for example:
 
 ```sh
-dlt init github duckdb
+dlthub pipeline init github duckdb
 ```
 **Project structure**
 
@@ -168,14 +176,14 @@ Follow the command output to install dependencies and add secrets.
 To initialize any verified source:
 
 ```sh
-dlt init {source_name} {destination_name}
+dlthub pipeline init {source_name} {destination_name}
 ```
 
 For example:
 
 ```sh
-dlt init google_ads duckdb
-dlt init mongodb bigquery
+dlthub pipeline init google_ads duckdb
+dlthub pipeline init mongodb bigquery
 ```
 
 After running the command:

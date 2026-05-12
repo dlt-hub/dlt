@@ -275,6 +275,20 @@ def load_commits():
     pipeline.run(github_rest_api_source())
 ```
 
+:::tip
+The first argument to `@run.pipeline` (here `"github_pipeline"`) becomes a
+pipeline-name selector that both the local and remote CLI honor:
+
+```sh
+dlthub local pipeline run github_pipeline   # locally
+dlthub pipeline run github_pipeline         # in the cloud
+```
+
+This works only for `@run.pipeline` jobs — `@run.job` and `@run.interactive`
+jobs aren't addressable by pipeline name. Run those with `dlthub run <job_name>`
+or `dlthub job trigger <selector>` instead.
+:::
+
 A general-purpose job, scheduled hourly:
 
 ```py
