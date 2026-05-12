@@ -200,12 +200,13 @@ def _lancedb_config(
 
 def _lance_config(catalog_root: str, dataset_name: str = "dataset") -> LanceClientConfiguration:
     """Build resolved Lance config."""
+    credentials = DirectoryCatalogCredentials(bucket_url=catalog_root)
     c = LanceClientConfiguration(
-        credentials=DirectoryCatalogCredentials(bucket_url=catalog_root),
+        credentials=credentials,
         storage=LanceStorageConfiguration(bucket_url=catalog_root),
     )
     c._bind_dataset_name(dataset_name)
-    c.credentials.bucket_url = catalog_root
+    credentials.bucket_url = catalog_root
     return c
 
 
