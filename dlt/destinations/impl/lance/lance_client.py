@@ -14,7 +14,6 @@ from typing import (
 )
 
 import lance
-import lancedb
 from lance import LanceDataset
 from lance.namespace import (
     CreateNamespaceRequest,
@@ -26,6 +25,7 @@ from lance.namespace import (
 )
 from lancedb.table import LanceTable, _append_vector_columns
 from lancedb.embeddings import EmbeddingFunctionConfig, EmbeddingFunctionRegistry
+from lancedb.namespace import LanceNamespaceDBConnection
 
 from dlt.common import json, pendulum, logger
 from dlt.common.libs.numpy import numpy
@@ -136,7 +136,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def drop_dataset_namespace(self) -> None:
         """Drops dataset namespace after removing all its tables."""
         for table in self.list_dataset_namespace_tables():
-            self.namespace.drop_table(DropTableRequest(id=[self.dataset_name, table]))
+            self.namespace.drop_table(DropTableRequest(id=self.make_table_id(table)))
         self.namespace.drop_namespace(DropNamespaceRequest(id=[self.dataset_name]))
 
     @raise_destination_error
@@ -157,7 +157,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             schema.empty_table(),
             namespace=self.namespace,
             table_id=self.make_table_id(table_name),
-            storage_options=self.config.storage.options,
+            storage_options=self.config.storage_options,
         )
 
     @raise_destination_error
@@ -225,7 +225,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         return lance.dataset(
             namespace=self.namespace,
             table_id=self.make_table_id(table_name),
-            storage_options=self.config.storage.options,
+            storage_options=self.config.storage_options,
         ).checkout_version((branch_name, version_number))
 
     def open_lancedb_table(self, table_name: str) -> LanceTable:
@@ -233,11 +233,8 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         This provides access to LanceDB-specific features like vector search.
         """
-        db = lancedb.connect(
-            self.config.storage.bucket_url,
-            storage_options=self.config.storage.options,
-        )
-        return LanceTable.open(db, table_name, location=self.get_table_uri(table_name))
+        db = LanceNamespaceDBConnection(self.namespace, storage_options=self.config.storage_options)
+        return db.open_table(table_name, namespace=[self.dataset_name])
 
     @raise_destination_error
     def _write_records(
