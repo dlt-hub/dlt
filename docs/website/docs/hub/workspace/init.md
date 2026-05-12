@@ -306,4 +306,4 @@ dlt pipeline {pipeline_name} trace           # last run trace & errors
 Once your pipeline runs locally:
 * [Monitor via the workspace dashboard](../../general-usage/dataset-access/data-quality-dashboard)
 * Set up [Profiles](../core-concepts/profiles-dlthub.md) to manage separate dev, prod, and test environments
-* [Deploy to runtime](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline-on-runtime)
+* [Deploy to runtime](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline)

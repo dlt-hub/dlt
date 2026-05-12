@@ -213,7 +213,7 @@ You'll see your pipeline connected to the remote MotherDuck dataset and ready fo
 
 #### Deploy the pipeline to dltHub
 
-Now you're ready to deploy your workspace to dltHub and [run your pipeline in the cloud](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline-on-runtime).
+Now you're ready to deploy your workspace to dltHub and [run your pipeline in the cloud](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline).
 Note that the cloud will automatically use the `prod` profile you just created.
 
 ## Inspecting and managing profiles
@@ -248,5 +248,5 @@ Note that the cloud will automatically use the `prod` profile you just created.
 ## Next steps
 
 * [Configure the workspace](../workspace/overview.md)
-* [Deploy your pipeline](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline-on-runtime)
+* [Deploy your pipeline](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline)
 * [Monitor and debug pipelines](../../general-usage/pipeline#monitor-the-loading-progress)
