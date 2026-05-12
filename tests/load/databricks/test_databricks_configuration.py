@@ -1,3 +1,5 @@
+from typing import Optional
+
 import pytest
 import os
 
@@ -19,6 +21,7 @@ from dlt.destinations.impl.databricks.configuration import (
     DATABRICKS_APPLICATION_ID,
     DatabricksCredentials,
     DatabricksZerobusConfiguration,
+    DatabricksZerobusCredentials,
 )
 
 # mark all tests as essential, do not remove
@@ -431,6 +434,91 @@ def test_default_warehouse() -> None:
         )._bind_dataset_name(dataset_name="my-dataset-1234")
     )
     assert config.credentials.http_path == "/sql/1.0/warehouses/588dbd71bd802f4d"
+
+
+@pytest.mark.parametrize(
+    "zerobus_credentials",
+    [
+        pytest.param(None, id="without-zerobus-credentials"),
+        pytest.param(
+            DatabricksZerobusCredentials(client_id="zerobus-client-id"),
+            id="without-zerobus-client-secret",
+        ),
+        pytest.param(
+            DatabricksZerobusCredentials(client_secret="zerobus-client-secret"),
+            id="without-zerobus-client-id",
+        ),
+    ],
+)
+def test_databricks_zerobus_credentials_fall_back_to_databricks_credentials(
+    zerobus_credentials: Optional[DatabricksZerobusCredentials],
+) -> None:
+    config = resolve_configuration(
+        DatabricksClientConfiguration(
+            credentials=DatabricksCredentials(
+                catalog="foo",
+                server_hostname="foo",
+                http_path="foo",
+                client_id="sql-client-id",
+                client_secret="sql-client-secret",
+            ),
+            zerobus=DatabricksZerobusConfiguration(
+                endpoint_url="foo", credentials=zerobus_credentials
+            ),
+        )._bind_dataset_name(dataset_name="foo")
+    )
+
+    assert config.zerobus is not None
+    assert config.zerobus.credentials is not None
+    assert config.zerobus.credentials.client_id == "sql-client-id"
+    assert config.zerobus.credentials.client_secret == "sql-client-secret"
+
+
+def test_databricks_zerobus_credentials_fallback_requires_oauth_credentials() -> None:
+    with pytest.raises(
+        ConfigurationValueError,
+        match=(
+            "`client_id` and `client_secret` are required when"
+            " `destination.databricks.zerobus` is configured"
+        ),
+    ):
+        resolve_configuration(
+            DatabricksClientConfiguration(
+                credentials=DatabricksCredentials(
+                    catalog="foo",
+                    server_hostname="foo",
+                    http_path="foo",
+                    access_token="foo",
+                ),
+                zerobus=DatabricksZerobusConfiguration(endpoint_url="foo"),
+            )._bind_dataset_name(dataset_name="foo")
+        )
+
+
+def test_databricks_zerobus_credentials_take_precedence() -> None:
+    config = resolve_configuration(
+        DatabricksClientConfiguration(
+            credentials=DatabricksCredentials(
+                catalog="foo",
+                server_hostname="foo",
+                http_path="foo",
+                client_id="sql-client-id",
+                client_secret="sql-client-secret",
+            ),
+            zerobus=DatabricksZerobusConfiguration(
+                endpoint_url="foo",
+                credentials=DatabricksZerobusCredentials(
+                    client_id="zerobus-client-id",
+                    client_secret="zerobus-client-secret",
+                ),
+            ),
+        )._bind_dataset_name(dataset_name="foo")
+    )
+
+    assert config.zerobus is not None
+    assert config.zerobus.credentials is not None
+    assert config.zerobus.credentials.client_id == "zerobus-client-id"
+    assert config.zerobus.credentials.client_secret == "zerobus-client-secret"
 
 
 def test_databricks_zerobus_stream_options_setting() -> None:

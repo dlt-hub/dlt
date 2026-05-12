@@ -199,9 +199,23 @@ class DatabricksZerobusCredentials(CredentialsConfiguration):
 @configspec
 class DatabricksZerobusConfiguration(BaseConfiguration):
     endpoint_url: str = None
+    """URL of the Zerobus server endpoint."""
     credentials: DatabricksZerobusCredentials = None
+    """Credentials to authenticate to the Zerobus server."""
     batch_size: int = 25_000
+    """Number of records per batch to ingest into Zerobus."""
     stream_options: Optional[dict[str, Any]] = None
+    """Stream configuration options forwarded to `options` argument of `ZerobusSdk.create_arrow_stream()`."""
+
+    def on_partial(self) -> None:
+        if not self.endpoint_url:
+            return
+
+        if self.credentials is None:
+            # we'll attempt to resolve credentials later in `DatabricksClientConfiguration.on_resolved()`
+            self.credentials = DatabricksZerobusCredentials()
+
+        self.resolve()
 
     def to_arrow_stream_configuration_options(self) -> ArrowStreamConfigurationOptions:
         from zerobus import ArrowStreamConfigurationOptions
@@ -246,6 +260,31 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
             return str(self.credentials)
         else:
             return ""
+
+    def on_resolved(self) -> None:
+        if self.zerobus is None:
+            return
+
+        if self.zerobus.credentials.client_id and self.zerobus.credentials.client_secret:
+            return
+
+        # fall back to main credentials if Zerobus credentials are not fully provided
+        if self.credentials.client_id and self.credentials.client_secret:
+            self.zerobus.credentials = DatabricksZerobusCredentials(
+                client_id=self.credentials.client_id,
+                client_secret=self.credentials.client_secret,
+            )
+            self.zerobus.credentials.resolve()
+
+        if not self.zerobus.credentials.is_resolved():
+            raise ConfigurationValueError(
+                "`client_id` and `client_secret` are required when"
+                " `destination.databricks.zerobus` is configured. Set either"
+                " `destination.databricks.zerobus.credentials.client_id` and"
+                " `destination.databricks.zerobus.credentials.client_secret`, or"
+                " `destination.databricks.credentials.client_id` and"
+                " `destination.databricks.credentials.client_secret`."
+            )
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""
