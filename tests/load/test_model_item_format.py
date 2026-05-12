@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 import dlt
 
+from dlt.common.pendulum import pendulum
 from dlt.extract.hints import make_hints
 
 from dlt.common.schema.typing import TWriteDisposition
@@ -79,9 +80,7 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
 def test_model_stateful_incremental(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(
-        "test_model_stateful_incremental", dev_mode=True
-    )
+    pipeline = destination_config.setup_pipeline("test_model_stateful_incremental", dev_mode=True)
 
     # seed: ids 1..5
     pipeline.run(
@@ -138,6 +137,107 @@ def test_model_stateful_incremental(
         table_format=destination_config.run_kwargs["table_format"],
     )
     assert load_table_counts(pipeline, "copied_table") == {"copied_table": 10}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, supports_file_format="model", supports_merge=True
+    ),
+    ids=lambda x: x.name,
+)
+def test_model_stateful_incremental_merge(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        "test_model_stateful_incremental_merge", dev_mode=True
+    )
+
+    @dlt.resource(name="orders", primary_key="id", write_disposition="merge")
+    def orders(rows: Any) -> Any:
+        yield rows
+
+    pipeline.run(
+        orders(
+            [
+                {"id": 1, "name": "a", "updated_at": "2026-01-01T00:00:00+00:00"},
+                {"id": 2, "name": "b", "updated_at": "2026-01-01T00:00:00+00:00"},
+                {"id": 3, "name": "c", "updated_at": "2026-01-01T00:00:00+00:00"},
+            ]
+        )
+    )
+    dataset = pipeline.dataset()
+    orders_columns = dataset.schema.tables["orders"]["columns"]
+
+    @dlt.resource(name="recent_orders", primary_key="id", write_disposition="merge")
+    def recent_orders(
+        cursor: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),  # noqa: B008
+            range_start="open",
+            on_cursor_value_missing="exclude",
+        ),
+    ) -> Any:
+        rel = dataset["orders"].incremental(cursor)
+        yield dlt.mark.with_hints(rel, hints=make_hints(columns=orders_columns))
+
+    # first transformation run: copies all 3 initial rows, advances last_value to 2026-01-01
+    info = pipeline.run(
+        [recent_orders()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    first_load_id = info.loads_ids[0]
+    assert load_table_counts(pipeline, "recent_orders") == {"recent_orders": 3}
+
+    # NEXT batch:
+    #   id=2 mutated WITHOUT advancing cursor -> filter must reject it
+    #   id=3 mutated WITH cursor advance       -> filter must accept and merge updates
+    #   id=4 brand new with advanced cursor    -> filter must accept and insert
+    pipeline.run(
+        orders(
+            [
+                {"id": 2, "name": "b_STALE", "updated_at": "2026-01-01T00:00:00+00:00"},
+                {"id": 3, "name": "c_NEW", "updated_at": "2026-01-02T00:00:00+00:00"},
+                {"id": 4, "name": "d", "updated_at": "2026-01-02T00:00:00+00:00"},
+            ]
+        )
+    )
+    assert load_table_counts(pipeline, "orders") == {"orders": 4}
+    source_rows = {
+        int(row["id"]): row for _, row in dataset["orders"].df().sort_values("id").iterrows()
+    }
+    assert source_rows[2]["name"] == "b_STALE"
+    assert source_rows[3]["name"] == "c_NEW"
+    assert source_rows[4]["name"] == "d"
+
+    # second transformation run: only updated_at > 2026-01-01 rows must propagate
+    info = pipeline.run(
+        [recent_orders()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    second_load_id = info.loads_ids[0]
+    assert load_table_counts(pipeline, "recent_orders") == {"recent_orders": 4}
+
+    rows = {
+        int(row["id"]): row for _, row in dataset["recent_orders"].df().sort_values("id").iterrows()
+    }
+
+    # negative payload: stale mutation on cursor-unchanged id=2 must not leak
+    assert rows[2]["name"] == "b"
+    # cursor-advanced row was merged in with new value
+    assert rows[3]["name"] == "c_NEW"
+    # brand-new row was inserted
+    assert rows[4]["name"] == "d"
+
+    # per-row _dlt_load_id pins which rows the second run actually wrote
+    assert rows[1]["_dlt_load_id"] == first_load_id
+    assert rows[2]["_dlt_load_id"] == first_load_id
+    assert rows[3]["_dlt_load_id"] == second_load_id
+    assert rows[4]["_dlt_load_id"] == second_load_id
 
 
 @pytest.mark.parametrize(
