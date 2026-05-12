@@ -50,9 +50,9 @@ If you use `dlt init`, you'll have two familiar `toml` files in `.dlt`: `secrets
 | Profile      | Description                                                                                                                   |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | **`dev`**    | Default profile for local development.                                                                                        |
-| **`prod`**   | Production profile, [used by Runtime to run pipelines](../runtime/overview.md#understanding-workspace-profiles).              |
+| **`prod`**   | Production profile, [used by Runtime to run pipelines](../runtime/overview.md#workspace-profiles).              |
 | **`tests`**  | Profile for automated test runs and CI/CD.                                                                                    |
-| **`access`** | Read-only production profile [for interactive notebooks in Runtime](../runtime/overview.md#understanding-workspace-profiles). |
+| **`access`** | Read-only production profile [for interactive notebooks in Runtime](../runtime/overview.md#workspace-profiles). |
 
 :::note
 The `dev` profile is active by default when you create a workspace. The others become active when pinned or automatically selected by Runtime.

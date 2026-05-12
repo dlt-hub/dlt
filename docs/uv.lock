@@ -939,8 +939,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", editable = "../../../../dlt-plus/packages/dlthub" },
-    { name = "dlthub-client", marker = "python_full_version >= '3.10' and extra == 'hub'", editable = "../../../../runtime/cli" },
+    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = "==0.27.0a0" },
+    { name = "dlthub-client", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = "==0.27.0a0" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3" },
@@ -1184,6 +1184,11 @@ dependencies = [
     { name = "weaviate-client" },
 ]
 
+[package.dev-dependencies]
+hub = [
+    { name = "dlt", extra = ["hub"] },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "alive-progress", specifier = "==3.2.0" },
@@ -1226,45 +1231,27 @@ requires-dist = [
     { name = "weaviate-client", specifier = ">=4.0.0,<5.0.0" },
 ]
 
+[package.metadata.requires-dev]
+hub = [{ name = "dlt", extras = ["hub"], editable = "../" }]
+
 [[package]]
 name = "dlthub"
 version = "0.27.0a0"
-source = { editable = "../../../../dlt-plus/packages/dlthub" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "python-jose" },
     { name = "ruamel-yaml" },
     { name = "sqlglot" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "boto3", marker = "extra == 'iceberg'", specifier = ">=1.37.3" },
-    { name = "dbt-core", marker = "extra == 'dbt'", specifier = ">=1.9,<1.12" },
-    { name = "dlt", extras = ["snowflake"], marker = "extra == 'snowflake'", editable = "../" },
-    { name = "dlt", extras = ["workspace"], marker = "extra == 'mcp'", editable = "../" },
-    { name = "duckdb", marker = "extra == 'cache'", specifier = ">0.9" },
-    { name = "duckdb", marker = "extra == 'iceberg'", specifier = ">=1.3.2" },
-    { name = "duckdb", marker = "extra == 'mcp'", specifier = ">=1.1.3" },
-    { name = "jinja2", marker = "extra == 'dbt'", specifier = ">=3.1.2" },
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2.1" },
-    { name = "pandas", marker = "extra == 'mcp'", specifier = ">=2.1.4" },
-    { name = "pyarrow", marker = "extra == 'iceberg'", specifier = ">=17" },
-    { name = "pyarrow", marker = "extra == 'mcp'", specifier = ">=17" },
-    { name = "pydantic", marker = "extra == 'dbt'", specifier = ">2,<2.12" },
-    { name = "pyiceberg", marker = "extra == 'iceberg'", specifier = ">=0.9.1" },
-    { name = "pyodbc", marker = "extra == 'mssql'", specifier = ">=4.0.39" },
-    { name = "python-jose", specifier = ">=3.5.0" },
-    { name = "ruamel-yaml", specifier = ">=0.18.10" },
-    { name = "sqlalchemy", marker = "extra == 'iceberg'", specifier = ">2" },
-    { name = "sqlalchemy", marker = "extra == 'mssql'", specifier = ">1.4" },
-    { name = "sqlglot", specifier = ">=25.4.0,<28.1" },
+sdist = { url = "https://files.pythonhosted.org/packages/13/92/ef764608d75eda06938138c9857ad0438a9986a226f229e7d9b4e6130b51/dlthub-0.27.0a0.tar.gz", hash = "sha256:5ece94451ac7d6697de23ffd6fe0aea2e4d4a5787de5c1e34cc006ef3ed32421", size = 171006, upload-time = "2026-05-12T11:08:44.394Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bb/68/997acfc7115d275a6b2bd011a5e4c750d230a4a08ac143ed9088713772b2/dlthub-0.27.0a0-py3-none-any.whl", hash = "sha256:0c99af66c370500cb02368c7d927ce84c6209f610d1b639ae289c3950fef9bdb", size = 228601, upload-time = "2026-05-12T11:08:41.704Z" },
 ]
-provides-extras = ["dbt", "cache", "mssql", "iceberg", "snowflake", "mcp"]
 
 [[package]]
 name = "dlthub-client"
 version = "0.27.0a0"
-source = { editable = "../../../../runtime/cli" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "cron-descriptor" },
@@ -1274,33 +1261,9 @@ dependencies = [
     { name = "pyjwt" },
     { name = "tabulate" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "attrs", specifier = ">=23.2.0" },
-    { name = "cron-descriptor", specifier = ">=1.2.32" },
-    { name = "croniter", specifier = ">=6.0.0" },
-    { name = "httpx", specifier = ">=0.26.0" },
-    { name = "pathspec", specifier = ">=0.11.2" },
-    { name = "pyjwt", specifier = ">=2.12.0" },
-    { name = "tabulate", specifier = ">=0.9.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "dlt", editable = "../" },
-    { name = "flake8", specifier = ">=5.0.0" },
-    { name = "isort", specifier = ">=6.1.0" },
-    { name = "marimo", specifier = ">=0.23.0" },
-    { name = "mypy", specifier = ">=1.8.0" },
-    { name = "pytest", specifier = ">=7.4.4,<8" },
-    { name = "pytest-console-scripts", specifier = ">=1.4.1,<2" },
-    { name = "pytest-timeout", specifier = ">=2.3.1,<3" },
-    { name = "pyyaml", specifier = ">=6" },
-    { name = "ruff", specifier = ">=0.2.1" },
-    { name = "types-python-dateutil", specifier = ">=2.9.0.20251115" },
-    { name = "types-pyyaml", specifier = ">=5.4.1" },
-    { name = "types-tabulate", specifier = ">=0.9.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/29/78/a53e66463b1413be8cf3a345481393889f983ed5847c201bb728bed790bb/dlthub_client-0.27.0a0.tar.gz", hash = "sha256:2bae5aca9f574026782dfeee50f0a0eec4aa9c18f1c3a8b29061d693db7586c6", size = 125831, upload-time = "2026-05-12T11:06:21.734Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/70/4f39c280022aef22adda8aa5a35fdfa1e82206901b9014243af2f58a6f55/dlthub_client-0.27.0a0-py3-none-any.whl", hash = "sha256:7dbe63b3124ab540f38b6e778bccc81aa729ff82173747511046ea5d390f4ffc", size = 283152, upload-time = "2026-05-12T11:06:19.67Z" },
 ]
 
 [[package]]

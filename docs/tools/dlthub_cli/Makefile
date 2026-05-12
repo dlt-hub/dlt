@@ -3,12 +3,12 @@
 # it will use dlthub and dlt-runtime versions from dlt/docs/pyproject.toml to generate docs
 
 dev:
-	uv sync
+	uv sync --group hub
 
 update-cli-docs: dev
 	# generate as there's no license
-	RUNTIME__LICENSE="" uv run python ../check_cli_docs.py ../../website/docs/hub/command-line-interface.md --commands license workspace profile runtime
+	RUNTIME__LICENSE="" uv run python ../check_cli_docs.py ../../website/docs/hub/command-line-interface.md --executable-name dlthub # --commands license workspace profile runtime
 
 check-cli-docs: dev
 	# generate as there's no license
-	RUNTIME__LICENSE="" uv run python ../check_cli_docs.py ../../website/docs/hub/command-line-interface.md --compare --commands license workspace profile runtime
+	RUNTIME__LICENSE="" uv run python ../check_cli_docs.py ../../website/docs/hub/command-line-interface.md --compare --executable-name dlthub # --commands license workspace profile runtime
