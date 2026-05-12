@@ -147,3 +147,86 @@ def test_databricks_zerobus_concurrent_streams(
         rows_ready=lambda rows: set(rows) == set(expected_rows),
     )
     assert set(observed_rows) == set(expected_rows)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(include_cids="databricks_zerobus"),
+    ids=lambda x: x.name,
+)
+def test_databricks_zerobus_schema_evolution_add_column(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Asserts the `zerobus` insert API handles column additions."""
+
+    initial_data = [{"id": 1, "foo": "a"}]
+    evolved_data = [{"id": 2, "foo": "b", "new": "x"}]
+
+    @dlt.resource(name="items", write_disposition="append", file_format="parquet")
+    def items(data):
+        yield data
+
+    databricks_adapter(items, insert_api="zerobus")
+
+    pipe = destination_config.setup_pipeline(
+        "test_databricks_zerobus_schema_evolution_add_column", dev_mode=True
+    )
+
+    info = pipe.run(items(initial_data))
+    assert_load_info(info)
+
+    info = pipe.run(items(evolved_data))
+    assert_load_info(info)
+
+    table_schema = pipe.default_schema.tables[items.table_name]  # type: ignore[index]
+    assert "new" in table_schema["columns"]
+
+    expected_rows = [(1, "a", None), (2, "b", "x")]
+    observed_rows = query_rows_eventually(
+        dataset=pipe.dataset(),
+        query=f"SELECT DISTINCT id, foo, new FROM {items.table_name} ORDER BY id",
+        rows_ready=lambda rows: set(rows) == set(expected_rows),
+    )
+    assert set(observed_rows) == set(expected_rows)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(include_cids="databricks_zerobus"),
+    ids=lambda x: x.name,
+)
+def test_databricks_zerobus_schema_evolution_alter_column(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Asserts the `zerobus` insert API handles column type changes."""
+
+    initial_data = [{"id": 1, "foo": 1}]  # `foo` is `bigint`
+    evolved_data = [{"id": 2, "foo": "b"}]  # `foo` is `text`
+
+    @dlt.resource(name="items", write_disposition="append", file_format="parquet")
+    def items(data):
+        yield data
+
+    databricks_adapter(items, insert_api="zerobus")
+
+    pipe = destination_config.setup_pipeline(
+        "test_databricks_zerobus_schema_evolution_alter_column", dev_mode=True
+    )
+
+    info = pipe.run(items(initial_data))
+    assert_load_info(info)
+
+    info = pipe.run(items(evolved_data))
+    assert_load_info(info)
+
+    table_schema = pipe.default_schema.tables[items.table_name]  # type: ignore[index]
+    assert "foo" in table_schema["columns"]
+    assert "foo__v_text" in table_schema["columns"]  # variant column created
+
+    expected_rows = [(1, 1, None), (2, None, "b")]
+    observed_rows = query_rows_eventually(
+        dataset=pipe.dataset(),
+        query=f"SELECT DISTINCT id, foo, foo__v_text FROM {items.table_name} ORDER BY id",
+        rows_ready=lambda rows: set(rows) == set(expected_rows),
+    )
+    assert set(observed_rows) == set(expected_rows)
