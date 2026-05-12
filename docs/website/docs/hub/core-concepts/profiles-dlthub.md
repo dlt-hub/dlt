@@ -153,8 +153,8 @@ Run it locally:
 python pokemon_api_pipeline.py
 ```
 
-Data will be stored in `_local/dev/warehouse.duckdb`.
-Pipeline state will be stored in `.dlt/.var/dev/`.
+Data will be stored in `.dlt/data/dev/warehouse.duckdb`.
+Pipeline state will be stored in `.dlt/state/dev/`.
 
 
 ### Step 2. Configure the production profile
@@ -200,7 +200,7 @@ python pokemon_api_pipeline.py
 ```
 
 Data will be stored in MotherDuck.
-Pipeline state will be stored in `.dlt/.var/prod/`.
+Pipeline state will be stored in `.dlt/state/prod/`.
 
 Once the pipeline completes, open the **Workspace Dashboard** with:
 

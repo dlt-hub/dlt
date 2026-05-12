@@ -101,7 +101,7 @@ def test_workspace_configuration():
         assert ctx.name == "name_override"
         # check dirs for tests profile
         assert ctx.data_dir == os.path.join(ctx.run_dir, "_data")
-        assert ctx.local_dir.endswith(os.path.join("_local", "tests"))
+        assert ctx.local_dir.endswith(os.path.join(".dlt", DEFAULT_LOCAL_FOLDER, "tests"))
 
         ctx = ctx.switch_profile("dev")
         assert ctx.name == "name_override"
@@ -317,7 +317,7 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     expected_settings = os.path.join(context.run_dir, DOT_DLT)
     assert context.settings_dir == expected_settings
 
-    # path / .var / profile
+    # .dlt / state / profile
     expected_data_dir = os.path.join(
         context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER, profile
     )
@@ -327,8 +327,8 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     # is a default dir
     assert context._has_default_working_dir() is True
 
-    # local files
-    expected_local_dir = os.path.join(context.run_dir, DEFAULT_LOCAL_FOLDER, profile)
+    # local files: .dlt / data / profile
+    expected_local_dir = os.path.join(context.settings_dir, DEFAULT_LOCAL_FOLDER, profile)
     assert context.local_dir == expected_local_dir
     # got created
     assert os.path.isdir(context.local_dir)

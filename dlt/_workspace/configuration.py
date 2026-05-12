@@ -13,9 +13,9 @@ class WorkspaceSettings(BaseConfiguration):
     # immediately needed it will be skipped for now
     # default_profile: Optional[str] = None
     working_dir: Optional[str] = None
-    """Pipeline working dirs, other writable folders, local destination files (by default). Relative to workspace root"""
+    """Pipeline state and other writable runtime files. Defaults to `.dlt/state/<profile>`. Relative to workspace root."""
     local_dir: Optional[str] = None
-    """Destination local files, by default it is within data_dir/local. Relative to workspace root"""
+    """Local destination data (e.g. duckdb files). Defaults to `.dlt/data/<profile>`. Relative to workspace root."""
 
 
 @configspec
