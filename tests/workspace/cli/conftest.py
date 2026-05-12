@@ -11,6 +11,7 @@ from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli.dlthub import utils as dlthub_utils_mod
 from dlt._workspace.deployment import _run_helpers as run_helpers_mod
 
+from tests.utils import get_test_storage_root, unload_modules_at_path
 from tests.workspace.utils import isolated_workspace
 
 
@@ -59,3 +60,12 @@ def isolated_manifest_loading(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(run_helpers_mod, "manifest_from_module", _isolated)
     monkeypatch.setattr(dlthub_utils_mod, "manifest_from_module", _isolated)
+
+
+@pytest.fixture(autouse=True)
+def auto_unload_init_modules() -> Iterator[None]:
+    """Unloads modules that were imported wfrom temp storage"""
+    try:
+        yield
+    finally:
+        unload_modules_at_path(get_test_storage_root())

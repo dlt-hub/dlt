@@ -47,7 +47,7 @@ from dlt.common.utils import set_working_dir
 
 DLT_TEST_STORAGE_ROOT = "DLT_TEST_STORAGE_ROOT"
 PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
-STORAGE_ROOT_PREFIX = "_storage"
+STORAGE_ROOT_PREFIX = os.path.abspath("_storage")
 
 
 def get_test_worker_id() -> str:
@@ -441,6 +441,21 @@ def setup_secret_providers_to_current_module(request):
             yield
         finally:
             sys.path.pop(0)
+
+
+def unload_modules_at_path(path: str) -> None:
+    abs_dir = os.path.realpath(path)
+    for name in list(sys.modules.keys()):
+        mod = sys.modules.get(name)
+        mod_file = getattr(mod, "__file__", None) if mod else None
+        if not mod_file:
+            continue
+        try:
+            mod_abs = os.path.realpath(mod_file)
+        except (OSError, ValueError):
+            continue
+        if mod_abs.startswith(abs_dir):
+            del sys.modules[name]
 
 
 def data_to_item_format(
