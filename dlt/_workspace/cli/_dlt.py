@@ -13,7 +13,6 @@ from dlt._workspace.cli._telemetry_command import (
     telemetry_change_status_command_wrapper,
 )
 from dlt._workspace.cli.echo import maybe_no_stdin
-from dlt._workspace.cli.utils import display_run_context_info
 
 ACTION_EXECUTED = False
 DEFAULT_DOCS_URL = "https://dlthub.com/docs/intro"
@@ -344,7 +343,6 @@ def main(host: str = "dlt") -> int:
         try:
             # switch to non-interactive if tty not connected
             with maybe_no_stdin():
-                display_run_context_info()
                 if not args.no_pwd:
                     if "" not in sys.path:
                         sys.path.insert(0, "")

@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.profile import (
@@ -13,12 +12,7 @@ from dlt._workspace.cli.dlthub._local_workspace_command import (
     print_providers,
 )
 from dlt._workspace.cli.dlthub.typing import TCurrentProfileFullInfo
-from dlt._workspace.cli.dlthub.utils import (
-    check_delete_local_data,
-    delete_local_data,
-    fetch_profiles_list,
-)
-from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli.dlthub.utils import fetch_profiles_list
 
 
 @utils.track_command("profile", track_before=False, operation="info")
@@ -61,35 +55,3 @@ def pin_profile(workspace_run_context: WorkspaceRunContext, profile_name: str) -
     else:
         fmt.echo("Will pin the profile %s to current Workspace." % fmt.bold(profile_name))
         save_profile_pin(workspace_run_context, profile_name)
-
-
-@utils.track_command("profile", track_before=False, operation="clean")
-def clean_profile(
-    workspace_run_context: WorkspaceRunContext,
-    profile_name: Optional[str],
-    skip_data_dir: bool,
-) -> None:
-    """Cleans data/local dirs for the named profile (current if `profile_name` is None)."""
-    target = profile_name or workspace_run_context.profile
-    if target == workspace_run_context.profile:
-        ctx = workspace_run_context
-    else:
-        # validate the profile exists (configured + built-in/available) before switching
-        valid = set(workspace_run_context.configured_profiles()) | set(
-            workspace_run_context.available_profiles()
-        )
-        if target not in valid:
-            fmt.error(
-                "Profile %r not found in this workspace. Available profiles: %s"
-                % (target, ", ".join(sorted(valid)) or "(none)")
-            )
-            raise CliCommandException()
-        ctx = workspace_run_context.switch_profile(target)
-
-    fmt.echo(
-        "Local data for profile %s will be removed. Remote destinations are not affected."
-        % fmt.bold(target)
-    )
-    deleted_dirs = check_delete_local_data(ctx, skip_data_dir)
-    if deleted_dirs:
-        delete_local_data(ctx, deleted_dirs)

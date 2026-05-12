@@ -10,7 +10,11 @@ from dlt.common.configuration.plugins import TCliCommandCompose
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli import SupportsCliCommand
 from dlt._workspace.cli.exceptions import CliCommandException
-from dlt._workspace.cli.utils import make_mcp_run_flags, track_command
+from dlt._workspace.cli.utils import (
+    display_run_context_info,
+    make_mcp_run_flags,
+    track_command,
+)
 from dlt._workspace.cli.commands import (
     InitCommand,
     PipelineCommand as DltPipelineCommand,
@@ -378,6 +382,16 @@ def _add_common_run_args(
         )
 
 
+_DESTRUCTIVE_OPS = frozenset({"run", "serve", "drop", "clean", "sync"})
+
+
+def _is_destructive_local_op(args: argparse.Namespace) -> bool:
+    """Ops that change workspace state"""
+    op = getattr(args, "local_op", None)
+    inner = getattr(args, "operation", None)
+    return op in _DESTRUCTIVE_OPS or inner in _DESTRUCTIVE_OPS
+
+
 class LocalWorkspaceCommand(SupportsCliCommand):
     """`dlthub local` — replace-mode shell hosting run/info/show/clean/schema/telemetry/pipeline."""
 
@@ -441,6 +455,23 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             default=False,
             help="Do not delete pipelines working dir.",
         )
+
+        profile_p = sub.add_parser(
+            "profile",
+            help="Profile operations that affect only the local workspace",
+            description="Profile operations scoped to the local workspace.",
+        )
+        profile_sub = profile_p.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+        use_p = profile_sub.add_parser(
+            "use",
+            help=(
+                "Pin a profile in the local workspace so subsequent local commands use it by"
+                " default"
+            ),
+        )
+        use_p.add_argument("profile_name", help="Profile name to pin")
 
         # delegate parser definition; `execute` re-instantiates fresh — these classes
         # don't reach for `self.parser` after configure_parser
@@ -534,6 +565,9 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             show_workspace,
         )
 
+        if _is_destructive_local_op(args):
+            display_run_context_info()
+
         op = getattr(args, "local_op", None)
         if op == "pipeline":
             if getattr(args, "operation", None) == "run":
@@ -562,6 +596,14 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         if op == "info":
             print_workspace_info(active(), getattr(args, "verbosity", 0))
             return
+        if op == "profile":
+            from dlt._workspace.cli.dlthub._profile_command import pin_profile
+
+            if getattr(args, "operation", None) == "use":
+                pin_profile(active(), args.profile_name)
+            else:
+                self.parser.print_help()
+            return
         # bare `dlthub local` — print help
         self.parser.print_help()
 
@@ -587,12 +629,12 @@ class InfoSubCommand(SupportsCliCommand):
 
 
 class ProfileCommand(SupportsCliCommand):
-    """`dlthub profile` — additive shell with inline info / list / use."""
+    """`dlthub profile` — additive shell with inline info / list."""
 
     command = "profile"
     compose: TCliCommandCompose = "additive"
     help_string = "Manage Workspace built-in profiles"
-    description = "Show, switch, and list workspace profiles."
+    description = "Show and list workspace profiles."
     docs_url: Optional[str] = None
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
@@ -605,11 +647,6 @@ class ProfileCommand(SupportsCliCommand):
             help="Display the active profile (paths, providers, pinned status)",
         )
         sub.add_parser("list", help="List all available profiles")
-        use_p = sub.add_parser(
-            "use",
-            help="Pin a profile so subsequent commands use it by default",
-        )
-        use_p.add_argument("profile_name", help="Profile name to pin")
 
     def execute(self, args: argparse.Namespace) -> None:
         # plugin sub-subcommands are dispatched by the composer via `args.execute`;
@@ -617,8 +654,6 @@ class ProfileCommand(SupportsCliCommand):
         op = getattr(args, "operation", None)
         if op == "list":
             self._list(args)
-        elif op == "use":
-            self._use(args)
         else:
             self._info(args)
 
@@ -637,12 +672,6 @@ class ProfileCommand(SupportsCliCommand):
         from dlt._workspace.cli.dlthub._profile_command import list_profiles
 
         list_profiles(active())
-
-    def _use(self, args: argparse.Namespace) -> None:
-        from dlt._workspace._workspace_context import active
-        from dlt._workspace.cli.dlthub._profile_command import pin_profile
-
-        pin_profile(active(), args.profile_name)
 
 
 class PipelineCommand(SupportsCliCommand):

@@ -1,18 +1,13 @@
 import os
 import sys
-from pathlib import Path
 from typing import Any, List
 
 import pytest
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli._dlt import _create_parser
-from dlt._workspace.cli.dlthub._profile_command import (
-    clean_profile,
-    print_profile_info,
-)
+from dlt._workspace.cli.dlthub._profile_command import print_profile_info
 from dlt._workspace.cli.dlthub.utils import fetch_profile_info
-from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.profile import save_profile_pin
 
 
@@ -120,105 +115,6 @@ def test_print_profile_info_pinned_marker(
     assert "pinned" in out.lower()
 
 
-# clean_profile() tests
-
-
-def test_clean_profile_current_deletes_dirs(
-    auto_isolated_workspace: WorkspaceRunContext,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # populate data_dir and local_dir
-    Path(auto_isolated_workspace.data_dir).mkdir(parents=True, exist_ok=True)
-    Path(auto_isolated_workspace.local_dir).mkdir(parents=True, exist_ok=True)
-    (Path(auto_isolated_workspace.data_dir) / "marker.txt").write_text("x")
-    (Path(auto_isolated_workspace.local_dir) / "marker.txt").write_text("x")
-
-    # auto-confirm prompts
-    from dlt._workspace.cli import echo as fmt
-
-    monkeypatch.setattr(fmt, "ALWAYS_CONFIRM", True)
-
-    clean_profile(auto_isolated_workspace, profile_name=None, skip_data_dir=False)
-
-    # `delete_local_data` recreates the dirs empty after wiping; the markers must be gone
-    assert not (Path(auto_isolated_workspace.data_dir) / "marker.txt").exists()
-    assert not (Path(auto_isolated_workspace.local_dir) / "marker.txt").exists()
-
-
-def test_clean_profile_skip_data_dir_preserves_data(
-    auto_isolated_workspace: WorkspaceRunContext,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    Path(auto_isolated_workspace.data_dir).mkdir(parents=True, exist_ok=True)
-    Path(auto_isolated_workspace.local_dir).mkdir(parents=True, exist_ok=True)
-    (Path(auto_isolated_workspace.data_dir) / "marker.txt").write_text("x")
-    (Path(auto_isolated_workspace.local_dir) / "marker.txt").write_text("x")
-
-    from dlt._workspace.cli import echo as fmt
-
-    monkeypatch.setattr(fmt, "ALWAYS_CONFIRM", True)
-
-    clean_profile(auto_isolated_workspace, profile_name=None, skip_data_dir=True)
-
-    # data_dir contents preserved; local_dir wiped (recreated empty)
-    assert (Path(auto_isolated_workspace.data_dir) / "marker.txt").exists()
-    assert not (Path(auto_isolated_workspace.local_dir) / "marker.txt").exists()
-
-
-def test_clean_profile_named_switches_context(
-    auto_isolated_workspace: WorkspaceRunContext,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # active profile is `dev`. clean `tests` (a built-in profile) — different ctx.
-    tests_ctx = auto_isolated_workspace.switch_profile("tests")
-    Path(tests_ctx.data_dir).mkdir(parents=True, exist_ok=True)
-    Path(tests_ctx.local_dir).mkdir(parents=True, exist_ok=True)
-    (Path(tests_ctx.data_dir) / "marker.txt").write_text("tests-data")
-
-    # populate the active dev profile too — must be unaffected
-    Path(auto_isolated_workspace.data_dir).mkdir(parents=True, exist_ok=True)
-    (Path(auto_isolated_workspace.data_dir) / "dev-marker.txt").write_text("dev-data")
-
-    from dlt._workspace.cli import echo as fmt
-
-    monkeypatch.setattr(fmt, "ALWAYS_CONFIRM", True)
-
-    clean_profile(auto_isolated_workspace, profile_name="tests", skip_data_dir=False)
-
-    # tests profile contents wiped
-    assert not (Path(tests_ctx.data_dir) / "marker.txt").exists()
-    # dev profile data is preserved
-    assert (Path(auto_isolated_workspace.data_dir) / "dev-marker.txt").exists()
-
-
-def test_clean_profile_unknown_profile_raises(
-    auto_isolated_workspace: WorkspaceRunContext,
-) -> None:
-    with pytest.raises(CliCommandException):
-        clean_profile(auto_isolated_workspace, profile_name="nonexistent", skip_data_dir=False)
-
-
-def test_clean_profile_user_declines_confirmation(
-    auto_isolated_workspace: WorkspaceRunContext,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    Path(auto_isolated_workspace.data_dir).mkdir(parents=True, exist_ok=True)
-    (Path(auto_isolated_workspace.data_dir) / "marker.txt").write_text("x")
-
-    from dlt._workspace.cli import echo as fmt
-
-    # decline both prompts
-    monkeypatch.setattr(fmt, "ALWAYS_CHOOSE_DEFAULT", True)
-
-    clean_profile(auto_isolated_workspace, profile_name=None, skip_data_dir=False)
-
-    # default for the confirmation prompt is False → nothing deleted
-    assert (Path(auto_isolated_workspace.data_dir) / "marker.txt").exists()
-
-
-# dlthub profile argparse routing tests
-
-
 def _build_dlthub_parser(monkeypatch: pytest.MonkeyPatch, argv: List[str]) -> Any:
     monkeypatch.setattr(sys, "argv", ["dlthub", *argv])
     parser, _pre, _installed = _create_parser("dlthub")
@@ -253,37 +149,3 @@ def test_dlthub_profile_list_parses(
 ) -> None:
     args = _parse_dlthub(monkeypatch, ["profile", "list"])
     assert args.operation == "list"
-
-
-def test_dlthub_profile_use_with_name(
-    auto_isolated_workspace: WorkspaceRunContext, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    args = _parse_dlthub(monkeypatch, ["profile", "use", "dev"])
-    assert args.operation == "use"
-    assert args.profile_name == "dev"
-
-
-def test_dlthub_profile_use_without_name_errors(
-    auto_isolated_workspace: WorkspaceRunContext, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    parser = _build_dlthub_parser(monkeypatch, ["profile", "use"])
-    with pytest.raises(SystemExit):
-        parser.parse_args(["profile", "use"])
-
-
-def test_dlthub_profile_clean_removed(
-    auto_isolated_workspace: WorkspaceRunContext, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # `clean` moved from profile to `dlthub local clean`
-    parser = _build_dlthub_parser(monkeypatch, ["profile", "clean"])
-    with pytest.raises(SystemExit):
-        parser.parse_args(["profile", "clean"])
-
-
-def test_dlthub_profile_pin_removed(
-    auto_isolated_workspace: WorkspaceRunContext, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # `pin` was renamed to `use` — `pin` is no longer a valid subcommand
-    parser = _build_dlthub_parser(monkeypatch, ["profile", "pin", "dev"])
-    with pytest.raises(SystemExit):
-        parser.parse_args(["profile", "pin", "dev"])

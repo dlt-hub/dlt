@@ -1,5 +1,6 @@
 """Tests for `dlt workspace info` — fetch_deployment_info + view."""
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -219,6 +220,87 @@ def test_dlthub_local_clean_rejects_profile_arg(
         _parse_dlthub(monkeypatch, ["local", "clean", "tests"])
 
 
+def test_dlthub_local_profile_use(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # e2e: run the full CLI dispatch for `local profile use prod`, then verify the pin file
+    # is written and that a fresh context reload picks up `prod` as the active profile.
+    from dlt._workspace._workspace_context import switch_context
+    from dlt._workspace.profile import get_profile_pin_file, read_profile_pin
+
+    assert auto_isolated_workspace.profile == "dev"
+    assert read_profile_pin(auto_isolated_workspace) is None
+
+    _, installed, args = _parse_dlthub(monkeypatch, ["local", "profile", "use", "prod"])
+    installed["local"].execute(args)
+
+    # pin file written under .dlt/ with the target profile
+    pin_file = get_profile_pin_file(auto_isolated_workspace)
+    assert os.path.isfile(pin_file)
+    assert read_profile_pin(auto_isolated_workspace) == "prod"
+
+    # reload run context — pin takes effect, prod is now the active profile
+    reloaded = switch_context(auto_isolated_workspace.run_dir)
+    assert reloaded.profile == "prod"
+
+
+def test_dlthub_local_clean_deletes_dirs(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dlt._workspace.cli import echo as fmt
+
+    Path(auto_isolated_workspace.data_dir).mkdir(parents=True, exist_ok=True)
+    Path(auto_isolated_workspace.local_dir).mkdir(parents=True, exist_ok=True)
+    (Path(auto_isolated_workspace.data_dir) / "marker.txt").write_text("x")
+    (Path(auto_isolated_workspace.local_dir) / "marker.txt").write_text("x")
+
+    monkeypatch.setattr(fmt, "ALWAYS_CONFIRM", True)
+
+    _, installed, args = _parse_dlthub(monkeypatch, ["local", "clean"])
+    installed["local"].execute(args)
+
+    # delete_local_data recreates the dirs empty after wiping; the markers must be gone
+    assert not (Path(auto_isolated_workspace.data_dir) / "marker.txt").exists()
+    assert not (Path(auto_isolated_workspace.local_dir) / "marker.txt").exists()
+
+
+def test_dlthub_local_clean_skip_data_dir_preserves_data(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dlt._workspace.cli import echo as fmt
+
+    Path(auto_isolated_workspace.data_dir).mkdir(parents=True, exist_ok=True)
+    Path(auto_isolated_workspace.local_dir).mkdir(parents=True, exist_ok=True)
+    (Path(auto_isolated_workspace.data_dir) / "marker.txt").write_text("x")
+    (Path(auto_isolated_workspace.local_dir) / "marker.txt").write_text("x")
+
+    monkeypatch.setattr(fmt, "ALWAYS_CONFIRM", True)
+
+    _, installed, args = _parse_dlthub(monkeypatch, ["local", "clean", "--skip-data-dir"])
+    installed["local"].execute(args)
+
+    # data_dir contents preserved; local_dir wiped (recreated empty)
+    assert (Path(auto_isolated_workspace.data_dir) / "marker.txt").exists()
+    assert not (Path(auto_isolated_workspace.local_dir) / "marker.txt").exists()
+
+
+def test_dlthub_local_clean_user_declines_confirmation(
+    auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dlt._workspace.cli import echo as fmt
+
+    Path(auto_isolated_workspace.data_dir).mkdir(parents=True, exist_ok=True)
+    (Path(auto_isolated_workspace.data_dir) / "marker.txt").write_text("x")
+
+    # decline confirmation prompts — default for the confirm prompt is False
+    monkeypatch.setattr(fmt, "ALWAYS_CHOOSE_DEFAULT", True)
+
+    _, installed, args = _parse_dlthub(monkeypatch, ["local", "clean"])
+    installed["local"].execute(args)
+
+    assert (Path(auto_isolated_workspace.data_dir) / "marker.txt").exists()
+
+
 def test_dlthub_local_schema_parses(
     auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -326,3 +408,33 @@ def test_dlthub_top_level_info_parses(
     _, installed, args = _parse_dlthub(monkeypatch, ["info"])
     assert args.command == "info"
     assert "info" in installed
+
+
+@pytest.mark.parametrize(
+    "argv,expected_destructive",
+    [
+        # destructive: direct `local` ops
+        (["local", "run", "myjob"], True),
+        (["local", "clean"], True),
+        # destructive: nested `local pipeline` ops (operation in inner subparser)
+        (["local", "pipeline", "drop", "mypipe"], True),
+        # read-only: should NOT fire the banner
+        (["local", "info"], False),
+    ],
+    ids=[
+        "local-run",
+        "local-serve",
+        "pipeline-drop",
+        "local-info",
+    ],
+)
+def test_is_destructive_local_op(
+    auto_isolated_workspace: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    argv: List[str],
+    expected_destructive: bool,
+) -> None:
+    from dlt._workspace.cli.dlthub.commands import _is_destructive_local_op
+
+    _, _, args = _parse_dlthub(monkeypatch, argv)
+    assert _is_destructive_local_op(args) is expected_destructive
