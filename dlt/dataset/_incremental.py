@@ -8,10 +8,16 @@ import sqlglot.expressions as sge
 from jsonpath_ng.exceptions import JSONPathError
 
 from dlt.common.jsonpath import extract_simple_field_name
-from dlt.common.libs.sqlglot import build_typed_literal, to_sqlglot_type
+from dlt.common.libs.sqlglot import (
+    SQLGLOT_TO_DLT_TYPE_MAP,
+    build_typed_literal,
+    resolve_timestamp_cast,
+    to_sqlglot_type,
+)
 from dlt.common.schema.typing import TTableSchemaColumns
 
 if TYPE_CHECKING:
+    from dlt.common.destination.capabilities import DestinationCapabilitiesContext
     from dlt.extract.incremental import Incremental
 
 
@@ -117,6 +123,7 @@ def _build_incremental_condition(
     incremental: Incremental[Any],
     column_ref: sge.Column,
     sqlglot_type: Optional[sge.DataType],
+    destination_capabilities: Optional[DestinationCapabilitiesContext] = None,
 ) -> Optional[sge.Expression]:
     """Build the WHERE condition for an Incremental cursor on `column_ref`.
 
@@ -133,6 +140,8 @@ def _build_incremental_condition(
         column_ref (sge.Column): Reference to the cursor column in the target query.
         sqlglot_type (Optional[sge.DataType]): SQLGlot data type used to CAST the
             bound literals; pass `None` to skip casting.
+        destination_capabilities (Optional[DestinationCapabilitiesContext]): Caps used
+            to shape timestamp literal format and CAST.
 
     Returns:
         Optional[sge.Expression]: A boolean expression ready to be attached via
@@ -164,9 +173,16 @@ def _build_incremental_condition(
             f"{on_missing!r}` is not supported by "
             "`Relation.incremental()`. Expected one of: 'include', 'exclude', 'raise'."
         )
-
-    start_value = incremental.last_value
+    # XXX: Discard the upper here: when the cursor is bound and end_value isn't set,
+    # resolve_bounds substitutes state["last_value"] as the upper.
+    start_value, _ = incremental.resolve_bounds(apply_lag=True)
     end_value = incremental.end_value
+
+    # caps-aware timestamp formatting
+    if sqlglot_type is not None and SQLGLOT_TO_DLT_TYPE_MAP.get(sqlglot_type.this) == "timestamp":
+        sqlglot_type, start_value, end_value = resolve_timestamp_cast(
+            start_value, end_value, destination_capabilities
+        )
 
     bounds: Optional[sge.Expression] = None
     if start_value is not None:

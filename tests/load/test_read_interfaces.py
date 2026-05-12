@@ -931,6 +931,78 @@ def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
+def test_relation_incremental_datetime_on_dataset(populated_pipeline: Pipeline) -> None:
+    """End-to-end: dataset.table('items').incremental(<datetime cursor>) on every destination.
+
+    Mirrors `test_to_sqlglot_filter_on_dataset` but exercises the `_build_incremental_condition`
+    path.
+    """
+    # TODO: consider merging with `test_to_sqlglot_filter_on_dataset`.
+    items = populated_pipeline.dataset().items
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    last_dt = ITEMS_EPOCH + timedelta(seconds=total_records - 1)
+
+    # post-run state matches what `bind()` persisted: start_value snapshot == last_value
+    cached_state: IncrementalColumnState = {
+        "initial_value": ITEMS_EPOCH,
+        "last_value": last_dt,
+        "start_value": last_dt,
+        "unique_hashes": [],
+    }
+
+    def _bind(incr: Incremental[Any], instance_start_value: Any = None) -> Incremental[Any]:
+        incr._cached_state = copy(cached_state)
+        incr.start_value = instance_start_value if instance_start_value is not None else last_dt
+        return incr
+
+    # 1. bound, no lag, no end_value — lower = last_dt, no upper
+    #    diverges from to_sqlglot_filter (0 rows): dataset path keeps the last row
+    incr = _bind(dlt.sources.incremental[pendulum.DateTime]("created_at"))
+    assert len(items.incremental(incr).fetchall()) == 1
+
+    # 2. lag — start_value = last_dt - 5s; no upper bound on dataset side
+    #    diverges from to_sqlglot_filter (5 rows): includes last_dt itself
+    lagged_start = last_dt - timedelta(seconds=5)
+    incr_lag = _bind(
+        dlt.sources.incremental[pendulum.DateTime]("created_at", lag=5.0),
+        instance_start_value=lagged_start,
+    )
+    assert len(items.incremental(incr_lag).fetchall()) == 6
+
+    # 3. unbound, initial_value only — pre-fix this raised IncrementalUnboundError
+    incr_unbound = dlt.sources.incremental[pendulum.DateTime](
+        "created_at", initial_value=ITEMS_EPOCH
+    )
+    assert len(items.incremental(incr_unbound).fetchall()) == total_records
+
+    # 4. unbound with range modifiers and explicit end_value
+    range_start_dt = ITEMS_EPOCH + timedelta(seconds=10)
+    range_end_dt = ITEMS_EPOCH + timedelta(seconds=20)
+    incr_range = dlt.sources.incremental[pendulum.DateTime](
+        "created_at",
+        initial_value=range_start_dt,
+        end_value=range_end_dt,
+        range_start="open",
+        range_end="closed",
+    )
+    arrow_tbl = items.incremental(incr_range).select("created_at").order_by("created_at").arrow()
+    actual_dts = arrow_tbl["created_at"].to_pylist()
+    expected_dts = [ITEMS_EPOCH + timedelta(seconds=i) for i in range(11, 21)]
+
+    # normalize to Unix int_timestamp — destinations differ in how they return tz
+    # information (naive vs aware, timezone class), so compare instants
+    def _ts(d: Any) -> int:
+        if isinstance(d, str):
+            d = pendulum.parse(d)
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=pendulum.UTC)
+        return int(d.timestamp())
+
+    assert [_ts(d) for d in actual_dts] == [_ts(d) for d in expected_dts]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
 def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     items = populated_pipeline.dataset().items
     orderable_in_chain = populated_pipeline.dataset().orderable_in_chain

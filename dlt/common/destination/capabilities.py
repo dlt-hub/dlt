@@ -26,6 +26,7 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingWithoutStagingNotSupported,
 )
 from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.time import DEFAULT_TIMESTAMP_PRECISION
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.schema.typing import (
     TColumnSchema,
@@ -175,9 +176,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_create_table_if_not_exists: bool = True
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
-    timestamp_precision: int = 6
+    timestamp_precision: int = DEFAULT_TIMESTAMP_PRECISION
     """Default precision of the timestamp type"""
-    max_timestamp_precision: int = 6
+    max_timestamp_precision: int = DEFAULT_TIMESTAMP_PRECISION
     """Maximum supported timestamp precision"""
 
     max_rows_per_insert: Optional[int] = None

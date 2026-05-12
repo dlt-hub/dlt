@@ -141,6 +141,107 @@ def test_model_stateful_incremental(
 
 @pytest.mark.parametrize(
     "destination_config",
+    destination_configs,
+    ids=lambda x: x.name,
+)
+def test_model_stateful_incremental_dotted_cursor(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Stateful incremental on `_dlt_loads.inserted_at` (auto-joined cursor)."""
+    pipeline = destination_config.setup_pipeline(
+        "test_model_stateful_incremental_dotted_cursor", dev_mode=True
+    )
+
+    def _utc_instant(value: Any) -> float:
+        if isinstance(value, str):
+            value = pendulum.parse(value)
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=pendulum.UTC)
+        return float(value.timestamp())
+
+    def _assert_cursor_matches_max_inserted_at() -> None:
+        expected_max = (
+            pipeline.dataset()
+            .table("orders")
+            .join("_dlt_loads")
+            .select("_dlt_loads__inserted_at")
+            .max()
+            .fetchscalar()
+        )
+        stored = pipeline.state["sources"][pipeline.default_schema_name]["resources"][
+            "copied_orders"
+        ]["incremental"]["_dlt_loads.inserted_at"]["last_value"]
+        assert _utc_instant(stored) == _utc_instant(expected_max), (
+            f"persisted cursor {stored!r} does not match MAX(_dlt_loads.inserted_at) "
+            f"over the orders join {expected_max!r}"
+        )
+
+    @dlt.resource(name="orders", write_disposition="append")
+    def orders(rows: Any) -> Any:
+        yield rows
+
+    # seed batch 1: 3 orders rows tagged to load A (inserted_at = T1)
+    pipeline.run(orders([{"id": i, "value": i * 10} for i in range(1, 4)]))
+    dataset = pipeline.dataset()
+    orders_columns = dataset.schema.tables["orders"]["columns"]
+
+    @dlt.resource(name="copied_orders", write_disposition="append")
+    def copied_orders(
+        cursor: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+            "_dlt_loads.inserted_at",
+            initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),  # noqa: B008
+            range_start="open",
+            on_cursor_value_missing="exclude",
+        ),
+    ) -> Any:
+        rel = dataset["orders"].incremental(cursor)
+        yield dlt.mark.with_hints(rel, hints=make_hints(columns=orders_columns))
+
+    # first model run: no prior state, lower=2000-01-01 (open), no upper.
+    # All 3 batch-1 orders rows land. State advances to T1.
+    info = pipeline.run(
+        [copied_orders()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "copied_orders") == {"copied_orders": 3}
+    _assert_cursor_matches_max_inserted_at()
+
+    # seed batch 2: 2 more orders rows tagged to load C (inserted_at = T3 > T1).
+    # Note: there is also a load B from the model run, but no orders rows
+    # reference it — the join filters it out.
+    pipeline.run(orders([{"id": i, "value": i * 10} for i in range(4, 6)]))
+
+    # second model run: state.last_value = T1, open lower -> only T3-tagged rows land.
+    info = pipeline.run(
+        [copied_orders()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "copied_orders") == {"copied_orders": 5}
+    _assert_cursor_matches_max_inserted_at()
+
+    new_load_id = info.loads_ids[0]
+    copied_df = dataset["copied_orders"].df()
+    new_rows = copied_df[copied_df["_dlt_load_id"] == new_load_id]
+    assert sorted(int(x) for x in new_rows["id"].to_list()) == [4, 5]
+
+    # third model run with no source change: state advanced to T3, no orders
+    # row joins to a _dlt_loads inserted_at > T3 (model-run loads B and D
+    # are in _dlt_loads but no orders row points at them).
+    info = pipeline.run(
+        [copied_orders()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert load_table_counts(pipeline, "copied_orders") == {"copied_orders": 5}
+    _assert_cursor_matches_max_inserted_at()
+
+
+@pytest.mark.parametrize(
+    "destination_config",
     destinations_configs(
         default_sql_configs=True, supports_file_format="model", supports_merge=True
     ),

@@ -554,7 +554,12 @@ class Relation(WithSqlClient):
         column_name = column_ref.name
         sqlglot_type = _sqlglot_type_for_column(column_lookup_columns, column_name)
         _maybe_warn_on_cursor_missing_raise(incremental, column_lookup_columns, column_name)
-        condition = _build_incremental_condition(incremental, column_ref, sqlglot_type)
+        condition = _build_incremental_condition(
+            incremental,
+            column_ref,
+            sqlglot_type,
+            destination_capabilities=self.sql_client.capabilities,
+        )
 
         rel = self.__copy__()
         rel._sqlglot_expression = (

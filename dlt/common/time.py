@@ -20,6 +20,8 @@ PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
 DAY_DURATION_SEC: float = 24 * 60 * 60.0
 
+DEFAULT_TIMESTAMP_PRECISION = 6
+
 precise_time: Callable[[], float] = None
 """A precise timer using win_precise_time library on windows and time.time on other systems"""
 
