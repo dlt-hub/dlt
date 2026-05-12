@@ -1,4 +1,5 @@
 from functools import lru_cache, partial
+from importlib import import_module
 from typing import (
     ClassVar,
     Dict,
@@ -37,6 +38,7 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.utils import update_dict_nested
 from dlt.common.normalizers.json import (
+    SupportsDataItemNormalizer,
     TNormalizedRowIterator,
     wrap_in_dict,
     DataItemNormalizer as DataItemNormalizerBase,
@@ -433,7 +435,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def ensure_this_normalizer(cls, norm_config: TJSONNormalizer) -> None:
         # make sure schema has right normalizer
         present_normalizer = norm_config["module"]
-        if present_normalizer != cls.__module__:
+        module = cast(SupportsDataItemNormalizer, import_module(present_normalizer))
+        if not issubclass(module.DataItemNormalizer, cls):
             raise InvalidJsonNormalizer(cls.__module__, present_normalizer)
 
     @classmethod
