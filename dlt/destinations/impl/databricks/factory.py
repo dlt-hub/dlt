@@ -12,15 +12,13 @@ from dlt.common.typing import TLoaderFileFormat
 
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.databricks.configuration import (
+    DEFAULT_DATABRICKS_INSERT_API,
     DatabricksClientConfiguration,
     DatabricksCredentials,
     DatabricksZerobusConfiguration,
 )
-from dlt.destinations.impl.databricks.typing import (
-    DEFAULT_DATABRICKS_INSERT_API,
-    TDatabricksInsertApi,
-)
-from dlt.destinations.impl.databricks.utils import get_databricks_insert_api
+from dlt.destinations.impl.databricks.databricks_adapter import INSERT_API_HINT
+from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.databricks.databricks import DatabricksClient
@@ -77,7 +75,7 @@ class DatabricksTypeMapper(TypeMapperImpl):
         table: PreparedTableSchema,
         loader_file_format: TLoaderFileFormat,
     ) -> None:
-        insert_api = get_databricks_insert_api(table)
+        insert_api = table[INSERT_API_HINT]  # type: ignore[typeddict-item]
         unsupported_types = self.UNSUPPORTED_TYPES[(insert_api, loader_file_format)]
 
         if insert_api == "copy_into":
@@ -203,6 +201,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         environment: str = None,
         staging_volume_name: str = None,
         create_indexes: bool = False,
+        insert_api: TDatabricksInsertApi = DEFAULT_DATABRICKS_INSERT_API,
         zerobus: DatabricksZerobusConfiguration = None,
         **kwargs: Any,
     ) -> None:
@@ -219,6 +218,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             environment (str, optional): Environment of the destination
             staging_volume_name (str, optional): Name of the staging volume to use
             create_indexes (bool, optional): Whether PRIMARY KEY or FOREIGN KEY constrains should be created
+            insert_api (TDatabricksInsertApi, optional): Ingestion backend for `append` write
+                disposition. Can be overridden per resource via `databricks_adapter`.
             zerobus (DatabricksZerobusConfiguration, optional): Zerobus configuration including Zerobus endpoint, credentials, batch size, and optional Arrow stream settings.
             **kwargs (Any): Additional arguments passed to the destination config
         """
@@ -230,6 +231,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             environment=environment,
             staging_volume_name=staging_volume_name,
             create_indexes=create_indexes,
+            insert_api=insert_api,
             zerobus=zerobus,
             **kwargs,
         )

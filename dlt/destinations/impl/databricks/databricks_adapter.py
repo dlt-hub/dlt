@@ -64,7 +64,9 @@ def databricks_adapter(
             - `copy_into`: insert records using Databricks `COPY INTO` command
             - `zerobus`: insert records using Databricks Zerobus
 
-            Destination uses `copy_into` if `insert_api` is not specified.
+            Destination falls back to `DatabricksClientConfiguration.insert_api` if `insert_api`
+            is not specified in `databricks_adapter`. `dlt` system tables ignore any `insert_api`
+            configuration, and always use `copy_into`.
 
     Returns:
         A `DltResource` object that is ready to be loaded into Databricks.

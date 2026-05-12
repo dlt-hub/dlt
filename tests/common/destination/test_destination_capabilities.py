@@ -142,6 +142,7 @@ def test_verify_capabilities_data_types() -> None:
     assert exceptions[0].available_in_formats == ["model"]
 
     # time not supported on databricks
+    schema.tables["table"][INSERT_API_HINT] = "copy_into"  # type: ignore[typeddict-unknown-key]
     exceptions = verify_supported_data_types(
         schema.tables.values(), new_jobs_parquet, databricks().capabilities(), "databricks"  # type: ignore[arg-type]
     )

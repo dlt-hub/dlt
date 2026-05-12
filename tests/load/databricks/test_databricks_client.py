@@ -21,13 +21,14 @@ from dlt.destinations.impl.databricks.configuration import (
     DatabricksZerobusConfiguration,
     DatabricksZerobusCredentials,
 )
-from dlt.destinations.impl.databricks.databricks_adapter import INSERT_API_HINT
 from dlt.destinations.impl.databricks.databricks import (
     DatabricksClient,
     DatabricksLoadJob,
     DatabricksZerobusJsonlLoadJob,
     DatabricksZerobusParquetLoadJob,
 )
+from dlt.destinations.impl.databricks.databricks_adapter import INSERT_API_HINT
+from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
 from tests.load.utils import yield_client
 
 
@@ -43,6 +44,35 @@ def client() -> Iterator[DatabricksClient]:
         # minutes and is not necessary for these tests
         yield_client("databricks", dataset_name=dataset_name, enter_client=False),
     )
+
+
+@pytest.mark.parametrize(
+    ("config_insert_api", "table_insert_api", "expected_insert_api"),
+    [
+        ("copy_into", None, "copy_into"),
+        ("zerobus", None, "zerobus"),
+        ("zerobus", "copy_into", "copy_into"),
+        ("copy_into", "zerobus", "zerobus"),
+    ],
+)
+def test_databricks_client_prepare_load_table_resolves_insert_api(
+    client: DatabricksClient,
+    config_insert_api: TDatabricksInsertApi,
+    table_insert_api: Optional[TDatabricksInsertApi],
+    expected_insert_api: TDatabricksInsertApi,
+) -> None:
+    client.config.insert_api = config_insert_api
+    table = new_table("items", write_disposition="append")
+    if table_insert_api is not None:
+        table[INSERT_API_HINT] = table_insert_api  # type: ignore[typeddict-unknown-key]
+    client.schema.update_table(table)
+
+    prepared_table = client.prepare_load_table("items")
+    prepared_dlt_table = client.prepare_load_table(client.schema.version_table_name)
+
+    assert prepared_table[INSERT_API_HINT] == expected_insert_api  # type: ignore[typeddict-item]
+    # dlt tables should disregard `insert_api` configuration and always use `copy_into`
+    assert prepared_dlt_table[INSERT_API_HINT] == "copy_into"  # type: ignore[typeddict-item]
 
 
 def test_databricks_client_verify_schema_zerobus_file_format(client: DatabricksClient) -> None:
@@ -106,7 +136,7 @@ def test_databricks_client_verify_schema_zerobus_requires_config(
 )
 def test_databricks_client_get_load_job_class(
     client: DatabricksClient,
-    insert_api: Optional[str],
+    insert_api: Optional[TDatabricksInsertApi],
     file_extension: str,
     expected_class: Optional[type[LoadJob]],
     expected_exception_match: Optional[str],

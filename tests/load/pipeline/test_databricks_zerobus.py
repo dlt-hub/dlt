@@ -7,7 +7,6 @@ import pytest
 from dlt.common import sleep
 from dlt.common.data_types import TDataType
 from dlt.common.typing import TLoaderFileFormat
-from dlt.destinations.adapters import databricks_adapter
 from dlt.destinations.impl.databricks.databricks import DatabricksZerobusJsonlLoadJob
 from dlt.destinations.impl.databricks.factory import DatabricksTypeMapper
 from tests.cases import assert_all_data_types_row, table_update_and_row
@@ -76,8 +75,6 @@ def test_databricks_zerobus_data_types(
     def data_types():
         yield data_row
 
-    databricks_adapter(data_types, insert_api="zerobus")
-
     # insert row with all supported data types
     pipe = destination_config.setup_pipeline("test_databricks_zerobus_data_types", dev_mode=True)
     info = pipe.run(data_types, **destination_config.run_kwargs)
@@ -122,8 +119,6 @@ def test_databricks_zerobus_concurrent_streams(
     def my_resource():
         yield rows
 
-    databricks_adapter(my_resource, insert_api="zerobus")
-
     pipe = destination_config.setup_pipeline(
         "test_databricks_zerobus_concurrent_streams", dev_mode=True
     )
@@ -166,8 +161,6 @@ def test_databricks_zerobus_schema_evolution_add_column(
     def items(data):
         yield data
 
-    databricks_adapter(items, insert_api="zerobus")
-
     pipe = destination_config.setup_pipeline(
         "test_databricks_zerobus_schema_evolution_add_column", dev_mode=True
     )
@@ -206,8 +199,6 @@ def test_databricks_zerobus_schema_evolution_alter_column(
     @dlt.resource(name="items", write_disposition="append", file_format="parquet")
     def items(data):
         yield data
-
-    databricks_adapter(items, insert_api="zerobus")
 
     pipe = destination_config.setup_pipeline(
         "test_databricks_zerobus_schema_evolution_alter_column", dev_mode=True

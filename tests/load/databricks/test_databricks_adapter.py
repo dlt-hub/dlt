@@ -10,8 +10,8 @@ from dlt.destinations.impl.databricks.databricks_adapter import (
     COLUMN_COMMENT_HINT,
     INSERT_API_HINT,
 )
+from dlt.destinations.impl.databricks.configuration import DEFAULT_DATABRICKS_INSERT_API
 from dlt.destinations.impl.databricks.factory import DatabricksTypeMapper
-from dlt.destinations.impl.databricks.typing import DEFAULT_DATABRICKS_INSERT_API
 from tests.cases import table_update_and_row
 from tests.load.utils import (
     destinations_configs,

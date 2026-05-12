@@ -15,12 +15,14 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import digest128
+from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
 
 if TYPE_CHECKING:
     from zerobus import ArrowStreamConfigurationOptions, IPCCompression
 
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
+DEFAULT_DATABRICKS_INSERT_API: TDatabricksInsertApi = "copy_into"
 # ZSTD was fastest in my benchmarks out of the three `ipc_compression` options
 # currently available (NONE, LZ4_FRAME, ZSTD) — NONE (no compression) was slowest
 DEFAULT_DATABRICKS_ZEROBUS_IPC_COMPRESSION = "ZSTD"
@@ -233,6 +235,8 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """Tells if to keep the files in internal (volume) stage"""
     create_indexes: bool = False
     """Whether PRIMARY KEY or FOREIGN KEY constrains should be created"""
+    insert_api: TDatabricksInsertApi = DEFAULT_DATABRICKS_INSERT_API
+    """Ingestion backend for `append` write disposition. Can be overridden per resource via `databricks_adapter`."""
     zerobus: Optional[DatabricksZerobusConfiguration] = None
     """Databricks Zerobus Configuration including endpoint and credentials. Required when using the `zerobus` insert API."""
 

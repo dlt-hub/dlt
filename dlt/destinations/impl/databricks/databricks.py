@@ -80,7 +80,7 @@ from dlt.destinations.impl.databricks.databricks_adapter import (
     TABLE_TAGS_HINT,
 )
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
-from dlt.destinations.impl.databricks.utils import get_databricks_insert_api
+from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import BatchedFileLoadJob, ReferenceFollowupJobRequest
 from dlt.destinations.path_utils import get_file_format_and_compression
@@ -542,13 +542,21 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             self._verify_zerobus_configuration()
         return loaded_tables
 
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        table = super().prepare_load_table(table_name)
+        if table_name in self.schema.dlt_table_names():
+            table[INSERT_API_HINT] = "copy_into"  # type: ignore[typeddict-unknown-key]
+        elif INSERT_API_HINT not in table:
+            table[INSERT_API_HINT] = self.config.insert_api  # type: ignore[typeddict-unknown-key]
+        return table
+
     def get_load_job_class(
         self, table: PreparedTableSchema, file_path: str
     ) -> Union[type[DatabricksLoadJob], type[DatabricksZerobusLoadJob[Any]]]:
-        databricks_insert_api = get_databricks_insert_api(table)
-        if databricks_insert_api == "copy_into":
+        insert_api: TDatabricksInsertApi = table[INSERT_API_HINT]  # type: ignore[typeddict-item]
+        if insert_api == "copy_into":
             return DatabricksLoadJob
-        elif databricks_insert_api == "zerobus":
+        elif insert_api == "zerobus":
             if ReferenceFollowupJobRequest.is_reference_job(file_path):
                 raise LoadJobTerminalException(
                     file_path,

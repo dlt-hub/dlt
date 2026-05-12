@@ -461,6 +461,7 @@ def destinations_configs(
             cid="databricks_zerobus",
             destination_type="databricks",
             destination_name="databricks_zerobus",
+            env_vars={"DESTINATION__INSERT_API": "zerobus"},
         ),
     ]
     cid_configs_by_cid = {config.cid: config for config in cid_configs if config.cid is not None}
