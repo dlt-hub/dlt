@@ -1,4 +1,5 @@
 import os
+import sys
 import pytest
 import shutil
 from typing import Iterator
@@ -46,8 +47,26 @@ def cloned_init_repo(_cached_init_repo: FileStorage) -> FileStorage:
 
 
 @pytest.fixture
-def repo_dir(cloned_init_repo: FileStorage) -> str:
-    return get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
+def repo_dir(cloned_init_repo: FileStorage) -> Iterator[str]:
+    dir_ = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
+    try:
+        yield dir_
+    finally:
+        # drop sys.modules entries loaded from this repo dir so the next test
+        # re-executes their @dlt.source/@dlt.resource decorators and re-registers
+        # sources in `SourceReference.SOURCES` after `workspace_files` clears it
+        abs_dir = os.path.realpath(dir_)
+        for name in list(sys.modules.keys()):
+            mod = sys.modules.get(name)
+            mod_file = getattr(mod, "__file__", None) if mod else None
+            if not mod_file:
+                continue
+            try:
+                mod_abs = os.path.realpath(mod_file)
+            except (OSError, ValueError):
+                continue
+            if mod_abs.startswith(abs_dir + os.sep):
+                del sys.modules[name]
 
 
 @pytest.fixture
