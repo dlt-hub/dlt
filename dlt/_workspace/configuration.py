@@ -28,9 +28,9 @@ class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
     """Id of the organization of the remote workspace"""
     auth_token: Optional[TSecretStrValue] = None
     """JWT token for Runtime API"""
-    auth_base_url: Optional[str] = "https://dlthub.app/api/auth"
-    """Base URL for the dltHub Runtime authentication API"""
-    api_base_url: Optional[str] = "https://dlthub.app/api/api"
+    api_key: Optional[TSecretStrValue] = None
+    """API key for Runtime API"""
+    api_base_url: Optional[str] = "https://api.dlthub.com"
     """Base URL for the dltHub Runtime API"""
     ai_context_api_url: Optional[str] = "https://scaffold.apps.dlthub.com"
     """Base URL for the AI context documentation API"""
