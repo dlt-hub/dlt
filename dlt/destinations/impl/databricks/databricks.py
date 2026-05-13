@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import os
+from typing import Any, Dict, Optional, Sequence, List, cast, Union
+from urllib.parse import urlparse
+from pathlib import Path
+
+import os
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from functools import cached_property
@@ -84,6 +89,9 @@ from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import BatchedFileLoadJob, ReferenceFollowupJobRequest
+from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.path_utils import get_file_format_and_compression
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
@@ -329,7 +337,13 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 class DatabricksMergeJob(SqlMergeFollowupJob):
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
         return f"CREATE TEMPORARY VIEW {temp_table_name} AS {select_sql}"
 
     @classmethod

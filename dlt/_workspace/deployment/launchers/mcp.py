@@ -4,6 +4,7 @@ from types import ModuleType
 from typing import Any, Dict, Tuple
 
 from dlt.common.configuration import resolve_configuration
+from dlt.common.libs import is_instance_lib
 
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment.configuration import McpConfiguration
@@ -17,20 +18,18 @@ from dlt._workspace.deployment.typing import TRuntimeEntryPoint
 
 def _find_fastmcp_instance(module: ModuleType) -> Any:
     """Find a FastMCP instance in the module namespace."""
-    try:
-        from fastmcp import FastMCP
-    except ImportError:
+    if "fastmcp" not in sys.modules:
         raise ImportError("fastmcp is not installed. Install it with: pip install fastmcp")
 
     for name in ("mcp", "server", "app"):
         obj = module.__dict__.get(name)
-        if obj is not None and isinstance(obj, FastMCP):
+        if obj is not None and is_instance_lib(obj, class_ref="fastmcp.FastMCP"):
             return obj
 
     for name, obj in module.__dict__.items():
         if name.startswith("_"):
             continue
-        if isinstance(obj, FastMCP):
+        if is_instance_lib(obj, class_ref="fastmcp.FastMCP"):
             return obj
 
     raise RuntimeError(

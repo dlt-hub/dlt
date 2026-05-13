@@ -95,6 +95,34 @@ if (branch != "devel") {
  * @param {string} versionedSidebarsFolder - Path to the versioned_sidebars directory.
  * @param {string[]} sidebarIds - Sidebar IDs to backfill if absent from a snapshot.
  */
+const SIDEBAR_FALLBACKS = {
+    cookbookSidebar: [
+        {
+            type: 'category',
+            label: 'Cookbook',
+            link: {
+                type: 'doc',
+                id: 'examples/index',
+            },
+            items: [],
+        },
+    ],
+    educationSidebar: [
+        {
+            type: 'category',
+            label: 'Education',
+            link: {
+                type: 'doc',
+                id: 'tutorial/education',
+            },
+            items: [
+              'tutorial/fundamentals-course',
+              'tutorial/advanced-course',
+            ]
+        },
+    ],
+};
+
 function backfillVersionedSidebars(versionedSidebarsFolder, sidebarIds) {
     const files = fs.readdirSync(versionedSidebarsFolder).filter(f => f.endsWith('.json'));
     for (const file of files) {
@@ -102,18 +130,8 @@ function backfillVersionedSidebars(versionedSidebarsFolder, sidebarIds) {
         const snapshot = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         let patched = false;
         for (const id of sidebarIds) {
-            if (!snapshot[id]) {
-                snapshot[id] = [
-                    {
-                        type: 'category',
-                        label: 'Cookbook',
-                        link: {
-                            type: 'doc',
-                            id: 'examples/index',
-                        },
-                        items: [],
-                    },
-                ];
+            if (!snapshot[id] && SIDEBAR_FALLBACKS[id]) {
+                snapshot[id] = SIDEBAR_FALLBACKS[id];
                 patched = true;
             }
         }
@@ -151,7 +169,7 @@ for (const version of selectedVersions) {
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_DOCS_FOLDER, VERSIONED_DOCS_FOLDER, {recursive: true})
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_SIDEBARS_FOLDER, VERSIONED_SIDEBARS_FOLDER, {recursive: true})
 
-    backfillVersionedSidebars(VERSIONED_SIDEBARS_FOLDER, ['cookbookSidebar']);
+    backfillVersionedSidebars(VERSIONED_SIDEBARS_FOLDER, ['cookbookSidebar', "educationSidebar"]);
 }
 
 fs.cpSync(REPO_DOCS_DIR+"/versions.json", "versions.json")

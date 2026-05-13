@@ -6,12 +6,8 @@ from typing import Any, Callable, List, Protocol, IO, Union, Dict
 from uuid import UUID
 from enum import Enum
 
-try:
-    from pydantic import BaseModel as PydanticBaseModel
-except ImportError:
-    PydanticBaseModel = None  # type: ignore[misc]
-
 from dlt.common import known_env
+from dlt.common.libs import is_pydantic_model
 from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
@@ -63,8 +59,8 @@ def _custom_encode(obj: Any) -> JsonSerializable:
         return obj.asdict()  # type: ignore
     elif hasattr(obj, "_asdict"):
         return obj._asdict()  # type: ignore
-    elif PydanticBaseModel and isinstance(obj, PydanticBaseModel):
-        return obj.model_dump()
+    elif is_pydantic_model(obj):
+        return obj.model_dump()  # type: ignore[no-any-return]
     elif dataclasses.is_dataclass(obj):
         return dataclasses.asdict(obj)  # type: ignore
     elif isinstance(obj, Enum):
@@ -150,8 +146,8 @@ def _custom_pua_encode(obj: Any) -> JsonSerializable:
         return obj._asdict()  # type: ignore[no-any-return]
     elif dataclasses.is_dataclass(obj):
         return dataclasses.asdict(obj)  # type: ignore[arg-type]
-    elif PydanticBaseModel and isinstance(obj, PydanticBaseModel):
-        return obj.dict(by_alias=True)
+    elif is_pydantic_model(obj):
+        return obj.dict(by_alias=True)  # type: ignore[no-any-return]
     elif isinstance(obj, Enum):
         # Enum value is just int or str
         return obj.value  # type: ignore[no-any-return]

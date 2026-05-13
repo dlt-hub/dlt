@@ -54,6 +54,8 @@ We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/
 Note that there are many unofficial dialects, such as [DuckDB](https://duckdb.org/).
 :::
 
-import DocCardList from '@theme/DocCardList';
-
-<DocCardList />
+- [Setup](./setup.md)
+- [Configuration](./configuration.md)
+- [Usage](./usage.md)
+- [Troubleshooting](./troubleshooting.md)
+- [Advanced](./advanced.md)

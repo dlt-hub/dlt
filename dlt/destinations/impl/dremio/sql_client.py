@@ -1,5 +1,15 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Tuple
+from typing import (
+    Any,
+    AnyStr,
+    ClassVar,
+    Iterator,
+    Optional,
+    Sequence,
+    List,
+    Tuple,
+    TYPE_CHECKING,
+)
 
 import pyarrow
 
@@ -18,19 +28,22 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBTransaction, DataFrame
+from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.common.destination.dataset import DBApiCursor
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
 
 
 class DremioCursorImpl(DBApiCursorImpl):
     native_cursor: pydremio.DremioCursor  # type: ignore[assignment]
 
-    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional["DataFrame"]:
         if chunk_size is None:
             return self.arrow(chunk_size=chunk_size).to_pandas()
         return super().df(chunk_size=chunk_size, **kwargs)
 
-    def arrow(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+    def arrow(self, chunk_size: int = None, **kwargs: Any) -> Optional["DataFrame"]:
         if chunk_size is None:
             return self.native_cursor.fetch_arrow_table()
         return self.native_cursor.iter_arrow_tables(chunk_size)

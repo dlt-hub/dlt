@@ -1,5 +1,5 @@
 ---
-title: Microsoft Fabric Warehouse
+title: Fabric
 description: Microsoft Fabric Warehouse `dlt` destination
 keywords: [fabric, microsoft fabric, warehouse, destination, data warehouse, synapse]
 ---

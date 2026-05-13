@@ -199,9 +199,9 @@ def make_mcp_run_flags(default_port: int = 8000) -> argparse.ArgumentParser:
 
 
 def add_mcp_arg_parser(subparsers: Any, description: str, help_str: str, default_port: int) -> None:
-    try:
-        from dlt._workspace.mcp.server import WorkspaceMCP  # noqa: F401
-    except ImportError:
+    import importlib.util
+
+    if importlib.util.find_spec("fastmcp") is None:
         return
 
     flags = make_mcp_run_flags(default_port)

@@ -33,7 +33,6 @@ try:
     import pyarrow
     import pyarrow.parquet
     import pyarrow.compute
-    import pyarrow.dataset
     from pyarrow.parquet import ParquetFile
     from pyarrow import Table
 except ModuleNotFoundError:

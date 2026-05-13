@@ -17,7 +17,15 @@ from collections.abc import Mapping as C_Mapping
 from functools import wraps
 
 from dlt.common.data_writers import TDataItemFormat
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.libs import (
+    get_pandas_module,
+    get_polars_module,
+    get_pyarrow_module,
+    get_pydantic_module,
+    is_arrow_object,
+    is_pandas_frame,
+    is_polars_frame,
+)
 from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.schema.utils import normalize_schema_name
@@ -39,22 +47,6 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.items import TTableHintTemplate
 
-try:
-    from dlt.common.libs import pydantic
-except MissingDependencyException:
-    pydantic = None
-
-
-try:
-    from dlt.common.libs import pyarrow
-except MissingDependencyException:
-    pyarrow = None
-
-try:
-    from dlt.common.libs.pandas import pandas
-except MissingDependencyException:
-    pandas = None
-
 
 def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     """Detect the format of the data item from `items`.
@@ -71,16 +63,14 @@ def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     if isinstance(items, Relation):
         return "model"
 
-    if not pyarrow and not pandas:
+    if get_pyarrow_module() is None and get_pandas_module() is None and get_polars_module() is None:
         return "object"
 
     # Assume all items in list are the same type
     try:
         if isinstance(items, list):
             items = items[0]
-        if (pyarrow and pyarrow.is_arrow_item(items)) or (
-            pandas and isinstance(items, pandas.DataFrame)
-        ):
+        if is_arrow_object(items) or is_pandas_frame(items) or is_polars_frame(items):
             return "arrow"
     except IndexError:
         pass
@@ -114,10 +104,11 @@ def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColum
     elif isinstance(columns, Sequence):
         # Assume list of columns
         return {col["name"]: col for col in columns}
-    elif pydantic is not None and (
-        isinstance(columns, pydantic.BaseModel) or issubclass(columns, pydantic.BaseModel)
-    ):
-        return pydantic.pydantic_to_table_schema_columns(columns)
+    elif get_pydantic_module() is not None:
+        from dlt.common.libs import pydantic
+
+        if isinstance(columns, pydantic.BaseModel) or issubclass(columns, pydantic.BaseModel):
+            return pydantic.pydantic_to_table_schema_columns(columns)
 
     raise ValueError(f"Unsupported columns type: `{type(columns)}`")
 

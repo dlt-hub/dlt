@@ -16,7 +16,8 @@ from functools import wraps
 
 from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
-from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
+from dlt.common.exceptions import ValueErrorWithKnownValues
+from dlt.common.libs import is_arrow_object, is_pandas_frame, is_polars_frame
 from dlt.common.jsonpath import compile_path, extract_simple_field_name
 from dlt.common.typing import (
     TDataItem,
@@ -65,16 +66,6 @@ from dlt.extract.incremental.transform import (
     IncrementalTransform,
 )
 from dlt.extract.incremental.lag import apply_lag_with_suppression
-
-try:
-    from dlt.common.libs.pyarrow import is_arrow_item
-except MissingDependencyException:
-    is_arrow_item = lambda item: False
-
-try:
-    from dlt.common.libs.pandas import pandas
-except MissingDependencyException:
-    pandas = None
 
 
 class IncrementalMetricsRow(TypedDict, total=False):
@@ -651,11 +642,9 @@ class Incremental(
 
     def _get_transform(self, items: TDataItems) -> IncrementalTransform:
         """Gets transform implementation that handles particular data item type"""
-        # Assume list is all of the same type
+        # assume list is all of the same type
         for item in items if isinstance(items, list) else [items]:
-            if is_arrow_item(item):
-                return self._make_or_get_transformer(ArrowIncremental)
-            elif pandas is not None and isinstance(item, pandas.DataFrame):
+            if is_arrow_object(item) or is_pandas_frame(item) or is_polars_frame(item):
                 return self._make_or_get_transformer(ArrowIncremental)
             return self._make_or_get_transformer(JsonIncremental)
         return self._make_or_get_transformer(JsonIncremental)
