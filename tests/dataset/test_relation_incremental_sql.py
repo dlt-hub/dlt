@@ -9,7 +9,11 @@ import dlt
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.libs.sqlglot import to_sqlglot_type
 from dlt.common.pendulum import pendulum
-from dlt.dataset._incremental import _build_incremental_condition
+from dlt.dataset._incremental import (
+    _build_incremental_aggregate,
+    _build_incremental_condition,
+    _RelationIncrementalContext,
+)
 from dlt.extract.incremental import Incremental
 
 
@@ -291,6 +295,44 @@ def test_on_cursor_value_missing_matrix(policy: str, expected: str) -> None:
     )
     sql = _emit_sql(incr, column_name="id", sqlglot_type=to_sqlglot_type("bigint"))
     assert sql == expected
+
+
+def _build_agg_sql(*, caps: Optional[DestinationCapabilitiesContext], dialect: str) -> str:
+    """Render the aggregate query for a trivial `SELECT id FROM t` source."""
+    incr = dlt.sources.incremental[int]("id", initial_value=0, range_start="open")
+    ctx = _RelationIncrementalContext(
+        incremental=incr,
+        cursor_column=sge.Column(this=sge.to_identifier("id", quoted=True)),
+    )
+    base = sge.Select(expressions=[sge.Column(this=sge.to_identifier("id", quoted=True))]).from_(
+        sge.Table(this=sge.to_identifier("t", quoted=True))
+    )
+    return _build_incremental_aggregate(base, ctx, destination_capabilities=caps).sql(
+        dialect=dialect
+    )
+
+
+def test_aggregate_uses_plain_max_when_caps_provide_no_null_safe_wrapper() -> None:
+    # Standard-SQL destinations (default cap is None) get a plain `MAX(...)`:
+    # empty input returns NULL on its own, the caller's `is not None` guard
+    # then preserves state.
+    sql = _build_agg_sql(caps=_caps(dialect="duckdb"), dialect="duckdb")
+    assert 'MAX("__dlt_inc_cursor")' in sql
+    assert "OrNull" not in sql
+
+    # And when no caps are provided at all.
+    sql = _build_agg_sql(caps=None, dialect="duckdb")
+    assert 'MAX("__dlt_inc_cursor")' in sql
+
+
+def test_aggregate_applies_null_safe_wrapper_when_caps_provide_one() -> None:
+    from dlt.destinations.impl.clickhouse.factory import _clickhouse_null_safe_aggregate
+
+    caps = _caps(dialect="clickhouse")
+    caps.null_safe_aggregate = _clickhouse_null_safe_aggregate
+    sql = _build_agg_sql(caps=caps, dialect="clickhouse")
+    assert 'maxOrNull("__dlt_inc_cursor")' in sql
+    assert "MAX(" not in sql  # confirms swap
 
 
 def test_rejects_custom_last_value_func() -> None:

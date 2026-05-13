@@ -11,7 +11,11 @@ from typing import (
     Set,
     Protocol,
     Type,
+    TYPE_CHECKING,
 )
+
+if TYPE_CHECKING:
+    import sqlglot.expressions as sge
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.exceptions import TerminalValueError
@@ -131,6 +135,7 @@ class UnsupportedTypeMapper(DataTypeMapper):
 
 
 TCasefoldIdentifier = Callable[[str], str]
+TNullSafeAggregate = Callable[["sge.AggFunc"], "sge.Expression"]
 
 
 @configspec
@@ -158,6 +163,12 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     "Escapes string literal"
     casefold_identifier: TCasefoldIdentifier = str
     """Casing function applied by destination to represent case insensitive identifiers."""
+    null_safe_aggregate: Optional[TNullSafeAggregate] = None
+    """Wraps an aggregate so that an empty input yields `NULL` (standard SQL).
+
+    Leave unset on destinations that already follow standard SQL. Set on
+    engines that return the column type's default sentinel for `MAX`/`MIN`
+    over an empty set (e.g. ClickHouse)."""
     has_case_sensitive_identifiers: bool = None
     """Tells if destination supports case sensitive identifiers"""
     decimal_precision: Tuple[int, int] = None

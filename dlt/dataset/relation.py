@@ -585,7 +585,11 @@ class Relation(WithSqlClient):
         """
         if self._incremental_ctx is None:
             return None
-        agg_query = _build_incremental_aggregate(self.sqlglot_expression, self._incremental_ctx)
+        agg_query = _build_incremental_aggregate(
+            self.sqlglot_expression,
+            self._incremental_ctx,
+            destination_capabilities=self.sql_client.capabilities,
+        )
         rel = self.__copy__()
         rel._sqlglot_expression = agg_query
         # Derived relation — do not re-advance state from the aggregate itself.

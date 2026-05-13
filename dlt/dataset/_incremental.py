@@ -40,6 +40,7 @@ class _RelationIncrementalContext:
 def _build_incremental_aggregate(
     base_query: sge.Query,
     ctx: _RelationIncrementalContext,
+    destination_capabilities: Optional[DestinationCapabilitiesContext] = None,
 ) -> sge.Select:
     """Build `SELECT <func>(alias) FROM (SELECT cursor AS alias FROM <filtered>)`.
 
@@ -80,7 +81,11 @@ def _build_incremental_aggregate(
         )
 
     outer_ref = sge.Column(this=cursor_alias.copy())
-    return sge.Select(expressions=[agg_cls(this=outer_ref)]).from_(inner.subquery())
+    agg_func: sge.AggFunc = agg_cls(this=outer_ref)
+    agg: sge.Expression = agg_func
+    if destination_capabilities is not None and destination_capabilities.null_safe_aggregate:
+        agg = destination_capabilities.null_safe_aggregate(agg_func)
+    return sge.Select(expressions=[agg]).from_(inner.subquery())
 
 
 def _parse_incremental_cursor_path(cursor_path: str) -> Tuple[Optional[str], str]:
