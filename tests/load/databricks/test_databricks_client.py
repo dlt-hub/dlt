@@ -4,9 +4,10 @@ from typing import Any, Iterator, Optional, cast
 import pytest
 from pytest_mock import MockerFixture
 from zerobus import IPCCompression
+from zerobus.sdk.shared import NonRetriableException, ZerobusException
 
 from dlt.common.configuration.exceptions import ConfigurationValueError
-from dlt.common.destination.client import LoadJob
+from dlt.common.destination.client import LoadJob, TLoadJobState
 from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
     WriteDispositionNotSupported,
@@ -15,7 +16,7 @@ from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.utils import new_table
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
-from dlt.destinations.exceptions import LoadJobTerminalException
+from dlt.destinations.exceptions import LoadJobTerminalException, LoadJobTransientException
 from dlt.destinations.impl.databricks.configuration import (
     DatabricksClientConfiguration,
     DatabricksZerobusConfiguration,
@@ -202,3 +203,48 @@ def test_databricks_zerobus_load_job_calls_create_arrow_stream_with_expected_arg
     )
     assert kwargs["options"].ipc_compression == IPCCompression.LZ4_FRAME
     assert kwargs["options"].max_inflight_batches == 32
+
+
+@pytest.mark.parametrize(
+    ("zerobus_exception", "expected_exception", "expected_state"),
+    [
+        pytest.param(
+            ZerobusException("retriable failure"),
+            LoadJobTransientException,
+            "retry",
+            id="retriable",
+        ),
+        pytest.param(
+            NonRetriableException("terminal failure"),
+            LoadJobTerminalException,
+            "failed",
+            id="non-retriable",
+        ),
+    ],
+)
+def test_databricks_zerobus_load_job_error_handling(
+    mocker: MockerFixture,
+    zerobus_exception: ZerobusException,
+    expected_exception: type[Exception],
+    expected_state: TLoadJobState,
+) -> None:
+    class FakeJobClient:
+        def prepare_load_job_execution(self, job: LoadJob) -> None:
+            pass
+
+        def grant_zerobus_permissions(self, table_name: str) -> None:
+            pass
+
+    job = DatabricksZerobusParquetLoadJob(
+        "/tmp/items.1.1.parquet",
+        DatabricksClientConfiguration(zerobus=DatabricksZerobusConfiguration()),
+        {},
+    )
+    job._load_table = {"name": "items"}
+    mocker.patch.object(job, "_create_stream", side_effect=zerobus_exception)
+
+    job.run_managed(FakeJobClient(), None)  # type: ignore[arg-type]
+
+    assert isinstance(job.exception(), expected_exception)
+    assert job.exception().__cause__ is zerobus_exception
+    assert job.state() == expected_state

@@ -41,6 +41,7 @@ from dlt.common.destination.client import (
     SupportsStagingDestination,
 )
 from dlt.common.destination.exceptions import (
+    DestinationException,
     DestinationInvalidFileFormat,
     WriteDispositionNotSupported,
 )
@@ -63,7 +64,7 @@ from dlt.common.storages.load_package import (
     group_jobs_by_table_name,
 )
 from dlt.common.utils import uniq_id
-from dlt.destinations.exceptions import LoadJobTerminalException
+from dlt.destinations.exceptions import LoadJobTerminalException, LoadJobTransientException
 from dlt.destinations.file_batching import (
     JsonlFileBatchIterator,
     ParquetFileBatchIterator,
@@ -88,6 +89,7 @@ from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow
+    from zerobus.sdk.shared import ZerobusException
     from zerobus.sdk.sync import ZerobusArrowStream, ZerobusSdk
 
 
@@ -356,11 +358,15 @@ class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TR
         self.zerobus_config = config.zerobus
 
     def run(self) -> None:
+        from zerobus.sdk.shared import ZerobusException
+
         stream = None
         try:
             self._job_client.grant_zerobus_permissions(self.load_table_name)
             stream = self._create_stream()
             self._ingest_batches(stream)
+        except ZerobusException as exc:
+            raise self._wrap_zerobus_exception(exc) from exc
         finally:
             if stream is not None:
                 stream.close()
@@ -411,6 +417,18 @@ class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TR
     def _ingest_batches(self, stream: ZerobusArrowStream) -> None:
         for batch in self.iter_batches():
             self._ingest_batch(stream, self._ensure_arrow_record_batch(batch))
+
+    def _wrap_zerobus_exception(self, exc: ZerobusException) -> DestinationException:
+        from zerobus.sdk.shared import NonRetriableException
+
+        if isinstance(exc, NonRetriableException):
+            return LoadJobTerminalException(
+                self._file_path,
+                f"Databricks Zerobus load failed with non-retriable error: {exc}",
+            )
+        return LoadJobTransientException(
+            self._file_path, f"Databricks Zerobus load failed with retriable error: {exc}"
+        )
 
     @abstractmethod
     def _ensure_arrow_record_batch(self, batch: TRecordBatch) -> pyarrow.RecordBatch:
