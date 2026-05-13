@@ -41,8 +41,12 @@ def simple_incremental_pipeline() -> Any:
 
 
 @pytest.fixture(scope="module")
-def fruit_pipeline() -> Any:
-    pf = dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb")
+def fruit_pipeline(pipelines_dir: Path) -> Any:
+    pf = dlt.pipeline(
+        pipeline_name="fruit_pipeline",
+        destination="duckdb",
+        pipelines_dir=str(pipelines_dir),
+    )
     pf.run(fruitshop_source())
     return pf
 
