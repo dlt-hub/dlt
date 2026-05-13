@@ -522,6 +522,10 @@ By default, `dlt` uses [COPY INTO](https://docs.databricks.com/aws/en/sql/langua
 
 ### Enable Zerobus
 
+:::note
+Databricks Zerobus is currently supported on Linux and Windows only. macOS is not supported because the `databricks-zerobus-ingest-sdk` package does not publish macOS wheels.
+:::
+
 ```toml
 [destination.databricks]
 insert_api = "zerobus"
