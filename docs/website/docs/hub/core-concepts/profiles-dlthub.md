@@ -25,7 +25,7 @@ Before you start, make sure you have followed the [installation instructions](..
 
 [More about dlt Workspace →](../workspace/overview.md)
 
-[Initialize](../workspace/init) a workspace and add a pipeline to it:
+[Initialize](../workspace/init.md) a workspace and add a pipeline to it:
 
 ```sh
 dlthub init

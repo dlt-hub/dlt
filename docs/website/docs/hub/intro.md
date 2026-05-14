@@ -1,6 +1,7 @@
 ---
 title: Introduction
 description: Introduction to dltHub
+keywords: [dltHub, dltHub Platform, workspace, runtime, transformations, data quality, AI]
 ---
 
 ## What is dltHub?

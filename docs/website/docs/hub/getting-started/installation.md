@@ -1,6 +1,7 @@
 ---
 title: Installation
-description: Installation information for the dlthub package
+description: Install dlt[hub], create a workspace, and license paid features
+keywords: [installation, dlthub, dlt[hub], dlthub init, workspace mode, license]
 ---
 
 :::info Supported Python versions
@@ -19,10 +20,7 @@ This installs `dlt` plus two plugin packages pulled in by the `hub` extra:
 * `dlthub` — enables features that require a [license](#licensing)
 * `dlthub-client` — enables access to the [managed dltHub Platform](../runtime/overview.md) (login, deploy, run, serve, ...)
 
-If you also want the common local development dependencies (`duckdb`, `marimo`, `pyarrow`, `fastmcp`, ...), install them with the destination/feature extras you actually need, e.g.:
-```sh
-uv pip install "dlt[hub,duckdb,parquet]"
-```
+Workspace-level dependencies (destinations like `duckdb`, plus tools like `marimo` or `fastmcp` used by notebooks and MCP jobs) are managed in your workspace's `pyproject.toml`, not via `dlt` extras. Run `dlthub init` (see [below](#enable-workspace-mode)) — it scaffolds a `pyproject.toml` you can extend with `uv add <package>`.
 
 If you need to install `uv` (a modern package manager), [please refer to the next section](#configuration-of-the-python-environment).
 
@@ -45,16 +43,15 @@ and it downloads `0.21.0` of the plugin, `dlt` `1.20.0` will still be installed 
 how to install a compatible plugin version).
 :::
 
-### Enable dltHub Free and Paid features
+### Enable workspace mode
 
-:::info
-The full [dltHub feature surface](../intro.md#tiers--licensing) (profiles, the `dlthub` CLI host, managed-platform commands) is enabled by switching your project into **Workspace mode**. The simplest way to do that is:
+The full dltHub feature surface — profiles, the `dlthub` CLI host, and [managed-platform commands](../runtime/overview.md) — is gated behind **Workspace mode**, signaled by a `.dlt/.workspace` marker file. The simplest way to turn it on is:
 
 ```sh
 dlthub init
 ```
 
-This scaffolds a fresh dltHub workspace — it creates the `.dlt/.workspace` marker file (the toggle that activates the extended CLI surface), plus `config.toml`, `secrets.toml`, `.gitignore`, and a `pyproject.toml` (or `requirements.txt` if `uv` isn't on `PATH`).
+This scaffolds a fresh dltHub workspace — it creates the `.dlt/.workspace` marker plus `config.toml`, `secrets.toml`, `.gitignore`, and a `pyproject.toml` (or `requirements.txt` if `uv` isn't on `PATH`). See [Initialize a pipeline](../workspace/init.md) for the next steps.
 
 If you'd rather flip the toggle by hand in an existing project, create the empty marker file yourself:
 
@@ -82,8 +79,6 @@ type nul > .dlt\.workspace
 
   </TabItem>
 </Tabs>
-
-:::
 
 ## Setting up your environment
 
@@ -126,7 +121,7 @@ source .venv/bin/activate
 
 To access dltHub’s paid features, such as Iceberg support or Python-based transformations, you need a dltHub Software License. [Contact us](https://info.dlthub.com/waiting-list) to purchase one or request a trial.
 
-#### Install your license
+### Install your license
 
 If you've received your license from us, you can install it in one of two ways:
 
@@ -140,7 +135,7 @@ As an environment variable:
 export DLT_LICENSE_KEY="your-dlthub-license-key"
 ```
 
-#### Features requiring a license
+### Features requiring a license
 
 - [@dlt.hub.transformation](../features/transformations/index.md) - a powerful Python decorator to build transformation pipelines and notebooks
 - [dbt transformations](../features/transformations/dbt-transformations.md) - a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
