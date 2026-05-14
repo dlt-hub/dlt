@@ -19,12 +19,13 @@ from dlt._workspace.cli._init_command import (
     init_command_wrapper,
     list_sources_command_wrapper,
 )
-from dlt._workspace.cli.utils import track_command
+from dlt._workspace.cli.utils import display_run_context_info, track_command
 from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
 from dlt.common.runtime.anon_tracker import disable_anon_tracker
 
 from tests.common.runtime.utils import mock_github_env, mock_pod_env
 from tests.utils import disable_temporary_telemetry, start_test_telemetry
+from tests.workspace.utils import isolated_workspace
 
 
 def test_track_command_track_after_passes_params(
@@ -209,3 +210,27 @@ def _mock_before_send(event: dict[str, Any], _unused_hint: Any = None) -> dict[s
     # capture event for assertions
     SENT_ITEMS.append(event)
     return event
+
+
+@pytest.mark.parametrize("profile", ["dev", "tests"])
+def test_display_run_context_info_silent_for_local_profile(
+    profile: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """No warning when active profile is local-only."""
+    with isolated_workspace("configured_workspace", profile=profile):
+        display_run_context_info()
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == ""
+
+
+@pytest.mark.parametrize("profile", ["prod", "access", "analytics"])
+def test_display_run_context_info_warns_for_non_local_profile(
+    profile: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Yellow advisory printed when active profile is synced (prod/access) or custom."""
+    with isolated_workspace("configured_workspace", profile=profile):
+        display_run_context_info()
+    err = capsys.readouterr().err
+    assert profile in err
+    assert "local-only" in err

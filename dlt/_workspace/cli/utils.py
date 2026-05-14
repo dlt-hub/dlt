@@ -38,6 +38,7 @@ from dlt._workspace.typing import (
     TLocationScope,
     TSchemaExport,
 )
+from dlt._workspace.profile import is_local_profile
 
 
 REQUIREMENTS_TXT = "requirements.txt"
@@ -182,11 +183,13 @@ def open_url(url: str) -> None:
 def display_run_context_info() -> None:
     run_context = dlt.current.run_context()
     if isinstance(run_context, ProfilesRunContext):
-        if run_context.default_profile != run_context.profile:
-            # print warning
+        # warn when active profile is not local-only — such profiles map to
+        # data synced with dltHub, so a local destructive command can affect it
+        if not is_local_profile(run_context.profile):
             fmt.echo(
-                "Profile `%s` is active."
-                % (fmt.style(run_context.profile, fg="yellow", reset=True),),
+                "Profile `%s` is active and is not a local-only profile — "
+                "this command may read or write data synced to dltHub."
+                % fmt.style(run_context.profile, fg="yellow", reset=True),
                 err=True,
             )
 
