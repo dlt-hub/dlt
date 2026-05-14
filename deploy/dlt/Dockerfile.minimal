@@ -50,9 +50,10 @@ RUN uv run dlt pipeline fruit_pipeline info
 
 # enable workspace
 RUN mkdir -p .dlt && touch .dlt/.workspace
-RUN uv run dlt workspace -v info
+RUN uv run dlthub local -v info
 RUN uv run python minimal_pipeline.py
-RUN uv run dlt pipeline fruit_pipeline info
+RUN uv run dlt local pipeline info fruit_pipeline
+RUN uv run dlthub local pipeline info fruit_pipeline
 
 # install hub
 RUN uv pip install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz[hub] --resolution lowest-direct && uv pip install typing-extensions==4.8.0
