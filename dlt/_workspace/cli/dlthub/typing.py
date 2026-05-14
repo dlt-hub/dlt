@@ -14,6 +14,7 @@ class TProfileInfo(TypedDict):
     is_current: bool
     is_pinned: bool
     is_configured: bool
+    is_local: bool
 
 
 class TCurrentProfileInfo(TProfileInfo):

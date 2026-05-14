@@ -51,7 +51,7 @@ from dlt._workspace.deployment.requirements import (
     render_requirements_lines,
     render_uv_source,
 )
-from dlt._workspace.profile import BUILT_IN_PROFILES, read_profile_pin
+from dlt._workspace.profile import BUILT_IN_PROFILES, is_local_profile, read_profile_pin
 from dlt._workspace.typing import TLocationInfo, TProviderInfo
 
 
@@ -225,6 +225,7 @@ def fetch_profiles_list() -> List[TProfileInfo]:
             is_current=name == current,
             is_pinned=name == pinned,
             is_configured=name in configured,
+            is_local=is_local_profile(name),
         )
         for name in ctx.available_profiles()
     ]
@@ -251,6 +252,7 @@ def fetch_workspace_info() -> TWorkspaceInfo:
             is_current=True,
             is_pinned=ctx.profile == read_profile_pin(ctx),
             is_configured=ctx.profile in configured_profiles,
+            is_local=is_local_profile(ctx.profile),
             data_dir=ctx.data_dir,
             local_dir=ctx.local_dir,
         )
@@ -343,6 +345,7 @@ def fetch_profile_info() -> Optional[TCurrentProfileFullInfo]:
         is_current=True,
         is_pinned=ctx.profile == pinned,
         is_configured=ctx.profile in configured_profiles,
+        is_local=is_local_profile(ctx.profile),
         data_dir=ctx.data_dir,
         local_dir=ctx.local_dir,
         providers=providers,

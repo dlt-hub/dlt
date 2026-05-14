@@ -31,6 +31,8 @@ def list_profiles(workspace_run_context: WorkspaceRunContext) -> None:
         markers = []
         if p["is_current"]:
             markers.append(fmt.bold("(current)"))
+        if p["is_local"]:
+            markers.append(fmt.bold("(local)"))
         if p["is_configured"]:
             markers.append(fmt.bold("(configured)"))
         marker_str = " ".join(markers)
