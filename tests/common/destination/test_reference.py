@@ -1,4 +1,5 @@
 from collections.abc import MutableMapping
+from pathlib import Path
 import pickle
 from typing import Dict
 
@@ -144,7 +145,8 @@ def test_factory_config_injection(environment: Dict[str, str]) -> None:
     environment["DESTINATION__LOCAL__BUCKET_URL"] = abs_path
     init_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(dataset_name="test")
     configured_bucket_url = filesystem_.client(Schema("test"), init_config).config.bucket_url
-    assert configured_bucket_url.endswith(test_root_storage)
+    # compare against the POSIX form to stay cross-platform
+    assert configured_bucket_url.endswith(Path(test_root_storage).as_posix())
 
 
 def test_import_module_by_path() -> None:
