@@ -51,7 +51,7 @@ def test_databricks_credentials_to_connector_params():
     assert params["extra_a"] == "a"
     assert params["extra_b"] == "b"
     assert params["_socket_timeout"] == credentials.socket_timeout
-    assert params["_user_agent_entry"] == DATABRICKS_APPLICATION_ID
+    assert params["user_agent_entry"] == DATABRICKS_APPLICATION_ID
 
     displayable_location = str(credentials)
     assert displayable_location.startswith(

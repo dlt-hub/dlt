@@ -165,8 +165,8 @@ class DatabricksCredentials(CredentialsConfiguration):
         )
 
         if self.user_agent_entry:
-            conn_params["_user_agent_entry"] = (
-                conn_params.get("_user_agent_entry") or self.user_agent_entry
+            conn_params["user_agent_entry"] = (
+                conn_params.get("user_agent_entry") or self.user_agent_entry
             )
 
         if self.client_id and self.client_secret:
