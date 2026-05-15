@@ -615,17 +615,9 @@ class ArrowIncremental(IncrementalTransform):
 class ModelIncremental(IncrementalTransform):
     """Incremental transform for `Relation` items.
 
-    Filtering happens via SQL pushdown when `Relation.incremental(cursor)` is
-    applied.
-
-    Modes:
-    - `end_value` is set: external scheduler/ephemeral: no aggregate, state is not
-      advanced from observed data.
-    - `range_start="open"`, no `end_value`: stateful open-range: aggregate runs
-      and `last_value` advances. Open range on the next run excludes the
-      boundary, so no deduplication is required.
-    - Otherwise (closed-range stateful): rejected as boundary deduplication via
-      `unique_hashes` cannot be reproduced from a single aggregate.
+    Filtering happens via SQL pushdown when `Relation.incremental(cursor)` is applied.
+    When `end_value` is set, state is not advanced from observed data; otherwise the
+    aggregate over the filtered relation advances `last_value`.
     """
 
     # parent `Incremental` so we can auto-apply below
