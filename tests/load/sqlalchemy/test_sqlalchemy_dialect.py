@@ -719,3 +719,44 @@ def test_adapt_table_reorder_columns(
             DIALECT_CAPS_REGISTRY[backend] = original
         else:
             DIALECT_CAPS_REGISTRY.pop(backend, None)
+
+
+def test_has_dataset_qualified_schema_names() -> None:
+    """has_dataset() correctly normalises dialect-qualified schema names (e.g. duckdb_engine).
+
+    duckdb_engine's get_schema_names returns "database.schema" instead of bare "schema",
+    causing has_dataset() to miss existing schemas and re-create them (issue #3907).
+    """
+    import contextlib
+    from unittest.mock import MagicMock
+
+    mock_creds = MagicMock()
+    mock_creds.database = "mydb"
+
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.dialect_capabilities = DialectCapabilities()
+
+    client = SqlalchemyClient("myschema", "myschema_staging", mock_creds, caps)
+
+    @contextlib.contextmanager
+    def _noop_tx():
+        yield None
+
+    with patch.object(client, "_ensure_transaction", new=_noop_tx):
+        # duckdb_engine-style: schema names are prefixed with the database name
+        mock_creds.engine.dialect.get_schema_names.return_value = [
+            "mydb.myschema",
+            "mydb.other_schema",
+        ]
+        assert client.has_dataset() is True, "qualified 'db.schema' name should be detected"
+
+        # Standard dialect: bare schema names (backward compat)
+        mock_creds.engine.dialect.get_schema_names.return_value = ["myschema", "other_schema"]
+        assert client.has_dataset() is True, "bare schema name should still be detected"
+
+        # Dataset is absent in any form
+        mock_creds.engine.dialect.get_schema_names.return_value = [
+            "mydb.other_schema",
+            "another_schema",
+        ]
+        assert client.has_dataset() is False, "should return False when dataset is absent"

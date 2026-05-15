@@ -201,7 +201,11 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     def has_dataset(self) -> bool:
         with self._ensure_transaction():
             schema_names = self.engine.dialect.get_schema_names(self._current_connection)  # type: ignore[attr-defined]
-        return self.dataset_name in schema_names
+        # Some dialects (e.g. duckdb_engine) return fully-qualified schema names such as
+        # "database.schema"; strip any qualifier before matching so detection works
+        # regardless of whether the dialect qualifies names or not.
+        bare_names = {s.rpartition(".")[-1] for s in schema_names}
+        return self.dataset_name in bare_names
 
     def _sqlite_dataset_filename(self, dataset_name: str) -> str:
         current_file_path = Path(self.database_name)
