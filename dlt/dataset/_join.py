@@ -354,12 +354,9 @@ def _apply_join(
     kind: TJoinType = "inner",
     project: bool = True,
 ) -> sge.Select:
-    """Apply schema-driven join(s) to `expression` and return the new query.
-
-    When `project` is `False` the JOIN is added to the query but the SELECT
-    list is left untouched (filter-only join). Use this for join targets whose
-    columns must be referenced in WHERE/ON predicates without being projected.
-    """
+    """Apply schema-driven join(s) to `expression` and return the new query."""
+    # `project=False` adds the JOIN without touching the SELECT list — for join targets whose
+    # columns are referenced in WHERE/ON predicates but should not appear in the output
     if left_table not in schema.tables:
         raise ValueError(f"Table `{left_table}` not found in dataset schema")
     if right_table not in schema.tables:
@@ -400,7 +397,7 @@ def _apply_join(
             allow_existing_target_projection=not join_params,
         )
     else:
-        # Filter-only join: qualify the left projection so a bare `*` does not
+        # filter-only join: qualify the left projection so a bare `*` does not
         # expand across the joined table and leak right-side columns at runtime.
         query.set("expressions", _normalize_left_projection(query, left_table))
     return query

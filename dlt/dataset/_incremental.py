@@ -26,12 +26,7 @@ _AGG_CURSOR_ALIAS = "__dlt_inc_cursor"
 
 @dataclass(frozen=True)
 class _RelationIncrementalContext:
-    """Private per-relation marker tying a `Relation` back to its `Incremental`.
-
-    Set by `Relation.incremental()` and consumed by downstream lifecycle
-    code (e.g. `dlthub` transformations) that needs to advance the cursor
-    state after the relation executes.
-    """
+    """Per-relation marker tying a `Relation` back to its `Incremental`."""
 
     incremental: Incremental[Any]
     cursor_column: sge.Column
@@ -42,13 +37,7 @@ def _build_incremental_aggregate(
     ctx: _RelationIncrementalContext,
     destination_capabilities: Optional[DestinationCapabilitiesContext] = None,
 ) -> sge.Select:
-    """Build `SELECT <func>(alias) FROM (SELECT cursor AS alias FROM <filtered>)`.
-
-    Bare cursor: wraps the base query as a subquery so projections, GROUP BY,
-    HAVING and aliased computed cursors are preserved. Qualified cursor
-    (`table.column`, from an auto-join): replaces the base query's projection
-    list inline so the join qualifier resolves.
-    """
+    """Build `SELECT <func>(alias) FROM (SELECT cursor AS alias FROM <filtered>)`."""
     if ctx.incremental.end_value is None and base_query.args.get("limit") is not None:
         raise ValueError(
             "LIMIT isn't supported on stateful `.incremental()` as state would "
@@ -58,12 +47,14 @@ def _build_incremental_aggregate(
 
     cursor_alias = sge.to_identifier(_AGG_CURSOR_ALIAS, quoted=True)
     if ctx.cursor_column.table:
+        # qualified cursor (auto-join): replace projection inline so the join qualifier resolves
         inner = base_query.copy()
         inner.set(
             "expressions",
             [sge.Alias(this=ctx.cursor_column.copy(), alias=cursor_alias)],
         )
     else:
+        # bare cursor: wrap base as subquery so GROUP BY, HAVING, and aliased computed cursors are preserved
         bare_cursor = sge.Column(this=ctx.cursor_column.this.copy())
         inner = sge.Select(expressions=[sge.Alias(this=bare_cursor, alias=cursor_alias)]).from_(
             base_query.copy().subquery()
@@ -89,14 +80,11 @@ def _build_incremental_aggregate(
 
 
 def _parse_incremental_cursor_path(cursor_path: str) -> Tuple[Optional[str], str]:
-    """Split `table.column` into parts, or return `(None, column)` for a bare field.
-
-    Rejects JSONPath expressions (wildcards, array indices, `$` root markers) that
-    cannot be pushed down to SQL.
-    """
+    """Split `table.column` into parts, or return `(None, column)` for a bare field."""
     if not cursor_path:
         raise ValueError("Incremental `cursor_path` must be a non-empty string.")
 
+    # JSONPath wildcards, array indices, and `$` root markers cannot be pushed down to SQL
     if any(ch in cursor_path for ch in ("$", "[", "*")):
         raise ValueError(
             f"Incremental `cursor_path={cursor_path!r}` is a JSONPath expression. "
@@ -131,13 +119,6 @@ def _build_incremental_condition(
     destination_capabilities: Optional[DestinationCapabilitiesContext] = None,
 ) -> Optional[sge.Expression]:
     """Build the WHERE condition for an Incremental cursor on `column_ref`.
-
-    Operator matrix (closed/open bounds):
-
-    - `max` + closed start -> `>=`, open start -> `>`
-    - `max` + open end -> `<`, closed end -> `<=`
-    - `min` + closed start -> `<=`, open start -> `<`
-    - `min` + open end -> `>`, closed end -> `>=`
 
     Args:
         incremental (Incremental): The incremental carrying cursor bounds, range, and

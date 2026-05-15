@@ -628,28 +628,19 @@ class ModelIncremental(IncrementalTransform):
       `unique_hashes` cannot be reproduced from a single aggregate.
     """
 
-    # Parent `Incremental` so we can auto-apply below
+    # parent `Incremental` so we can auto-apply below
     _incremental: Optional["Incremental[Any]"] = None  # type: ignore[name-defined]  # noqa: F821
 
     def __call__(self, relation: TDataItem) -> Tuple[Optional[TDataItem], bool, bool]:
         ctx = getattr(relation, "_incremental_ctx", None)
         if ctx is None:
-            # Bare relation, no `.incremental()`. Auto-apply using the parent `Incremental`
+            # bare relation, no `.incremental()`. Auto-apply using the parent `Incremental`
             relation = relation.incremental(self._incremental)
 
         if self.end_value is not None:
-            # External scheduler/ephemeral mode: state not advanced from observed data.
+            # external scheduler/ephemeral mode: state not advanced from observed data.
             self.seen_data = True
             return relation, False, False
-
-        if self.range_start != "open":
-            raise ValueError(
-                f"Stateful incremental on resource '{self.resource_name}' over a "
-                "Relation requires `range_start='open'`. Closed-range semantics "
-                "rely on boundary deduplication via `unique_hashes`, which a "
-                "SQL aggregate cannot reproduce. Either set `range_start='open'` "
-                "on the Incremental, or provide `end_value=` for scheduler mode."
-            )
 
         agg_rel = relation._incremental_aggregate_relation()
         if agg_rel is not None:

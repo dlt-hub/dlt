@@ -164,11 +164,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     casefold_identifier: TCasefoldIdentifier = str
     """Casing function applied by destination to represent case insensitive identifiers."""
     null_safe_aggregate: Optional[TNullSafeAggregate] = None
-    """Wraps an aggregate so that an empty input yields `NULL` (standard SQL).
-
-    Leave unset on destinations that already follow standard SQL. Set on
-    engines that return the column type's default sentinel for `MAX`/`MIN`
-    over an empty set (e.g. ClickHouse)."""
+    """Wraps an aggregate so that an empty input yields `NULL`."""
     has_case_sensitive_identifiers: bool = None
     """Tells if destination supports case sensitive identifiers"""
     decimal_precision: Tuple[int, int] = None

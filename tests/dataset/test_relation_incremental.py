@@ -2,14 +2,21 @@ from __future__ import annotations
 
 import pathlib
 import warnings
-from typing import Any, Iterator, Literal
+from typing import Any, Iterator, Literal, Optional
 
 import pytest
 from sqlglot import expressions as sge
 
 import dlt
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.libs.sqlglot import to_sqlglot_type
 from dlt.common.pendulum import pendulum
-from dlt.extract.incremental.transform import ModelIncremental
+from dlt.dataset._incremental import (
+    _build_incremental_aggregate,
+    _build_incremental_condition,
+    _parse_incremental_cursor_path,
+    _RelationIncrementalContext,
+)
 
 
 EVENTS_LOAD_0 = [
@@ -421,6 +428,200 @@ def test_incremental_aggregate_rejects_limit_in_stateful_mode(
         captured._incremental_aggregate_relation()
 
 
+def _caps(
+    *,
+    dialect: Optional[str] = None,
+    timestamp_precision: int = 6,
+    supports_tz_aware_datetime: bool = True,
+    supports_tz_aware_datetime_in_cast: Optional[bool] = None,
+) -> DestinationCapabilitiesContext:
+    caps = DestinationCapabilitiesContext()
+    caps.sqlglot_dialect = dialect  # type: ignore[assignment]
+    caps.timestamp_precision = timestamp_precision
+    caps.supports_tz_aware_datetime = supports_tz_aware_datetime
+    caps.supports_tz_aware_datetime_in_cast = supports_tz_aware_datetime_in_cast
+    return caps
+
+
+_TS_EPOCH = pendulum.datetime(2026, 1, 1, tz="UTC")
+_TS_END = pendulum.datetime(2026, 1, 5, tz="UTC")
+
+
+def _ts_sqlglot_type(timezone: Optional[bool] = True) -> sge.DataType:
+    return to_sqlglot_type(dlt_type="timestamp", precision=6, timezone=timezone, nullable=True)
+
+
+@pytest.mark.parametrize(
+    ("caps_kwargs", "dialect", "tz_aware_cursor", "must_contain", "must_not_contain"),
+    [
+        pytest.param(
+            None,
+            "duckdb",
+            True,
+            [
+                "CAST('2026-01-01 00:00:00.000000+00:00' AS TIMESTAMPTZ)",
+                "CAST('2026-01-05 00:00:00.000000+00:00' AS TIMESTAMPTZ)",
+            ],
+            [],
+            id="no-caps-generic-tz-aware-cast",
+        ),
+        pytest.param(
+            {"dialect": "duckdb", "timestamp_precision": 6, "supports_tz_aware_datetime": True},
+            "duckdb",
+            True,
+            ["CAST('2026-01-01 00:00:00.000000+00:00' AS TIMESTAMPTZ)"],
+            [],
+            id="duckdb-keeps-tz-aware-cast",
+        ),
+        pytest.param(
+            {"dialect": "sqlite", "timestamp_precision": 0, "supports_tz_aware_datetime": False},
+            "sqlite",
+            True,
+            ["'2026-01-01 00:00:00'", "'2026-01-05 00:00:00'"],
+            ["CAST("],
+            id="sqlite-drops-cast-naive-form",
+        ),
+        pytest.param(
+            {"dialect": "dremio", "timestamp_precision": 6, "supports_tz_aware_datetime": False},
+            "dremio",
+            True,
+            ["TIMESTAMP"],
+            ["TIMESTAMPTZ", "+00:00"],
+            id="dremio-athena-naive-cast",
+        ),
+        pytest.param(
+            {
+                "dialect": "clickhouse",
+                "timestamp_precision": 6,
+                "supports_tz_aware_datetime": True,
+                "supports_tz_aware_datetime_in_cast": False,
+            },
+            "clickhouse",
+            True,
+            [],
+            ["+00:00"],
+            id="clickhouse-tz-cast-unsupported-naive-cast",
+        ),
+        pytest.param(
+            {"dialect": "bigquery", "timestamp_precision": 0},
+            "bigquery",
+            True,
+            ["'2026-01-01 00:00:00+00:00'"],
+            [".000000"],
+            id="bigquery-precision-zero-trims-fractional",
+        ),
+        pytest.param(
+            {"dialect": "duckdb", "supports_tz_aware_datetime": True},
+            "duckdb",
+            False,
+            ["'2026-01-01 00:00:00.000000'"],
+            ["+00:00"],
+            id="naive-cursor-naive-form-regardless-of-caps",
+        ),
+    ],
+)
+def test_incremental_timestamp_emission(
+    caps_kwargs: Optional[dict[str, Any]],
+    dialect: str,
+    tz_aware_cursor: bool,
+    must_contain: list[str],
+    must_not_contain: list[str],
+) -> None:
+    if tz_aware_cursor:
+        incr = dlt.sources.incremental[pendulum.DateTime](
+            "created_at", initial_value=_TS_EPOCH, end_value=_TS_END
+        )
+        sqlglot_type = _ts_sqlglot_type()
+    else:
+        incr = dlt.sources.incremental[pendulum.DateTime](
+            "created_at",
+            initial_value=pendulum.naive(2026, 1, 1),
+            end_value=pendulum.naive(2026, 1, 5),
+        )
+        sqlglot_type = _ts_sqlglot_type(timezone=False)
+
+    caps = _caps(**caps_kwargs) if caps_kwargs is not None else None
+    column_ref = sge.Column(this=sge.to_identifier("created_at", quoted=True))
+    cond = _build_incremental_condition(
+        incr, column_ref, sqlglot_type, destination_capabilities=caps
+    )
+    assert cond is not None
+    sql = cond.sql(dialect=dialect)
+    for expected in must_contain:
+        assert expected in sql, f"expected {expected!r} in {sql!r}"
+    for unexpected in must_not_contain:
+        assert unexpected not in sql, f"unexpected {unexpected!r} in {sql!r}"
+
+
+@pytest.mark.parametrize(
+    ("dlt_type", "initial_value", "expected_cast"),
+    [
+        pytest.param("date", pendulum.date(2026, 1, 1), "CAST('2026-01-01' AS DATE)", id="date"),
+        pytest.param("text", "abc", "CAST('abc' AS TEXT)", id="text"),
+        pytest.param("double", 1.5, "CAST(1.5 AS DOUBLE)", id="double"),
+    ],
+)
+def test_incremental_condition_typed_literal_for_non_timestamp_types(
+    dlt_type: str, initial_value: Any, expected_cast: str
+) -> None:
+    incr = dlt.sources.incremental(
+        "created_at", initial_value=initial_value, on_cursor_value_missing="exclude"
+    )
+    column_ref = sge.Column(this=sge.to_identifier("created_at", quoted=True))
+    sqlglot_type = to_sqlglot_type(dlt_type=dlt_type, nullable=True)  # type: ignore[arg-type]
+    cond = _build_incremental_condition(incr, column_ref, sqlglot_type)
+    assert cond is not None
+    assert expected_cast in cond.sql(dialect="duckdb")
+
+
+def test_incremental_condition_untyped_literals_when_sqlglot_type_unknown() -> None:
+    incr: dlt.sources.incremental[int] = dlt.sources.incremental(
+        "created_at", initial_value=10, end_value=50, on_cursor_value_missing="exclude"
+    )
+    column_ref = sge.Column(this=sge.to_identifier("created_at", quoted=True))
+    cond = _build_incremental_condition(incr, column_ref, sqlglot_type=None)
+    assert cond is not None
+    sql = cond.sql(dialect="duckdb")
+    assert "CAST(" not in sql
+    assert '"created_at" >= 10' in sql
+    assert '"created_at" < 50' in sql
+
+
+def _build_agg_sql(*, caps: Optional[DestinationCapabilitiesContext], dialect: str) -> str:
+    incr = dlt.sources.incremental[int]("id", initial_value=0, range_start="open")
+    ctx = _RelationIncrementalContext(
+        incremental=incr,
+        cursor_column=sge.Column(this=sge.to_identifier("id", quoted=True)),
+    )
+    base = sge.Select(expressions=[sge.Column(this=sge.to_identifier("id", quoted=True))]).from_(
+        sge.Table(this=sge.to_identifier("t", quoted=True))
+    )
+    return _build_incremental_aggregate(base, ctx, destination_capabilities=caps).sql(
+        dialect=dialect
+    )
+
+
+def test_incremental_aggregate_uses_plain_max_when_caps_lack_null_safe_wrapper() -> None:
+    # standard-SQL destinations get a plain MAX(...): empty input -> NULL, the
+    # caller's `is not None` guard preserves state.
+    sql = _build_agg_sql(caps=_caps(dialect="duckdb"), dialect="duckdb")
+    assert 'MAX("__dlt_inc_cursor")' in sql
+    assert "OrNull" not in sql
+
+    sql = _build_agg_sql(caps=None, dialect="duckdb")
+    assert 'MAX("__dlt_inc_cursor")' in sql
+
+
+def test_incremental_aggregate_applies_null_safe_wrapper_when_caps_provide_one() -> None:
+    from dlt.destinations.impl.clickhouse.factory import _clickhouse_null_safe_aggregate
+
+    caps = _caps(dialect="clickhouse")
+    caps.null_safe_aggregate = _clickhouse_null_safe_aggregate
+    sql = _build_agg_sql(caps=caps, dialect="clickhouse")
+    assert 'maxOrNull("__dlt_inc_cursor")' in sql
+    assert "MAX(" not in sql
+
+
 def test_incremental_aggregate_allows_order_by_in_stateful_mode(
     incremental_pipeline: dlt.Pipeline,
 ) -> None:
@@ -465,6 +666,44 @@ def test_incremental_inside_resource_captures_bound_sql(
     start_op = condition.this
     assert isinstance(start_op, sge.GTE)
     assert _column_name(start_op.this) == "id"
+
+
+def test_incremental_lag_on_unbound_is_no_op(incremental_dataset: dlt.Dataset) -> None:
+    no_lag = dlt.sources.incremental("id", initial_value=10, end_value=END_VALUE_ID)
+    with_lag = dlt.sources.incremental("id", initial_value=10, end_value=END_VALUE_ID, lag=5)
+    no_lag_sql = incremental_dataset.table("events").incremental(no_lag).sqlglot_expression.sql()
+    with_lag_sql = (
+        incremental_dataset.table("events").incremental(with_lag).sqlglot_expression.sql()
+    )
+    assert no_lag_sql == with_lag_sql
+
+
+def test_incremental_lag_applied_after_bind(incremental_pipeline: dlt.Pipeline) -> None:
+    dataset = incremental_pipeline.dataset()
+    captured: dlt.Relation | None = None
+
+    @dlt.resource(name="probe_lag_after_extract")
+    def probe(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "id", initial_value=0, lag=2
+        ),
+    ) -> Iterator[Any]:
+        nonlocal captured
+        captured = dataset.table("events").incremental(cursor)
+        yield from [{"id": i} for i in range(1, 6)]
+
+    # first extract: cursor starts unbound, lag is a no-op, state["last_value"] -> 5
+    incremental_pipeline.extract(probe())
+    # second extract: bind() reads last_value=5 and applies lag -> start_value=3
+    incremental_pipeline.extract(probe())
+
+    assert captured is not None
+    condition = _where(captured)
+    assert isinstance(condition, sge.And)
+    start_op = condition.this
+    assert isinstance(start_op, sge.GTE)
+    assert _column_name(start_op.this) == "id"
+    assert "CAST(3 AS BIGINT)" in start_op.expression.sql(dialect="duckdb")
 
 
 def test_incremental_custom_last_value_func_raises(
@@ -573,8 +812,6 @@ def test_incremental_rejects_jsonpath_cursor(
     ],
 )
 def test_parse_incremental_cursor_path_rejects_malformed(cursor_path: str, match: str) -> None:
-    from dlt.dataset._incremental import _parse_incremental_cursor_path
-
     with pytest.raises(ValueError, match=match):
         _parse_incremental_cursor_path(cursor_path)
 
@@ -785,156 +1022,3 @@ def test_incremental_no_warn_when_policy_explicit(
     assert (
         captured == []
     ), f"unexpected warning for policy={policy!r}: {[str(w.message) for w in captured]}"
-
-
-def _model_transformer(
-    *,
-    cursor_path: str = "id",
-    start_value: Any = 0,
-    end_value: Any = None,
-    last_value_func: Any = max,
-    range_start: Literal["open", "closed"] = "open",
-    range_end: Literal["open", "closed"] = "open",
-) -> ModelIncremental:
-    return ModelIncremental(
-        resource_name="test",
-        cursor_path=cursor_path,
-        initial_value=start_value,
-        start_value=start_value,
-        end_value=end_value,
-        last_value_func=last_value_func,
-        primary_key=None,
-        unique_hashes=set(),
-        range_start=range_start,
-        range_end=range_end,
-    )
-
-
-def _capture_stateful_relation(
-    pipeline: dlt.Pipeline,
-    *,
-    resource_name: str,
-    initial_value: int,
-    range_start: Literal["open", "closed"] = "open",
-) -> dlt.Relation:
-    """Build an `.incremental()`-applied Relation against a bound stateful cursor.
-
-    Stateful incrementals need an active pipeline to resolve
-    `get_state()`, so we wrap the build in a no-op resource and `extract()` it
-    just to bind.
-    """
-    dataset = pipeline.dataset()
-    captured: dlt.Relation | None = None
-
-    @dlt.resource(name=resource_name)
-    def probe(
-        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
-            "id", initial_value=initial_value, range_start=range_start
-        ),
-    ) -> Iterator[Any]:
-        nonlocal captured
-        captured = dataset.table("events").incremental(cursor)
-        yield from []
-
-    pipeline.extract(probe())
-    assert captured is not None
-    return captured
-
-
-def test_get_transform_dispatches_modelincremental_for_relation(
-    incremental_dataset: dlt.Dataset,
-) -> None:
-    incremental: dlt.sources.incremental[int] = dlt.sources.incremental(
-        "id", initial_value=0, end_value=END_VALUE_ID
-    )
-    incremental._cached_state = {
-        "unique_hashes": [],
-        "initial_value": 0,
-        "last_value": 0,
-        "start_value": 0,
-    }
-    relation = incremental_dataset.table("events")
-    incremental_transform = incremental._get_transform(relation)
-    assert isinstance(incremental_transform, ModelIncremental)
-    assert incremental_transform.cursor_path == "id"
-
-
-def test_model_incremental_advances_last_value_for_open_range(
-    incremental_pipeline: dlt.Pipeline,
-) -> None:
-    relation = _capture_stateful_relation(
-        incremental_pipeline, resource_name="probe_advance", initial_value=2
-    )
-    transformer = _model_transformer(start_value=2)
-    out, start_out_of_range, end_out_of_range = transformer(relation)
-
-    assert out is relation
-    assert (start_out_of_range, end_out_of_range) == (False, False)
-    assert transformer.last_value == 5
-
-
-def test_model_incremental_no_advance_in_scheduler_mode(
-    incremental_dataset: dlt.Dataset,
-) -> None:
-    incremental = dlt.sources.incremental("id", initial_value=0, end_value=END_VALUE_ID)
-    relation = incremental_dataset.table("events").incremental(incremental)
-
-    transformer = _model_transformer(start_value=0, end_value=END_VALUE_ID, range_start="closed")
-    transformer(relation)
-
-    assert transformer.last_value == 0
-
-
-def test_model_incremental_rejects_closed_range_stateful(
-    incremental_pipeline: dlt.Pipeline,
-) -> None:
-    relation = _capture_stateful_relation(
-        incremental_pipeline,
-        resource_name="probe_reject_closed",
-        initial_value=0,
-        range_start="closed",
-    )
-
-    transformer = _model_transformer(start_value=0, range_start="closed")
-    with pytest.raises(ValueError, match="range_start='open'"):
-        transformer(relation)
-
-
-def test_model_incremental_auto_applies_on_bare_relation(
-    incremental_pipeline: dlt.Pipeline,
-) -> None:
-    dataset = incremental_pipeline.dataset()
-    yielded: dlt.Relation | None = None
-
-    @dlt.resource(name="probe_auto_apply")
-    def probe(
-        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
-            "id", initial_value=2, range_start="open"
-        ),
-    ) -> Iterator[Any]:
-        nonlocal yielded
-        yielded = dataset.table("events")
-        yield yielded
-
-    resource = probe()
-    incremental_pipeline.extract(resource)
-
-    assert yielded is not None
-    assert yielded.is_incremental is False
-
-    # max(id) over the events table is 5, so `last_value` becomes 5.
-    assert resource.state["incremental"]["id"]["last_value"] == 5
-
-
-def test_model_incremental_does_not_clobber_last_value_on_empty_filter(
-    incremental_pipeline: dlt.Pipeline,
-) -> None:
-    # initial_value above all data (max is 5) so the WHERE excludes everything.
-    relation = _capture_stateful_relation(
-        incremental_pipeline, resource_name="probe_empty_filter", initial_value=10**9
-    )
-
-    transformer = _model_transformer(start_value=10**9)
-    transformer(relation)
-
-    assert transformer.last_value == 10**9

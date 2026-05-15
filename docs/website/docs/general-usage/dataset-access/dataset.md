@@ -119,6 +119,58 @@ You can refine your data retrieval by limiting the number of records, selecting 
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::aggregate-->
 
+### Filter to an incremental cursor
+
+`Relation.incremental(incremental)` adds a `WHERE` clause derived from a `dlt.sources.incremental` cursor so a relation only sees rows in the cursor window.
+
+```py
+import dlt
+from dlt.common.pendulum import pendulum
+
+dataset = pipeline.dataset()
+
+# bounded read: all rows in [2026-01-01, 2026-02-01)
+cursor = dlt.sources.incremental(
+    "created_at",
+    initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
+    end_value=pendulum.datetime(2026, 2, 1, tz="UTC"),
+)
+rows = dataset.table("events").incremental(cursor).fetchall()
+```
+
+Or pass it directly on `dataset.table(..., incremental=...)`:
+
+```py
+rows = dataset.table("events", incremental=cursor).fetchall()
+```
+
+`Relation.incremental()` accepts cursor paths in two forms:
+
+- `column` — filters on a column of the relation's base table.
+- `table.column` — automatically joins `table` via the dataset schema and filters on the joined column. The joined table's columns are not added to the projection. If the same table is already joined, the existing join is reused.
+
+#### Cursor on an auto-joined column
+
+A dotted `cursor_path` of the form `table.column` auto-joins `table` and filters on the joined column. This uses the same schema-reference resolution as [`Relation.join()`](#join-related-tables) — `table` must be reachable from the current relation's base table via dlt's parent/child references. The joined columns are not added to the projection, and an existing JOIN to the same table is reused.
+
+A common case is filtering any user table by dlt load time via `_dlt_loads`:
+
+```py
+# only rows from loads that happened after 2026-01-01
+cursor = dlt.sources.incremental(
+    "_dlt_loads.inserted_at",
+    initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
+)
+events = dataset.table("events", incremental=cursor)
+```
+
+The translation from `Incremental` to SQL follows these rules:
+
+- `last_value_func` must be `max` or `min`. Custom callables can't be pushed down to SQL.
+- `range_start` / `range_end` decide endpoint inclusivity (`"closed"` -> `>=`/`<=`, `"open"` -> `>`/`<`); operator direction follows `last_value_func`.
+- `on_cursor_value_missing="include"` translates to `... OR cursor IS NULL`; `"exclude"` to `... AND cursor IS NOT NULL`. `"raise"` cannot raise mid-query in SQL pushdown, so it falls back to `IS NOT NULL` and emits a warning when the cursor column is nullable.
+- `lag` is applied to the lower bound exactly as it would be during a resource extraction.
+
 ### Join related tables
 
 The `join()` method follows relationships already defined in the dlt schema. It can resolve direct schema references between tables as well as multi-hop parent/child paths when one table is an ancestor or descendant of the other. This makes `join()` well suited for navigating nested tables created by dlt and tables connected by explicit references. Joined columns are appended from the target table only and are prefixed with the target table name, or with the alias you provide.
@@ -392,7 +444,7 @@ This table stores the internal state of the pipeline for each run. This state en
 | `version_hash`    | STRING           | Hash to detect changes in the state                 |
 | `_dlt_load_id`    | STRING           | Reference to related load in `_dlt_loads`           |
 | `_dlt_id`         | STRING           | Unique identifier for the pipeline state row        |
- 
+
 
 The state column contains a serialized Python dictionary that includes:
 
@@ -493,7 +545,7 @@ Use this command to launch marimo (replace `my_notebook.py` with desired name). 
 marimo edit my_notebook.py
 
 > Edit my_notebook.py in your browser 📝
->   ➜  URL: http://localhost:2718?access_token=Qfo_Hj2RbXqiqM4VT3XOwA 
+>   ➜  URL: http://localhost:2718?access_token=Qfo_Hj2RbXqiqM4VT3XOwA
 ```
 
 Here's a screenshot of the interface you should see:

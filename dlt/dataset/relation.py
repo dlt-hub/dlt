@@ -464,20 +464,6 @@ class Relation(WithSqlClient):
 
         Returns:
             Self: A new relation with the incremental filter applied.
-
-        Raises:
-            ValueError: If the cursor path is a JSONPath expression, if a dotted
-                cursor is used on a relation whose FROM is not a bare base table
-                (e.g. after `.from_loads()` or on a `.query(...)` relation), if
-                the referenced table is not in the dataset schema, or if
-                `last_value_func` is not `min` or `max`.
-
-        Notes:
-            Scheduler mode (`end_value` set): align window bounds to
-            bucket boundaries (misaligned bounds shift the result by a
-            bucket), use non-overlapping windows only, and re-run the
-            affected window manually to repair late data — `lag=` is
-            suppressed in this mode.
         """
         if self._incremental_ctx is not None:
             raise ValueError(
@@ -577,11 +563,8 @@ class Relation(WithSqlClient):
         return self._incremental_ctx is not None
 
     def _incremental_aggregate_relation(self) -> Optional[Self]:
-        """Return a relation computing `<last_value_func>(cursor)` over this relation.
-
-        Used by downstream lifecycle code (e.g. dlthub transformations) to advance
-        incremental state after the relation executes. Returns `None` when this
-        relation was not produced by `.incremental()`.
+        """Return a relation computing `<last_value_func>(cursor)` over this relation
+        or `None` if this relation is not incremental.
         """
         if self._incremental_ctx is None:
             return None
@@ -592,7 +575,7 @@ class Relation(WithSqlClient):
         )
         rel = self.__copy__()
         rel._sqlglot_expression = agg_query
-        # Derived relation — do not re-advance state from the aggregate itself.
+        # derived relation — do not re-advance state from the aggregate itself.
         rel._incremental_ctx = None
         return rel
 
