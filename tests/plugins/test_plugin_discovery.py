@@ -187,6 +187,7 @@ def test_cli_hook_host_filtering() -> None:
     # dlt-only built-ins + example plugin commands + legacy. No `ai` (dlthub-only) and no t_*.
     dlt_results: List[Optional[Type[SupportsCliCommand]]] = m.hook.plug_cli(host="dlt")
     assert top_level_names(dlt_results) == {
+        "ai",  # ai has moved... stub
         "init",
         "pipeline",
         "schema",
