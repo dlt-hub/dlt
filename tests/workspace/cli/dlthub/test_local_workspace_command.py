@@ -202,14 +202,14 @@ def test_dlthub_local_clean_parses(
 ) -> None:
     _, _, args = _parse_dlthub(monkeypatch, ["local", "clean"])
     assert args.local_op == "clean"
-    assert args.skip_data_dir is False
+    assert args.skip_local_data_dir is False
 
 
-def test_dlthub_local_clean_skip_data_dir(
+def test_dlthub_local_clean_skip_local_data_dir(
     auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _, _, args = _parse_dlthub(monkeypatch, ["local", "clean", "--skip-data-dir"])
-    assert args.skip_data_dir is True
+    _, _, args = _parse_dlthub(monkeypatch, ["local", "clean", "--skip-local-data-dir"])
+    assert args.skip_local_data_dir is True
 
 
 def test_dlthub_local_clean_rejects_profile_arg(
@@ -264,7 +264,7 @@ def test_dlthub_local_clean_deletes_dirs(
     assert not (Path(auto_isolated_workspace.local_dir) / "marker.txt").exists()
 
 
-def test_dlthub_local_clean_skip_data_dir_preserves_data(
+def test_dlthub_local_clean_skip_local_data_dir_preserves_local_data(
     auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from dlt._workspace.cli import echo as fmt
@@ -276,12 +276,12 @@ def test_dlthub_local_clean_skip_data_dir_preserves_data(
 
     monkeypatch.setattr(fmt, "ALWAYS_CONFIRM", True)
 
-    _, installed, args = _parse_dlthub(monkeypatch, ["local", "clean", "--skip-data-dir"])
+    _, installed, args = _parse_dlthub(monkeypatch, ["local", "clean", "--skip-local-data-dir"])
     installed["local"].execute(args)
 
-    # data_dir contents preserved; local_dir wiped (recreated empty)
-    assert (Path(auto_isolated_workspace.data_dir) / "marker.txt").exists()
-    assert not (Path(auto_isolated_workspace.local_dir) / "marker.txt").exists()
+    # locally loaded data (local_dir) preserved; pipelines working dir (data_dir) wiped
+    assert (Path(auto_isolated_workspace.local_dir) / "marker.txt").exists()
+    assert not (Path(auto_isolated_workspace.data_dir) / "marker.txt").exists()
 
 
 def test_dlthub_local_clean_user_declines_confirmation(
@@ -402,12 +402,13 @@ def test_dlthub_top_level_telemetry_removed(
         parser.parse_args(["telemetry"])
 
 
-def test_dlthub_top_level_info_parses(
+def test_dlthub_top_level_info_removed(
     auto_isolated_workspace: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _, installed, args = _parse_dlthub(monkeypatch, ["info"])
-    assert args.command == "info"
-    assert "info" in installed
+    # `info` only exists under `dlthub local info`, not top level
+    parser, _ = _build_dlthub_parser(monkeypatch, ["info"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["info"])
 
 
 @pytest.mark.parametrize(

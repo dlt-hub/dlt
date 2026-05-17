@@ -141,12 +141,13 @@ def _wipe_dir(
         os.makedirs(dir_path, exist_ok=True)
 
 
-def check_delete_local_data(run_context: RunContextBase, skip_data_dir: bool) -> List[str]:
+def check_delete_local_data(run_context: RunContextBase, skip_local_data_dir: bool) -> List[str]:
     """Display paths to be deleted and ask for confirmation.
 
     Args:
         run_context: current run context.
-        skip_data_dir: when True, do not include the data_dir in the deletion set.
+        skip_local_data_dir: when True, preserve `local_dir` (locally loaded data, e.g. DuckDB)
+            and only delete the pipelines working dir (`data_dir`).
 
     Returns:
         A list of run_context attribute names that should be deleted. Empty list if user cancels.
@@ -159,9 +160,10 @@ def check_delete_local_data(run_context: RunContextBase, skip_data_dir: bool) ->
         fmt.error("Cannot delete local data for a context without profiles")
         raise CliCommandException()
 
-    attrs: list[str] = ["local_dir"]
-    if not skip_data_dir:
-        attrs.append("data_dir")
+    attrs: list[str] = []
+    if not skip_local_data_dir:
+        attrs.append("local_dir")
+    attrs.append("data_dir")
 
     # ensure we never attempt to operate on run_dir or settings_dir
     for attr in attrs:

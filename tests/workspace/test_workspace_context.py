@@ -234,7 +234,7 @@ def test_workspace_pipeline() -> None:
 
         # test wipe function
         with always_choose(always_choose_default=False, always_choose_value=True):
-            delete_local_data(ctx, check_delete_local_data(ctx, skip_data_dir=False))
+            delete_local_data(ctx, check_delete_local_data(ctx, skip_local_data_dir=False))
         # must recreate pipeline
         pipeline = pipeline.drop()
         load_info = pipeline.run([{"foo": 1}, {"foo": 2}], table_name="table_foo")
