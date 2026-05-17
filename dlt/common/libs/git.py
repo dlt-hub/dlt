@@ -121,25 +121,32 @@ def clone_repo(
 
     from git import Repo
 
+    # disable background maintenance / commit-graph writes inside the new repo BEFORE
+    # the initial fetch runs.
+    disable_bg_writes = [
+        "--config=gc.auto=0",
+        "--config=maintenance.auto=false",
+        "--config=gc.writeCommitGraph=false",
+        "--config=fetch.writeCommitGraph=false",
+    ]
     if path is not None:
         # set of options that prevents downloading all blobs
         multi_options = [
             "--depth=1",
             "--filter=blob:none",
             "--no-checkout",
+            *disable_bg_writes,
         ]
     else:
-        multi_options = None
+        multi_options = list(disable_bg_writes)
     repo = Repo.clone_from(
         repository_url,
         clone_path,
         env=dict(GIT_SSH_COMMAND=with_git_command),
         multi_options=multi_options,
+        # allow for --config options
+        allow_unsafe_options=True,
     )
-    # disable auto-gc on this repo: a detached `git gc --auto` started by a later
-    # fetch/pull can keep writing into .git after our code returns, racing with cleanup
-    with repo.config_writer() as cw:
-        cw.set_value("gc", "auto", 0)
     # set up sparse mode to checkout paths on demand
     if path is not None:
         repo.git.sparse_checkout("init", "--cone")
