@@ -449,7 +449,7 @@ def init_pipeline_at_destination(
         else:
             if source_configuration.is_default_template:
                 fmt.echo(
-                    "NOTE: Could not find a dlt source or template wih the name %s. Selecting the"
+                    "NOTE: Could not find a dlt source or template with the name %s. Selecting the"
                     " default template." % (fmt.bold(source_name))
                 )
                 fmt.echo(
@@ -660,21 +660,16 @@ def _welcome_message(
         compiled_requirements = source_configuration.requirements.compiled()
         for dep in compiled_requirements:
             fmt.echo("  " + fmt.bold(dep))
-        if destination_type:
-            fmt.echo(
-                "  If the dlt dependency is already added, make sure you install the extra for %s"
-                " to it"
-                % fmt.bold(destination_type)
-            )
+        qs = "' '"
         if dependency_system == utils.REQUIREMENTS_TXT:
-            qs = "' '"
             fmt.echo(
                 "  To install with pip: %s"
                 % fmt.bold(f"pip3 install '{qs.join(compiled_requirements)}'")
             )
         elif dependency_system == utils.PYPROJECT_TOML:
-            fmt.echo("  If you are using poetry you may issue the following command:")
-            fmt.echo(fmt.bold("  poetry add %s -E %s" % (DLT_PKG_NAME, destination_type)))
+            fmt.echo(
+                "  To add with uv: %s" % fmt.bold(f"uv add '{qs.join(compiled_requirements)}'")
+            )
         fmt.echo()
     else:
         fmt.echo(
@@ -747,7 +742,6 @@ def _list_core_destinations() -> list[str]:
     return dlt.destinations.__all__
 
 
-@utils.track_command("init", False, "source_name", "destination_type")
 def init_command_wrapper(
     source_name: str,
     destination_type: str,

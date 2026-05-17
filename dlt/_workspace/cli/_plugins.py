@@ -2,7 +2,11 @@
 To add a new plugin here, do the following:
 1. create a new command class in like ie. `dlt._workspace.cli.dlthub.commands.ProfileCommand(SupportsCliCommand):`
 2. provide the implementation of command functions like ie. in `dlt._workspace.cli.dlthub._profile_command`
-3. remember to wrap command in telemetry ie. @utils.track_command("profile", track_before=False, operation="info")
+3. wrap command in telemetry. Single-host: decorate the controller, e.g.
+   `@utils.track_command("profile", False, operation="info")`. Cross-host (same controller
+   reached from both `dlt` and `dlthub`): leave it undecorated and wrap at the dispatch site,
+   e.g. `utils.track_command("local.pipeline", True, "operation")(fn)(...)`, so each path
+   emits its own event name. Active host is auto-attached as `host`.
 4. register the plugin here.
 5. no more imports in this module
 
@@ -22,10 +26,10 @@ __all__ = [
     "plug_cli_dashboard",
     "plug_cli_telemetry",
     "plug_cli_deploy",
+    "plug_cli_ai_moved",
     "plug_cli_ai",
     "plug_cli_dlthub_init",
     "plug_cli_dlthub_pipeline",
-    "plug_cli_dlthub_info",
     "plug_cli_dlthub_local",
     "plug_cli_dlthub_profile",
 ]
@@ -88,6 +92,14 @@ def plug_cli_deploy(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
 
 
 @plugins.hookimpl(specname="plug_cli")
+@only_host("dlt")
+def plug_cli_ai_moved(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
+    from dlt._workspace.cli.commands import make_moved_to_dlthub_command
+
+    return make_moved_to_dlthub_command("ai", "ai")
+
+
+@plugins.hookimpl(specname="plug_cli")
 @only_host("dlthub")
 def plug_cli_ai(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
     from dlt._workspace.cli.dlthub.commands import AiCommand
@@ -112,16 +124,6 @@ def plug_cli_dlthub_pipeline(host: str) -> Optional[Type[plugins.SupportsCliComm
     from dlt._workspace.cli.dlthub.commands import PipelineCommand
 
     return PipelineCommand
-
-
-@plugins.hookimpl(specname="plug_cli")
-@only_host("dlthub")
-def plug_cli_dlthub_info(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
-    if not is_workspace_active():
-        return None
-    from dlt._workspace.cli.dlthub.commands import InfoSubCommand
-
-    return InfoSubCommand
 
 
 @plugins.hookimpl(specname="plug_cli")

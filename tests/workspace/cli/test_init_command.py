@@ -653,7 +653,8 @@ def test_init_pyproject_toml(repo_dir: str, workspace_files: FileStorage) -> Non
         _out = buf.getvalue()
     assert "pyproject.toml" in _out
     assert "google-api-python-client" in _out
-    assert "poetry add dlt -E bigquery" in _out
+    assert "uv add" in _out
+    assert "dlt[bigquery]" in _out
 
 
 def test_init_requirements_text(repo_dir: str, workspace_files: FileStorage) -> None:

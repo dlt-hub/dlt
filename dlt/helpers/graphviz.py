@@ -162,9 +162,9 @@ def _get_graph_header(schema_name: str, include_dlt_tables: bool) -> str:
     """
     layout_root_table = f', root="{LOADS_TABLE_NAME}"' if include_dlt_tables else ""
     return f"""digraph {schema_name} {{
-    graph [fontname="helvetica", fontcolor="{{TABLE_BORDER_COLOR}}", rankdir="BT", ranksep=5, layout="twopi"{layout_root_table}];
+    graph [fontname="helvetica", fontcolor="{TABLE_BORDER_COLOR}", rankdir="BT", ranksep=5, layout="twopi"{layout_root_table}];
     node [penwidth=0, margin=0, fontname="helvetica"];
-    edge [fontname="helvetica", fontcolor="{{TABLE_BORDER_COLOR}}", color="{{TABLE_BORDER_COLOR}}"];
+    edge [fontname="helvetica", fontcolor="{TABLE_BORDER_COLOR}", color="{TABLE_BORDER_COLOR}"];
 
 """
 

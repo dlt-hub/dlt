@@ -1,6 +1,9 @@
 import sys
 import warnings
-from typing import Any, Optional, Sequence, Type, cast, List, Dict, Tuple
+from typing import IO, TYPE_CHECKING, Any, Optional, Sequence, Type, cast, List, Dict, Tuple
+
+if TYPE_CHECKING:
+    from _typeshed import SupportsWrite
 import argparse
 
 from dlt.version import __version__
@@ -49,20 +52,24 @@ def is_workspace_active() -> bool:
 def print_help(host: str, parser: argparse.ArgumentParser) -> None:
     if not ACTION_EXECUTED:
         parser.print_help()
-        _maybe_print_workspace_hint(host)
 
 
-def _maybe_print_workspace_hint(host: str) -> None:
-    """Reminder that dlthub hides commands until a workspace is initialised."""
-
-    # TODO: hookspec extension would let plugins emit their own hints here
+def _maybe_print_workspace_hint(host: str, *, file: Optional[IO[Any]] = None) -> None:
     if host == "dlthub" and not is_workspace_active():
-        fmt.echo()
-        fmt.note(
-            "Not all dlthub commands are visible. "
+        fmt.echo(file=file)
+        fmt.secho(
+            "NOTE: Not all dlthub commands are visible. "
             "Run %s to initialize workspace or %s for coding agent assist."
-            % (fmt.bold("dlthub init"), fmt.bold("dlthub ai init"))
+            % (fmt.bold("dlthub init"), fmt.bold("dlthub ai init")),
+            fg="green",
+            file=file,
         )
+
+
+class _HostAwareArgumentParser(argparse.ArgumentParser):
+    def print_help(self, file: 'Optional[SupportsWrite[str]]' = None) -> None:
+        super().print_help(file)
+        _maybe_print_workspace_hint(self.prog, file=cast(Optional[IO[Any]], file))
 
 
 class TelemetryAction(argparse.Action):
@@ -205,7 +212,7 @@ def _create_parser(
     argparse.ArgumentParser, argparse.ArgumentParser, Dict[str, _compose.ComposedExecutable]
 ]:
     pre_parser = _create_pre_parser()
-    parser = argparse.ArgumentParser(
+    parser = _HostAwareArgumentParser(
         prog=host,
         parents=[pre_parser],
         description=(
@@ -377,12 +384,12 @@ def main(host: str = "dlt") -> int:
 
 def _main() -> None:
     """Entry point for the `dlt` console script."""
-    # when workpsace is active, dlt commands mirrors dlthub
+    # when workspace is active, dlt commands mirrors dlthub
     if is_workspace_active():
         host = "dlthub"
         fmt.note(
             "Please use %s as top level command. Check `%s` for former dlt commands. "
-            "Falling back to dlhub command set."
+            "Falling back to dlthub command set."
             % (fmt.bold("dlthub"), fmt.bold("dlthub local --help"))
         )
         fmt.echo()

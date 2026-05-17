@@ -285,7 +285,7 @@ def test_confirm_no_default_under_non_interactive_raises() -> None:
         fmt.confirm("ok?")
 
 
-DLTHUB_WORKSPACE_ONLY = {"pipeline", "info", "local", "profile"}
+DLTHUB_WORKSPACE_ONLY = {"pipeline", "local", "profile"}
 DLTHUB_UNCONDITIONAL = {"init", "ai"}
 
 
@@ -313,6 +313,27 @@ def test_dlthub_outside_workspace_registers_slim_command_set(legacy_workspace_co
     assert not (
         DLTHUB_WORKSPACE_ONLY & set(installed)
     ), f"workspace-only commands leaked into OSS context: {DLTHUB_WORKSPACE_ONLY & set(installed)}"
+
+
+def test_dlt_ai_moved_to_dlthub_stub(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`dlt ai` is a stub that swallows argv and redirects to `dlthub ai`."""
+    # description (visible in --help) and the runtime warning both mention dlthub
+    _, _, installed = _create_parser("dlt")
+    assert "ai" in installed
+    assert "dlthub" in installed["ai"].description
+    assert "dlthub ai" in installed["ai"].description
+
+    # arbitrary trailing argv is swallowed via REMAINDER (no argparse error)
+    monkeypatch.setattr("sys.argv", ["dlt", "ai", "init", "--agent", "claude"])
+    rc = main("dlt")
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "`ai` command moved to dlthub" in combined
+    assert "dlthub ai" in combined
+    assert rc != 0
 
 
 @pytest.mark.parametrize(
@@ -415,47 +436,54 @@ def test_main_outside_workspace_no_handoff_note(
     assert "Please use" not in combined
 
 
-def test_dlthub_invalid_subcommand_outside_workspace_prints_hint(
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["dlthub"],
+        ["dlthub", "--help"],
+        ["dlthub", "login"],
+    ],
+    ids=["no-subcommand", "help-flag", "invalid-subcommand"],
+)
+def test_dlthub_help_outside_workspace_prints_hint(
     legacy_workspace_context,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    argv: List[str],
 ) -> None:
-    monkeypatch.setattr("sys.argv", ["dlthub", "pipeline"])
-    with pytest.raises(SystemExit) as ei:
+    """Every help-printing path on dlthub host outside a workspace appends the
+    workspace hint: bare invocation, `--help`, and unknown subcommand.
+    """
+    monkeypatch.setattr("sys.argv", argv)
+    try:
         main("dlthub")
-    assert ei.value.code == 2
+    except SystemExit:
+        pass
     captured = capsys.readouterr()
     combined = captured.out + captured.err
-    assert "invalid choice" in captured.err
     assert "Not all dlthub commands are visible" in combined
 
 
-def test_dlthub_invalid_subcommand_inside_workspace_no_hint(
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["dlthub"],
+        ["dlthub", "--help"],
+        ["dlthub", "nope_xyz"],
+    ],
+    ids=["no-subcommand", "help-flag", "invalid-subcommand"],
+)
+def test_dlthub_help_inside_workspace_no_hint(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    argv: List[str],
 ) -> None:
-    """Inside a workspace, all dlthub commands are visible — no hint on invalid choice."""
-    monkeypatch.setattr("sys.argv", ["dlthub", "nope_xyz"])
-    with pytest.raises(SystemExit) as ei:
+    """Inside a workspace all dlthub commands are visible — no hint anywhere."""
+    monkeypatch.setattr("sys.argv", argv)
+    try:
         main("dlthub")
-    assert ei.value.code == 2
+    except SystemExit:
+        pass
     captured = capsys.readouterr()
     combined = captured.out + captured.err
     assert "Not all dlthub commands are visible" not in combined
-
-
-def test_dlthub_no_subcommand_outside_workspace_prints_hint(
-    legacy_workspace_context,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """`dlthub` (no subcommand) falls into `else: print_help(host, parser)` which
-    appends the workspace hint. Argparse's own --help action exits before we
-    reach that wrapper, so we exercise the no-subcommand path here.
-    """
-    monkeypatch.setattr("sys.argv", ["dlthub"])
-    rc = main("dlthub")
-    assert rc == -1  # `else` branch returns -1
-    captured = capsys.readouterr()
-    combined = captured.out + captured.err
-    assert "Not all dlthub commands are visible" in combined

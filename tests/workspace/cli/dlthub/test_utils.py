@@ -27,7 +27,7 @@ from tests.workspace.utils import (
 
 
 @pytest.mark.parametrize(
-    "skip_data_dir,recreate_dirs",
+    "skip_local_data_dir,recreate_dirs",
     [
         (True, True),
         (True, False),
@@ -35,16 +35,16 @@ from tests.workspace.utils import (
         (False, False),
     ],
     ids=[
-        "skip-data|recreate",
-        "skip-data|no-recreate",
-        "with-data|recreate",
-        "with-data|no-recreate",
+        "skip-local-data|recreate",
+        "skip-local-data|no-recreate",
+        "with-local-data|recreate",
+        "with-local-data|no-recreate",
     ],
 )
 def test_delete_local_data_recreate_behavior(
     fruitshop_pipeline_context: RunContextBase,
     capsys: CaptureFixture[str],
-    skip_data_dir: bool,
+    skip_local_data_dir: bool,
     recreate_dirs: bool,
 ) -> None:
     """verify delete_local_data echoes actions and recreates dirs conditionally.
@@ -56,25 +56,25 @@ def test_delete_local_data_recreate_behavior(
 
     # list dirs to delete and auto-confirm
     with echo.always_choose(always_choose_default=False, always_choose_value=True):
-        attrs = check_delete_local_data(ctx, skip_data_dir=skip_data_dir)
+        attrs = check_delete_local_data(ctx, skip_local_data_dir=skip_local_data_dir)
     # perform deletion (which will only recreate when requested)
     delete_local_data(ctx, attrs, recreate_dirs=recreate_dirs)
 
-    # local_dir is always processed
-    assert os.path.isdir(ctx.local_dir) is recreate_dirs
+    # data_dir is always processed
+    assert os.path.isdir(ctx.data_dir) is recreate_dirs
 
-    # data_dir depends on skip_data_dir flag
-    expected_data_exists = skip_data_dir or recreate_dirs
-    assert os.path.isdir(ctx.data_dir) is expected_data_exists
+    # local_dir depends on skip_local_data_dir flag
+    expected_local_exists = skip_local_data_dir or recreate_dirs
+    assert os.path.isdir(ctx.local_dir) is expected_local_exists
 
     # capture and check user-facing messages from check_delete_local_data
     out = capsys.readouterr().out
     assert "The following dirs will be deleted:" in out
-    assert "(locally loaded data)" in out
-    if skip_data_dir:
-        assert "(pipeline working folders)" not in out
+    assert "(pipeline working folders)" in out
+    if skip_local_data_dir:
+        assert "(locally loaded data)" not in out
     else:
-        assert "(pipeline working folders)" in out
+        assert "(locally loaded data)" in out
 
 
 def test_delete_local_data_with_plain_run_context_raises(capsys: CaptureFixture[str]) -> None:
@@ -82,7 +82,7 @@ def test_delete_local_data_with_plain_run_context_raises(capsys: CaptureFixture[
     plain_ctx = RunContext(run_dir=".")
     with pytest.raises(CliCommandException):
         # should fail before any confirmation prompt
-        check_delete_local_data(plain_ctx, skip_data_dir=False)
+        check_delete_local_data(plain_ctx, skip_local_data_dir=False)
 
     out = capsys.readouterr().out
     assert "ERROR: Cannot delete local data for a context without profiles" in out
@@ -95,7 +95,7 @@ def _assert_protected_deletion(
     dir_attr: str,
     equals_attr: str,
     *,
-    skip_data: bool,
+    skip_local_data: bool,
 ) -> None:
     """helper to assert that attempting to delete a protected dir raises and logs an error."""
     # compute target path to match the protected attribute
@@ -106,7 +106,7 @@ def _assert_protected_deletion(
 
     # exercise and assert
     with pytest.raises(CliCommandException):
-        check_delete_local_data(ctx, skip_data_dir=skip_data)
+        check_delete_local_data(ctx, skip_local_data_dir=skip_local_data)
 
     out = capsys.readouterr().out
     label = "run dir (workspace root)" if equals_attr == "run_dir" else "settings dir"
@@ -114,12 +114,12 @@ def _assert_protected_deletion(
 
 
 @pytest.mark.parametrize(
-    "dir_attr,equals_attr,skip_data",
+    "dir_attr,equals_attr,skip_local_data",
     [
-        ("local_dir", "run_dir", True),
-        ("local_dir", "settings_dir", True),
-        ("data_dir", "run_dir", False),
-        ("data_dir", "settings_dir", False),
+        ("local_dir", "run_dir", False),
+        ("local_dir", "settings_dir", False),
+        ("data_dir", "run_dir", True),
+        ("data_dir", "settings_dir", True),
     ],
     ids=[
         "local_dir==run_dir",
@@ -134,14 +134,19 @@ def test_delete_local_data_protects_run_and_settings_dirs(
     monkeypatch: MonkeyPatch,
     dir_attr: str,
     equals_attr: str,
-    skip_data: bool,
+    skip_local_data: bool,
 ) -> None:
     """verify that delete_local_data refuses to delete run_dir or settings_dir via local/data dir.
 
     we patch the context so the target dir equals a protected dir and expect a CliCommandException.
     """
     _assert_protected_deletion(
-        fruitshop_pipeline_context, capsys, monkeypatch, dir_attr, equals_attr, skip_data=skip_data
+        fruitshop_pipeline_context,
+        capsys,
+        monkeypatch,
+        dir_attr,
+        equals_attr,
+        skip_local_data=skip_local_data,
     )
 
 
@@ -165,7 +170,7 @@ def test_delete_local_data_rejects_dirs_outside_run_dir(
     )
 
     with pytest.raises(CliCommandException):
-        check_delete_local_data(ctx, skip_data_dir=True)
+        check_delete_local_data(ctx, skip_local_data_dir=False)
 
     out = capsys.readouterr().out
     assert (
