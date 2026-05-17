@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlthub [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
     [--disable-telemetry] [--enable-telemetry] [--no-pwd]
-    {profile,pipeline,local,init,info,ai,workspace,show,serve,run,logout,login,job,deploy,dbt}
+    {workspace,show,serve,run,logout,login,job,deploy,dbt,profile,pipeline,local,init,ai}
     ...
 ```
 
@@ -51,21 +51,1124 @@ dlthub [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 * `--no-pwd` - Do not add current working directory to sys.path. by default $pwd is added to reproduce python behavior when running scripts.
 
 **Available subcommands**
+* [`workspace`](#dlthub-workspace) - Workspace operations: connect, list, info, show, deploy, deployment, configuration
+* [`show`](#dlthub-show) - Open the dlthub dashboard (alias for `dlthub workspace show`)
+* [`serve`](#dlthub-serve) - Deploy and serve an interactive notebook/app (alias for `dlthub job serve`)
+* [`run`](#dlthub-run) - Deploy code/config and run a script (alias for `dlthub job run`)
+* [`logout`](#dlthub-logout) - Log out from dlthub
+* [`login`](#dlthub-login) - Log in to dlthub (identity only)
+* [`job`](#dlthub-job) - Job operations: list, info, run, serve, trigger, publish, unpublish, logs, cancel, runs
+* [`deploy`](#dlthub-deploy) - Sync code/config and deploy jobs
+* [`dbt`](#dlthub-dbt) - Dlthub dbt transformation generator
 * [`profile`](#dlthub-profile) - Manage workspace built-in profiles
 * [`pipeline`](#dlthub-pipeline) - Interact with pipelines running in dlthub
 * [`local`](#dlthub-local) - Operations on the local workspace (run, serve, info, show, clean, schema, telemetry, pipeline)
 * [`init`](#dlthub-init) - Initialize a new dlthub workspace
-* [`info`](#dlthub-info) - Display combined workspace info (local + cloud)
 * [`ai`](#dlthub-ai) - Use ai-powered development tools and utilities
-* [`workspace`](#dlthub-workspace) - Workspace operations: connect, list, info, show, deploy, deployment, configuration
-* [`show`](#dlthub-show) - Open the dlthub dashboard (alias for `dlthub workspace show`)
-* [`serve`](#dlthub-serve) - Deploy and serve an interactive notebook/app (read-only) and follow until ready
-* [`run`](#dlthub-run) - Deploy code/config and run a script
-* [`logout`](#dlthub-logout) - Log out from dlthub
-* [`login`](#dlthub-login) - Log in to dlthub (identity only)
-* [`job`](#dlthub-job) - Job operations: list, info, trigger, publish, unpublish, logs, cancel, runs
-* [`deploy`](#dlthub-deploy) - Sync code/config and deploy jobs
-* [`dbt`](#dlthub-dbt) - Dlthub dbt transformation generator
+
+</details>
+
+## `dlthub workspace`
+
+Workspace operations: connect, list, info, show, deploy, deployment, configuration.
+
+**Usage**
+```sh
+dlthub workspace [-h] [--timestamps]
+    {list,connect,info,show,deploy,deployment,configuration} ...
+```
+
+**Description**
+
+Bind this project to a remote dltHub workspace and manage its deployments and configurations.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
+
+**Available subcommands**
+* [`list`](#dlthub-workspace-list) - List all workspaces you have access to
+* [`connect`](#dlthub-workspace-connect) - Connects local to a remote workspace by name or id
+* [`info`](#dlthub-workspace-info) - Show overview of current dlthub workspace (workspace, job count, latest run, latest deployment, latest configuration)
+* [`show`](#dlthub-workspace-show) - Open the dlthub dashboard (alias for `dlthub workspace show`)
+* [`deploy`](#dlthub-workspace-deploy) - Sync code/config and deploy jobs
+* [`deployment`](#dlthub-workspace-deployment) - Manipulate deployments in the workspace
+* [`configuration`](#dlthub-workspace-configuration) - Manipulate configurations in the workspace
+
+</details>
+
+### `dlthub workspace list`
+
+List all workspaces you have access to.
+
+**Usage**
+```sh
+dlthub workspace list [-h]
+```
+
+**Description**
+
+List all workspaces you have access to.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub workspace connect`
+
+Connects local to a remote workspace by name or ID.
+
+**Usage**
+```sh
+dlthub workspace connect [-h] [--create] [--org-id ORG_ID] [workspace]
+```
+
+**Description**
+
+Connects local and remote workspaces. Jobs, pipelines and code available locally can then be deployed, scheduled and run in remote workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
+
+**Positional arguments**
+* `workspace` - Workspace name or id to connect to. when omitted interactive picker will allow to select existing or create a new one
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--create` - 
+* `--org-id ORG_ID` - Organization uuid to scope the connection to. required in non-interactive mode when you belong to multiple organizations and local workspace has no organization pinned.
+
+</details>
+
+### `dlthub workspace info`
+
+Show overview of current dltHub workspace (workspace, job count, latest run, latest deployment, latest configuration).
+
+**Usage**
+```sh
+dlthub workspace info [-h]
+```
+
+**Description**
+
+Show workspace ID and summary of deployments, configurations and jobs.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub workspace show`
+
+Open the dltHub dashboard (alias for `dlthub workspace show`).
+
+**Usage**
+```sh
+dlthub workspace show [-h]
+```
+
+**Description**
+
+Open link to the dltHub dashboard for current remote workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub workspace deploy`
+
+Sync code/config and deploy jobs.
+
+**Usage**
+```sh
+dlthub workspace deploy [-h] [--file FILE] [--dry-run] [--show-manifest]
+```
+
+**Description**
+
+Sync workspace files, generate job manifest from __deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--dry-run` - Preview changes without applying them
+* `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
+
+</details>
+
+### `dlthub workspace deployment`
+
+Manipulate deployments in the workspace.
+
+**Usage**
+```sh
+dlthub workspace deployment [-h] [deployment_version_no] {list,info,sync} ...
+```
+
+**Description**
+
+Manipulate deployments in the workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
+
+**Positional arguments**
+* `deployment_version_no` - Deployment version number. only used in the `info` subcommand
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`list`](#dlthub-workspace-deployment-list) - List all deployments in workspace
+* [`info`](#dlthub-workspace-deployment-info) - Get detailed information about a deployment
+* [`sync`](#dlthub-workspace-deployment-sync) - Create new deployment if local workspace content changed
+
+</details>
+
+### `dlthub workspace deployment list`
+
+List all deployments in workspace.
+
+**Usage**
+```sh
+dlthub workspace deployment [deployment_version_no] list [-h]
+```
+
+**Description**
+
+List all deployments in workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace deployment`](#dlthub-workspace-deployment).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub workspace deployment info`
+
+Get detailed information about a deployment.
+
+**Usage**
+```sh
+dlthub workspace deployment [deployment_version_no] info [-h]
+```
+
+**Description**
+
+Get detailed information about a deployment.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace deployment`](#dlthub-workspace-deployment).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub workspace deployment sync`
+
+Create new deployment if local workspace content changed.
+
+**Usage**
+```sh
+dlthub workspace deployment [deployment_version_no] sync [-h] [--dry-run] [-v]
+```
+
+**Description**
+
+Create new deployment if local workspace content changed.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace deployment`](#dlthub-workspace-deployment).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--dry-run` - Compare local files to latest deployment without uploading
+* `-v, --verbose` - Print per-file added/updated/deleted tree alongside the summary
+
+</details>
+
+### `dlthub workspace configuration`
+
+Manipulate configurations in the workspace.
+
+**Usage**
+```sh
+dlthub workspace configuration [-h] [configuration_version_no] {list,info,sync}
+    ...
+```
+
+**Description**
+
+Manipulate configurations in the workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
+
+**Positional arguments**
+* `configuration_version_no` - Configuration version number. only used in the `info` subcommand
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`list`](#dlthub-workspace-configuration-list) - List all configuration versions
+* [`info`](#dlthub-workspace-configuration-info) - Get detailed information about a configuration
+* [`sync`](#dlthub-workspace-configuration-sync) - Create new configuration if local config content changed
+
+</details>
+
+### `dlthub workspace configuration list`
+
+List all configuration versions.
+
+**Usage**
+```sh
+dlthub workspace configuration [configuration_version_no] list [-h]
+```
+
+**Description**
+
+List all configuration versions.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace configuration`](#dlthub-workspace-configuration).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub workspace configuration info`
+
+Get detailed information about a configuration.
+
+**Usage**
+```sh
+dlthub workspace configuration [configuration_version_no] info [-h]
+```
+
+**Description**
+
+Get detailed information about a configuration.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace configuration`](#dlthub-workspace-configuration).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub workspace configuration sync`
+
+Create new configuration if local config content changed.
+
+**Usage**
+```sh
+dlthub workspace configuration [configuration_version_no] sync [-h] [--dry-run]
+    [-v]
+```
+
+**Description**
+
+Create new configuration if local config content changed.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace configuration`](#dlthub-workspace-configuration).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--dry-run` - Compare local config to latest configuration without uploading
+* `-v, --verbose` - Print per-file added/updated/deleted tree alongside the summary
+
+</details>
+
+## `dlthub show`
+
+Open the dltHub dashboard (alias for `dlthub workspace show`).
+
+**Usage**
+```sh
+dlthub show [-h]
+```
+
+**Description**
+
+Open link to the dltHub dashboard for current remote workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+## `dlthub serve`
+
+Deploy and serve an interactive notebook/app (alias for `dlthub job serve`).
+
+**Usage**
+```sh
+dlthub serve [-h] [--file FILE] [--timestamps] [-f] [--job-ref REF]
+    [selector_or_job_ref]
+```
+
+**Description**
+
+Deploy current workspace and run a notebook as a read-only web app. Shortcut for `dlthub job serve`.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Positional arguments**
+* `selector_or_job_ref` - Selector or job ref to pick an interactive app from the manifest
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
+* `-f, --follow` - Stream logs until the app stops
+* `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
+
+</details>
+
+## `dlthub run`
+
+Deploy code/config and run a script (alias for `dlthub job run`).
+
+**Usage**
+```sh
+dlthub run [-h] [--file FILE] [--timestamps] [-f] [--refresh] [--job-ref REF]
+    [selector_or_job_ref]
+```
+
+**Description**
+
+Deploy current workspace and run a batch script remotely. Use -f/--follow to tail logs until completion. Shortcut for `dlthub job run`.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Positional arguments**
+* `selector_or_job_ref` - Selector or job ref to pick a job from the manifest
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
+* `-f, --follow` - Follow status changes and stream logs until the run completes
+* `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
+* `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
+
+</details>
+
+## `dlthub logout`
+
+Log out from dltHub.
+
+**Usage**
+```sh
+dlthub logout [-h]
+```
+
+**Description**
+
+Log out from dltHub.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+## `dlthub login`
+
+Log in to dltHub (identity only).
+
+**Usage**
+```sh
+dlthub login [-h] [--resume DEVICE_CODE]
+```
+
+**Description**
+
+Log in to dltHub. Authenticates the current user; does not connect a workspace. Run `dlthub workspace connect` to bind this project to a remote workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--resume DEVICE_CODE` - Resume a previously started device flow login. the device_code is printed by `dlthub login` when no tty is attached.
+
+</details>
+
+## `dlthub job`
+
+Job operations: list, info, run, serve, trigger, publish, unpublish, logs, cancel, runs.
+
+**Usage**
+```sh
+dlthub job [-h] [--timestamps]
+    {list,info,show,trigger,publish,unpublish,logs,cancel,runs,serve,run} ...
+```
+
+**Description**
+
+List and operate on jobs registered in the connected workspace, plus their runs.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
+
+**Available subcommands**
+* [`list`](#dlthub-job-list) - List jobs (filter with selectors: batch, schedule:*, tag:ops, ...)
+* [`info`](#dlthub-job-info) - Show job info
+* [`show`](#dlthub-job-show) - Open the job page in the web gui
+* [`trigger`](#dlthub-job-trigger) - Trigger jobs matching selectors (does not sync or deploy)
+* [`publish`](#dlthub-job-publish) - Generate or revoke a public link for an interactive notebook/app
+* [`unpublish`](#dlthub-job-unpublish) - Revoke the public link for an interactive notebook/app
+* [`logs`](#dlthub-job-logs) - Show logs for latest or selected job run
+* [`cancel`](#dlthub-job-cancel) - Cancel active runs for matching jobs
+* [`runs`](#dlthub-job-runs) - Manage job runs: list, info, logs, cancel
+* [`serve`](#dlthub-job-serve) - Deploy and serve an interactive notebook/app
+* [`run`](#dlthub-job-run) - Deploy code/config and run a batch job
+
+</details>
+
+### `dlthub job list`
+
+List jobs (filter with selectors: batch, schedule:*, tag:ops, ...).
+
+**Usage**
+```sh
+dlthub job list [-h] [--archived] [selector_or_job_name ...]
+```
+
+**Description**
+
+List jobs registered in the workspace. Pass selectors to filter: batch, interactive, schedule:*, tag:&lt;name&gt;, manual:*, etc.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `selector_or_job_name` - Selector(s) or job name(s) used to filter the listing
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--archived` - Include archived jobs in the listing (hidden by default)
+
+</details>
+
+### `dlthub job info`
+
+Show job info.
+
+**Usage**
+```sh
+dlthub job info [-h] [selector_or_job_name]
+```
+
+**Description**
+
+Display detailed information about the job.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `selector_or_job_name` - Job name, script path, or selector identifying the job
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub job show`
+
+Open the job page in the web GUI.
+
+**Usage**
+```sh
+dlthub job show [-h] [selector_or_job_name]
+```
+
+**Description**
+
+Print the URL of the job page in the dltHub dashboard and open it in a browser when interactive.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `selector_or_job_name` - Job name, script path, or selector identifying the job
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub job trigger`
+
+Trigger jobs matching selectors (does not sync or deploy).
+
+**Usage**
+```sh
+dlthub job trigger [-h] [--dry-run] [--profile PROFILE] [--refresh] selectors
+    [selectors ...]
+```
+
+**Description**
+
+Trigger runs for jobs matching the given selectors. Can select only jobs already deployed. Does not sync code or deploy jobs. Examples: 'tag:backfill', 'manual:jobs.etl.*', 'schedule:*'.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `selectors` - Trigger selectors (fnmatch patterns), e.g. 'tag:backfill', 'manual:jobs.etl.*'
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--dry-run` - Preview matched jobs without creating runs
+* `--profile PROFILE` - Profile override for all triggered runs
+* `--refresh` - Force a refresh on every triggered job (jobs skipped by freshness are not refreshed).
+
+</details>
+
+### `dlthub job publish`
+
+Generate or revoke a public link for an interactive notebook/app.
+
+**Usage**
+```sh
+dlthub job publish [-h] [--cancel] script_path
+```
+
+**Description**
+
+Generate a public link for a notebook/app, or revoke it with --cancel.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `script_path` - Local path to the notebook/app
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--cancel` - Revoke the public link for the notebook/app
+
+</details>
+
+### `dlthub job unpublish`
+
+Revoke the public link for an interactive notebook/app.
+
+**Usage**
+```sh
+dlthub job unpublish [-h] script_path
+```
+
+**Description**
+
+Revoke the public link for an interactive notebook/app.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `script_path` - Local path to the notebook/app
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub job logs`
+
+Show logs for latest or selected job run.
+
+**Usage**
+```sh
+dlthub job logs [-h] [-f] selector_or_job_name [run_number]
+```
+
+**Description**
+
+Show logs for the latest run of a job or a specific run number. Use -f/--follow to stream logs in real-time.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `selector_or_job_name` - Job name, script path, or selector (e.g. batch, schedule:*).
+* `run_number` - Run number (optional)
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `-f, --follow` - Follow logs in real-time until the run completes
+
+</details>
+
+### `dlthub job cancel`
+
+Cancel active runs for matching jobs.
+
+**Usage**
+```sh
+dlthub job cancel [-h] [--dry-run] selector_or_job_name [selector_or_job_name
+    ...]
+```
+
+**Description**
+
+Cancel active (non-terminal) runs for jobs matching selectors or names. Multiple values cancel active runs for all matching jobs. Use --dry-run to preview.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `selector_or_job_name` - Job name, script path, or selector (e.g. batch, schedule:*).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--dry-run` - Show what would be cancelled without actually cancelling
+
+</details>
+
+### `dlthub job runs`
+
+Manage job runs: list, info, logs, cancel.
+
+**Usage**
+```sh
+dlthub job runs [-h] {list,info,logs,show,cancel} ...
+```
+
+**Description**
+
+Operate on runs of a job: list runs, show info, stream logs, cancel.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`list`](#dlthub-job-runs-list) - List job runs (filter with a selector: batch, schedule:*, ...)
+* [`info`](#dlthub-job-runs-info) - Show job run info
+* [`logs`](#dlthub-job-runs-logs) - Show logs for the latest or selected job run
+* [`show`](#dlthub-job-runs-show) - Open the job run page in the web gui
+* [`cancel`](#dlthub-job-runs-cancel) - Cancel the latest or selected job run
+
+</details>
+
+### `dlthub job runs list`
+
+List job runs (filter with a selector: batch, schedule:*, ...).
+
+**Usage**
+```sh
+dlthub job runs list [-h] [--running] [selector_or_job_name]
+```
+
+**Description**
+
+List job runs registered in the workspace. Pass a selector to filter by matching jobs.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
+
+**Positional arguments**
+* `selector_or_job_name` - Selector or job name to filter runs by
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--running` - Show only runs that are not in a terminal state
+
+</details>
+
+### `dlthub job runs info`
+
+Show job run info.
+
+**Usage**
+```sh
+dlthub job runs info [-h] selector_or_job_name [run_number]
+```
+
+**Description**
+
+Display detailed information about the job run.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
+
+**Positional arguments**
+* `selector_or_job_name` - Job name, script path, or selector
+* `run_number` - Run number (defaults to latest run of the given job)
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub job runs logs`
+
+Show logs for the latest or selected job run.
+
+**Usage**
+```sh
+dlthub job runs logs [-h] [-f] selector_or_job_name [run_number]
+```
+
+**Description**
+
+Show logs for the latest or selected job run. Use -f/--follow to stream logs in real-time until completion.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
+
+**Positional arguments**
+* `selector_or_job_name` - Job name, script path, or selector
+* `run_number` - Run number (defaults to latest run)
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `-f, --follow` - Follow logs in real-time until the run completes
+
+</details>
+
+### `dlthub job runs show`
+
+Open the job run page in the web GUI.
+
+**Usage**
+```sh
+dlthub job runs show [-h] selector_or_job_name [run_number]
+```
+
+**Description**
+
+Print the URL of the job run page in the dltHub dashboard and open it in a browser when interactive.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
+
+**Positional arguments**
+* `selector_or_job_name` - Job name, script path, or selector
+* `run_number` - Run number (defaults to latest run of the given job)
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub job runs cancel`
+
+Cancel the latest or selected job run.
+
+**Usage**
+```sh
+dlthub job runs cancel [-h] selector_or_job_name [run_number]
+```
+
+**Description**
+
+Cancel the latest or selected job run.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
+
+**Positional arguments**
+* `selector_or_job_name` - Job name, script path, or selector
+* `run_number` - Run number (defaults to latest run)
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub job serve`
+
+Deploy and serve an interactive notebook/app.
+
+**Usage**
+```sh
+dlthub job serve [-h] [--file FILE] [--timestamps] [-f] [--job-ref REF]
+    [selector_or_job_ref]
+```
+
+**Description**
+
+Deploy current workspace and run a notebook as a read-only web app.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `selector_or_job_ref` - Selector or job ref to pick an interactive app from the manifest
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
+* `-f, --follow` - Stream logs until the app stops
+* `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
+
+</details>
+
+### `dlthub job run`
+
+Deploy code/config and run a batch job.
+
+**Usage**
+```sh
+dlthub job run [-h] [--file FILE] [--timestamps] [-f] [--refresh] [--job-ref
+    REF] [selector_or_job_ref]
+```
+
+**Description**
+
+Deploy current workspace and run a batch script remotely. Use -f/--follow to tail logs until completion.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `selector_or_job_ref` - Selector or job ref to pick a job from the manifest
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
+* `-f, --follow` - Follow status changes and stream logs until the run completes
+* `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
+* `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
+
+</details>
+
+## `dlthub deploy`
+
+Sync code/config and deploy jobs.
+
+**Usage**
+```sh
+dlthub deploy [-h] [--timestamps] [--file FILE] [--dry-run] [--show-manifest]
+```
+
+**Description**
+
+Sync workspace files, generate job manifest from __deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
+* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--dry-run` - Preview changes without applying them
+* `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
+
+</details>
+
+## `dlthub dbt`
+
+dlthub dbt transformation generator.
+
+**Usage**
+```sh
+dlthub dbt [-h] {generate} ...
+```
+
+**Description**
+
+dlthub dbt transformation generator.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`generate`](#dlthub-dbt-generate) - Generate dbt project
+
+</details>
+
+### `dlthub dbt generate`
+
+Generate dbt project.
+
+**Usage**
+```sh
+dlthub dbt generate [-h] [--include_dlt_tables] [--fact [FACT]] [--force]
+    [--mart_table_prefix [MART_TABLE_PREFIX]] pipeline_name
+```
+
+**Description**
+
+Generate dbt project.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub dbt`](#dlthub-dbt).
+
+**Positional arguments**
+* `pipeline_name` - The pipeline to create a dbt project for
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--include_dlt_tables` - Do not render _dlt tables
+* `--fact [FACT]` - Create a fact table for a given table
+* `--force` - Force overwrite of existing files
+* `--mart_table_prefix [MART_TABLE_PREFIX]` - Prefix for mart tables
 
 </details>
 
@@ -437,7 +1540,7 @@ Clean local data for the current profile. Locally loaded data and pipelines work
 
 **Usage**
 ```sh
-dlthub local clean [-h] [--skip-data-dir]
+dlthub local clean [-h] [--skip-local-data-dir]
 ```
 
 **Description**
@@ -452,7 +1555,7 @@ Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--skip-data-dir` - Do not delete pipelines working dir.
+* `--skip-local-data-dir` - Does not delete locally loaded data but removes pipeline working dirs.
 
 </details>
 
@@ -522,7 +1625,7 @@ dlthub local schema [-h] [--format {json,yaml,dbml,dot,mermaid}]
 
 **Description**
 
-The `dlt schema` command will load, validate and print out a dlt schema: `dlt schema path/to/my_schema_file.yaml`.
+Loads, validates and prints out a dlt schema from a yaml or json file.
 
 <details>
 
@@ -551,7 +1654,7 @@ dlthub local telemetry [-h]
 
 **Description**
 
-The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
+Shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
 
 <details>
 
@@ -764,8 +1867,8 @@ dlthub local pipeline drop-pending-packages [-h] [pipeline_name]
 
 Removes all extracted and normalized packages in the pipeline's working dir.
 `dlt` keeps extracted and normalized load packages in the pipeline working directory. When the `run` method is called, it will attempt to normalize and load
-pending packages first. The command above removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
-were created. Using `dlt pipeline ... sync` is recommended if your destination supports state sync.
+pending packages first. This command removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
+were created. Using the `sync` sub-command is recommended if your destination supports state sync.
 
 <details>
 
@@ -797,10 +1900,10 @@ This command will remove the pipeline working directory with all pending package
 state changes, and schemas and retrieve the last synchronized data from the destination. If you drop
 the dataset the pipeline is loading to, this command results in a complete reset of the pipeline state.
 
-In case of a pipeline without a working directory, the command may be used to create one from the
+In case of a pipeline without a working directory, this command may be used to create one from the
 destination. In order to do that, you need to pass the dataset name and destination name to the CLI
 and provide the credentials to connect to the destination (i.e., in `.dlt/secrets.toml`) placed in the
-folder where you execute the `pipeline sync` command.
+folder where you run it.
 
 <details>
 
@@ -999,7 +2102,7 @@ dlthub local pipeline load-package [-h] [pipeline_name] [load-id]
 Shows information on a load package with a given `load_id`. The `load_id` parameter defaults to the
 most recent package. Package information includes its state (`COMPLETED/PROCESSED`) and list of all
 jobs in a package with their statuses, file sizes, types, and in case of failed jobs—the error
-messages from the destination. With the verbose flag set `dlt pipeline -v ...`, you can also see the
+messages from the destination. With the verbose flag set (`-v`), you can also see the
 list of all tables and columns created at the destination during the loading of that package.
 
 <details>
@@ -1046,30 +2149,6 @@ Inherits arguments from [`dlthub`](#dlthub).
 
 </details>
 
-## `dlthub info`
-
-Display combined workspace info (local + cloud).
-
-**Usage**
-```sh
-dlthub info [-h]
-```
-
-**Description**
-
-Display combined workspace info (local + cloud).
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
 ## `dlthub ai`
 
 Use AI-powered development tools and utilities.
@@ -1081,7 +2160,7 @@ dlthub ai [-h] {status,init,secrets,toolkit,mcp} ...
 
 **Description**
 
-The `dlt ai` command provides commands to configure your LLM-enabled IDE and MCP server.
+Configure your LLM-enabled IDE and MCP server.
 
 <details>
 
@@ -1465,1041 +2544,6 @@ Inherits arguments from [`dlthub ai mcp`](#dlthub-ai-mcp).
 * `--features [FEATURES ...]` - Mcp feature sets to include in the server config
 * `--name NAME` - Server name in the mcp config (default: dlt-workspace)
 * `--overwrite` - Overwrite existing server config instead of skipping.
-
-</details>
-
-## `dlthub workspace`
-
-Workspace operations: connect, list, info, show, deploy, deployment, configuration.
-
-**Usage**
-```sh
-dlthub workspace [-h] [--timestamps]
-    {list,connect,info,show,deploy,deployment,configuration} ...
-```
-
-**Description**
-
-Bind this project to a remote dltHub workspace and manage its deployments and configurations.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
-
-**Available subcommands**
-* [`list`](#dlthub-workspace-list) - List all workspaces you have access to
-* [`connect`](#dlthub-workspace-connect) - Connect this project to a workspace by name or id
-* [`info`](#dlthub-workspace-info) - Show overview of current dlthub workspace (workspace, job count, latest run, latest deployment, latest configuration)
-* [`show`](#dlthub-workspace-show) - Open the dlthub dashboard (alias for `dlthub workspace show`)
-* [`deploy`](#dlthub-workspace-deploy) - Sync code/config and deploy jobs
-* [`deployment`](#dlthub-workspace-deployment) - Manipulate deployments in the workspace
-* [`configuration`](#dlthub-workspace-configuration) - Manipulate configurations in the workspace
-
-</details>
-
-### `dlthub workspace list`
-
-List all workspaces you have access to.
-
-**Usage**
-```sh
-dlthub workspace list [-h]
-```
-
-**Description**
-
-List all workspaces you have access to.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub workspace connect`
-
-Connect this project to a workspace by name or ID.
-
-**Usage**
-```sh
-dlthub workspace connect [-h] [--org-id ORG_ID] [workspace]
-```
-
-**Description**
-
-Bind the current project's local config to a remote workspace. Persists workspace_id (and organization_id on first connect) in .dlt/config.toml.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
-
-**Positional arguments**
-* `workspace` - Workspace name or id to connect to. if omitted, an interactive picker is shown with an option to create a new workspace.
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--org-id ORG_ID` - Organization uuid to scope the connection to. required in non-interactive mode when you belong to multiple organizations and the workspace is not yet bound.
-
-</details>
-
-### `dlthub workspace info`
-
-Show overview of current dltHub workspace (workspace, job count, latest run, latest deployment, latest configuration).
-
-**Usage**
-```sh
-dlthub workspace info [-h]
-```
-
-**Description**
-
-Show workspace ID and summary of deployments, configurations and jobs.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub workspace show`
-
-Open the dltHub dashboard (alias for `dlthub workspace show`).
-
-**Usage**
-```sh
-dlthub workspace show [-h]
-```
-
-**Description**
-
-Open link to the dltHub dashboard for current remote workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub workspace deploy`
-
-Sync code/config and deploy jobs.
-
-**Usage**
-```sh
-dlthub workspace deploy [-h] [--file FILE] [--dry-run] [--show-manifest]
-```
-
-**Description**
-
-Sync workspace files, generate job manifest from __deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
-* `--dry-run` - Preview changes without applying them
-* `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
-
-</details>
-
-### `dlthub workspace deployment`
-
-Manipulate deployments in the workspace.
-
-**Usage**
-```sh
-dlthub workspace deployment [-h] [deployment_version_no] {list,info,sync} ...
-```
-
-**Description**
-
-Manipulate deployments in the workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
-
-**Positional arguments**
-* `deployment_version_no` - Deployment version number. only used in the `info` subcommand
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`list`](#dlthub-workspace-deployment-list) - List all deployments in workspace
-* [`info`](#dlthub-workspace-deployment-info) - Get detailed information about a deployment
-* [`sync`](#dlthub-workspace-deployment-sync) - Create new deployment if local workspace content changed
-
-</details>
-
-### `dlthub workspace deployment list`
-
-List all deployments in workspace.
-
-**Usage**
-```sh
-dlthub workspace deployment [deployment_version_no] list [-h]
-```
-
-**Description**
-
-List all deployments in workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace deployment`](#dlthub-workspace-deployment).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub workspace deployment info`
-
-Get detailed information about a deployment.
-
-**Usage**
-```sh
-dlthub workspace deployment [deployment_version_no] info [-h]
-```
-
-**Description**
-
-Get detailed information about a deployment.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace deployment`](#dlthub-workspace-deployment).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub workspace deployment sync`
-
-Create new deployment if local workspace content changed.
-
-**Usage**
-```sh
-dlthub workspace deployment [deployment_version_no] sync [-h] [--dry-run] [-v]
-```
-
-**Description**
-
-Create new deployment if local workspace content changed.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace deployment`](#dlthub-workspace-deployment).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--dry-run` - Compare local files to latest deployment without uploading
-* `-v, --verbose` - Print per-file added/updated/deleted tree alongside the summary
-
-</details>
-
-### `dlthub workspace configuration`
-
-Manipulate configurations in the workspace.
-
-**Usage**
-```sh
-dlthub workspace configuration [-h] [configuration_version_no] {list,info,sync}
-    ...
-```
-
-**Description**
-
-Manipulate configurations in the workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
-
-**Positional arguments**
-* `configuration_version_no` - Configuration version number. only used in the `info` subcommand
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`list`](#dlthub-workspace-configuration-list) - List all configuration versions
-* [`info`](#dlthub-workspace-configuration-info) - Get detailed information about a configuration
-* [`sync`](#dlthub-workspace-configuration-sync) - Create new configuration if local config content changed
-
-</details>
-
-### `dlthub workspace configuration list`
-
-List all configuration versions.
-
-**Usage**
-```sh
-dlthub workspace configuration [configuration_version_no] list [-h]
-```
-
-**Description**
-
-List all configuration versions.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace configuration`](#dlthub-workspace-configuration).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub workspace configuration info`
-
-Get detailed information about a configuration.
-
-**Usage**
-```sh
-dlthub workspace configuration [configuration_version_no] info [-h]
-```
-
-**Description**
-
-Get detailed information about a configuration.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace configuration`](#dlthub-workspace-configuration).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub workspace configuration sync`
-
-Create new configuration if local config content changed.
-
-**Usage**
-```sh
-dlthub workspace configuration [configuration_version_no] sync [-h] [--dry-run]
-    [-v]
-```
-
-**Description**
-
-Create new configuration if local config content changed.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub workspace configuration`](#dlthub-workspace-configuration).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--dry-run` - Compare local config to latest configuration without uploading
-* `-v, --verbose` - Print per-file added/updated/deleted tree alongside the summary
-
-</details>
-
-## `dlthub show`
-
-Open the dltHub dashboard (alias for `dlthub workspace show`).
-
-**Usage**
-```sh
-dlthub show [-h]
-```
-
-**Description**
-
-Open link to the dltHub dashboard for current remote workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-## `dlthub serve`
-
-Deploy and serve an interactive notebook/app (read-only) and follow until ready.
-
-**Usage**
-```sh
-dlthub serve [-h] [--file FILE] [--timestamps] [-f] [--job-ref REF]
-    [selector_or_job_ref]
-```
-
-**Description**
-
-Deploy current workspace and run a notebook as a read-only web app.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Positional arguments**
-* `selector_or_job_ref` - Selector or job ref to pick an interactive app from the manifest
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
-* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
-* `-f, --follow` - Stream logs until the app stops
-* `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
-
-</details>
-
-## `dlthub run`
-
-Deploy code/config and run a script.
-
-**Usage**
-```sh
-dlthub run [-h] [--file FILE] [--timestamps] [-f] [--refresh] [--job-ref REF]
-    [selector_or_job_ref]
-```
-
-**Description**
-
-Deploy current workspace and run a batch script remotely. Use -f/--follow to tail logs until completion.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Positional arguments**
-* `selector_or_job_ref` - Selector or job ref to pick a job from the manifest
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
-* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
-* `-f, --follow` - Follow status changes and stream logs until the run completes
-* `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
-* `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
-
-</details>
-
-## `dlthub logout`
-
-Log out from dltHub.
-
-**Usage**
-```sh
-dlthub logout [-h]
-```
-
-**Description**
-
-Log out from dltHub.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-## `dlthub login`
-
-Log in to dltHub (identity only).
-
-**Usage**
-```sh
-dlthub login [-h] [--resume DEVICE_CODE]
-```
-
-**Description**
-
-Log in to dltHub. Authenticates the current user; does not connect a workspace. Run `dlthub workspace connect` to bind this project to a remote workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--resume DEVICE_CODE` - Resume a previously started device flow login. the device_code is printed by `dlthub login` when no tty is attached.
-
-</details>
-
-## `dlthub job`
-
-Job operations: list, info, trigger, publish, unpublish, logs, cancel, runs.
-
-**Usage**
-```sh
-dlthub job [-h] [--timestamps]
-    {list,info,show,trigger,publish,unpublish,logs,cancel,runs} ...
-```
-
-**Description**
-
-List and operate on jobs registered in the connected workspace, plus their runs.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
-
-**Available subcommands**
-* [`list`](#dlthub-job-list) - List jobs (filter with selectors: batch, schedule:*, tag:ops, ...)
-* [`info`](#dlthub-job-info) - Show job info
-* [`show`](#dlthub-job-show) - Open the job page in the web gui
-* [`trigger`](#dlthub-job-trigger) - Trigger jobs matching selectors (does not sync or deploy)
-* [`publish`](#dlthub-job-publish) - Generate or revoke a public link for an interactive notebook/app
-* [`unpublish`](#dlthub-job-unpublish) - Revoke the public link for an interactive notebook/app
-* [`logs`](#dlthub-job-logs) - Show logs for latest or selected job run
-* [`cancel`](#dlthub-job-cancel) - Cancel active runs for matching jobs
-* [`runs`](#dlthub-job-runs) - Manage job runs: list, info, logs, cancel
-
-</details>
-
-### `dlthub job list`
-
-List jobs (filter with selectors: batch, schedule:*, tag:ops, ...).
-
-**Usage**
-```sh
-dlthub job list [-h] [selector_or_job_name ...]
-```
-
-**Description**
-
-List jobs registered in the workspace. Pass selectors to filter: batch, interactive, schedule:*, tag:&lt;name&gt;, manual:*, etc.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job`](#dlthub-job).
-
-**Positional arguments**
-* `selector_or_job_name` - Selector(s) or job name(s) used to filter the listing
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub job info`
-
-Show job info.
-
-**Usage**
-```sh
-dlthub job info [-h] [selector_or_job_name]
-```
-
-**Description**
-
-Display detailed information about the job.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job`](#dlthub-job).
-
-**Positional arguments**
-* `selector_or_job_name` - Job name, script path, or selector identifying the job
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub job show`
-
-Open the job page in the web GUI.
-
-**Usage**
-```sh
-dlthub job show [-h] [selector_or_job_name]
-```
-
-**Description**
-
-Print the URL of the job page in the dltHub dashboard and open it in a browser when interactive.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job`](#dlthub-job).
-
-**Positional arguments**
-* `selector_or_job_name` - Job name, script path, or selector identifying the job
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub job trigger`
-
-Trigger jobs matching selectors (does not sync or deploy).
-
-**Usage**
-```sh
-dlthub job trigger [-h] [--dry-run] [--profile PROFILE] [--refresh] selectors
-    [selectors ...]
-```
-
-**Description**
-
-Trigger runs for jobs matching the given selectors. Does not sync code or deploy jobs. Examples: 'tag:backfill', 'manual:jobs.etl.*', 'schedule:*'.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job`](#dlthub-job).
-
-**Positional arguments**
-* `selectors` - Trigger selectors (fnmatch patterns), e.g. 'tag:backfill', 'manual:jobs.etl.*'
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--dry-run` - Preview matched jobs without creating runs
-* `--profile PROFILE` - Profile override for all triggered runs
-* `--refresh` - Force a refresh on every triggered job (jobs skipped by freshness are not refreshed).
-
-</details>
-
-### `dlthub job publish`
-
-Generate or revoke a public link for an interactive notebook/app.
-
-**Usage**
-```sh
-dlthub job publish [-h] [--cancel] script_path
-```
-
-**Description**
-
-Generate a public link for a notebook/app, or revoke it with --cancel.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job`](#dlthub-job).
-
-**Positional arguments**
-* `script_path` - Local path to the notebook/app
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--cancel` - Revoke the public link for the notebook/app
-
-</details>
-
-### `dlthub job unpublish`
-
-Revoke the public link for an interactive notebook/app.
-
-**Usage**
-```sh
-dlthub job unpublish [-h] script_path
-```
-
-**Description**
-
-Revoke the public link for an interactive notebook/app.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job`](#dlthub-job).
-
-**Positional arguments**
-* `script_path` - Local path to the notebook/app
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub job logs`
-
-Show logs for latest or selected job run.
-
-**Usage**
-```sh
-dlthub job logs [-h] [-f] selector_or_job_name [run_number]
-```
-
-**Description**
-
-Show logs for the latest run of a job or a specific run number. Use -f/--follow to stream logs in real-time.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job`](#dlthub-job).
-
-**Positional arguments**
-* `selector_or_job_name` - Job name, script path, or selector (e.g. batch, schedule:*).
-* `run_number` - Run number (optional)
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `-f, --follow` - Follow logs in real-time until the run completes
-
-</details>
-
-### `dlthub job cancel`
-
-Cancel active runs for matching jobs.
-
-**Usage**
-```sh
-dlthub job cancel [-h] [--dry-run] selector_or_job_name [selector_or_job_name
-    ...]
-```
-
-**Description**
-
-Cancel active (non-terminal) runs for jobs matching selectors or names. Multiple values cancel active runs for all matching jobs. Use --dry-run to preview.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job`](#dlthub-job).
-
-**Positional arguments**
-* `selector_or_job_name` - Job name, script path, or selector (e.g. batch, schedule:*).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--dry-run` - Show what would be cancelled without actually cancelling
-
-</details>
-
-### `dlthub job runs`
-
-Manage job runs: list, info, logs, cancel.
-
-**Usage**
-```sh
-dlthub job runs [-h] {list,info,logs,show,cancel} ...
-```
-
-**Description**
-
-Operate on runs of a job: list runs, show info, stream logs, cancel.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job`](#dlthub-job).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`list`](#dlthub-job-runs-list) - List job runs (filter with a selector: batch, schedule:*, ...)
-* [`info`](#dlthub-job-runs-info) - Show job run info
-* [`logs`](#dlthub-job-runs-logs) - Show logs for the latest or selected job run
-* [`show`](#dlthub-job-runs-show) - Open the job run page in the web gui
-* [`cancel`](#dlthub-job-runs-cancel) - Cancel the latest or selected job run
-
-</details>
-
-### `dlthub job runs list`
-
-List job runs (filter with a selector: batch, schedule:*, ...).
-
-**Usage**
-```sh
-dlthub job runs list [-h] [--running] [selector_or_job_name]
-```
-
-**Description**
-
-List job runs registered in the workspace. Pass a selector to filter by matching jobs.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
-
-**Positional arguments**
-* `selector_or_job_name` - Selector or job name to filter runs by
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--running` - Show only runs that are not in a terminal state
-
-</details>
-
-### `dlthub job runs info`
-
-Show job run info.
-
-**Usage**
-```sh
-dlthub job runs info [-h] selector_or_job_name [run_number]
-```
-
-**Description**
-
-Display detailed information about the job run.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
-
-**Positional arguments**
-* `selector_or_job_name` - Job name, script path, or selector
-* `run_number` - Run number (defaults to latest run of the given job)
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub job runs logs`
-
-Show logs for the latest or selected job run.
-
-**Usage**
-```sh
-dlthub job runs logs [-h] [-f] selector_or_job_name [run_number]
-```
-
-**Description**
-
-Show logs for the latest or selected job run. Use -f/--follow to stream logs in real-time until completion.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
-
-**Positional arguments**
-* `selector_or_job_name` - Job name, script path, or selector
-* `run_number` - Run number (defaults to latest run)
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `-f, --follow` - Follow logs in real-time until the run completes
-
-</details>
-
-### `dlthub job runs show`
-
-Open the job run page in the web GUI.
-
-**Usage**
-```sh
-dlthub job runs show [-h] selector_or_job_name [run_number]
-```
-
-**Description**
-
-Print the URL of the job run page in the dltHub dashboard and open it in a browser when interactive.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
-
-**Positional arguments**
-* `selector_or_job_name` - Job name, script path, or selector
-* `run_number` - Run number (defaults to latest run of the given job)
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlthub job runs cancel`
-
-Cancel the latest or selected job run.
-
-**Usage**
-```sh
-dlthub job runs cancel [-h] selector_or_job_name [run_number]
-```
-
-**Description**
-
-Cancel the latest or selected job run.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
-
-**Positional arguments**
-* `selector_or_job_name` - Job name, script path, or selector
-* `run_number` - Run number (defaults to latest run)
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-## `dlthub deploy`
-
-Sync code/config and deploy jobs.
-
-**Usage**
-```sh
-dlthub deploy [-h] [--timestamps] [--file FILE] [--dry-run] [--show-manifest]
-```
-
-**Description**
-
-Sync workspace files, generate job manifest from __deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
-* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
-* `--dry-run` - Preview changes without applying them
-* `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
-
-</details>
-
-## `dlthub dbt`
-
-dlthub dbt transformation generator.
-
-**Usage**
-```sh
-dlthub dbt [-h] {generate} ...
-```
-
-**Description**
-
-dlthub dbt transformation generator.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`generate`](#dlthub-dbt-generate) - Generate dbt project
-
-</details>
-
-### `dlthub dbt generate`
-
-Generate dbt project.
-
-**Usage**
-```sh
-dlthub dbt generate [-h] [--include_dlt_tables] [--fact [FACT]] [--force]
-    [--mart_table_prefix [MART_TABLE_PREFIX]] pipeline_name
-```
-
-**Description**
-
-Generate dbt project.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub dbt`](#dlthub-dbt).
-
-**Positional arguments**
-* `pipeline_name` - The pipeline to create a dbt project for
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--include_dlt_tables` - Do not render _dlt tables
-* `--fact [FACT]` - Create a fact table for a given table
-* `--force` - Force overwrite of existing files
-* `--mart_table_prefix [MART_TABLE_PREFIX]` - Prefix for mart tables
 
 </details>
 

@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
     [--disable-telemetry] [--enable-telemetry] [--no-pwd]
-    {telemetry,schema,pipeline,init,deploy,dashboard} ...
+    {telemetry,schema,pipeline,init,deploy,dashboard,ai} ...
 ```
 
 <details>
@@ -56,6 +56,7 @@ dlt [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 * [`init`](#dlt-init) - Creates a pipeline in the current folder by adding existing verified source or creating a new one from template.
 * [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
 * [`dashboard`](#dlt-dashboard) - Shows the dlthub workspace dashboard
+* [`ai`](#dlt-ai) - Moved to `dlthub ai` (run `pip install dlt[hub]`)
 
 </details>
 
@@ -70,7 +71,7 @@ dlt telemetry [-h]
 
 **Description**
 
-The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
+Shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
 
 <details>
 
@@ -94,7 +95,7 @@ dlt schema [-h] [--format {json,yaml,dbml,dot,mermaid}] [--remove-defaults] file
 
 **Description**
 
-The `dlt schema` command will load, validate and print out a dlt schema: `dlt schema path/to/my_schema_file.yaml`.
+Loads, validates and prints out a dlt schema from a yaml or json file.
 
 <details>
 
@@ -126,7 +127,7 @@ dlt pipeline [-h] [--list-pipelines] [--pipelines-dir PIPELINES_DIR]
 
 **Description**
 
-The `pipeline` command provides a set of tools to inspect the pipeline working directory, tables, and data in the destination and check for problems encountered during data loading.
+Provides tools to inspect the pipeline working directory, tables, and data in the destination, and to check for problems encountered during data loading.
 
 <details>
 
@@ -251,8 +252,8 @@ dlt pipeline [pipeline_name] drop-pending-packages [-h]
 
 Removes all extracted and normalized packages in the pipeline's working dir.
 `dlt` keeps extracted and normalized load packages in the pipeline working directory. When the `run` method is called, it will attempt to normalize and load
-pending packages first. The command above removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
-were created. Using `dlt pipeline ... sync` is recommended if your destination supports state sync.
+pending packages first. This command removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
+were created. Using the `sync` sub-command is recommended if your destination supports state sync.
 
 <details>
 
@@ -281,10 +282,10 @@ This command will remove the pipeline working directory with all pending package
 state changes, and schemas and retrieve the last synchronized data from the destination. If you drop
 the dataset the pipeline is loading to, this command results in a complete reset of the pipeline state.
 
-In case of a pipeline without a working directory, the command may be used to create one from the
+In case of a pipeline without a working directory, this command may be used to create one from the
 destination. In order to do that, you need to pass the dataset name and destination name to the CLI
 and provide the credentials to connect to the destination (i.e., in `.dlt/secrets.toml`) placed in the
-folder where you execute the `pipeline sync` command.
+folder where you run it.
 
 <details>
 
@@ -473,7 +474,7 @@ dlt pipeline [pipeline_name] load-package [-h] [load-id]
 Shows information on a load package with a given `load_id`. The `load_id` parameter defaults to the
 most recent package. Package information includes its state (`COMPLETED/PROCESSED`) and list of all
 jobs in a package with their statuses, file sizes, types, and in case of failed jobs—the error
-messages from the destination. With the verbose flag set `dlt pipeline -v ...`, you can also see the
+messages from the destination. With the verbose flag set (`-v`), you can also see the
 list of all tables and columns created at the destination during the loading of that package.
 
 <details>
@@ -574,7 +575,7 @@ dlt deploy [-h] pipeline-script-path {github-action,airflow-composer} ...
 
 **Description**
 
-The `dlt deploy` command prepares your pipeline for deployment and gives you step-by-step instructions on how to accomplish it. To enable this functionality, please first execute `pip install "dlt[cli]"` which will add additional packages to the current environment.
+Prepares your pipeline for deployment and gives you step-by-step instructions on how to accomplish it. To enable this functionality, please first execute `pip install "dlt[cli]"` which adds additional packages to the current environment.
 
 <details>
 
@@ -698,6 +699,30 @@ Inherits arguments from [`dlt`](#dlt).
 * `-h, --help` - Show this help message and exit
 * `--pipelines-dir PIPELINES_DIR` - Pipelines working directory
 * `--edit` - Eject dashboard and start editable version
+
+</details>
+
+## `dlt ai`
+
+Moved to `dlthub ai` (run `pip install dlt[hub]`).
+
+**Usage**
+```sh
+dlt ai [-h]
+```
+
+**Description**
+
+`ai` command moved to dlthub, pip install dlt[hub] and `dlthub ai` to use.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
 
 </details>
 
