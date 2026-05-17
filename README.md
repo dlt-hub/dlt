@@ -116,6 +116,16 @@ Please read [CONTRIBUTING](CONTRIBUTING.md) before you make a PR.
 - Significant changes require tests and docs and in many cases writing tests will be more laborious than writing code
 - Bugfixes and improvements are welcome! You'll get help with writing tests and docs + a decent review.
 
+## Sponsors
+
+<p>
+  <a href="https://blacksmith.sh/?utm_source=dlt&utm_medium=readme&utm_campaign=sponsorship" target="_blank">
+    <img src=".github/assets/blacksmith-logo.svg" alt="Blacksmith" width="240" />
+  </a>
+</p>
+
+[Blacksmith](https://blacksmith.sh/?utm_source=dlt&utm_medium=readme&utm_campaign=sponsorship) is a CI/CD platform that accelerates GitHub Actions by reducing queue times and improving build performance. It helps teams run workflows faster and more efficiently, making it easier to maintain a smooth development pipeline. We're grateful to Blacksmith for sponsoring dlt with free CI/CD minutes, which helps us keep builds fast and our costs lower.
+
 ## License
 
 `dlt` is released under the [Apache 2.0 License](LICENSE.txt).

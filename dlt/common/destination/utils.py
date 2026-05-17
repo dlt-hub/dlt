@@ -16,6 +16,7 @@ from dlt.common.schema.exceptions import (
     TableNotFound,
 )
 from dlt.common.schema.typing import (
+    TColumnSchema,
     TColumnType,
     TLoaderMergeStrategy,
     TLoaderReplaceStrategy,
@@ -230,6 +231,8 @@ def prepare_load_table(
         # remove incomplete columns
         for column, _ in find_incomplete_columns(table):
             prep_table["columns"].pop(column["name"])
+        for column in prep_table["columns"].values():
+            _drop_unsupported_precision_hints(column, destination_capabilities)
         return prep_table  # type: ignore[return-value]
     except KeyError:
         raise TableNotFound("<>", table_name)
@@ -298,3 +301,21 @@ def resolve_merge_strategy(
             )
         return merge_strategy
     return None
+
+
+def _drop_unsupported_precision_hints(
+    column: TColumnSchema, destination_capabilities: DestinationCapabilitiesContext
+) -> None:
+    if "precision" not in column:
+        return
+
+    if (
+        column["data_type"] == "timestamp"
+        and not destination_capabilities.supports_timestamp_precision_configuration
+    ):
+        column.pop("precision", None)
+    elif (
+        column["data_type"] == "binary"
+        and not destination_capabilities.supports_binary_precision_configuration
+    ):
+        column.pop("precision", None)
