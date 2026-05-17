@@ -35,7 +35,9 @@ def init_dlthub_workspace(
     for file_name in TEMPLATE_FILES:
         if not templates.has_file(file_name):
             continue
-        dest_path = os.path.join(run_dir, file_name)
+        # `file_name` uses `/` (TEMPLATE_FILES literal); split so the joined dest path
+        # uses the platform separator and matches paths built by callers via os.path.join
+        dest_path = os.path.join(run_dir, *file_name.split("/"))
         if os.path.basename(file_name) == "config.toml":
             body = (
                 templates.load(file_name)

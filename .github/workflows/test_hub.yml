@@ -83,10 +83,10 @@ jobs:
       - name: Run all hub tests
         run: make test-hub
 
-      - name: Test runtime client
+      - name: Test dlthub client
         run: |
           mkdir .dlt && touch .dlt/.workspace
-          uv run dlt runtime --help
+          uv run dlthub login --help
 
       - name: Check hub extras version requirements
         run: uv run python tools/check_hub_extras.py
