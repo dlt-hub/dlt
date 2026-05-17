@@ -17,15 +17,8 @@ from collections.abc import Mapping as C_Mapping
 from functools import wraps
 
 from dlt.common.data_writers import TDataItemFormat
-from dlt.common.libs import (
-    get_pandas_module,
-    get_polars_module,
-    get_pyarrow_module,
-    get_pydantic_module,
-    is_arrow_object,
-    is_pandas_frame,
-    is_polars_frame,
-)
+from dlt.common.libs import get_pydantic_module, is_arrow_object
+from dlt.common.libs.narwhals import narwhals
 from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.schema.utils import normalize_schema_name
@@ -63,14 +56,11 @@ def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     if isinstance(items, Relation):
         return "model"
 
-    if get_pyarrow_module() is None and get_pandas_module() is None and get_polars_module() is None:
-        return "object"
-
     # Assume all items in list are the same type
     try:
         if isinstance(items, list):
             items = items[0]
-        if is_arrow_object(items) or is_pandas_frame(items) or is_polars_frame(items):
+        if is_arrow_object(items) or narwhals.dependencies.is_into_dataframe(items):
             return "arrow"
     except IndexError:
         pass
