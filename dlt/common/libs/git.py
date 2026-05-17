@@ -136,6 +136,10 @@ def clone_repo(
         env=dict(GIT_SSH_COMMAND=with_git_command),
         multi_options=multi_options,
     )
+    # disable auto-gc on this repo: a detached `git gc --auto` started by a later
+    # fetch/pull can keep writing into .git after our code returns, racing with cleanup
+    with repo.config_writer() as cw:
+        cw.set_value("gc", "auto", 0)
     # set up sparse mode to checkout paths on demand
     if path is not None:
         repo.git.sparse_checkout("init", "--cone")
