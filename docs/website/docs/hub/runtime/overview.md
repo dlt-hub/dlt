@@ -23,7 +23,7 @@ Connecting multiple local repositories to the same remote workspace is not yet s
 
 ## Workspace setup
 
-A dltHub-ready workspace is a regular Python project with a few additions. You can convert any existing dlt project into one in a couple of minutes — all CLI examples below use the `dlthub` host, which becomes the single entry point once the workspace is initialized.
+A dltHub-ready workspace is a regular Python project with a few additions. You can convert any existing OSS dlt project into one in a couple of minutes — all CLI examples below use the `dlthub` host, which becomes the single entry point once the workspace is initialized.
 
 ### 1. Create a Python project
 
@@ -577,7 +577,7 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 | `dlthub login [--resume DEVICE_CODE]` | Authenticate with GitHub OAuth |
 | `dlthub logout` | Clear local credentials |
 | `dlthub workspace connect [<name_or_id>] [--org-id <id>]` | Bind this repo to a remote workspace |
-| `dlthub info` | Show combined local + cloud workspace info |
+| `dlthub local info` | Show local workspace info |
 | `dlthub show` | Open the dltHub dashboard |
 | `dlthub local run <script_or_job>` | Run a batch job on the local machine (recommended before deploying) |
 | `dlthub local serve <script_or_job>` | Serve an interactive app on the local machine |
@@ -665,7 +665,7 @@ dlthub local pipeline run <pipeline_name>  # run a `@run.pipeline` job by pipeli
 dlthub local pipeline list                 # list local pipelines
 dlthub local pipeline info <name>          # dlt OSS pipeline verbs (info, drop, sync, ...)
 dlthub local profile use <profile_name>    # pin a profile for subsequent local runs
-dlthub local clean [--skip-data-dir]       # wipe locally loaded data for the active profile
+dlthub local clean [--skip-local-data-dir] # wipe locally loaded data for the active profile
 dlthub local schema ...                    # pipeline schema management
 ```
 

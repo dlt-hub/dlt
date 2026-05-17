@@ -1,7 +1,7 @@
 ---
 title: Installation
 description: Install dlt[hub], create a workspace, and license paid features
-keywords: [installation, dlthub, dlt[hub], dlthub init, workspace mode, license]
+keywords: [installation, dlthub, dlthub init, workspace mode, license]
 ---
 
 :::info Supported Python versions
@@ -17,7 +17,7 @@ To install the `dlt[hub]` package, create a new [Python virtual environment](#se
 uv pip install "dlt[hub]"
 ```
 This installs `dlt` plus two plugin packages pulled in by the `hub` extra:
-* `dlthub` — enables features that require a [license](#licensing)
+* `dlthub` — enables **dlthub** command and features like AI toolkits and transformations
 * `dlthub-client` — enables access to the [managed dltHub Platform](../runtime/overview.md) (login, deploy, run, serve, ...)
 
 Workspace-level dependencies (destinations like `duckdb`, plus tools like `marimo` or `fastmcp` used by notebooks and MCP jobs) are managed in your workspace's `pyproject.toml`, not via `dlt` extras. Run `dlthub init` (see [below](#enable-workspace-mode)) — it scaffolds a `pyproject.toml` you can extend with `uv add <package>`.
@@ -28,18 +28,18 @@ If you need to install `uv` (a modern package manager), [please refer to the nex
 
 To upgrade just the `hub` extra without upgrading `dlt` itself run:
 ```sh
-uv pip install -U "dlt[hub]==1.20.0"
+uv pip install -U "dlt[hub]==1.27.0"
 ```
-This keeps the current `1.20.0` `dlt` and upgrades `dlthub` and `dlthub-client` to their newest matching versions.
+This keeps the current `1.27.0` `dlt` and upgrades `dlthub` and `dlthub-client` to their newest matching versions.
 
 :::tip
-A particular `dlt` version expects `dlthub` and `dlthub-client` versions in a matching range. For example: `1.20.x` expects
-`0.20.x` of each plugin. This is enforced via dependencies in the `hub` extra and at import time. Installing a plugin directly will not change the
+A particular `dlt` version expects `dlthub` and `dlthub-client` versions in a matching range. For example: `1.27.x` expects
+`0.27.x` of each plugin. This is enforced via dependencies in the `hub` extra and at import time. Installing a plugin directly will not change the
 installed `dlt` version (to prevent unwanted upgrades). For example if you run:
 ```sh
 uv pip install dlthub
 ```
-and it downloads `0.21.0` of the plugin, `dlt` `1.20.0` will still be installed but it will report a wrong plugin version on import (with instructions
+and it downloads `0.28.0` of the plugin, `dlt` `1.27.0` will still be installed but it will report a wrong plugin version on import (with instructions
 how to install a compatible plugin version).
 :::
 
@@ -115,32 +115,3 @@ Activate the virtual environment using the instructions displayed by `uv`, i.e.:
 ```sh
 source .venv/bin/activate
 ```
-
-
-## Licensing
-
-To access dltHub’s paid features, such as Iceberg support or Python-based transformations, you need a dltHub Software License. [Contact us](https://info.dlthub.com/waiting-list) to purchase one or request a trial.
-
-### Install your license
-
-If you've received your license from us, you can install it in one of two ways:
-
-In the `secrets.toml` file:
-```toml
-license = "your-dlthub-license-key"
-```
-
-As an environment variable:
-```sh
-export DLT_LICENSE_KEY="your-dlthub-license-key"
-```
-
-### Features requiring a license
-
-- [@dlt.hub.transformation](../features/transformations/index.md) - a powerful Python decorator to build transformation pipelines and notebooks
-- [dbt transformations](../features/transformations/dbt-transformations.md) - a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
-- [Iceberg support](../ecosystem/iceberg.md).
-- [Data Checks](../features/quality/data-quality.md).
-- [MSSQL Change Tracking source](../ecosystem/ms-sql.md).
-
-Please also review our [End User License Agreement](../EULA.md).
