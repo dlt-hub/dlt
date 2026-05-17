@@ -36,7 +36,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
 )
 
 
-@utils.track_command("ai", False, operation="secrets_list")
+@utils.track_command("ai", False, operation="secrets.list")
 def ai_secrets_list_command() -> None:
     """Lists project-scoped secret file locations from TOML providers."""
     locations = fetch_secrets_list()
@@ -48,7 +48,7 @@ def ai_secrets_list_command() -> None:
             fmt.echo("  %s" % loc["path"])
 
 
-@utils.track_command("ai", False, operation="secrets_view_redacted")
+@utils.track_command("ai", False, operation="secrets.view_redacted")
 def ai_secrets_view_redacted_command(path: Optional[str] = None) -> None:
     """Prints a redacted secrets TOML."""
     result = fetch_secrets_view_redacted(path)
@@ -61,7 +61,7 @@ def ai_secrets_view_redacted_command(path: Optional[str] = None) -> None:
     fmt.echo(result)
 
 
-@utils.track_command("ai", False, operation="secrets_update_fragment")
+@utils.track_command("ai", False, operation="secrets.update_fragment")
 def ai_secrets_update_fragment_command(fragment: str, path: str) -> None:
     """Merges a TOML fragment into secrets file and prints the redacted result."""
     try:
@@ -99,7 +99,7 @@ def ai_mcp_run_command(
     mcp_server.run(transport=transport)
 
 
-@utils.track_command("ai", track_before=True, operation="mcp-install")
+@utils.track_command("ai", track_before=True, operation="mcp.install")
 def ai_mcp_install_command(
     agent: Optional[str] = None,
     features: Optional[List[str]] = None,
@@ -540,7 +540,7 @@ def ai_init_command(
         )
 
 
-@utils.track_command("ai", False, operation="toolkit_install")
+@utils.track_command("ai", False, "name", operation="toolkit.install")
 def ai_toolkit_install_command(
     name: str,
     agent: Optional[str],
@@ -569,7 +569,7 @@ def ai_toolkit_install_command(
     _install_toolkit(name, base, var, project_root, overwrite=overwrite, strict=strict)
 
 
-@utils.track_command("ai", False, operation="toolkit_list")
+@utils.track_command("ai", False, operation="toolkit.list")
 def ai_toolkit_list_command(
     location: str,
     branch: Optional[str] = None,
@@ -621,7 +621,7 @@ def ai_toolkit_list_command(
             fmt.echo("  %-20s %s%s" % (fmt.bold(tk_name), description, ver))
 
 
-@utils.track_command("ai", False, operation="toolkit_info")
+@utils.track_command("ai", False, "name", operation="toolkit.info")
 def ai_toolkit_info_command(
     name: str,
     location: str,

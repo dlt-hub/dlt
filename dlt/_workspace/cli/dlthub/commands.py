@@ -28,9 +28,7 @@ class AiCommand(SupportsCliCommand):
     command = "ai"
     help_string = "Use AI-powered development tools and utilities"
     # docs_url =
-    description = (
-        "The `dlt ai` command provides commands to configure your LLM-enabled IDE and MCP server."
-    )
+    description = "Configure your LLM-enabled IDE and MCP server."
 
     def configure_parser(self, ai_cmd: argparse.ArgumentParser) -> None:
         self.parser = ai_cmd
@@ -450,10 +448,10 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             ),
         )
         clean_p.add_argument(
-            "--skip-data-dir",
+            "--skip-local-data-dir",
             action="store_true",
             default=False,
-            help="Do not delete pipelines working dir.",
+            help="Does not delete locally loaded data but removes pipeline working dirs.",
         )
 
         profile_p = sub.add_parser(
@@ -571,7 +569,7 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         op = getattr(args, "local_op", None)
         if op == "pipeline":
             if getattr(args, "operation", None) == "run":
-                execute_pipeline_run(args)
+                track_command("local.pipeline", False, operation="run")(execute_pipeline_run)(args)
                 return
             self._pipeline_cmd.execute(args)
             return
@@ -582,10 +580,10 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             TelemetryCommand().execute(args)
             return
         if op == "run":
-            execute_run(args)
+            track_command("local", False, operation="run")(execute_run)(args)
             return
         if op == "serve":
-            execute_serve(args)
+            track_command("local", False, operation="serve")(execute_serve)(args)
             return
         if op == "show":
             show_workspace(active(), args.edit)
@@ -606,26 +604,6 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             return
         # bare `dlthub local` — print help
         self.parser.print_help()
-
-
-class InfoSubCommand(SupportsCliCommand):
-    """`dlthub info` — dlt-side workspace overview; cloud sibling extends with hub state."""
-
-    command = "info"
-    compose: TCliCommandCompose = "extend"
-    help_string = "Display combined workspace info (local + cloud)"
-    description: Optional[str] = None
-    docs_url: Optional[str] = None
-
-    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
-        # `-v/--verbose` is global (declared on the top-level pre-parser)
-        pass
-
-    def execute(self, args: argparse.Namespace) -> None:
-        from dlt._workspace._workspace_context import active
-        from dlt._workspace.cli.dlthub._local_workspace_command import print_workspace_info
-
-        print_workspace_info(active(), getattr(args, "verbosity", 0))
 
 
 class ProfileCommand(SupportsCliCommand):

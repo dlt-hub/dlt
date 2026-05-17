@@ -110,14 +110,17 @@ version if run again with an existing `source` name. You will be warned if files
             if not args.source or not args.destination:
                 self.parser.print_usage()
                 raise CliCommandException()
-            else:
-                init_command_wrapper(
-                    args.source,
-                    args.destination,
-                    args.location,
-                    args.branch,
-                    args.eject,
-                )
+            # event is "pipeline.init" when reached via `dlthub pipeline init`, else "init"
+            event = "pipeline.init" if fmt.get_cli_host_name() == "dlthub" else "init"
+            utils.track_command(event, False, "source_name", "destination_type")(
+                init_command_wrapper
+            )(
+                args.source,
+                args.destination,
+                args.location,
+                args.branch,
+                args.eject,
+            )
 
 
 class PipelineCommand(SupportsCliCommand):
@@ -126,7 +129,7 @@ class PipelineCommand(SupportsCliCommand):
     help_string = "Inspects pipeline state, trace, load packages, provides basic maintenance"
     docs_url = DLT_PIPELINE_COMMAND_DOCS_URL
     description = """
-The `pipeline` command provides a set of tools to inspect the pipeline working directory, tables, and data in the destination and check for problems encountered during data loading.
+Provides tools to inspect the pipeline working directory, tables, and data in the destination, and to check for problems encountered during data loading.
     """
 
     def configure_parser(self, pipe_cmd: argparse.ArgumentParser) -> None:
@@ -229,8 +232,8 @@ files that got loaded and the failure message from the destination.
             description="""
 Removes all extracted and normalized packages in the pipeline's working dir.
 `dlt` keeps extracted and normalized load packages in the pipeline working directory. When the `run` method is called, it will attempt to normalize and load
-pending packages first. The command above removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
-were created. Using `dlt pipeline ... sync` is recommended if your destination supports state sync.
+pending packages first. This command removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
+were created. Using the `sync` sub-command is recommended if your destination supports state sync.
 """,
         )
         _pre(drop_pending_cmd, "drop-pending-packages")
@@ -245,10 +248,10 @@ This command will remove the pipeline working directory with all pending package
 state changes, and schemas and retrieve the last synchronized data from the destination. If you drop
 the dataset the pipeline is loading to, this command results in a complete reset of the pipeline state.
 
-In case of a pipeline without a working directory, the command may be used to create one from the
+In case of a pipeline without a working directory, this command may be used to create one from the
 destination. In order to do that, you need to pass the dataset name and destination name to the CLI
 and provide the credentials to connect to the destination (i.e., in `.dlt/secrets.toml`) placed in the
-folder where you execute the `pipeline sync` command.
+folder where you run it.
 """,
             parents=[pipe_cmd_sync_parent],
         )
@@ -404,7 +407,7 @@ This will select the `archives` key in the `chess` source.
 Shows information on a load package with a given `load_id`. The `load_id` parameter defaults to the
 most recent package. Package information includes its state (`COMPLETED/PROCESSED`) and list of all
 jobs in a package with their statuses, file sizes, types, and in case of failed jobs—the error
-messages from the destination. With the verbose flag set `dlt pipeline -v ...`, you can also see the
+messages from the destination. With the verbose flag set (`-v`), you can also see the
 list of all tables and columns created at the destination during the loading of that package.
 """,
         )
@@ -433,13 +436,17 @@ list of all tables and columns created at the destination during the loading of 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli._pipeline_command import pipeline_command_wrapper
 
+        # event is "local.pipeline" when reached via `dlthub local pipeline`, else "pipeline"
+        event = "local.pipeline" if fmt.get_cli_host_name() == "dlthub" else "pipeline"
+        tracked = utils.track_command(event, True, "operation")(pipeline_command_wrapper)
+
         if (
             args.list_pipelines
             or args.operation == "list"
             or (not args.pipeline_name and not args.operation)
         ):
             # Always use max verbosity (1) for dlt pipeline list - show full details
-            pipeline_command_wrapper("list", "-", args.pipelines_dir, 1)
+            tracked("list", "-", args.pipelines_dir, 1)
         else:
             command_kwargs = dict(args._get_kwargs())
             if not command_kwargs.get("pipeline_name"):
@@ -448,7 +455,7 @@ list of all tables and columns created at the destination during the loading of 
             command_kwargs["operation"] = args.operation or "info"
             del command_kwargs["command"]
             del command_kwargs["list_pipelines"]
-            pipeline_command_wrapper(**command_kwargs)
+            tracked(**command_kwargs)
 
 
 class SchemaCommand(SupportsCliCommand):
@@ -456,7 +463,7 @@ class SchemaCommand(SupportsCliCommand):
     help_string = "Shows, converts and upgrades schemas"
     docs_url = "https://dlthub.com/docs/reference/command-line-interface#dlt-schema"
     description = """
-The `dlt schema` command will load, validate and print out a dlt schema: `dlt schema path/to/my_schema_file.yaml`.
+Loads, validates and prints out a dlt schema from a yaml or json file.
     """
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
@@ -490,7 +497,6 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         from dlt.common.schema.schema import Schema
         from dlt.common.typing import DictStrAny
 
-        @utils.track_command("schema", False, "format_")
         def schema_command_wrapper(
             file_path: str, format_: TSchemaFileFormat, remove_defaults: bool
         ) -> None:
@@ -503,7 +509,10 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
             export = utils.fetch_schema_export(s, format_=format_, remove_defaults=remove_defaults)
             fmt.echo(export["content"])
 
-        schema_command_wrapper(args.file, args.format, args.remove_defaults)
+        event = "local.schema" if fmt.get_cli_host_name() == "dlthub" else "schema"
+        utils.track_command(event, False, "format_")(schema_command_wrapper)(
+            args.file, args.format, args.remove_defaults
+        )
 
 
 class DashboardCommand(SupportsCliCommand):
@@ -549,7 +558,7 @@ class TelemetryCommand(SupportsCliCommand):
     help_string = "Shows telemetry status"
     docs_url = DLT_TELEMETRY_DOCS_URL
     description = """
-The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
+Shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
     """
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
@@ -558,7 +567,8 @@ The `dlt telemetry` command shows the current status of dlt telemetry. Learn mor
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli._telemetry_command import telemetry_status_command_wrapper
 
-        telemetry_status_command_wrapper()
+        event = "local.telemetry" if fmt.get_cli_host_name() == "dlthub" else "telemetry"
+        utils.track_command(event, False)(telemetry_status_command_wrapper)()
 
 
 class DeployCommand(SupportsCliCommand):
@@ -566,7 +576,7 @@ class DeployCommand(SupportsCliCommand):
     help_string = "Creates a deployment package for a selected pipeline script"
     docs_url = DLT_DEPLOY_DOCS_URL
     description = """
-The `dlt deploy` command prepares your pipeline for deployment and gives you step-by-step instructions on how to accomplish it. To enable this functionality, please first execute `pip install "dlt[cli]"` which will add additional packages to the current environment.
+Prepares your pipeline for deployment and gives you step-by-step instructions on how to accomplish it. To enable this functionality, please first execute `pip install "dlt[cli]"` which adds additional packages to the current environment.
     """
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
@@ -710,3 +720,25 @@ the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers
                 branch=deploy_args.pop("branch"),
                 **deploy_args,
             )
+
+
+def make_moved_to_dlthub_command(cmd: str, new_cmd: str) -> "type[SupportsCliCommand]":
+    """Builds a stub `dlt <cmd>` that redirects users to `dlthub <new_cmd>`."""
+
+    msg = f"`{cmd}` command moved to dlthub, pip install dlt[hub] and `dlthub {new_cmd}` to use"
+
+    class _Moved(SupportsCliCommand):
+        command = cmd
+        help_string = f"Moved to `dlthub {new_cmd}` (run `pip install dlt[hub]`)"
+        description = msg
+        docs_url: Optional[str] = None
+
+        def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+            parser.add_argument("args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
+
+        def execute(self, args: argparse.Namespace) -> None:
+            fmt.warning(msg)
+            raise CliCommandException()
+
+    _Moved.__name__ = f"Moved_{cmd}_To_Dlthub_{new_cmd}"
+    return _Moved

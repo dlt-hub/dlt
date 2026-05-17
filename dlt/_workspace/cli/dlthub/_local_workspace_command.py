@@ -75,7 +75,7 @@ def print_providers(providers: List[TProviderInfo], verbosity: int) -> None:
         )
 
 
-@utils.track_command("workspace", track_before=False, operation="info")
+@utils.track_command("local", track_before=False, operation="info")
 def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -> None:
     info = fetch_workspace_info()
 
@@ -145,15 +145,15 @@ def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> Non
         fmt.echo("  %s  %s" % (job["display_label"].ljust(max_name), ", ".join(triggers)))
 
 
-@utils.track_command("workspace", track_before=False, operation="clean")
+@utils.track_command("local", track_before=False, operation="clean")
 def clean_workspace(run_context: RunContextBase, args: argparse.Namespace) -> None:
     fmt.echo("Local pipelines data will be removed. Remote destinations are not affected.")
-    deleted_dirs = check_delete_local_data(run_context, args.skip_data_dir)
+    deleted_dirs = check_delete_local_data(run_context, args.skip_local_data_dir)
     if deleted_dirs:
         delete_local_data(run_context, deleted_dirs)
 
 
-@utils.track_command("dashboard", True)
+@utils.track_command("local", True, operation="show")
 def show_workspace(run_context: WorkspaceRunContext, edit: bool) -> None:
     from dlt._workspace.helpers.dashboard.runner import run_dashboard
 

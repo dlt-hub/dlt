@@ -276,7 +276,7 @@ def ensure_git_command(command: str) -> None:
 
 
 def track_command(
-    command: str, track_before: bool, *args: str, **kwargs: str
+    command: str, track_before: bool, *args: str, **kwargs: Any
 ) -> Callable[[TFun], TFun]:
     """Return a telemetry decorator for CLI commands.
 
@@ -299,6 +299,8 @@ def track_command(
     Returns:
         a decorator that applies telemetry tracking to the decorated function.
     """
+    # pass the function so the host is resolved at invocation time, not import time
+    kwargs.setdefault("host", fmt.get_cli_host_name)
     return with_telemetry("command", command, track_before, *args, **kwargs)
 
 

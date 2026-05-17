@@ -456,7 +456,6 @@ def pipeline_command(
             drop()
 
 
-@utils.track_command("pipeline", True, "operation")
 def pipeline_command_wrapper(
     operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, **command_kwargs: Any
 ) -> None:

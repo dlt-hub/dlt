@@ -2,14 +2,14 @@
 
 import contextlib
 import io
-import os
-from typing import Any
-from unittest.mock import patch, Mock
+from argparse import Namespace
+from typing import Any, Dict
+from unittest.mock import patch
 
 import pytest
 from pytest_mock import MockerFixture
 
-from dlt._workspace.cli import DEFAULT_VERIFIED_SOURCES_REPO
+from dlt._workspace.cli import DEFAULT_VERIFIED_SOURCES_REPO, echo
 from dlt._workspace.cli._deploy_command import (
     COMMAND_DEPLOY_REPO_LOCATION,
     DeploymentMethods,
@@ -19,38 +19,49 @@ from dlt._workspace.cli._init_command import (
     init_command_wrapper,
     list_sources_command_wrapper,
 )
+from dlt._workspace.cli.commands import InitCommand, PipelineCommand, TelemetryCommand
 from dlt._workspace.cli.utils import display_run_context_info, track_command
 from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
 from dlt.common.runtime.anon_tracker import disable_anon_tracker
 
-from tests.common.runtime.utils import mock_github_env, mock_pod_env
-from tests.utils import disable_temporary_telemetry, start_test_telemetry
+from tests.utils import start_test_telemetry
 from tests.workspace.utils import isolated_workspace
 
 
-def test_track_command_track_after_passes_params(
-    mocker: MockerFixture, disable_temporary_telemetry
-) -> None:
-    """verify track_command wraps with telemetry and forwards arg names and extra kwargs."""
-    # init test telemetry and capture outgoing events
-    mock_github_env(os.environ)
-    mock_pod_env(os.environ)
-    SENT_ITEMS.clear()
-    config = WorkspaceRuntimeConfiguration(dlthub_telemetry=True)
+# telemetry helpers local to this module (avoid depending on other test modules)
+SENT_ITEMS: list[dict[str, Any]] = []
 
+
+def _mock_before_send(event: dict[str, Any], _unused_hint: Any = None) -> dict[str, Any]:
+    # capture event for assertions
+    SENT_ITEMS.append(event)
+    return event
+
+
+@contextlib.contextmanager
+def _captured_telemetry() -> Any:
+    """Start the test telemetry sink and clear captured events on entry."""
+    config = WorkspaceRuntimeConfiguration(dlthub_telemetry=True)
+    SENT_ITEMS.clear()
+    saved_host = echo.get_cli_host_name()
     with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
         start_test_telemetry(config)
-        mocker.patch(
-            "dlt.common.runtime.anon_tracker.requests.post",
-            return_value=Mock(status_code=204),
-        )
+        try:
+            yield
+        finally:
+            disable_anon_tracker()
+            echo.set_cli_host_name(saved_host)
+
+
+def test_track_command_track_after_passes_params() -> None:
+    """verify track_command wraps with telemetry and forwards arg names and extra kwargs."""
+    with _captured_telemetry():
 
         @track_command("my_cmd", False, "x", "y", extra_const="value")
         def _fn(x: Any, y: Any, z: Any = None) -> Any:
             return "ok"
 
         _fn("X", 7, z="ignored")
-        disable_anon_tracker()
 
     assert len(SENT_ITEMS) == 1
     event = SENT_ITEMS[0]
@@ -69,23 +80,13 @@ def test_track_command_track_after_passes_params(
     # automatic props
     assert isinstance(props["elapsed"], (int, float)) and props["elapsed"] >= 0
     assert props["success"] is True
+    # auto-injected host (resolved at call time, not at decoration time)
+    assert props["host"] in ("dlt", "dlthub")
 
 
-def test_track_command_track_before_passes_params(
-    mocker: MockerFixture, disable_temporary_telemetry
-) -> None:
+def test_track_command_track_before_passes_params() -> None:
     """when tracking before, event is emitted once with success True and includes provided params."""
-    mock_github_env(os.environ)
-    mock_pod_env(os.environ)
-    SENT_ITEMS.clear()
-    config = WorkspaceRuntimeConfiguration(dlthub_telemetry=True)
-
-    with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
-        start_test_telemetry(config)
-        mocker.patch(
-            "dlt.common.runtime.anon_tracker.requests.post",
-            return_value=Mock(status_code=204),
-        )
+    with _captured_telemetry():
 
         @track_command("before_cmd", True, "p", ignored="const")
         def _fn(p: Any) -> Any:
@@ -94,8 +95,6 @@ def test_track_command_track_before_passes_params(
 
         with pytest.raises(RuntimeError):
             _fn(123)
-
-        disable_anon_tracker()
 
     assert len(SENT_ITEMS) == 1
     event = SENT_ITEMS[0]
@@ -126,12 +125,7 @@ def test_command_instrumentation() -> None:
     def instrument_raises_2(in_raises_2: bool) -> int:
         raise Exception("failed")
 
-    config = WorkspaceRuntimeConfiguration(dlthub_telemetry=True)
-
-    with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
-        start_test_telemetry(config)
-
-        SENT_ITEMS.clear()
+    with _captured_telemetry():
         instrument_ok("ok_param", 7)
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_instrument_ok"
@@ -162,19 +156,17 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
-    config = WorkspaceRuntimeConfiguration(dlthub_telemetry=True)
-
-    with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
-        start_test_telemetry(config)
-
-        SENT_ITEMS.clear()
+    with _captured_telemetry():
+        # init_command_wrapper is no longer decorated at definition; production wraps it
+        # at the call site in InitCommand.execute. Mirror that here.
+        tracked_init = track_command("init", False, "source_name", "destination_type")(
+            init_command_wrapper
+        )
         with io.StringIO() as buf, contextlib.redirect_stderr(buf):
             try:
-                init_command_wrapper("instrumented_source", "<UNK>", None, None)
+                tracked_init("instrumented_source", "<UNK>", None, None)
             except Exception:
                 pass
-            # output = buf.getvalue()
-            # assert "is not one of the standard dlt destinations" in output
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_init"
         assert msg["properties"]["source_name"] == "instrumented_source"
@@ -202,14 +194,110 @@ def test_instrumentation_wrappers() -> None:
         assert msg["properties"]["success"] is False
 
 
-# telemetry helpers local to this module (avoid depending on other test modules)
-SENT_ITEMS: list[dict[str, Any]] = []
+_INIT_ARGS = Namespace(
+    list_sources=False,
+    list_destinations=False,
+    source="my_source",
+    destination="duckdb",
+    location=DEFAULT_VERIFIED_SOURCES_REPO,
+    branch=None,
+    eject=False,
+)
+_PIPELINE_ARGS = Namespace(
+    list_pipelines=False,
+    operation="list",
+    pipeline_name=None,
+    pipelines_dir=None,
+    command="pipeline",
+)
 
 
-def _mock_before_send(event: dict[str, Any], _unused_hint: Any = None) -> dict[str, Any]:
-    # capture event for assertions
-    SENT_ITEMS.append(event)
-    return event
+# (host, command_cls, args, inner_mock_path, expected_event, expected_extra_props)
+# proves the same controller fires a host-specific event name and that `host` is
+# resolved at call time via the lazy callable in `with_telemetry`.
+_DUAL_CASES = [
+    pytest.param(
+        "dlt",
+        InitCommand,
+        _INIT_ARGS,
+        "dlt._workspace.cli._init_command.init_command",
+        "command_init",
+        {"source_name": "my_source", "destination_type": "duckdb"},
+        id="init-dlt",
+    ),
+    pytest.param(
+        "dlthub",
+        InitCommand,
+        _INIT_ARGS,
+        "dlt._workspace.cli._init_command.init_command",
+        "command_pipeline.init",
+        {"source_name": "my_source", "destination_type": "duckdb"},
+        id="init-dlthub",
+    ),
+    pytest.param(
+        "dlt",
+        TelemetryCommand,
+        Namespace(),
+        "dlt._workspace.cli._telemetry_command.telemetry_status_command",
+        "command_telemetry",
+        {},
+        id="telemetry-dlt",
+    ),
+    pytest.param(
+        "dlthub",
+        TelemetryCommand,
+        Namespace(),
+        "dlt._workspace.cli._telemetry_command.telemetry_status_command",
+        "command_local.telemetry",
+        {},
+        id="telemetry-dlthub",
+    ),
+    pytest.param(
+        "dlt",
+        PipelineCommand,
+        _PIPELINE_ARGS,
+        "dlt._workspace.cli._pipeline_command.pipeline_command",
+        "command_pipeline",
+        {"operation": "list"},
+        id="pipeline-dlt",
+    ),
+    pytest.param(
+        "dlthub",
+        PipelineCommand,
+        _PIPELINE_ARGS,
+        "dlt._workspace.cli._pipeline_command.pipeline_command",
+        "command_local.pipeline",
+        {"operation": "list"},
+        id="pipeline-dlthub",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "host,command_cls,args,mock_path,expected_event,expected_props", _DUAL_CASES
+)
+def test_cross_host_dual_tracking(
+    mocker: MockerFixture,
+    host: str,
+    command_cls: Any,
+    args: Namespace,
+    mock_path: str,
+    expected_event: str,
+    expected_props: Dict[str, Any],
+) -> None:
+    """Cross-host controllers emit host-specific event names and the right `host` prop."""
+    mocker.patch(mock_path, return_value=None)
+    with _captured_telemetry():
+        echo.set_cli_host_name(host)
+        command_cls().execute(args)
+
+    assert len(SENT_ITEMS) == 1
+    msg = SENT_ITEMS[0]
+    assert msg["event"] == expected_event
+    props = msg["properties"]
+    assert props["host"] == host
+    for k, v in expected_props.items():
+        assert props[k] == v
 
 
 @pytest.mark.parametrize("profile", ["dev", "tests"])
