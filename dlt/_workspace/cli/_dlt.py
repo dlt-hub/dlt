@@ -67,7 +67,7 @@ def _maybe_print_workspace_hint(host: str, *, file: Optional[IO[Any]] = None) ->
 
 
 class _HostAwareArgumentParser(argparse.ArgumentParser):
-    def print_help(self, file: 'Optional[SupportsWrite[str]]' = None) -> None:
+    def print_help(self, file: "Optional[SupportsWrite[str]]" = None) -> None:
         super().print_help(file)
         _maybe_print_workspace_hint(self.prog, file=cast(Optional[IO[Any]], file))
 
