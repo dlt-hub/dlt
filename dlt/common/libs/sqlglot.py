@@ -711,10 +711,8 @@ def resolve_timestamp_cast(
     # cast precision on athena depends on table format: iceberg supports TIMESTAMP(6)
     # while regular tables are TIMESTAMP(3). `_dlt_loads` (and other dlt internal
     # tables) are always iceberg, so a JOIN against them needs microsecond
-    # precision. `CAST AS TIMESTAMP` (no parameter) on athena defaults to
-    # TIMESTAMP(3) and truncates the literal, letting rows whose stored value
-    # exceeds the truncated cursor slip through the `>` boundary. Emit TIMESTAMP(6)
-    # to preserve the full literal precision and format the literal at microsecond.
+    # precision. Below we use (6) for hive tables as well which is proven to work
+    # with them.
     cast_precision: Optional[int] = precision
     if dialect == "athena":
         cast_precision = DEFAULT_TIMESTAMP_PRECISION
