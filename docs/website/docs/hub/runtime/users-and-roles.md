@@ -10,9 +10,11 @@ The dltHub platform uses a two-level access model. Every user belongs to an **or
 
 ## Authentication
 
-Users authenticate against the dltHub platform in two ways:
+Users authenticate against the dltHub platform in the following ways:
 
 - **GitHub OAuth.** Interactive sign-in for both the Web UI ([app.dlthub.com](https://app.dlthub.com)) and the CLI (`dlthub login`). The same identity is used everywhere—your CLI session inherits the workspaces and roles granted to your GitHub account.
+- **Google OAuth.** Interactive sign-in to the Web UI ([app.dlthub.com](https://app.dlthub.com)) with a Google account. As with GitHub OAuth, the same identity is used across the Web UI and CLI.
+- **Email signup.** Register for the Web UI ([app.dlthub.com](https://app.dlthub.com)) with an email address and password when you don't want to use a third-party identity provider.
 - **API keys.** Personal, long-lived tokens (prefixed `dlt_`) for non-interactive clients such as CI jobs or scripts. A key inherits the organization and workspace permissions of the user who created it. See [API keys](settings.md#api-keys) for creating, scoping, and revoking keys.
 
 ## Organization roles

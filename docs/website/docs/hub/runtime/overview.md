@@ -41,7 +41,7 @@ If you prefer a guided walkthrough, follow the [dltHub platform tutorial](../get
 |------|-------------|
 | Notebooks | [Marimo notebooks](../../general-usage/dataset-access/marimo.md) for the pipeline dashboard, exploration, and analysis |
 | Streamlit apps | Interactive [Streamlit dashboards](../../general-usage/dashboard.md) |
-| REST APIs | Starlette / FastAPI / similar applications |
+| MCP servers | Model Context Protocol servers that provide tool and data access for AI assistants and agents |
 
 Each interactive application is exposed via a unique public URL tied to its run.
 

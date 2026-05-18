@@ -34,7 +34,7 @@ dltHub is built around the open-source library [dlt](../intro.md). It reuses the
 * [Managed infrastructure for pipelines and data apps](runtime/overview.md)
 * [Observability](../general-usage/dashboard.md) for pipelines and data apps
 
-dltHub supports both local and managed cloud development. From a [dltHub Workspace](workspace/overview.md), with isolated [profiles](core-concepts/profiles-dlthub.md) for `dev`, `prod`, and `access` environments, a single developer can deploy and operate pipelines, transformations, and notebooks with a single command. The [platform](runtime/overview.md), customizable [workspace dashboard](../general-usage/dashboard.md), and validation tools provide monitoring, troubleshooting, and reliability across the full data workflow:
+dltHub supports both local and managed cloud development. From a [dltHub Workspace](workspace/overview.md), with isolated [profiles](core-concepts/profiles-dlthub.md) for `dev`, `prod`, and `access` environments, a single developer can deploy and operate pipelines, transformations, and notebooks with a single command. The [platform](runtime/overview.md), [workspace dashboard](../general-usage/dashboard.md), and validation tools provide monitoring, troubleshooting, and reliability across the full data workflow:
 
 ```mermaid
 flowchart LR
@@ -113,7 +113,7 @@ Make loaded data accessible to stakeholders through notebooks, dashboards, and s
 
 Foundations that the rest of the platform builds on.
 
-* GitHub OAuth and API key authentication, with organization and workspace [roles](runtime/users-and-roles.md)
+* GitHub OAuth, Google OAuth, email signup, and API key authentication, with organization and workspace [roles](runtime/users-and-roles.md)
 * [Managed, multi-tenant runtime](runtime/overview.md) with upgrades and patching handled for you
 * [Secure secrets management](runtime/settings.md) per [profile](core-concepts/profiles-dlthub.md)
 
