@@ -6,22 +6,16 @@ keywords: [dlthub platform, deployment, cloud, scheduling, notebooks, dashboard,
 
 # dltHub platform
 
-The dltHub platform is a managed cloud platform for running your [`dlt` pipelines](../../general-usage/pipeline.md), [transformations](../features/transformations/index.md), and [notebooks](../../general-usage/dataset-access/marimo.md). It provides:
+The dltHub platform is a managed cloud platform for running your [`dlt` pipelines](../../general-usage/pipeline.md), [transformations](../features/transformations/index.md), and [notebooks](../../general-usage/dataset-access/marimo.md). It mirrors your local [dltHub Workspace](../workspace/overview.md) into the cloud (called a **workspace deployment**), so your familiar dlt pipelines, [datasets](../core-concepts/datasets.md), notebooks, and dashboards run remotely with the same code that runs on your machine.
 
-- Cloud execution of batch pipelines and interactive applications ([marimo notebooks](../../general-usage/dataset-access/marimo.md) and [Streamlit dashboards](../../general-usage/dashboard.md))
-- Flexible [scheduling & triggers](triggers.md) — cron, intervals, followup chains (`.success`/`.fail`/`.completed`), scheduler-driven intervals with automatic backfill, freshness checks, refresh cascades, and timezone-aware crons
-- Built-in [monitoring & debugging](monitor-and-debug.md) — real-time streaming logs, run-state lifecycle, pipeline metrics dashboards (success rate, rows, duration), and a deployment & config inspector
-- Tag-based job selectors for bulk operations (`dlthub job trigger tag:ingest`)
-- Secure secrets management with multiple [profiles](../core-concepts/profiles-dlthub.md)
-
-The dltHub platform mirrors your local [dltHub Workspace](../workspace/overview.md) into the cloud (called a **workspace deployment**). Your familiar dlt pipelines, [datasets](../core-concepts/datasets.md), notebooks, and dashboards run remotely with the same code that runs on your machine.
+For a high-level summary of platform capabilities, see [Pipeline operations](../introduction.md#pipeline-operations) in the introduction.
 
 ## Where to start
 
 | If you want to... | Go to |
 |-------------------|-------|
 | Convert a Python project into a dltHub workspace and set up credentials | [Workspace setup](workspace-setup.md) |
-| Push code to the cloud — ad-hoc runs or full manifest deploys | [Deploying jobs](deploying.md) |
+| Push code to the cloud—ad-hoc runs or full manifest deploys | [Deploying jobs](deploying.md) |
 | Schedule with cron/intervals, chain followups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers & scheduling](triggers.md) |
 | Configure timeouts, dependencies, timezone, and per-job TOML sections | [Job configuration](job-configuration.md) |
 | Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs | [Monitor & debug](monitor-and-debug.md) |
@@ -63,8 +57,8 @@ See [profiles in dltHub](../core-concepts/profiles-dlthub.md) for details, and [
 
 ### Deployments and configurations
 
-- **Deployment** — your code files (`.py` scripts, notebooks)
-- **Configuration** — your `.dlt/*.toml` files ([settings and secrets](../../general-usage/credentials/index.md))
+- **Deployment**—your code files (`.py` scripts, notebooks)
+- **Configuration**—your `.dlt/*.toml` files ([settings and secrets](../../general-usage/credentials/index.md))
 
 Both are versioned separately, so you can update code without changing secrets and vice versa.
 
@@ -76,7 +70,7 @@ For monitoring runs, streaming logs, and diagnosing failures, see [Monitor and d
 
 #### Public links for interactive jobs
 
-Notebooks and dashboards can be shared via public links. Manage them either from the dashboard — open the job's context menu (or its detail page) and click **Manage Public Link** to toggle the link — or from the CLI:
+Notebooks and dashboards can be shared via public links. Manage them either from the dashboard—open the job's context menu (or its detail page) and click **Manage Public Link** to toggle the link—or from the CLI:
 
 ```sh
 # Generate a public link
@@ -86,7 +80,7 @@ dlthub job publish fruitshop_notebook.py
 dlthub job unpublish fruitshop_notebook.py
 ```
 
-Anyone with an active link can view the running notebook or dashboard — useful for sharing dashboards with stakeholders without dltHub platform access.
+Anyone with an active link can view the running notebook or dashboard—useful for sharing dashboards with stakeholders without dltHub platform access.
 
 ## CLI reference
 
@@ -105,7 +99,7 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 | `dlthub run [<script_or_selector>] [-f] [--refresh]` | Deploy and run a batch script or named job |
 | `dlthub serve [<script_or_selector>] [-f]` | Deploy and serve an interactive application |
 | `dlthub deploy [--dry-run] [--show-manifest] [--file FILE]` | Sync code/config and deploy jobs from `__deployment__.py` |
-| `dlthub job trigger <selectors...> [--refresh] [--dry-run] [--profile NAME]` | Trigger runs for matching jobs (e.g. `tag:backfill`, `schedule:*`) |
+| `dlthub job trigger <selectors...> [--refresh] [--dry-run] [--profile NAME]` | Trigger runs for matching jobs (for example `tag:backfill`, `schedule:*`) |
 | `dlthub pipeline run <pipeline_name> [-f] [--refresh]` | Run a job by pipeline name |
 | `dlthub job cancel <selector_or_name>...` | Cancel active runs for matching jobs |
 | `dlthub job runs cancel <selector_or_name> [run_number]` | Cancel a specific run (defaults to latest) |
@@ -115,7 +109,7 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 
 ## Current limitations
 
-- **Platform limits**: jobs default to 120 minutes maximum execution time (override with `execute={"timeout": "6h"}` in the decorator — see [Job configuration](job-configuration.md#execution-constraints))
+- **Platform limits**: jobs default to 120 minutes maximum execution time (override with `execute={"timeout": "6h"}` in the decorator—see [Job configuration](job-configuration.md#execution-constraints))
 - **Interactive timeout**: notebooks are killed after about 5 minutes of inactivity (no open browser tab)
 - **UI operations**: creating jobs must currently be done via CLI (schedules can be changed in the WebUI)
 - **Pagination**: list views show the top 100 items

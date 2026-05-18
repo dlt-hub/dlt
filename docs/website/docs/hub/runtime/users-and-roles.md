@@ -8,9 +8,16 @@ keywords: [users, roles, permissions, organization, workspace, access control, R
 
 The dltHub platform uses a two-level access model. Every user belongs to an **organization**, and within that organization users are granted access to one or more **workspaces**. A user's effective permissions are determined by the combination of their organization role and their per-workspace role.
 
+## Authentication
+
+Users authenticate against the dltHub platform in two ways:
+
+- **GitHub OAuth.** Interactive sign-in for both the Web UI ([app.dlthub.com](https://app.dlthub.com)) and the CLI (`dlthub login`). The same identity is used everywhere—your CLI session inherits the workspaces and roles granted to your GitHub account.
+- **API keys.** Personal, long-lived tokens (prefixed `dlt_`) for non-interactive clients such as CI jobs or scripts. A key inherits the organization and workspace permissions of the user who created it. See [API keys](settings.md#api-keys) for creating, scoping, and revoking keys.
+
 ## Organization roles
 
-Organization membership is a prerequisite for any workspace access — a user must be added to the organization before they can be granted a role in any workspace.
+Organization membership is a prerequisite for any workspace access—a user must be added to the organization before they can be granted a role in any workspace.
 
 | Role     | Permissions                                                                                                                |
 | -------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -24,7 +31,7 @@ A workspace role is assigned per workspace and controls what a user can do insid
 | Role     | Permissions                                                                                                                                                   |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Owner    | Full access: manage members, edit workspace settings, start and cancel runs, manage schedules, manage public links, archive jobs, and publish interactive apps. |
-| Viewer   | Read-only access to jobs, runs, logs, pipelines, deployments, and notebooks. Viewers can also launch jobs on the [`access` profile](../core-concepts/profiles-dlthub.md) — for example, running interactive notebooks. |
+| Viewer   | Read-only access to jobs, runs, logs, pipelines, deployments, and notebooks. Viewers can also launch jobs on the [`access` profile](../core-concepts/profiles-dlthub.md)—for example, running interactive notebooks. |
 
 ## Permission scope
 

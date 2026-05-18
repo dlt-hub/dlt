@@ -43,7 +43,7 @@ dlt workspace
 If you use `dlt init`, you'll have two familiar `toml` files in `.dlt`: `secrets.toml` and `config.toml`. They work exactly the same way as in OSS `dlt`. You can run your OSS dlt code without modifications.
 
 **Anything you place in those files is visible to all profiles**. For example, if you place
-`log_level="INFO"` in `config.toml`, it applies to all profiles. Only when you want certain settings to vary across profiles (e.g., `INFO` level for development, `WARNING` for production) do you need to create profile-specific `toml` files.
+`log_level="INFO"` in `config.toml`, it applies to all profiles. Only when you want certain settings to vary across profiles (for example, `INFO` level for development, `WARNING` for production) do you need to create profile-specific `toml` files.
 
 **dltHub Workspace** predefines several profiles, and together with the **dltHub platform**, assigns them specific functions:
 
@@ -105,9 +105,9 @@ The workspace automatically uses the active profile's configuration, secrets, an
 
 :::tip
 Profiles isolate not only configuration but also pipeline runs. Each profile has a separate pipeline directory (`.dlt/var/$profile/pipelines`) and
-storage location for locally stored data (e.g., local `filesystem`, `ducklake`, or `duckdb`). This makes it easy to:
+storage location for locally stored data (for example, local `filesystem`, `ducklake`, or `duckdb`). This makes it easy to:
 1. Clean up your workspace and start over (`dlt workspace clean`)
-2. Switch to the `test` profile when running `pytest` (e.g., using a fixture) so you can develop on the `dev` profile interactively while running tests in parallel in isolation
+2. Switch to the `test` profile when running `pytest` (for example, using a fixture) so you can develop on the `dev` profile interactively while running tests in parallel in isolation
 :::
 
 ### Switching profiles in code

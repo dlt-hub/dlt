@@ -14,7 +14,7 @@ Looking for the open-source `dlt` library documentation? See the [dlt docs](../i
 
 dltHub assumes a working knowledge of Python and provides an optimized experience for working iwth coding agents (Claude Code, Codex, Cursor, or similar). Typical users include:
 
-* Engineers responsible for analytics outputs end-to-end — pipelines, transformations, and dashboards — without a dedicated platform or analytics-engineering team to delegate to
+* Engineers responsible for analytics outputs end-to-end—pipelines, transformations, and dashboards—without a dedicated platform or analytics-engineering team to delegate to
 * Analysts who write Python (or pair with a coding agent) and need to own the pipelines feeding their reports rather than depend on a separate team to maintain them
 * Data teams standardizing on `dlt` that want production-grade ingestion, transformation, quality, and serving from a single toolchain
 * Organizations that prefer managed operations but require open formats and portability
@@ -22,9 +22,9 @@ dltHub assumes a working knowledge of Python and provides an optimized experienc
 
 ## What is dltHub?
 
-dltHub is an agent-native data engineering platform for building, running, and operating production-grade data pipelines. The toolchain is designed to be driven from coding agents — Claude Code, Codex, and Cursor — through [scaffolding commands](workspace/init.md) and [per-source context files](../dlt-ecosystem/llm-tooling/llm-native-workflow.md). A developer or analyst comfortable with Python and a coding agent can build and operate ingestion, [transformations](features/transformations/index.md), [quality checks](features/quality/data-quality.md), and data apps end-to-end without managing infrastructure.
+dltHub is an agent-native data engineering platform for building, running, and operating production-grade data pipelines. The toolchain is designed to be driven from coding agents—Claude Code, Codex, and Cursor—through [scaffolding commands](workspace/init.md) and [per-source context files](../dlt-ecosystem/llm-tooling/llm-native-workflow.md). A developer or analyst comfortable with Python and a coding agent can build and operate ingestion, [transformations](features/transformations/index.md), [quality checks](features/quality/data-quality.md), and data apps end-to-end without managing infrastructure.
 
-Context — source schemas, annotations, transformation logic, and run metadata — propagates from the data source through transformations to the serving layer. Downstream tools, dashboards, and agents can reason about upstream intent without re-discovering it.
+Context—source schemas, annotations, transformation logic, and run metadata—propagates from the data source through transformations to the serving layer. Downstream tools, dashboards, and agents can reason about upstream intent without re-discovering it.
 
 dltHub is built around the open-source library [dlt](../intro.md). It reuses the same core concepts ([sources](../general-usage/source.md), [destinations](../general-usage/destination.md), [pipelines](../general-usage/pipeline.md)) and extends the extract-and-load focus of `dlt` with:
 
@@ -62,64 +62,60 @@ To get started quickly, follow the [installation instructions](getting-started/i
 
 dltHub is designed around three principles:
 
-- **Transparent and context-aware.** Pipelines, sources, and transformations are plain Python you can inspect, customize, and extend — no black-box abstractions. [Schemas](../general-usage/schema.md), annotations, run metadata, and traces propagate from the data source through transformations to the serving layer, so both developers and agents can reason about upstream intent and downstream impact without re-deriving it from prompts
+- **Transparent and context-aware.** Pipelines, sources, and transformations are plain Python you can inspect, customize, and extend—no black-box abstractions. [Schemas](../general-usage/schema.md), annotations, run metadata, and traces propagate from the data source through transformations to the serving layer, so both developers and agents can reason about upstream intent and downstream impact without re-deriving it from prompts
 - **Modular and composable.** [Sources](../general-usage/source.md), [destinations](../general-usage/destination.md), [transformations](features/transformations/index.md), and platform components are independent building blocks. Adopt only the parts you need and integrate the rest with the surrounding ecosystem ([dbt](features/transformations/dbt-transformations.md), Ibis, [marimo](../general-usage/dataset-access/marimo.md), Streamlit, your own destinations)
-- **Agent guardrails with humans in the loop.** Agent-driven workflows include explicit checkpoints — sample runs, generated-code inspection, redacted-secrets commands — so AI-assisted development stays observable and reviewable. Deterministic tooling is used wherever probabilistic behavior is not reliable enough (e.g., secrets handling)
+- **Agent guardrails with humans in the loop.** Agent-driven workflows include explicit checkpoints—sample runs, generated-code inspection, redacted-secrets commands—so AI-assisted development stays observable and reviewable. Deterministic tooling is used wherever probabilistic behavior is not reliable enough (for example, secrets handling)
 
 ## Capabilities
 
-dltHub covers the end-to-end data workflow. Features marked _in public preview_ are broadly available with mature documentation and intended for real workloads, but are not yet fully hardened — expect occasional minor breaking changes. For upcoming features see the [dltHub roadmap](https://dlthub.com/roadmap).
+dltHub covers the end-to-end data workflow. Features marked _in public preview_ are broadly available with mature documentation and intended for real workloads, but are not yet fully hardened—expect occasional minor breaking changes. For upcoming features see the [dltHub roadmap](https://dlthub.com/roadmap).
 
 ### [Ingestion pipeline development](workspace/init.md)
 
 Build extract-and-load pipelines from REST APIs, SQL databases, cloud storage, and Python data structures, with schema inference, normalization, and incremental loading provided by the underlying `dlt` library.
 
-* [Workspace scaffolding](workspace/init.md) — initialize a project structure that fits how `dlt` pipelines are developed and deployed
-* [AI workbench (agent-native workflow)](../dlt-ecosystem/llm-tooling/llm-native-workflow.md) — generate REST API, SQL database, and filesystem pipelines from prompts using ingestion development toolkits
-* [Premium destinations](ecosystem/iceberg.md) — load to Iceberg lakehouses, [Delta Lake](ecosystem/delta.md), [Snowflake Plus](ecosystem/snowflake_plus.md), or [MS SQL with change tracking](ecosystem/ms-sql.md)
+* [Workspace scaffolding](workspace/init.md)—initialize a project structure that fits how `dlt` pipelines are developed and deployed
+* [AI workbench (agent-native workflow)](../dlt-ecosystem/llm-tooling/llm-native-workflow.md)—generate REST API, SQL database, and filesystem pipelines from prompts using ingestion development toolkits
+* [Premium destinations](ecosystem/iceberg.md)—load to Iceberg lakehouses, [Delta Lake](ecosystem/delta.md), [Snowflake Plus](ecosystem/snowflake_plus.md), or [MS SQL with change tracking](ecosystem/ms-sql.md)
 
 ### [Transformation pipeline development](features/transformations/index.md)
 
-Write transformations alongside your ingestion pipelines so they share datasets, schemas, and deployment. Source context — annotations, types, and lineage — carries into transformations and on to the serving layer.
+Write transformations alongside your ingestion pipelines so they share datasets, schemas, and deployment. Source context—annotations, types, and lineage—carries into transformations and on to the serving layer.
 
-* [`@dlt.hub.transformation`](features/transformations/index.md) (in public preview) — Python-decorated transformations that run as part of your pipeline graph
-* [AI workbench transformation toolkit](../dlt-ecosystem/llm-tooling/explore-and-transform.md) (in public preview) — generate and refactor Python and SQL transformations from prompts driven by business ontologies
-* [dbt integration](features/transformations/dbt-transformations.md) — run dbt projects with a local cache, schema enforcement, and integrated debugging
+* [`@dlt.hub.transformation`](features/transformations/index.md) (in public preview)—Python-decorated transformations that run as part of your pipeline graph
+* [AI workbench transformation toolkit](../dlt-ecosystem/llm-tooling/explore-and-transform.md) (in public preview)—generate and refactor Python and SQL transformations from prompts driven by business ontologies
+* [dbt integration](features/transformations/dbt-transformations.md)—run dbt projects with a local cache, schema enforcement, and integrated debugging
 
 ### [Pipeline operations](runtime/overview.md)
 
 Deploy, schedule, and monitor pipelines, transformations, and notebooks without standing up infrastructure.
 
-* [dltHub platform](runtime/overview.md) — one-command deploy of an entire workspace, cron and event-driven triggers, followup jobs, freshness checks, and refresh cascades. Sign in at [app.dlthub.com](https://app.dlthub.com)
-* [Triggers & scheduling](runtime/triggers.md) — cron and interval schedules, followup chains (`job.success` / `.fail` / `.completed`), scheduler-driven intervals with automatic backfill, freshness gates, refresh cascades, and tag-based bulk triggering from the CLI
-* [Profiles](core-concepts/profiles-dlthub.md) — isolate `dev`, `prod`, and `access` configurations and credentials
-* [Regions](runtime/regions.md) — choose where your data plane runs
-* [Workspace dashboard](../general-usage/dashboard.md) — observe runs, schemas, load history, and lineage from a single UI ([app.dlthub.com](https://app.dlthub.com))
-* [Monitoring & debugging](runtime/monitor-and-debug.md) — track live run status, stream logs (`dlthub job logs`), inspect per-run pipeline metrics (success rate, rows loaded, duration), and diagnose failures from the CLI or Web UI ([app.dlthub.com](https://app.dlthub.com))
+* [dltHub platform](runtime/overview.md)—one-command deploy of an entire workspace, with cron and event-driven [triggers](runtime/triggers.md), followup chains, freshness checks, and refresh cascades. Sign in at [app.dlthub.com](https://app.dlthub.com)
+* [Profiles](core-concepts/profiles-dlthub.md) and [regions](runtime/regions.md)—isolate `dev`, `prod`, and `access` configurations and credentials, and choose where your data plane runs
+* [Workspace dashboard & monitoring](../general-usage/dashboard.md)—observe runs, schemas, and lineage from a single UI; stream logs and [diagnose failures](runtime/monitor-and-debug.md) from the CLI or Web UI
 
 ### [Data quality & governance](features/quality/data-quality.md)
 
 Catch data issues before they reach consumers and keep schemas controlled as sources change.
 
-* [Data quality checks](features/quality/data-quality.md) (in public preview) — declarative correctness rules with actionable failure messages
-* [Tests](features/quality/tests.md) and [advanced quality features](features/quality/advanced.md) (in public preview) — author and run tests against your datasets as part of a pipeline
+* [Data quality checks](features/quality/data-quality.md) (in public preview)—declarative correctness rules with actionable failure messages
+* [Tests](features/quality/tests.md) and [advanced quality features](features/quality/advanced.md) (in public preview)—author and run tests against your datasets as part of a pipeline
 
 ### [Data discovery & serving](core-concepts/datasets.md)
 
 Make loaded data accessible to stakeholders through notebooks, dashboards, and shareable links. Source schemas and transformation context are available here so agents and consumers see the same upstream metadata that drove ingestion.
 
-* [Datasets](core-concepts/datasets.md) — typed Python and SQL access to loaded data
-* [Marimo notebooks](../general-usage/dataset-access/marimo.md) — build lightweight, shareable data apps
-* Public links for interactive jobs — share notebooks and dashboards externally without granting platform access
+* [Datasets](core-concepts/datasets.md)—typed Python and SQL access to loaded data
+* [Marimo notebooks](../general-usage/dataset-access/marimo.md)—build lightweight, shareable data apps
+* Public links for interactive jobs—share notebooks and dashboards externally without granting platform access
 
 ### Platform capabilities
 
 Foundations that the rest of the platform builds on.
 
-* GitHub OAuth authentication and small-team workflows
+* GitHub OAuth and API key authentication, with organization and workspace [roles](runtime/users-and-roles.md)
 * [Managed, multi-tenant runtime](runtime/overview.md) with upgrades and patching handled for you
-* Secure secrets management per profile
-* Open storage choices — managed Iceberg/DuckLake, or bring your own lake/warehouse
+* [Secure secrets management](runtime/settings.md) per [profile](core-concepts/profiles-dlthub.md)
 
 ## Pricing and licensing
 

@@ -1,18 +1,18 @@
 ---
 title: Job configuration
-description: Per-job options on the dltHub platform — execution timeouts, dependency groups, and TOML configuration sections
+description: Per-job options on the dltHub platform—execution timeouts, dependency groups, and TOML configuration sections
 keywords: [dlthub platform, job configuration, timeout, dependency groups, execute, require, expose, section]
 ---
 
 # Job configuration
 
-This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers & scheduling](triggers.md)) but about *how* it runs — execution limits, the Python environment it gets, and the configuration values it reads at runtime.
+This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers & scheduling](triggers.md)) but about *how* it runs—execution limits, the Python environment it gets, and the configuration values it reads at runtime.
 
 All options below are arguments to the `@run.pipeline`, `@run.job`, and `@run.interactive` decorators.
 
 ## Execution constraints
 
-`execute={"timeout": "6h"}` overrides the default 120-minute job timeout. Use the dict form to also customize the grace period — the window for the job to finish in-flight work before the dltHub platform hard-kills the process:
+`execute={"timeout": "6h"}` overrides the default 120-minute job timeout. Use the dict form to also customize the grace period—the window for the job to finish in-flight work before the dltHub platform hard-kills the process:
 
 ```py
 @run.pipeline(
@@ -58,7 +58,7 @@ epoch = "2026-04-05T00:00:00+00:00"
 epoch = "2026-04-10T00:00:00+00:00"
 ```
 
-For inline jobs in `__deployment__.py`, pass `section="my_job"` to the decorator to give it a clean section name. Profile-aware overrides live in `dev.config.toml`, `prod.config.toml`, etc. — see [Workspace setup](workspace-setup.md#setting-up-configuration-files).
+For inline jobs in `__deployment__.py`, pass `section="my_job"` to the decorator to give it a clean section name. Profile-aware overrides live in `dev.config.toml`, `prod.config.toml`, etc.—see [Workspace setup](workspace-setup.md#setting-up-configuration-files).
 
 ## Display metadata
 
@@ -85,5 +85,5 @@ See [Tags and bulk triggering](triggers.md#tags-and-bulk-triggering) for how tag
 
 ## Next steps
 
-- [Triggers & scheduling](triggers.md) — schedule and chain jobs
-- [Deploying jobs](deploying.md) — push these decorators to the dltHub platform
+- [Triggers & scheduling](triggers.md)—schedule and chain jobs
+- [Deploying jobs](deploying.md)—push these decorators to the dltHub platform
