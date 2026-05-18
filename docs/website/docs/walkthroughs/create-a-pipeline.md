@@ -49,101 +49,106 @@ Install the dependencies necessary for DuckDB:
 pip install -r requirements.txt
 ```
 
-## 2. Obtain and add API credentials from GitHub
+## 2. Optionally add API credentials from GitHub
 
-You will need to [sign in](https://github.com/login) to your GitHub account and create your access token via the [Personal access tokens page](https://github.com/settings/tokens).
+The generated pipeline can read public GitHub API data without a token, but adding one increases the GitHub API rate limit. To use authenticated requests, [sign in](https://github.com/login) to your GitHub account and create your access token via the [Personal access tokens page](https://github.com/settings/tokens).
 
-Copy your new access token over to `.dlt/secrets.toml`:
+Copy your new access token over to `.dlt/secrets.toml`, replacing the generated placeholder:
 
 ```toml
-[sources]
-api_secret_key = '<api key value>'
+access_token = "<api key value>"
 ```
 
-This token will be used by `github_api_source()` to authenticate requests.
+To run without authentication, delete that line or set `access_token = ""`.
 
-The **secret name** corresponds to the **argument name** in the source function.
-Below, `api_secret_key` [will get its value](../general-usage/credentials/advanced)
-from `secrets.toml` when `github_api_source()` is called.
+This token will be used by `github_source()` to authenticate requests.
+
+The **secret name** corresponds to the **argument name** in the source function. Below, `access_token` [will get its value](../general-usage/credentials/advanced) from `secrets.toml` when `github_source()` is called.
+
+## 3. Review the generated GitHub API source
+
+The `dlt init github_api duckdb` command creates `github_api_pipeline.py`. It uses the `dlt` repository as an example GitHub project, but you can replace the organization, repository, or endpoint paths with your own.
 
 ```py
-@dlt.source
-def github_api_source(api_secret_key: str = dlt.secrets.value):
-    return github_api_resource(api_secret_key=api_secret_key)
-```
-
-Run the `github_api_pipeline.py` pipeline script to test that authentication headers look fine:
-
-```sh
-python github_api_pipeline.py
-```
-
-Your API key should be printed out to stdout along with some test data.
-
-## 3. Request project issues from the GitHub API
-
-
-:::tip
-We will use the `dlt` repository as an example GitHub project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
-:::
-
-Modify `github_api_resource` in `github_api_pipeline.py` to request issues data from your GitHub project's API:
-
-```py
-from dlt.sources.helpers.rest_client import paginate
+from typing import Optional
+import dlt
+from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
-@dlt.resource(write_disposition="replace")
-def github_api_resource(api_secret_key: str = dlt.secrets.value):
-    url = "https://api.github.com/repos/dlt-hub/dlt/issues"
+@dlt.source
+def github_source(access_token: Optional[str] = dlt.secrets.value):
+    auth = BearerTokenAuth(token=access_token) if access_token else None
 
-    for page in paginate(
-        url,
-        auth=BearerTokenAuth(api_secret_key), # type: ignore
+    client = RESTClient(
+        base_url="https://api.github.com",
+        auth=auth,
         paginator=HeaderLinkPaginator(),
-        params={"state": "open"}
+        headers={
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+
+    @dlt.resource(name="repos", write_disposition="replace")
+    def repos():
+        for page in client.paginate("orgs/dlt-hub/repos"):
+            yield page
+
+    @dlt.resource(name="issues", write_disposition="append")
+    def issues(
+        updated_at=dlt.sources.incremental(
+            "updated_at",
+            initial_value="2026-01-01T00:00:00Z",
+        )
     ):
-        yield page
+        for page in client.paginate(
+            "repos/dlt-hub/dlt/issues",
+            params={
+                "state": "open",
+                "sort": "updated",
+                "direction": "desc",
+                "since": updated_at.start_value,
+                "per_page": "100",
+            },
+        ):
+            yield page
+
+    return [repos, issues]
 ```
+
+The template defines two resources:
+
+- `repos`, which replaces the destination table with the current list of repositories in the `dlt-hub` organization.
+- `issues`, which appends open issues from `dlt-hub/dlt` and tracks them incrementally by `updated_at`.
 
 ## 4. Load the data
 
-Uncomment the commented-out code in the `main` function in `github_api_pipeline.py`, so that running the
-`python github_api_pipeline.py` command will now also run the pipeline:
+The generated script is ready to run. Its `run_source` function creates the pipeline and loads `github_source()` into DuckDB:
 
 ```py
-if __name__=='__main__':
-    # configure the pipeline with your destination details
+def run_source() -> None:
     pipeline = dlt.pipeline(
-        pipeline_name='github_api_pipeline',
-        destination='duckdb',
-        dataset_name='github_api_data'
+        pipeline_name="github_api_pipeline",
+        destination="duckdb",
+        dataset_name="github_api_data",
+        progress="log",
     )
 
-    # print credentials by running the resource
-    data = list(github_api_resource())
-
-    # print the data yielded from resource
-    print(data)
-
-    # run the pipeline with your parameters
-    load_info = pipeline.run(github_api_source())
-
-    # pretty print the information on data that was loaded
+    load_info = pipeline.run(github_source())
     print(load_info)
+
+if __name__ == "__main__":
+    run_source()
 ```
 
-
-Run the `github_api_pipeline.py` pipeline script to test that the API call works:
+Run the pipeline script:
 
 ```sh
 python github_api_pipeline.py
 ```
 
-This should print out JSON data containing the issues in the GitHub project.
-
-It also prints the `load_info` object.
+This loads the GitHub data and prints the `load_info` object.
 
 Let's explore the loaded data with the [command](../reference/command-line-interface#dlt-pipeline-show) `dlt pipeline <pipeline_name> show`.
 
