@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlthub [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
     [--disable-telemetry] [--enable-telemetry] [--no-pwd]
-    {workspace,show,serve,run,logout,login,job,deploy,dbt,profile,pipeline,local,init,ai}
+    {dbt,workspace,show,serve,run,logout,login,job,deploy,profile,pipeline,local,init,ai}
     ...
 ```
 
@@ -42,15 +42,16 @@ dlthub [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 **Options**
 * `-h, --help` - Show this help message and exit
 * `-v, --verbose` - Increase verbosity. repeat for more (-v, -vv, -vvv).
-* `--non-interactive` - Run non-interactively. confirmations and prompts return their default values; the command fails fast if a prompt has no default. also implied when stdin is not a tty.
-* `-y, --yes` - Run non-interactively and auto-accept all confirmations. free-form prompts still require defaults (or fail fast).
-* `--debug` - Displays full stack traces on exceptions. useful for debugging if the output is not clear enough.
+* `--non-interactive` - Use prompt defaults; fail if a prompt has none. implied when stdin is not a tty.
+* `-y, --yes` - Auto-accept confirmations. free-form prompts still need defaults.
+* `--debug` - Show full stack traces on exceptions.
 * `--version` - Show program's version number and exit
 * `--disable-telemetry` - Disables telemetry before command is executed
 * `--enable-telemetry` - Enables telemetry before command is executed
 * `--no-pwd` - Do not add current working directory to sys.path. by default $pwd is added to reproduce python behavior when running scripts.
 
 **Available subcommands**
+* [`dbt`](#dlthub-dbt) - Dlthub dbt transformation generator
 * [`workspace`](#dlthub-workspace) - Workspace operations: connect, list, info, show, deploy, deployment, configuration
 * [`show`](#dlthub-show) - Open the dlthub dashboard (alias for `dlthub workspace show`)
 * [`serve`](#dlthub-serve) - Deploy and serve an interactive notebook/app (alias for `dlthub job serve`)
@@ -59,12 +60,70 @@ dlthub [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 * [`login`](#dlthub-login) - Log in to dlthub (identity only)
 * [`job`](#dlthub-job) - Job operations: list, info, run, serve, trigger, publish, unpublish, logs, cancel, runs
 * [`deploy`](#dlthub-deploy) - Sync code/config and deploy jobs
-* [`dbt`](#dlthub-dbt) - Dlthub dbt transformation generator
 * [`profile`](#dlthub-profile) - Manage workspace built-in profiles
 * [`pipeline`](#dlthub-pipeline) - Interact with pipelines running in dlthub
 * [`local`](#dlthub-local) - Operations on the local workspace (run, serve, info, show, clean, schema, telemetry, pipeline)
 * [`init`](#dlthub-init) - Initialize a new dlthub workspace
 * [`ai`](#dlthub-ai) - Use ai-powered development tools and utilities
+
+</details>
+
+## `dlthub dbt`
+
+dlthub dbt transformation generator.
+
+**Usage**
+```sh
+dlthub dbt [-h] {generate} ...
+```
+
+**Description**
+
+dlthub dbt transformation generator.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`generate`](#dlthub-dbt-generate) - Generate dbt project
+
+</details>
+
+### `dlthub dbt generate`
+
+Generate dbt project.
+
+**Usage**
+```sh
+dlthub dbt generate [-h] [--include_dlt_tables] [--fact [FACT]] [--force]
+    [--mart_table_prefix [MART_TABLE_PREFIX]] pipeline_name
+```
+
+**Description**
+
+Generate dbt project.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub dbt`](#dlthub-dbt).
+
+**Positional arguments**
+* `pipeline_name` - The pipeline to create a dbt project for
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--include_dlt_tables` - Do not render _dlt tables
+* `--fact [FACT]` - Create a fact table for a given table
+* `--force` - Force overwrite of existing files
+* `--mart_table_prefix [MART_TABLE_PREFIX]` - Prefix for mart tables
 
 </details>
 
@@ -210,7 +269,8 @@ Sync code/config and deploy jobs.
 
 **Usage**
 ```sh
-dlthub workspace deploy [-h] [--file FILE] [--dry-run] [--show-manifest]
+dlthub workspace deploy [-h] [--deployment DEPLOYMENT] [--dry-run]
+    [--show-manifest]
 ```
 
 **Description**
@@ -225,7 +285,7 @@ Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
 * `--dry-run` - Preview changes without applying them
 * `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
 
@@ -475,13 +535,13 @@ Deploy and serve an interactive notebook/app (alias for `dlthub job serve`).
 
 **Usage**
 ```sh
-dlthub serve [-h] [--file FILE] [--timestamps] [-f] [--job-ref REF]
+dlthub serve [-h] [--deployment DEPLOYMENT] [--timestamps] [-f] [--job-ref REF]
     [selector_or_job_ref]
 ```
 
 **Description**
 
-Deploy current workspace and run a notebook as a read-only web app. Shortcut for `dlthub job serve`.
+Deploy current workspace and run a notebook as a read-only web app. A plain `.py` script (marimo notebook, Streamlit app, FastMCP server, etc.) may also be passed and will be deployed and served remotely as a regular script. Alias for `dlthub job serve`.
 
 <details>
 
@@ -490,11 +550,11 @@ Deploy current workspace and run a notebook as a read-only web app. Shortcut for
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Positional arguments**
-* `selector_or_job_ref` - Selector or job ref to pick an interactive app from the manifest
+* `selector_or_job_ref` - Selector or job ref to pick an interactive app from the manifest, or a .py file path to deploy and serve as a regular script
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Stream logs until the app stops
 * `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
@@ -507,13 +567,13 @@ Deploy code/config and run a script (alias for `dlthub job run`).
 
 **Usage**
 ```sh
-dlthub run [-h] [--file FILE] [--timestamps] [-f] [--refresh] [--job-ref REF]
-    [selector_or_job_ref]
+dlthub run [-h] [--deployment DEPLOYMENT] [--timestamps] [-f] [--refresh]
+    [--job-ref REF] [selector_or_job_ref]
 ```
 
 **Description**
 
-Deploy current workspace and run a batch script remotely. Use -f/--follow to tail logs until completion. Shortcut for `dlthub job run`.
+Deploy current workspace and run a batch script remotely. Use -f/--follow to tail logs until completion. A plain `.py` script may also be passed: if it exposes no jobs it is deployed and executed remotely as a regular Python script. Alias for `dlthub job run`.
 
 <details>
 
@@ -522,11 +582,11 @@ Deploy current workspace and run a batch script remotely. Use -f/--follow to tai
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Positional arguments**
-* `selector_or_job_ref` - Selector or job ref to pick a job from the manifest
+* `selector_or_job_ref` - Selector or job ref to pick a job from the manifest, or a .py file path to deploy and run as a regular script
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Follow status changes and stream logs until the run completes
 * `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
@@ -1026,13 +1086,13 @@ Deploy and serve an interactive notebook/app.
 
 **Usage**
 ```sh
-dlthub job serve [-h] [--file FILE] [--timestamps] [-f] [--job-ref REF]
-    [selector_or_job_ref]
+dlthub job serve [-h] [--deployment DEPLOYMENT] [--timestamps] [-f] [--job-ref
+    REF] [selector_or_job_ref]
 ```
 
 **Description**
 
-Deploy current workspace and run a notebook as a read-only web app.
+Deploy current workspace and run a notebook as a read-only web app. A plain `.py` script (marimo notebook, Streamlit app, FastMCP server, etc.) may also be passed and will be deployed and served remotely as a regular script.
 
 <details>
 
@@ -1041,11 +1101,11 @@ Deploy current workspace and run a notebook as a read-only web app.
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
-* `selector_or_job_ref` - Selector or job ref to pick an interactive app from the manifest
+* `selector_or_job_ref` - Selector or job ref to pick an interactive app from the manifest, or a .py file path to deploy and serve as a regular script
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Stream logs until the app stops
 * `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
@@ -1058,13 +1118,13 @@ Deploy code/config and run a batch job.
 
 **Usage**
 ```sh
-dlthub job run [-h] [--file FILE] [--timestamps] [-f] [--refresh] [--job-ref
-    REF] [selector_or_job_ref]
+dlthub job run [-h] [--deployment DEPLOYMENT] [--timestamps] [-f] [--refresh]
+    [--job-ref REF] [selector_or_job_ref]
 ```
 
 **Description**
 
-Deploy current workspace and run a batch script remotely. Use -f/--follow to tail logs until completion.
+Deploy current workspace and run a batch script remotely. Use -f/--follow to tail logs until completion. A plain `.py` script may also be passed: if it exposes no jobs it is deployed and executed remotely as a regular Python script.
 
 <details>
 
@@ -1073,11 +1133,11 @@ Deploy current workspace and run a batch script remotely. Use -f/--follow to tai
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
-* `selector_or_job_ref` - Selector or job ref to pick a job from the manifest
+* `selector_or_job_ref` - Selector or job ref to pick a job from the manifest, or a .py file path to deploy and run as a regular script
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Follow status changes and stream logs until the run completes
 * `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
@@ -1091,7 +1151,8 @@ Sync code/config and deploy jobs.
 
 **Usage**
 ```sh
-dlthub deploy [-h] [--timestamps] [--file FILE] [--dry-run] [--show-manifest]
+dlthub deploy [-h] [--timestamps] [--deployment DEPLOYMENT] [--dry-run]
+    [--show-manifest]
 ```
 
 **Description**
@@ -1107,68 +1168,9 @@ Inherits arguments from [`dlthub`](#dlthub).
 **Options**
 * `-h, --help` - Show this help message and exit
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
-* `--file FILE` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
 * `--dry-run` - Preview changes without applying them
 * `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
-
-</details>
-
-## `dlthub dbt`
-
-dlthub dbt transformation generator.
-
-**Usage**
-```sh
-dlthub dbt [-h] {generate} ...
-```
-
-**Description**
-
-dlthub dbt transformation generator.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub`](#dlthub).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`generate`](#dlthub-dbt-generate) - Generate dbt project
-
-</details>
-
-### `dlthub dbt generate`
-
-Generate dbt project.
-
-**Usage**
-```sh
-dlthub dbt generate [-h] [--include_dlt_tables] [--fact [FACT]] [--force]
-    [--mart_table_prefix [MART_TABLE_PREFIX]] pipeline_name
-```
-
-**Description**
-
-Generate dbt project.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlthub dbt`](#dlthub-dbt).
-
-**Positional arguments**
-* `pipeline_name` - The pipeline to create a dbt project for
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--include_dlt_tables` - Do not render _dlt tables
-* `--fact [FACT]` - Create a fact table for a given table
-* `--force` - Force overwrite of existing files
-* `--mart_table_prefix [MART_TABLE_PREFIX]` - Prefix for mart tables
 
 </details>
 
@@ -1471,13 +1473,14 @@ Run a single batch workspace job locally.
 
 **Usage**
 ```sh
-dlthub local run [-h] [--file FILE] [--job-ref REF] [--profile NAME] [--dry-run]
-    [-c KEY=VALUE] [--start ISO] [--end ISO] [--refresh] [selector_or_job_ref]
+dlthub local run [-h] [--deployment FILE] [--job-ref REF] [--profile NAME]
+    [--dry-run] [-c KEY=VALUE] [--start ISO] [--end ISO] [--refresh]
+    [selector_or_job_ref]
 ```
 
 **Description**
 
-Run a single batch job from a deployment module locally. Loads the manifest, matches exactly one job by selector or job reference, builds a runtime entry point, and spawns the launcher subprocess. Interactive jobs are refused — use `dlthub local serve` for those.
+Run one batch job by selector or job ref. A plain `.py` path is run as a regular script.
 
 <details>
 
@@ -1486,18 +1489,18 @@ Run a single batch job from a deployment module locally. Loads the manifest, mat
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Positional arguments**
-* `selector_or_job_ref` - Job reference (backfill, batch.backfill), trigger selector (tag:backfill, schedule:*), or a .py file path (auto-promoted to --file). if omitted, the job's default trigger is used.
+* `selector_or_job_ref` - Job ref, trigger selector (tag:..., schedule:*), or a .py file to run as a script.
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--file FILE` - Path to a .py deployment module. if omitted, loads the default '__deployment__' module from the workspace.
-* `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
+* `--deployment FILE` - Path to a .py deployment module. defaults to __deployment__.py.
+* `--job-ref REF` - Pick this job when the selector matches multiple jobs.
 * `--profile NAME` - Override require.profile and the workspace pinned profile.
 * `--dry-run` - Resolve the job and print the entry point without launching
 * `-c KEY=VALUE, --config KEY=VALUE` - Config key=value pairs passed to the job (repeatable)
 * `--start ISO` - Override interval start (iso 8601). naive values use the job's timezone.
 * `--end ISO` - Override interval end (iso 8601). defaults to now if --start is set.
-* `--refresh` - Request a refresh run. respects tjobdefinition.refresh: `always` forces refresh regardless, `block` ignores the flag with a warning (run proceeds), `auto` honors it.
+* `--refresh` - Request a refresh run. honored unless the job declares refresh=block.
 
 </details>
 
@@ -1507,13 +1510,13 @@ Serve an interactive workspace job locally (notebook, dashboard, app).
 
 **Usage**
 ```sh
-dlthub local serve [-h] [--file FILE] [--job-ref REF] [--profile NAME]
+dlthub local serve [-h] [--deployment FILE] [--job-ref REF] [--profile NAME]
     [--dry-run] [-c KEY=VALUE] [selector_or_job_ref]
 ```
 
 **Description**
 
-Serve a single interactive job from a deployment module locally. Same selector / `--job-ref` semantics as `dlthub local run`, but only matches interactive jobs. Batch jobs are refused — use `dlthub local run` for those.
+Serve one interactive job (marimo, Streamlit, FastMCP, ...). Same selector / `--job-ref` semantics as `dlthub local run`.
 
 <details>
 
@@ -1522,12 +1525,12 @@ Serve a single interactive job from a deployment module locally. Same selector /
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Positional arguments**
-* `selector_or_job_ref` - Job reference (backfill, batch.backfill), trigger selector (tag:backfill, schedule:*), or a .py file path (auto-promoted to --file). if omitted, the job's default trigger is used.
+* `selector_or_job_ref` - Job ref, trigger selector (tag:..., schedule:*), or a .py file to run as a script.
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--file FILE` - Path to a .py deployment module. if omitted, loads the default '__deployment__' module from the workspace.
-* `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
+* `--deployment FILE` - Path to a .py deployment module. defaults to __deployment__.py.
+* `--job-ref REF` - Pick this job when the selector matches multiple jobs.
 * `--profile NAME` - Override require.profile and the workspace pinned profile.
 * `--dry-run` - Resolve the job and print the entry point without launching
 * `-c KEY=VALUE, --config KEY=VALUE` - Config key=value pairs passed to the job (repeatable)
@@ -1758,7 +1761,7 @@ Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 * `-h, --help` - Show this help message and exit
 * `--job-ref REF` - Narrow to this job when multiple jobs deliver to the same pipeline
 * `--profile NAME` - Override require.profile and the workspace pinned profile.
-* `--refresh` - Request a refresh run (subject to tjobdefinition.refresh policy).
+* `--refresh` - Request a refresh run. honored unless the job declares refresh=block.
 * `--dry-run` - Resolve the job and print the entry point without launching
 
 </details>

@@ -41,9 +41,9 @@ dlt [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 **Options**
 * `-h, --help` - Show this help message and exit
 * `-v, --verbose` - Increase verbosity. repeat for more (-v, -vv, -vvv).
-* `--non-interactive` - Run non-interactively. confirmations and prompts return their default values; the command fails fast if a prompt has no default. also implied when stdin is not a tty.
-* `-y, --yes` - Run non-interactively and auto-accept all confirmations. free-form prompts still require defaults (or fail fast).
-* `--debug` - Displays full stack traces on exceptions. useful for debugging if the output is not clear enough.
+* `--non-interactive` - Use prompt defaults; fail if a prompt has none. implied when stdin is not a tty.
+* `-y, --yes` - Auto-accept confirmations. free-form prompts still need defaults.
+* `--debug` - Show full stack traces on exceptions.
 * `--version` - Show program's version number and exit
 * `--disable-telemetry` - Disables telemetry before command is executed
 * `--enable-telemetry` - Enables telemetry before command is executed
