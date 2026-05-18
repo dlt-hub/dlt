@@ -41,7 +41,7 @@ dlt is the open source ingestion library, distributed under Apache 2.0.
 
 dltHub is a managed cloud platform for running your dlt pipelines, transformations, and notebooks. You can work with dltHub in two complementary ways:
 
-- **Web UI** at [dlthub.app](https://dlthub.app/) — sign up to deploy, schedule, monitor pipelines, manage profiles, browse datasets.
+- **Web UI** at [dlthub.app](https://app.dlthub.com) — sign up to deploy, schedule, monitor pipelines, manage profiles, browse datasets.
 - **Locally, from the CLI or Python** — bootstrap a new workspace in one command:
   ```sh
   uvx create-dlthub-workspace my-project
