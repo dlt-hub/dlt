@@ -68,14 +68,10 @@ def promote_deployment_arg(
         return selector_or_job_ref, deployment
     if deployment is not None:
         raise ValueError(
-            f"Cannot pass both a positional file {selector_or_job_ref!r} and"
-            f" --deployment {deployment!r}. Use one or the other."
+            f"Pass either positional {selector_or_job_ref!r} or --deployment, not both."
         )
     if not Path(selector_or_job_ref).is_file():
-        raise FileNotFoundError(
-            f"File not found: {selector_or_job_ref!r}. Pass an existing .py file"
-            " or a job ref/selector."
-        )
+        raise FileNotFoundError(f"File not found: {selector_or_job_ref!r}")
     return None, selector_or_job_ref
 
 
@@ -368,12 +364,32 @@ def fetch_run_info(
 ) -> Optional[TRunJobInfo]:
     """Resolve a run/serve request to a launchable `TRunJobInfo`.
 
-    `selector` is the user's positional (selector or job_ref). `selectors` lets
-    the controller inject pre-built selectors (e.g. `pipeline_name:<name>`)
-    skipping positional resolution. `pick` is invoked when the matched set has
-    more than one candidate AND no `job_ref` was supplied. `available_selectors`
-    scopes the `NoMatchingJobs.available` listing on no-match (e.g. `["batch"]`,
-    `["interactive"]`, `["pipeline_name:*"]`).
+    Args:
+        selector: User-supplied positional — a selector or a job ref.
+        selectors: Pre-built selectors (e.g. `["pipeline_name:<name>"]`). When set,
+            `selector` is ignored.
+        deployment: Path or module name of the deployment to load. Defaults to the
+            workspace's default deployment module.
+        user_profile: Profile override; wins over the active profile.
+        user_start: ISO interval start override.
+        user_end: ISO interval end override.
+        user_refresh: Whether the user requested `--refresh`.
+        cli_config: `KEY=VALUE` config overrides to merge into the entry point.
+        job_ref: Narrow the matched candidates to this exact ref.
+        forbidden_job_type: Skip jobs of this `job_type` (e.g. `"interactive"`).
+        available_selectors: Selectors used to scope `NoMatchingJobs.available`
+            on no-match (e.g. `["batch"]`, `["interactive"]`).
+        pick: Callback invoked when more than one candidate matches and no
+            `job_ref` was given.
+        now_utc: Clock override for tests.
+
+    Returns:
+        A `TRunJobInfo` ready to launch, or `None` when the manifest has no jobs.
+
+    Raises:
+        NoMatchingJobs: No job matched the selectors.
+        AmbiguousJobSelector: Multiple jobs matched and `pick` is not provided.
+        JobRefNotInCandidates: `job_ref` is not among matched candidates.
     """
     if selectors is not None:
         # caller-supplied selectors path (e.g. local pipeline run)

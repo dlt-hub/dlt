@@ -1,6 +1,6 @@
 import sys
 import warnings
-from typing import IO, TYPE_CHECKING, Any, Optional, Sequence, Type, cast, List, Dict, Tuple
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, cast, List, Dict, Tuple
 
 if TYPE_CHECKING:
     from _typeshed import SupportsWrite
@@ -54,22 +54,26 @@ def print_help(host: str, parser: argparse.ArgumentParser) -> None:
         parser.print_help()
 
 
-def _maybe_print_workspace_hint(host: str, *, file: Optional[IO[Any]] = None) -> None:
-    if host == "dlthub" and not is_workspace_active():
-        fmt.echo(file=file)
-        fmt.secho(
-            "NOTE: Not all dlthub commands are visible. "
-            "Run %s to initialize workspace or %s for coding agent assist."
-            % (fmt.bold("dlthub init"), fmt.bold("dlthub ai init")),
-            fg="green",
-            file=file,
-        )
+def _print_dlthub_workspace_hint(file: Any = None) -> None:
+    """Print the 'commands not visible' note after `dlthub --help` outside a workspace."""
+    if is_workspace_active():
+        return
+    fmt.echo(file=file)
+    fmt.secho(
+        "NOTE: Not all dlthub commands are visible. "
+        "Run %s to initialize workspace or %s for coding agent assist."
+        % (fmt.bold("dlthub init"), fmt.bold("dlthub ai init")),
+        fg="green",
+        file=file,
+    )
 
 
-class _HostAwareArgumentParser(argparse.ArgumentParser):
+class _DlthubArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that appends the workspace-hint after `--help`. Only used for the `dlthub` host."""
+
     def print_help(self, file: "Optional[SupportsWrite[str]]" = None) -> None:
         super().print_help(file)
-        _maybe_print_workspace_hint(self.prog, file=cast(Optional[IO[Any]], file))
+        _print_dlthub_workspace_hint(file=file)
 
 
 class TelemetryAction(argparse.Action):
@@ -179,27 +183,18 @@ def _create_pre_parser() -> argparse.ArgumentParser:
     pre_parser.add_argument(
         "--non-interactive",
         action=NonInteractiveAction,
-        help=(
-            "Run non-interactively. Confirmations and prompts return their default values; the"
-            " command fails fast if a prompt has no default. Also implied when stdin is not a tty."
-        ),
+        help="Use prompt defaults; fail if a prompt has none. Implied when stdin is not a tty.",
     )
     pre_parser.add_argument(
         "-y",
         "--yes",
         action=YesAction,
-        help=(
-            "Run non-interactively and auto-accept all confirmations. Free-form prompts still"
-            " require defaults (or fail fast)."
-        ),
+        help="Auto-accept confirmations. Free-form prompts still need defaults.",
     )
     pre_parser.add_argument(
         "--debug",
         action=DebugAction,
-        help=(
-            "Displays full stack traces on exceptions. Useful for debugging if the output is not"
-            " clear enough."
-        ),
+        help="Show full stack traces on exceptions.",
     )
     return pre_parser
 
@@ -210,7 +205,8 @@ def _create_parser(
     argparse.ArgumentParser, argparse.ArgumentParser, Dict[str, _compose.ComposedExecutable]
 ]:
     pre_parser = _create_pre_parser()
-    parser = _HostAwareArgumentParser(
+    parser_cls = _DlthubArgumentParser if host == "dlthub" else argparse.ArgumentParser
+    parser = parser_cls(
         prog=host,
         parents=[pre_parser],
         description=(
@@ -320,20 +316,17 @@ def main(host: str = "dlt") -> int:
     try:
         parser, pre_parser, installed_commands = _create_parser(host)
     except ValueError as ex:
-        # parser-construction errors (mismatched compose modes, additive on a
-        # subcommand) — surface as a clean red message, not a stack trace
         fmt.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to our docs at '%s' for further assistance." % DEFAULT_DOCS_URL)
         return -1
-    # pre-pass extracts anywhere-globals from any argv position and fires their Actions;
-    # main parse handles the rest with namespace=ns to preserve pre-parsed values
+    # pre-pass extracts global flags at any argv position; main parse uses namespace=ns to keep them
     ns, remaining = pre_parser.parse_known_args(sys.argv[1:])
     try:
         args = parser.parse_args(remaining, namespace=ns)
     except SystemExit as ex:
-        # argparse handles errors by calling `sys.exit(2)`.
-        if ex.code == 2:
-            _maybe_print_workspace_hint(host)
+        # argparse exits with code 2 on errors
+        if ex.code == 2 and host == "dlthub":
+            _print_dlthub_workspace_hint()
         raise
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():
@@ -353,18 +346,15 @@ def main(host: str = "dlt") -> int:
                         sys.path.insert(0, "")
                 cmd.execute(args)
         except Exception as ex:
-            # `cmd.docs_url` may be `None` (Optional[str] on the protocol) — fall back to default
             docs_url = getattr(cmd, "docs_url", None) or DEFAULT_DOCS_URL
             error_code = -1
             raiseable_exception = ex
 
-            # overwrite some values if this is a CliCommandException
             if isinstance(ex, CliCommandException):
                 error_code = ex.error_code
                 docs_url = ex.docs_url or docs_url
                 raiseable_exception = ex.raiseable_exception
 
-            # comes from `CliCommandException.raiseable_exception`
             if raiseable_exception:
                 fmt.secho(str(raiseable_exception) or str(ex), err=True, fg="red")
 

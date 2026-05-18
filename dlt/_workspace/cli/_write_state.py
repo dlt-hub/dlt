@@ -16,20 +16,13 @@ from dlt._workspace.cli.exceptions import CliCommandException
 
 
 class WorkspaceWriteState:
-    """Stages workspace file/secret/config writes for atomic commit.
-
-    Files staged via `add_new_file` and `add_file_copy` are written together. Values
-    staged via `add_secrets_value` / `add_config_value` are merged into `secrets.toml`
-    and `config.toml` preserving comments. Subclasses extend behaviour via
-    `_after_files_hook`, called between bulk file writes and toml writes.
-    """
+    """Stages workspace file/secret/config writes for atomic commit."""
 
     def __init__(self, dest_storage: FileStorage, settings_dir: str) -> None:
         self.dest_storage = dest_storage
         self.settings_dir = settings_dir
 
         self.dirs_to_create: List[str] = []
-        # field name aligned with dlt-plus ProjectWriteState for drop-in inheritance later
         self.new_files: List[Dict[str, Any]] = []
         self.file_copies: List[Dict[str, Any]] = []
         self.pending_secrets: List[WritableConfigValue] = []

@@ -312,29 +312,19 @@ def _add_common_run_args(
         "selector_or_job_ref",
         nargs="?",
         default=None,
-        help=(
-            "Job reference (backfill, batch.backfill), trigger selector"
-            " (tag:backfill, schedule:*), or a .py file path to run as a"
-            " regular script. If omitted, the job's default trigger is used."
-        ),
+        help="Job ref, trigger selector (tag:..., schedule:*), or a .py file to run as a script.",
     )
     parser.add_argument(
         "--deployment",
         default=None,
         metavar="FILE",
-        help=(
-            "Path to a .py deployment module. If omitted, loads the default"
-            " __deployment__ module from the workspace."
-        ),
+        help="Path to a .py deployment module. Defaults to __deployment__.py.",
     )
     parser.add_argument(
         "--job-ref",
         default=None,
         metavar="REF",
-        help=(
-            "Pick this job from the matched candidate set when the selector"
-            " matches multiple jobs. Errors if REF is not in the matched set."
-        ),
+        help="Pick this job when the selector matches multiple jobs.",
     )
     parser.add_argument(
         "--profile",
@@ -371,11 +361,7 @@ def _add_common_run_args(
         parser.add_argument(
             "--refresh",
             action="store_true",
-            help=(
-                "Request a refresh run. Respects TJobDefinition.refresh:"
-                " `always` forces refresh regardless, `block` ignores the flag"
-                " with a warning (run proceeds), `auto` honors it."
-            ),
+            help="Request a refresh run. Honored unless the job declares refresh=block.",
         )
 
 
@@ -420,11 +406,8 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             "run",
             help="Run a single batch workspace job locally",
             description=(
-                "Run a single batch job from a deployment module locally. Loads the manifest,"
-                " matches exactly one job by selector or job reference, builds a runtime"
-                " entry point, and spawns the launcher subprocess."
-                " A plain `.py` script may also be passed: if it exposes no jobs it is"
-                " executed as a regular Python script."
+                "Run one batch job by selector or job ref. A plain `.py` path is run as a"
+                " regular script."
             ),
         )
         _add_common_run_args(run_p, include_interval_and_refresh=True)
@@ -433,11 +416,8 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             "serve",
             help="Serve an interactive workspace job locally (notebook, dashboard, app)",
             description=(
-                "Serve a single interactive job from a deployment module locally. Same"
-                " selector / `--job-ref` semantics as `dlthub local run`, but only matches"
-                " interactive jobs."
-                " A plain `.py` script (marimo notebook, Streamlit app, FastMCP server, etc.)"
-                " may also be passed and will be served as a regular script."
+                "Serve one interactive job (marimo, Streamlit, FastMCP, ...). Same selector"
+                " / `--job-ref` semantics as `dlthub local run`."
             ),
         )
         _add_common_run_args(serve_p, include_interval_and_refresh=False)
@@ -536,7 +516,7 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         pipeline_run_p.add_argument(
             "--refresh",
             action="store_true",
-            help="Request a refresh run (subject to TJobDefinition.refresh policy).",
+            help="Request a refresh run. Honored unless the job declares refresh=block.",
         )
         pipeline_run_p.add_argument(
             "--dry-run",

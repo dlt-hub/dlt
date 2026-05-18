@@ -160,11 +160,15 @@ def _name_with_extras(spec: TInstallSpec) -> str:
 
 
 def render_pep508(spec: TInstallSpec, *, for_deployment: bool) -> str:
-    """PEP 508 line for `[project.dependencies]` / top-of-`requirements.txt`."""
-    # for_deployment=True: portable — editable falls back to version pin,
-    #   path/git become direct refs (`pkg @ file://...` / `pkg @ git+...`)
-    # for_deployment=False (scaffold): emit version pin so [tool.uv.sources]
-    #   can carry the override; direct ref only when no version metadata
+    """PEP 508 line for `[project.dependencies]` / top-of-`requirements.txt`.
+
+    Args:
+        spec: Install spec to render.
+        for_deployment: When True, render a portable line (editable becomes a
+            version pin; path/git become PEP 508 direct refs). When False (used
+            for scaffolding), emit a version pin so `[tool.uv.sources]` can carry
+            the override.
+    """
     name_extras = _name_with_extras(spec)
     mode = spec["mode"]
     version = spec["version"]
@@ -447,13 +451,9 @@ def _export_from_pyproject(
 
 
 def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[str]:
-    """Export a `requirements.txt` / `requirements.in` file as sorted PEP 508 specs.
-
-    When `uv` is available, runs `uv pip compile --universal` for a fully
-    resolved, platform-independent lockset. When `uv` is missing, falls back
-    to a pure-Python parse of the file — no resolution, specs are returned
-    as authored.
-    """
+    """Export a `requirements.txt` / `requirements.in` file as sorted PEP 508 specs."""
+    # with uv: `uv pip compile --universal` for a resolved, platform-independent
+    # lockset. without uv: pure-Python parse, specs returned as authored
     if is_uv_available():
         stdout = _run_uv(
             [
@@ -471,12 +471,8 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
 
 
 def _parse_requirements_file(file_path: Path) -> List[str]:
-    """Parse a user-authored `requirements.txt` / `.in` file to sorted PEP 508 specs.
-
-    Handles comments, blank lines, line continuations, and skips flag lines
-    (`-e`, `-r`, `--index-url`, ...). Does **not** resolve — returns specs
-    as authored, normalized through `packaging.requirements.Requirement`.
-    """
+    """Parse a user-authored `requirements.txt` / `.in` file to sorted PEP 508 specs."""
+    # does not resolve; flag lines (-e, -r, --index-url) are skipped
     text = file_path.read_text(encoding="utf-8")
     # join line continuations
     text = text.replace("\\\n", "")
@@ -508,13 +504,9 @@ def _dependency_group_names(pyproject_doc: Any) -> List[str]:
 
 
 def _parse_uv_output(text: str) -> List[str]:
-    """Deduplicate and sort the lines of a `uv export` / `uv pip compile` blob.
-
-    We pass `--no-header --no-annotate --no-hashes` / equivalent flags so uv's
-    output is already canonical PEP 508 — one spec per line, no flags, no
-    continuations. We only need to drop blanks/comments and return a stable
-    sorted set.
-    """
+    """Deduplicate and sort the lines of a `uv export` / `uv pip compile` blob."""
+    # callers always pass --no-header --no-annotate --no-hashes (or equivalent),
+    # so the input is already canonical PEP 508 — just drop blanks/comments
     return sorted(
         {
             line.strip()
@@ -577,11 +569,7 @@ def _require_uv() -> None:
 
 
 def _run_uv(args: List[str], cwd: Path) -> str:
-    """Invoke `uv` with the given args, returning stdout on success.
-
-    Callers are expected to have checked `is_uv_available()` first; the
-    `FileNotFoundError` branch is a last-resort safety net.
-    """
+    """Invoke `uv` with the given args, returning stdout on success."""
     try:
         proc = subprocess.run(
             ["uv", *args],

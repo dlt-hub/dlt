@@ -44,11 +44,7 @@ def group_commands(
 
 @dataclass
 class ComposedExecutable:
-    """A result of the command composition with composite parser and attached executable.
-
-    Additive sub commands have "execute" attached to parser which gets propagated to args
-    and used over primary one
-    """
+    """Result of composing one or more `SupportsCliCommand` into a single executable."""
 
     name: str
     compose: TCliCommandCompose

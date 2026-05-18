@@ -134,34 +134,25 @@ def init_pipeline_at_destination(
     target_dependency_system: str = None,
     display_source_name: str = None,
 ) -> Tuple[Optional[Dict[str, str]], files_ops.TSourceType]:
-    """
-    Initializes a pipeline at the specified destination by setting up the required files, configurations, and dependencies.
-
-    This function handles the discovery of the source type (template, core, or verified), prepares the destination storage,
-    resolves conflicts for existing files, and generates necessary configuration files (e.g., `config.toml`, `secrets.toml`).
-    It also validates compatibility with the installed dlt version and optionally creates an example pipeline script,
-    that loads data from the source to a specifiable destination.
+    """Scaffold a pipeline (config, secrets, optional example script) for `source_name` → `destination_type`.
 
     Args:
-        - source_name (str): The name of the source to initialize.
-        - destination_type (str): The type of destination (e.g., "bigquery", "redshift").
-        - repo_location (str): The location of the verified sources repository.
-        - branch (str, optional): The branch of the repository to use. Defaults to None.
-        - eject_source (bool, optional): Whether to eject the source code. Defaults to False.
-        - dry_run (bool, optional): If True, no files are modified, and the changes are returned as a preview. Defaults to False.
-        - skip_example_pipeline_script (bool, optional): If True, skips creating the example pipeline script. Defaults to False.
-        - destination_storage_path (str, optional): Path to the destination storage. Defaults to None.
-        - settings_dir (str, optional): Path to the settings directory. Defaults to None.
-        - sources_dir (str, optional): Path to the sources directory. Defaults to None.
-        - target_dependency_system (str, optional): Additional context used to adjust the welcome message. Valid options are
-            `requirements.txt` or `pyproject.toml`, Default to None, in which case it will be determined based on the destination storage.
+        source_name (str): Name of the source to initialize.
+        destination_type (str): Destination name (e.g. "bigquery", "redshift").
+        repo_location (str): Verified-sources repository URL or local path.
+        branch (str): Branch in `repo_location` to fetch from.
+        eject_source (bool): When True, copy the core source's code into the project so the user can edit it.
+        dry_run (bool): When True, return the planned file copies without writing.
+        add_example_pipeline_script (bool): When True, generate an example pipeline script.
+        destination_storage_path (str): Project root to write into.
+        settings_dir (str): Directory for `config.toml` / `secrets.toml`.
+        sources_dir (str): Directory under which verified sources are copied.
+        target_dependency_system (str): `"requirements.txt"` or `"pyproject.toml"`; controls the welcome message.
+        display_source_name (str): User-facing source name (e.g. for deprecated `dlthub:<source>` syntax).
 
     Returns:
-        Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], files_ops.TSourceType]:
-            A tuple containing:
-            - A dictionary of copied files (destination path -> source path).
-            - The type of the source (e.g., "template", "core", "verified").
-            - Name of the selected ide for dlthub sources (defaults to "cursor")
+        `(copied_files, source_type)` where `copied_files` maps destination paths to source paths
+        (or `None` on dry-run) and `source_type` is `"template"`, `"core"`, or `"verified"`.
     """
     # validate the user-facing name (display_source_name for dlthub: sources)
     name_to_validate = display_source_name or source_name
