@@ -450,9 +450,21 @@ const sidebars = {
       label: 'Pipeline operations',
       items: [
         'hub/runtime/overview',
-        'hub/runtime/regions',
+        'hub/runtime/workspace-setup',
+        'hub/runtime/deploying',
+        'hub/runtime/triggers',
+        'hub/runtime/job-configuration',
         'hub/runtime/monitor-and-debug',
         'hub/core-concepts/profiles-dlthub',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Platform capabilities',
+      items: [
+        'hub/runtime/regions',
+        'hub/runtime/users-and-roles',
+        'hub/runtime/settings',
       ]
     },
     {

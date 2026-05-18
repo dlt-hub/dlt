@@ -18,11 +18,11 @@ dltHub assumes a working knowledge of Python and provides an optimized experienc
 * Analysts who write Python (or pair with a coding agent) and need to own the pipelines feeding their reports rather than depend on a separate team to maintain them
 * Data teams standardizing on `dlt` that want production-grade ingestion, transformation, quality, and serving from a single toolchain
 * Organizations that prefer managed operations but require open formats and portability
-* Small teams with limited platform engineering support in need of a fully managed lightweight data plaform
+* Small data teams with limited platform engineering support in need of a fully managed lightweight data plaform
 
 ## What is dltHub?
 
-dltHub is an agent-native data engineering platform for building, running, and operating production-grade data pipelines. The toolchain is designed to be driven from coding agents — Claude Code, Codex, and Cursor — through [scaffolding commands](workspace/init.md), [per-source context files](../dlt-ecosystem/llm-tooling/llm-native-workflow.md), and an [MCP server](features/mcp-server.md). A developer comfortable with Python and a coding agent can build and operate ingestion, [transformations](features/transformations/index.md), [quality checks](features/quality/data-quality.md), and data apps end-to-end without managing infrastructure.
+dltHub is an agent-native data engineering platform for building, running, and operating production-grade data pipelines. The toolchain is designed to be driven from coding agents — Claude Code, Codex, and Cursor — through [scaffolding commands](workspace/init.md), [per-source context files](../dlt-ecosystem/llm-tooling/llm-native-workflow.md), and an [MCP server](features/mcp-server.md). A developer or analyst comfortable with Python and a coding agent can build and operate ingestion, [transformations](features/transformations/index.md), [quality checks](features/quality/data-quality.md), and data apps end-to-end without managing infrastructure.
 
 Context — source schemas, annotations, transformation logic, and run metadata — propagates from the data source through transformations to the serving layer. Downstream tools, dashboards, and agents can reason about upstream intent without re-discovering it.
 
@@ -53,7 +53,7 @@ In practice, any Python developer can:
 * Scale data workflows without manually managing infrastructure, schema drift, or silent failures
 
 :::tip
-For an end-to-end walkthrough, watch the dltHub [Workspace demo](https://youtu.be/rmpiFSCV8aA) or sign in to the [dltHub platform](https://app.dlthub.com) to deploy a workspace.
+For an end-to-end walkthrough, watch the [dltHub demo](https://youtu.be/rmpiFSCV8aA) or sign in to the [dltHub platform](https://app.dlthub.com) to deploy a workspace.
 :::
 
 To get started quickly, follow the [installation instructions](getting-started/installation.md).
@@ -91,10 +91,11 @@ Write transformations alongside your ingestion pipelines so they share datasets,
 Deploy, schedule, and monitor pipelines, transformations, and notebooks without standing up infrastructure.
 
 * [dltHub platform](runtime/overview.md) — one-command deploy of an entire workspace, cron and event-driven triggers, followup jobs, freshness checks, and refresh cascades. Sign in at [app.dlthub.com](https://app.dlthub.com)
+* [Triggers & scheduling](runtime/triggers.md) — cron and interval schedules, followup chains (`job.success` / `.fail` / `.completed`), scheduler-driven intervals with automatic backfill, freshness gates, refresh cascades, and tag-based bulk triggering from the CLI
 * [Profiles](core-concepts/profiles-dlthub.md) — isolate `dev`, `prod`, and `access` configurations and credentials
 * [Regions](runtime/regions.md) — choose where your data plane runs
-* [Workspace dashboard](../general-usage/dashboard.md) — observe runs, schemas, load history, and lineage from a single UI
-* [Monitoring & debugging](runtime/monitor-and-debug.md) — track live run status, stream logs (`dlthub job logs`), inspect per-run pipeline metrics (success rate, rows loaded, duration), and diagnose failures from the CLI or Web UI
+* [Workspace dashboard](../general-usage/dashboard.md) — observe runs, schemas, load history, and lineage from a single UI ([app.dlthub.com](https://app.dlthub.com))
+* [Monitoring & debugging](runtime/monitor-and-debug.md) — track live run status, stream logs (`dlthub job logs`), inspect per-run pipeline metrics (success rate, rows loaded, duration), and diagnose failures from the CLI or Web UI ([app.dlthub.com](https://app.dlthub.com))
 
 ### [Data quality & governance](features/quality/data-quality.md)
 
