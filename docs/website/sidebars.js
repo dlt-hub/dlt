@@ -451,6 +451,7 @@ const sidebars = {
       items: [
         'hub/runtime/overview',
         'hub/runtime/regions',
+        'hub/runtime/monitor-and-debug',
         'hub/core-concepts/profiles-dlthub',
       ]
     },

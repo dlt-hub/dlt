@@ -5,7 +5,7 @@ keywords: ["dltHub", "cache", "transformations"]
 ---
 
 :::caution
-🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dltHub early access](https://info.dlthub.com/waiting-list)
+🚧 This feature is under development, and the interface may change in future releases.
 :::
 
 The dltHub Cache is a temporary local storage created by dltHub to enhance development workflows. It allows you to efficiently run local transformations, materialize dbt models, and test your queries before deploying them to production.

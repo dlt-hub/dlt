@@ -145,8 +145,4 @@ The features marked `dlt` in the tables above are available today in the open-so
 - **Follow-up actions on failure** — Bad data quarantine to enable faster debugging.
 - **Column-level hint forwarding** — Track PII and other sensitive column hints through SQL transformations.
 
-:::tip Early Access
-Interested in the full data quality lifecycle? [Join dltHub early access](https://info.dlthub.com/waiting-list) to get started.
-:::
-
 [Learn more about dltHub Data Quality →](https://dlthub.com/docs/hub/features/quality/data-quality)

@@ -6,10 +6,6 @@ keywords: [delta, delta lake]
 
 # Delta
 
-import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
-
-<DltHubFeatureAdmonition />
-
 The Delta destination is based on the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
 
 :::warning

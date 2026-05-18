@@ -69,5 +69,3 @@ print(load_info)
 There are several other features under development in dltHub to enhance your observability workflows. These include:
 * A UI to explore and debug your pipeline runs
 * An AI agent to investigate your traces and logs
-
-Interested? Join our [early access program](https://info.dlthub.com/waiting-list).

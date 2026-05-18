@@ -94,7 +94,7 @@ Deploy, schedule, and monitor pipelines, transformations, and notebooks without 
 * [Profiles](core-concepts/profiles-dlthub.md) — isolate `dev`, `prod`, and `access` configurations and credentials
 * [Regions](runtime/regions.md) — choose where your data plane runs
 * [Workspace dashboard](../general-usage/dashboard.md) — observe runs, schemas, load history, and lineage from a single UI
-* [Monitoring & debugging](runtime/overview.md#web-ui) — track live run status, stream logs (`dlt runtime logs`), inspect per-run pipeline metrics (success rate, rows loaded, duration), and diagnose failures from the CLI or Web UI
+* [Monitoring & debugging](runtime/monitor-and-debug.md) — track live run status, stream logs (`dlthub job logs`), inspect per-run pipeline metrics (success rate, rows loaded, duration), and diagnose failures from the CLI or Web UI
 
 ### [Data quality & governance](features/quality/data-quality.md)
 

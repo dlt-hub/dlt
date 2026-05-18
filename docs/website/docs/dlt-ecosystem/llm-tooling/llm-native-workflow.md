@@ -7,7 +7,7 @@ keywords: [cursor, claude, codex, llm, restapi, ai, workbench, toolkit]
 # REST API Source with dltHub AI Workbench
 
 :::info
-The dltHub AI Workbench is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE). Sign up [here](https://dlthub.com/solutions/for-small-data-teams) for early access to dltHub.
+The dltHub AI Workbench is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
 :::
 
 ## Overview
@@ -113,10 +113,10 @@ dlthub ai toolkit install rest-api-pipeline
 
 This installs the **rest-api-pipeline** toolkit: a workflow that orchestrates the assistant, an entry point skill, and step-by-step skills for each phase.
 
-:::info Claude Code marketplace plugin (Early Access)
+:::info Claude Code marketplace plugin
 The workbench is also available as a **Claude Code marketplace plugin**. You don't need `uv`, Python, or `dlt` installed to get started — the `bootstrap` plugin handles everything from scratch.
 
-> **Early Access:** The Claude Code plugin is currently in early access and may not provide the best linking experience between different toolkits. We recommend using the `dlthub ai` CLI above for the best experience.
+> The Claude Code plugin may not yet provide the best linking experience between different toolkits. We recommend using the `dlthub ai` CLI above for the best experience.
 
 In Claude Code, run:
 
@@ -301,8 +301,6 @@ Once your pipeline is validated, you can continue to the next phase of the data 
   The toolkit is designed for iterative development: create one chart and launch the notebook, then iterate — add or refine charts and re-launch.
 
 - **`dlthub-runtime`** — deploy, schedule, and monitor your pipeline in production
-
-[Sign up for dltHub Early Access](https://dlthub.com/solutions/for-small-data-teams)
 
 ```sh
 uv run dlthub ai toolkit install data-exploration

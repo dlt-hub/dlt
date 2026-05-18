@@ -124,7 +124,7 @@ caches:
           events_aggregated: events_aggregated
 ```
 :::note
-🚧 This feature is under development. Interested in becoming an early tester? [Join dltHub waiting list](https://info.dlthub.com/waiting-list)
+🚧 This feature is under development.
 :::
 
 ### Transformations 🧪
@@ -138,7 +138,7 @@ transformations:
     cache: github_events_cache
 ```
 :::note
-🚧 This feature is under development. Interested in becoming an early tester? [Join dltHub waiting list](https://info.dlthub.com/waiting-list)
+🚧 This feature is under development.
 :::
 
 ### Profiles
