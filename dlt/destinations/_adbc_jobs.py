@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import time
 from abc import ABC, abstractmethod
 from typing import Iterator, TYPE_CHECKING, Sequence, Tuple
 
@@ -47,6 +48,16 @@ def has_adbc_driver(driver: str, disable_adbc_detection: bool = False) -> Tuple[
 
 
 class AdbcParquetCopyJob(RunnableLoadJob, HasFollowupJobs, ABC):
+    _ingest_per_rowgroup: bool = False
+    """When True, call `adbc_ingest` once per parquet row-group and commit between calls.
+
+    Some ADBC drivers (notably mssql) buffer the entire input stream in memory before
+    flushing to the destination, so loading a parquet file that exceeds available
+    memory triggers the OOM killer. Iterating row-group-by-row-group bounds the
+    in-driver buffer at the size of a single row-group. Drivers that already stream
+    incrementally (postgres) can leave this off and keep the single-call form.
+    """
+
     def __init__(self, file_path: str) -> None:
         super().__init__(file_path)
         self._job_client: SqlJobClientBase = None
@@ -86,19 +97,30 @@ class AdbcParquetCopyJob(RunnableLoadJob, HasFollowupJobs, ABC):
                 yield from table.to_batches()
 
         with self._connect() as conn, conn.cursor() as cur:
-            import time
-
             catalog_name, schema_name = self._set_catalog_and_schema()
-            kwargs = dict(catalog_name=catalog_name, db_schema_name=schema_name)
+            ingest_kwargs = without_none(
+                dict(catalog_name=catalog_name, db_schema_name=schema_name)
+            )
 
             t_ = time.monotonic()
-            rows = cur.adbc_ingest(
-                self.load_table_name,
-                _iter_batches(self._file_path),
-                mode="append",
-                **without_none(kwargs),  # type: ignore[arg-type,unused-ignore]
-            )
-            conn.commit()
+            if self._ingest_per_rowgroup:
+                rows = 0
+                for table in pq_stream_with_new_columns(self._file_path, ()):
+                    rows += cur.adbc_ingest(
+                        self.load_table_name,
+                        table,
+                        mode="append",
+                        **ingest_kwargs,  # type: ignore[arg-type,unused-ignore]
+                    )
+                    conn.commit()
+            else:
+                rows = cur.adbc_ingest(
+                    self.load_table_name,
+                    _iter_batches(self._file_path),
+                    mode="append",
+                    **ingest_kwargs,  # type: ignore[arg-type,unused-ignore]
+                )
+                conn.commit()
             logger.info(
                 f"{rows} rows copied from {self._file_name} to"
                 f" {self.load_table_name}.{schema_name} in {time.monotonic()-t_} s"
