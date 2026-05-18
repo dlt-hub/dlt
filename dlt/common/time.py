@@ -21,6 +21,8 @@ FUTURE_TIMESTAMP: float = 9999999999.0
 DAY_DURATION_SEC: float = 24 * 60 * 60.0
 UNIX_EPOCH_DATE = datetime.date(1970, 1, 1)
 
+DEFAULT_TIMESTAMP_PRECISION = 6
+
 precise_time: Callable[[], float] = None
 """A precise timer using win_precise_time library on windows and time.time on other systems"""
 
