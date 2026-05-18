@@ -13,7 +13,7 @@ from dlt.sources import SourceReference
 from dlt._workspace.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO
 
 from tests.utils import get_test_storage_root
-from tests.workspace.utils import EMPTY_WORKSPACE_DIR
+from tests.workspace.utils import empty_workspace_dir
 
 INIT_REPO_LOCATION = DEFAULT_VERIFIED_SOURCES_REPO
 INIT_REPO_BRANCH = "master"
@@ -92,4 +92,4 @@ def get_workspace_files(clear_all_sources: bool = True) -> FileStorage:
         SourceReference.SOURCES.clear()
 
     # project dir - use current working directory
-    return FileStorage(EMPTY_WORKSPACE_DIR, makedirs=False)
+    return FileStorage(empty_workspace_dir(), makedirs=False)

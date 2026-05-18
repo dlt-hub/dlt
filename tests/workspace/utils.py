@@ -17,8 +17,18 @@ from dlt._workspace._workspace_context import WorkspaceRunContext
 from tests.utils import get_test_storage_root
 
 WORKSPACE_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cases", "workspaces"))
-test_storage_root_abs = os.path.abspath(get_test_storage_root())
-EMPTY_WORKSPACE_DIR = os.path.join(test_storage_root_abs, "empty")
+
+
+def test_storage_root_abs() -> str:
+    """Absolute path to this worker's test storage root. Resolved on every call so xdist
+    workers see their own env-set PYTEST_XDIST_WORKER, not whatever the controller cached.
+    """
+    return os.path.abspath(get_test_storage_root())
+
+
+def empty_workspace_dir() -> str:
+    """Path to the per-worker `empty` workspace under the test storage root."""
+    return os.path.join(test_storage_root_abs(), "empty")
 
 
 @contextmanager
@@ -54,11 +64,12 @@ def restore_clean_workspace(name: str) -> str:
     Returns:
         Absolute path to the restored workspace directory.
     """
+    storage_root = test_storage_root_abs()
     source_workspace_dir = os.path.join(WORKSPACE_CASES_DIR, name)
-    new_run_dir = os.path.join(test_storage_root_abs, name)
+    new_run_dir = os.path.join(storage_root, name)
 
     # ensure parent exists before copying
-    os.makedirs(test_storage_root_abs, exist_ok=True)
+    os.makedirs(storage_root, exist_ok=True)
 
     # if cwd is within the target directory, move out temporarily to allow deletion
     cwd = os.path.abspath(os.getcwd())
@@ -70,7 +81,7 @@ def restore_clean_workspace(name: str) -> str:
         is_within_target = False
 
     # use a single code path, switching cwd only when needed
-    cm = set_working_dir(test_storage_root_abs) if is_within_target else nullcontext()
+    cm = set_working_dir(storage_root) if is_within_target else nullcontext()
     with cm:
         if os.path.isdir(new_run_dir):
             shutil.rmtree(new_run_dir, onerror=FileStorage.rmtree_del_ro)

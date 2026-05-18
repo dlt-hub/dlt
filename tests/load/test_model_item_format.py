@@ -256,7 +256,12 @@ def test_model_stateful_incremental_merge(
         "test_model_stateful_incremental_merge", dev_mode=True
     )
 
-    @dlt.resource(name="orders", primary_key="id", write_disposition="merge")
+    @dlt.resource(
+        name="orders",
+        primary_key="id",
+        write_disposition="merge",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
     def orders(rows: Any) -> Any:
         yield rows
 
@@ -307,17 +312,13 @@ def test_model_stateful_incremental_merge(
             ]
         )
     )
-    # athena cannot merge and fallbacks to append -> we see all inserted rows
-    if destination_config.destination_type == "athena":
-        assert load_table_counts(pipeline, "orders") == {"orders": 6}
-    else:
-        assert load_table_counts(pipeline, "orders") == {"orders": 4}
-        source_rows = {
-            int(row["id"]): row for _, row in dataset["orders"].df().sort_values("id").iterrows()
-        }
-        assert source_rows[2]["name"] == "b_STALE"
-        assert source_rows[3]["name"] == "c_NEW"
-        assert source_rows[4]["name"] == "d"
+    assert load_table_counts(pipeline, "orders") == {"orders": 4}
+    source_rows = {
+        int(row["id"]): row for _, row in dataset["orders"].df().sort_values("id").iterrows()
+    }
+    assert source_rows[2]["name"] == "b_STALE"
+    assert source_rows[3]["name"] == "c_NEW"
+    assert source_rows[4]["name"] == "d"
 
     # second transformation run: only updated_at > 2026-01-01 rows must propagate
     info = pipeline.run(

@@ -51,7 +51,17 @@ STORAGE_ROOT_PREFIX = os.path.abspath("_storage")
 
 
 def get_test_worker_id() -> str:
-    return os.environ.get(PYTEST_XDIST_WORKER, "gw0")
+    wid = os.environ.get(PYTEST_XDIST_WORKER)
+    # under xdist `PYTEST_XDIST_TESTRUNUID` is set in every process (controller + workers);
+    # the per-worker `PYTEST_XDIST_WORKER` is only set in workers. if we fall through to
+    # the "gw0" default while xdist is active, workers will share `_storage_gw0` and rmtree
+    # each other's state — fail loudly instead.
+    if wid is None and "PYTEST_XDIST_TESTRUNUID" in os.environ:
+        raise RuntimeError(
+            "running under xdist but PYTEST_XDIST_WORKER is not set — test storage would"
+            " collide across workers"
+        )
+    return wid or "gw0"
 
 
 def get_test_worker_idx() -> int:
