@@ -5,10 +5,6 @@ keywords: [transformation, dataset, sql, pipeline, ibis, arrow]
 ---
 # Transformations: Reshape data after loading
 
-import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
-
-<DltHubFeatureAdmonition />
-
 `dlthub transformations` let you build new tables or full datasets from datasets that have _already_ been ingested with `dlt`. `dlt transformations` are written and run in a very similar fashion to dlt source and resources. `dlt transformations` require you to have loaded data to a location, for example a local duckdb database, a bucket or a warehouse on which the transformations may be executed. `dlt transformations` are fully supported for all of our sql destinations including all filesystem and bucket formats.
 
 You create them with the `@dlt.hub.transformation` decorator, which has the same signature as the `@dlt.resource` decorator but yields a SQL query, including the resulting

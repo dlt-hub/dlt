@@ -3,10 +3,6 @@ title: dbt model generator
 description: Generate dbt models automatically
 ---
 
-import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
-
-<DltHubFeatureAdmonition />
-
 The **dbt generator** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both the ingestion and transformation layers.
 
 The dbt generator can be used as part of the local transformations feature as well as a standalone tool, enabling you to generate dbt models for any dlt pipeline.
