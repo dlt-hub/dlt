@@ -19,7 +19,7 @@ dlt is free and open source under Apache 2.0, dltHub is a paid product.
 |---|---|---|
 | Build ingestion pipelines using [dlt verified sources](../dlt-ecosystem/verified-sources) (except premium sources) | ✅ | ✅ |
 | Build pipelines with the [dltHub AI Workbench](https://github.com/dlt-hub/dlthub-ai-workbench) | — | ✅ |
-| Data quality metrics & checks | — | ✅ |
+| [Data quality metrics & checks](features/quality/data-quality) | — | ✅ |
 | Build transformation pipelines (dltHub/dbt) | — | ✅ |
 | Managed runtime: deploy, run/schedule pipelines, serve data apps, monitor jobs | — | ✅ |
 | Premium sources (MS SQL) and destinations (Iceberg, Delta, Snowflake + Iceberg/Open Catalog) | — | ✅ |
