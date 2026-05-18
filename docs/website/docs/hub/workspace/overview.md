@@ -13,7 +13,6 @@ It provides:
 * [data quality checks](../features/quality/data-quality.md)[Private preview]
 * powerful transformation with [`@dlt.hub.transformation`](../features/transformations/index.md) and [dbt integration](../features/transformations/dbt-transformations.md)
 * [dashboard](../../general-usage/dashboard.md) as a comprehensive observability tool
-* [MCP](../features/mcp-server.md) for data exploration and semantic modeling
 * [dltHub platform integration](../runtime/overview.md) for easy deployment of pipelines, transformations and notebooks with no configuration — sign in at [app.dlthub.com](https://app.dlthub.com)
 
 It automates essential tasks like data loading, quality checks, and governance while enabling seamless collaboration across teams and providing a consistent development-to-production workflow.

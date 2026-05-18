@@ -8,7 +8,7 @@ keywords: [dlthub platform, deployment, cloud, scheduling, notebooks, dashboard,
 
 The dltHub platform is a managed cloud platform for running your [`dlt` pipelines](../../general-usage/pipeline.md), [transformations](../features/transformations/index.md), and [notebooks](../../general-usage/dataset-access/marimo.md). It provides:
 
-- Cloud execution of batch pipelines and interactive applications ([marimo notebooks](../../general-usage/dataset-access/marimo.md), [Streamlit dashboards](../../general-usage/dashboard.md), [MCP servers](../features/mcp-server.md))
+- Cloud execution of batch pipelines and interactive applications ([marimo notebooks](../../general-usage/dataset-access/marimo.md) and [Streamlit dashboards](../../general-usage/dashboard.md))
 - Flexible [scheduling & triggers](triggers.md) — cron, intervals, followup chains (`.success`/`.fail`/`.completed`), scheduler-driven intervals with automatic backfill, freshness checks, refresh cascades, and timezone-aware crons
 - Built-in [monitoring & debugging](monitor-and-debug.md) — real-time streaming logs, run-state lifecycle, pipeline metrics dashboards (success rate, rows, duration), and a deployment & config inspector
 - Tag-based job selectors for bulk operations (`dlthub job trigger tag:ingest`)
@@ -39,7 +39,7 @@ If you prefer a guided walkthrough, follow the [dltHub platform tutorial](../get
 ### Batch vs interactive
 
 - **Batch jobs** run with the [`prod` profile](../core-concepts/profiles-dlthub.md) and are meant for scheduled [data loading](../../general-usage/pipeline.md).
-- **Interactive jobs** run with the [`access` profile](../core-concepts/profiles-dlthub.md) and are meant for [notebooks](../../general-usage/dataset-access/marimo.md), [dashboards](../../general-usage/dashboard.md), [MCP servers](../features/mcp-server.md), and Streamlit apps.
+- **Interactive jobs** run with the [`access` profile](../core-concepts/profiles-dlthub.md) and are meant for [notebooks](../../general-usage/dataset-access/marimo.md), [dashboards](../../general-usage/dashboard.md), and Streamlit apps.
 
 ### Interactive application types
 
@@ -47,10 +47,9 @@ If you prefer a guided walkthrough, follow the [dltHub platform tutorial](../get
 |------|-------------|
 | Notebooks | [Marimo notebooks](../../general-usage/dataset-access/marimo.md) for the pipeline dashboard, exploration, and analysis |
 | Streamlit apps | Interactive [Streamlit dashboards](../../general-usage/dashboard.md) |
-| MCP servers | [FastMCP](../features/mcp-server.md) HTTP servers (mounted at `/mcp`) |
 | REST APIs | Starlette / FastAPI / similar applications |
 
-Each interactive application is exposed via a unique public URL tied to its run. MCP modules must expose an `mcp` object created with `FastMCP`, or use `@run.interactive(interface="mcp")` and return a `FastMCP` from the function.
+Each interactive application is exposed via a unique public URL tied to its run.
 
 ### Profiles
 
@@ -77,7 +76,17 @@ For monitoring runs, streaming logs, and diagnosing failures, see [Monitor and d
 
 #### Public links for interactive jobs
 
-Notebooks and dashboards can be shared via public links. Open a job's context menu (or its detail page), click **Manage Public Link**, and toggle to enable or revoke the link. Anyone with an active link can view the running notebook or dashboard — useful for sharing dashboards with stakeholders without dltHub platform access.
+Notebooks and dashboards can be shared via public links. Manage them either from the dashboard — open the job's context menu (or its detail page) and click **Manage Public Link** to toggle the link — or from the CLI:
+
+```sh
+# Generate a public link
+dlthub job publish fruitshop_notebook.py
+
+# Revoke an active link
+dlthub job unpublish fruitshop_notebook.py
+```
+
+Anyone with an active link can view the running notebook or dashboard — useful for sharing dashboards with stakeholders without dltHub platform access.
 
 ## CLI reference
 
@@ -87,18 +96,22 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 
 | Command | Description |
 |---------|-------------|
-| `dlthub login [--workspace <name>]` | Authenticate with GitHub OAuth and select a workspace |
+| `dlthub login` | Authenticate with GitHub OAuth (interactive workspace selection) |
 | `dlthub logout` | Clear local credentials |
-| `dlthub workspace connect <name_or_id>` | Switch workspaces without re-login |
-| `dlthub info` | Show workspace deployment overview |
-| `dlthub show` | Open the web dashboard |
-| `dlthub run <script_or_job> [-f]` | Deploy and run a batch script or named job |
-| `dlthub serve <script_or_job>` | Deploy and run an interactive application |
-| `dlthub deploy [--dry-run] [--show-manifest]` | Deploy jobs from `__deployment__.py` |
-| `dlthub job trigger <selector> [--refresh] [--dry-run]` | Trigger jobs matching a selector (e.g. `tag:backfill`, `schedule:*`) |
-| `dlthub pipeline run <pipeline_name>` | Trigger job by pipeline name |
-| `dlthub job runs cancel <name_or_selector>` | Cancel active runs for matching jobs |
-| `dlthub job logs <name> [run#] [-f]` | View or stream logs for a run |
+| `dlthub workspace list` | List all accessible workspaces |
+| `dlthub workspace connect [name_or_id]` | Connect project to a workspace (interactive picker if no arg) |
+| `dlthub info` | Show combined workspace info (local + cloud) |
+| `dlthub show` | Open the dltHub dashboard |
+| `dlthub run [<script_or_selector>] [-f] [--refresh]` | Deploy and run a batch script or named job |
+| `dlthub serve [<script_or_selector>] [-f]` | Deploy and serve an interactive application |
+| `dlthub deploy [--dry-run] [--show-manifest] [--file FILE]` | Sync code/config and deploy jobs from `__deployment__.py` |
+| `dlthub job trigger <selectors...> [--refresh] [--dry-run] [--profile NAME]` | Trigger runs for matching jobs (e.g. `tag:backfill`, `schedule:*`) |
+| `dlthub pipeline run <pipeline_name> [-f] [--refresh]` | Run a job by pipeline name |
+| `dlthub job cancel <selector_or_name>...` | Cancel active runs for matching jobs |
+| `dlthub job runs cancel <selector_or_name> [run_number]` | Cancel a specific run (defaults to latest) |
+| `dlthub job logs <selector_or_name> [run_number] [-f]` | View or stream logs for a run |
+| `dlthub job publish <script_path>` | Generate a public link for an interactive notebook/app |
+| `dlthub job unpublish <script_path>` | Revoke a public link |
 
 ## Current limitations
 

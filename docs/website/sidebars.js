@@ -429,6 +429,7 @@ const sidebars = {
       type: 'category',
       label: 'Ingestion',
       items: [
+        'hub/workspace/overview',
         'hub/workspace/init',
         { type: 'ref', id: 'general-usage/dashboard' },
         'hub/ecosystem/ms-sql',

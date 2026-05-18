@@ -78,7 +78,16 @@ Cancel a specific run number:
 dlthub job runs cancel my_pipeline.py 5
 ```
 
-See [`dlthub job runs cancel`](../command-line-interface.md#dlthub-job-runs-cancel). Cancellation is also available from the run detail page and the Jobs page context menu.
+Cancel active runs across multiple matching jobs (e.g. everything tagged `ingest`):
+
+```sh
+dlthub job cancel "tag:ingest"
+
+# preview without cancelling
+dlthub job cancel "tag:ingest" --dry-run
+```
+
+See [`dlthub job runs cancel`](../command-line-interface.md#dlthub-job-runs-cancel) and [`dlthub job cancel`](../command-line-interface.md#dlthub-job-cancel). Cancellation is also available from the run detail page and the Jobs page context menu.
 
 ## Monitor pipeline metrics
 

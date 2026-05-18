@@ -6,7 +6,7 @@ By treating datasets as individual entities, dltHub enables data cataloging and 
 
 #### Data cataloging
 
-Datasets automatically create data catalogs that can be used to discover schema and [read and write data](../features/data-access.md).
+Datasets automatically create data catalogs that can be used to discover schema.
 
 #### Data governance
 

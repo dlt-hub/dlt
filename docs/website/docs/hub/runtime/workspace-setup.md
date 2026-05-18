@@ -37,7 +37,7 @@ dlthub login
 
 This opens a GitHub OAuth flow. After authentication, the CLI prompts you to select or create a remote workspace. The workspace ID is stored in `.dlt/config.toml` under `[runtime] workspace_id`.
 
-To skip the interactive prompt, pass `--workspace <name_or_id>`. To switch workspaces later without logging out, use `dlthub workspace connect <name_or_id>`.
+To list workspaces you have access to, use `dlthub workspace list`. To switch workspaces later without logging out, use `dlthub workspace connect [name_or_id]` (omit the argument to pick interactively).
 
 :::caution
 Each GitHub account can have only one remote workspace. When you run `dlthub login`, it connects your current local workspace to that remote workspace. If you later connect a different local repository and deploy, it will replace your existing **deployment** and **configuration**, making any previously scheduled jobs defunct.

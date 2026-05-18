@@ -22,7 +22,7 @@ dltHub assumes a working knowledge of Python and provides an optimized experienc
 
 ## What is dltHub?
 
-dltHub is an agent-native data engineering platform for building, running, and operating production-grade data pipelines. The toolchain is designed to be driven from coding agents — Claude Code, Codex, and Cursor — through [scaffolding commands](workspace/init.md), [per-source context files](../dlt-ecosystem/llm-tooling/llm-native-workflow.md), and an [MCP server](features/mcp-server.md). A developer or analyst comfortable with Python and a coding agent can build and operate ingestion, [transformations](features/transformations/index.md), [quality checks](features/quality/data-quality.md), and data apps end-to-end without managing infrastructure.
+dltHub is an agent-native data engineering platform for building, running, and operating production-grade data pipelines. The toolchain is designed to be driven from coding agents — Claude Code, Codex, and Cursor — through [scaffolding commands](workspace/init.md) and [per-source context files](../dlt-ecosystem/llm-tooling/llm-native-workflow.md). A developer or analyst comfortable with Python and a coding agent can build and operate ingestion, [transformations](features/transformations/index.md), [quality checks](features/quality/data-quality.md), and data apps end-to-end without managing infrastructure.
 
 Context — source schemas, annotations, transformation logic, and run metadata — propagates from the data source through transformations to the serving layer. Downstream tools, dashboards, and agents can reason about upstream intent without re-discovering it.
 
@@ -106,11 +106,10 @@ Catch data issues before they reach consumers and keep schemas controlled as sou
 
 ### [Data discovery & serving](core-concepts/datasets.md)
 
-Make loaded data accessible to stakeholders through notebooks, dashboards, MCP-served context, and shareable links. Source schemas and transformation context are available here so agents and consumers see the same upstream metadata that drove ingestion.
+Make loaded data accessible to stakeholders through notebooks, dashboards, and shareable links. Source schemas and transformation context are available here so agents and consumers see the same upstream metadata that drove ingestion.
 
 * [Datasets](core-concepts/datasets.md) — typed Python and SQL access to loaded data
 * [Marimo notebooks](../general-usage/dataset-access/marimo.md) — build lightweight, shareable data apps
-* [MCP server](features/mcp-server.md) — expose pipelines and datasets to agentic clients (Cursor, Claude, Continue, etc.)
 * Public links for interactive jobs — share notebooks and dashboards externally without granting platform access
 
 ### Platform capabilities
