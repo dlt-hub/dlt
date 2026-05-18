@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 
+from dlt._workspace.cli.dlthub import _local_workspace_command as local_cmd_mod
 from dlt._workspace.cli.dlthub.commands import LocalWorkspaceCommand
 from dlt._workspace.deployment import _run_helpers as run_helpers_mod
 from dlt._workspace.deployment._run_helpers import fetch_run_info
@@ -16,7 +17,6 @@ from dlt._workspace.deployment.exceptions import (
     DeploymentException,
     JobRefNotInCandidates,
 )
-from dlt._workspace.deployment.launchers import _launcher as launcher_mod
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
     TExecuteSpec,
@@ -187,7 +187,7 @@ def _invoke_local(monkeypatch: pytest.MonkeyPatch, op: str, *cli_args: str) -> T
         stderr_buf.append(result.stderr)
         raise SystemExit(result.returncode)
 
-    monkeypatch.setattr(launcher_mod, "exec_process", _sync_exec)
+    monkeypatch.setattr(local_cmd_mod, "exec_process", _sync_exec)
 
     cmd = LocalWorkspaceCommand()
     parser = argparse.ArgumentParser(prog="dlthub local")
@@ -247,7 +247,7 @@ def test_local_run_dry_run_does_not_spawn_subprocess(
     def _should_not_be_called(argv: List[str]) -> None:
         called["argv"] = argv
 
-    monkeypatch.setattr(launcher_mod, "exec_process", _should_not_be_called)
+    monkeypatch.setattr(local_cmd_mod, "exec_process", _should_not_be_called)
 
     cmd = LocalWorkspaceCommand()
     parser = argparse.ArgumentParser(prog="dlthub local")
@@ -266,7 +266,7 @@ def test_local_run_banner_includes_local_chip_and_profile(
     ws_dir = auto_isolated_workspace.run_dir
     (Path(ws_dir) / "hello.py").write_text("if __name__ == '__main__':\n    print('hi')\n")
 
-    monkeypatch.setattr(launcher_mod, "exec_process", lambda argv: None)
+    monkeypatch.setattr(local_cmd_mod, "exec_process", lambda argv: None)
 
     cmd = LocalWorkspaceCommand()
     parser = argparse.ArgumentParser(prog="dlthub local")
