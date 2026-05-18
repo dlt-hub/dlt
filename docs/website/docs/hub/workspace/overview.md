@@ -14,7 +14,7 @@ It provides:
 * powerful transformation with [`@dlt.hub.transformation`](../features/transformations/index.md) and [dbt integration](../features/transformations/dbt-transformations.md)
 * [dashboard](../../general-usage/dashboard.md) as a comprehensive observability tool
 * [MCP](../features/mcp-server.md) for data exploration and semantic modeling
-* [dltHub platform integration](../runtime/overview.md) for easy deployment of pipelines, transformations and notebooks with no configuration
+* [dltHub platform integration](../runtime/overview.md) for easy deployment of pipelines, transformations and notebooks with no configuration — sign in at [app.dlthub.com](https://app.dlthub.com)
 
 It automates essential tasks like data loading, quality checks, and governance while enabling seamless collaboration across teams and providing a consistent development-to-production workflow.
 
@@ -35,5 +35,5 @@ Workspace comes with additional [cli support](../command-line-interface.md) that
 ## Next steps
 
 * [Install dltHub Workspace.](../getting-started/installation.md)
-* [Learn about the LLM-native workflow.](../../dlt-ecosystem/llm-tooling/llm-native-workflow.md)
+* [Learn about the agent-native workflow.](../../dlt-ecosystem/llm-tooling/llm-native-workflow.md)
 * [Try dltHub Transformations.](../features/transformations/index.md)
