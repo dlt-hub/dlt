@@ -22,7 +22,7 @@ dlt is free and open source under Apache 2.0, dltHub is a paid product.
 | [Data quality metrics & checks](features/quality/data-quality) | — | ✅ |
 | Build transformation pipelines (dltHub/dbt) | — | ✅ |
 | Managed runtime: deploy, run/schedule pipelines, serve data apps, monitor jobs | — | ✅ |
-| Premium sources (MS SQL) and destinations (Iceberg, Delta, Snowflake + Iceberg/Open Catalog) | — | ✅ |
+| Premium sources ([MS SQL](ecosystem/ms-sql)) and destinations ([Iceberg](ecosystem/iceberg), [Delta](ecosystem/delta), [Snowflake + Iceberg/Open Catalog](ecosystem/snowflake_plus)) | — | ✅ |
 
 ## dlt (OSS)
 
