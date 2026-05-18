@@ -160,11 +160,13 @@ def test_model_stateful_incremental_dotted_cursor(
         return float(value.timestamp())
 
     def _assert_cursor_matches_max_inserted_at() -> None:
+        naming = pipeline.default_schema.naming
+        loads_table = naming.normalize_table_identifier("_dlt_loads")
         expected_max = (
             pipeline.dataset()
             .table("orders")
-            .join("_dlt_loads")
-            .select("_dlt_loads__inserted_at")
+            .join(loads_table)
+            .select(f"{loads_table}__inserted_at")
             .max()
             .fetchscalar()
         )
