@@ -4,6 +4,7 @@ from typing import Any, Literal, Union, overload, Optional, cast
 
 import dlt
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     VERSION_TABLE_NAME,
@@ -287,6 +288,7 @@ def _add_references(
     schema: TStoredSchema,
     dbml_schema: Database,
     *,
+    naming: NamingConvention,
     include_internal_dlt_ref: bool,
     include_parent_child_ref: bool,
     include_root_child_ref: bool,
@@ -326,7 +328,7 @@ def _add_references(
             dbml_reference = _to_dbml_reference(
                 tables=dbml_schema.tables,
                 from_table_name=table_name,
-                reference=create_load_table_reference(table),
+                reference=create_load_table_reference(table, naming=naming),
                 cardinality=">",  # m-to-1
             )
             dbml_schema.add_reference(dbml_reference)
@@ -372,7 +374,7 @@ def _add_references(
         dbml_version_and_loads_hash_ref = _to_dbml_reference(
             tables=dbml_schema.tables,
             from_table_name=VERSION_TABLE_NAME,
-            reference=create_version_and_loads_hash_reference(schema["tables"]),
+            reference=create_version_and_loads_hash_reference(schema["tables"], naming=naming),
             cardinality="<",
         )
         # a schema name can have multiple multiple runs in the loads table
@@ -381,7 +383,9 @@ def _add_references(
         dbml_version_and_loads_schema_name_ref = _to_dbml_reference(
             tables=dbml_schema.tables,
             from_table_name=VERSION_TABLE_NAME,
-            reference=create_version_and_loads_schema_name_reference(schema["tables"]),
+            reference=create_version_and_loads_schema_name_reference(
+                schema["tables"], naming=naming
+            ),
             cardinality="<>",
         )
 
@@ -413,6 +417,7 @@ def _add_table_groups(schema: TStoredSchema, dbml_schema: Database) -> Database:
 def schema_to_dbml(
     schema: TStoredSchema,
     *,
+    naming: NamingConvention,
     allow_custom_dbml_properties: bool = False,
     include_dlt_tables: bool = True,
     include_internal_dlt_ref: bool = True,
@@ -444,6 +449,7 @@ def schema_to_dbml(
     _add_references(
         schema,
         dbml_schema,
+        naming=naming,
         include_internal_dlt_ref=include_internal_dlt_ref,
         include_parent_child_ref=include_parent_child_ref,
         include_root_child_ref=include_root_child_ref,
@@ -504,6 +510,7 @@ def export_to_dbml(
     stored_schema = schema.to_dict()
     dbml_schema = schema_to_dbml(
         stored_schema,
+        naming=schema.naming,
         allow_custom_dbml_properties=allow_custom_dbml_properties,
         include_dlt_tables=include_dlt_tables,
         include_internal_dlt_ref=include_internal_dlt_ref,
