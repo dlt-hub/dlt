@@ -31,6 +31,7 @@ from dlt.extract.items import TTableHintTemplate
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
+    from dlt.extract.incremental import Incremental
 
 
 class IncrementalTransform:
@@ -621,7 +622,7 @@ class ModelIncremental(IncrementalTransform):
     """
 
     # parent `Incremental` so we can auto-apply below
-    _incremental: Optional["Incremental[Any]"] = None  # type: ignore[name-defined]  # noqa: F821
+    _incremental: Optional["Incremental[Any]"]
 
     def __call__(self, relation: TDataItem) -> Tuple[Optional[TDataItem], bool, bool]:
         ctx = getattr(relation, "_incremental_ctx", None)
