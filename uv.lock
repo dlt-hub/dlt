@@ -1979,6 +1979,21 @@ wheels = [
 ]
 
 [[package]]
+name = "databricks-zerobus-ingest-sdk"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "protobuf", marker = "sys_platform != 'emscripten'" },
+    { name = "requests", marker = "sys_platform != 'emscripten'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3b/60/e6ae4785e933eec4e9cec823798f65a8946c4c2bba0c43b97eb1e1489dff/databricks_zerobus_ingest_sdk-1.2.0.tar.gz", hash = "sha256:5330f1bf7544fcc016de34e18b7bbfc66ec589dbaf59bbd530185d19b444d750", size = 65236, upload-time = "2026-04-27T13:15:55.728Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d4/95/0c8073eed3cb85a5bb6dc80b129c6b6afaf432b4b67e299f1b20d8c56a56/databricks_zerobus_ingest_sdk-1.2.0-cp39-abi3-manylinux_2_34_aarch64.whl", hash = "sha256:e48e82744e06cff8ef4704131e0aa295ec053b71098ac83155491f5dc72e77f5", size = 6167350, upload-time = "2026-04-27T13:15:50.592Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/13/b63f615e997f7bb5eaa3f20fe10217d064820a84e18a794784f1b3ad6009/databricks_zerobus_ingest_sdk-1.2.0-cp39-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:c8cbd504efc749e939fe4f7ebf5b7f5fd5bf520452aef932f1213e3bab9a69f0", size = 6169884, upload-time = "2026-04-27T13:15:53.131Z" },
+    { url = "https://files.pythonhosted.org/packages/78/1d/9aedb2f20edffb5113a71d79343f9cb7ba7a1fc5a6e1f6249169444c8749/databricks_zerobus_ingest_sdk-1.2.0-cp39-abi3-win_amd64.whl", hash = "sha256:72d426d997cbc209d352953b2af5dfc78099cb0ed3d6d7fc81efd71ed521237e", size = 5024590, upload-time = "2026-04-27T13:15:54.507Z" },
+]
+
+[[package]]
 name = "datasets"
 version = "4.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2520,6 +2535,7 @@ clickhouse = [
 databricks = [
     { name = "databricks-sdk" },
     { name = "databricks-sql-connector" },
+    { name = "databricks-zerobus-ingest-sdk", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32')" },
 ]
 dbml = [
     { name = "pydbml" },
@@ -2806,6 +2822,7 @@ requires-dist = [
     { name = "databricks-sdk", marker = "extra == 'databricks'", specifier = ">=0.38.0" },
     { name = "databricks-sql-connector", marker = "python_full_version >= '3.13' and extra == 'databricks'", specifier = ">=3.6.0" },
     { name = "databricks-sql-connector", marker = "python_full_version < '3.13' and extra == 'databricks'", specifier = ">=2.9.3" },
+    { name = "databricks-zerobus-ingest-sdk", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux' and extra == 'databricks') or (platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'databricks') or (platform_machine == 'AMD64' and sys_platform == 'win32' and extra == 'databricks') or (platform_machine == 'x86_64' and sys_platform == 'win32' and extra == 'databricks')", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },

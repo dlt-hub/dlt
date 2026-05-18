@@ -4,9 +4,8 @@ from unittest.mock import patch
 import pytest
 import dlt
 
+from dlt.common.pendulum import pendulum
 from dlt.extract.hints import make_hints
-
-from dlt.pipeline.exceptions import PipelineStepFailed
 
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import uniq_id
@@ -52,17 +51,294 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
-    # TODO: incremental is not supported for models yet
     @dlt.resource()
-    def copied_table(incremental_field=dlt.sources.incremental("a")) -> Any:
-        rel = dataset["example_table"].limit(8)
+    def copied_table(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "a", initial_value=2, end_value=100, on_cursor_value_missing="exclude"
+        ),
+    ) -> Any:
+        rel = dataset["example_table"].incremental(cursor)
         yield dlt.mark.with_hints(
             rel,
             hints=make_hints(columns=example_table_columns),
         )
 
-    with pytest.raises(PipelineStepFailed):
-        pipeline.run([copied_table()])
+    info = pipeline.run(
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "copied_table") == {"copied_table": 8}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destination_configs,
+    ids=lambda x: x.name,
+)
+def test_model_stateful_incremental(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline("test_model_stateful_incremental", dev_mode=True)
+
+    # seed: ids 1..5
+    pipeline.run(
+        [{"id": i, "value": i * 10} for i in range(1, 6)],
+        table_name="source_data",
+        **destination_config.run_kwargs,
+    )
+    dataset = pipeline.dataset()
+    source_columns = dataset.schema.tables["source_data"]["columns"]
+
+    @dlt.resource(name="copied_table", write_disposition="append")
+    def copied_table(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "id", initial_value=0, range_start="open", on_cursor_value_missing="exclude"
+        ),
+    ) -> Any:
+        rel = dataset["source_data"].incremental(cursor)
+        yield dlt.mark.with_hints(rel, hints=make_hints(columns=source_columns))
+
+    # first transformation run: no prior state, initial_value=0 + open range, the ids are 1..5
+    info = pipeline.run(
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "copied_table") == {"copied_table": 5}
+
+    # append more source rows
+    pipeline.run(
+        [{"id": i, "value": i * 10} for i in range(6, 11)],
+        table_name="source_data",
+        **destination_config.run_kwargs,
+    )
+
+    # second transformation run: last_value=5 from state, only ids 6..10 land
+    info = pipeline.run(
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "copied_table") == {"copied_table": 10}
+
+    new_load_id = info.loads_ids[0]
+    copied_df = dataset["copied_table"].df()
+    new_rows = copied_df[copied_df["_dlt_load_id"] == new_load_id]
+    assert sorted(new_rows["id"].to_list()) == [6, 7, 8, 9, 10]
+
+    # third transformation run with no source changes: nothing new should land
+    info = pipeline.run(
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert load_table_counts(pipeline, "copied_table") == {"copied_table": 10}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destination_configs,
+    ids=lambda x: x.name,
+)
+def test_model_stateful_incremental_dotted_cursor(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Stateful incremental on `_dlt_loads.inserted_at` (auto-joined cursor)."""
+    pipeline = destination_config.setup_pipeline(
+        "test_model_stateful_incremental_dotted_cursor", dev_mode=True
+    )
+
+    def _utc_instant(value: Any) -> float:
+        if isinstance(value, str):
+            value = pendulum.parse(value)
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=pendulum.UTC)
+        return float(value.timestamp())
+
+    def _assert_cursor_matches_max_inserted_at() -> None:
+        expected_max = (
+            pipeline.dataset()
+            .table("orders")
+            .join("_dlt_loads")
+            .select("_dlt_loads__inserted_at")
+            .max()
+            .fetchscalar()
+        )
+        stored = pipeline.state["sources"][pipeline.default_schema_name]["resources"][
+            "copied_orders"
+        ]["incremental"]["_dlt_loads.inserted_at"]["last_value"]
+        assert _utc_instant(stored) == _utc_instant(expected_max), (
+            f"persisted cursor {stored!r} does not match MAX(_dlt_loads.inserted_at) "
+            f"over the orders join {expected_max!r}"
+        )
+
+    @dlt.resource(name="orders", write_disposition="append")
+    def orders(rows: Any) -> Any:
+        yield rows
+
+    # seed batch 1: 3 orders rows tagged to load A (inserted_at = T1)
+    pipeline.run(orders([{"id": i, "value": i * 10} for i in range(1, 4)]))
+    dataset = pipeline.dataset()
+    orders_columns = dataset.schema.tables["orders"]["columns"]
+
+    @dlt.resource(name="copied_orders", write_disposition="append")
+    def copied_orders(
+        cursor: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+            "_dlt_loads.inserted_at",
+            initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),  # noqa: B008
+            range_start="open",
+            on_cursor_value_missing="exclude",
+        ),
+    ) -> Any:
+        rel = dataset["orders"].incremental(cursor)
+        yield dlt.mark.with_hints(rel, hints=make_hints(columns=orders_columns))
+
+    # first model run: no prior state, lower=2000-01-01 (open), no upper.
+    # All 3 batch-1 orders rows land. State advances to T1.
+    info = pipeline.run(
+        [copied_orders()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "copied_orders") == {"copied_orders": 3}
+    _assert_cursor_matches_max_inserted_at()
+
+    # seed batch 2: 2 more orders rows tagged to load C (inserted_at = T3 > T1).
+    # Note: there is also a load B from the model run, but no orders rows
+    # reference it — the join filters it out.
+    pipeline.run(orders([{"id": i, "value": i * 10} for i in range(4, 6)]))
+
+    # second model run: state.last_value = T1, open lower -> only T3-tagged rows land.
+    info = pipeline.run(
+        [copied_orders()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "copied_orders") == {"copied_orders": 5}
+    _assert_cursor_matches_max_inserted_at()
+
+    new_load_id = info.loads_ids[0]
+    copied_df = dataset["copied_orders"].df()
+    new_rows = copied_df[copied_df["_dlt_load_id"] == new_load_id]
+    assert sorted(int(x) for x in new_rows["id"].to_list()) == [4, 5]
+
+    # third model run with no source change: state advanced to T3, no orders
+    # row joins to a _dlt_loads inserted_at > T3 (model-run loads B and D
+    # are in _dlt_loads but no orders row points at them).
+    info = pipeline.run(
+        [copied_orders()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert load_table_counts(pipeline, "copied_orders") == {"copied_orders": 5}
+    _assert_cursor_matches_max_inserted_at()
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, supports_file_format="model", supports_merge=True
+    ),
+    ids=lambda x: x.name,
+)
+def test_model_stateful_incremental_merge(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        "test_model_stateful_incremental_merge", dev_mode=True
+    )
+
+    @dlt.resource(name="orders", primary_key="id", write_disposition="merge")
+    def orders(rows: Any) -> Any:
+        yield rows
+
+    pipeline.run(
+        orders(
+            [
+                {"id": 1, "name": "a", "updated_at": "2026-01-01T00:00:00+00:00"},
+                {"id": 2, "name": "b", "updated_at": "2026-01-01T00:00:00+00:00"},
+                {"id": 3, "name": "c", "updated_at": "2026-01-01T00:00:00+00:00"},
+            ]
+        )
+    )
+    dataset = pipeline.dataset()
+    orders_columns = dataset.schema.tables["orders"]["columns"]
+
+    @dlt.resource(name="recent_orders", primary_key="id", write_disposition="merge")
+    def recent_orders(
+        cursor: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),  # noqa: B008
+            range_start="open",
+            on_cursor_value_missing="exclude",
+        ),
+    ) -> Any:
+        rel = dataset["orders"].incremental(cursor)
+        yield dlt.mark.with_hints(rel, hints=make_hints(columns=orders_columns))
+
+    # first transformation run: copies all 3 initial rows, advances last_value to 2026-01-01
+    info = pipeline.run(
+        [recent_orders()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    first_load_id = info.loads_ids[0]
+    assert load_table_counts(pipeline, "recent_orders") == {"recent_orders": 3}
+
+    # NEXT batch:
+    #   id=2 mutated WITHOUT advancing cursor -> filter must reject it
+    #   id=3 mutated WITH cursor advance       -> filter must accept and merge updates
+    #   id=4 brand new with advanced cursor    -> filter must accept and insert
+    pipeline.run(
+        orders(
+            [
+                {"id": 2, "name": "b_STALE", "updated_at": "2026-01-01T00:00:00+00:00"},
+                {"id": 3, "name": "c_NEW", "updated_at": "2026-01-02T00:00:00+00:00"},
+                {"id": 4, "name": "d", "updated_at": "2026-01-02T00:00:00+00:00"},
+            ]
+        )
+    )
+    assert load_table_counts(pipeline, "orders") == {"orders": 4}
+    source_rows = {
+        int(row["id"]): row for _, row in dataset["orders"].df().sort_values("id").iterrows()
+    }
+    assert source_rows[2]["name"] == "b_STALE"
+    assert source_rows[3]["name"] == "c_NEW"
+    assert source_rows[4]["name"] == "d"
+
+    # second transformation run: only updated_at > 2026-01-01 rows must propagate
+    info = pipeline.run(
+        [recent_orders()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    assert_load_info(info)
+    second_load_id = info.loads_ids[0]
+    assert load_table_counts(pipeline, "recent_orders") == {"recent_orders": 4}
+
+    rows = {
+        int(row["id"]): row for _, row in dataset["recent_orders"].df().sort_values("id").iterrows()
+    }
+
+    # negative payload: stale mutation on cursor-unchanged id=2 must not leak
+    assert rows[2]["name"] == "b"
+    # cursor-advanced row was merged in with new value
+    assert rows[3]["name"] == "c_NEW"
+    # brand-new row was inserted
+    assert rows[4]["name"] == "d"
+
+    # per-row _dlt_load_id pins which rows the second run actually wrote
+    assert rows[1]["_dlt_load_id"] == first_load_id
+    assert rows[2]["_dlt_load_id"] == first_load_id
+    assert rows[3]["_dlt_load_id"] == second_load_id
+    assert rows[4]["_dlt_load_id"] == second_load_id
 
 
 @pytest.mark.parametrize(

@@ -1117,3 +1117,13 @@ def test_cross_dataset_join_kind_parameter(
 
     for col, expected_values in expected.items():
         assert list(df[col]) == expected_values, f"column `{col}` mismatch"
+
+
+def test_join_does_not_project_incomplete_target_columns(
+    dataset_with_incomplete_join_target: dlt.Dataset,
+) -> None:
+    relation = dataset_with_incomplete_join_target.table("products").join("categories")
+    rows = relation.fetchall()
+    assert rows is not None
+    # 3 products inner-joined to 2 categories on category_id → 3 rows
+    assert len(rows) == 3
