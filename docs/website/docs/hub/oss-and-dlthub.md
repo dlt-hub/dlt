@@ -17,7 +17,7 @@ dlt is free and open source under Apache 2.0, dltHub is a paid product.
 
 | Capability | dlt | dltHub |
 |---|---|---|
-| Build ingestion pipelines using [dlt verified sources](https://dlthub.com/docs/dlt-ecosystem/verified-sources) (except premioum sources) | ✅ | ✅ |
+| Build ingestion pipelines using [dlt verified sources](../dlt-ecosystem/verified-sources) (except premium sources) | ✅ | ✅ |
 | Build pipelines with the [dltHub AI Workbench](https://github.com/dlt-hub/dlthub-ai-workbench) | — | ✅ |
 | Data quality metrics & checks | — | ✅ |
 | Build transformation pipelines (dltHub/dbt) | — | ✅ |
