@@ -12,7 +12,7 @@ from dlt._workspace.deployment._run_helpers import (
     load_manifest_with_warnings,
     narrow_candidates,
     pick_launcher,
-    promote_file_arg,
+    promote_deployment_arg,
     resolve_interval,
     resolve_profile,
     resolve_refresh,
@@ -91,36 +91,36 @@ def _manifest(jobs: List[TJobDefinition]) -> TJobsDeploymentManifest:
 
 
 @pytest.mark.parametrize(
-    "positional,file,expected",
+    "positional,deployment,expected",
     [
         ("batch.run", None, ("batch.run", None)),
         (None, "mod.py", (None, "mod.py")),
         (None, None, (None, None)),
     ],
-    ids=["non-py-positional", "file-only", "both-none"],
+    ids=["non-py-positional", "deployment-only", "both-none"],
 )
-def test_promote_file_arg_passthrough(
-    positional: Optional[str], file: Optional[str], expected: Any
+def test_promote_deployment_arg_passthrough(
+    positional: Optional[str], deployment: Optional[str], expected: Any
 ) -> None:
-    assert promote_file_arg(positional, file) == expected
+    assert promote_deployment_arg(positional, deployment) == expected
 
 
-def test_promote_file_arg_promotes_py(tmp_path: Path) -> None:
+def test_promote_deployment_arg_promotes_py(tmp_path: Path) -> None:
     py = tmp_path / "jobs.py"
     py.write_text("")
-    assert promote_file_arg(str(py), None) == (None, str(py))
+    assert promote_deployment_arg(str(py), None) == (None, str(py))
 
 
-def test_promote_file_arg_conflict_raises(tmp_path: Path) -> None:
+def test_promote_deployment_arg_conflict_raises(tmp_path: Path) -> None:
     py = tmp_path / "a.py"
     py.write_text("")
     with pytest.raises(ValueError, match="both"):
-        promote_file_arg(str(py), "b.py")
+        promote_deployment_arg(str(py), "b.py")
 
 
-def test_promote_file_arg_missing_file_raises() -> None:
+def test_promote_deployment_arg_missing_file_raises() -> None:
     with pytest.raises(FileNotFoundError, match="not found"):
-        promote_file_arg("does_not_exist.py", None)
+        promote_deployment_arg("does_not_exist.py", None)
 
 
 def test_resolve_selector_none_returns_default() -> None:

@@ -58,18 +58,18 @@ TCandidate = Tuple[TJobDefinition, TTrigger]
 TPickFn = Callable[[List[Tuple[TJobDefinition, str]]], Tuple[TJobDefinition, str]]
 
 
-def promote_file_arg(
-    selector_or_job_ref: Optional[str], file: Optional[str]
+def promote_deployment_arg(
+    selector_or_job_ref: Optional[str], deployment: Optional[str]
 ) -> Tuple[Optional[str], Optional[str]]:
-    """Promote a positional `.py` argument to the `--file` slot."""
+    """Promote a positional `.py` argument to the `--deployment` slot."""
     # job refs cannot end in `.py` because names/sections must be Python
     # identifiers, so the detection is unambiguous
     if selector_or_job_ref is None or not selector_or_job_ref.lower().endswith(".py"):
-        return selector_or_job_ref, file
-    if file is not None:
+        return selector_or_job_ref, deployment
+    if deployment is not None:
         raise ValueError(
             f"Cannot pass both a positional file {selector_or_job_ref!r} and"
-            f" --file {file!r}. Use one or the other."
+            f" --deployment {deployment!r}. Use one or the other."
         )
     if not Path(selector_or_job_ref).is_file():
         raise FileNotFoundError(
@@ -354,7 +354,7 @@ def fetch_run_info(
     *,
     selector: Optional[str] = None,
     selectors: Optional[List[str]] = None,
-    file: Optional[str] = None,
+    deployment: Optional[str] = None,
     user_profile: Optional[str] = None,
     user_start: Optional[str] = None,
     user_end: Optional[str] = None,
@@ -377,12 +377,12 @@ def fetch_run_info(
     """
     if selectors is not None:
         # caller-supplied selectors path (e.g. local pipeline run)
-        explicit_file = file
+        explicit_deployment = deployment
     else:
-        selector, explicit_file = promote_file_arg(selector, file)
+        selector, explicit_deployment = promote_deployment_arg(selector, deployment)
 
-    name_or_path = explicit_file if explicit_file else DEFAULT_DEPLOYMENT_MODULE
-    use_all = explicit_file is None
+    name_or_path = explicit_deployment if explicit_deployment else DEFAULT_DEPLOYMENT_MODULE
+    use_all = explicit_deployment is None
 
     manifest, _, manifest_warnings = load_manifest_with_warnings(name_or_path, use_all=use_all)
     jobs: List[TJobDefinition] = manifest.get("jobs", [])

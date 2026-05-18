@@ -21,7 +21,6 @@ from dlt._workspace.cli.commands import (
     SchemaCommand,
     TelemetryCommand,
 )
-from dlt._workspace.deployment.typing import DEFAULT_DEPLOYMENT_MODULE
 
 
 class AiCommand(SupportsCliCommand):
@@ -315,17 +314,17 @@ def _add_common_run_args(
         default=None,
         help=(
             "Job reference (backfill, batch.backfill), trigger selector"
-            " (tag:backfill, schedule:*), or a .py file path (auto-promoted"
-            " to --file). If omitted, the job's default trigger is used."
+            " (tag:backfill, schedule:*), or a .py file path to run as a"
+            " regular script. If omitted, the job's default trigger is used."
         ),
     )
     parser.add_argument(
-        "--file",
+        "--deployment",
         default=None,
         metavar="FILE",
         help=(
             "Path to a .py deployment module. If omitted, loads the default"
-            f" {DEFAULT_DEPLOYMENT_MODULE!r} module from the workspace."
+            " __deployment__ module from the workspace."
         ),
     )
     parser.add_argument(
@@ -423,8 +422,9 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             description=(
                 "Run a single batch job from a deployment module locally. Loads the manifest,"
                 " matches exactly one job by selector or job reference, builds a runtime"
-                " entry point, and spawns the launcher subprocess. Interactive jobs are"
-                " refused — use `dlthub local serve` for those."
+                " entry point, and spawns the launcher subprocess."
+                " A plain `.py` script may also be passed: if it exposes no jobs it is"
+                " executed as a regular Python script."
             ),
         )
         _add_common_run_args(run_p, include_interval_and_refresh=True)
@@ -435,7 +435,9 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             description=(
                 "Serve a single interactive job from a deployment module locally. Same"
                 " selector / `--job-ref` semantics as `dlthub local run`, but only matches"
-                " interactive jobs. Batch jobs are refused — use `dlthub local run` for those."
+                " interactive jobs."
+                " A plain `.py` script (marimo notebook, Streamlit app, FastMCP server, etc.)"
+                " may also be passed and will be served as a regular script."
             ),
         )
         _add_common_run_args(serve_p, include_interval_and_refresh=False)

@@ -307,7 +307,7 @@ def test_local_pipeline_run_argparse_present() -> None:
 
 
 def test_local_run_file_no_short_form() -> None:
-    """`-f` is no longer a short alias for --file (reserved for future --follow)."""
+    """`-f` is no longer a short alias for --deployment (reserved for future --follow)."""
     cmd = LocalWorkspaceCommand()
     parser = argparse.ArgumentParser(prog="dlthub local")
     cmd.configure_parser(parser)
