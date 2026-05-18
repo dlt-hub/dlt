@@ -71,8 +71,8 @@ def test_default_credentials() -> None:
     assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     assert credentials.catalog is not None
     assert credentials.catalog.drivername == "sqlite"
-    assert credentials.storage is not None
-    assert credentials.storage.local_dir == "."
+    # storage is optional — not set by default; duckdb auto-determines it from the catalog path
+    assert credentials.storage is None
 
 
 def test_ducklake_urls() -> None:
@@ -98,12 +98,11 @@ def test_ducklake_configuration_default() -> None:
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.startswith("sqlite:")
     assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
-    # storage in local dir, default name
-    assert credentials.storage_url == str(local_dir / "ducklake.files")
-    # file url
-    assert credentials.storage.bucket_url.startswith("file://")
-    # fingerprint is local
-    assert configuration.fingerprint() == digest128("file://")
+    # storage is not set by default; duckdb auto-determines it from the catalog path
+    assert credentials.storage_url is None
+    assert credentials.storage is None
+    # fingerprint is empty when no storage is configured
+    assert configuration.fingerprint() == ""
 
 
 def test_ducklake_configuration_duckdb_catalog() -> None:
@@ -121,7 +120,9 @@ def test_ducklake_configuration_duckdb_catalog() -> None:
     assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.duckdb"))
-    assert configuration.fingerprint() == digest128("file://")
+    # storage is not set by default
+    assert credentials.storage_url is None
+    assert configuration.fingerprint() == ""
 
 
 def test_ducklake_configuration_ducklake_name() -> None:
@@ -137,9 +138,9 @@ def test_ducklake_configuration_ducklake_name() -> None:
     assert credentials.ducklake_name == "my_ducklake"
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "my_ducklake.sqlite"))
-    assert credentials.storage_url == str(local_dir / "my_ducklake.files")
-    # fingerprint is local
-    assert configuration.fingerprint() == digest128("file://")
+    # storage is not set by default
+    assert credentials.storage_url is None
+    assert configuration.fingerprint() == ""
 
 
 def test_ducklake_configuration_destination_name() -> None:
@@ -155,9 +156,9 @@ def test_ducklake_configuration_destination_name() -> None:
     assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
-    assert credentials.storage_url == str(local_dir / "ducklake.files")
-    # fingerprint is local
-    assert configuration.fingerprint() == digest128("file://")
+    # storage is not set by default
+    assert credentials.storage_url is None
+    assert configuration.fingerprint() == ""
 
 
 def test_ducklake_configuration_pipeline_name() -> None:
@@ -175,7 +176,8 @@ def test_ducklake_configuration_pipeline_name() -> None:
     # no impact on locations
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
-    assert credentials.storage_url == str(local_dir / "ducklake.files")
+    # storage is not set by default
+    assert credentials.storage_url is None
 
 
 def test_ducklake_configuration_storage_credentials() -> None:
@@ -225,7 +227,8 @@ def test_ducklake_configuration_catalog_credentials() -> None:
         credentials.catalog.to_native_representation()
         == "postgresql://loader:loader@localhost:5432/dlt_data"
     )
-    assert credentials.storage_url == str(local_dir / "ducklake.files")
+    # storage is not set by default — for postgres catalog, data path must be explicit
+    assert credentials.storage_url is None
 
 
 def test_ducklake_metadata_schema_config() -> None:
@@ -306,6 +309,41 @@ def test_ducklake_attach_statement_with_metadata_schema() -> None:
     assert expected_attach_statement == attach_statement
 
 
+def test_attach_statement_no_storage_url_sqlite() -> None:
+    """When no storage_url is given for a sqlite/duckdb catalog, DATA_PATH is omitted.
+
+    DuckLake will derive the storage path from the catalog filename automatically.
+    """
+    attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("sqlite:////path/to/catalog.sqlite"),
+        ducklake_name="foo",
+        storage_url=None,
+    )
+    assert "DATA_PATH" not in attach_statement
+    assert attach_statement == (
+        "ATTACH IF NOT EXISTS 'ducklake:/path/to/catalog.sqlite'"
+        " AS foo (META_TYPE 'sqlite', META_JOURNAL_MODE 'WAL', META_BUSY_TIMEOUT 1000)"
+    )
+
+
+def test_attach_statement_no_storage_url_postgres() -> None:
+    """When no storage_url is given for a postgres catalog, DATA_PATH is omitted.
+
+    This is valid when connecting to an existing DuckLake whose data path is stored
+    in the catalog metadata.
+    """
+    attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data"),
+        ducklake_name="foo",
+        storage_url=None,
+    )
+    assert "DATA_PATH" not in attach_statement
+    assert attach_statement == (
+        "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data'"
+        " AS foo (METADATA_SCHEMA 'foo')"
+    )
+
+
 def test_ducklake_override_data_path_config() -> None:
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(override_data_path=True)._bind_dataset_name(dataset_name="foo")
@@ -363,13 +401,16 @@ def test_ducklake_conn_pool_always_open() -> None:
 
 
 @pytest.mark.no_load
-def test_ducklake_factory_instantiation() -> None:
-    # force parallel loads on sqlite
+def test_ducklake_factory_instantiation(tmp_path: pathlib.Path) -> None:
+    # force parallel loads on sqlite and provide explicit storage
     worker = get_test_worker_id()
 
     ducklake = dlt.destinations.ducklake(
         loader_parallelism_strategy="parallel",
-        credentials=DuckLakeCredentials(ducklake_name=f"ducklake_{worker}"),
+        credentials=DuckLakeCredentials(
+            ducklake_name=f"ducklake_{worker}",
+            storage=str(tmp_path),
+        ),
     )
     pipeline = dlt.pipeline("test_factory", destination=ducklake, dataset_name="foo")
 
@@ -397,3 +438,83 @@ def test_ducklake_factory_instantiation() -> None:
         "lake_catalog",
         catalog=catalog_credentials,
     )
+
+
+def test_ducklake_no_storage_connect_to_existing(tmp_path: pathlib.Path) -> None:
+    """Verify that an existing DuckLake can be opened without specifying storage.
+
+    DuckLake stores the data path in its catalog. When reconnecting, omitting storage
+    causes DuckLake to read the data path from the catalog automatically.
+    ref: https://ducklake.select/docs/stable/duckdb/usage/connecting
+    """
+    catalog_db = str(tmp_path / "catalog.ducklake")
+    storage_dir = str(tmp_path / "my_files")
+    ducklake_name = "existing_lake"
+
+    # create a new ducklake with an explicit storage path
+    conn = duckdb.connect(":memory:")
+    conn.execute("INSTALL ducklake; LOAD ducklake")
+    conn.execute(
+        f"ATTACH 'ducklake:{catalog_db}' AS {ducklake_name}"
+        f" (DATA_PATH '{storage_dir}')"
+    )
+    conn.execute(f"USE {ducklake_name}")
+    conn.execute("CREATE TABLE items (id INTEGER, val TEXT)")
+    conn.execute("INSERT INTO items VALUES (1, 'hello'), (2, 'world')")
+    conn.execute(f"USE memory; DETACH {ducklake_name}")
+    conn.close()
+
+    # reconnect to the same catalog without specifying storage
+    conn2 = duckdb.connect(":memory:")
+    conn2.execute("LOAD ducklake")
+    conn2.execute(f"ATTACH IF NOT EXISTS 'ducklake:{catalog_db}' AS {ducklake_name}")
+    conn2.execute(f"USE {ducklake_name}")
+    rows = conn2.execute("SELECT id, val FROM items ORDER BY id").fetchall()
+    assert rows == [(1, "hello"), (2, "world")]
+    conn2.execute(f"USE memory; DETACH {ducklake_name}")
+    conn2.close()
+
+
+@pytest.mark.no_load
+def test_ducklake_pipeline_no_storage(tmp_path: pathlib.Path) -> None:
+    """A dlt pipeline can reconnect to an existing DuckLake without specifying storage.
+
+    DuckLake stores the data path in its catalog. On a second connection that omits
+    DATA_PATH, DuckLake reads the data path directly from the catalog.
+    ref: https://ducklake.select/docs/stable/duckdb/usage/connecting
+    """
+    from dlt.destinations import ducklake as ducklake_dest
+
+    catalog_db = str(tmp_path / "my_catalog.duckdb")
+    storage_dir = str(tmp_path / "my_catalog.duckdb.files")
+
+    # first run: create the ducklake with explicit storage
+    destination_with_storage = ducklake_dest(
+        credentials=DuckLakeCredentials(
+            ducklake_name="auto_lake",
+            catalog=ConnectionStringCredentials({"drivername": "duckdb", "database": catalog_db}),
+            storage=storage_dir,
+        )
+    )
+    pipeline = dlt.pipeline(
+        "no_storage_pipeline", destination=destination_with_storage, dataset_name="ds"
+    )
+    load_info = pipeline.run([{"x": 1}, {"x": 2}], table_name="nums")
+    assert load_info.has_failed_jobs is False
+    assert pathlib.Path(storage_dir).exists()
+
+    # second run: reconnect without storage — use data path from catalog
+    destination_no_storage = ducklake_dest(
+        credentials=DuckLakeCredentials(
+            ducklake_name="auto_lake",
+            catalog=ConnectionStringCredentials({"drivername": "duckdb", "database": catalog_db}),
+        )
+    )
+    pipeline2 = dlt.pipeline(
+        "no_storage_pipeline_2", destination=destination_no_storage, dataset_name="ds"
+    )
+    load_info2 = pipeline2.run([{"x": 3}], table_name="nums")
+    assert load_info2.has_failed_jobs is False
+
+    rows = pipeline2.dataset().nums["x"].fetchall()
+    assert sorted(rows) == [(1,), (2,), (3,)]

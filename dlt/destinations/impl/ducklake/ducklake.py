@@ -135,11 +135,14 @@ class DuckLakeCopyJob(DuckDbCopyJob):
         # job client not available before run_managed called
         if not self._job_client:
             return m
+        storage = self._job_client.config.credentials.storage
+        if storage is None:
+            return m
         # TODO: read location from catalog. ducklake supports customized table layouts
         return m._replace(
             remote_url=str(
                 pathlib.Path().joinpath(
-                    self._job_client.config.credentials.storage.bucket_url,
+                    storage.bucket_url,
                     self._job_client.sql_client.dataset_name,
                     self.load_table_name,
                 )
@@ -179,8 +182,11 @@ class DuckLakeClient(DuckDbClient):
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         super().initialize_storage(truncate_tables)
-        # create local storage
-        if self.config.credentials.storage.is_local_filesystem:
+        # create local storage directory if storage is configured and local
+        if (
+            self.config.credentials.storage is not None
+            and self.config.credentials.storage.is_local_filesystem
+        ):
             os.makedirs(self.config.credentials.storage_url, exist_ok=True)
 
     def create_load_job(

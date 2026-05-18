@@ -19,8 +19,6 @@ from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
 
 
 DEFAULT_DUCKLAKE_NAME = "ducklake"
-DUCKLAKE_STORAGE_PATTERN = "%s.files"
-
 
 def _get_ducklake_capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
@@ -38,7 +36,7 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
     metadata_schema: Optional[str] = None
     catalog: ConnectionStringCredentials = None
     # NOTE: consider moving to DuckLakeClientConfiguration so bucket_url is not a secret
-    storage: FilesystemConfiguration = None
+    storage: Optional[FilesystemConfiguration] = None # storage does not need to be specified when attaching to an existing ducklake
 
     __config_gen_annotations__: ClassVar[list[str]] = [
         "ducklake_name",
@@ -52,7 +50,7 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
         ducklake_name: str = DEFAULT_DUCKLAKE_NAME,
         metadata_schema: Optional[str] = None,
         catalog: Union[str, ConnectionStringCredentials] = None,
-        storage: Union[str, FilesystemConfiguration] = None,
+        storage: Optional[Union[str, FilesystemConfiguration]] = None,
     ) -> None:
         """Initialize DuckLake credentials by passing ducklake name, catalog and storage
         configuration.
@@ -73,8 +71,8 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
                 derived from the name_or_conn_str argument.
             storage: Either a storage URL string (for example,
                 "file://...", "s3://bucket/prefix") or a FilesystemConfiguration
-                instance. If omitted, it will create a folder for data with name
-                derived from the name_or_conn_str argument.
+                instance. If omitted, it will attempt to attach to an existing
+                ducklake using the storage location from the catalog.
 
         """
         self.ducklake_name = ducklake_name
@@ -102,11 +100,6 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
             ).resolve()
             config_exception.drop_traces_for_field("catalog")
 
-        if self.storage is None and "bucket_url" in config_exception.traces["storage"][0].traces:  # type: ignore
-            self.storage = FilesystemConfigurationWithLocalFiles(
-                bucket_url=DUCKLAKE_STORAGE_PATTERN % self.ducklake_name, local_dir="."
-            ).resolve()
-
         if not self.is_partial():
             self.resolve()
 
@@ -120,8 +113,10 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
         self.conn_pool = DuckDbConnectionPool(self, always_open_connection=True)
 
     @property
-    def storage_url(self) -> str:
+    def storage_url(self) -> Union[str, None]:
         """Convert file:// url into native os path so duckdb can read it"""
+        if self.storage is None:
+            return None
         if self.storage.is_local_filesystem:
             return self.storage.make_local_path(self.storage.bucket_url)
         else:
