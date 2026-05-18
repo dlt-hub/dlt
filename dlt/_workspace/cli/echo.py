@@ -1,17 +1,9 @@
-"""CLI prompting and output helpers.
-
-Interactivity is gated by `is_interactive()`. Three state flags drive it:
-`ALWAYS_CHOOSE_DEFAULT` (`--non-interactive` or no tty), `ALWAYS_CONFIRM`
-(`-y`/`--yes`), and `ALWAYS_CHOOSE_VALUE` (fixed answer from `always_choose()`).
-Call sites should query `is_interactive()` rather than probe the flags.
-"""
+"""CLI prompting and output helpers."""
 
 import sys
 import contextlib
 from typing import Any, Iterable, Iterator, Optional, ContextManager
 import click
-
-from dlt._workspace.cli.exceptions import CliCommandException
 
 
 ALWAYS_CHOOSE_DEFAULT = False
@@ -110,7 +102,7 @@ def suppress_echo() -> Iterator[None]:
 
 
 def maybe_no_stdin() -> ContextManager[None]:
-    """Switch to non-interactive mode for the duration of the block if stdin is not a tty."""
+    """Switch to non-interactive mode for the duration of the block if stdin is not at tty."""
     return always_choose(
         True if not sys.stdin.isatty() else ALWAYS_CHOOSE_DEFAULT,
         ALWAYS_CHOOSE_VALUE,
@@ -149,6 +141,9 @@ def _raise_no_default(text: str) -> None:
         "Cannot read `%s` in non-interactive mode (no default provided). Pass the value via a"
         " CLI option, or run interactively." % text
     )
+    # do not import at the top
+    from dlt._workspace.cli.exceptions import CliCommandException
+
     raise CliCommandException()
 
 

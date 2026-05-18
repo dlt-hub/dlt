@@ -356,18 +356,16 @@ def fetch_profile_info() -> Optional[TCurrentProfileFullInfo]:
 
 
 def fetch_deployment_info() -> TDeploymentManifestInfo:
-    """Summarize the workspace deployment manifest.
+    """Summarize the workspace deployment manifest."""
 
-    Returns a model with status = "not_found" when the default deployment
-    module doesn't exist, "generation_failed" when it exists but loading
-    raises, or "ok" with the full manifest summary.
-    """
     try:
         manifest, _warnings = manifest_from_module(DEFAULT_DEPLOYMENT_MODULE)
     except ImportError as exc:
         default_file = os.path.join(os.getcwd(), f"{DEFAULT_DEPLOYMENT_MODULE}.py")
+        # default deployment module not found
         if not os.path.isfile(default_file):
             return TDeploymentManifestInfo(status="not_found")
+        # any other import error
         return TDeploymentManifestInfo(
             status="generation_failed", error=f"{type(exc).__name__}: {exc}"
         )

@@ -19,15 +19,8 @@ def get_existing_subparsers_action(
 def group_commands(
     results: Sequence[Optional[Type[SupportsCliCommand]]],
 ) -> Tuple[Dict[str, List[SupportsCliCommand]], Dict[Tuple[str, str], List[SupportsCliCommand]],]:
-    """Organizes raw plugin hook results into the lookup tables the parser builder needs.
-
-    Top-level commands and sub-subcommands are returned in separate dicts so the
-    builder can wire them in two phases: first installing top-level parsers, then
-    attaching sub-subcommands under their declared parent.
-
-    Raises:
-        ValueError: a nested subcommand requested `compose='additive'` (additive
-        composition is only valid at the top level).
+    """Groups commands received from plugins into top level ie. `dlt pipeline` and subcommands that
+    may be composed via `additive` mode ie. `dlt pipeline show` and `dlt pipeline info`.
     """
     top: Dict[str, List[SupportsCliCommand]] = {}
     sub: Dict[Tuple[str, str], List[SupportsCliCommand]] = {}
@@ -38,6 +31,7 @@ def group_commands(
         if inst.parent is None:
             top.setdefault(inst.command, []).append(inst)
         else:
+            # subcommands have parent set
             if inst.compose == "additive":
                 raise ValueError(
                     f"command {inst.command!r} (parent={inst.parent!r}) declares"
@@ -110,11 +104,10 @@ def configure_parser(
     parser: argparse.ArgumentParser,
     group: List[SupportsCliCommand],
 ) -> ComposedExecutable:
-    """Configures `parser` and returns the executable that dispatches `group`.
+    """Configures `parser` and returns the executable that dispatches `group` commands to configured executables.
 
-    Called once per `(parent, command)` slot — both for top-level commands and
-    for sub-subcommands attached under an additive parent. All members of
-    `group` must agree on `compose`.
+    Typically called twice: always for group of top level commands (ie. `extend` composes top level commands) and then for
+    all additive subparsers.
     """
     if not group:
         raise ValueError("configure_parser called with empty group")

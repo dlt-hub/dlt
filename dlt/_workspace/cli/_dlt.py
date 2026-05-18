@@ -166,8 +166,6 @@ class DebugAction(argparse.Action):
 
 def _create_pre_parser() -> argparse.ArgumentParser:
     """Builds the pre-parser holding flags allowed at any argv position."""
-    # consumed by `main` via parse_known_args before the main parser sees a subcommand;
-    # attached to the main parser via parents= so --help lists them under one usage block
 
     pre_parser = argparse.ArgumentParser(add_help=False)
     pre_parser.add_argument(

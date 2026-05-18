@@ -24,7 +24,7 @@ def test_import_props() -> None:
 
 def test_runtime_client_imports(script_runner: ScriptRunner) -> None:
     # TODO: rename the top level package in dlthub-client
-    import dlt_runtime  # type: ignore[import-untyped,import-not-found,unused-ignore]
+    import dlt_runtime  # type: ignore[import-not-found,unused-ignore]
 
     print(dlt_runtime.__version__)
 

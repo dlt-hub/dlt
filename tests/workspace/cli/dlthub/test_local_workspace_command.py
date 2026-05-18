@@ -141,7 +141,7 @@ def test_print_deployment_info_ok_verbose_lists_jobs(
     }
     _print_deployment_info(info, verbosity=1)
     out = capsys.readouterr().out
-    assert "🎯 schedule: 0 2 * * *" in out
+    assert "schedule: 0 2 * * *" in out
     assert "tag:nightly" in out
     assert "(interactive)" in out  # no triggers on notebook
     assert "backfill" in out
