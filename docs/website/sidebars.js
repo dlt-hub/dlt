@@ -419,7 +419,7 @@ const sidebars = {
       type: 'category',
       label: 'Getting started',
       items: [
-        'hub/intro',
+        'hub/introduction',
         'hub/oss-and-dlthub',
         'hub/getting-started/installation',
         'hub/getting-started/runtime-tutorial',
@@ -450,6 +450,7 @@ const sidebars = {
       label: 'Pipeline operations',
       items: [
         'hub/runtime/overview',
+        'hub/runtime/regions',
         'hub/core-concepts/profiles-dlthub',
       ]
     },
