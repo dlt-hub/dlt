@@ -371,47 +371,189 @@ def in_transit_transformations_snippet() -> None:
     }
 
 
-def incremental_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
-    # @@@DLT_SNIPPET_START incremental_transformations
-    from dlt.pipeline.exceptions import PipelineNeverRan
+def incremental_pattern_stateful_cursor_snippet() -> None:
+    # @@@DLT_SNIPPET_START incremental_pattern_stateful_cursor
+    from typing import Any, Iterator, List
 
-    @dlt.hub.transformation(
-        write_disposition="append",
-        primary_key="id",
+    import dlt
+    from dlt.common.pendulum import pendulum
+    from dlt.destinations import duckdb
+
+    @dlt.resource(name="orders", primary_key="id", write_disposition="append")
+    def orders(rows: List[Any]) -> Iterator[Any]:
+        yield rows
+
+    pipeline = dlt.pipeline(
+        "orders_stateful",
+        destination=duckdb("./orders_stateful.duckdb"),
+        dev_mode=True,
     )
-    def cleaned_customers(dataset: dlt.Dataset) -> Any:
-        # get newest primary key from the output dataset
-        max_pimary_key = -1
-        try:
-            output_dataset = dlt.current.pipeline().dataset()
-            if output_dataset.schema.tables.get("cleaned_customers"):
-                max_pimary_key_expr = (
-                    output_dataset.table("cleaned_customers").to_ibis().id.max()
-                )
-                max_pimary_key = output_dataset(max_pimary_key_expr).fetchscalar()
-        except PipelineNeverRan:
-            # we get this exception if the destination dataset has not been run yet
-            # so we can assume that all customers are new
-            pass
-
-        # return filtered transformation
-        customers_table = dataset.table("customers").to_ibis()
-
-        # filter only new customers and exclude the name column in the result
-        yield customers_table.filter(customers_table.id > max_pimary_key).drop(
-            customers_table.name
+    pipeline.run(
+        orders(
+            [
+                {
+                    "id": 1,
+                    "amount": 100,
+                    "created_at": pendulum.datetime(2026, 1, 1, tz="UTC"),
+                },
+                {
+                    "id": 2,
+                    "amount": 200,
+                    "created_at": pendulum.datetime(2026, 1, 2, tz="UTC"),
+                },
+                {
+                    "id": 3,
+                    "amount": 300,
+                    "created_at": pendulum.datetime(2026, 1, 3, tz="UTC"),
+                },
+            ]
         )
-
-    # create a warehouse dataset, would ordinarily be snowflake or some other warehousing destination
-    warehouse_pipeline = dlt.pipeline(
-        "warehouse", destination="duckdb", dataset_name="cleaned_customers"
     )
-    warehouse_pipeline.run(cleaned_customers(fruitshop_pipeline.dataset()))
 
-    # new items get added to the input dataset
-    # ...
+    # @@@DLT_SNIPPET_START incremental_stateful_cursor_definition
+    @dlt.hub.transformation(write_disposition="append", primary_key="id")
+    def recent_orders(
+        dataset: dlt.Dataset,
+        cursor: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+            "created_at",
+            initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
+            range_start="open",
+        ),
+    ) -> Any:
+        yield dataset.table("orders").incremental(cursor)
 
-    # run the transformation again, only new customers are processed and appended to the destination table
-    warehouse_pipeline.run(cleaned_customers(fruitshop_pipeline.dataset()))
+    # @@@DLT_SNIPPET_END incremental_stateful_cursor_definition
 
-    # @@@DLT_SNIPPET_END incremental_transformations
+    pipeline.run(recent_orders(pipeline.dataset()))
+
+    # More orders arrive.
+    pipeline.run(
+        orders(
+            [
+                {
+                    "id": 4,
+                    "amount": 400,
+                    "created_at": pendulum.datetime(2026, 1, 4, tz="UTC"),
+                },
+                {
+                    "id": 5,
+                    "amount": 500,
+                    "created_at": pendulum.datetime(2026, 1, 5, tz="UTC"),
+                },
+            ]
+        )
+    )
+
+    # Second run: only the new rows land
+    pipeline.run(recent_orders(pipeline.dataset()))
+    # @@@DLT_SNIPPET_END incremental_pattern_stateful_cursor
+
+    ids = sorted(row[0] for row in pipeline.dataset().table("recent_orders").fetchall())
+    assert ids == [1, 2, 3, 4, 5]
+
+
+def incremental_pattern_dlt_loads_cursor_snippet() -> None:
+    # @@@DLT_SNIPPET_START incremental_pattern_dlt_loads_cursor
+    from typing import Any, Iterator, List
+
+    import dlt
+    from dlt.common.pendulum import pendulum
+    from dlt.destinations import duckdb
+
+    @dlt.resource(name="orders", primary_key="id", write_disposition="append")
+    def orders(rows: List[Any]) -> Iterator[Any]:
+        yield rows
+
+    pipeline = dlt.pipeline(
+        "orders_by_load",
+        destination=duckdb("./orders_by_load.duckdb"),
+        dev_mode=True,
+    )
+    pipeline.run(orders([{"id": 1}, {"id": 2}, {"id": 3}]))
+
+    # @@@DLT_SNIPPET_START incremental_dlt_loads_cursor_definition
+    @dlt.hub.transformation(write_disposition="append")
+    def orders_by_load(
+        dataset: dlt.Dataset,
+        loaded_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+            "_dlt_loads.inserted_at",
+            initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
+            range_start="open",
+        ),
+    ) -> Any:
+        yield dataset.table("orders").incremental(loaded_at)
+
+    # @@@DLT_SNIPPET_END incremental_dlt_loads_cursor_definition
+
+    pipeline.run(orders_by_load(pipeline.dataset()))
+
+    pipeline.run(orders([{"id": 4}, {"id": 5}]))
+
+    pipeline.run(orders_by_load(pipeline.dataset()))
+    # @@@DLT_SNIPPET_END incremental_pattern_dlt_loads_cursor
+
+    ids = sorted(
+        row[0] for row in pipeline.dataset().table("orders_by_load").fetchall()
+    )
+    assert ids == [1, 2, 3, 4, 5]
+
+
+def incremental_pattern_external_scheduler_snippet() -> None:
+    # @@@DLT_SNIPPET_START incremental_pattern_external_scheduler
+    import os
+    from typing import Any, Iterator, List
+
+    import dlt
+    from dlt.common.pendulum import pendulum
+    from dlt.destinations import duckdb
+
+    @dlt.resource(name="orders", primary_key="id", write_disposition="append")
+    def orders(rows: List[Any]) -> Iterator[Any]:
+        yield rows
+
+    pipeline = dlt.pipeline(
+        "orders_window",
+        destination=duckdb("./orders_window.duckdb"),
+        dev_mode=True,
+    )
+    pipeline.run(
+        orders(
+            [
+                {"id": i, "created_at": pendulum.datetime(2026, 1, i, tz="UTC")}
+                for i in range(1, 11)
+            ]
+        )
+    )
+
+    # @@@DLT_SNIPPET_START incremental_external_scheduler_definition
+    @dlt.hub.transformation(write_disposition="replace")
+    def orders_window(
+        dataset: dlt.Dataset,
+        window: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+            "created_at",
+            initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
+            allow_external_schedulers=True,
+            range_start="closed",
+            range_end="open",
+        ),
+    ) -> Any:
+        yield dataset.table("orders").incremental(window)
+
+    # @@@DLT_SNIPPET_END incremental_external_scheduler_definition
+
+    os.environ["DLT_INTERVAL_START"] = "2026-01-05T00:00:00+00:00"
+    os.environ["DLT_INTERVAL_END"] = "2026-01-10T00:00:00+00:00"
+    pipeline.run(orders_window(pipeline.dataset()))  # ids 5..9 land
+
+    pipeline.run(orders_window(pipeline.dataset()))
+
+    os.environ["DLT_INTERVAL_START"] = "2026-01-02T00:00:00+00:00"
+    os.environ["DLT_INTERVAL_END"] = "2026-01-05T00:00:00+00:00"
+    pipeline.run(orders_window(pipeline.dataset()))  # ids 2..4 land
+    # @@@DLT_SNIPPET_END incremental_pattern_external_scheduler
+
+    os.environ.pop("DLT_INTERVAL_START", None)
+    os.environ.pop("DLT_INTERVAL_END", None)
+
+    ids = sorted(row[0] for row in pipeline.dataset().table("orders_window").fetchall())
+    assert ids == [2, 3, 4]

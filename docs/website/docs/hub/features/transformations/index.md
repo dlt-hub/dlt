@@ -125,6 +125,102 @@ You can also write transformations directly using Pandas or Polars DataFrames an
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::arrow_dataframe_operations-->
 
 
+## Incremental transformations
+
+When source data keeps growing, rerunning the same full transformation every time is slow and expensive.
+
+Incremental transformations let each run work on the right slice of source data instead of the whole dataset. Each slice is defined by a _cursor_: a column whose values dlt compares against a range to decide if a row is in scope. Common choices are `created_at`, `updated_at`, an increasing `id`, or the dlt-managed `_dlt_loads.inserted_at`.
+
+There are two common ways to choose the slice:
+
+- [Use the scheduler interval](#the-scheduler-interval). This is the usual production setup for dltHub Platform schedules, Airflow, and other orchestrators. The scheduler tells dlt which `[start, end)` interval this run is responsible for.
+- [Continue from the previous run](#continue-from-the-previous-run). dlt stores the last cursor value it processed and the next run starts after that value.
+
+### The scheduler interval
+
+Use a scheduler interval when the orchestrator decides what time range each run should process. This is the natural fit for cron schedules, retries, and backfills because the run does not depend on what happened in a previous run.
+
+Set `allow_external_schedulers=True` on the cursor and the orchestrator owns the interval: dltHub Platform cron schedules, Airflow data intervals, or any process that sets `DLT_INTERVAL_START` and `DLT_INTERVAL_END`: dlt picks those up and filters the source data accordingly.
+
+Here's an example. The transformation below reads the `orders` table and writes only the rows whose `created_at` falls in the `[start, end)` window to a new table `orders_window`.
+
+Given an `orders` table with one row per day:
+
+| id | created_at |
+| --- | --- |
+| 1  | 2026-01-01 |
+| 2  | 2026-01-02 |
+| …  | … |
+| 10 | 2026-01-10 |
+
+and a scheduler window of `[2026-01-05, 2026-01-10)`, the run writes ids 5 to 9 to `orders_window` (id 10 is excluded by the open upper bound).
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_external_scheduler_definition-->
+
+Re-running the same `[start, end)` (start is included, end is excluded) interval produces the same transformation input, which makes this pattern a good fit for partition backfills and idempotent retries.
+
+### Continue from the previous run
+
+Use a stateful cursor for runs not tied to an external scheduler, where each run should continue from the last successful one. dlt stores the cursor state internally and uses it in the next run of the transformation.
+
+The transformation below appends rows from `orders` whose `created_at` is later than the persisted `last_value` to a new table `recent_orders`.
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_stateful_cursor_definition-->
+
+Now suppose `orders` is loaded in two batches:
+
+| batch   | ids    | `created_at`              |
+| ---     | ---    | ---                       |
+| initial | 1..3   | 2026-01-01 .. 2026-01-03  |
+| later   | 4..5   | 2026-01-04 .. 2026-01-05  |
+
+The first run has no `last_value` yet, so it starts from `initial_value` (`2000-01-01`), writes the three initial rows to `recent_orders`, and advances `last_value` to `2026-01-03`. The next run sees the two later rows fall past `last_value`, appends them, and advances `last_value` to `2026-01-05`.
+
+Set `range_start="open"` on stateful cursors. The default closed lower bound would re-emit the persisted boundary row on every run, so dlt rejects stateful transformation cursors that do not use an open lower bound.
+
+### How the cursor is attached
+
+The examples above attach the cursor as a transformation argument. That is the form when the body names the cursor explicitly and passes it to `.incremental(cursor)`.
+
+You can also attach the cursor with the `incremental=` decorator argument when the function body does not need the cursor object:
+
+```py
+@dlt.hub.transformation(
+    write_disposition="append",
+    primary_key="id",
+    incremental=dlt.sources.incremental(
+        "created_at",
+        initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
+        range_start="open",
+    ),
+)
+def recent_orders(dataset: dlt.Dataset) -> Any:
+    yield dataset.table("orders")
+```
+
+Both forms apply the cursor to relation yields, Ibis expressions or raw SQL strings.
+
+### Cursor column choices
+
+Use a domain cursor when the source table has a column that represents creation or update order. For append-only data, `created_at` or an increasing `id` is usually enough. For mutable data, use a cursor that changes whenever the row changes, such as `updated_at`; rows whose cursor value does not advance are intentionally ignored by the next stateful run.
+
+Use `_dlt_loads.inserted_at` when the source table has no domain timestamp and you want to process data by the time `dlt` loaded it. A dotted cursor path such as `_dlt_loads.inserted_at` tells `dlt` to follow the schema reference from the base table to `_dlt_loads`, join it, and filter on the joined column. The join is filter-only: columns from `_dlt_loads` are not added to the destination table.
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_dlt_loads_cursor_definition-->
+
+:::note
+Under the hood, when dlt can run the transformation directly as SQL/model job, the source query is modified to include the cursor filter. When the transformation is materialized first, for example if source and destination are different physical engines, or when you yield Python objects such as lists, Arrow tables, or DataFrames, filtering happens during extraction.
+:::
+
+### State and safety rules
+
+- `LIMIT` is rejected on stateful relation incrementals. Advancing state from a limited result can skip rows that were not returned. Remove the limit or use an explicit bounded window.
+- SQL-based cursors support `max` and `min` last-value functions. Custom Python `last_value_func` callables cannot be pushed down to SQL.
+- Null handling follows `on_cursor_value_missing`. For SQL pushdown, `"include"` adds `OR cursor IS NULL`; `"exclude"` adds `AND cursor IS NOT NULL`; `"raise"` cannot raise in the middle of a query and falls back to excluding null cursor values when needed.
+
+For lower-level cursor rules, including range inclusivity and `lag`, see [Filter to an incremental cursor](../../../general-usage/dataset-access/dataset.md#filter-to-an-incremental-cursor) and [Cursor-based incremental loading](../../../general-usage/incremental/cursor.md).
+
+
 ## Schema evolution and hints lineage
 
 When executing transformations, `dlt` computes the resulting schema before the transformation is executed. This allows `dlt` to:
@@ -144,7 +240,7 @@ You can inspect the computed result schema during development by looking at the 
 ### Column level hint forwarding
 
 When creating or updating tables with transformation resources, `dlt` will also forward certain column hints to the new tables. In our fruitshop source, we have applied a custom hint named
-`x-annotation-pii` set to True for the `name` column, which indicates that this column contains PII (personally identifiable information). 
+`x-annotation-pii` set to True for the `name` column, which indicates that this column contains PII (personally identifiable information).
 Downstream of the transformation layer, we may want to know which columns originate from columns that contain private data:
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::column_level_lineage-->
@@ -271,22 +367,3 @@ This script demonstrates:
 - Loading only the aggregated results to a production warehouse (Postgres)
 - Reducing warehouse compute costs by performing transformations locally in DuckDB
 - Using multiple pipelines in a single workflow for different stages of processing
-
-### Incremental transformations example
-
-:::info
-This example demonstrates how to perform incremental transformations using an incremental primary key from the original tables. We're actively working to make incremental transformations based on `_dlt_load_id`s even easier in the near future.
-:::
-
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_transformations-->
-
-This example demonstrates how you can incrementally transform incoming new data for the customers table into a cleaned_customers table where the name column has been removed. It:
- * Uses primary key-based incremental loading to process only new data
- * Tracks the highest ID processed so far to filter out already processed records
- * Handles first-time runs with the PipelineNeverRan exception
- * Removes sensitive data (name column) during the transformation
- * Uses write_disposition="append" to add only new records to the destination table
- * Can be run repeatedly as new data arrives, processing only the delta
-
-
-

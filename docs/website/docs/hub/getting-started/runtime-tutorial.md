@@ -370,6 +370,10 @@ uv run dlt runtime launch jaffle_transformations.py
 
 This uploads the transformation script, runs it on managed infrastructure, and streams logs back to your terminal. You can also schedule this job and monitor it via the dltHub UI.
 
+### Incremental transformations on a schedule
+
+When a transformation runs on a dltHub Platform cron schedule, let the schedule own the cursor window. Set `allow_external_schedulers=True` on a `dlt.sources.incremental` argument and the cursor takes its `[start, end)` bounds from the scheduled interval. Re-running the same window produces the same output, so retries and missed-run backfills are idempotent. See [Incremental transformations](../features/transformations/index.md#incremental-transformations) for the full model and examples.
+
 ## Next steps
 
 You’ve completed the introductory tutorial for dltHub Runtime: you’ve learned how to deploy pipelines, run interactive notebooks, and add transformations.
