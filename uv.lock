@@ -2464,7 +2464,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.27.0a1"
+version = "1.27.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2825,8 +2825,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.27.0a0,<0.28" },
-    { name = "dlthub-client", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.27.0a0,<0.28" },
+    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.27.0,<0.28" },
+    { name = "dlthub-client", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.27.0,<0.28" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3" },
@@ -3028,21 +3028,21 @@ workspace-deps = [
 
 [[package]]
 name = "dlthub"
-version = "0.27.0a0"
+version = "0.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "python-jose", marker = "python_full_version >= '3.10'" },
     { name = "ruamel-yaml", marker = "python_full_version >= '3.10'" },
     { name = "sqlglot", version = "28.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/13/92/ef764608d75eda06938138c9857ad0438a9986a226f229e7d9b4e6130b51/dlthub-0.27.0a0.tar.gz", hash = "sha256:5ece94451ac7d6697de23ffd6fe0aea2e4d4a5787de5c1e34cc006ef3ed32421", size = 171006, upload-time = "2026-05-12T11:08:44.394Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/f1/16f1c80212f46d244bf71de6ea4a97a89abd8b5c04e847d398ba094a7495/dlthub-0.27.0.tar.gz", hash = "sha256:60ac1cf07956efcc5115f84e858416c266facf95bfd17ca8b5c6d3bb11891aeb", size = 170995, upload-time = "2026-05-18T15:57:20.955Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bb/68/997acfc7115d275a6b2bd011a5e4c750d230a4a08ac143ed9088713772b2/dlthub-0.27.0a0-py3-none-any.whl", hash = "sha256:0c99af66c370500cb02368c7d927ce84c6209f610d1b639ae289c3950fef9bdb", size = 228601, upload-time = "2026-05-12T11:08:41.704Z" },
+    { url = "https://files.pythonhosted.org/packages/47/44/0841ea6b10191bc6338bdf51e600563ad56e95a61d08e03fb4d1f84e9d18/dlthub-0.27.0-py3-none-any.whl", hash = "sha256:f5b156afdb5240fbace44461fb099fa64557ca19a30aeb55a0f21ba655720667", size = 228555, upload-time = "2026-05-18T15:57:18.813Z" },
 ]
 
 [[package]]
 name = "dlthub-client"
-version = "0.27.0a0"
+version = "0.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
@@ -3053,9 +3053,9 @@ dependencies = [
     { name = "pyjwt", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "tabulate", marker = "python_full_version >= '3.10'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/29/78/a53e66463b1413be8cf3a345481393889f983ed5847c201bb728bed790bb/dlthub_client-0.27.0a0.tar.gz", hash = "sha256:2bae5aca9f574026782dfeee50f0a0eec4aa9c18f1c3a8b29061d693db7586c6", size = 125831, upload-time = "2026-05-12T11:06:21.734Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/4c/1bf717620f937901b5b23d4385440def4b1eeeb41c2bb7ba3e1bcfebf2bf/dlthub_client-0.27.0.tar.gz", hash = "sha256:cd0eb7c36971c357999d79dd5bdfad03cc7492bc32db3bf1ee2719938a4e1e49", size = 130738, upload-time = "2026-05-18T15:59:13.618Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8d/70/4f39c280022aef22adda8aa5a35fdfa1e82206901b9014243af2f58a6f55/dlthub_client-0.27.0a0-py3-none-any.whl", hash = "sha256:7dbe63b3124ab540f38b6e778bccc81aa729ff82173747511046ea5d390f4ffc", size = 283152, upload-time = "2026-05-12T11:06:19.67Z" },
+    { url = "https://files.pythonhosted.org/packages/75/d9/bb355466148889429eb54644a8273b2df061baaa228e2f8aa4cb7f1552b3/dlthub_client-0.27.0-py3-none-any.whl", hash = "sha256:1e6bd0af61c75cffdca6b9104f771cf483c7a5f2697ec81fa828580c6e5c35e4", size = 288837, upload-time = "2026-05-18T15:59:11.334Z" },
 ]
 
 [[package]]

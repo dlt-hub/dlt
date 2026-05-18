@@ -6,15 +6,6 @@ from dlt.common import json
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
 from dlt._workspace._workspace_context import WorkspaceRunContext, active
-from dlt._workspace.deployment._run_helpers import fetch_run_info
-from dlt._workspace.deployment._run_typing import TRunBannerInfo
-from dlt._workspace.deployment._run_views import (
-    pick_one_job,
-    print_run_banner,
-    print_run_plan,
-    print_run_warnings,
-)
-from dlt._workspace.deployment.launchers._launcher import exec_process
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli._pipeline_command import list_pipelines
 from dlt._workspace.cli.dlthub.typing import (
@@ -212,6 +203,18 @@ def _execute_one(
     available_selectors: Optional[List[str]] = None,
 ) -> None:
     """Shared local controller for run/serve/pipeline-run."""
+    # lazy import prevents optional deps to be imported at the top
+
+    from dlt._workspace.deployment._run_helpers import fetch_run_info
+    from dlt._workspace.deployment._run_typing import TRunBannerInfo
+    from dlt._workspace.deployment._run_views import (
+        pick_one_job,
+        print_run_banner,
+        print_run_plan,
+        print_run_warnings,
+    )
+    from dlt._workspace.deployment.launchers._launcher import exec_process
+
     cli_config = _parse_config_args(getattr(args, "config", None) or [])
     info = fetch_run_info(
         selector=getattr(args, "selector_or_job_ref", None),
