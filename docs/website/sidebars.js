@@ -67,7 +67,7 @@ const sidebars = {
             type: 'generated-index',
             title: 'Release highlights',
             slug: '/release-highlights',
-            keywords: ['release notes, release highlights'],
+            keywords: ['release notes', 'release highlights'],
           },
           items: [
             { type: 'doc', id: 'release-notes/1.21.2', label: '1.21.2' },
