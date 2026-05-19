@@ -42,17 +42,17 @@ pip install "dlt[hub]" pyarrow marimo ibis-framework
 You can start the dashboard with an overview of all locally found pipelines with:
 
 ```sh
-dlt dashboard
+dlthub local show
 ```
 
-You can use the `show` [CLI command](../../reference/command-line-interface.md#dlt-pipeline-show)
+You can use the `show` [CLI command](../command-line-interface.md#dlthub-local-pipeline-show)
 with your pipeline name to directly jump to the dashboard page of this pipeline:
 
 ```sh
-dlt pipeline {pipeline_name} show
+dlthub local pipeline show {pipeline_name}
 ```
 
-Use the pipeline name you defined in your Python code with the `pipeline_name` argument. If you are unsure, you can use the `dlt pipeline --list` command to list all pipelines.
+Use the pipeline name you defined in your Python code with the `pipeline_name` argument. If you are unsure, you can use the `dlthub local pipeline list` command to list all pipelines.
 
 ## Credentials
 
@@ -63,7 +63,7 @@ Use the pipeline name you defined in your Python code with the `pipeline_name` a
 
 It is best to run the dashboard from the same folder where you ran your pipeline, or to keep your credentials in the global folder.
 
-`dlt` will NOT be able to pick up any credentials that you have configured in your code, since the dlt dashboard app runs independently of any pipeline scripts you have.
+`dlt` will NOT be able to pick up any credentials that you have configured in your code, since the dashboard app runs independently of any pipeline scripts you have.
 
 ## Using the dashboard
 
@@ -338,9 +338,9 @@ By selecting a specific load, you can:
 You can eject the code for the workspace dashboard into your current working directory and start editing it to create a custom version that fits your needs. To do this, run the `show` command with the `--edit` flag:
 
 ```sh
-dlt pipeline {pipeline_name} show --edit
+dlthub local pipeline show {pipeline_name} --edit
 # or for the overview
-dlt dashboard --edit
+dlthub local show --edit
 ```
 
 This will copy the dashboard code to the local folder and start marimo in edit mode. If a local copy already exists, it will not overwrite it but will start it in edit mode. 

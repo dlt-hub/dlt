@@ -70,4 +70,8 @@ If you have a specific question, feature request, or unique use case, feel free 
 
 ## Getting started
 
-We recommend starting with the [dltHub AI workbench](https://github.com/dlt-hub/dlthub-ai-workbench) to get started quickly while following dltHub best practices.
+Bootstrap a new dltHub workspace in one command:
+
+```sh
+uvx dlthub-start@latest my-workspace
+```
