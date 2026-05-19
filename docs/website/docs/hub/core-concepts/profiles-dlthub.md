@@ -19,7 +19,7 @@ The [dltHub platform](https://app.dlthub.com) automatically uses certain profile
 
 ## Enable the workspace and profiles
 
-Before you start, make sure you have followed the [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-dlthub-free-and-paid-features) (which also include Profiles).
+Before you start, make sure you have followed the [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-workspace-mode) (which also include Profiles).
 
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines—from local development to production.
 
@@ -251,5 +251,5 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 ## Next steps
 
 * [Configure the workspace](../workspace/overview.md)
-* [Deploy your pipeline](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline-on-the-dlthub-platform)
+* [Deploy your pipeline](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline)
 * [Monitor and debug pipelines](../../general-usage/pipeline#monitor-the-loading-progress)

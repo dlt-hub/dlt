@@ -60,7 +60,7 @@ source .venv/bin/activate
 ### 3. Configure your credentials
 
 Configure your destination credentials. The starter pack uses MotherDuck as the destination, but you can switch to any other destination you prefer.
-Details on configuring credentials for the dltHub Platform are available [here](../runtime/overview.md#credentials-and-configs).
+Details on configuring credentials for the dltHub Platform are available [here](../runtime/workspace-setup.md#credentials-and-configs).
 Make sure your destination credentials are valid before running pipelines remotely. Below you can find instructions for configuring credentials for the MotherDuck destination.
 
 **`prod.config.toml`** (for batch jobs running on dltHub):
@@ -214,7 +214,7 @@ Wire the decorated function into `__deployment__.py` and deploy with:
 uv run dlthub deploy
 ```
 
-To stop a schedule, remove the trigger from the decorator (or remove the job from `__deployment__.py`) and redeploy. See the [Platform overview](../runtime/overview.md#jobs-and-deployments) for the full story on jobs and deployments.
+To stop a schedule, remove the trigger from the decorator (or remove the job from `__deployment__.py`) and redeploy. See the [Deploying jobs](../runtime/deploying.md#jobs-and-deployments) page for the full story on jobs and deployments.
 
 ## Review and manage jobs in the UI
 
