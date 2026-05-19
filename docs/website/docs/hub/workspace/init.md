@@ -6,8 +6,7 @@ keywords: [create a pipeline, verified source, workspace, rest client, how to, d
 
 # Initialize a pipeline
 
-This guide walks you through creating and initializing a `dlt` pipeline in dltHub Workspace — whether manually, with the LLM help, or from one of the **verified sources** maintained by dltHub team.
-
+This guide walks you through creating and initializing a `dlt` pipeline in dltHub Workspace — whether manually, with agentic help, or from one of the **verified sources** maintained by dltHub team.
 
 
 ## Overview
@@ -56,7 +55,7 @@ dlthub pipeline init my_github_pipeline duckdb
 
 It scaffolds the pipeline template — a minimal starter project with a single Python script that shows three quick ways to load data into DuckDB using dlt:
 
-- fetch JSON from a public REST API (Chess.com as an example) with requests,
+- fetch JSON from a public REST API (chess.com as an example) with requests,
 - read a public CSV with pandas, and
 - pull rows from a SQL database via SQLAlchemy.
 
@@ -66,7 +65,7 @@ It’s meant as a hands-on playground you can immediately run and then adapt int
 Learn how to build you own dlt pipeline with [dlt Fundamentals course.](https://dlthub.learnworlds.com/course/dlt-fundamentals)
 
 
-### LLM-native setup
+### Agentic setup
 
 A collaborative AI-human workflow that integrates `dlt` with AI editors and agents like:
 - **Claude**
