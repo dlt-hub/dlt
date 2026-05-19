@@ -197,4 +197,4 @@ DBT_CLOUD__ACCOUNT_ID
 DBT_CLOUD__JOB_ID
 ```
 
-For more information, read the [Credentials](../../../general-usage/credentials) documentation.
+For more information, read the [Credentials](../../../general-usage/credentials/index.md) documentation.
