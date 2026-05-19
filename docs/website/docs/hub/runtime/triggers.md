@@ -1,10 +1,10 @@
 ---
-title: Triggers & scheduling
+title: Triggers and scheduling
 description: Schedule jobs on the dltHub platform with cron, intervals, follow-up chains, freshness constraints, and refresh cascades
 keywords: [dlthub platform, triggers, scheduling, cron, interval, backfill, follow-up, freshness, refresh, tags]
 ---
 
-# Triggers & scheduling
+# Triggers and scheduling
 
 A **trigger** declares when a job runs. Triggers are attached to a decorated job via the `trigger=` argument and are the source of truth for scheduling on the dltHub platform — there is no separate CLI for adding or removing schedules. Change the decorator, redeploy.
 
@@ -169,5 +169,5 @@ Intervals in `run_context` remain UTC datetimes, but they align to tick boundari
 ## Next steps
 
 - [Job configuration](job-configuration.md) — execution timeouts, dependency groups, TOML config sections
-- [Deploying jobs](deploying.md) — `dlthub deploy` and the deployment manifest
-- [Monitor & debug](monitor-and-debug.md) — watch what triggers fire and diagnose failures
+- [Deployments](deploying.md) — `dlthub deploy` and the deployment manifest
+- [Monitoring and debugging](monitor-and-debug.md) — watch what triggers fire and diagnose failures

@@ -10,6 +10,10 @@ keywords: [dlthub, introduction, capabilities, platform, workspace]
 Looking for the open-source `dlt` library documentation? See the [dlt docs](../intro.md).
 :::
 
+:::note
+Use of the dltHub platform and toolkits is subject to a commercial [dltHub License](license.md).
+:::
+
 
 ## What is dltHub?
 
@@ -90,7 +94,7 @@ Deploy, schedule, and monitor pipelines, transformations, and notebooks without 
 Catch data issues before they reach consumers and keep schemas controlled as sources change.
 
 * [Data quality checks](features/quality/data-quality.md) (in public preview) — declarative correctness rules with actionable failure messages
-* [Tests](features/quality/tests.md) and [advanced quality features](features/quality/advanced.md) (in public preview) — author and run tests against your datasets as part of a pipeline
+* [Advanced quality features](features/quality/advanced.md) (in public preview) — author and run tests against your datasets as part of a pipeline
 
 ### [Data discovery & serving](core-concepts/datasets.md)
 
@@ -100,7 +104,7 @@ Make loaded data accessible to stakeholders through notebooks, dashboards, and s
 * [Marimo notebooks](../general-usage/dataset-access/marimo.md) — build lightweight, shareable data apps
 * Public links for interactive jobs — share notebooks and dashboards externally without granting platform access
 
-### Platform capabilities
+### [Platform capabilities](runtime/regions.md)
 
 Foundations that the rest of the platform builds on.
 
@@ -110,6 +114,6 @@ Foundations that the rest of the platform builds on.
 
 ## Pricing and licensing
 
-For current plan details and pricing, see the [dltHub pricing page](https://dlthub.com/pricing).
+For current plan details and pricing, see the [dltHub pricing page](https://dlthub.com/pricing). Use of the dltHub platform and toolkits is governed by the [dltHub License](license.md).
 
 

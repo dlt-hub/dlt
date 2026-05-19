@@ -6,6 +6,10 @@ keywords: [data, dataset, sql, ibis, marimo]
 
 # Explore your data with marimo
 
+:::tip
+For an agent-driven workflow, see the [dltHub AI workbench data exploration toolkit](https://github.com/dlt-hub/dlthub-ai-workbench/tree/master/workbench/data-exploration) — a set of context files and prompts for generating marimo notebooks from your dlt datasets with a coding agent.
+:::
+
 [marimo](https://github.com/marimo-team/marimo) is a reactive Python notebook. It completely revamps the Jupyter notebook experience. Whenever code is executed or you interact with a UI element, dependent cells are re-executed ensuring consistency between code and displayed outputs.
 
 This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich environment to explore loaded data, write data transformations, and create data applications.

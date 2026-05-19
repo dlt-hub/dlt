@@ -15,10 +15,10 @@ For a high-level summary of platform capabilities, see [Pipeline operations](../
 | If you want to... | Go to |
 |-------------------|-------|
 | Convert a Python project into a dltHub workspace and set up credentials | [Workspace setup](workspace-setup.md) |
-| Push code to the cloud — ad-hoc runs or full manifest deploys | [Deploying jobs](deploying.md) |
-| Schedule with cron/intervals, chain follow-ups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers & scheduling](triggers.md) |
+| Push code to the cloud — ad-hoc runs or full manifest deploys | [Deployments](deploying.md) |
+| Schedule with cron/intervals, chain follow-ups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers and scheduling](triggers.md) |
 | Configure timeouts, dependencies, timezone, and per-job TOML sections | [Job configuration](job-configuration.md) |
-| Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs | [Monitor & debug](monitor-and-debug.md) |
+| Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs | [Monitoring and debugging](monitor-and-debug.md) |
 | Pick a deployment region | [Regions](regions.md) |
 
 If you prefer a guided walkthrough, follow the [dltHub platform tutorial](../getting-started/runtime-tutorial.md).
@@ -66,7 +66,7 @@ Both are versioned separately, so you can update code without changing secrets a
 
 Visit [app.dlthub.com](https://app.dlthub.com) to access the web dashboard. It provides workspace overview, jobs and runs management, run details with execution logs, deployment & config inspection, pipeline dashboards, and workspace settings.
 
-For monitoring runs, streaming logs, and diagnosing failures, see [Monitor and debug](monitor-and-debug.md).
+For monitoring runs, streaming logs, and diagnosing failures, see [Monitoring and debugging](monitor-and-debug.md).
 
 #### Public links for interactive jobs
 

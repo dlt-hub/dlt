@@ -449,13 +449,13 @@ const sidebars = {
       type: 'category',
       label: 'Pipeline operations',
       items: [
+        'hub/core-concepts/profiles-dlthub',
         'hub/runtime/overview',
         'hub/runtime/workspace-setup',
         'hub/runtime/deploying',
         'hub/runtime/triggers',
         'hub/runtime/job-configuration',
         'hub/runtime/monitor-and-debug',
-        'hub/core-concepts/profiles-dlthub',
       ]
     },
     {
@@ -473,7 +473,6 @@ const sidebars = {
       items: [
         'hub/features/quality/data-quality',
         'hub/features/quality/advanced',
-        'hub/features/quality/tests',
       ]
     },
     {
@@ -481,7 +480,7 @@ const sidebars = {
       label: 'Data discovery & serving',
       items: [
         'hub/core-concepts/datasets',
-        { type: 'ref', id: 'general-usage/dataset-access/marimo' },
+        { type: 'doc', id: 'general-usage/dataset-access/marimo' },
       ]
     },
     'hub/command-line-interface',

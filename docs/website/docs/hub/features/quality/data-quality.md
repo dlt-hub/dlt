@@ -1,5 +1,5 @@
 ---
-title: "Data quality 🧪"
+title: "Data quality"
 description: Validate your data and control its quality
 keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 ---

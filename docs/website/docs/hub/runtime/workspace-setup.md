@@ -133,6 +133,6 @@ Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Ne
 
 ## Next steps
 
-- [Deploy jobs](deploying.md) — quick deploys and the full deployment workflow
-- [Triggers & scheduling](triggers.md) — schedule jobs, chain follow-ups, and backfill with intervals
-- [Monitor & debug](monitor-and-debug.md) — watch runs, stream logs, diagnose failures
+- [Deployments](deploying.md) — quick deploys and the full deployment workflow
+- [Triggers and scheduling](triggers.md) — schedule jobs, chain follow-ups, and backfill with intervals
+- [Monitoring and debugging](monitor-and-debug.md) — watch runs, stream logs, diagnose failures

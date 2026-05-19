@@ -1,10 +1,10 @@
 ---
-title: Monitor and debug
+title: Monitoring and debugging
 description: Monitor pipeline health, view logs, and diagnose failures on the dltHub platform
 keywords: [monitoring, observability, logs, debug, run status, metrics, dlthub platform]
 ---
 
-# Monitor and debug
+# Monitoring and debugging
 
 Use the dltHub CLI and the Web UI at [app.dlthub.com](https://app.dlthub.com) to monitor pipeline health, inspect logs, and diagnose failures.
 

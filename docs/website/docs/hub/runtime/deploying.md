@@ -1,10 +1,10 @@
 ---
-title: Deploying jobs
+title: Deployments
 description: Deploy dlt pipelines, jobs, and interactive applications to the dltHub platform with ad-hoc runs or a versioned deployment manifest
 keywords: [dlthub platform, deploy, deployment, jobs, decorators, manifest, reconciliation]
 ---
 
-# Deploying jobs
+# Deployments
 
 The dltHub platform offers two ways to get your code running in the cloud:
 
@@ -90,7 +90,7 @@ def run_dq_checks():
         raise RuntimeError("Data quality checks failed")
 ```
 
-For the full catalog of `trigger=` options (cron, intervals, follow-ups, freshness, refresh cascade), see [Triggers & scheduling](triggers.md). For per-job options like `execute=`, `require=`, and `expose=`, see [Job configuration](job-configuration.md).
+For the full catalog of `trigger=` options (cron, intervals, follow-ups, freshness, refresh cascade), see [Triggers and scheduling](triggers.md). For per-job options like `execute=`, `require=`, and `expose=`, see [Job configuration](job-configuration.md).
 
 ### The deployment module
 
@@ -182,7 +182,7 @@ dlthub pipeline run github_pipeline
 dlthub serve github_report_notebook
 ```
 
-For diagnosing failed runs, viewing logs, and dashboards, see [Monitor & debug](monitor-and-debug.md).
+For diagnosing failed runs, viewing logs, and dashboards, see [Monitoring and debugging](monitor-and-debug.md).
 
 ## Deployments and configurations are versioned separately
 

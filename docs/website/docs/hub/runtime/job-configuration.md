@@ -6,7 +6,7 @@ keywords: [dlthub platform, job configuration, timeout, dependency groups, execu
 
 # Job configuration
 
-This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers & scheduling](triggers.md)) but about *how* it runs — execution limits, the Python environment it gets, and the configuration values it reads at runtime.
+This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, the Python environment it gets, and the configuration values it reads at runtime.
 
 All options below are arguments to the `@run.pipeline`, `@run.job`, and `@run.interactive` decorators.
 
@@ -85,5 +85,5 @@ See [Tags and bulk triggering](triggers.md#tags-and-bulk-triggering) for how tag
 
 ## Next steps
 
-- [Triggers & scheduling](triggers.md) — schedule and chain jobs
-- [Deploying jobs](deploying.md) — push these decorators to the dltHub platform
+- [Triggers and scheduling](triggers.md) — schedule and chain jobs
+- [Deployments](deploying.md) — push these decorators to the dltHub platform

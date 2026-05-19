@@ -214,7 +214,7 @@ Wire the decorated function into `__deployment__.py` and deploy with:
 uv run dlthub deploy
 ```
 
-To stop a schedule, remove the trigger from the decorator (or remove the job from `__deployment__.py`) and redeploy. See the [Deploying jobs](../runtime/deploying.md#jobs-and-deployments) page for the full story on jobs and deployments.
+To stop a schedule, remove the trigger from the decorator (or remove the job from `__deployment__.py`) and redeploy. See the [Deployments](../runtime/deploying.md#jobs-and-deployments) page for the full story on jobs and deployments.
 
 ## Review and manage jobs in the UI
 
