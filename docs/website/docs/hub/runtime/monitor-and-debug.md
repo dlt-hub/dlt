@@ -42,9 +42,9 @@ For all options, see [`dlthub job logs`](../command-line-interface.md#dlthub-job
 
 Select any run on the Jobs page to open its **run detail page**, which provides:
 
-- **Status bar**—status badge, trigger type, profile, start and end timestamps, and elapsed time (live-updating while the run is in progress)
-- **Pipeline runs table**—every dlt pipeline executed during the job, with row counts and status
-- **Log viewer**—real-time streaming logs (refreshed each second while the run is active) or static logs once a run has completed
+- **Status bar** — status badge, trigger type, profile, start and end timestamps, and elapsed time (live-updating while the run is in progress)
+- **Pipeline runs table** — every dlt pipeline executed during the job, with row counts and status
+- **Log viewer** — real-time streaming logs (refreshed each second while the run is active) or static logs once a run has completed
 
 ## Understand run states
 
@@ -54,15 +54,15 @@ Select any run on the Jobs page to open its **run detail page**, which provides:
 | **Starting**   | Run is being initialized                             |
 | **Running**    | Actively executing                                   |
 | **Completed**  | Finished without errors                              |
-| **Failed**     | Encountered an error—check logs for details        |
+| **Failed**     | Encountered an error — check logs for details        |
 | **Cancelled**  | Manually stopped via CLI or Web UI                   |
 
 ## Diagnose a failed run
 
-1. **Inspect the logs**—the log viewer on the run detail page contains the full execution output, including stack traces.
-2. **Review the pipeline runs**—the pipeline-runs table on the run detail page lists each dlt pipeline executed during the job and its outcome. Open an individual pipeline run for detailed load information (tables loaded, row counts, bytes, duration).
-3. **Consult the dashboard**—the Dashboard and Pipelines pages surface success-rate trends that help identify recurring issues.
-4. **Verify the deployment**—the Deployment & Config page indicates the currently deployed code version. Sync the latest changes with [`dlthub deploy`](../command-line-interface.md#dlthub-deploy).
+1. **Inspect the logs** — the log viewer on the run detail page contains the full execution output, including stack traces.
+2. **Review the pipeline runs** — the pipeline-runs table on the run detail page lists each dlt pipeline executed during the job and its outcome. Open an individual pipeline run for detailed load information (tables loaded, row counts, bytes, duration).
+3. **Consult the dashboard** — the Dashboard and Pipelines pages surface success-rate trends that help identify recurring issues.
+4. **Verify the deployment** — the Deployment & Config page indicates the currently deployed code version. Sync the latest changes with [`dlthub deploy`](../command-line-interface.md#dlthub-deploy).
 
 ## Cancel an active run
 
@@ -93,10 +93,10 @@ See [`dlthub job runs cancel`](../command-line-interface.md#dlthub-job-runs-canc
 
 The Web UI at [app.dlthub.com](https://app.dlthub.com) provides built-in dashboards and visualizations of pipeline telemetry, removing the need for an external observability stack. The Pipelines page surfaces aggregated metrics per pipeline:
 
-- **Success rate**—percentage of successful runs over time
-- **Rows loaded**—total data volume trends
-- **Duration**—performance trends for identifying regressions
-- **Charts**—time-series visualizations with toggleable views (Runs, Rows, Bytes, Duration)
+- **Success rate** — percentage of successful runs over time
+- **Rows loaded** — total data volume trends
+- **Duration** — performance trends for identifying regressions
+- **Charts** — time-series visualizations with toggleable views (Runs, Rows, Bytes, Duration)
 
 The Dashboard page provides a workspace-wide overview, summarizing job status and recent run activity.
 

@@ -77,7 +77,7 @@ Configuration files live in the `.dlt/` directory:
 └── access.secrets.toml     # Access secrets (gitignored)
 ```
 
-Settings in profile-scoped files override workspace-scoped files. Below is an example using **named destinations** so the same `destination="warehouse"` resolves to DuckDB locally and MotherDuck in production. You can swap MotherDuck for any cloud destination—see for example [BigQuery](../../dlt-ecosystem/destinations/bigquery.md), [Snowflake](../../dlt-ecosystem/destinations/snowflake.md), or [filesystem/S3](../../dlt-ecosystem/destinations/filesystem.md).
+Settings in profile-scoped files override workspace-scoped files. Below is an example using **named destinations** so the same `destination="warehouse"` resolves to DuckDB locally and MotherDuck in production. You can swap MotherDuck for any cloud destination — see for example [BigQuery](../../dlt-ecosystem/destinations/bigquery.md), [Snowflake](../../dlt-ecosystem/destinations/snowflake.md), or [filesystem/S3](../../dlt-ecosystem/destinations/filesystem.md).
 
 **`config.toml`** (defaults shared by all profiles):
 
@@ -133,6 +133,6 @@ Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Ne
 
 ## Next steps
 
-- [Deploy jobs](deploying.md)—quick deploys and the full deployment workflow
-- [Triggers & scheduling](triggers.md)—schedule jobs, chain follow-ups, and backfill with intervals
-- [Monitor & debug](monitor-and-debug.md)—watch runs, stream logs, diagnose failures
+- [Deploy jobs](deploying.md) — quick deploys and the full deployment workflow
+- [Triggers & scheduling](triggers.md) — schedule jobs, chain follow-ups, and backfill with intervals
+- [Monitor & debug](monitor-and-debug.md) — watch runs, stream logs, diagnose failures

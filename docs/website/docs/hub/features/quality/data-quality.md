@@ -5,7 +5,7 @@ keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 ---
 
 :::warning
-🚧 This feature is under development.
+This feature is in public preview
 :::
 
 dltHub data quality features include metrics for monitoring dataset properties over time, and checks to validate them against expectations. Together, they offer visibility and allow to catch data issues early. Metrics and checks are defined via Python code. The extensive configuration allows you to specify what to monitor and validate, when, how, and where to store results.
@@ -14,7 +14,7 @@ This page covers the basics of metrics and checks. You should notice a lot of sy
 
 ## Metrics
 
-A **data quality metric** or **metric** a function applied to data that returns a scalar value describing a property of the data. A metric can take as input a column, a table, or the full dataset (that is, all tables and historical metrics).
+A **data quality metric** or **metric** a function applied to data that returns a scalar value describing a property of the data. A metric can take as input a column, a table, or the full dataset (i.e., all tables and historical metrics).
 
 ### Define metrics
 #### Static
@@ -346,7 +346,7 @@ sequenceDiagram
 Work in progress. Currently unavailable.
 :::
 
-The pre-load execution in-memory will execute checks using `duckdb` against the load packages (that is, temporary files) stored on the machine that runs `dlt`. This allows you to trigger actions before data is loaded into the destination.
+The pre-load execution in-memory will execute checks using `duckdb` against the load packages (i.e., temporary files) stored on the machine that runs `dlt`. This allows you to trigger actions before data is loaded into the destination.
 
 :::note
 This is equivalent to using a staging destination that is the local filesystem. This section highlights the trade-offs of this choice.

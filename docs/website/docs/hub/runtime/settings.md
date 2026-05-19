@@ -1,6 +1,6 @@
 ---
 title: Settings
-description: Configure workspaces, organizations, and personal account settings—including members, usage, and API keys—on the dltHub platform.
+description: Configure workspaces, organizations, and personal account settings — including members, usage, and API keys — on the dltHub platform.
 keywords: [settings, workspace settings, organization settings, api keys, members, usage, dltHub platform]
 ---
 
@@ -42,7 +42,7 @@ User settings are personal to your account and are accessed from the user menu i
 
 ### API keys
 
-API keys are personal, long-lived tokens that authenticate non-interactive clients on your behalf—for example, CLI tools or CI jobs that need to run without an interactive login.
+API keys are personal, long-lived tokens that authenticate non-interactive clients on your behalf — for example, CLI tools or CI jobs that need to run without an interactive login.
 
 Key properties:
 
@@ -58,7 +58,7 @@ Key properties:
 3. Copy the plaintext value shown after creation.
 
 :::caution
-The plaintext value is displayed only once, at creation. It cannot be retrieved later—if you lose it, delete the key and create a new one.
+The plaintext value is displayed only once, at creation. It cannot be retrieved later — if you lose it, delete the key and create a new one.
 :::
 
 #### Delete a key

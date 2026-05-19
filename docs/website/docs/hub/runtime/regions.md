@@ -27,7 +27,7 @@ The control plane is responsible for:
 
 - User and organization management
 - Authorization and permissions
-- Orchestration metadata—what jobs exist, when they should run, and the status of past runs
+- Orchestration metadata — what jobs exist, when they should run, and the status of past runs
 
 The control plane does not store:
 
@@ -53,7 +53,7 @@ The dltHub platform uses scoped tokens to ensure that user data only ever touche
 
 1. The client (CLI or dashboard) authenticates against the control plane.
 2. The control plane issues a scoped token tied to the target organization and its region.
-3. The client uses that token to communicate directly with the regional data plane for all operations involving user data—deployments, runs, secrets, and logs.
+3. The client uses that token to communicate directly with the regional data plane for all operations involving user data — deployments, runs, secrets, and logs.
 
 As a result, code, deployment configuration, and secrets are transmitted to and stored only within the organization's selected region. The control plane never relays them.
 
@@ -69,7 +69,7 @@ An organization's region is permanent and cannot be changed after creation. To r
 
 ### Log routing
 
-Workload execution remains in the selected data plane. However, workload output streams—`stdout` and `stderr`—currently transit through the US region en route to the dashboard and the `dlthub job logs` command. This applies to all regions, including EU workspaces.
+Workload execution remains in the selected data plane. However, workload output streams — `stdout` and `stderr` — currently transit through the US region en route to the dashboard and the `dlthub job logs` command. This applies to all regions, including EU workspaces.
 
 For this reason, avoid emitting sensitive data in logs while running on dltHub:
 

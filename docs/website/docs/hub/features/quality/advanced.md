@@ -5,7 +5,7 @@ keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 ---
 
 :::warning
-🚧 This feature is under development.
+This feature is in public preview
 :::
 
 This page covers more in-depth details about data quality features, such as metrics and checks. It shows the full flexibility available for advanced use cases. It can also serve as an FAQ and helper for debugging.

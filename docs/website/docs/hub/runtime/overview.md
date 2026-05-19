@@ -15,7 +15,7 @@ For a high-level summary of platform capabilities, see [Pipeline operations](../
 | If you want to... | Go to |
 |-------------------|-------|
 | Convert a Python project into a dltHub workspace and set up credentials | [Workspace setup](workspace-setup.md) |
-| Push code to the cloud—ad-hoc runs or full manifest deploys | [Deploying jobs](deploying.md) |
+| Push code to the cloud — ad-hoc runs or full manifest deploys | [Deploying jobs](deploying.md) |
 | Schedule with cron/intervals, chain follow-ups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers & scheduling](triggers.md) |
 | Configure timeouts, dependencies, timezone, and per-job TOML sections | [Job configuration](job-configuration.md) |
 | Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs | [Monitor & debug](monitor-and-debug.md) |
@@ -57,8 +57,8 @@ See [profiles in dltHub](../core-concepts/profiles-dlthub.md) for details, and [
 
 ### Deployments and configurations
 
-- **Deployment**—your code files (`.py` scripts, notebooks)
-- **Configuration**—your `.dlt/*.toml` files ([settings and secrets](../../general-usage/credentials/index.md))
+- **Deployment** — your code files (`.py` scripts, notebooks)
+- **Configuration** — your `.dlt/*.toml` files ([settings and secrets](../../general-usage/credentials/index.md))
 
 Both are versioned separately, so you can update code without changing secrets and vice versa.
 
@@ -70,7 +70,7 @@ For monitoring runs, streaming logs, and diagnosing failures, see [Monitor and d
 
 #### Public links for interactive jobs
 
-Notebooks and dashboards can be shared via public links. Manage them either from the dashboard—open the job's context menu (or its detail page) and click **Manage Public Link** to toggle the link—or from the CLI:
+Notebooks and dashboards can be shared via public links. Manage them either from the dashboard — open the job's context menu (or its detail page) and click **Manage Public Link** to toggle the link — or from the CLI:
 
 ```sh
 # Generate a public link
@@ -80,7 +80,7 @@ dlthub job publish fruitshop_notebook.py
 dlthub job unpublish fruitshop_notebook.py
 ```
 
-Anyone with an active link can view the running notebook or dashboard—useful for sharing dashboards with stakeholders without dltHub platform access.
+Anyone with an active link can view the running notebook or dashboard — useful for sharing dashboards with stakeholders without dltHub platform access.
 
 ## CLI reference
 
@@ -111,7 +111,7 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 
 ## Current limitations
 
-- **Platform limits**: jobs default to 120 minutes maximum execution time (override with `execute={"timeout": "6h"}` in the decorator—see [Job configuration](job-configuration.md#execution-constraints))
+- **Platform limits**: jobs default to 120 minutes maximum execution time (override with `execute={"timeout": "6h"}` in the decorator — see [Job configuration](job-configuration.md#execution-constraints))
 - **Interactive timeout**: notebooks are killed after about 5 minutes of inactivity (no open browser tab)
 - **UI operations**: creating jobs must currently be done via CLI (schedules can be changed in the WebUI)
 - **Pagination**: list views show the top 100 items

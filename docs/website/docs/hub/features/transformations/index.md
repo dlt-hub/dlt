@@ -14,15 +14,15 @@ column schema, rather than data items. dlt transformations support the same writ
 
 A few real-world scenarios where dlt transformations can be useful:
 
-- **Build one-stop reporting tables**—Flatten and enrich raw data into a wide table that analysts can pivot, slice, and dice without writing SQL each time.
-- **Clean data**—Remove irrelevant columns or anonymize sensitive information before sending it to a layer with lower privacy protections.
-- **Normalize JSON into 3-NF**—Break out repeating attributes from nested JSON so updates are consistent and storage isn't wasted.
-- **Create dimensional (star-schema) models**—Produce fact and dimension tables so BI users can drag-and-drop metrics and break them down by any dimension.
-- **Generate task-specific feature sets**—Deliver slim tables tailored for personalization, forecasting, or other ML workflows.
-- **Apply shared business definitions**—Encode rules such as "a *sale* is a transaction whose status became *paid* this month," ensuring every metric is counted the same way.
-- **Merge heterogeneous sources**—Combine Shopify, Amazon, WooCommerce (etc.) into one canonical *orders* feed for unified inventory and revenue reporting.
-- **Run transformations during ingestion pre-warehouse**—Pre-aggregate or pre-filter data before it hits the warehouse to cut compute and storage costs.
-- **…and more**—Any scenario where reshaping, enriching, or aggregating existing data unlocks faster insight or cleaner downstream pipelines.
+- **Build one-stop reporting tables** – Flatten and enrich raw data into a wide table that analysts can pivot, slice, and dice without writing SQL each time.
+- **Clean data** – Remove irrelevant columns or anonymize sensitive information before sending it to a layer with lower privacy protections.
+- **Normalize JSON into 3-NF** – Break out repeating attributes from nested JSON so updates are consistent and storage isn't wasted.
+- **Create dimensional (star-schema) models** – Produce fact and dimension tables so BI users can drag-and-drop metrics and break them down by any dimension.
+- **Generate task-specific feature sets** – Deliver slim tables tailored for personalization, forecasting, or other ML workflows.
+- **Apply shared business definitions** – Encode rules such as "a *sale* is a transaction whose status became *paid* this month," ensuring every metric is counted the same way.
+- **Merge heterogeneous sources** – Combine Shopify, Amazon, WooCommerce (etc.) into one canonical *orders* feed for unified inventory and revenue reporting.
+- **Run transformations during ingestion pre-warehouse** – Pre-aggregate or pre-filter data before it hits the warehouse to cut compute and storage costs.
+- **…and more** – Any scenario where reshaping, enriching, or aggregating existing data unlocks faster insight or cleaner downstream pipelines.
 
 
 ## Quick-start in three simple steps
@@ -52,7 +52,7 @@ The snippets below assume that we have a simple fruitshop dataset as produced by
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_queries_short-->
 
-That's it—`copied_customers` is now a new table in **the same** DuckDB schema with the first 5 customers when ordered by name. `dlt` has detected that we are loading into the same dataset
+That's it — `copied_customers` is now a new table in **the same** DuckDB schema with the first 5 customers when ordered by name. `dlt` has detected that we are loading into the same dataset
 and executed this transformation in SQL - no data was transferred to and from the machine executing this pipeline. Additionally, the new destination table `copied_customers` was automatically evolved
 to the correct new schema, and you could also set a different write disposition and even merge data from a transformation.
 
@@ -102,7 +102,7 @@ Below we load the data from our local DuckDB instance to a Postgres instance. dl
 
 ### Supplying additional hints
 
-You may supply column and table hints the same way you do for regular resources. `dlt` will derive schema hints from your query, but in some cases you may need to modify or extend them—for example, making columns nullable as in the example above, or adjusting the precision or type of a column to ensure compatibility with a specific target destination (if it differs from the source).
+You may supply column and table hints the same way you do for regular resources. `dlt` will derive schema hints from your query, but in some cases you may need to modify or extend them — for example, making columns nullable as in the example above, or adjusting the precision or type of a column to ensure compatibility with a specific target destination (if it differs from the source).
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::supply_hints-->
 
@@ -158,7 +158,7 @@ In this section, we focus on the lifecycle of transformations that yield a `Rela
 ### Extract
 
 In the extract stage, a `Relation` yielded by a transformation is converted into a SQL string and saved as a `.model` file along with its source SQL dialect.
-At this stage, the SQL string is just the user's original query—either the string that was explicitly provided or the one generated by `Relation.to_sql()`. No `dlt`-specific columns like `_dlt_id` or `_dlt_load_id` are added yet.
+At this stage, the SQL string is just the user's original query — either the string that was explicitly provided or the one generated by `Relation.to_sql()`. No `dlt`-specific columns like `_dlt_id` or `_dlt_load_id` are added yet.
 
 ### Normalize
 

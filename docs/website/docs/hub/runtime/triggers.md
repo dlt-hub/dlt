@@ -6,7 +6,7 @@ keywords: [dlthub platform, triggers, scheduling, cron, interval, backfill, foll
 
 # Triggers & scheduling
 
-A **trigger** declares when a job runs. Triggers are attached to a decorated job via the `trigger=` argument and are the source of truth for scheduling on the dltHub platform—there is no separate CLI for adding or removing schedules. Change the decorator, redeploy.
+A **trigger** declares when a job runs. Triggers are attached to a decorated job via the `trigger=` argument and are the source of truth for scheduling on the dltHub platform — there is no separate CLI for adding or removing schedules. Change the decorator, redeploy.
 
 ```py
 from dlt.hub import run
@@ -26,10 +26,10 @@ This page covers all the trigger types and the related scheduling features.
 | `trigger.every("5m")` | Recurring interval (`"5m"`, `"6h"`, seconds as float) |
 | `trigger.schedule("0 * * * *")` | Cron expression |
 | `trigger.once("2026-12-31T23:59:59Z")` | One-shot at a timestamp |
-| `"*/5 * * * *"` | Bare cron string—auto-detected |
-| `upstream_job.success` | Follow-up—fires when an upstream job completes successfully |
-| `upstream_job.fail` | Follow-up—fires when an upstream job fails |
-| `upstream_job.completed` | Follow-up—fires on success or failure |
+| `"*/5 * * * *"` | Bare cron string — auto-detected |
+| `upstream_job.success` | Follow-up — fires when an upstream job completes successfully |
+| `upstream_job.fail` | Follow-up — fires when an upstream job fails |
+| `upstream_job.completed` | Follow-up — fires on success or failure |
 
 ## Multiple triggers
 
@@ -65,7 +65,7 @@ def transform(run_context: TJobRunContext):
     ...
 ```
 
-Follow-up triggers fire as soon as the upstream completes—no polling, no scheduler delay.
+Follow-up triggers fire as soon as the upstream completes — no polling, no scheduler delay.
 
 ## Scheduler-driven intervals
 
@@ -87,9 +87,9 @@ def daily_ingest(run_context: TJobRunContext):
 Behaviour:
 
 - Each run gets the cron tick that just elapsed
-- Missed ticks are backfilled automatically—windows extend back continuously
+- Missed ticks are backfilled automatically — windows extend back continuously
 - On refresh, the dltHub platform resets the interval pointer to `interval.start`
-- Source code stays stateless—no cursor persistence, no state lookups
+- Source code stays stateless — no cursor persistence, no state lookups
 
 ## Freshness checks
 
@@ -105,7 +105,7 @@ def build_report(run_context: TJobRunContext):
     ...
 ```
 
-Unlike a trigger, the job still runs on its own schedule—it just skips while upstream is mid-load. Use for transforms that must not observe partial data.
+Unlike a trigger, the job still runs on its own schedule — it just skips while upstream is mid-load. Use for transforms that must not observe partial data.
 
 ## Refresh cascade
 
@@ -168,6 +168,6 @@ Intervals in `run_context` remain UTC datetimes, but they align to tick boundari
 
 ## Next steps
 
-- [Job configuration](job-configuration.md)—execution timeouts, dependency groups, TOML config sections
-- [Deploying jobs](deploying.md)—`dlthub deploy` and the deployment manifest
-- [Monitor & debug](monitor-and-debug.md)—watch what triggers fire and diagnose failures
+- [Job configuration](job-configuration.md) — execution timeouts, dependency groups, TOML config sections
+- [Deploying jobs](deploying.md) — `dlthub deploy` and the deployment manifest
+- [Monitor & debug](monitor-and-debug.md) — watch what triggers fire and diagnose failures

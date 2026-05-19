@@ -139,10 +139,10 @@ dlt pipeline {pipeline_name} show
 
 The features marked `dlt` in the tables above are available today in the open-source library. **dltHub** provides a managed runtime and additional data quality capabilities:
 
-- **Run dlt on the dltHub runtime**—Execute all your existing dlt pipelines with managed infrastructure, scheduling, and observability built-in.
-- **Built-in data quality checks**—Use `is_in()`, `is_unique()`, `is_primary_key()`, and more with row-level and batch-level validation.
-- **Pre-load and post-load execution**—Run checks in staging before data hits your warehouse, or validate after load with full dataset access.
-- **Follow-up actions on failure**—Bad data quarantine to enable faster debugging.
-- **Column-level hint forwarding**—Track PII and other sensitive column hints through SQL transformations.
+- **Run dlt on the dltHub runtime** — Execute all your existing dlt pipelines with managed infrastructure, scheduling, and observability built-in.
+- **Built-in data quality checks** — Use `is_in()`, `is_unique()`, `is_primary_key()`, and more with row-level and batch-level validation.
+- **Pre-load and post-load execution** — Run checks in staging before data hits your warehouse, or validate after load with full dataset access.
+- **Follow-up actions on failure** — Bad data quarantine to enable faster debugging.
+- **Column-level hint forwarding** — Track PII and other sensitive column hints through SQL transformations.
 
 [Learn more about dltHub Data Quality →](https://dlthub.com/docs/hub/features/quality/data-quality)

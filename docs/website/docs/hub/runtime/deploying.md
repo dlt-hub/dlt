@@ -8,10 +8,10 @@ keywords: [dlthub platform, deploy, deployment, jobs, decorators, manifest, reco
 
 The dltHub platform offers two ways to get your code running in the cloud:
 
-- **Ad-hoc launch**—point `dlthub run` or `dlthub serve` at a Python file. Best for quickly trying a script.
-- **Manifest-based deploy**—declare jobs in `__deployment__.py` and run `dlthub deploy`. Required for scheduling, follow-up triggers, freshness checks, and multi-job workspaces.
+- **Ad-hoc launch** — point `dlthub run` or `dlthub serve` at a Python file. Best for quickly trying a script.
+- **Manifest-based deploy** — declare jobs in `__deployment__.py` and run `dlthub deploy`. Required for scheduling, follow-up triggers, freshness checks, and multi-job workspaces.
 
-Both methods require a configured workspace—see [Workspace setup](workspace-setup.md) if you haven't done that yet.
+Both methods require a configured workspace — see [Workspace setup](workspace-setup.md) if you haven't done that yet.
 
 ## Quick deploy: ad-hoc launch
 
@@ -52,7 +52,7 @@ The `dlt.hub.run` module provides three decorators:
 | Decorator | Used for |
 |-----------|----------|
 | `@run.pipeline` | A batch job bound to a named `dlt.pipeline` (gets pipeline-aware retries and dataset linking) |
-| `@run.job` | A general-purpose batch job (any Python function—data quality checks, reports, custom scripts) |
+| `@run.job` | A general-purpose batch job (any Python function — data quality checks, reports, custom scripts) |
 | `@run.interactive` | A long-running HTTP service (notebook, MCP server, Streamlit app, REST API) |
 
 Example: an ingestion pipeline that runs every 5 minutes and is tagged for bulk operations.
@@ -118,11 +118,11 @@ __all__ = [
 Rules:
 
 - **Function imports** (`from github_pipeline import load_commits`) produce one job per function. The function must be decorated with `@run.pipeline`, `@run.job`, or `@run.interactive`.
-- **Module imports** (`import github_report_notebook`) produce one job per module. The framework is auto-detected—marimo notebooks become interactive notebook jobs, FastMCP modules become MCP servers, Streamlit modules become dashboards.
+- **Module imports** (`import github_report_notebook`) produce one job per module. The framework is auto-detected — marimo notebooks become interactive notebook jobs, FastMCP modules become MCP servers, Streamlit modules become dashboards.
 - **`__all__`** lists exactly the names to deploy. Without it, the manifest generator scans `__dict__` and warns.
 - **`__doc__`** (the module docstring) becomes the workspace description in the dltHub platform dashboard.
 
-You can also define decorated jobs **inline** in `__deployment__.py`—useful for small MCP servers or one-off batch jobs.
+You can also define decorated jobs **inline** in `__deployment__.py` — useful for small MCP servers or one-off batch jobs.
 
 ### Deploying with `dlthub deploy`
 
@@ -145,12 +145,12 @@ The dltHub platform compares the new manifest against the currently deployed job
 
 | Status | Meaning |
 |--------|---------|
-| **added** | New job—will be created |
-| **updated** | Job definition changed—will be updated |
-| **unchanged** | No changes—left as-is |
-| **archived** | Job was in the previous manifest but not in this one—triggers disabled, history preserved |
+| **added** | New job — will be created |
+| **updated** | Job definition changed — will be updated |
+| **unchanged** | No changes — left as-is |
+| **archived** | Job was in the previous manifest but not in this one — triggers disabled, history preserved |
 
-Removing a job from `__deployment__.py` does not delete it—it archives it, preserving run history and logs.
+Removing a job from `__deployment__.py` does not delete it — it archives it, preserving run history and logs.
 
 #### Preview before deploying
 
@@ -186,8 +186,8 @@ For diagnosing failed runs, viewing logs, and dashboards, see [Monitor & debug](
 
 ## Deployments and configurations are versioned separately
 
-- **Deployment**—your code files (`.py` scripts, notebooks)
-- **Configuration**—your `.dlt/*.toml` files (settings and secrets)
+- **Deployment** — your code files (`.py` scripts, notebooks)
+- **Configuration** — your `.dlt/*.toml` files (settings and secrets)
 
 You can update code without changing secrets and vice versa. Use these commands to sync them independently:
 

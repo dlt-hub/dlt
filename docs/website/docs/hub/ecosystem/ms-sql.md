@@ -6,7 +6,7 @@ keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 
 # MS SQL replication
 
-dltHub provides a comprehensive solution for syncing an MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes—including inserts, updates, and deletes—into your destination.
+dltHub provides a comprehensive solution for syncing an MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes — including inserts, updates, and deletes — into your destination.
 
 ## Prerequisites
 
@@ -297,7 +297,7 @@ ORDER BY
 ## Full refresh
 
 :::warning
-Doing a full refresh will drop the destination table, that is, delete data from the destination, and reset the state holding the tracking version.
+Doing a full refresh will drop the destination table, i.e., delete data from the destination, and reset the state holding the tracking version.
 :::
 You can trigger a full refresh by performing a full load again and passing `drop_resources` to the run method (as described in the [pipeline configuration](../../general-usage/pipeline#selectively-drop-tables-and-resource-state-with-drop_resources)):
 ```py
@@ -323,13 +323,13 @@ pipeline.run(incremental_resource)
 
 ### Hard deletes
 
-By default, `hard_delete` is set to `True`, meaning hard deletes are performed, that is, rows deleted in the source will be permanently removed from the destination.
+By default, `hard_delete` is set to `True`, meaning hard deletes are performed, i.e., rows deleted in the source will be permanently removed from the destination.
 
 Replicated data allows for NULLs for not nullable columns when a record is deleted. To avoid additional tables that hold deleted rows and additional merge steps, dlt emits placeholder values that are stored in the staging dataset only.
 
 ### Soft deletes
 
-If `hard_delete` is set to `False`, soft deletes are performed, that is, rows deleted in the source will be marked as deleted but not physically removed from the destination.
+If `hard_delete` is set to `False`, soft deletes are performed, i.e., rows deleted in the source will be marked as deleted but not physically removed from the destination.
 
 In this case, the destination schema must accept NULLs for the replicated columns, so make sure you pass the `remove_nullability_adapter` adapter to the `sql_table` resource:
 
