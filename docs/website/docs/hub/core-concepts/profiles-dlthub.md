@@ -25,10 +25,9 @@ Before you start, make sure you have followed the [installation instructions](..
 
 [More about dlt Workspace →](../workspace/overview.md)
 
-[Initialize](../workspace/init.md) a workspace and add a pipeline to it:
+[Scaffold](../workspace/init.md) a workspace with `uvx dlthub-start@latest`, then add a pipeline to it from inside the workspace:
 
 ```sh
-dlthub init
 dlthub pipeline init pokemon_api duckdb
 ```
 
@@ -41,7 +40,7 @@ dlthub local
 
 ## Define profiles
 
-After `dlthub init`, you'll have two familiar `toml` files in `.dlt`: `secrets.toml` and `config.toml`. They work exactly the same way as in OSS `dlt`. You can run your OSS dlt code without modifications.
+Once your workspace is scaffolded, you'll have two familiar `toml` files in `.dlt`: `secrets.toml` and `config.toml`. They work exactly the same way as in OSS `dlt`. You can run your OSS dlt code without modifications.
 
 **Anything you place in those files is visible to all profiles**. For example, if you place
 `log_level="INFO"` in `config.toml`, it applies to all profiles. Only when you want certain settings to vary across profiles (for example, `INFO` level for development, `WARNING` for production) do you need to create profile-specific `toml` files.

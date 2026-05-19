@@ -27,10 +27,10 @@ Outside of a workspace (plain OSS `dlt`), the same scaffold is reachable as `dlt
 Before you start, make sure you followed the [installation instructions](../getting-started/installation.md) and have a dltHub workspace initialized. The fastest way is:
 
 ```sh
-dlthub init
+uvx dlthub-start@latest
 ```
 
-This scaffolds `.dlt/.workspace` (the marker that turns on the extended `dlthub` command surface) plus `config.toml`, `secrets.toml`, `.gitignore`, and `pyproject.toml`. See the [installation guide](../getting-started/installation.md#enable-workspace-mode) for the manual alternative.
+This scaffolds a workspace with `.dlt/.workspace` already set, the AI toolkits vendored, and `dlt[hub]` synced. See the [installation guide](../getting-started/installation.md) for the alternative paths (adding to an existing project, or enabling workspace mode by hand).
 
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines—from local development to production.
 

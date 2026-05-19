@@ -45,10 +45,9 @@ pip install --upgrade "dlt[hub]"
 
 ### Initialize the AI assistant
 
-First create dlthub workspace and install additional dependencies:
+First create the dlthub workspace and install dependencies (see the [installation guide](../../hub/getting-started/installation.md)):
 ```sh
-dlthub init
-uv sync
+uvx dlthub-start@latest
 ```
 
 <Tabs values={[{"label": "Claude Code", "value": "claude"}, {"label": "Cursor", "value": "cursor"}, {"label": "Codex", "value": "codex"}]} groupId="ai-agent" defaultValue="claude">
