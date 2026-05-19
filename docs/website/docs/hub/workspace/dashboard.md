@@ -194,8 +194,8 @@ SELECT * FROM {your_table} LIMIT 10
 
 **Typical failure modes**
 
-- The API returns a **summary view** by default; you need extra parameters (e.g., `expand`, `include=changes`, `since=`) to get full details.
-- **Related data lives in separate endpoints** that you haven't added yet (e.g., orders exist but order line items are a different endpoint).
+- The API returns a **summary view** by default; you need extra parameters (for example, `expand`, `include=changes`, `since=`) to get full details.
+- **Related data lives in separate endpoints** that you haven't added yet (for example, orders exist but order line items are a different endpoint).
 - **PII columns** (emails, phones, names) are present and need to be hashed or removed before analytics.
 
 **What to do**
@@ -219,7 +219,7 @@ Open the Schema Explorer and check the `data_type` column for each field:
 **Typical failure modes**
 
 - Numbers arrive as strings (`"amount": "100.00"`) because the API returns them quoted.
-- Timestamps in non-standard formats (e.g., `"12/25/2024"` or Unix epochs) aren't auto-detected.
+- Timestamps in non-standard formats (for example, `"12/25/2024"` or Unix epochs) aren't auto-detected.
 - Boolean values come as `"true"`/`"false"` strings or `0`/`1` integers.
 
 **What to do**

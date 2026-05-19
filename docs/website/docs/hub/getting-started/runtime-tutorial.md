@@ -120,7 +120,7 @@ uv run dlthub workspace connect
 `dlthub workspace connect` writes `workspace_id` (and on the first connect, `organization_id`) into `.dlt/config.toml`. Pass `<name_or_id>` to bind to a specific workspace, or omit it for an interactive picker grouped by organization.
 
 :::tip
-The first time you run `dlthub deploy`, `dlthub run`, or `dlthub serve`, the CLI auto-prompts both `login` and `workspace connect` if they haven't been done yet — so you can skip step 4 entirely if you don't mind doing it inline.
+The first time you run `dlthub deploy`, `dlthub run`, or `dlthub serve`, the CLI auto-prompts both `login` and `workspace connect` if they haven't been done yet—so you can skip step 4 entirely if you don't mind doing it inline.
 
 For a full list of available commands, see the [CLI reference](../command-line-interface.md).
 :::
@@ -129,8 +129,8 @@ For a full list of available commands, see the [CLI reference](../command-line-i
 
 The `dlthub` CLI is split into two scopes:
 
-- **local** — `dlthub local …` runs everything on your machine using local profiles (default `dev`).
-- **remote** — `dlthub …` (unqualified) operates on the connected dltHub workspace.
+- **local**—`dlthub local …` runs everything on your machine using local profiles (default `dev`).
+- **remote**—`dlthub …` (unqualified) operates on the connected dltHub workspace.
 
 Run the local form first to catch missing dependencies or misconfigured destinations without burning a remote slot.
 
@@ -138,8 +138,8 @@ Run the local form first to catch missing dependencies or misconfigured destinat
 
 dltHub runs two kinds of jobs:
 
-- **Batch jobs** — Python scripts that run once or on a schedule. Trigger with `dlthub run <script_or_job>`. Use case: ELT pipelines, transformation runs, backfills. Runs with the `prod` profile.
-- **Interactive jobs** — long-running processes that serve a notebook or app. Trigger with `dlthub serve <script>`. Use case: Marimo notebooks, dashboards, Streamlit apps, MCP servers. Runs with the `access` profile.
+- **Batch jobs**—Python scripts that run once or on a schedule. Trigger with `dlthub run <script_or_job>`. Use case: ELT pipelines, transformation runs, backfills. Runs with the `prod` profile.
+- **Interactive jobs**—long-running processes that serve a notebook or app. Trigger with `dlthub serve <script>`. Use case: Marimo notebooks, dashboards, Streamlit apps, MCP servers. Runs with the `access` profile.
 
 ### 5. Run your first pipeline
 
@@ -188,7 +188,7 @@ Interactive jobs are the building block for serving notebooks, dashboards, Strea
 
 ### 7. Schedule a pipeline
 
-Scheduling is declarative — define the trigger in code with `@run.pipeline` (or `@run.job`) and redeploy. A pipeline that runs every 10 minutes:
+Scheduling is declarative—define the trigger in code with `@run.pipeline` (or `@run.job`) and redeploy. A pipeline that runs every 10 minutes:
 
 ```py
 import dlt
@@ -219,7 +219,7 @@ To stop a schedule, remove the trigger from the decorator (or remove the job fro
 ## Review and manage jobs in the UI
 
 The command line is great for development, but the dltHub web UI gives you a bird's-eye view of everything running in the cloud.
-Visit [dlthub.app](https://dlthub.app) — or open it from the CLI with `uv run dlthub show` — to access the dashboard. You will find:
+Visit [dlthub.app](https://dlthub.app)—or open it from the CLI with `uv run dlthub show`—to access the dashboard. You will find:
 
 1. A list of existing jobs.
 2. An overview of scheduled runs.

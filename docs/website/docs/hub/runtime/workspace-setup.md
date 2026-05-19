@@ -27,7 +27,7 @@ uv add "dlt[workspace,hub]"
 touch .dlt/.workspace
 ```
 
-The `.dlt/.workspace` file activates [profile support](../core-concepts/profiles-dlthub.md) and enables the `dlthub` and `dlt profile` CLI commands.
+The `.dlt/.workspace` file activates [profile support](../core-concepts/profiles-dlthub.md) and enables the `dlthub` CLI command (including `dlthub profile` and `dlthub local`).
 
 ## 3. Log in to the dltHub platform
 

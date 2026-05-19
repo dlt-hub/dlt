@@ -17,10 +17,10 @@ To install the `dlt[hub]` package, create a new [Python virtual environment](#se
 uv pip install "dlt[hub]"
 ```
 This installs `dlt` plus two plugin packages pulled in by the `hub` extra:
-* `dlthub` — enables **dlthub** command and features like AI toolkits and transformations
-* `dlthub-client` — enables access to the [managed dltHub Platform](../runtime/overview.md) (login, deploy, run, serve, ...)
+* `dlthub`—enables **dlthub** command and features like AI toolkits and transformations
+* `dlthub-client`—enables access to the [managed dltHub Platform](../runtime/overview.md) (login, deploy, run, serve, ...)
 
-Workspace-level dependencies (destinations like `duckdb`, plus tools like `marimo` or `fastmcp` used by notebooks and MCP jobs) are managed in your workspace's `pyproject.toml`, not via `dlt` extras. Run `dlthub init` (see [below](#enable-workspace-mode)) — it scaffolds a `pyproject.toml` you can extend with `uv add <package>`.
+Workspace-level dependencies (destinations like `duckdb`, plus tools like `marimo` or `fastmcp` used by notebooks and MCP jobs) are managed in your workspace's `pyproject.toml`, not via `dlt` extras. Run `dlthub init` (see [below](#enable-workspace-mode))—it scaffolds a `pyproject.toml` you can extend with `uv add <package>`.
 
 If you need to install `uv` (a modern package manager), [please refer to the next section](#configuration-of-the-python-environment).
 
@@ -45,13 +45,13 @@ how to install a compatible plugin version).
 
 ### Enable workspace mode
 
-The full dltHub feature surface — profiles, the `dlthub` CLI host, and [managed-platform commands](../runtime/overview.md) — is gated behind **Workspace mode**, signaled by a `.dlt/.workspace` marker file. The simplest way to turn it on is:
+The full dltHub feature surface—profiles, the `dlthub` CLI host, and [managed-platform commands](../runtime/overview.md)—is gated behind **Workspace mode**, signaled by a `.dlt/.workspace` marker file. The simplest way to turn it on is:
 
 ```sh
 dlthub init
 ```
 
-This scaffolds a fresh dltHub workspace — it creates the `.dlt/.workspace` marker plus `config.toml`, `secrets.toml`, `.gitignore`, and a `pyproject.toml` (or `requirements.txt` if `uv` isn't on `PATH`). See [Initialize a pipeline](../workspace/init.md) for the next steps.
+This scaffolds a fresh dltHub workspace—it creates the `.dlt/.workspace` marker plus `config.toml`, `secrets.toml`, `.gitignore`, and a `pyproject.toml` (or `requirements.txt` if `uv` isn't on `PATH`). See [Initialize a pipeline](../workspace/init.md) for the next steps.
 
 If you'd rather flip the toggle by hand in an existing project, create the empty marker file yourself:
 
