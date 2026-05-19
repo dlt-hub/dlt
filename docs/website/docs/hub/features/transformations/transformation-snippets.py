@@ -371,8 +371,8 @@ def in_transit_transformations_snippet() -> None:
     }
 
 
-def incremental_pattern_stateful_cursor_snippet() -> None:
-    # @@@DLT_SNIPPET_START incremental_pattern_stateful_cursor
+def incremental_stateful_cursor_snippet() -> None:
+    # @@@DLT_SNIPPET_START incremental_stateful_cursor
     from typing import Any, Iterator, List
 
     import dlt
@@ -411,16 +411,17 @@ def incremental_pattern_stateful_cursor_snippet() -> None:
     )
 
     # @@@DLT_SNIPPET_START incremental_stateful_cursor_definition
-    @dlt.hub.transformation(write_disposition="append", primary_key="id")
-    def recent_orders(
-        dataset: dlt.Dataset,
-        cursor: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+    @dlt.hub.transformation(
+        write_disposition="append",
+        primary_key="id",
+        incremental=dlt.sources.incremental(
             "created_at",
             initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
             range_start="open",
         ),
-    ) -> Any:
-        yield dataset.table("orders").incremental(cursor)
+    )
+    def recent_orders(dataset: dlt.Dataset) -> Any:
+        yield dataset.table("orders")
 
     # @@@DLT_SNIPPET_END incremental_stateful_cursor_definition
 
@@ -446,14 +447,14 @@ def incremental_pattern_stateful_cursor_snippet() -> None:
 
     # Second run: only the new rows land
     pipeline.run(recent_orders(pipeline.dataset()))
-    # @@@DLT_SNIPPET_END incremental_pattern_stateful_cursor
+    # @@@DLT_SNIPPET_END incremental_stateful_cursor
 
     ids = sorted(row[0] for row in pipeline.dataset().table("recent_orders").fetchall())
     assert ids == [1, 2, 3, 4, 5]
 
 
-def incremental_pattern_dlt_loads_cursor_snippet() -> None:
-    # @@@DLT_SNIPPET_START incremental_pattern_dlt_loads_cursor
+def incremental_load_time_cursor_snippet() -> None:
+    # @@@DLT_SNIPPET_START incremental_load_time_cursor
     from typing import Any, Iterator, List
 
     import dlt
@@ -471,7 +472,7 @@ def incremental_pattern_dlt_loads_cursor_snippet() -> None:
     )
     pipeline.run(orders([{"id": 1}, {"id": 2}, {"id": 3}]))
 
-    # @@@DLT_SNIPPET_START incremental_dlt_loads_cursor_definition
+    # @@@DLT_SNIPPET_START incremental_load_time_cursor_definition
     @dlt.hub.transformation(write_disposition="append")
     def orders_by_load(
         dataset: dlt.Dataset,
@@ -483,14 +484,14 @@ def incremental_pattern_dlt_loads_cursor_snippet() -> None:
     ) -> Any:
         yield dataset.table("orders").incremental(loaded_at)
 
-    # @@@DLT_SNIPPET_END incremental_dlt_loads_cursor_definition
+    # @@@DLT_SNIPPET_END incremental_load_time_cursor_definition
 
     pipeline.run(orders_by_load(pipeline.dataset()))
 
     pipeline.run(orders([{"id": 4}, {"id": 5}]))
 
     pipeline.run(orders_by_load(pipeline.dataset()))
-    # @@@DLT_SNIPPET_END incremental_pattern_dlt_loads_cursor
+    # @@@DLT_SNIPPET_END incremental_load_time_cursor
 
     ids = sorted(
         row[0] for row in pipeline.dataset().table("orders_by_load").fetchall()
@@ -498,8 +499,8 @@ def incremental_pattern_dlt_loads_cursor_snippet() -> None:
     assert ids == [1, 2, 3, 4, 5]
 
 
-def incremental_pattern_external_scheduler_snippet() -> None:
-    # @@@DLT_SNIPPET_START incremental_pattern_external_scheduler
+def incremental_scheduler_window_snippet() -> None:
+    # @@@DLT_SNIPPET_START incremental_scheduler_window
     import os
     from typing import Any, Iterator, List
 
@@ -525,7 +526,7 @@ def incremental_pattern_external_scheduler_snippet() -> None:
         )
     )
 
-    # @@@DLT_SNIPPET_START incremental_external_scheduler_definition
+    # @@@DLT_SNIPPET_START incremental_scheduler_window_definition
     @dlt.hub.transformation(write_disposition="replace")
     def orders_window(
         dataset: dlt.Dataset,
@@ -539,7 +540,7 @@ def incremental_pattern_external_scheduler_snippet() -> None:
     ) -> Any:
         yield dataset.table("orders").incremental(window)
 
-    # @@@DLT_SNIPPET_END incremental_external_scheduler_definition
+    # @@@DLT_SNIPPET_END incremental_scheduler_window_definition
 
     os.environ["DLT_INTERVAL_START"] = "2026-01-05T00:00:00+00:00"
     os.environ["DLT_INTERVAL_END"] = "2026-01-10T00:00:00+00:00"
@@ -550,7 +551,7 @@ def incremental_pattern_external_scheduler_snippet() -> None:
     os.environ["DLT_INTERVAL_START"] = "2026-01-02T00:00:00+00:00"
     os.environ["DLT_INTERVAL_END"] = "2026-01-05T00:00:00+00:00"
     pipeline.run(orders_window(pipeline.dataset()))  # ids 2..4 land
-    # @@@DLT_SNIPPET_END incremental_pattern_external_scheduler
+    # @@@DLT_SNIPPET_END incremental_scheduler_window
 
     os.environ.pop("DLT_INTERVAL_START", None)
     os.environ.pop("DLT_INTERVAL_END", None)

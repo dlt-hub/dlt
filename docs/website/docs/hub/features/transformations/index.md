@@ -155,7 +155,7 @@ Given an `orders` table with one row per day:
 
 and a scheduler window of `[2026-01-05, 2026-01-10)`, the run writes ids 5 to 9 to `orders_window` (id 10 is excluded by the open upper bound).
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_external_scheduler_definition-->
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_scheduler_window_definition-->
 
 Re-running the same `[start, end)` (start is included, end is excluded) interval produces the same transformation input, which makes this pattern a good fit for partition backfills and idempotent retries.
 
@@ -164,6 +164,10 @@ Re-running the same `[start, end)` (start is included, end is excluded) interval
 Use a stateful cursor for runs not tied to an external scheduler, where each run should continue from the last successful one. dlt stores the cursor state internally and uses it in the next run of the transformation.
 
 The transformation below appends rows from `orders` whose `created_at` is later than the persisted `last_value` to a new table `recent_orders`.
+
+:::note Implicit cursor
+The cursor below is declared on the decorator; the body yields a bare relation (Ibis expressions and raw SQL strings work too) and dlt applies the filter automatically. The [scheduler example above](#the-scheduler-interval) shows the alternative form, with the cursor as a function argument.
+:::
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_stateful_cursor_definition-->
 
@@ -176,29 +180,9 @@ Now suppose `orders` is loaded in two batches:
 
 The first run has no `last_value` yet, so it starts from `initial_value` (`2000-01-01`), writes the three initial rows to `recent_orders`, and advances `last_value` to `2026-01-03`. The next run sees the two later rows fall past `last_value`, appends them, and advances `last_value` to `2026-01-05`.
 
-Set `range_start="open"` on stateful cursors. The default closed lower bound would re-emit the persisted boundary row on every run, so dlt rejects stateful transformation cursors that do not use an open lower bound.
-
-### How the cursor is attached
-
-The examples above attach the cursor as a transformation argument. That is the form when the body names the cursor explicitly and passes it to `.incremental(cursor)`.
-
-You can also attach the cursor with the `incremental=` decorator argument when the function body does not need the cursor object:
-
-```py
-@dlt.hub.transformation(
-    write_disposition="append",
-    primary_key="id",
-    incremental=dlt.sources.incremental(
-        "created_at",
-        initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
-        range_start="open",
-    ),
-)
-def recent_orders(dataset: dlt.Dataset) -> Any:
-    yield dataset.table("orders")
-```
-
-Both forms apply the cursor to relation yields, Ibis expressions or raw SQL strings.
+:::caution Set `range_start="open"` on stateful cursors
+A stateful cursor persists `last_value` after each run. With the default `range_start="closed"`, the next run's filter is `cursor >= last_value`, so the row at the boundary is re-emitted every time. Set `range_start="open"` to make the filter `cursor > last_value` and exclude the boundary row.
+:::
 
 ### Cursor column choices
 
@@ -206,7 +190,7 @@ Use a domain cursor when the source table has a column that represents creation 
 
 Use `_dlt_loads.inserted_at` when the source table has no domain timestamp and you want to process data by the time `dlt` loaded it. A dotted cursor path such as `_dlt_loads.inserted_at` tells `dlt` to follow the schema reference from the base table to `_dlt_loads`, join it, and filter on the joined column. The join is filter-only: columns from `_dlt_loads` are not added to the destination table.
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_dlt_loads_cursor_definition-->
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_load_time_cursor_definition-->
 
 :::note
 Under the hood, when dlt can run the transformation directly as SQL/model job, the source query is modified to include the cursor filter. When the transformation is materialized first, for example if source and destination are different physical engines, or when you yield Python objects such as lists, Arrow tables, or DataFrames, filtering happens during extraction.
