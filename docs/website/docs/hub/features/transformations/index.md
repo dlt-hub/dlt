@@ -133,14 +133,14 @@ Incremental transformations let each run work on the right slice of source data 
 
 There are two common ways to choose the slice:
 
-- [Use the scheduler interval](#the-scheduler-interval). This is the usual production setup for dltHub Platform schedules, Airflow, and other orchestrators. The scheduler tells dlt which `[start, end)` interval this run is responsible for.
-- [Continue from the previous run](#continue-from-the-previous-run). dlt stores the last cursor value it processed and the next run starts after that value.
+- [Use the scheduler interval](#the-scheduler-interval). dltHub Platform uses this approach: the scheduler sets `[start, end)` interval this run is responsible for.
+- [Continue from the previous run](#continue-from-the-previous-run). dltHub stores the last cursor value it processed and the next run starts after that value.
 
 ### The scheduler interval
 
 Use a scheduler interval when the orchestrator decides what time range each run should process. This is the natural fit for cron schedules, retries, and backfills because the run does not depend on what happened in a previous run.
 
-Set `allow_external_schedulers=True` on the cursor and the orchestrator owns the interval: dltHub Platform cron schedules, Airflow data intervals, or any process that sets `DLT_INTERVAL_START` and `DLT_INTERVAL_END`: dlt picks those up and filters the source data accordingly.
+Set `allow_external_schedulers=True` on the cursor and dltHub Platform owns the interval: its cron schedules set `DLT_INTERVAL_START` and `DLT_INTERVAL_END`, which are picksed up to filter the source data.
 
 Here's an example. The transformation below reads the `orders` table and writes only the rows whose `created_at` falls in the `[start, end)` window to a new table `orders_window`.
 
@@ -161,12 +161,12 @@ Re-running the same `[start, end)` (start is included, end is excluded) interval
 
 ### Continue from the previous run
 
-Use a stateful cursor for runs not tied to an external scheduler, where each run should continue from the last successful one. dlt stores the cursor state internally and uses it in the next run of the transformation.
+Use a stateful cursor for runs not tied to an external scheduler, where each run should continue from the last successful one. dltHub stores the cursor state internally and uses it in the next run of the transformation.
 
 The transformation below appends rows from `orders` whose `created_at` is later than the persisted `last_value` to a new table `recent_orders`.
 
 :::note Implicit cursor
-The cursor below is declared on the decorator; the body yields a bare relation (Ibis expressions and raw SQL strings work too) and dlt applies the filter automatically. The [scheduler example above](#the-scheduler-interval) shows the alternative form, with the cursor as a function argument.
+The cursor below is declared on the decorator; the body yields a bare relation (Ibis expressions and raw SQL strings work too) and dltHub applies the filter automatically. The [scheduler example above](#the-scheduler-interval) shows the alternative form, with the cursor as a function argument.
 :::
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_stateful_cursor_definition-->
@@ -188,12 +188,12 @@ A stateful cursor persists `last_value` after each run. With the default `range_
 
 Use a domain cursor when the source table has a column that represents creation or update order. For append-only data, `created_at` or an increasing `id` is usually enough. For mutable data, use a cursor that changes whenever the row changes, such as `updated_at`; rows whose cursor value does not advance are intentionally ignored by the next stateful run.
 
-Use `_dlt_loads.inserted_at` when the source table has no domain timestamp and you want to process data by the time `dlt` loaded it. A dotted cursor path such as `_dlt_loads.inserted_at` tells `dlt` to follow the schema reference from the base table to `_dlt_loads`, join it, and filter on the joined column. The join is filter-only: columns from `_dlt_loads` are not added to the destination table.
+Use `_dlt_loads.inserted_at` when the source table has no domain timestamp and you want to process data by the time dltHub loaded it. A dotted cursor path such as `_dlt_loads.inserted_at` tells dltHub to follow the schema reference from the base table to `_dlt_loads`, join it, and filter on the joined column. The join is filter-only: columns from `_dlt_loads` are not added to the destination table.
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_load_time_cursor_definition-->
 
 :::note
-Under the hood, when dlt can run the transformation directly as SQL/model job, the source query is modified to include the cursor filter. When the transformation is materialized first, for example if source and destination are different physical engines, or when you yield Python objects such as lists, Arrow tables, or DataFrames, filtering happens during extraction.
+Under the hood, when dltHub can run the transformation directly as SQL/model job, the source query is modified to include the cursor filter. When the transformation is materialized first, for example if source and destination are different physical engines, or when you yield Python objects such as lists, Arrow tables, or DataFrames, filtering happens during extraction.
 :::
 
 ### State and safety rules
