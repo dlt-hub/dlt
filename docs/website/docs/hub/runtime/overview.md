@@ -109,11 +109,10 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 | `dlthub job publish <script_path>` | Generate a public link for an interactive notebook/app |
 | `dlthub job unpublish <script_path>` | Revoke a public link |
 
-## Current limitations
+## Platform limits
 
-- **Platform limits**: jobs default to 120 minutes maximum execution time (override with `execute={"timeout": "6h"}` in the decorator — see [Job configuration](job-configuration.md#execution-constraints))
-- **Interactive timeout**: notebooks are killed after about 5 minutes of inactivity (no open browser tab)
-- **UI operations**: creating jobs must currently be done via CLI (schedules can be changed in the WebUI)
-- **Pagination**: list views show the top 100 items
-- **Log latency**: logs may lag 20–30 seconds during execution; they are guaranteed complete after the run finishes (completed or failed state)
-- **One workspace per GitHub account**: connecting a new local repo and deploying replaces the existing remote workspace
+- **Platform limits**: non-interactive jobs default to 2 hours maximum execution time (override with `execute={"timeout": "6h"}` in the decorator — see [Job configuration](job-configuration.md#execution-constraints))
+- **Interactive timeout**: interactive jobs (notebooks, dashboards, MCP servers) are capped at 15 minutes of execution time and are not extended
+- **UI operations**: new jobs must currently be created via the CLI; once a job exists, subsequent runs can be triggered from the Web UI (and schedules can be changed there too)
+- **Pagination**: list views are paginated; the page size can be adjusted in the Web UI
+- **Log latency**: logs typically lag a few seconds during execution and are guaranteed complete after the run finishes (completed or failed state)
