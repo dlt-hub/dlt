@@ -6,7 +6,7 @@ keywords: [dlthub platform, workspace, setup, login, profiles, credentials, conf
 
 # Workspace setup
 
-A workspace ready for the dltHub platform is a regular Python project with a few additions. You can convert any existing dlt project into one in a couple of minutes.
+A workspace ready for the dltHub platform is a regular Python project with a few additions. You can easily convert any existing dlt project into a dltHub workspace.
 
 ## 1. Initialize a Python project
 
@@ -134,5 +134,5 @@ Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Ne
 ## Next steps
 
 - [Deploy jobs](deploying.md)—quick deploys and the full deployment workflow
-- [Triggers & scheduling](triggers.md)—schedule jobs, chain followups, and backfill with intervals
+- [Triggers & scheduling](triggers.md)—schedule jobs, chain follow-ups, and backfill with intervals
 - [Monitor & debug](monitor-and-debug.md)—watch runs, stream logs, diagnose failures

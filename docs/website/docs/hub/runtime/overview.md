@@ -16,7 +16,7 @@ For a high-level summary of platform capabilities, see [Pipeline operations](../
 |-------------------|-------|
 | Convert a Python project into a dltHub workspace and set up credentials | [Workspace setup](workspace-setup.md) |
 | Push code to the cloud—ad-hoc runs or full manifest deploys | [Deploying jobs](deploying.md) |
-| Schedule with cron/intervals, chain followups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers & scheduling](triggers.md) |
+| Schedule with cron/intervals, chain follow-ups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers & scheduling](triggers.md) |
 | Configure timeouts, dependencies, timezone, and per-job TOML sections | [Job configuration](job-configuration.md) |
 | Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs | [Monitor & debug](monitor-and-debug.md) |
 | Pick a deployment region | [Regions](regions.md) |

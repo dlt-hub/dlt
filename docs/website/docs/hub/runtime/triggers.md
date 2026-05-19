@@ -1,7 +1,7 @@
 ---
 title: Triggers & scheduling
-description: Schedule jobs on the dltHub platform with cron, intervals, followup chains, freshness constraints, and refresh cascades
-keywords: [dlthub platform, triggers, scheduling, cron, interval, backfill, followup, freshness, refresh, tags]
+description: Schedule jobs on the dltHub platform with cron, intervals, follow-up chains, freshness constraints, and refresh cascades
+keywords: [dlthub platform, triggers, scheduling, cron, interval, backfill, follow-up, freshness, refresh, tags]
 ---
 
 # Triggers & scheduling
@@ -27,9 +27,9 @@ This page covers all the trigger types and the related scheduling features.
 | `trigger.schedule("0 * * * *")` | Cron expression |
 | `trigger.once("2026-12-31T23:59:59Z")` | One-shot at a timestamp |
 | `"*/5 * * * *"` | Bare cron string—auto-detected |
-| `upstream_job.success` | Followup—fires when an upstream job completes successfully |
-| `upstream_job.fail` | Followup—fires when an upstream job fails |
-| `upstream_job.completed` | Followup—fires on success or failure |
+| `upstream_job.success` | Follow-up—fires when an upstream job completes successfully |
+| `upstream_job.fail` | Follow-up—fires when an upstream job fails |
+| `upstream_job.completed` | Follow-up—fires on success or failure |
 
 ## Multiple triggers
 
@@ -53,7 +53,7 @@ def transform(run_context: TJobRunContext):
 
 `TJobRunContext` is a dict injected by the launcher with: `run_id`, `trigger`, `refresh`, and the scheduler-supplied `interval_start` / `interval_end` (see [Scheduler-driven intervals](#scheduler-driven-intervals) below).
 
-## Followup triggers
+## Follow-up triggers
 
 Every decorated job exposes `.success`, `.fail`, and `.completed` trigger properties. Use them to chain jobs into a dependency graph.
 
@@ -65,7 +65,7 @@ def transform(run_context: TJobRunContext):
     ...
 ```
 
-Followup triggers fire as soon as the upstream completes—no polling, no scheduler delay.
+Follow-up triggers fire as soon as the upstream completes—no polling, no scheduler delay.
 
 ## Scheduler-driven intervals
 

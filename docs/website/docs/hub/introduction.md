@@ -10,15 +10,6 @@ keywords: [dlthub, introduction, capabilities, platform, workspace]
 Looking for the open-source `dlt` library documentation? See the [dlt docs](../intro.md).
 :::
 
-## Who is dltHub for?
-
-dltHub assumes a working knowledge of Python and provides an optimized experience for working iwth coding agents (Claude Code, Codex, Cursor, or similar). Typical users include:
-
-* Engineers responsible for analytics outputs end-to-end—pipelines, transformations, and dashboards—without a dedicated platform or analytics-engineering team to delegate to
-* Analysts who write Python (or pair with a coding agent) and need to own the pipelines feeding their reports rather than depend on a separate team to maintain them
-* Data teams standardizing on `dlt` that want production-grade ingestion, transformation, quality, and serving from a single toolchain
-* Organizations that prefer managed operations but require open formats and portability
-* Small data teams with limited platform engineering support in need of a fully managed lightweight data plaform
 
 ## What is dltHub?
 
@@ -45,7 +36,7 @@ flowchart LR
     E --> F[Share]
 ```
 
-In practice, any Python developer can:
+On dltHub, users can:
 
 * Build and customize data pipelines quickly, optionally delegating boilerplate to a coding agent
 * Maintain data quality through declarative checks, tests, and alerts
@@ -90,7 +81,7 @@ Write transformations alongside your ingestion pipelines so they share datasets,
 
 Deploy, schedule, and monitor pipelines, transformations, and notebooks without standing up infrastructure.
 
-* [dltHub platform](runtime/overview.md)—one-command deploy of an entire workspace, with cron and event-driven [triggers](runtime/triggers.md), followup chains, freshness checks, and refresh cascades. Sign in at [app.dlthub.com](https://app.dlthub.com)
+* [dltHub platform](runtime/overview.md)—one-command deploy of an entire workspace, with cron and event-driven [triggers](runtime/triggers.md), follow-up chains, freshness checks, and refresh cascades. Sign in at [app.dlthub.com](https://app.dlthub.com)
 * [Profiles](core-concepts/profiles-dlthub.md) and [regions](runtime/regions.md)—isolate `dev`, `prod`, and `access` configurations and credentials, and choose where your data plane runs
 * [Workspace dashboard & monitoring](../general-usage/dashboard.md)—observe runs, schemas, and lineage from a single UI; stream logs and [diagnose failures](runtime/monitor-and-debug.md) from the CLI or Web UI
 

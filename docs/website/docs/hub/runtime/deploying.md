@@ -9,7 +9,7 @@ keywords: [dlthub platform, deploy, deployment, jobs, decorators, manifest, reco
 The dltHub platform offers two ways to get your code running in the cloud:
 
 - **Ad-hoc launch**—point `dlthub run` or `dlthub serve` at a Python file. Best for quickly trying a script.
-- **Manifest-based deploy**—declare jobs in `__deployment__.py` and run `dlthub deploy`. Required for scheduling, followup triggers, freshness checks, and multi-job workspaces.
+- **Manifest-based deploy**—declare jobs in `__deployment__.py` and run `dlthub deploy`. Required for scheduling, follow-up triggers, freshness checks, and multi-job workspaces.
 
 Both methods require a configured workspace—see [Workspace setup](workspace-setup.md) if you haven't done that yet.
 
@@ -31,7 +31,7 @@ dlthub serve fruitshop_notebook.py
 Under the hood, the CLI generates a single-job deployment manifest from that file and syncs it to the dltHub platform. This **ad-hoc deploy** is great for getting started but does not support:
 
 - Scheduled triggers (cron, intervals)
-- Followup jobs (run B after A succeeds)
+- Follow-up jobs (run B after A succeeds)
 - Freshness constraints
 - Multi-job workspaces deployed as a unit
 
@@ -52,7 +52,7 @@ The `dlt.hub.run` module provides three decorators:
 | Decorator | Used for |
 |-----------|----------|
 | `@run.pipeline` | A batch job bound to a named `dlt.pipeline` (gets pipeline-aware retries and dataset linking) |
-| `@run.job` | A general-purpose batch job (any Python function—DQ checks, reports, custom scripts) |
+| `@run.job` | A general-purpose batch job (any Python function—data quality checks, reports, custom scripts) |
 | `@run.interactive` | A long-running HTTP service (notebook, MCP server, Streamlit app, REST API) |
 
 Example: an ingestion pipeline that runs every 5 minutes and is tagged for bulk operations.
@@ -90,7 +90,7 @@ def run_dq_checks():
         raise RuntimeError("Data quality checks failed")
 ```
 
-For the full catalog of `trigger=` options (cron, intervals, followups, freshness, refresh cascade), see [Triggers & scheduling](triggers.md). For per-job options like `execute=`, `require=`, and `expose=`, see [Job configuration](job-configuration.md).
+For the full catalog of `trigger=` options (cron, intervals, follow-ups, freshness, refresh cascade), see [Triggers & scheduling](triggers.md). For per-job options like `execute=`, `require=`, and `expose=`, see [Job configuration](job-configuration.md).
 
 ### The deployment module
 
