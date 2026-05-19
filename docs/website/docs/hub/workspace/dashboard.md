@@ -6,11 +6,11 @@ keywords: [pipeline, schema, data, inspect]
 
 # dltHub Dashboard
 
-Once you have run a [pipeline](pipeline.md) locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the [marimo](https://marimo.io/) Python notebook framework. For this to work, you will need a few additional dependencies.
+Once you have run a [pipeline](../../general-usage/pipeline.md) locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the [marimo](https://marimo.io/) Python notebook framework. For this to work, you will need a few additional dependencies.
 
 
 :::tip
-The dashboard works with all [destinations](destination.md) that are supported by the [dataset interface](dataset-access/dataset.md). Vector databases are not supported at this moment. However, you can still inspect metadata such as run traces, schemas, and pipeline state.
+The dashboard works with all [destinations](../../general-usage/destination.md) that are supported by the [dataset interface](../../general-usage/dataset-access/dataset.md). Vector databases are not supported at this moment. However, you can still inspect metadata such as run traces, schemas, and pipeline state.
 :::
 
 ## Overview
@@ -45,7 +45,7 @@ You can start the dashboard with an overview of all locally found pipelines with
 dlt dashboard
 ```
 
-You can use the `show` [CLI command](../reference/command-line-interface.md#dlt-pipeline-show)
+You can use the `show` [CLI command](../../reference/command-line-interface.md#dlt-pipeline-show)
 with your pipeline name to directly jump to the dashboard page of this pipeline:
 
 ```sh
@@ -56,7 +56,7 @@ Use the pipeline name you defined in your Python code with the `pipeline_name` a
 
 ## Credentials
 
-`dlt` will resolve your destination [credentials](credentials/setup.md) from:
+`dlt` will resolve your destination [credentials](../../general-usage/credentials/setup.md) from:
 * `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD), which is the directory you started the dashboard from 
 * `secrets.toml` and `config.toml` in the global `dlt` folder at `~/.dlt`. 
 * Environment variables
@@ -117,7 +117,7 @@ Using `replace` write disposition is slower but simpler. If you are using it to 
     SELECT _dlt_load_id, COUNT(*) FROM items GROUP BY 1
     ```
 
-- Optionally, check for continuity in the data. If you have a time axis or incremental IDs with normal distribution, plot them on a line chart to spot any anomalies. For easy plotting, we suggest using our integrated [marimo notebook](./dataset-access/marimo.md).
+- Optionally, check for continuity in the data. If you have a time axis or incremental IDs with normal distribution, plot them on a line chart to spot any anomalies. For easy plotting, we suggest using our integrated [marimo notebook](../../general-usage/dataset-access/marimo.md).
 
 ### 3) Is my normalized schema the one I actually want?
 
@@ -129,8 +129,8 @@ To inspect the schema, check the Schema Explorer:
 
 **Options to change your schema**
 
-- [**Filter at extraction** to drop unneeded fields](../dlt-ecosystem/transformations/add-map.md)
-- [**Reduce unnesting**](../reference/frequently-asked-questions.md#can-i-configure-different-nesting-levels-for-each-resource) or keep some payloads as **complex (nested) types** if your destination supports it.
+- [**Filter at extraction** to drop unneeded fields](../../dlt-ecosystem/transformations/add-map.md)
+- [**Reduce unnesting**](../../reference/frequently-asked-questions.md#can-i-configure-different-nesting-levels-for-each-resource) or keep some payloads as **complex (nested) types** if your destination supports it.
 
 **Example:** Using `json` type with REST API:
 
@@ -202,9 +202,9 @@ SELECT * FROM {your_table} LIMIT 10
 
 1. Check the API docs for expansion parameters that return nested/related data.
 2. Add additional endpoints to your source if you need related entities.
-3. Use [`add_map`](../dlt-ecosystem/transformations/add-map.md) to hash PII or reshape records before loading.
+3. Use [`add_map`](../../dlt-ecosystem/transformations/add-map.md) to hash PII or reshape records before loading.
 
-Use the Dataset Browser to explore the data, or the [marimo notebook](./dataset-access/marimo.md) for more complex analysis.
+Use the Dataset Browser to explore the data, or the [marimo notebook](../../general-usage/dataset-access/marimo.md) for more complex analysis.
 
 ### 5) Are my data types correct?
 
@@ -231,11 +231,11 @@ Open the Schema Explorer and check the `data_type` column for each field:
 detections = ["iso_timestamp", "timestamp", "large_integer"]
 ```
 
-2. **Transform at extraction** using [`add_map`](../dlt-ecosystem/transformations/add-map.md) to cast values before they hit the schema.
+2. **Transform at extraction** using [`add_map`](../../dlt-ecosystem/transformations/add-map.md) to cast values before they hit the schema.
 
 **Docs:**
-- [Schema → Data type autodetectors](schema.md#data-type-autodetectors)
-- [`add_map` for custom record transformations](../dlt-ecosystem/transformations/add-map.md)
+- [Schema → Data type autodetectors](../../general-usage/schema.md#data-type-autodetectors)
+- [`add_map` for custom record transformations](../../dlt-ecosystem/transformations/add-map.md)
 
 ## Understanding the dashboard
 
@@ -264,7 +264,7 @@ This section queries and displays the state information that has been successful
 
 ### Schema explorer
 
-The schema browser allows you to dive deep into your pipeline's [schemas](schema.md) and see all tables, columns, and type hints. This view is based on the dlt schema, the internal blueprint used to create and update tables in your destination.
+The schema browser allows you to dive deep into your pipeline's [schemas](../../general-usage/schema.md) and see all tables, columns, and type hints. This view is based on the dlt schema, the internal blueprint used to create and update tables in your destination.
 
 When loading data for the first time, use this section to:
 
@@ -290,7 +290,7 @@ All query results are cached. The **Query History** shows previous runs that ben
 
 ### Pipeline state
 
-This section displays a raw, JSON view of the currently stored pipeline state. This state is critical for tracking progress, especially for [incremental loading](incremental-loading.md) logic.
+This section displays a raw, JSON view of the currently stored pipeline state. This state is critical for tracking progress, especially for [incremental loading](../../general-usage/incremental-loading.md) logic.
 
 ![Pipeline state](https://storage.googleapis.com/dlt-blog-images/dashboard-state.png)
 
@@ -409,4 +409,4 @@ marimo edit dlt_dashboard.py
 
 ## Further reading
 
-If you are running `dlt` in Python interactively or in a notebook, read the [Accessing loaded data in Python](./dataset-access/dataset.md) guide.
+If you are running `dlt` in Python interactively or in a notebook, read the [Accessing loaded data in Python](../../general-usage/dataset-access/dataset.md) guide.

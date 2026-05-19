@@ -60,7 +60,6 @@ const sidebars = {
             },
           ]
         },
-        'general-usage/dashboard',
         {
           type: 'category',
           label: 'Release highlights',
@@ -437,7 +436,7 @@ const sidebars = {
       items: [
         'hub/workspace/overview',
         'hub/workspace/init',
-        { type: 'ref', id: 'general-usage/dashboard' },
+        'hub/workspace/dashboard',
         'hub/ecosystem/ms-sql',
         'hub/ecosystem/delta',
         'hub/ecosystem/iceberg',

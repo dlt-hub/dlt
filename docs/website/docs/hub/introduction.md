@@ -23,9 +23,9 @@ dltHub is built around the open-source library [dlt](../intro.md). It reuses the
 * [Transformations](features/transformations/index.md)
 * [Data quality](features/quality/data-quality.md)
 * [Managed infrastructure for pipelines and data apps](runtime/overview.md)
-* [Observability](../general-usage/dashboard.md) for pipelines and data apps
+* [Observability](workspace/dashboard.md) for pipelines and data apps
 
-dltHub supports both local and managed cloud development. From a [dltHub Workspace](workspace/overview.md), with isolated [profiles](core-concepts/profiles-dlthub.md) for `dev`, `prod`, and `access` environments, a single developer can deploy and operate pipelines, transformations, and notebooks with a single command. The [platform](runtime/overview.md), [workspace dashboard](../general-usage/dashboard.md), and validation tools provide monitoring, troubleshooting, and reliability across the full data workflow:
+dltHub supports both local and managed cloud development. From a [dltHub Workspace](workspace/overview.md), with isolated [profiles](core-concepts/profiles-dlthub.md) for `dev`, `prod`, and `access` environments, a single developer can deploy and operate pipelines, transformations, and notebooks with a single command. The [platform](runtime/overview.md), [workspace dashboard](workspace/dashboard.md), and validation tools provide monitoring, troubleshooting, and reliability across the full data workflow:
 
 ```mermaid
 flowchart LR
@@ -83,7 +83,7 @@ Deploy, schedule, and monitor pipelines, transformations, and notebooks without 
 
 * [dltHub platform](runtime/overview.md)—one-command deploy of an entire workspace, with cron and event-driven [triggers](runtime/triggers.md), follow-up chains, freshness checks, and refresh cascades. Sign in at [app.dlthub.com](https://app.dlthub.com)
 * [Profiles](core-concepts/profiles-dlthub.md) and [regions](runtime/regions.md)—isolate `dev`, `prod`, and `access` configurations and credentials, and choose where your data plane runs
-* [Workspace dashboard & monitoring](../general-usage/dashboard.md)—observe runs, schemas, and lineage from a single UI; stream logs and [diagnose failures](runtime/monitor-and-debug.md) from the CLI or Web UI
+* [Workspace dashboard & monitoring](workspace/dashboard.md)—observe runs, schemas, and lineage from a single UI; stream logs and [diagnose failures](runtime/monitor-and-debug.md) from the CLI or Web UI
 
 ### [Data quality & governance](features/quality/data-quality.md)
 
