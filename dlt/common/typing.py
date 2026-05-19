@@ -125,6 +125,10 @@ TDataItem: TypeAlias = Any
 """A single data item as extracted from data source"""
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
 "A single data item or a list as extracted from the data source"
+TDataRecord = dict[str, Any]
+"""Table row dictionary. Not guaranteed to be JSON serializable without custom encoding."""
+TDataRecordBatch = list[TDataRecord]
+"""List of table row dictionaries. Not guaranteed to be JSON serializable without custom encoding."""
 TAnyDateTime = Union[pendulum.DateTime, pendulum.Date, datetime, date, str, float, int]
 """DateTime represented as pendulum/python object, ISO string or unix timestamp"""
 TTimeInterval = Tuple[datetime, datetime]

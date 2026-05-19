@@ -249,7 +249,6 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                     self.config,  # type: ignore
                     destination_state(),
                     _streaming_load,  # type: ignore
-                    [],
                     callable_requires_job_client_args=True,
                 )
             else:

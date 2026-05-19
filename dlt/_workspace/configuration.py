@@ -13,9 +13,9 @@ class WorkspaceSettings(BaseConfiguration):
     # immediately needed it will be skipped for now
     # default_profile: Optional[str] = None
     working_dir: Optional[str] = None
-    """Pipeline working dirs, other writable folders, local destination files (by default). Relative to workspace root"""
+    """Pipeline state and other writable runtime files. Defaults to `.dlt/state/<profile>`. Relative to workspace root."""
     local_dir: Optional[str] = None
-    """Destination local files, by default it is within data_dir/local. Relative to workspace root"""
+    """Local destination data (e.g. duckdb files). Defaults to `.dlt/data/<profile>`. Relative to workspace root."""
 
 
 @configspec
@@ -24,11 +24,13 @@ class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
 
     workspace_id: Optional[str] = None
     """Id of the remote workspace that local one should be connected to"""
+    organization_id: Optional[str] = None
+    """Id of the organization of the remote workspace"""
     auth_token: Optional[TSecretStrValue] = None
     """JWT token for Runtime API"""
-    auth_base_url: Optional[str] = "https://dlthub.app/api/auth"
-    """Base URL for the dltHub Runtime authentication API"""
-    api_base_url: Optional[str] = "https://dlthub.app/api/api"
+    api_key: Optional[TSecretStrValue] = None
+    """API key for Runtime API"""
+    api_base_url: Optional[str] = "https://api.dlthub.com"
     """Base URL for the dltHub Runtime API"""
     ai_context_api_url: Optional[str] = "https://scaffold.apps.dlthub.com"
     """Base URL for the AI context documentation API"""

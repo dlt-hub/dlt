@@ -302,6 +302,30 @@ def test_allow_external_schedulers_without_interval_warns() -> None:
     assert any("allow_external_schedulers" in w and "no interval" in w for w in result.warnings)
 
 
+@pytest.mark.parametrize("profile_name", ["dev", "tests"])
+def test_validate_rejects_local_profile_requirement(profile_name: str) -> None:
+    """Jobs cannot require a local-only profile — the cloud has no synced config for them."""
+    job = _make_job(
+        "jobs.mod.local_only",
+        triggers=["schedule:0 0 * * *"],
+        require={"profile": profile_name},
+    )
+    result = validate_job_definition(job)
+    assert any("local-only profile" in e for e in result.errors), result.errors
+
+
+@pytest.mark.parametrize("profile_name", ["prod", "access", "analytics"])
+def test_validate_accepts_synced_or_custom_profile_requirement(profile_name: str) -> None:
+    """Synced built-in profiles and custom profiles are valid in require.profile."""
+    job = _make_job(
+        "jobs.mod.synced",
+        triggers=["schedule:0 0 * * *"],
+        require={"profile": profile_name},
+    )
+    result = validate_job_definition(job)
+    assert not any("local-only profile" in e for e in result.errors), result.errors
+
+
 def test_misaligned_interval_start_warns() -> None:
     """Start not on a cron tick produces a warning."""
     manifest = _make_manifest(

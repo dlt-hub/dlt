@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 import dlt
 from dlt.common.exceptions import MissingDependencyException, TypeErrorWithKnownTypes
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     LOADS_TABLE_NAME,
@@ -162,9 +163,9 @@ def _get_graph_header(schema_name: str, include_dlt_tables: bool) -> str:
     """
     layout_root_table = f', root="{LOADS_TABLE_NAME}"' if include_dlt_tables else ""
     return f"""digraph {schema_name} {{
-    graph [fontname="helvetica", fontcolor="{{TABLE_BORDER_COLOR}}", rankdir="BT", ranksep=5, layout="twopi"{layout_root_table}];
+    graph [fontname="helvetica", fontcolor="{TABLE_BORDER_COLOR}", rankdir="BT", ranksep=5, layout="twopi"{layout_root_table}];
     node [penwidth=0, margin=0, fontname="helvetica"];
-    edge [fontname="helvetica", fontcolor="{{TABLE_BORDER_COLOR}}", color="{{TABLE_BORDER_COLOR}}"];
+    edge [fontname="helvetica", fontcolor="{TABLE_BORDER_COLOR}", color="{TABLE_BORDER_COLOR}"];
 
 """
 
@@ -243,6 +244,7 @@ def _add_references(
     schema: TStoredSchema,
     graphviz_dot: str,
     *,
+    naming: NamingConvention,
     include_dlt_tables: bool,
     include_internal_dlt_ref: bool,
     include_parent_child_ref: bool,
@@ -274,7 +276,7 @@ def _add_references(
             # possible cardinality: `-` (1-to-1) or `>` (m-to-1)
             graphviz_dot += _to_dot_reference(
                 from_table_name=table_name,
-                reference=create_load_table_reference(table),
+                reference=create_load_table_reference(table, naming=naming),
                 tables=tables,
                 # cardinality=">",  # m-to-1
             )
@@ -312,7 +314,7 @@ def _add_references(
         # possible: cardinality: `-` (1-to-1) or `<` (1-to-m)
         graphviz_dot += _to_dot_reference(
             from_table_name=VERSION_TABLE_NAME,
-            reference=create_version_and_loads_hash_reference(tables),
+            reference=create_version_and_loads_hash_reference(tables, naming=naming),
             tables=tables,
             # cardinality="<",
         )
@@ -321,7 +323,7 @@ def _add_references(
         # possible: cardinality: `-` (1-to-1), `<` (1-to-m), or `<>` (m-to-n)
         graphviz_dot += _to_dot_reference(
             from_table_name=VERSION_TABLE_NAME,
-            reference=create_version_and_loads_schema_name_reference(tables),
+            reference=create_version_and_loads_schema_name_reference(tables, naming=naming),
             tables=tables,
             # cardinality="<>",
         )
@@ -333,6 +335,7 @@ def _add_references(
 def schema_to_graphviz(
     schema: TStoredSchema,
     *,
+    naming: NamingConvention,
     include_dlt_tables: bool = True,
     include_internal_dlt_ref: bool = True,
     include_parent_child_ref: bool = True,
@@ -367,6 +370,7 @@ def schema_to_graphviz(
     graphviz_dot = _add_references(
         schema,
         graphviz_dot,
+        naming=naming,
         include_dlt_tables=include_dlt_tables,
         include_internal_dlt_ref=include_internal_dlt_ref,
         include_parent_child_ref=include_parent_child_ref,
@@ -491,13 +495,19 @@ def render_schema_with_graphviz(
 
     if isinstance(obj, dlt.Schema):
         stored_schema = obj.to_dict()
-    # TODO better type check on `TStoredSchema`; can't check isinstance against TypedDict
-    elif isinstance(obj, dict):
-        stored_schema = obj
+        naming = obj.naming
     elif isinstance(obj, dlt.Pipeline):
         stored_schema = obj.default_schema.to_dict()
+        naming = obj.default_schema.naming
     elif isinstance(obj, dlt.Dataset):
         stored_schema = obj.schema.to_dict()
+        naming = obj.schema.naming
+    # TODO better type check on `TStoredSchema`; can't check isinstance against TypedDict
+    elif isinstance(obj, dict):
+        from dlt.common.schema.normalizers import naming_from_reference
+
+        stored_schema = obj
+        naming = naming_from_reference(stored_schema["normalizers"]["names"])
     else:
         raise TypeErrorWithKnownTypes(
             "obj", obj, ["dlt.Schema", "dlt.Pipeline", "dlt.Dataset", "TStoredSchema"]
@@ -505,6 +515,7 @@ def render_schema_with_graphviz(
 
     dot_string = schema_to_graphviz(
         stored_schema,
+        naming=naming,
         include_dlt_tables=include_dlt_tables,
         include_internal_dlt_ref=include_internal_dlt_ref,
         include_parent_child_ref=include_parent_child_ref,

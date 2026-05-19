@@ -19,6 +19,9 @@ from tests.utils import (
     autouse_test_storage,
     preserve_environ,
     deactivate_pipeline,
+    auto_module_test_storage,
+    auto_module_test_run_context,
+    preserve_module_environ,
 )
 from dlt._workspace.helpers.dashboard import strings as app_strings, utils
 

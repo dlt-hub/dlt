@@ -31,6 +31,7 @@ from dlt.extract.items import TTableHintTemplate
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
+    from dlt.extract.incremental import Incremental
 
 
 class IncrementalTransform:
@@ -610,3 +611,35 @@ class ArrowIncremental(IncrementalTransform):
             if rows_with_null.num_rows > 0:
                 raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path)
         return rows_without_null, rows_with_null
+
+
+class ModelIncremental(IncrementalTransform):
+    """Incremental transform for `Relation` items.
+
+    Filtering happens via SQL pushdown when `Relation.incremental(cursor)` is applied.
+    When `end_value` is set, state is not advanced from observed data; otherwise the
+    aggregate over the filtered relation advances `last_value`.
+    """
+
+    # parent `Incremental` so we can auto-apply below
+    _incremental: Optional["Incremental[Any]"]
+
+    def __call__(self, relation: TDataItem) -> Tuple[Optional[TDataItem], bool, bool]:
+        ctx = getattr(relation, "_incremental_ctx", None)
+        if ctx is None:
+            # bare relation, no `.incremental()`. Auto-apply using the parent `Incremental`
+            relation = relation.incremental(self._incremental)
+
+        if self.end_value is not None:
+            # external scheduler/ephemeral mode: state not advanced from observed data.
+            self.seen_data = True
+            return relation, False, False
+
+        agg_rel = relation._incremental_aggregate_relation()
+        if agg_rel is not None:
+            new_value = agg_rel.fetchscalar()
+            if new_value is not None:
+                self.last_value = new_value
+
+        self.seen_data = True
+        return relation, False, False

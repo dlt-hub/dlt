@@ -1,13 +1,30 @@
-from typing import Callable, Dict, List, Optional, Tuple, Union, Set, Any, Iterable, Literal
+from datetime import date, datetime  # noqa: I251
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    Set,
+    Any,
+    Iterable,
+    Literal,
+    TYPE_CHECKING,
+)
 import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.expressions import DataType, DATA_TYPE
 from sqlglot.optimizer.scope import build_scope
 
+from dlt.common.time import DEFAULT_TIMESTAMP_PRECISION
 from dlt.common.utils import without_none
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnType, TDataType, TColumnSchema, TTableSchemaColumns
 from dlt.common.schema.exceptions import CannotCoerceNullException
+
+if TYPE_CHECKING:
+    from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 
 
 TSqlGlotDialect = Literal[
@@ -635,6 +652,88 @@ def build_typed_literal(
         return sge.Tuple(expressions=[_literal(v) for v in value])
     else:
         return _literal(value)
+
+
+def resolve_timestamp_cast(
+    lower: Any,
+    upper: Any,
+    caps: Optional["DestinationCapabilitiesContext"],
+) -> Tuple[Optional[sge.DataType], Any, Any]:
+    """Resolve the cast type and ISO-string bounds for a timestamp pair.
+
+    Tunes the SQLGlot DataType and the bound literals to the destination's
+    quirks: precision, tz-aware-in-CAST support, dialect-specific dropouts
+    (sqlite). Non-datetime bounds pass through unchanged.
+
+    Args:
+        lower (Any): Lower bound; a `datetime` is reformatted, anything else
+            is returned as-is (including `None`).
+        upper (Any): Upper bound; same handling as `lower`.
+        caps (Optional[DestinationCapabilitiesContext]): Destination caps used
+            to pick precision and decide tz / cast behavior. When `None`, a
+            generic tz-aware cast is emitted.
+
+    Returns:
+        Tuple[Optional[sge.DataType], Any, Any]: `(sqlglot_type, lower, upper)`,
+            where `sqlglot_type` is `None` when no cast should be emitted
+            (sqlite's numeric-affinity TIMESTAMP).
+    """
+    # lazy import — `dlt.common.data_writers` reaches back into
+    # `dlt.common.destination`, which imports this module at load time
+    from dlt.common.data_writers.escape import format_datetime_value
+
+    dialect = caps.sqlglot_dialect if caps is not None else None
+    precision = caps.timestamp_precision if caps is not None else DEFAULT_TIMESTAMP_PRECISION
+
+    # tz-awareness comes from the actual bound value — needed so dialects that
+    # split timestamp/timestamptz (bigquery DATETIME vs TIMESTAMP) emit the
+    # right cast and don't reject the comparison
+    tz_sample = (
+        lower if isinstance(lower, datetime) else (upper if isinstance(upper, datetime) else None)
+    )
+    timezone: Optional[bool] = None
+    if tz_sample is not None:
+        timezone = tz_sample.tzinfo is not None
+
+    # naive cast when destination can't store tz-aware (dremio, athena) or its
+    # tz-aware CAST rejects offset literals (clickhouse via the `_in_cast`
+    # override); sqlite emits no cast, but its literal still needs UTC-naive
+    # form to match TEXT-affinity column storage
+    if timezone and caps is not None:
+        cast_tz_ok = (
+            caps.supports_tz_aware_datetime_in_cast
+            if caps.supports_tz_aware_datetime_in_cast is not None
+            else caps.supports_tz_aware_datetime
+        )
+        if not cast_tz_ok or dialect == "sqlite":
+            timezone = False
+
+    # cast precision on athena depends on table format: iceberg supports TIMESTAMP(6)
+    # while regular tables are TIMESTAMP(3). `_dlt_loads` (and other dlt internal
+    # tables) are always iceberg, so a JOIN against them needs microsecond
+    # precision. Below we use (6) for hive tables as well which is proven to work
+    # with them.
+    cast_precision: Optional[int] = precision
+    if dialect == "athena":
+        cast_precision = DEFAULT_TIMESTAMP_PRECISION
+        precision = DEFAULT_TIMESTAMP_PRECISION
+
+    sqlglot_type = to_sqlglot_type(
+        dlt_type="timestamp", timezone=timezone, precision=cast_precision
+    )
+
+    naive = timezone is False
+    if isinstance(lower, datetime):
+        lower = format_datetime_value(lower, precision, no_tz=naive)
+    if isinstance(upper, datetime):
+        upper = format_datetime_value(upper, precision, no_tz=naive)
+
+    # sqlite's CAST AS TIMESTAMP/TIMESTAMPTZ goes through NUMERIC affinity and
+    # parses only leading digits — drop the cast so text comparison works
+    if dialect == "sqlite":
+        sqlglot_type = None
+
+    return sqlglot_type, lower, upper
 
 
 DLT_SUBQUERY_NAME = "_dlt_subquery"

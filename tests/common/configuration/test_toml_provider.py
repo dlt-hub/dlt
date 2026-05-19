@@ -410,6 +410,45 @@ def test_write_value(toml_providers: ConfigProvidersContainer) -> None:
         assert provider._config_doc["new_pipeline"]["runner_config"] == expected_pool
 
 
+def test_set_value_none_deletes_key(toml_providers: ConfigProvidersContainer) -> None:
+    """value=None deletes the key from BOTH the dict mirror and the tomlkit doc."""
+    TAny: Type[Any] = Any
+    provider: SettingsTomlProvider
+    for provider in toml_providers.providers:  # type: ignore[assignment]
+        if not provider.is_writable:
+            continue
+
+        # 1. delete a top-level scalar
+        provider.set_value("_to_delete_top", "value", None)
+        assert provider.get_value("_to_delete_top", TAny, None)[0] == "value"
+        provider.set_value("_to_delete_top", None, None)
+        assert provider.get_value("_to_delete_top", TAny, None)[0] is None
+        assert "_to_delete_top" not in provider._config_doc
+        if hasattr(provider, "_config_toml"):
+            assert "_to_delete_top" not in provider._config_toml.unwrap()
+            assert "_to_delete_top" not in provider.to_toml()
+
+        # 2. delete a nested key — siblings and parent table preserved
+        provider.set_value("a", 1, None, "_del_section", "sub")
+        provider.set_value("b", 2, None, "_del_section", "sub")
+        provider.set_value("a", None, None, "_del_section", "sub")
+        assert provider.get_value("a", TAny, None, "_del_section", "sub")[0] is None
+        assert provider.get_value("b", TAny, None, "_del_section", "sub")[0] == 2
+        assert provider._config_doc["_del_section"]["sub"] == {"b": 2}
+        if hasattr(provider, "_config_toml"):
+            assert provider._config_toml.unwrap()["_del_section"]["sub"] == {"b": 2}
+
+        # 3. delete on a non-existent path is a no-op (does not create empty tables)
+        provider.set_value("k", None, None, "_no_such_section", "deeper")
+        assert "_no_such_section" not in provider._config_doc
+        if hasattr(provider, "_config_toml"):
+            assert "_no_such_section" not in provider._config_toml.unwrap()
+
+        # 4. delete an absent key on an existing path is a no-op (no error)
+        provider.set_value("_never_existed", None, None, "_del_section", "sub")
+        assert provider.get_value("_never_existed", TAny, None, "_del_section", "sub")[0] is None
+
+
 def test_set_spec_value(toml_providers: ConfigProvidersContainer) -> None:
     provider: BaseDocProvider
     for provider in toml_providers.providers:  # type: ignore[assignment]

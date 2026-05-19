@@ -95,9 +95,12 @@ class GithubActionDeployment(BaseDeployment):
         self.schedule_description = get_schedule_description(self.schedule)
         if self.schedule_description is None:
             # TODO: move that check to _dlt and some intelligent help message on missing arg
+            example = fmt.cli_cmd(
+                f'deploy chess.py {self.deployment_method} --schedule "*/30 * * * *"'
+            )
             raise ValueError(
                 f"Setting 'schedule' for '{self.deployment_method}' is required! Use deploy command"
-                f" as 'dlt deploy chess.py {self.deployment_method} --schedule \"*/30 * * * *\"'."
+                f" as '{example}'."
             )
         workflow = self._create_new_workflow()
         serialized_workflow = serialize_templated_yaml(workflow)

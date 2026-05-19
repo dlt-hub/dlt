@@ -18,6 +18,11 @@ LOCAL_PROFILES = ["dev", "tests"]
 """Profiles used in local workspace"""
 
 
+def is_local_profile(name: str) -> bool:
+    """True for profiles never synced to dltHub (dev, tests by default)."""
+    return name in LOCAL_PROFILES
+
+
 def get_profile_pin_file(context: RunContextBase) -> str:
     return context.get_setting(PIN_FILE_NAME)
 

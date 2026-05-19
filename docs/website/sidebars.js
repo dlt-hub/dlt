@@ -414,6 +414,7 @@ const sidebars = {
       label: 'Getting started',
       items: [
         'hub/intro',
+        'hub/oss-and-dlthub',
         'hub/getting-started/installation',
         'hub/getting-started/runtime-tutorial',
       ]
@@ -464,7 +465,7 @@ const sidebars = {
       ]
     },
     'hub/command-line-interface',
-    'hub/EULA',
+    'hub/license',
   ],
   cookbookSidebar: [
     {

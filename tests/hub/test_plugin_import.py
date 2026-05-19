@@ -23,14 +23,13 @@ def test_import_props() -> None:
 
 
 def test_runtime_client_imports(script_runner: ScriptRunner) -> None:
-    pytest.importorskip("dlt_runtime")
-
-    import dlt_runtime  # type: ignore[import-untyped,import-not-found,unused-ignore]
+    # TODO: rename the top level package in dlthub-client
+    import dlt_runtime  # type: ignore[import-not-found,unused-ignore]
 
     print(dlt_runtime.__version__)
 
     # check command activation
 
     with isolated_workspace("pipelines"):
-        result = script_runner.run(["dlt", "runtime", "-h"])
+        result = script_runner.run(["dlthub", "login", "-h"])
         assert result.returncode == 0

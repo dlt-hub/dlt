@@ -516,6 +516,89 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 We enable Databricks to identify that the connection is created by `dlt`.
 Databricks will use this user agent identifier to better understand the usage patterns associated with dlt integration. The connection identifier is `dltHub_dlt`.
 
+## Databricks Zerobus
+
+By default, `dlt` uses [COPY INTO](https://docs.databricks.com/aws/en/sql/language-manual/delta-copy-into) statements to load data. It is also possible to ingest data using [Databricks Zerobus](https://docs.databricks.com/aws/en/ingestion/zerobus-overview). This is only supported for the `append` write disposition.
+
+### Enable Zerobus
+
+:::note
+Databricks Zerobus is currently supported on Linux and Windows only. macOS is not supported because the `databricks-zerobus-ingest-sdk` package does not publish macOS wheels.
+:::
+
+```toml
+[destination.databricks]
+insert_api = "zerobus"
+
+[destination.databricks.credentials]
+catalog = "your-catalog"
+server_hostname = "adb-1234567890123456.7.azuredatabricks.net"
+http_path = "/sql/1.0/warehouses/1234567890abcdef"
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+
+[destination.databricks.zerobus]
+endpoint_url = "https://<your-zerobus-endpoint>"
+```
+
+See the Databricks guide on [how to construct your Zerobus endpoint URL](https://docs.databricks.com/aws/en/ingestion/zerobus-ingest#get-your-workspace-url-and-zerobus-ingest-endpoint).
+
+### Dedicated Zerobus Service Principal
+
+By default, `dlt` uses the `client_id` and `client_secret` from `destination.databricks.credentials` for both the regular Databricks SQL connection and the Zerobus stream.
+
+If you want the Zerobus connection to use a different service principal, configure `destination.databricks.zerobus.credentials` explicitly:
+
+```toml
+[destination.databricks.credentials]
+client_id = "your-sql-client-id"
+client_secret = "your-sql-client-secret"
+
+[destination.databricks.zerobus.credentials]
+client_id = "your-zerobus-client-id"
+client_secret = "your-zerobus-client-secret"
+```
+
+Concerns are separated as follows:
+
+1. **SQL principal** — defined in `destination.databricks.credentials`: authenticates the regular Databricks SQL connection, creates or updates the table, and grants the [necessary privileges](https://docs.databricks.com/aws/en/ingestion/zerobus-ingest#create-a-service-principal-and-grant-permissions) to the Zerobus principal
+2. **Zerobus principal** — defined in `destination.databricks.zerobus.credentials`: authenticates the Zerobus stream that ingests data into the table
+
+### Tune batch size and stream options
+
+`batch_size` controls how many records `dlt` sends in each Zerobus batch. `stream_options` are mapped to `ArrowStreamConfigurationOptions` and passed to the Zerobus SDK when creating the stream.
+
+```toml
+[destination.databricks.zerobus]
+batch_size = 100_000  # default is 25_000
+stream_options = {ipc_compression = "NONE"}  # default `ipc_compression` is `ZSTD`
+```
+
+:::note
+In our internal benchmarking, a batch size of 25_000 with `ZSTD` compression performed best. Since this depends on the workload, you may want to experiment with different settings.
+:::
+
+### File formats and type support
+
+Both `parquet` and `jsonl` are supported. We strongly recommend `parquet` for best performance and the broadest data type support.
+
+| File format | Unsupported with `zerobus` |
+| --- | --- |
+| `parquet` | `decimal`, `wei` |
+| `jsonl` | `decimal`, `wei`, `binary`, `json` |
+
+### Concurrent Zerobus streams
+
+`dlt` opens one Zerobus stream per load job. When a load is split into multiple jobs, multiple Zerobus streams can run at the same time. This can increase throughput and reduce load times.
+
+See the [Load](../../reference/performance.md#load) section of the performance guide to learn how to split a load into multiple concurrent jobs. As with batch size, the right setting depends on your workload.
+
+### Other notes
+
+- Zerobus provides *at-least-once* guarantees, so a destination table may contain duplicates
+- `dlt` uses Arrow-backed Zerobus messages (as opposed to JSON- or protobuf-backed messages)
+- `dlt` system tables always use `copy_into`, even when you set `insert_api` to `zerobus`
+
 ## Databricks adapter
 
 You can use the `databricks_adapter` function to add Databricks-specific hints to a resource. These hints influence how data is loaded into Databricks tables, such as adding comments and tags. Hints can be defined at both the column level and table level.
@@ -531,6 +614,7 @@ The adapter updates the DltResource with metadata about the destination column a
 - `table_comment`: Adds a comment to the table. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax)
 - `table_tags`: Adds tags to the table. Supports a list of strings and/or key-value pairs
 - `table_properties`: Dictionary of table properties for Delta Lake optimization (TBLPROPERTIES)
+- `insert_api`: Ingestion backend for `append` write disposition. Can be `"copy_into"` or `"zerobus"`. Overrides the destination-wide `insert_api` setting for the resource.
 
 **Column-level hints:**
 - `column_hints`: Dictionary of column-specific hints
@@ -575,6 +659,23 @@ databricks_adapter(
     },
 )
 ```
+
+### Override the insert API for one resource
+
+Use `databricks_adapter(..., insert_api=...)` when you want a resource to use a different insert API than the rest of the destination.
+
+```py
+import dlt
+from dlt.destinations.adapters import databricks_adapter
+
+@dlt.resource(write_disposition="append")
+def events():
+    yield from [{"id": 1}, {"id": 2}]
+
+databricks_adapter(events, insert_api="zerobus")
+```
+
+This hint only applies to `append` loads. Use `insert_api="copy_into"` to opt a resource out of a destination-wide Zerobus default.
 
 ### Advanced examples
 
@@ -826,4 +927,3 @@ If this workaround is necessary, validate your setup after each platform upgrade
 :::
 
 <!--@@@DLT_TUBA databricks-->
-

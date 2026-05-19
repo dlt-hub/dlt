@@ -25,7 +25,7 @@ You can [link](https://docs.snowflake.com/LIMITEDACCESS/iceberg/tables-iceberg-e
 
 This destination is available starting from dltHub version 0.9.0. It fully supports all the functionality of the standard Snowflake destination, plus:
 
-1. The ability to create Iceberg tables in Snowflake by configuring `iceberg_mode` in your `config.toml` file or `dlt.yml` file.
+1. The ability to create Iceberg tables in Snowflake by configuring `iceberg_mode` in your `config.toml` file.
 2. Additional configuration for Iceberg tables in Snowflake via:
    - `external_volume`: The external volume name where Iceberg data is stored.
    - `catalog`: The catalog name in which Iceberg tables are created. Defaults to `"SNOWFLAKE"`.
@@ -35,10 +35,10 @@ This destination is available starting from dltHub version 0.9.0. It fully suppo
 
 ## Installation
 
-Install the `dlthub` package with the `snowflake` extra:
+Install the `dlt` package with the `snowflake` extra:
 
 ```sh
-pip install "dlthub[snowflake]"
+pip install "dlt[hub,snowflake]"
 ```
 
 Once the `snowflake` extra is installed, you can configure a pipeline to use `snowflake_plus` exactly the same way you would use the `snowflake` destination.
@@ -54,45 +54,14 @@ Once the `snowflake` extra is installed, you can configure a pipeline to use `sn
 GRANT USAGE ON EXTERNAL VOLUME <external_volume_name> TO ROLE <role_name>;
 ```
 
-5. Configure the `snowflake_plus` destination. For a dltHub project (in `dlt.yml`) or for a Python script (in `config.toml`):
-
-<Tabs
-  groupId="config-format"
-  defaultValue="dlt-yml"
-  values={[
-    {"label": "dlt.yml", "value": "dlt-yml"},
-    {"label": "config.toml", "value": "config-toml"},
-]}>
-  <TabItem value="dlt-yml">
-
-If you don't have a dltHub project yet, initialize one in the current working directory. Replace `sql_database` with the source of your choice:
+5. If you don't have a dltHub workspace yet, initialize one in the current working directory:
 
 ```sh
-dlt project init sql_database snowflake_plus
+dlthub init
+dlthub pipeline init sql_database snowflake
 ```
 
-This will create a Snowflake Plus destination in your `dlt.yml` file:
-
-```yaml
-destinations:
-  snowflake:
-    type: snowflake_plus
-```
-
-To enable Iceberg table creation, set the `iceberg_mode` option and `external_volume` to the name of the external volume you created in step 3.
-
-```yaml
-destinations:
-  snowflake:
-    type: snowflake_plus
-    external_volume: "<external_volume_name>"
-    iceberg_mode: "all"
-```
-
-  </TabItem>
-  <TabItem value="config-toml">
-
-Add the configuration to your `config.toml` file:
+Add the configuration to your `config.toml` file. Set `external_volume` to the name of the external volume you created in step 3 and enable Iceberg table creation by setting `iceberg_mode`:
 
 ```toml
 [destination.snowflake]
@@ -115,9 +84,6 @@ pipeline = dlt.pipeline(
 def my_iceberg_table():
     ...
 ```
-
-  </TabItem>
-</Tabs>
 
 ## Configuration
 
@@ -157,7 +123,7 @@ The name of a [catalog integration](https://docs.snowflake.com/en/user-guide/tab
 - Required: No
 - Default: None
 
-Configure these options in your `config.toml` file under the `[destination.snowflake]` section or in `dlt.yml` file under the `destinations.snowflake_plus` section.
+Configure these options in your `config.toml` file under the `[destination.snowflake]` section.
 
 ## Base location templating
 
@@ -173,16 +139,17 @@ For more flexibility, you can also define custom placeholders using the `extra_p
 1. The default pattern `{dataset_name}/{table_name}` creates paths like `my_dataset/customers` in your external volume.
 
 2. Custom static path:
-   ```yaml
-   base_location: "custom/static/path"
+   ```toml
+   [destination.snowflake]
+   base_location = "custom/static/path"
    ```
    This creates all tables in the same directory `custom/static/path`.
 
 3. Using custom placeholders:
-   ```yaml
-   base_location: "{env}/{dataset_name}/{table_name}"
-   extra_placeholders:
-     env: "prod"
+   ```toml
+   [destination.snowflake]
+   base_location = "{env}/{dataset_name}/{table_name}"
+   extra_placeholders = { env = "prod" }
    ```
    This creates paths like `prod/my_dataset/customers`.
 
@@ -261,36 +228,13 @@ To enable querying of Snowflake-managed Iceberg tables by third-party engines (e
 
 Refer to the [Snowflake documentation](https://docs.snowflake.com/en/user-guide/tables-iceberg-open-catalog-sync#step-4-create-a-catalog-integration-for-open-catalog) for detailed setup instructions.
 
-3. Configure the `catalog_sync` option:
-
-<Tabs
-  groupId="config-format"
-  defaultValue="config-toml"
-  values={[
-    {"label": "dlt.yml", "value": "dlt-yml"},
-    {"label": "config.toml", "value": "config-toml"},
-]}>
-  <TabItem value="dlt-yml">
-
-```yaml
-destinations:
-  snowflake:
-    type: snowflake_plus
-    # ... other configuration
-    catalog_sync: "my_open_catalog_int"
-```
-
-  </TabItem>
-  <TabItem value="config-toml">
+3. Configure the `catalog_sync` option in your `config.toml`:
 
 ```toml
 [destination.snowflake]
 # ... other configuration
 catalog_sync = "my_open_catalog_int"
 ```
-
-  </TabItem>
-</Tabs>
 
 ## Additional Resources
 

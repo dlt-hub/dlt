@@ -7,6 +7,8 @@ if TYPE_CHECKING:
 
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.profile import LOCAL_PROFILES
+
 
 # fallback ignore patterns used when no ignore file is found in the workspace
 DEFAULT_IGNORES: List[str] = [
@@ -87,18 +89,31 @@ class WorkspaceFileSelector(BaseFileSelector):
 
 
 class ConfigurationFileSelector(BaseFileSelector):
-    """Iterates config and secrets files in workspace"""
+    """Iterates top-level config/secrets TOMLs from the workspace settings dir."""
 
     def __init__(
         self,
         context: WorkspaceRunContext,
+        local_profiles: Optional[List[str]] = None,
     ) -> None:
         self.settings_dir: Path = Path(context.settings_dir).resolve()
+        # files belonging to local-only profiles (`dev`, `tests` by default) are excluded
+        if local_profiles is None:
+            local_profiles = LOCAL_PROFILES
+        # filter out files starting with ie. "dev"
+        self._excluded_prefixes: Tuple[str, ...] = tuple(f"{p}." for p in local_profiles)
 
     def __iter__(self) -> Iterator[Tuple[Path, Path]]:
-        """Yield paths of config and secrets paths"""
-        from pathspec.util import iter_tree_files
-
-        for file_path in iter_tree_files(self.settings_dir):
-            if file_path.endswith("config.toml") or file_path.endswith("secrets.toml"):
-                yield self.settings_dir / file_path, Path(file_path)
+        """Yield paths of config and secrets files (flat, profile-filtered)."""
+        if not self.settings_dir.exists():
+            return
+        # picks only files directly under `<workspace>/.dlt/`
+        for entry in sorted(self.settings_dir.iterdir()):
+            if not entry.is_file():
+                continue
+            name = entry.name
+            if not (name.endswith("config.toml") or name.endswith("secrets.toml")):
+                continue
+            if name.startswith(self._excluded_prefixes):
+                continue
+            yield entry, Path(name)

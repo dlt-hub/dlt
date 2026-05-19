@@ -22,6 +22,8 @@ secrets.toml
 *.wal
 logs/
 .continuerules
+**/.dlt/data
+**/.dlt/state
 
 # playwright dumps
 test-results/

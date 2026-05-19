@@ -1,11 +1,11 @@
 ---
 title: Deploy trusted dlt pipelines and dashboards
-description: Tutorial walking through deployment on dltHub Runtime
-keywords: [deployment, runtime, dashboard, dlt pipeline]
+description: Tutorial walking through deployment on the managed dltHub Platform
+keywords: [deployment, dlthub, dashboard, dlt pipeline]
 ---
 
-With the dltHub you can not only build data ingestion pipelines and dashboards, but also **run and manage them on a fully managed dltHub Runtime**.
-See the [Runtime overview](../runtime/overview.md) for more details. You get:
+With dltHub you can not only build data ingestion pipelines and dashboards, but also **run and manage them on a fully managed cloud platform**.
+See the [Platform overview](../runtime/overview.md) for more details. You get:
 
 - the flexibility and developer experience of dlt
 - the simplicity and reliability of managed infrastructure
@@ -14,19 +14,19 @@ See the [Runtime overview](../runtime/overview.md) for more details. You get:
 
 In this tutorial you will:
 
-- Deploy a dlt pipeline on the dltHub managed Runtime
-- Deploy an always-fresh dashboard on the dltHub managed Runtime
+- Deploy a dlt pipeline on the managed dltHub Platform
+- Deploy an always-fresh dashboard on the managed dltHub Platform
 - Add Python transformations to your ELT jobs
 
 ## Prerequisites
 
-- Python 3.13+
+- Python 3.12+
 - A [MotherDuck](https://motherduck.com) account (for the starter pack example)
 - [uv](https://docs.astral.sh/uv/) package manager (recommended for dependency management)
 
 ## Quickstart
 
-To make things easier, we provide a starter repository with a preconfigured dltHub project. It contains a working source, pipeline, transformations, and a small dashboard so you can focus on learning the Runtime rather than setting everything up from scratch.
+To make things easier, we provide a starter repository with a preconfigured dltHub project. It contains a working source, pipeline, transformations, and a small dashboard so you can focus on learning the platform rather than setting everything up from scratch.
 
 This starter pack includes:
 
@@ -38,7 +38,7 @@ This starter pack includes:
 3. A simple Marimo dashboard that you can use to explore and analyze the data.
 4. A set of custom transformations that are executed after the raw data is loaded.
 
-We’ll walk through cloning the repo, installing dependencies, connecting to Runtime, and then deploying both pipelines and dashboards.
+We'll walk through cloning the repo, installing dependencies, connecting to dltHub, and then deploying both pipelines and dashboards.
 
 ### 1. Clone the starter pack
 
@@ -49,46 +49,21 @@ cd runtime-starter-pack
 
 ### 2. Install dependencies and activate the environment
 
-The starter pack comes with a `pyproject.toml` that defines all required dependencies:
-
-```toml
-[project]
-name = "runtime-starter-pack"
-version = "0.1.0"
-requires-python = ">=3.13"
-dependencies = [
-    "dlt[motherduck,workspace,hub]==1.20.0a0",
-    "marimo>=0.18.2",
-    "numpy>=2.3.5",
-]
-```
-
-Install everything with uv:
+Each workspace inside the starter pack comes with its own `pyproject.toml` that pulls in `dlt[hub]` plus workspace-specific extras. Install everything with `uv`:
 
 ```sh
+cd jaffle_shop_workspace
 uv sync
-```
-
-Activate the environment:
-
-```sh
 source .venv/bin/activate
 ```
 
 ### 3. Configure your credentials
 
-If you are running this tutorial as part of the early access program, you need to create `.dlt/secrets.toml` file and add your Runtime invite code there:
+Configure your destination credentials. The starter pack uses MotherDuck as the destination, but you can switch to any other destination you prefer.
+Details on configuring credentials for the dltHub Platform are available [here](../runtime/overview.md#credentials-and-configs).
+Make sure your destination credentials are valid before running pipelines remotely. Below you can find instructions for configuring credentials for the MotherDuck destination.
 
-```toml
-[runtime]
-invite_code="xxx-yyy"
-```
-
-Next, configure your destination credentials. The starter pack uses MotherDuck as the destination, but you can switch to any other destination you prefer.
-Details on configuring credentials for Runtime are available [here](../runtime/overview.md#credentials-and-configs).
-Make sure your destination credentials are valid before running pipelines remotely. Below you can find instructions for configuring credentials for MotherDuck destination.
-
-**`prod.config.toml`** (for batch jobs running on Runtime):
+**`prod.config.toml`** (for batch jobs running on dltHub):
 
 ```toml
 [destination.fruitshop_destination]
@@ -127,108 +102,129 @@ password = "your-motherduck-read-only-token"  # Read-only token
 :::
 
 :::warning Security
-Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Never commit secrets to version control. The Runtime securely stores your secrets when you sync your configuration.
+Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Never commit secrets to version control. dltHub stores your secrets securely when you sync your configuration.
 :::
 
-### 4. Log in to dltHub Runtime
+### 4. Connect to dltHub
 
-Authenticate your local workspace with the managed Runtime:
+Authentication is split into two steps: log in (identity) and connect this workspace directory to a remote workspace.
 
 ```sh
-uv run dlt runtime login
+# 1. log in (OAuth device flow)
+uv run dlthub login
+
+# 2. bind the current workspace directory to a remote workspace
+uv run dlthub workspace connect
 ```
 
-This will:
-
-1. Open a browser window.
-2. Use GitHub OAuth for authentication.
-3. Link your local workspace to your dltHub Runtime account through automatically generated workspace id. You can find this id in your `config.toml`.
-
-Currently, GitHub-based authentication is the only supported method. Additional authentication options will be added later.
+`dlthub workspace connect` writes `workspace_id` (and on the first connect, `organization_id`) into `.dlt/config.toml`. Pass `<name_or_id>` to bind to a specific workspace, or omit it for an interactive picker grouped by organization.
 
 :::tip
-For a full list of available commands and options, see the [Runtime CLI reference](../runtime/overview.md#common-commands).
+The first time you run `dlthub deploy`, `dlthub run`, or `dlthub serve`, the CLI auto-prompts both `login` and `workspace connect` if they haven't been done yet — so you can skip step 4 entirely if you don't mind doing it inline.
+
+For a full list of available commands, see the [CLI reference](../command-line-interface.md).
 :::
 
-### Job types in dltHub Runtime
+### Local vs remote scopes
 
-dltHub Runtime supports two types of jobs:
+The `dlthub` CLI is split into two scopes:
 
-- **Batch jobs** – Python scripts that are meant to be run once or on a schedule.
-  - Created with commands like `dlt runtime launch <script>` (and scheduled with `dlt runtime schedule <script>`).
-  - Typical use cases: ELT pipelines, transformation runs, backfills.
-  - Runs with the `prod` profile.
+- **local** — `dlthub local …` runs everything on your machine using local profiles (default `dev`).
+- **remote** — `dlthub …` (unqualified) operates on the connected dltHub workspace.
 
-- **Interactive jobs** – long-running jobs that serve an interactive notebook or app.
-  - Started with `dlt runtime <script>`.
-  - Typical use cases: Marimo notebooks, dashboards, and (in the future) apps like Streamlit.
-  - Runs with the `access` profile.
+Run the local form first to catch missing dependencies or misconfigured destinations without burning a remote slot.
 
-### 5. Run your first pipeline on Runtime
+### Job types
 
-Now let’s deploy and run a pipeline remotely:
+dltHub runs two kinds of jobs:
+
+- **Batch jobs** — Python scripts that run once or on a schedule. Trigger with `dlthub run <script_or_job>`. Use case: ELT pipelines, transformation runs, backfills. Runs with the `prod` profile.
+- **Interactive jobs** — long-running processes that serve a notebook or app. Trigger with `dlthub serve <script>`. Use case: Marimo notebooks, dashboards, Streamlit apps, MCP servers. Runs with the `access` profile.
+
+### 5. Run your first pipeline
+
+Smoke-test the pipeline locally, then deploy it:
 
 ```sh
-uv run dlt runtime launch fruitshop_pipeline.py
+# test locally first (uses the `dev` profile)
+uv run dlthub local run fruitshop_pipeline.py
+
+# deploy and run remotely (uses the `prod` profile)
+uv run dlthub run fruitshop_pipeline.py
 ```
 
-This single command:
+`dlthub run`:
 
-1. Uploads your code and configuration to Runtime.
+1. Uploads your code and configuration to dltHub.
 2. Creates and starts a batch job.
-3. Streams logs and status, so you can follow the run from your terminal. To run it in deatached mode, use `uv run dlt runtime launch fruitshop_pipeline.py -d`
+3. Returns immediately. Add `-f` to follow logs in your terminal until completion:
 
-dltHub supports two types of jobs:
-* batch job, which are Python scripts, which are supposed to be run once or scheduled
-* interactive job, which basically serves the interactive notebook
+```sh
+uv run dlthub run fruitshop_pipeline.py -f
+```
 
 ### 6. Open an interactive notebook
 
 ```sh
-uv run dlt runtime serve fruitshop_notebook.py
+# serve locally first
+uv run dlthub local serve fruitshop_notebook.py
+
+# deploy and serve remotely
+uv run dlthub serve fruitshop_notebook.py
 ```
 
-This command:
+The remote command:
 
 1. Uploads your code and configuration.
-2. Starts an interactive notebook session using the access profile.
+2. Starts an interactive notebook session using the `access` profile.
 3. Opens the notebook in your browser.
 
 :::note
 Interactive notebooks use the `access` profile with read-only credentials, so they are safe for data exploration and dashboarding without the risk of accidental writes.
-Read more about profiles in the [Runtime profiles docs](../runtime/overview.md#profiles).
+Read more about profiles in the [profiles documentation](../core-concepts/profiles-dlthub.md).
 :::
 
-Interactive jobs are the building block for serving notebooks, dashboards , streamlit or similar apps (in the future).
-At the moment, only Marimo is supported. You can share links to these interactive jobs with your colleagues for collaborative exploration.
+Interactive jobs are the building block for serving notebooks, dashboards, Streamlit, or similar apps. You can share links to these interactive jobs with your colleagues for collaborative exploration.
 
 ### 7. Schedule a pipeline
 
-To run a pipeline on a schedule, use:
+Scheduling is declarative — define the trigger in code with `@run.pipeline` (or `@run.job`) and redeploy. A pipeline that runs every 10 minutes:
 
-```sh
-uv run dlt runtime schedule fruitshop_pipeline.py "*/10 * * * *"
+```py
+import dlt
+from dlt.hub import run
+from dlt.hub.run import trigger
+
+@run.pipeline(
+    "fruitshop_pipeline",
+    trigger=trigger.schedule("*/10 * * * *"),
+)
+def load_fruitshop():
+    pipeline = dlt.pipeline(
+        pipeline_name="fruitshop_pipeline",
+        destination="fruitshop_destination",
+        dataset_name="fruitshop_data",
+    )
+    pipeline.run(fruitshop())
 ```
 
-This example schedules the pipeline to run every 10 minutes. Use [crontab.guru](https://crontab.guru) to build and test your cron expressions.
-
-To cancel an existing schedule:
+Wire the decorated function into `__deployment__.py` and deploy with:
 
 ```sh
-uv run dlt runtime schedule fruitshop_pipeline.py cancel
+uv run dlthub deploy
 ```
+
+To stop a schedule, remove the trigger from the decorator (or remove the job from `__deployment__.py`) and redeploy. See the [Platform overview](../runtime/overview.md#jobs-and-deployments) for the full story on jobs and deployments.
 
 ## Review and manage jobs in the UI
 
-The command line is great for development, but the dltHub web UI gives you a bird’s-eye view of everything running on Runtime.
-Visit [dlthub.app](https://dlthub.app) to access the dashboard. You will find:
+The command line is great for development, but the dltHub web UI gives you a bird's-eye view of everything running in the cloud.
+Visit [dlthub.app](https://dlthub.app) — or open it from the CLI with `uv run dlthub show` — to access the dashboard. You will find:
 
 1. A list of existing jobs.
 2. An overview of scheduled runs.
 3. Visibility into interactive sessions.
-4. Management actions and workspace settings
-
-Visit [dlthub.app](https://dlthub.app) to access the web dashboard. The dashboard provides overview of your existing jobs, scheduled and interactive runs and some management and settings.
+4. Management actions and workspace settings.
 
 ### Pipelines and data access in the Dashboard
 
@@ -243,7 +239,14 @@ Interactive jobs such as notebooks and dashboards can be shared via public links
 2. Click "Manage Public Link".
 3. Enable the link to generate a shareable URL, or disable it to revoke access.
 
-Anyone with an active public link can view the running notebook or dashboard, even if they don’t have direct Runtime access. This is ideal for sharing dashboards with stakeholders, business users, or other teams.
+Anyone with an active public link can view the running notebook or dashboard, even if they don't have direct dltHub access. This is ideal for sharing dashboards with stakeholders, business users, or other teams.
+
+You can also generate / revoke a public link from the CLI:
+
+```sh
+uv run dlthub job publish path/to/notebook.py
+uv run dlthub job unpublish path/to/notebook.py
+```
 
 ## Add transformations
 
@@ -255,9 +258,9 @@ dltHub Transformations let you build new tables or entire datasets from data tha
 Key characteristics:
 
 1. Defined in Python functions decorated with `@dlt.hub.transformation`.
-2. Can use Python (via Ibis) or pure SQL
-3. Operate on the destination dataset (`dlt.Dataset`)
-4. Executed on the destination compute or locally via DuckDB
+2. Can use Python (via Ibis) or pure SQL.
+3. Operate on the destination dataset (`dlt.Dataset`).
+4. Executed on the destination compute or locally via DuckDB.
 
 You can find full details in the [Transformations](../features/transformations/index.md) documentation. Below are a few core patterns to get you started.
 
@@ -333,51 +336,41 @@ The starter pack includes a predefined `jaffle_transformations.py` script that:
 2. Loads them into a local DuckDB (default dev profile).
 3. Creates aggregations and loads them into the remote destination.
 
-:::tip
-Before running transformations locally, you need to issue a license for the transformations feature:
-
-```sh
-dlt license issue dlthub.transformation
-```
-You can find more details in the [license section](../getting-started/installation.md#self-licensing) of the docs.
-:::
-
 To run transformations locally (using the default `dev` profile):
 
 ```sh
-uv run python jaffle_transformations.py
+uv run dlthub local run jaffle_transformations.py
 ```
 
 ### Running with the production profile
 
-To run the same transformations against your production destination:
+To run the same transformations against your production destination, pin the `prod` profile first:
 
 ```sh
-uv run dlt profile prod pin
-uv run python jaffle_transformations.py
+uv run dlthub local profile use prod
+uv run dlthub local run jaffle_transformations.py
 ```
 
-* `dlt profile prod pin` sets prod as the active profile.
-* The script will now read from and write to the production dataset and credentials.
+`dlthub local profile use prod` pins `prod` as the active local profile. Subsequent `dlthub local …` commands read from and write to the production credentials and dataset.
 
-### Deploying transformations to Runtime
+### Deploying transformations to dltHub
 
-You can deploy and orchestrate transformations on dltHub Runtime just like any other pipeline:
+You can deploy and orchestrate transformations on dltHub just like any other pipeline:
 
 ```sh
-uv run dlt runtime launch jaffle_transformations.py
+uv run dlthub run jaffle_transformations.py
 ```
 
-This uploads the transformation script, runs it on managed infrastructure, and streams logs back to your terminal. You can also schedule this job and monitor it via the dltHub UI.
+This uploads the transformation script, runs it on managed infrastructure, and streams logs back to your terminal. You can also schedule this job (declare a `trigger=` on the decorator and run `dlthub deploy`) and monitor it via the dltHub UI.
 
 ## Next steps
 
-You’ve completed the introductory tutorial for dltHub Runtime: you’ve learned how to deploy pipelines, run interactive notebooks, and add transformations.
+You've completed the introductory tutorial for the managed dltHub Platform: you've learned how to deploy pipelines, run interactive notebooks, and add transformations.
 
 As next steps, we recommend:
 
-1. Take one of your existing dlt pipelines and schedule it on the managed Runtime.
-2. Explore our [MCP](../features/mcp-server.md) integration for connecting Runtime to tools and agents.
-3. Add  [data checks](../features/quality/data-quality.md) to your pipelines to monitor data quality and catch issues early.
+1. Take one of your existing dlt pipelines and schedule it on the managed platform.
+2. Explore our [MCP](../features/mcp-server.md) integration for connecting dltHub to tools and agents.
+3. Add [data checks](../features/quality/data-quality.md) to your pipelines to monitor data quality and catch issues early.
 
-This gives you a trusted, managed environment for both ingestion and analytics, built on dlt and powered by dltHub Runtime.
+This gives you a trusted, managed environment for both ingestion and analytics, built on dlt and powered by dltHub.

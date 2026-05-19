@@ -47,6 +47,10 @@ dependencies = [
     "logfire>=4.32.1",
 ]
 
+[dependency-groups]
+hub = [
+    "dlt[hub]"
+]
 
 [tool.hatch.build.targets.sdist]
 include = [
