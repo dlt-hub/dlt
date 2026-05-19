@@ -503,6 +503,13 @@ class PackageStorage:
         failed_message: Optional[str] = None,
     ) -> None:
         """Atomically saves a pending transition marker with state and optional error."""
+        self.storage.create_folder(
+            os.path.join(
+                self.get_package_path(load_id),
+                PackageStorage.PENDING_TRANSITIONS_FOLDER,
+            ),
+            exists_ok=True,
+        )
         rel_path = self._pending_transition_path(load_id, file_name)
         content = json.dumps({"state": state, "failed_message": failed_message})
         self.storage.save(rel_path, content)

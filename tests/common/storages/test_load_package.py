@@ -505,6 +505,26 @@ def test_save_load_pending_transition(load_storage: LoadStorage) -> None:
     assert msg is None
 
 
+def test_save_pending_transition_creates_missing_folder_for_legacy_package(
+    load_storage: LoadStorage,
+) -> None:
+    """save_pending_transition recreates the folder missing in legacy load packages."""
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}], start_job=True, file_count=1
+    )
+    packages = load_storage.normalized_packages
+    fn = file_names[0]
+
+    packages.storage.delete_folder(
+        os.path.join(load_id, PackageStorage.PENDING_TRANSITIONS_FOLDER),
+        recursively=True,
+    )
+
+    packages.save_pending_transition(load_id, fn, "completed")
+
+    assert packages.load_pending_transition(load_id, fn) == ("completed", None)
+
+
 @pytest.mark.parametrize(
     "message",
     [
