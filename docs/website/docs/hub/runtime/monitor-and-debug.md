@@ -102,7 +102,7 @@ The Dashboard page provides a workspace-wide overview, summarizing job status an
 
 ## Known limitations
 
-- Batch jobs have a configurable **maximum runtime**. Jobs exceeding this limit are automatically cancelled. See [Current limitations](overview.md#current-limitations) for details.
+- Batch jobs have a configurable **maximum runtime**. Jobs exceeding this limit are automatically cancelled. See [Platform limits](overview.md#platform-limits) for details.
 
 ## See also
 
