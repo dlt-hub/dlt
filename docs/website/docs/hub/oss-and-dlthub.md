@@ -50,7 +50,7 @@ dltHub is a managed cloud platform for running your dlt pipelines, transformatio
   ```sh
   pip install "dlt[hub]"
   ```
-  Either way, you get the dltHub workspace + dashboard, the AI development tooling (`dlthub ai`, MCP server, AI Workbench), per-source contexts, and the `dlthub` library that adds data quality, transformations, and premium sources/destinations. A trial license can be [self-issued](getting-started/installation.md#self-licensing) for 30 days.
+  Either way, you get the dltHub workspace and dashboard, the AI development tooling (`dlthub ai`, MCP server, AI Workbench), per-source contexts, and the `dlthub` library that adds data quality, transformations, and premium sources/destinations. 
 
 Every component below is part of dltHub and requires a license. Most components are source-available under their own licenses; all are distributed through the `dlthub` PyPI package or the dltHub repositories.
 

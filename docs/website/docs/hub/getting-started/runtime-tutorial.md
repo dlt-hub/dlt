@@ -370,7 +370,6 @@ You've completed the introductory tutorial for the managed dltHub Platform: you'
 As next steps, we recommend:
 
 1. Take one of your existing dlt pipelines and schedule it on the managed platform.
-2. Explore our [MCP](../features/mcp-server.md) integration for connecting dltHub to tools and agents.
-3. Add [data checks](../features/quality/data-quality.md) to your pipelines to monitor data quality and catch issues early.
+2. Add [data checks](../features/quality/data-quality.md) to your pipelines to monitor data quality and catch issues early.
 
 This gives you a trusted, managed environment for both ingestion and analytics, built on dlt and powered by dltHub.

@@ -135,11 +135,46 @@ function backfillVersionedSidebars(versionedSidebarsFolder, sidebarIds) {
                 patched = true;
             }
         }
+        if (patchReleaseHighlightsCategory(snapshot)) {
+            patched = true;
+        }
         if (patched) {
             fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf8');
             console.log(`Patched ${file}: added missing sidebar keys`);
         }
     }
+}
+
+/**
+ * Restores the generated-index `link` on the "Release highlights" sidebar category.
+ *
+ * The navbar in `docusaurus.config.js` links to `/release-highlights`, which is only
+ * produced when the category carries a `link: { type: 'generated-index', slug: '/release-highlights' }`.
+ * Commit 89d59d447 ("docs: structure overhaul") dropped that link from devel, and
+ * the change is now baked into the master tag — every regenerated snapshot inherits
+ * the bug, so we restore the link here. Returns true if the snapshot was modified.
+ */
+function patchReleaseHighlightsCategory(node) {
+    let patched = false;
+    if (Array.isArray(node)) {
+        for (const child of node) {
+            if (patchReleaseHighlightsCategory(child)) patched = true;
+        }
+    } else if (node && typeof node === 'object') {
+        if (node.type === 'category' && node.label === 'Release highlights' && !node.link) {
+            node.link = {
+                type: 'generated-index',
+                title: 'Release highlights',
+                slug: '/release-highlights',
+                keywords: ['release notes, release highlights'],
+            };
+            patched = true;
+        }
+        for (const key of Object.keys(node)) {
+            if (patchReleaseHighlightsCategory(node[key])) patched = true;
+        }
+    }
+    return patched;
 }
 
 selectedVersions.reverse()
