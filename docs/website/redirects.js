@@ -19,7 +19,7 @@ const REDIRECTS = [
     },
     {
         from: "/docs/hub",
-        to: "/docs/hub/introduction"
+        to: "/docs/hub/intro"
     },
 
     // docs section redirects
@@ -43,11 +43,6 @@ const REDIRECTS = [
         from: "/docs/general-usage/credentials/config_specs",
         to: "/docs/general-usage/credentials/complex_types/"
     },
-    {
-        from: "/docs/general-usage/dashboard",
-        to: "/docs/hub/workspace/dashboard/"
-    },
-
     // tutorial redirects
     {
         from: "/docs/tutorial/intro",
@@ -135,11 +130,7 @@ const REDIRECTS = [
     },
     {
         from: "/docs/hub/reference",
-        to: "/docs/hub/introduction"
-    },
-    {
-        from: "/docs/hub/intro",
-        to: "/docs/hub/introduction"
+        to: "/docs/hub/intro"
     },
     {
         from: "/docs/general-usage/connectors",
