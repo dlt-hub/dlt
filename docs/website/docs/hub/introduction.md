@@ -48,7 +48,7 @@ On dltHub, users can:
 * Scale data workflows without manually managing infrastructure, schema drift, or silent failures
 
 :::tip
-For an end-to-end walkthrough, watch the [dltHub demo](https://youtu.be/rmpiFSCV8aA) or sign in to the [dltHub platform](https://app.dlthub.com) to deploy a workspace.
+For an end-to-end walkthrough, watch the [dltHub demo](https://youtu.be/rmpiFSCV8aA), take the [dltHub agentic data engineering course](https://dlthub.learnworlds.com/course/agentic-data-engineering), or sign in to the [dltHub platform](https://app.dlthub.com) to deploy a workspace.
 :::
 
 To get started quickly, follow the [installation instructions](getting-started/installation.md).

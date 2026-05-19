@@ -18,12 +18,12 @@ uv init
 
 The dltHub platform uses `pyproject.toml` to install dependencies remotely.
 
-## 2. Enable workspace and dltHub platform features
+## 2. Enable dltHub platform features
 
-Install `dlt` with the `workspace` and `hub` extras and create the workspace marker file:
+Install `dlt[hub]`:
 
 ```sh
-uv add "dlt[workspace,hub]"
+uv add "dlt[hub]"
 touch .dlt/.workspace
 ```
 
