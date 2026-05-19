@@ -86,14 +86,8 @@ const sidebars = {
       type: 'category',
       label: 'Build with AI',
       items: [
-        'release-notes/1.21.2',
-        'release-notes/1.19',
-        'release-notes/1.18',
-        'release-notes/1.17',
-        'release-notes/1.16',
-        'release-notes/1.15',
-        'release-notes/1.13-1.14',
-        'release-notes/1.12.1',
+        { type: 'doc', id: 'dlt-ecosystem/llm-tooling/llm-native-workflow', label: 'REST API source' },
+        { type: 'doc', id: 'dlt-ecosystem/llm-tooling/explore-and-transform', label: 'Explore & Transform data' },
       ]
     },
     {
