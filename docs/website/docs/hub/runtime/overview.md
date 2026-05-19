@@ -94,11 +94,13 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 | `dlthub logout` | Clear local credentials |
 | `dlthub workspace list` | List all accessible workspaces |
 | `dlthub workspace connect [name_or_id]` | Connect project to a workspace (interactive picker if no arg) |
-| `dlthub info` | Show combined workspace info (local + cloud) |
+| `dlthub local info` | Show local workspace info |
 | `dlthub show` | Open the dltHub dashboard |
+| `dlthub local run <script_or_job>` | Run a batch job on the local machine (recommended before deploying) |
+| `dlthub local serve <script_or_job>` | Serve an interactive app on the local machine |
 | `dlthub run [<script_or_selector>] [-f] [--refresh]` | Deploy and run a batch script or named job |
 | `dlthub serve [<script_or_selector>] [-f]` | Deploy and serve an interactive application |
-| `dlthub deploy [--dry-run] [--show-manifest] [--file FILE]` | Sync code/config and deploy jobs from `__deployment__.py` |
+| `dlthub deploy [--dry-run] [--show-manifest]` | Deploy jobs from `__deployment__.py` |
 | `dlthub job trigger <selectors...> [--refresh] [--dry-run] [--profile NAME]` | Trigger runs for matching jobs (for example `tag:backfill`, `schedule:*`) |
 | `dlthub pipeline run <pipeline_name> [-f] [--refresh]` | Run a job by pipeline name |
 | `dlthub job cancel <selector_or_name>...` | Cancel active runs for matching jobs |

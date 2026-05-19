@@ -13,10 +13,10 @@ Use the dltHub CLI and the Web UI at [app.dlthub.com](https://app.dlthub.com) to
 Retrieve a workspace summary from the CLI:
 
 ```sh
-dlthub info
+dlthub workspace info
 ```
 
-The command returns the workspace name, job count, latest run status, and the latest deployment and configuration versions. See [`dlthub info`](../command-line-interface.md#dlthub-info).
+The command returns the workspace name, job count, latest run status, and the latest deployment and configuration versions. See [`dlthub workspace info`](../command-line-interface.md#dlthub-workspace-info).
 
 ## View logs
 

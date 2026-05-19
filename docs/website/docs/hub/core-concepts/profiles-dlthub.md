@@ -179,11 +179,14 @@ dlthub local profile use prod
 Before running your pipeline in production, you can verify that the credentials and dataset configuration work correctly:
 
 ```sh
-dlthub --debug local pipeline pokemon_api_pipeline sync --destination warehouse --dataset-name pokemon_api_data
+dlthub --debug local pipeline sync pokemon_api_pipeline --destination warehouse --dataset-name pokemon_api_data
 ```
 
-This command performs a **dry run**, checking the connection to your destination and validating credentials without loading any data.
-If your credentials are invalid or there's another configuration issue, `dlt` will raise a detailed exception with a full stack trace—helping you debug before deployment.
+:::warning
+`sync` drops the local pipeline working directory and restores it from the destination. Only run this on a fresh local state for the `prod` profile (the case here, since you just switched profiles).
+:::
+
+This command connects to your destination, validates credentials, and bootstraps a local copy of pipeline state from the destination. If your credentials are invalid or the configuration is wrong, `dlt` will raise a detailed exception with a full stack trace—helping you debug before deployment.
 
 If the connection succeeds but the dataset doesn't yet exist in **MotherDuck**, you'll see a message like:
 
