@@ -10,7 +10,7 @@ import tomlkit
 import yaml
 
 from dlt.common.configuration.const import TYPE_EXAMPLES
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.utils import (
     ensure_cursor_rule_frontmatter,
     extract_toolkit_info,
     fetch_ai_status,
@@ -342,11 +342,11 @@ def _patch_settings_paths(project_root: Path) -> Iterator[None]:
     """Redirect toolkits index and settings path lookups to project_root/.dlt/."""
     with (
         patch(
-            "dlt._workspace.cli.ai.utils._toolkits_index_path",
+            "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
             return_value=str(project_root / ".dlt" / ".toolkits"),
         ),
         patch(
-            "dlt._workspace.cli.ai.utils.make_dlt_settings_path",
+            "dlt._workspace.cli.dlthub.ai.utils.make_dlt_settings_path",
             return_value=str(project_root / ".dlt" / "config.toml"),
         ),
     ):
@@ -368,7 +368,7 @@ def test_fetch_ai_status_empty_workspace(environment: Any) -> None:
 
     with (
         _patch_settings_paths(project_root),
-        patch("dlt._workspace.cli.ai.agents.home_dir", return_value=None),
+        patch("dlt._workspace.cli.dlthub.ai.agents.home_dir", return_value=None),
     ):
         status = fetch_ai_status(project_root)
 

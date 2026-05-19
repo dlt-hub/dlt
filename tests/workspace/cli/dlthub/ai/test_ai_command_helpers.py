@@ -10,7 +10,7 @@ import pytest
 import tomlkit
 import yaml
 
-from dlt._workspace.cli.ai.commands import (
+from dlt._workspace.cli.dlthub.ai.commands import (
     _execute_install,
     _install_dependencies,
     _plan_toolkit_install,
@@ -22,13 +22,13 @@ from dlt._workspace.cli.ai.commands import (
     ai_toolkit_install_command,
     ai_toolkit_list_command,
 )
-from dlt._workspace.cli.ai.agents import (
+from dlt._workspace.cli.dlthub.ai.agents import (
     _AIAgent,
     _ClaudeAgent,
     _CodexAgent,
     _CursorAgent,
 )
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.utils import (
     build_toolkits_dependency_map,
     load_toolkits_index,
     resolve_toolkit_dependencies,
@@ -36,7 +36,7 @@ from dlt._workspace.cli.ai.utils import (
 )
 from dlt._workspace.cli.exceptions import CliCommandException
 
-from tests.workspace.cli.ai.utils import (
+from tests.workspace.cli.dlthub.ai.utils import (
     make_mock_toolkit,
     make_mock_toolkit_info,
     make_mock_workbench,
@@ -324,7 +324,7 @@ def test_install_dependencies(capsys: pytest.CaptureFixture[str]) -> None:
     toolkits, _ = fetch_workbench_toolkits(base)
 
     with patch(
-        "dlt._workspace.cli.ai.utils._toolkits_index_path",
+        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
         return_value=str(project_root / ".dlt" / ".toolkits"),
     ):
         _install_dependencies("rest-api-pipeline", toolkits, base, agent, project_root)
@@ -344,7 +344,7 @@ def test_install_dependencies_already_installed(capsys: pytest.CaptureFixture[st
     toolkits, _ = fetch_workbench_toolkits(base)
 
     with patch(
-        "dlt._workspace.cli.ai.utils._toolkits_index_path",
+        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
         return_value=str(project_root / ".dlt" / ".toolkits"),
     ):
         _install_dependencies("rest-api-pipeline", toolkits, base, agent, project_root)
@@ -460,7 +460,7 @@ def test_install_tracks_files_in_index() -> None:
     assert not any(a.kind == "mcp" for a in actions)
 
     with patch(
-        "dlt._workspace.cli.ai.utils._toolkits_index_path",
+        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
         return_value=str(project_root / ".dlt" / ".toolkits"),
     ):
         _execute_install(
@@ -506,7 +506,7 @@ def test_install_tracks_mcp_server_names() -> None:
     assert len(mcp_actions) == 1
 
     with patch(
-        "dlt._workspace.cli.ai.utils._toolkits_index_path",
+        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
         return_value=str(project_root / ".dlt" / ".toolkits"),
     ):
         _execute_install(
@@ -531,7 +531,7 @@ def test_overwrite_replaces_file_index() -> None:
     variant = _ClaudeAgent()
 
     with patch(
-        "dlt._workspace.cli.ai.utils._toolkits_index_path",
+        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
         return_value=str(project_root / ".dlt" / ".toolkits"),
     ):
         actions, _ = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
@@ -599,7 +599,7 @@ def test_overlapping_toolkits(overwrite: bool) -> None:
     )
 
     with patch(
-        "dlt._workspace.cli.ai.utils._toolkits_index_path",
+        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
         return_value=str(project_root / ".dlt" / ".toolkits"),
     ):
         actions_a, _ = _plan_toolkit_install(toolkit_a, variant, project_root, "toolkit-a")
@@ -654,7 +654,7 @@ def test_resolve_agent_from_init_index(capsys: pytest.CaptureFixture[str]) -> No
         yaml.dump({"init": {"version": "1.0.0"}}, f)
     with (
         patch.dict(os.environ, {}, clear=True),
-        patch("dlt._workspace.cli.ai.agents.home_dir", return_value=None),
+        patch("dlt._workspace.cli.dlthub.ai.agents.home_dir", return_value=None),
         pytest.raises(CliCommandException),
     ):
         _resolve_agent(None, project_root)
@@ -779,7 +779,7 @@ def test_ai_secrets_roundtrip(capsys: pytest.CaptureFixture[str]) -> None:
 def test_toolkit_list(capsys: pytest.CaptureFixture[str]) -> None:
     """ai_toolkit_list_command lists toolkits with descriptions."""
     base = make_mock_workbench()
-    with patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base):
+    with patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base):
         ai_toolkit_list_command(location="mock://repo", branch=None)
     output = capsys.readouterr().out
     assert "Available toolkits:" in output
@@ -796,7 +796,7 @@ def test_toolkit_list(capsys: pytest.CaptureFixture[str]) -> None:
 def test_toolkit_info(capsys: pytest.CaptureFixture[str]) -> None:
     """ai_toolkit_info_command shows toolkit components."""
     base = make_mock_workbench()
-    with patch("dlt._workspace.cli.ai.utils.fetch_workbench_base", return_value=base):
+    with patch("dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=base):
         ai_toolkit_info_command(name="rest-api-pipeline", location="mock://repo", branch=None)
     output = capsys.readouterr().out
     assert "rest-api-pipeline" in output
@@ -817,7 +817,7 @@ def test_toolkit_info(capsys: pytest.CaptureFixture[str]) -> None:
 def test_toolkit_info_not_found(capsys: pytest.CaptureFixture[str]) -> None:
     """ai_toolkit_info_command warns on missing toolkit."""
     base = make_mock_workbench()
-    with patch("dlt._workspace.cli.ai.utils.fetch_workbench_base", return_value=base):
+    with patch("dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=base):
         ai_toolkit_info_command(name="nonexistent", location="mock://repo", branch=None)
     output = capsys.readouterr().out
     assert "not found" in output.lower()
@@ -832,7 +832,7 @@ def test_toolkit_index_lifecycle(capsys: pytest.CaptureFixture[str]) -> None:
 
     with (
         patch("dlt.common.runtime.run_context.active") as mock_ctx,
-        patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base),
+        patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base),
     ):
         settings_dir = str(project_root / ".dlt")
         mock_ctx.return_value.run_dir = str(project_root)
@@ -869,7 +869,9 @@ def test_toolkit_index_lifecycle(capsys: pytest.CaptureFixture[str]) -> None:
 
         # 3. Bump remote version — reinstall without overwrite
         base2 = make_versioned_workbench(version="2.0.0")
-        with patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base2):
+        with patch(
+            "dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base2
+        ):
             ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
         out = capsys.readouterr().out
         assert "Use --overwrite to update" in out
@@ -878,7 +880,9 @@ def test_toolkit_index_lifecycle(capsys: pytest.CaptureFixture[str]) -> None:
         assert idx["my-toolkit"]["installed_at"] == first_date
 
         # 4. Overwrite install with new version
-        with patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base2):
+        with patch(
+            "dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base2
+        ):
             ai_toolkit_install_command(
                 name="my-toolkit", agent="claude", location="mock://repo", overwrite=True
             )
@@ -913,7 +917,7 @@ def test_install_stores_workflow_entry_skill(capsys: pytest.CaptureFixture[str])
 
     with (
         patch("dlt.common.runtime.run_context.active") as mock_ctx,
-        patch("dlt._workspace.cli.ai.commands.fetch_workbench_base", return_value=base),
+        patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base),
     ):
         settings_dir = str(project_root / ".dlt")
         mock_ctx.return_value.run_dir = str(project_root)

@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import pytest
 
-from dlt._workspace.cli.ai.agents import (
+from dlt._workspace.cli.dlthub.ai.agents import (
     AI_AGENTS,
     _AIAgent,
     _ClaudeAgent,
@@ -12,14 +12,14 @@ from dlt._workspace.cli.ai.agents import (
 )
 from dlt._workspace.cli.formatters import parse_frontmatter
 
-from tests.workspace.cli.ai.utils import _ensure_init_agents_template
+from tests.workspace.cli.dlthub.ai.utils import _ensure_init_agents_template
 
 
 @pytest.fixture()
 def no_home_dir(monkeypatch: pytest.MonkeyPatch) -> None:
     """Suppress global home-directory detection so only env probes fire."""
 
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: None)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: None)
 
 
 @pytest.mark.parametrize(
@@ -242,7 +242,7 @@ def test_codex_finalize_actions_agents_md() -> None:
     variant = _CodexAgent()
 
     # simulate two rule→skill actions
-    from dlt._workspace.cli.ai.agents import InstallAction
+    from dlt._workspace.cli.dlthub.ai.agents import InstallAction
 
     skills_dir = variant.component_dir("skill", project)
     actions = [
@@ -293,7 +293,7 @@ def test_codex_finalize_actions_dedup() -> None:
     _ensure_init_agents_template(wb)
 
     variant = _CodexAgent()
-    from dlt._workspace.cli.ai.agents import InstallAction
+    from dlt._workspace.cli.dlthub.ai.agents import InstallAction
 
     skills_dir = variant.component_dir("skill", project)
     actions = [
@@ -372,7 +372,7 @@ def test_detect_all_project_probes(
     fake_home.mkdir()
     for m in global_markers:
         (fake_home / m).mkdir(exist_ok=True)
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: fake_home)
 
     project = Path("project")
     project.mkdir()
@@ -391,7 +391,7 @@ def test_detect_all_global_fallback(environment: Any, monkeypatch: pytest.Monkey
     fake_home = Path("home")
     fake_home.mkdir()
     (fake_home / ".cursor").mkdir()
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: fake_home)
 
     project = Path("project")
     project.mkdir()
@@ -407,7 +407,7 @@ def test_detect_all_env_before_local(
     fake_home = Path("home")
     fake_home.mkdir()
     (fake_home / ".claude").mkdir()
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: fake_home)
 
     environment["CURSOR_AGENT"] = "1"
     project = Path("project")
@@ -423,7 +423,7 @@ def test_detect_all_local_before_global(environment: Any, monkeypatch: pytest.Mo
     fake_home.mkdir()
     (fake_home / ".claude").mkdir()
     (fake_home / ".cursor").mkdir()
-    monkeypatch.setattr("dlt._workspace.cli.ai.agents.home_dir", lambda: fake_home)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.agents.home_dir", lambda: fake_home)
 
     project = Path("project")
     project.mkdir()

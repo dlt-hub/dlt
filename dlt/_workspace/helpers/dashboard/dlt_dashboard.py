@@ -537,7 +537,7 @@ def section_state(
     if _show:
         _result.append(
             mo.json(
-                dlt_pipeline.state,  # type: ignore[arg-type]
+                dlt_pipeline.state,  # type: ignore[arg-type,unused-ignore]
             ),
         )
     mo.vstack(_result) if _result else None

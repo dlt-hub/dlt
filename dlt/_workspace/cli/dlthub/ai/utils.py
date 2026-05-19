@@ -15,24 +15,24 @@ from dlt.common.configuration.providers.toml import SecretsTomlProvider, Setting
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.version import __version__ as dlt_ver
 
-from dlt._workspace.typing import TWorkbenchComponentInfo
+from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_BRANCH  # noqa: F401
+from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_REPO  # noqa: F401
+from dlt._workspace.cli.dlthub.ai.typing import (
+    TAiStatusInfo,
+    TAiStatusWarning,
+    TToolkitIndexEntry,
+    TToolkitInfo,
+    TWorkbenchComponentInfo,
+    TWorkbenchToolkitInfo,
+)
 from dlt._workspace.cli.formatters import (
     extract_first_heading,
     parse_frontmatter,
-    render_frontmatter,
     read_md_name_desc,
+    render_frontmatter,
 )
 from dlt._workspace.cli.utils import get_provider_locations, make_dlt_settings_path
-from dlt._workspace.typing import (
-    TAiStatusInfo,
-    TAiStatusWarning,
-    TLocationInfo,
-    TToolkitIndexEntry,
-    TToolkitInfo,
-    TWorkbenchToolkitInfo,
-)
-from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_BRANCH  # noqa: F401
-from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_REPO  # noqa: F401
+from dlt._workspace.typing import TLocationInfo
 
 AI_WORKBENCH_BASE_DIR = "workbench"
 TOOLKITS_INDEX_FILE = ".toolkits"
@@ -595,7 +595,7 @@ def fetch_ai_status(project_root: Path) -> TAiStatusInfo:
         Status info including dlt version, detected agent, installed toolkits,
         and any readiness warnings.
     """
-    from dlt._workspace.cli.ai.agents import _AIAgent  # circular
+    from dlt._workspace.cli.dlthub.ai.agents import _AIAgent  # circular
 
     index = load_toolkits_index()
     warnings: List[TAiStatusWarning] = []

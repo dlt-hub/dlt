@@ -19,7 +19,7 @@ jobs:
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
-        dlthub_dep: ["", "https://dlt-packages.fra1.digitaloceanspaces.com/dlthub/dlthub-0.0.0+nightly-py3-none-any.whl"]
+        dlthub_dep: [""]  # , "https://dlt-packages.fra1.digitaloceanspaces.com/dlthub/dlthub-0.0.0+nightly-py3-none-any.whl"]
         # Test all python versions on ubuntu only
         exclude:
         - os: "macos-latest"
@@ -83,10 +83,10 @@ jobs:
       - name: Run all hub tests
         run: make test-hub
 
-      - name: Test runtime client
+      - name: Test dlthub client
         run: |
           mkdir .dlt && touch .dlt/.workspace
-          uv run dlt runtime --help
+          uv run dlthub login --help
 
       - name: Check hub extras version requirements
         run: uv run python tools/check_hub_extras.py

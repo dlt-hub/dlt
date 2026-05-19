@@ -345,8 +345,12 @@ class FileStorage:
 
     @staticmethod
     def rmtree_del_ro(action: AnyFun, name: str, exc: Any) -> Any:
+        # in rare cases file may be deleted between scandir and rm
+        if isinstance(exc[1], FileNotFoundError):
+            return
         if action in (os.unlink, os.remove, os.rmdir):
-            os.chmod(name, stat.S_IWRITE)
+            # add +w with a mask
+            os.chmod(name, os.stat(name).st_mode | stat.S_IWRITE)
             action(name)
 
     @staticmethod

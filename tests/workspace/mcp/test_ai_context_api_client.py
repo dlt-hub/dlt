@@ -3,7 +3,7 @@ import re
 
 import requests_mock as rm
 
-from dlt._workspace.cli._ai_context_api_client import search_sources
+from dlt._workspace.mcp.tools._ai_context_api_client import search_sources
 from dlt._workspace.cli.exceptions import AiContextApiError
 
 

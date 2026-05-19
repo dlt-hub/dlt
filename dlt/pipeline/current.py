@@ -43,7 +43,7 @@ def workspace() -> WorkspaceRunContext:
 
 
 def interval() -> Optional[TTimeInterval]:
-    """Active time interval from external scheduler or dlt runtime, or `None`."""
+    """Active time interval from external scheduler, or `None` if no interval present."""
     from dlt.extract.incremental.context import get_interval_context
 
     ctx = get_interval_context()

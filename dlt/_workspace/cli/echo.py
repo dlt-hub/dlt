@@ -1,3 +1,5 @@
+"""CLI prompting and output helpers."""
+
 import sys
 import contextlib
 from typing import Any, Iterable, Iterator, Optional, ContextManager
@@ -7,6 +9,49 @@ import click
 ALWAYS_CHOOSE_DEFAULT = False
 ALWAYS_CHOOSE_VALUE: Any = None
 ALWAYS_CONFIRM = False
+
+_CLI_HOST: str = "dlt"
+
+
+def get_cli_host_name() -> str:
+    """Returns the active CLI host name (e.g. `"dlt"` or `"dlthub"`)."""
+    return _CLI_HOST
+
+
+def set_cli_host_name(host: str) -> None:
+    """Sets the active CLI host name. Called by `_dlt.main()` at startup."""
+    global _CLI_HOST
+    _CLI_HOST = host
+
+
+def cli_cmd(rest: str = "") -> str:
+    """Formats an example command line prefixed with the active CLI host name.
+
+    Args:
+        rest: Argument string to append after the host name.
+
+    Returns:
+        str: The full example, e.g. `"dlt pipeline my_pipe info"` or
+        `"dlthub pipeline my_pipe info"` when the dlthub host is active.
+    """
+    return f"{_CLI_HOST} {rest}".rstrip()
+
+
+def is_interactive() -> bool:
+    """True when the CLI may prompt the user for input."""
+    return not (ALWAYS_CHOOSE_DEFAULT or ALWAYS_CONFIRM) and ALWAYS_CHOOSE_VALUE is None
+
+
+def set_non_interactive(value: bool = True) -> None:
+    """Toggle `--non-interactive`."""
+    global ALWAYS_CHOOSE_DEFAULT
+    ALWAYS_CHOOSE_DEFAULT = value
+
+
+def set_auto_yes(value: bool = True) -> None:
+    """Toggle `-y`/`--yes`."""
+    global ALWAYS_CONFIRM
+    ALWAYS_CONFIRM = value
 
 
 @contextlib.contextmanager
@@ -57,7 +102,7 @@ def suppress_echo() -> Iterator[None]:
 
 
 def maybe_no_stdin() -> ContextManager[None]:
-    """Automatically choose default values if stdin not connected"""
+    """Switch to non-interactive mode for the duration of the block if stdin is not at tty."""
     return always_choose(
         True if not sys.stdin.isatty() else ALWAYS_CHOOSE_DEFAULT,
         ALWAYS_CHOOSE_VALUE,
@@ -71,7 +116,7 @@ style = click.style
 
 
 def bold(msg: str) -> str:
-    return click.style(msg, bold=True, reset=True)
+    return click.style(msg, bold=True, reset=False) + click.style("", bold=False, reset=False)
 
 
 def warning_style(msg: str) -> str:
@@ -90,13 +135,26 @@ def note(msg: str) -> None:
     click.secho("NOTE: " + msg, fg="green")
 
 
+def _raise_no_default(text: str) -> None:
+    """Raise `CliCommandException` when a prompt has no default in non-interactive mode."""
+    error(
+        "Cannot read `%s` in non-interactive mode (no default provided). Pass the value via a"
+        " CLI option, or run interactively." % text
+    )
+    # do not import at the top
+    from dlt._workspace.cli.exceptions import CliCommandException
+
+    raise CliCommandException()
+
+
 def confirm(text: str, default: Optional[bool] = None) -> bool:
     if ALWAYS_CONFIRM:
         return True
-    if ALWAYS_CHOOSE_VALUE:
+    if ALWAYS_CHOOSE_VALUE is not None:
         return bool(ALWAYS_CHOOSE_VALUE)
     if ALWAYS_CHOOSE_DEFAULT:
-        assert default is not None
+        if default is None:
+            _raise_no_default(text)
         return default
     return click.confirm(text, default=default)
 
@@ -108,11 +166,12 @@ def prompt(
     show_choices: bool = True,
     show_default: bool = True,
 ) -> Any:
-    if ALWAYS_CHOOSE_VALUE:
+    if ALWAYS_CHOOSE_VALUE is not None:
         assert ALWAYS_CHOOSE_VALUE in choices
         return ALWAYS_CHOOSE_VALUE
-    if ALWAYS_CHOOSE_DEFAULT:
-        assert default is not None
+    if ALWAYS_CHOOSE_DEFAULT or ALWAYS_CONFIRM:
+        if default is None:
+            _raise_no_default(text)
         return default
     click_choices = click.Choice(choices)
     return click.prompt(
@@ -125,10 +184,10 @@ def prompt(
 
 
 def text_input(text: str, default: str = None) -> str:
-    if ALWAYS_CHOOSE_VALUE:
+    if ALWAYS_CHOOSE_VALUE is not None:
         return str(ALWAYS_CHOOSE_VALUE)
-    if ALWAYS_CHOOSE_DEFAULT:
+    if ALWAYS_CHOOSE_DEFAULT or ALWAYS_CONFIRM:
         if default is None:
-            raise NotImplementedError("non interactive mode not supported")
+            _raise_no_default(text)
         return default
     return click.prompt(text, default=default)  # type: ignore[no-any-return]

@@ -5,10 +5,10 @@ keywords: [dlt, dlthub, open source, source available, pricing, license, workspa
 ---
 
 :::note
-**dltHub offers two products**: dlt (open source) and **dltHub** (commercial, license-gated). This page explains both products and how they relate.
+**dltHub offers two products**: dlt (open source) and **dltHub** (commercial). This page explains both products and how they relate.
 
 - **dlt** — the open source ingestion library, Apache 2.0.
-- **dltHub** — the agentic platform that deploys, monitors, and scales dlt pipelines, with a managed runtime, data quality, transformations, and AI tooling for coding agents. **All dltHub components are license-gated.**
+- **dltHub** — the agentic platform that deploys, monitors, and scales dlt pipelines, with a managed runtime, data quality, transformations, and AI tooling for coding agents. [**All dltHub components are available with a commercial license.**](license.md)
 :::
 
 ## The two products at a glance
@@ -49,8 +49,9 @@ dltHub is a managed cloud platform for running your dlt pipelines, transformatio
   This creates a runnable workspace with the AI Workbench, example pipelines, and the [`dlt[hub]`](getting-started/installation.md) extra installed. To add dltHub to an existing project instead, run:
   ```sh
   pip install "dlt[hub]"
+  dlthub init
   ```
-  Either way, you get the dltHub workspace + dashboard, the AI development tooling (`dlthub ai`, MCP server, AI Workbench), per-source contexts, and the `dlthub` library that adds data quality, transformations, and premium sources/destinations. A trial license can be [self-issued](getting-started/installation.md#self-licensing) for 30 days.
+  Either way, you get the dltHub workspace + dashboard, the AI development tooling (`dlthub ai`, MCP server, AI Workbench), per-source contexts, and the `dlthub` library that adds data quality, transformations, and premium sources/destinations.
 
 Every component below is part of dltHub and requires a license. Most components are source-available under their own licenses; all are distributed through the `dlthub` PyPI package or the dltHub repositories.
 
@@ -59,7 +60,7 @@ Every component below is part of dltHub and requires a license. Most components 
 | **dltHub Platform** | The hosted Web UI and managed runtime at [dlthub.app](https://dlthub.app/) — deploy and schedule pipelines, monitor runs, manage workspaces and profiles, browse datasets, collaborate.                                                                                                                                                                                                                                                            | [dlthub.app](https://app.dlthub.com/)                                                                                                                                                              | [Platform](https://app.dlthub.com/) · [Runtime overview](runtime/overview.md) · [Runtime tutorial](getting-started/runtime-tutorial.md) |
 | **AI Toolkits** | The dltHub AI Workbench: a collection of toolkits made of skills, rules, workflows, and MCP wiring that drive agentic pipeline development inside Claude Code, Cursor, and Codex.                                                                                                                                                                                                                                                                  | [`dlt-hub/dlthub-ai-workbench`](https://github.com/dlt-hub/dlthub-ai-workbench) — source-available under [its own license](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE) | [LLM-native workflow walkthrough](../dlt-ecosystem/llm-tooling/llm-native-workflow.md)                                              |
 | **dltHub Context** | Per-source LLM contexts (specs, endpoint documentation, prompts) that prime your coding assistant for thousands of APIs. Automatically used by AI Workbench                                                                                                                                                                                                                                                                                        | Browse and copy contexts at [dlthub.com/context](https://dlthub.com/context)                                                                   | [Build a source with AI](workspace/init.md#llm-native-setup)                                                                        |
-| **`dlthub` library** | Python package shipped via `dlt[hub]`. Adds the production capabilities: [data quality](features/quality/data-quality.md), [Python transformations](features/transformations/index.md) (`@dlt.hub.transformation`) and [dbt transformations](features/transformations/dbt-transformations.md), and premium sources/destinations such as [Iceberg / DuckLake](ecosystem/iceberg.md) and [MSSQL Change Tracking](ecosystem/ms-sql.md). | On [PyPI](https://pypi.org/project/dlthub/)                                                                                                                                                    | [Installation](getting-started/installation.md) · [Self-issue trial license](getting-started/installation.md#self-licensing)        |
+| **`dlthub` library** | Python package shipped via `dlt[hub]`. Adds the production capabilities: [data quality](features/quality/data-quality.md), [Python transformations](features/transformations/index.md) (`@dlt.hub.transformation`) and [dbt transformations](features/transformations/dbt-transformations.md), and premium sources/destinations such as [Iceberg / DuckLake](ecosystem/iceberg.md) and [MSSQL Change Tracking](ecosystem/ms-sql.md). | On [PyPI](https://pypi.org/project/dlthub/)                                                                                                                                                    | [Installation](getting-started/installation.md)        |
 
 **dltHub is a good fit if:** You are running pipelines in production, want a coding agent to do the heavy lifting with tooling that supports the generation of production-grade code, need transformations or data quality checks, if you want managed infrastructure, or if you are working as a team.
 

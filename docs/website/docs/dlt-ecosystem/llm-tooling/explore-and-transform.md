@@ -23,14 +23,14 @@ Both toolkits work with **Claude Code**, **Cursor**, and **Codex** and are desig
 
 ### Install the toolkits
 
-If you have already run `dlt ai init` (as part of the [REST API pipeline guide](llm-native-workflow.md#setup)), you only need to install the toolkits:
+If you have already run `dlthub ai init` (as part of the [REST API pipeline guide](llm-native-workflow.md#setup)), you only need to install the toolkits:
 
 ```sh
-uv run dlt ai toolkit data-exploration install
-uv run dlt ai toolkit transformations install
+uv run dlthub ai toolkit install data-exploration
+uv run dlthub ai toolkit install transformations
 ```
 
-If this is a fresh project, set up `uv`, install `dlt[workspace]`, and initialize your coding assistant first — see the [setup steps](llm-native-workflow.md#setup).
+If this is a fresh project, set up `uv`  and initialize your coding assistant first — see the [setup steps](llm-native-workflow.md#setup).
 
 ## Explore your data
 
@@ -143,13 +143,6 @@ def dim_person(dataset: dlt.Dataset):
 
 The output script follows naming conventions based on business domain, not source system names (e.g. `person_interactions_to_cdm.py`).
 
-:::note
-The `transformations` toolkit requires `dlt[hub]` and a dltHub license:
-```sh
-uv add "dlt[hub]"
-dlt license issue dlt.hub.transformations
-```
-:::
 
 ### Anatomy of the transformations toolkit
 

@@ -13,12 +13,8 @@ from dlt.common.runtime.run_context import active as active_run_context
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import Annotated
 from dlt._workspace.cli import formatters
-from dlt._workspace.cli.utils import (
-    fetch_profiles_list,
-    fetch_schema_export,
-    fetch_workspace_info,
-    list_local_pipelines,
-)
+from dlt._workspace.cli.dlthub.utils import fetch_profiles_list, fetch_workspace_info
+from dlt._workspace.cli.utils import fetch_schema_export, list_local_pipelines
 from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 
 TResultFormat = Literal["markdown", "jsonl"]

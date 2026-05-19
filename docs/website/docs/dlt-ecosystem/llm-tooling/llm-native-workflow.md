@@ -35,35 +35,35 @@ We recommend using uv. If you use uv, prefix all following commands with `uv run
 Install the dlt workspace:
 
 ```sh
-pip install "dlt[workspace]"
+pip install "dlt[hub]"
 ```
 or upgrade to the latest version:
 
 ```sh
-pip install --upgrade "dlt[workspace]"
+pip install --upgrade "dlt[hub]"
 ```
 
 ### Initialize the AI assistant
+
+First create dlthub workspace and install additional dependencies:
+```sh
+dlthub init
+uv sync
+```
 
 <Tabs values={[{"label": "Claude Code", "value": "claude"}, {"label": "Cursor", "value": "cursor"}, {"label": "Codex", "value": "codex"}]} groupId="ai-agent" defaultValue="claude">
 <TabItem value="claude">
 
 ```sh
-dlt ai init --agent claude
+dlthub ai init --agent claude
 ```
 
-:::note
-Add the following to your `CLAUDE.md` to improve safe credential handling:
-```text
-CRITICAL: never ask for credentials in chat. Always let the user edit secrets directly and do not attempt to read them.
-```
-:::
 
 </TabItem>
 <TabItem value="cursor">
 
 ```sh
-dlt ai init --agent cursor
+dlthub ai init --agent cursor
 ```
 
 :::note
@@ -79,7 +79,7 @@ CRITICAL: never ask for credentials in chat. Always let the user edit secrets di
 <TabItem value="codex">
 
 ```sh
-dlt ai init --agent codex
+dlthub ai init --agent codex
 ```
 
 :::note
@@ -103,12 +103,12 @@ The Codex CLI picks up the MCP server automatically; in the Codex UI you need to
 </TabItem>
 </Tabs>
 
-`dlt ai init` detects your coding assistant from environment variables and config files (unless you have multiple coding assistants set up), then installs skills, rules, and the MCP server in the correct locations for that tool.
+`dlthub ai init` detects your coding assistant from environment variables and config files (unless you have multiple coding assistants set up), then installs skills, rules, and the MCP server in the correct locations for that tool.
 
 ### Install toolkit
 
 ```sh
-dlt ai toolkit rest-api-pipeline install
+dlthub ai toolkit install rest-api-pipeline
 ```
 
 This installs the **rest-api-pipeline** toolkit: a workflow that orchestrates the assistant, an entry point skill, and step-by-step skills for each phase.
@@ -116,7 +116,7 @@ This installs the **rest-api-pipeline** toolkit: a workflow that orchestrates th
 :::info Claude Code marketplace plugin (Early Access)
 The workbench is also available as a **Claude Code marketplace plugin**. You don't need `uv`, Python, or `dlt` installed to get started — the `bootstrap` plugin handles everything from scratch.
 
-> **Early Access:** The Claude Code plugin is currently in early access and may not provide the best linking experience between different toolkits. We recommend using the `dlt ai` CLI above for the best experience.
+> **Early Access:** The Claude Code plugin is currently in early access and may not provide the best linking experience between different toolkits. We recommend using the `dlthub ai` CLI above for the best experience.
 
 In Claude Code, run:
 
@@ -131,7 +131,7 @@ In your terminal, `exit` the Claude session and restart (`claude`) — plugins t
 /init-workspace
 ```
 
-The bootstrap skill checks for `uv` and Python, installs what's missing, creates a virtual environment, installs `dlt[workspace]`, and runs `dlt ai init` — so you go from an empty directory to a fully configured workspace in one step.
+The bootstrap skill checks for `uv` and Python, installs what's missing, creates a virtual environment, dlthub workspace and initializes AI assistant support — so you go from an empty directory to a fully configured workspace in one step.
 :::
 
 ## Build your first pipeline
@@ -209,7 +209,7 @@ A pipeline that runs without errors is not necessarily correct. Before moving on
 You can open [Workspace Dashboard](../../general-usage/dashboard.md) to apply your own judgement:
 
 ```sh
-dlt pipeline github_pipeline show
+dlthub local pipeline show github_pipeline
 ```
 
 | Question | What to check |
@@ -305,8 +305,8 @@ Once your pipeline is validated, you can continue to the next phase of the data 
 [Sign up for dltHub Early Access](https://dlthub.com/solutions/for-small-data-teams)
 
 ```sh
-uv run dlt ai toolkit data-exploration install
-uv run dlt ai toolkit dlthub-runtime install
+uv run dlthub ai toolkit install data-exploration
+uv run dlthub ai toolkit install dlthub-runtime
 ```
 
 ## Results

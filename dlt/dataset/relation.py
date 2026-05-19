@@ -472,6 +472,8 @@ class Relation(WithSqlClient):
             )
 
         table_name, column_name = _parse_incremental_cursor_path(incremental.cursor_path)
+        naming = self._dataset.schema.naming
+        column_name = naming.normalize_identifier(column_name)
 
         if table_name is None:
             relation_columns = self.columns_schema
@@ -490,6 +492,7 @@ class Relation(WithSqlClient):
                 f"`{table_name}` but the relation has no base table to resolve joins. "
                 "Call `.incremental()` on `dataset.table(...)`, not on a `.query(...)`."
             )
+        table_name = naming.normalize_table_identifier(table_name)
         if table_name not in self._dataset.schema.tables:
             raise ValueError(
                 f"Incremental cursor target table `{table_name}` not found in dataset schema."

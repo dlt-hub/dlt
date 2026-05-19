@@ -465,7 +465,7 @@ const sidebars = {
       ]
     },
     'hub/command-line-interface',
-    'hub/EULA',
+    'hub/license',
   ],
   cookbookSidebar: [
     {

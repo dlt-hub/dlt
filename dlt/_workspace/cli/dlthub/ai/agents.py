@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Dict, List, Literal, NamedTuple, Optional, Tup
 
 from dlt.common.runtime.exec_info import is_claude_code, is_codex, is_cursor
 
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.utils import (
     ensure_cursor_rule_frontmatter,
     home_dir,
     merge_json_mcp_servers,

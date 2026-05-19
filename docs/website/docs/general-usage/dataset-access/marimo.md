@@ -12,10 +12,10 @@ This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich envi
 
 ## Prerequisites
 
-Install the workspace extra, which includes marimo, ibis, and DuckDB:
+Install the required dependencies:
 
 ```sh
-pip install "dlt[workspace]"
+pip install marimo ibis-framework mowidgets duckdb
 ```
 
 ## Launch marimo

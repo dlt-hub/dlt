@@ -1,74 +1,102 @@
 ---
 title: Overview
-description: Deploy and run dlt pipelines, transformations and notebooks in the cloud with dltHub Runtime
-keywords: [runtime, deployment, cloud, scheduling, notebooks, dashboard, jobs, triggers, manifest]
+description: Deploy and run dlt pipelines, transformations and notebooks in the cloud with dltHub
+keywords: [dlthub, deployment, cloud, scheduling, notebooks, dashboard, jobs, triggers, manifest]
 ---
 
-# dltHub Runtime
+# dltHub Platform
 
-dltHub Runtime is a managed cloud platform for running your `dlt` pipelines, transformations, and notebooks. It provides:
+dltHub is a managed cloud platform for running your `dlt` pipelines, transformations, and notebooks. It provides:
 
 - Cloud execution of batch pipelines and interactive applications (notebooks, dashboards, MCP servers)
 - Scheduling with cron expressions, intervals, and event-driven followup triggers
 - A web dashboard for monitoring runs, viewing logs, and managing jobs
 - Secure secrets management with multiple [profiles](../core-concepts/profiles-dlthub.md)
 
-dltHub Runtime mirrors your local workspace into the cloud (called a **workspace deployment**). Your familiar dlt pipelines, datasets, notebooks, and dashboards run remotely with the same code that runs on your machine.
+dltHub mirrors your local workspace into the cloud (called a **workspace deployment**). Your familiar dlt pipelines, datasets, notebooks, and dashboards run remotely with the same code that runs on your machine.
 
 :::caution
-Each GitHub account can have only one remote workspace. When you run `dlt runtime login`, it connects your current local workspace to that remote workspace. If you later connect a different local repository and deploy, it will replace your existing [**deployment** and **configuration**](#deployments-and-configurations), making any previously scheduled jobs defunct.
+A single GitHub repository can be connected to only one remote workspace at a time. You connect with `dlthub workspace connect`. If you point the same repo at a different remote workspace, jobs deployed under the previous binding are deactivated — run history is preserved but their triggers no longer fire.
 
-Support for multiple remote workspaces (mirroring multiple local repositories) is planned.
+Connecting multiple local repositories to the same remote workspace is not yet supported.
 :::
 
 ## Workspace setup
 
-A Runtime-ready workspace is a regular Python project with a few additions. You can convert any existing dlt project into one in a couple of minutes.
+A dltHub-ready workspace is a regular Python project with a few additions. You can convert any existing OSS dlt project into one in a couple of minutes — all CLI examples below use the `dlthub` host, which becomes the single entry point once the workspace is initialized.
 
-### 1. Initialize a Python project
-
-If your project doesn't have a `pyproject.toml` yet, create one:
+### 1. Create a Python project
 
 ```sh
-uv init
+uv venv
 ```
 
-Runtime uses `pyproject.toml` to install dependencies remotely.
-
-### 2. Enable workspace and runtime features
-
-Install `dlt` with the `workspace` and `hub` extras and create the workspace marker file:
+### 2. Install dltHub
 
 ```sh
-uv add "dlt[workspace,hub]"
-touch .dlt/.workspace
+uv pip install "dlt[hub]"
 ```
 
-The `.dlt/.workspace` file activates [profile support](../core-concepts/profiles-dlthub.md) and enables the `dlt runtime` and `dlt profile` CLI commands.
+The `[hub]` extra pulls in everything needed to run the `dlthub` CLI and deploy to dltHub.
 
-### 3. Log in to Runtime
+### 3. Initialize the local workspace
 
 ```sh
-dlt runtime login
+dlthub init
 ```
 
-This opens a GitHub OAuth flow. After authentication, the CLI prompts you to select or create a remote workspace. The workspace ID is stored in `.dlt/config.toml` under `[runtime] workspace_id`.
+This scaffolds:
 
-To skip the interactive prompt, pass `--workspace <name_or_id>`. To switch workspaces later without logging out, use `dlt runtime workspace switch <name_or_id>`.
+```text
+.dlt/
+├── .workspace          # marker that enables the extended `dlthub` command surface
+├── config.toml         # workspace-wide config
+└── secrets.toml        # workspace-wide secrets (gitignored)
+pyproject.toml          # or requirements.txt if `uv` isn't on PATH
+.gitignore
+```
+
+Pass `--name <workspace>` to override the default (the current directory's basename), or `--dry-run` to preview the file plan without writing.
+
+### 4. Add pipelines
+
+```sh
+dlthub pipeline init <source> <destination>
+```
+
+This reuses the same machinery as `dlt init`, so verified sources and templates work as you'd expect.
+
+:::note
+The first time you run `dlthub deploy`, `dlthub run`, or `dlthub serve`, the CLI walks you through GitHub OAuth and then prompts you to pick (or create) a remote workspace — no separate setup step required.
+
+You can also run these by hand up front:
+
+- `dlthub login` opens the OAuth device flow and authenticates the current user.
+- `dlthub workspace connect [<name_or_id>] [--org-id <id>]` binds this repo to a remote workspace. With no argument, an interactive picker is shown, grouped by organization. The chosen `workspace_id` (and `organization_id`, on the first connect) is persisted to `.dlt/config.toml`.
+
+`organization_id` is write-once. To switch organizations later, remove the line from `.dlt/config.toml` by hand and run `dlthub workspace connect` again.
+:::
 
 ## Credentials and configs
 
-### Understanding workspace profiles
+### Workspace profiles
 
-dlt Runtime uses **profiles** to manage different configurations for different environments. The relevant profiles are:
+A profile's primary role is to define **how dlt accesses your data** — destination type, credentials, dataset names, source-specific tokens. On top of that it carries other dltHub-related settings such as telemetry, log levels, and runtime tuning.
 
-| Profile | Purpose | Credentials |
-|---------|---------|-------------|
-| `dev` | Local development (default when running on your machine) | Local DuckDB / test credentials |
-| `prod` | Production batch jobs running on Runtime | Read/write access to your destination |
-| `access` | Interactive notebooks and dashboards on Runtime | Read-only access (for safe data exploration) |
+**Some profiles stay local; others are synchronized with the backend.** Local-only profiles live in your repo and are never uploaded. Synced profiles are pushed to dltHub on every deploy so the cloud runtime can use the same configuration when it executes your jobs.
 
-When you run a script locally, dlt uses `dev`. When Runtime executes a **batch job**, it uses `prod`. When Runtime serves an **interactive job** (notebook, dashboard, MCP), it uses `access`. If `access` is not configured, interactive jobs fall back to `prod`.
+The built-in profiles are:
+
+| Profile | Scope | Purpose | Credentials |
+|---------|-------|---------|-------------|
+| `dev` | Local only | Local development (default when running on your machine) | Local DuckDB / test credentials |
+| `tests` | Local only | Automated tests | Test credentials |
+| `prod` | Synced with backend | Production batch jobs running on dltHub | Read/write access to your destination |
+| `access` | Synced with backend | Interactive notebooks and dashboards on dltHub | Read-only access (for safe data exploration) |
+
+Any custom profile you reference in a job decorator (e.g. `require={"profile": "analytics"}`) is also synced to the cloud configuration.
+
+When you run a script locally, dlt uses `dev`. When dltHub executes a **batch job**, it uses `prod`. When dltHub serves an **interactive job** (notebook, dashboard, MCP), it uses `access`. If `access` is not configured, interactive jobs fall back to `prod`.
 
 See [profiles in dltHub](../core-concepts/profiles-dlthub.md) for the full reference.
 
@@ -78,14 +106,14 @@ Configuration files live in the `.dlt/` directory:
 
 ```text
 .dlt/
-├── .workspace              # Marker file enabling profiles + runtime CLI
-├── config.toml             # Workspace-wide config (all profiles)
-├── secrets.toml            # Workspace-wide secrets (gitignored)
-├── dev.config.toml         # Dev profile config
-├── prod.config.toml        # Production profile config
-├── prod.secrets.toml       # Production secrets (gitignored)
-├── access.config.toml      # Access profile config
-└── access.secrets.toml     # Access secrets (gitignored)
+├── .workspace              # marker file (created by `dlthub init`)
+├── config.toml             # workspace-wide config (all profiles)
+├── secrets.toml            # workspace-wide secrets (gitignored)
+├── dev.config.toml         # dev profile config
+├── prod.config.toml        # production profile config
+├── prod.secrets.toml       # production secrets (gitignored)
+├── access.config.toml      # access profile config
+└── access.secrets.toml     # access secrets (gitignored)
 ```
 
 Settings in profile-scoped files override workspace-scoped files. Below is an example using **named destinations** so the same `destination="warehouse"` resolves to DuckDB locally and MotherDuck in production. You can swap MotherDuck for any cloud destination — see for example [BigQuery](../../dlt-ecosystem/destinations/bigquery.md), [Snowflake](../../dlt-ecosystem/destinations/snowflake.md), or [filesystem/S3](../../dlt-ecosystem/destinations/filesystem.md).
@@ -97,11 +125,12 @@ Settings in profile-scoped files override workspace-scoped files. Below is an ex
 log_level = "WARNING"
 dlthub_telemetry = true
 
-# Runtime connection settings (set automatically by `dlt runtime login`)
-auth_base_url = "https://dlthub.app/api/auth"
-api_base_url = "https://dlthub.app/api/api"
+# Set automatically by `dlthub workspace connect`
 workspace_id = "your-workspace-id"
+organization_id = "your-organization-id"
 ```
+
+`api_base_url` defaults to `https://api.dlthub.com` and only needs to be set when targeting a self-hosted control plane. For non-interactive auth (CI, scripts), set `api_key` in `secrets.toml` under `[runtime]` instead of relying on the OAuth flow.
 
 **`dev.config.toml`** (local DuckDB):
 
@@ -139,25 +168,65 @@ password = "your-motherduck-read-only-token"
 ```
 
 :::warning Security
-Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Never commit secrets to version control. Runtime stores your secrets securely when you sync your configuration.
+Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Never commit secrets to version control. dltHub stores your secrets securely when you sync your configuration.
 :::
+
+## Command line fundamentals
+
+The `dlthub` CLI is split into two scopes:
+
+- **local** — `dlthub local ...` operates on the **local workspace** (files in `.dlt/`, your machine's pipeline working dirs, local profiles).
+- **remote** — `dlthub ...` (unqualified) operates on the **connected dltHub workspace** (the cloud deployment, configurations, jobs, runs).
+
+Most actions and entities exist in both scopes: running a job, serving an interactive app, inspecting workspace state, listing pipelines. Use the local scope to validate jobs before pushing them to the cloud.
+
+Verbs have consistent meaning regardless of the scope or the entity they operate on:
+
+| Verb | Meaning |
+|------|---------|
+| `info` | Print structured information about the entity (workspace, job, run, deployment, configuration) |
+| `list` | Enumerate entities |
+| `run` | Execute a batch job or pipeline |
+| `serve` | Start an interactive job (notebook, dashboard, MCP server, REST app) |
+| `show` | Open the GUI / human-readable interface (web dashboard remotely, marimo view locally) for the entity |
+| `clean` | Remove local artefacts (e.g. wipe pipeline working dirs and locally loaded data) |
+| `sync` | Push local changes to the cloud counterpart |
+| `cancel` | Cancel an in-flight job or run |
+| `connect` | Bind a local entity to a remote one |
+| `deploy` | Push the deployment manifest to the cloud |
+
+The local/remote split makes most pages of this guide read in pairs:
+
+| Local | Remote |
+|-------|--------|
+| `dlthub local run [<selector_or_job>]` | `dlthub run [<selector_or_job>]` |
+| `dlthub local serve [<selector_or_job>]` | `dlthub serve [<selector_or_job>]` |
+| `dlthub local pipeline run <pipeline_name>` | `dlthub pipeline run <pipeline_name>` |
+| `dlthub local info` | `dlthub workspace info` |
+| `dlthub local show` | `dlthub show` |
+
+Run the local form first to catch missing dependencies, misconfigured destinations, or broken decorators without burning a remote slot.
 
 ## Quick deploy: ad-hoc launch
 
-The fastest way to run an existing script on Runtime is to point `launch` or `serve` at a Python file:
+The fastest way to run an existing script on dltHub is to point `run` or `serve` at a Python file:
 
 ```sh
-# Deploy and run a batch script (uses `prod` profile)
-dlt runtime launch fruitshop_pipeline.py
+# test locally first
+dlthub local run fruitshop_pipeline.py
 
-# Stream logs in your terminal until the run completes
-dlt runtime launch fruitshop_pipeline.py -f
+# deploy and run a batch script in the cloud (uses `prod` profile)
+dlthub run fruitshop_pipeline.py
 
-# Deploy and serve an interactive app (notebook, dashboard, MCP — uses `access` profile)
-dlt runtime serve fruitshop_notebook.py
+# stream logs until the run completes
+dlthub run fruitshop_pipeline.py -f
+
+# deploy and serve an interactive app (uses `access` profile)
+dlthub local serve fruitshop_notebook.py    # local
+dlthub serve fruitshop_notebook.py          # remote
 ```
 
-Under the hood, the CLI generates a single-job deployment manifest from that file and syncs it to Runtime. This **ad-hoc deploy** is great for getting started but does not support:
+Under the hood, `dlthub run` / `dlthub serve` generate a single-job deployment manifest from the file and sync it to dltHub. This **ad-hoc deploy** is great for getting started but does not support:
 
 - Scheduled triggers (cron, intervals)
 - Followup jobs (run B after A succeeds)
@@ -168,11 +237,11 @@ For all of these you need **job decorators** and a **deployment module**, descri
 
 ## Jobs and deployments
 
-A Runtime workspace can contain many jobs scheduled on different cadences, chained together by triggers and freshness constraints. The three building blocks are:
+A dltHub workspace can contain many jobs scheduled on different cadences, chained together by triggers and freshness constraints. The three building blocks are:
 
 - **Job decorators** that attach scheduling and metadata to Python functions
 - **`__deployment__.py`** that declares which jobs exist in the workspace
-- **`dlt runtime deploy`** that syncs the entire job graph to Runtime in one step
+- **`dlthub deploy`** that syncs the entire job graph to dltHub in one step
 
 ### Job decorators
 
@@ -206,6 +275,20 @@ def load_commits():
     pipeline.run(github_rest_api_source())
 ```
 
+:::tip
+The first argument to `@run.pipeline` (here `"github_pipeline"`) becomes a
+pipeline-name selector that both the local and remote CLI honor:
+
+```sh
+dlthub local pipeline run github_pipeline   # locally
+dlthub pipeline run github_pipeline         # in the cloud
+```
+
+This works only for `@run.pipeline` jobs — `@run.job` and `@run.interactive`
+jobs aren't addressable by pipeline name. Run those with `dlthub run <job_name>`
+or `dlthub job trigger <selector>` instead.
+:::
+
 A general-purpose job, scheduled hourly:
 
 ```py
@@ -221,7 +304,7 @@ def run_dq_checks():
 
 ### Triggers
 
-A trigger tells Runtime **when** to run a job. You can pass a single trigger or a list.
+A trigger tells dltHub **when** to run a job. You can pass a single trigger or a list.
 
 | Trigger | Meaning |
 |---------|---------|
@@ -243,15 +326,15 @@ Tags are labels on jobs (set via `expose={"tags": [...]}`). They are used to:
 
 ```sh
 # trigger every job tagged "ingest"
-dlt runtime trigger "tag:ingest"
+dlthub job trigger "tag:ingest"
 
 # trigger every job that has a schedule
-dlt runtime trigger "schedule:*"
+dlthub job trigger "schedule:*"
 ```
 
 ### The deployment module
 
-`__deployment__.py` is a Python module that declares everything deployable in the workspace. Runtime discovers jobs by inspecting it.
+`__deployment__.py` is a Python module that declares everything deployable in the workspace. dltHub discovers jobs by inspecting it.
 
 ```py
 """GitHub ingest workspace -- loads and monitors GitHub API data"""
@@ -277,28 +360,28 @@ Rules:
 - **Function imports** (`from github_pipeline import load_commits`) produce one job per function. The function must be decorated with `@run.pipeline`, `@run.job`, or `@run.interactive`.
 - **Module imports** (`import github_report_notebook`) produce one job per module. The framework is auto-detected — marimo notebooks become interactive notebook jobs, FastMCP modules become MCP servers, Streamlit modules become dashboards.
 - **`__all__`** lists exactly the names to deploy. Without it, the manifest generator scans `__dict__` and warns.
-- **`__doc__`** (the module docstring) becomes the workspace description in the Runtime dashboard.
+- **`__doc__`** (the module docstring) becomes the workspace description in the dltHub dashboard.
 
 You can also define decorated jobs **inline** in `__deployment__.py` — useful for small MCP servers or one-off batch jobs.
 
-### Deploying with `dlt runtime deploy`
+### Deploying with `dlthub deploy`
 
-This is the central command for manifest-based deployment. It reads `__deployment__.py`, generates a manifest, and syncs it to Runtime:
+This is the central command for manifest-based deployment. It reads `__deployment__.py`, generates a manifest, and syncs it to dltHub:
 
 ```sh
-dlt runtime deploy
+dlthub deploy
 ```
 
 The deploy command:
 
 1. Imports `__deployment__.py` and collects every job
 2. Generates a deployment manifest (a JSON document describing every job's triggers, entry point, and metadata)
-3. Syncs your code and configuration to Runtime
+3. Syncs your code and configuration to dltHub
 4. Sends the manifest for **reconciliation**
 
 #### Reconciliation
 
-Runtime compares the new manifest against the currently deployed jobs:
+dltHub compares the new manifest against the currently deployed jobs:
 
 | Status | Meaning |
 |--------|---------|
@@ -313,35 +396,42 @@ Removing a job from `__deployment__.py` does not delete it — it archives it, p
 
 ```sh
 # see what would change without applying
-dlt runtime deploy --dry-run
+dlthub deploy --dry-run
 
 # dump the full expanded manifest as YAML
-dlt runtime deploy --show-manifest
+dlthub deploy --show-manifest
 ```
 
 ### Running and monitoring deployed jobs
 
-Once deployed, scheduled jobs run automatically. You can also run them by hand:
+Once deployed, scheduled jobs run automatically. You can also run them by hand — and run the local counterpart first whenever you want to debug locally:
 
 ```sh
-# launch a specific job by name (ad-hoc run, syncs code first)
-dlt runtime launch load_commits -f
+# run a specific job by name (ad-hoc, syncs code first)
+dlthub local run load_commits         # locally
+dlthub run load_commits -f            # in the cloud
 
 # trigger jobs without re-syncing code (uses currently deployed code)
-dlt runtime trigger "tag:ingest"
-dlt runtime trigger "schedule:*"
-dlt runtime trigger "tag:ingest" --dry-run    # preview only
+dlthub job trigger "tag:ingest"
+dlthub job trigger "schedule:*"
+dlthub job trigger "tag:ingest" --dry-run    # preview only
 
 # trigger by pipeline name
-dlt runtime run-pipeline github_pipeline
+dlthub local pipeline run github_pipeline    # locally
+dlthub pipeline run github_pipeline          # in the cloud
 
 # serve an interactive job
-dlt runtime serve github_report_notebook
+dlthub local serve github_report_notebook    # locally
+dlthub serve github_report_notebook          # in the cloud
 ```
+
+:::note
+`dlthub pipeline run` (and its local sibling) can only trigger jobs decorated with `@run.pipeline` — they are matched by `deliver.pipeline_name`. Jobs declared with `@run.job` or `@run.interactive` are not addressable this way; use `dlthub run <job_name>` or `dlthub job trigger <selector>` instead.
+:::
 
 ## Advanced patterns
 
-The decorators support more powerful patterns for production workspaces with multiple connected pipelines. They are summarized here — see the [runtime starter pack](https://github.com/dlt-hub/runtime-starter-pack) for full working examples.
+The decorators support more powerful patterns for production workspaces with multiple connected pipelines. They are summarized here — see the [dltHub starter pack](https://github.com/dlt-hub/runtime-starter-pack) for full working examples.
 
 ### Followup triggers and `TJobRunContext`
 
@@ -361,7 +451,7 @@ Every decorated job exposes `.success`, `.fail`, and `.completed` trigger proper
 
 ### Scheduler-driven intervals
 
-For incremental pipelines, declare the overall time range with `interval=` and let Runtime hand each run a `[interval_start, interval_end]` window:
+For incremental pipelines, declare the overall time range with `interval=` and let dltHub hand each run a `[interval_start, interval_end]` window:
 
 ```py
 @run.pipeline(
@@ -378,7 +468,7 @@ def daily_ingest(run_context: TJobRunContext):
 
 - Each run gets the cron tick that just elapsed
 - Missed ticks are backfilled automatically — windows extend back continuously
-- On refresh, Runtime resets the interval pointer to `interval.start`
+- On refresh, dltHub resets the interval pointer to `interval.start`
 - Source code stays stateless — no cursor persistence, no state lookups
 
 ### Freshness checks
@@ -398,13 +488,13 @@ def backfill():
 Then trigger it from the CLI:
 
 ```sh
-dlt runtime trigger "tag:backfill"
-dlt runtime launch backfill --refresh    # explicit refresh on a single job
+dlthub job trigger "tag:backfill"
+dlthub run backfill --refresh    # explicit refresh on a single job
 ```
 
 ### Execution constraints
 
-`execute={"timeout": "6h"}` overrides the default 120-minute job timeout. Use the dict form (`{"timeout": 7200, "grace_period": 60}`) to set a custom grace period — the window for the job to finish in-flight work before Runtime hard-kills the process.
+`execute={"timeout": "6h"}` overrides the default 120-minute job timeout. Use the dict form (`{"timeout": 7200, "grace_period": 60}`) to set a custom grace period — the window for the job to finish in-flight work before dltHub hard-kills the process.
 
 ### Dependency groups
 
@@ -423,7 +513,7 @@ def transform(run_context: TJobRunContext):
     ...
 ```
 
-Runtime composes the execution environment from the workspace's base dependencies plus the job's declared groups.
+dltHub composes the execution environment from the workspace's base dependencies plus the job's declared groups.
 
 ### Timezone
 
@@ -457,9 +547,22 @@ Visit [dlthub.app](https://dlthub.app) to access the web dashboard, which provid
 - **Dashboard** — visualize pipeline schemas, load info, data lineage
 - **Settings** — workspace settings and metadata
 
+Open it directly from the CLI with:
+
+```sh
+dlthub show
+```
+
 #### Public links for interactive jobs
 
-Notebooks and dashboards can be shared via public links. Open a job's context menu (or its detail page), click **Manage Public Link**, and toggle to enable or revoke the link. Anyone with an active link can view the running notebook or dashboard — useful for sharing dashboards with stakeholders without Runtime access.
+Notebooks and dashboards can be shared via public links. Open a job's context menu (or its detail page), click **Manage Public Link**, and toggle to enable or revoke the link. Anyone with an active link can view the running notebook or dashboard — useful for sharing dashboards with stakeholders without dltHub access.
+
+You can also generate / revoke a public link from the CLI:
+
+```sh
+dlthub job publish path/to/notebook.py
+dlthub job unpublish path/to/notebook.py
+```
 
 ## CLI reference
 
@@ -469,47 +572,49 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 
 | Command | Description |
 |---------|-------------|
-| `dlt runtime login [--workspace <name>]` | Authenticate with GitHub OAuth and select a workspace |
-| `dlt runtime logout` | Clear local credentials |
-| `dlt runtime workspace switch <name_or_id>` | Switch workspaces without re-login |
-| `dlt runtime info` | Show workspace deployment overview |
-| `dlt runtime dashboard` | Open the web dashboard |
-| `dlt runtime launch <script_or_job> [-f]` | Deploy and run a batch script or named job |
-| `dlt runtime serve <script_or_job>` | Deploy and run an interactive application |
-| `dlt runtime deploy [--dry-run] [--show-manifest]` | Deploy jobs from `__deployment__.py` |
-| `dlt runtime trigger <selector> [--refresh] [--dry-run]` | Trigger jobs matching a selector (e.g. `tag:backfill`, `schedule:*`) |
-| `dlt runtime run-pipeline <pipeline_name>` | Trigger job by pipeline name |
-| `dlt runtime cancel <name_or_selector>` | Cancel active runs for matching jobs |
-| `dlt runtime logs <name> [run#] [-f]` | View or stream logs for a run |
+| `dlthub init [--name <name>]` | Initialize a new dlthub workspace in the current directory |
+| `dlthub pipeline init <source> <destination>` | Add a pipeline (verified source or template) |
+| `dlthub login [--resume DEVICE_CODE]` | Authenticate with GitHub OAuth |
+| `dlthub logout` | Clear local credentials |
+| `dlthub workspace connect [<name_or_id>] [--org-id <id>]` | Bind this repo to a remote workspace |
+| `dlthub local info` | Show local workspace info |
+| `dlthub show` | Open the dltHub dashboard |
+| `dlthub local run <script_or_job>` | Run a batch job on the local machine (recommended before deploying) |
+| `dlthub local serve <script_or_job>` | Serve an interactive app on the local machine |
+| `dlthub run <script_or_job> [-f]` | Deploy and run a batch script or named job in the cloud |
+| `dlthub serve <script_or_job>` | Deploy and serve an interactive application in the cloud |
+| `dlthub deploy [--dry-run] [--show-manifest]` | Deploy jobs from `__deployment__.py` |
+| `dlthub job trigger <selector> [--refresh] [--dry-run]` | Trigger jobs matching a selector |
+| `dlthub pipeline run <pipeline_name>` | Trigger a `@run.pipeline` job by pipeline name |
+| `dlthub job logs <name> [run#] [-f]` | View or stream logs for a run |
 
-### Deployment commands
-
-For workspaces with a `__deployment__.py` manifest:
+### Workspace commands
 
 ```sh
-# Sync code + config and deploy the manifest
-dlt runtime deploy
+# bind this repo to a remote workspace (interactive picker if no argument)
+dlthub workspace connect [<name_or_id>] [--org-id <id>]
 
-# Preview reconciliation without applying
-dlt runtime deploy --dry-run
+# list workspaces you have access to
+dlthub workspace list
 
-# Dump the expanded manifest as YAML (useful for debugging)
-dlt -v runtime deploy --dry-run --show-manifest
+# show overview of the connected workspace
+dlthub workspace info
 
-# Sync code and configuration without reconciling the manifest
-dlt runtime sync
+# open the dashboard for the connected workspace
+dlthub workspace show
 
-# Sync only code
-dlt runtime deployment sync
+# deploy from this workspace (same as the top-level `dlthub deploy`)
+dlthub workspace deploy [--dry-run] [--show-manifest]
 
-# Sync only configuration
-dlt runtime configuration sync
+# manage deployment versions
+dlthub workspace deployment list
+dlthub workspace deployment info [version_number]
+dlthub workspace deployment sync [--dry-run] [-v]
 
-# List deployment versions
-dlt runtime deployment list
-
-# Inspect a specific deployment version
-dlt runtime deployment info [version_number]
+# manage configuration versions
+dlthub workspace configuration list
+dlthub workspace configuration info [version_number]
+dlthub workspace configuration sync [--dry-run] [-v]
 ```
 
 ### Job commands
@@ -517,35 +622,58 @@ dlt runtime deployment info [version_number]
 Commands accept job names, script paths, or **selectors** (`batch`, `tag:ingest`, `schedule:*`):
 
 ```sh
-dlt runtime job list                  # all jobs
-dlt runtime job "tag:ingest" list     # jobs matching selector
-dlt runtime job batch list            # only batch jobs
-dlt runtime job <name> info           # details for one job
+dlthub job list                    # all jobs
+dlthub job list "tag:ingest"       # jobs matching selector
+dlthub job list batch              # only batch jobs
+dlthub job info <name>             # details for one job
+dlthub job show <name>             # open the job page in the dashboard
+dlthub job trigger "tag:ingest" [--refresh] [--profile <name>] [--dry-run]
+dlthub job publish path/to/notebook.py
+dlthub job unpublish path/to/notebook.py
+dlthub job logs <name> [run#] [-f]
+dlthub job cancel <name_or_selector> [--dry-run]
 ```
 
 ### Job run commands
 
 ```sh
-# List runs (optionally filter by job name or selector)
-dlt runtime job-run list [name_or_selector]
+# list runs (optionally filter by job name or selector)
+dlthub job runs list [name_or_selector] [--running]
 
-# Run details
-dlt runtime job-run <name> [run#] info
+# run details
+dlthub job runs info <name> [run#]
+dlthub job runs show <name> [run#]
 
-# View or stream logs
-dlt runtime job-run <name> [run#] logs [-f]
-dlt runtime logs <name> [-f]
+# view or stream logs
+dlthub job runs logs <name> [run#] [-f]
+dlthub job logs <name> [run#] [-f]    # shorthand for `runs logs`
 
-# Cancel a run
-dlt runtime job-run <name> [run#] cancel
+# cancel a run
+dlthub job runs cancel <name> [run#]
 ```
 
-### Configuration commands
+### Local commands
+
+The `dlthub local` scope runs the same job graph as the cloud commands but entirely on your machine:
 
 ```sh
-dlt runtime configuration list              # list configuration versions
-dlt runtime configuration info [version]    # inspect a version
-dlt runtime configuration sync              # sync local configuration
+dlthub local info                          # workspace info
+dlthub local show                          # open the local pipeline dashboard
+dlthub local run [<selector_or_job>]       # run a batch job locally
+dlthub local serve [<selector_or_job>]     # serve an interactive job locally
+dlthub local pipeline run <pipeline_name>  # run a `@run.pipeline` job by pipeline name
+dlthub local pipeline list                 # list local pipelines
+dlthub local pipeline info <name>          # dlt OSS pipeline verbs (info, drop, sync, ...)
+dlthub local profile use <profile_name>    # pin a profile for subsequent local runs
+dlthub local clean [--skip-local-data-dir] # wipe locally loaded data for the active profile
+dlthub local schema ...                    # pipeline schema management
+```
+
+### Profile commands
+
+```sh
+dlthub profile info     # show the active profile and configuration locations
+dlthub profile list     # list all available profiles
 ```
 
 ## Key concepts
@@ -590,12 +718,12 @@ Both are versioned separately, so you can update code without changing secrets a
 
 ## Current limitations
 
-- **Runtime limits**: jobs default to 120 minutes maximum execution time (override with `execute={"timeout": "6h"}` in the decorator)
+- **Execution limits**: jobs default to 120 minutes maximum execution time (override with `execute={"timeout": "6h"}` in the decorator)
 - **Interactive timeout**: notebooks are killed after about 5 minutes of inactivity (no open browser tab)
 - **UI operations**: creating jobs must currently be done via CLI (schedules can be changed in the WebUI)
 - **Pagination**: list views show the top 100 items
 - **Log latency**: logs may lag 20–30 seconds during execution; they are guaranteed complete after the run finishes (completed or failed state)
-- **One workspace per GitHub account**: connecting a new local repo and deploying replaces the existing remote workspace
+- **One workspace per repo**: a single GitHub repository can only be connected to one remote workspace at a time; reconnecting deactivates jobs deployed under the previous binding
 
 ## Troubleshooting
 
@@ -609,17 +737,17 @@ Batch jobs will use the default configuration. Create `prod.config.toml` and `pr
 
 ### Job not using latest code
 
-The CLI does not yet detect whether local code differs from remote. Run `dlt runtime deployment sync` (or any `launch` / `serve` / `deploy`) to ensure your latest code is deployed.
+The CLI does not yet detect whether local code differs from remote. Run `dlthub workspace deployment sync` (or any `run` / `serve` / `deploy`) to ensure your latest code is deployed.
 
 ### Job failed
 
-1. `dlt runtime job-run <name> [run#] info` — check exit status and timing
-2. `dlt runtime logs <name> [run#]` — read the error output
+1. `dlthub job runs info <name> [run#]` — check exit status and timing
+2. `dlthub job logs <name> [run#]` — read the error output
 
 Common causes:
 
-- **Missing dependencies** in `pyproject.toml` — all packages must be declared, not just locally installed
-- **Secrets not configured for `prod` profile** — Runtime uses `prod` for batch jobs; check `.dlt/prod.secrets.toml`
+- **Missing dependencies** in `pyproject.toml` — all packages must be declared, not just locally installed (run `dlthub local run <job>` first to catch this)
+- **Secrets not configured for `prod` profile** — dltHub uses `prod` for batch jobs; check `.dlt/prod.secrets.toml`
 - **Script missing `if __name__ == "__main__":`** — the job does nothing without it
 - **`dev_mode=True` left in** — drops and recreates the dataset on every run, destroying production data
 - **Wrong destination credentials** — the `prod` profile may point to a different destination than `dev`
@@ -630,5 +758,5 @@ Common causes:
 Logs may lag 20–30 seconds during execution. Wait for the run to complete, or stream them in real time:
 
 ```sh
-dlt runtime logs my_pipeline.py --follow
+dlthub job logs my_pipeline.py --follow
 ```

@@ -4,19 +4,25 @@ version = "0.1.0"
 description = ""
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 readme = "README.md"
-requires-python = ">=3.9.1"
+requires-python = ">=3.10"
 
 [project.optional-dependencies]
-dev = []
+dev = [
+    "dlt"
+]
 
-[project.entry-points."dlt"]
+[project.entry-points.dlt]
 dlt-example-plugin = "dlt_example_plugin.__plugins__"
 
 [tool.uv]
 # No additional uv-specific configuration needed
 
-[tool.uv.dependencies]
-dlt = { path = "../../../" }
+[tool.uv.sources]
+dlt = { path = "../../../", editable = true }
 
-[tool.uv.packages]
-dlt_example_plugin = { include = "dlt_example_plugin" }
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# [tool.uv.packages]
+# dlt_example_plugin = { include = "dlt_example_plugin" }

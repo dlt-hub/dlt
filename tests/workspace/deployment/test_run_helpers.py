@@ -1,36 +1,41 @@
-"""Unit tests for dlt._workspace.cli._run_command helpers."""
+"""Unit tests for `dlt._workspace.deployment._run_helpers` — pure manifest transforms."""
 
-import argparse
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import pytest
 
-from dlt._workspace.cli import _run_command as run_cmd_mod
-from dlt._workspace.cli import commands as commands_mod
-from dlt._workspace.cli._run_command import (
+from dlt._workspace.deployment import _run_helpers as run_helpers
+from dlt._workspace.deployment._run_helpers import (
     build_runtime_entry_point,
-    collect_candidates,
-    fetch_run_info,
-    load_manifest,
+    load_manifest_with_warnings,
+    narrow_candidates,
     pick_launcher,
-    promote_file_arg,
+    promote_deployment_arg,
     resolve_interval,
     resolve_profile,
     resolve_refresh,
+    resolve_selector,
+    select_candidates,
+    select_single_job,
+    warn_missing_profiles,
 )
-from dlt._workspace.cli.exceptions import CliCommandInnerException
+from dlt._workspace.deployment.exceptions import (
+    AmbiguousJobSelector,
+    DeploymentException,
+    JobRefNotInCandidates,
+    ManifestImportError,
+    NoMatchingJobs,
+)
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
-from dlt._workspace.deployment.launchers import _launcher as launcher_mod
-from dlt._workspace.deployment.manifest import expand_triggers
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
     TExecuteSpec,
     TIntervalSpec,
     TJobDefinition,
     TJobRef,
+    TJobsDeploymentManifest,
     TRefreshPolicy,
     TRequireSpec,
     TTrigger,
@@ -81,101 +86,226 @@ def _job(
     return jd
 
 
-def _expanded(jobs: List[TJobDefinition]) -> Dict[str, List[TTrigger]]:
-    return {j["job_ref"]: expand_triggers(j) for j in jobs}
+def _manifest(jobs: List[TJobDefinition]) -> TJobsDeploymentManifest:
+    return {"engine_version": 1, "jobs": jobs}  # type: ignore[typeddict-item]
 
 
 @pytest.mark.parametrize(
-    "positional,file,expected",
+    "positional,deployment,expected",
     [
         ("batch.run", None, ("batch.run", None)),
         (None, "mod.py", (None, "mod.py")),
         (None, None, (None, None)),
     ],
-    ids=["non-py-positional", "file-only", "both-none"],
+    ids=["non-py-positional", "deployment-only", "both-none"],
 )
-def test_promote_file_arg_passthrough(
-    positional: Optional[str],
-    file: Optional[str],
-    expected: Tuple[Optional[str], Optional[str]],
+def test_promote_deployment_arg_passthrough(
+    positional: Optional[str], deployment: Optional[str], expected: Any
 ) -> None:
-    assert promote_file_arg(positional, file) == expected
+    assert promote_deployment_arg(positional, deployment) == expected
 
 
-def test_promote_file_arg_promotes_py(tmp_path: Path) -> None:
+def test_promote_deployment_arg_promotes_py(tmp_path: Path) -> None:
     py = tmp_path / "jobs.py"
     py.write_text("")
-    assert promote_file_arg(str(py), None) == (None, str(py))
+    assert promote_deployment_arg(str(py), None) == (None, str(py))
 
 
-def test_promote_file_arg_conflict_raises(tmp_path: Path) -> None:
+def test_promote_deployment_arg_conflict_raises(tmp_path: Path) -> None:
     py = tmp_path / "a.py"
     py.write_text("")
-    with pytest.raises(CliCommandInnerException, match="both"):
-        promote_file_arg(str(py), "b.py")
+    with pytest.raises(ValueError, match="both"):
+        promote_deployment_arg(str(py), "b.py")
 
 
-def test_promote_file_arg_missing_file_raises() -> None:
-    with pytest.raises(CliCommandInnerException, match="not found"):
-        promote_file_arg("does_not_exist.py", None)
+def test_promote_deployment_arg_missing_file_raises() -> None:
+    with pytest.raises(FileNotFoundError, match="not found"):
+        promote_deployment_arg("does_not_exist.py", None)
+
+
+def test_resolve_selector_none_returns_default() -> None:
+    manifest = _manifest([_job("jobs.a")])
+    assert resolve_selector(None, manifest) == ["manual:"]
+    assert resolve_selector(None, manifest, default_selector="batch") == ["batch"]
+
+
+def test_resolve_selector_bare_ref_becomes_manual() -> None:
+    manifest = _manifest([_job("jobs.a"), _job("jobs.section.b")])
+    # full ref
+    assert resolve_selector("jobs.a", manifest) == ["manual:jobs.a"]
+    # qualified bare name
+    assert resolve_selector("section.b", manifest) == ["manual:jobs.section.b"]
+
+
+def test_resolve_selector_glob_passes_through() -> None:
+    manifest = _manifest([_job("jobs.a")])
+    assert resolve_selector("tag:daily", manifest) == ["tag:daily"]
+    assert resolve_selector("schedule:*", manifest) == ["schedule:*"]
 
 
 @pytest.mark.parametrize(
-    "job_kwargs,selector,expected_ref,expected_trigger",
+    "selectors,expected_refs",
     [
-        (
-            {"default_trigger": "schedule:0 * * * *"},
-            None,
-            "jobs.a",
-            "schedule:0 * * * *",
-        ),
-        ({}, "jobs.a", "jobs.a", "manual:jobs.a"),
-        (
-            {"triggers": ["tag:daily", "manual:jobs.a"]},
-            "tag:daily",
-            "jobs.a",
-            "tag:daily",
-        ),
+        (["manual:"], ["jobs.a", "jobs.b"]),
+        (["manual:jobs.a"], ["jobs.a"]),
+        (["tag:daily"], ["jobs.b"]),
     ],
-    ids=[
-        "no-selector-uses-default-trigger",
-        "bare-ref-resolves-to-manual",
-        "tag-selector-pattern",
-    ],
+    ids=["manual-glob-matches-both", "specific-manual-matches-one", "tag-matches-tagged-only"],
 )
-def test_collect_candidates_picks_expected(
-    job_kwargs: Dict[str, Any],
-    selector: Optional[str],
-    expected_ref: str,
-    expected_trigger: str,
+def test_select_candidates_filters_by_selector(
+    selectors: List[str], expected_refs: List[str]
 ) -> None:
-    jobs = [_job("jobs.a", **job_kwargs)]
-    candidates = collect_candidates(jobs, selector, _expanded(jobs))
-    assert len(candidates) == 1
-    assert candidates[0][0]["job_ref"] == expected_ref
-    assert candidates[0][1] == expected_trigger
+    manifest = _manifest(
+        [
+            _job("jobs.a"),
+            _job("jobs.b", triggers=["tag:daily", "manual:jobs.b"]),
+        ]
+    )
+    candidates = select_candidates(manifest, selectors)
+    assert [jd["job_ref"] for jd, _ in candidates] == expected_refs
 
 
-def test_collect_candidates_no_selector_synthesizes_manual_for_jobs_without_default() -> None:
-    jobs = [
-        _job("jobs.a", default_trigger="manual:jobs.a"),
-        _job("jobs.b"),  # no default_trigger
+def test_select_candidates_substitutes_manual_with_default_trigger() -> None:
+    manifest = _manifest(
+        [
+            _job(
+                "jobs.a",
+                triggers=["schedule:0 * * * *", "manual:jobs.a"],
+                default_trigger="schedule:0 * * * *",
+            )
+        ]
+    )
+    candidates = select_candidates(manifest, ["manual:jobs.a"])
+    # manual: hit was substituted with the job's natural schedule trigger
+    assert candidates[0][1] == "schedule:0 * * * *"
+
+
+def test_select_candidates_forbidden_job_type_raises_when_only_forbidden_match() -> None:
+    manifest = _manifest([_job("jobs.dash", job_type="interactive")])
+    with pytest.raises(DeploymentException, match="interactive"):
+        select_candidates(manifest, ["manual:"], forbidden_job_type="interactive")
+
+
+def test_select_candidates_forbidden_job_type_filters_when_mixed() -> None:
+    manifest = _manifest(
+        [
+            _job("jobs.batch"),
+            _job("jobs.dash", job_type="interactive"),
+        ]
+    )
+    candidates = select_candidates(manifest, ["manual:"], forbidden_job_type="interactive")
+    assert [jd["job_ref"] for jd, _ in candidates] == ["jobs.batch"]
+
+
+def test_narrow_candidates_single_match_returns_it() -> None:
+    cands = [(_job("jobs.a"), TTrigger("manual:jobs.a"))]
+    jd, t = narrow_candidates(cands, None)
+    assert jd["job_ref"] == "jobs.a"
+    assert t == "manual:jobs.a"
+
+
+def test_narrow_candidates_multi_match_without_job_ref_raises_ambiguous() -> None:
+    cands = [
+        (_job("jobs.a"), TTrigger("manual:")),
+        (_job("jobs.b"), TTrigger("manual:")),
     ]
-    candidates = collect_candidates(jobs, None, _expanded(jobs))
-    assert [j["job_ref"] for j, _ in candidates] == ["jobs.a", "jobs.b"]
-    assert candidates[0][1] == "manual:jobs.a"
-    assert candidates[1][1] == "manual:jobs.b"
+    with pytest.raises(AmbiguousJobSelector) as exc:
+        narrow_candidates(cands, None)
+    assert "--job-ref" in str(exc.value)
+    assert exc.value.matches == cands
 
 
-def test_collect_candidates_no_match_returns_empty() -> None:
-    jobs = [_job("jobs.a", triggers=["manual:jobs.a"])]
-    assert collect_candidates(jobs, "tag:*", _expanded(jobs)) == []
+def test_narrow_candidates_multi_match_with_job_ref_picks_one() -> None:
+    cands = [
+        (_job("jobs.a"), TTrigger("manual:")),
+        (_job("jobs.b"), TTrigger("manual:")),
+    ]
+    jd, _ = narrow_candidates(cands, "jobs.b")
+    assert jd["job_ref"] == "jobs.b"
 
 
-def test_collect_candidates_invalid_ref_raises() -> None:
-    jobs = [_job("jobs.a")]
-    with pytest.raises(CliCommandInnerException, match="Could not resolve"):
-        collect_candidates(jobs, "does_not_exist", _expanded(jobs))
+def test_narrow_candidates_job_ref_not_in_set_raises() -> None:
+    cands = [
+        (_job("jobs.a"), TTrigger("manual:")),
+        (_job("jobs.b"), TTrigger("manual:")),
+    ]
+    with pytest.raises(JobRefNotInCandidates) as exc:
+        narrow_candidates(cands, "jobs.c")
+    assert exc.value.job_ref == "jobs.c"
+    assert "jobs.a" in str(exc.value) and "jobs.b" in str(exc.value)
+
+
+def test_narrow_candidates_single_match_with_mismatching_job_ref_raises() -> None:
+    cands = [(_job("jobs.a"), TTrigger("manual:jobs.a"))]
+    with pytest.raises(JobRefNotInCandidates):
+        narrow_candidates(cands, "jobs.b")
+
+
+def test_narrow_candidates_single_match_with_matching_job_ref() -> None:
+    cands = [(_job("jobs.a"), TTrigger("manual:jobs.a"))]
+    jd, _ = narrow_candidates(cands, "jobs.a")
+    assert jd["job_ref"] == "jobs.a"
+
+
+def test_select_single_job_no_match_raises_no_matching_jobs() -> None:
+    """Default behavior (no `available_selectors`): every manifest job is listed."""
+    manifest = _manifest([_job("jobs.a"), _job("jobs.b")])
+    with pytest.raises(NoMatchingJobs, match="No jobs matched") as ei:
+        select_single_job(manifest, ["tag:nope"])
+    refs = {jd["job_ref"] for jd, _ in ei.value.available}
+    assert refs == {"jobs.a", "jobs.b"}
+    # back-compat: NoMatchingJobs is also a LookupError
+    assert isinstance(ei.value, LookupError)
+
+
+def test_no_matching_jobs_lists_only_batch_when_scoped() -> None:
+    manifest = _manifest(
+        [
+            _job("jobs.b.one", job_type="batch"),
+            _job("jobs.i.app", job_type="interactive"),
+        ]
+    )
+    with pytest.raises(NoMatchingJobs) as ei:
+        select_single_job(manifest, ["tag:nope"], available_selectors=["batch"])
+    refs = {jd["job_ref"] for jd, _ in ei.value.available}
+    assert refs == {"jobs.b.one"}
+    assert "jobs.b.one" in str(ei.value)
+    assert "jobs.i.app" not in str(ei.value)
+
+
+def test_no_matching_jobs_lists_only_interactive_when_scoped() -> None:
+    manifest = _manifest(
+        [
+            _job("jobs.b.one", job_type="batch"),
+            _job("jobs.i.app", job_type="interactive"),
+        ]
+    )
+    with pytest.raises(NoMatchingJobs) as ei:
+        select_single_job(manifest, ["tag:nope"], available_selectors=["interactive"])
+    refs = {jd["job_ref"] for jd, _ in ei.value.available}
+    assert refs == {"jobs.i.app"}
+
+
+def test_no_matching_jobs_pipeline_scope_uses_synthetic_trigger() -> None:
+    """`pipeline_name:*` matches jobs declaring `deliver.pipeline_name`."""
+    pipe = _job("jobs.p", job_type="batch")
+    pipe["deliver"] = {"pipeline_name": "my_pipe"}
+    plain = _job("jobs.b", job_type="batch")
+    manifest = _manifest([pipe, plain])
+    with pytest.raises(NoMatchingJobs) as ei:
+        select_single_job(
+            manifest, ["pipeline_name:other"], available_selectors=["pipeline_name:*"]
+        )
+    refs = {jd["job_ref"] for jd, _ in ei.value.available}
+    assert refs == {"jobs.p"}
+
+
+def test_no_matching_jobs_with_no_jobs_in_scope_renders_friendly_message() -> None:
+    manifest = _manifest([_job("jobs.b", job_type="batch")])
+    with pytest.raises(NoMatchingJobs) as ei:
+        select_single_job(manifest, ["tag:nope"], available_selectors=["interactive"])
+    assert ei.value.available == []
+    assert "No matching jobs declared in the manifest." in str(ei.value)
 
 
 @pytest.mark.parametrize(
@@ -247,7 +377,7 @@ def test_resolve_profile(
     class _MockCtx:
         profile = active_profile
 
-    monkeypatch.setattr(run_cmd_mod, "active", lambda: _MockCtx())
+    monkeypatch.setattr(run_helpers, "active", lambda: _MockCtx())
 
     current, warning = resolve_profile(user, jd)
     assert current == expected_current
@@ -285,7 +415,7 @@ _EVERY_BACKFILL = {
         (
             "2026-04-19T00:00:00Z",
             "2026-04-19T06:00:00Z",
-            _SCHED_HOURLY_BACKFILL,  # declared; user override must still win verbatim
+            _SCHED_HOURLY_BACKFILL,
             False,
             datetime(2026, 4, 19, 0, tzinfo=timezone.utc),
             datetime(2026, 4, 19, 6, tzinfo=timezone.utc),
@@ -309,7 +439,6 @@ _EVERY_BACKFILL = {
             datetime(2026, 4, 19, 11, tzinfo=timezone.utc),
             "Europe/Warsaw",
         ),
-        # refresh=true: backfill from declared start to most recent tick, clamped to declared end
         (
             None,
             None,
@@ -319,7 +448,6 @@ _EVERY_BACKFILL = {
             datetime(2026, 4, 19, 6, tzinfo=timezone.utc),
             "UTC",
         ),
-        # refresh=true, open-ended declared (no end): backfill declared_start → floor(now)
         (
             None,
             None,
@@ -329,7 +457,6 @@ _EVERY_BACKFILL = {
             datetime(2026, 4, 19, 12, tzinfo=timezone.utc),
             "UTC",
         ),
-        # refresh=true + every: declared start to now
         (
             None,
             None,
@@ -339,7 +466,6 @@ _EVERY_BACKFILL = {
             NOW,
             "UTC",
         ),
-        # refresh=true but no declared interval → falls through to compute_run_interval
         (
             None,
             None,
@@ -349,18 +475,15 @@ _EVERY_BACKFILL = {
             NOW,
             "UTC",
         ),
-        # refresh=false, declared covers past window: clamp cuts natural end to declared_end
         (
             None,
             None,
             _SCHED_HOURLY_BACKFILL,
             False,
-            # natural [11:00, 12:00) clamped to declared [00:00, 06:00) → start ≥ 11 but ≤ end=06
             datetime(2026, 4, 19, 11, tzinfo=timezone.utc),
             datetime(2026, 4, 19, 6, tzinfo=timezone.utc),
             "UTC",
         ),
-        # refresh=false, no declared interval: most recently elapsed schedule window
         (
             None,
             None,
@@ -370,9 +493,6 @@ _EVERY_BACKFILL = {
             NOW,
             "UTC",
         ),
-        # refresh=false, open-ended declared in the past: declared_start is a floor only,
-        # natural interval wins — the declared start (e.g. EPOCH) is NOT passed through
-        # without --refresh. Mirrors the `clock` job pattern in the starter pack.
         (
             None,
             None,
@@ -382,7 +502,6 @@ _EVERY_BACKFILL = {
             NOW,
             "UTC",
         ),
-        # refresh=false, no trigger: manual: collapses to point-in-time
         (None, None, {}, False, NOW, NOW, "UTC"),
     ],
     ids=[
@@ -422,13 +541,7 @@ def test_build_runtime_entry_point_batch_sets_interval_and_profile() -> None:
     start = datetime(2026, 4, 19, 10, tzinfo=timezone.utc)
     end = datetime(2026, 4, 19, 11, tzinfo=timezone.utc)
     ep = build_runtime_entry_point(
-        jd,
-        {},
-        profile="prod",
-        refresh=True,
-        interval_start=start,
-        interval_end=end,
-        tz="UTC",
+        jd, {}, profile="prod", refresh=True, interval_start=start, interval_end=end, tz="UTC"
     )
     assert ep["interval_start"] == "2026-04-19T10:00:00+00:00"
     assert ep["interval_end"] == "2026-04-19T11:00:00+00:00"
@@ -479,68 +592,35 @@ def test_pick_launcher(launcher: Optional[str], function: Optional[str], expecte
     assert pick_launcher(ep) == expected  # type: ignore[arg-type]
 
 
-def test_fetch_run_info_manual_selector_swaps_to_default_trigger(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # the user picks a manual: selector, but the job has a schedule as its
-    # default_trigger — the run should fire with the schedule, not as a point-in-time manual
-    job_def = _job(
-        "jobs.a",
-        triggers=["schedule:0 * * * *", "manual:jobs.a"],
-        default_trigger="schedule:0 * * * *",
-    )
-    manifest = {"engine_version": 1, "jobs": [job_def]}
-
-    def _fake_load_manifest(name_or_path, use_all):
-        return manifest, []
-
-    monkeypatch.setattr(run_cmd_mod, "load_manifest", _fake_load_manifest)
-
-    info = fetch_run_info(
-        selector="manual:jobs.a",
-        file=None,
-        user_profile=None,
-        user_start=None,
-        user_end=None,
-        user_refresh=False,
-        cli_config={},
-        pick=lambda candidates: candidates[0],
-        now_utc=NOW,
-    )
-    assert info is not None
-    assert info["trigger"] == "schedule:0 * * * *"
-    assert info["trigger_humanized"] == "schedule: 0 * * * *"
-    # schedule-derived window for cron "0 * * * *" at NOW=12:00 UTC: [11:00, 12:00)
-    assert info["entry_point"]["interval_start"] == "2026-04-19T11:00:00+00:00"
-    assert info["entry_point"]["interval_end"] == "2026-04-19T12:00:00+00:00"
-    assert info["entry_point"]["refresh"] is False
-
-
 def test_load_manifest_plain_python_module_becomes_module_job(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     script = tmp_path / "my_pipeline.py"
     script.write_text("x = 1\n")
     monkeypatch.chdir(tmp_path)
-    manifest, _ = load_manifest("my_pipeline.py", use_all=False)
+    manifest, _, _ = load_manifest_with_warnings("my_pipeline.py", use_all=False)
     jobs = manifest["jobs"]
     assert len(jobs) == 1
     assert jobs[0]["entry_point"]["launcher"] == LAUNCHER_MODULE
     assert jobs[0]["entry_point"]["function"] is None
 
 
-def test_load_manifest_missing_default_module_explains_default(
+def test_load_manifest_missing_default_module_raises_typed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(CliCommandInnerException, match="__deployment__"):
-        load_manifest("__deployment__", use_all=True)
+    with pytest.raises(ManifestImportError, match="__deployment__") as exc:
+        load_manifest_with_warnings("__deployment__", use_all=True)
+    assert exc.value.kind == "default_missing"
 
 
-def test_load_manifest_missing_file_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_manifest_missing_file_raises_typed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(CliCommandInnerException, match="Could not import"):
-        load_manifest("does_not_exist_abc123", use_all=True)
+    with pytest.raises(ManifestImportError, match="Could not import") as exc:
+        load_manifest_with_warnings("does_not_exist_abc123", use_all=True)
+    assert exc.value.kind == "module_missing"
 
 
 def test_load_manifest_import_error_inside_file_surfaces_real_error(
@@ -549,93 +629,31 @@ def test_load_manifest_import_error_inside_file_surfaces_real_error(
     script = tmp_path / "bad.py"
     script.write_text("import definitely_not_installed_xyz123\n")
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(CliCommandInnerException, match="Failed to import 'bad.py'"):
-        load_manifest("bad.py", use_all=False)
+    with pytest.raises(ManifestImportError, match="Failed to import") as exc:
+        load_manifest_with_warnings("bad.py", use_all=False)
+    assert exc.value.kind == "import_failed"
 
 
-def _invoke_workspace_run(monkeypatch: pytest.MonkeyPatch, *cli_args: str) -> Tuple[int, str, str]:
-    """Run `workspace run` in-process; intercept exec_process to run the child
-    synchronously into explicit buffers and return (returncode, stdout, stderr).
-    """
-    stdout_buf: List[str] = []
-    stderr_buf: List[str] = []
-
-    def _sync_exec(argv: List[str]) -> None:
-        result = subprocess.run(argv, capture_output=True, text=True, timeout=60)
-        stdout_buf.append(result.stdout)
-        stderr_buf.append(result.stderr)
-        raise SystemExit(result.returncode)
-
-    monkeypatch.setattr(launcher_mod, "exec_process", _sync_exec)
-
-    cmd = commands_mod.WorkspaceCommand()  # type: ignore[abstract]
-    parser = argparse.ArgumentParser(prog="dlt workspace")
-    cmd.configure_parser(parser)
-    args = parser.parse_args(["run", *cli_args])
-
-    returncode = 0
-    try:
-        cmd._execute_run(args)
-    except SystemExit as exc:
-        returncode = int(exc.code or 0)
-
-    return returncode, "".join(stdout_buf), "".join(stderr_buf)
-
-
-def test_workspace_run_plain_module_end_to_end(
-    auto_isolated_workspace: Any,
+def test_warn_missing_profiles_returns_advisory_for_each_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    ws_dir = auto_isolated_workspace.run_dir
-    # work is under __main__ guard so load_manifest's import is a no-op and
-    # only the launcher subprocess produces output
-    (Path(ws_dir) / "hello.py").write_text(
-        "if __name__ == '__main__':\n    print('greetings from pipeline')\n"
-    )
-    returncode, stdout, _ = _invoke_workspace_run(monkeypatch, "hello.py")
-    assert returncode == 0
-    assert "greetings from pipeline" in stdout
+    class _MockCtx:
+        def available_profiles(self) -> List[str]:
+            return ["dev"]
+
+    monkeypatch.setattr(run_helpers, "active", lambda: _MockCtx())
+    warnings = warn_missing_profiles()
+    joined = "\n".join(warnings)
+    assert "'prod'" in joined
+    assert "'access'" in joined
 
 
-def test_workspace_run_propagates_nonzero_exit(
-    auto_isolated_workspace: Any,
+def test_warn_missing_profiles_returns_empty_when_both_present(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    ws_dir = auto_isolated_workspace.run_dir
-    (Path(ws_dir) / "failing.py").write_text(
-        "import sys\n"
-        "if __name__ == '__main__':\n"
-        "    print('before exit', flush=True)\n"
-        "    print('err line', file=sys.stderr, flush=True)\n"
-        "    sys.exit(7)\n"
-    )
-    returncode, stdout, stderr = _invoke_workspace_run(monkeypatch, "failing.py")
-    assert returncode == 7
-    assert "before exit" in stdout
-    assert "err line" in stderr
+    class _MockCtx:
+        def available_profiles(self) -> List[str]:
+            return ["prod", "access", "dev"]
 
-
-def test_workspace_run_dry_run_does_not_spawn_subprocess(
-    auto_isolated_workspace: Any,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    ws_dir = auto_isolated_workspace.run_dir
-    (Path(ws_dir) / "dry.py").write_text(
-        "if __name__ == '__main__':\n    print('should not run')\n"
-    )
-
-    called: Dict[str, Any] = {}
-
-    def _should_not_be_called(argv: List[str]) -> None:
-        called["argv"] = argv
-
-    monkeypatch.setattr(launcher_mod, "exec_process", _should_not_be_called)
-
-    cmd = commands_mod.WorkspaceCommand()  # type: ignore[abstract]
-    parser = argparse.ArgumentParser(prog="dlt workspace")
-    cmd.configure_parser(parser)
-    args = parser.parse_args(["run", "dry.py", "--dry-run"])
-    cmd._execute_run(args)
-    assert "argv" not in called
-    assert "dry-run: not launching" in capsys.readouterr().out
+    monkeypatch.setattr(run_helpers, "active", lambda: _MockCtx())
+    assert warn_missing_profiles() == []

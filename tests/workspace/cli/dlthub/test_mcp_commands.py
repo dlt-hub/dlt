@@ -16,43 +16,58 @@ from pytest_mock import MockerFixture
 from dlt.common.runtime.run_context import RunContext
 from dlt._workspace.mcp.server import WorkspaceMCP
 
-from tests.workspace.utils import fruitshop_pipeline_context as fruitshop_pipeline_context
+from tests.workspace.utils import (
+    fruitshop_pipeline_context as fruitshop_pipeline_context,
+    isolated_workspace,
+)
 
-
-# ---------------------------------------------------------------------------
-# Transport mode tests: parametrize (cli_args, expected_transport)
-# ---------------------------------------------------------------------------
 
 _TRANSPORT_CASES = [
-    # (id, base_cmd, extra_flags, expected_transport, expect_path)
-    ("pipeline-default", ["pipeline", "fruitshop", "mcp"], [], "streamable-http", True),
-    ("pipeline-sse", ["pipeline", "fruitshop", "mcp"], ["--sse"], "sse", True),
-    ("workspace-default", ["workspace", "mcp"], [], "streamable-http", True),
-    ("workspace-sse", ["workspace", "mcp"], ["--sse"], "sse", True),
-    ("ai-mcp-default", ["ai", "mcp"], [], "streamable-http", True),
-    ("ai-mcp-stdio", ["ai", "mcp"], ["--stdio"], "stdio", False),
-    ("ai-mcp-sse", ["ai", "mcp"], ["--sse"], "sse", True),
-    ("ai-mcp-run-default", ["ai", "mcp", "run"], [], "streamable-http", True),
-    ("ai-mcp-run-stdio", ["ai", "mcp", "run"], ["--stdio"], "stdio", False),
+    # (id, host, base_cmd, extra_flags, expected_transport, expect_path)
+    ("pipeline-default", "dlt", ["pipeline", "fruitshop", "mcp"], [], "streamable-http", True),
+    ("pipeline-sse", "dlt", ["pipeline", "fruitshop", "mcp"], ["--sse"], "sse", True),
+    ("ai-mcp-default", "dlthub", ["ai", "mcp"], [], "streamable-http", True),
+    ("ai-mcp-stdio", "dlthub", ["ai", "mcp"], ["--stdio"], "stdio", False),
+    ("ai-mcp-sse", "dlthub", ["ai", "mcp"], ["--sse"], "sse", True),
+    ("ai-mcp-run-default", "dlthub", ["ai", "mcp", "run"], [], "streamable-http", True),
+    ("ai-mcp-run-stdio", "dlthub", ["ai", "mcp", "run"], ["--stdio"], "stdio", False),
 ]
 
 
 @pytest.mark.parametrize(
-    ("base_cmd", "extra_flags", "expected_transport", "expect_path"),
-    [(c[1], c[2], c[3], c[4]) for c in _TRANSPORT_CASES],
+    ("host", "base_cmd", "extra_flags", "expected_transport", "expect_path"),
+    [(c[1], c[2], c[3], c[4], c[5]) for c in _TRANSPORT_CASES],
     ids=[c[0] for c in _TRANSPORT_CASES],
 )
 def test_mcp_transport(
     fruitshop_pipeline_context: RunContext,
     script_runner: ScriptRunner,
     mocker: MockerFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    host: str,
     base_cmd: List[str],
     extra_flags: List[str],
     expected_transport: str,
     expect_path: bool,
 ) -> None:
     mock = mocker.patch.object(FastMCP, "run")
-    result = script_runner.run(["dlt", "--debug"] + base_cmd + extra_flags)
+    # `dlt pipeline <name> mcp` is a legacy command; with an active workspace the `dlt` host
+    # falls back to `dlthub`. nest a legacy context and pass the workspace's
+    # pipelines dir via `--pipelines-dir` so `dlt.attach` still finds the fruitshop pipeline
+    if host == "dlt":
+        # `dlt pipeline ... mcp` is gated on `dlt[hub]`; `install-workspace` doesn't pull it in
+        monkeypatch.setattr("dlt.hub.__found__", True)
+        pipelines_dir = fruitshop_pipeline_context.get_data_entity("pipelines")
+        with isolated_workspace("legacy", required="RunContext"):
+            # `--pipelines-dir` is on the `pipeline` parser, before the pipeline_name positional
+            cmd = (
+                [host, "--debug", base_cmd[0], "--pipelines-dir", pipelines_dir]
+                + base_cmd[1:]
+                + extra_flags
+            )
+            result = script_runner.run(cmd)
+    else:
+        result = script_runner.run([host, "--debug"] + base_cmd + extra_flags)
     assert result.returncode == 0
     assert mock.called
     call_kwargs = mock.call_args.kwargs
@@ -64,18 +79,13 @@ def test_mcp_transport(
         assert "path" not in call_kwargs
 
 
-# ---------------------------------------------------------------------------
-# Extra features
-# ---------------------------------------------------------------------------
-
-
 def test_ai_mcp_command_extra_features(
     fruitshop_pipeline_context: RunContext, script_runner: ScriptRunner, mocker: MockerFixture
 ) -> None:
     spy = mocker.spy(WorkspaceMCP, "__init__")
     mocker.patch.object(FastMCP, "run")
     result = script_runner.run(
-        ["dlt", "--debug", "ai", "mcp", "--features", "rest-api-pipeline", "data-exploration"]
+        ["dlthub", "--debug", "ai", "mcp", "--features", "rest-api-pipeline", "data-exploration"]
     )
     assert result.returncode == 0
     init_kwargs = spy.call_args
@@ -84,15 +94,10 @@ def test_ai_mcp_command_extra_features(
     assert "data-exploration" in features
 
 
-# ---------------------------------------------------------------------------
-# Install
-# ---------------------------------------------------------------------------
-
-
 def test_ai_mcp_install_command(
     fruitshop_pipeline_context: RunContext, script_runner: ScriptRunner
 ) -> None:
-    result = script_runner.run(["dlt", "--debug", "ai", "mcp", "install", "--agent", "claude"])
+    result = script_runner.run(["dlthub", "--debug", "ai", "mcp", "install", "--agent", "claude"])
     assert result.returncode == 0
     assert "Installed" in result.stdout
 
@@ -101,7 +106,7 @@ def test_ai_mcp_install_command(
     data = json.loads(config_path.read_text())
     server = data["mcpServers"]["dlt-workspace"]
     assert server["command"] == "uv"
-    assert server["args"] == ["run", "dlt", "ai", "mcp", "run", "--stdio"]
+    assert server["args"] == ["run", "dlthub", "ai", "mcp", "run", "--stdio"]
     assert server["type"] == "stdio"
 
 
@@ -110,7 +115,7 @@ def test_ai_mcp_install_with_features(
 ) -> None:
     result = script_runner.run(
         [
-            "dlt",
+            "dlthub",
             "--debug",
             "ai",
             "mcp",
@@ -135,7 +140,7 @@ def test_ai_mcp_install_with_features(
 def test_ai_mcp_install_skips_existing(
     fruitshop_pipeline_context: RunContext, script_runner: ScriptRunner
 ) -> None:
-    script_runner.run(["dlt", "--debug", "ai", "mcp", "install", "--agent", "claude"])
-    result = script_runner.run(["dlt", "--debug", "ai", "mcp", "install", "--agent", "claude"])
+    script_runner.run(["dlthub", "--debug", "ai", "mcp", "install", "--agent", "claude"])
+    result = script_runner.run(["dlthub", "--debug", "ai", "mcp", "install", "--agent", "claude"])
     assert result.returncode == 0
     assert "already configured" in result.stdout

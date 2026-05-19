@@ -10,13 +10,13 @@ import pytest
 import yaml
 
 from dlt.common.libs import git
-from dlt._workspace.cli.ai.agents import AI_AGENTS
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS
+from dlt._workspace.cli.dlthub.ai.utils import (
     DEFAULT_AI_WORKBENCH_BRANCH,
     DEFAULT_AI_WORKBENCH_REPO,
     compute_file_hash,
 )
-from dlt._workspace.typing import TToolkitIndexEntry, TToolkitInfo
+from dlt._workspace.cli.dlthub.ai.typing import TToolkitIndexEntry, TToolkitInfo
 
 # known toolkits in the repo (init is now visible)
 KNOWN_TOOLKITS = ["data-exploration", "init", "rest-api-pipeline", "dlthub-runtime"]
