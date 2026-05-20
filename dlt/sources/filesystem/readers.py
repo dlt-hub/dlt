@@ -3,7 +3,7 @@ from dlt.common import json
 from dlt.common.typing import copy_sig_any
 from dlt.sources import TDataItems, DltResource, DltSource
 from dlt.sources.filesystem import FileItemDict
-from dlt.common.libs import pandas as pd
+from dlt.common.libs.pandas import pandas as pd
 
 from .helpers import fetch_arrow, fetch_json
 
@@ -42,7 +42,7 @@ def _read_csv(
         # Here we use pandas chunksize to read the file in chunks and avoid loading the whole file
         # in memory.
         with file_obj.open(mode=open_mode, **open_kwargs) as file:
-            for df in pd.read_csv(file, **kwargs):
+            for df in pd.read_csv(file, **kwargs): # type: ignore[attr-defined]
                 yield df.to_dict(orient="records")
 
 
