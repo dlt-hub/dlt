@@ -170,5 +170,5 @@ By the end of this guide you should have:
 - A working `@dlt.hub.transformation` script that populates the CDM
 
 Next steps:
-- [Deploy and schedule your pipeline](llm-native-workflow.md#handover-to-other-toolkits) with the `dlthub-runtime` toolkit
+- [Deploy and schedule your pipeline](llm-native-workflow.md#handover-to-other-toolkits) with the `dlthub-platform` toolkit
 - [Replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset.md)
