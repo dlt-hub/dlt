@@ -219,7 +219,7 @@ To stop a schedule, remove the trigger from the decorator (or remove the job fro
 ## Review and manage jobs in the UI
 
 The command line is great for development, but the dltHub web UI gives you a bird's-eye view of everything running in the cloud.
-Visit [dlthub.app](https://dlthub.app)—or open it from the CLI with `uv run dlthub show`—to access the dashboard. You will find:
+Visit [app.dlthub.com](https://app.dlthub.com)—or open it from the CLI with `uv run dlthub show`—to access the dashboard. You will find:
 
 1. A list of existing jobs.
 2. An overview of scheduled runs.
