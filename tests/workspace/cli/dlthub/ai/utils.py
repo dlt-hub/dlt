@@ -19,7 +19,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
 from dlt._workspace.cli.dlthub.ai.typing import TToolkitIndexEntry, TToolkitInfo
 
 # known toolkits in the repo (init is now visible)
-KNOWN_TOOLKITS = ["data-exploration", "init", "rest-api-pipeline", "dlthub-runtime"]
+KNOWN_TOOLKITS = ["data-exploration", "init", "rest-api-pipeline", "dlthub-platform"]
 INSTALLABLE_TOOLKITS = [t for t in KNOWN_TOOLKITS if t != "init"]
 AGENT_NAMES = ["claude", "cursor", "codex"]
 
