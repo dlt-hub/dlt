@@ -81,7 +81,7 @@ def test_resolve_bucket_url_ignores_foreign_credentials():
         fs = filesystem()
         assert fs.is_hf
 
-    # without bucket_url, _resolve_bucket_url returns None and is_hf is False
+    # without explicit bucket_url, defaults to "." (local filesystem), so is_hf is False
     with custom_environ({"CREDENTIALS": "postgres://loader:password@localhost:5432/dlt_data"}):
         fs = filesystem()
         assert not fs.is_hf
