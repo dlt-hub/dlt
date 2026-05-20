@@ -37,7 +37,7 @@ Before creating your first pipeline, make sure you have:
 4. (Optional) An S3 bucket if you plan to stage data externally
 
 ## Install and open the app
-Use the link we provided to you or find and install the app via the [Snowflake Marketplace](https://app.snowflake.com/marketplace).
+Find and install the app via the [dlt Connector App listing on the Snowflake Marketplace](https://app.snowflake.com/marketplace/listing/GZ1MMZ1IPICU/dlthub-dlt-connector-app).
 
 
 ## Set up connection

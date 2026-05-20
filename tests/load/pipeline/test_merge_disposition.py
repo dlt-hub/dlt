@@ -1045,7 +1045,6 @@ def test_merge_with_dispatch_and_incremental(
         _get_shuffled_events(True) | github_resource,
         **destination_config.run_kwargs,
     )
-    # no packages were loaded
     assert len(info.loads_ids) == 0
 
     # load one more event with a new id

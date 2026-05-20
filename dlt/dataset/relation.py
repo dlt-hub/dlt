@@ -24,26 +24,35 @@ import sqlglot.expressions as sge
 import dlt
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
-from dlt.common.libs.utils import is_instance_lib
+from dlt.common.libs import is_instance_lib
 from dlt.common.schema.typing import (
     TTableSchema,
     TTableSchemaColumns,
     C_DLT_LOAD_ID,
-    TTableReference,
 )
-from dlt.common.schema import utils as schema_utils, TSchemaTables
+from dlt.common.schema import utils as schema_utils
 from dlt.common.typing import Self, TSortOrder, TypedDict
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import bind_query, build_select_expr
 from dlt.common.destination.dataset import SupportsDataAccess
-from dlt.dataset._join import _apply_join
+from dlt.dataset._incremental import (
+    _build_incremental_aggregate,
+    _build_incremental_condition,
+    _maybe_warn_on_cursor_missing_raise,
+    _parse_incremental_cursor_path,
+    _raise_incomplete_cursor_column,
+    _RelationIncrementalContext,
+    _sqlglot_type_for_column,
+)
+from dlt.dataset._join import _apply_join, _extract_joined_table_aliases
 
 
 if TYPE_CHECKING:
     from dlt.common.libs.ibis import ir
     from dlt.common.libs.pandas import pandas as pd
+    from dlt.extract.incremental import Incremental
     from dlt.common.libs.pyarrow import pyarrow as pa
     from dlt.helpers.ibis import Expr as IbisExpr
 
@@ -107,6 +116,7 @@ class Relation(WithSqlClient):
         self._opened_sql_client: SqlClientBase[Any] = None
         self._sqlglot_expression: sge.Query = None
         self._schema: Optional[TTableSchemaColumns] = None
+        self._incremental_ctx: Optional[_RelationIncrementalContext] = None
 
     def df(self, *args: Any, **kwargs: Any) -> pd.DataFrame | None:
         with self._cursor() as cursor:
@@ -439,6 +449,139 @@ class Relation(WithSqlClient):
         rel._sqlglot_expression = query
         return rel
 
+    def incremental(self, incremental: Incremental[Any]) -> Self:
+        """Filter this relation to a cursor range using an Incremental.
+
+        Translates the `Incremental` bounds (`initial_value`/`end_value`, `range_start`/
+        `range_end`, `last_value_func`) into a SQL `WHERE` clause. When the cursor
+        path is `table.column`, joins the referenced table via the dataset schema
+        without adding its columns to the projection, then filters on the joined
+        column. If the target is already joined, the existing JOIN is reused.
+
+        Args:
+            incremental (Incremental[Any]): The incremental whose cursor path and
+                range define the filter. `last_value_func` must be `min` or `max`.
+
+        Returns:
+            Self: A new relation with the incremental filter applied.
+        """
+        if self._incremental_ctx is not None:
+            raise ValueError(
+                "`.incremental()` has already been applied to this relation with "
+                f"cursor `{self._incremental_ctx.incremental.cursor_path}`."
+            )
+
+        table_name, column_name = _parse_incremental_cursor_path(incremental.cursor_path)
+        naming = self._dataset.schema.naming
+        column_name = naming.normalize_identifier(column_name)
+
+        if table_name is None:
+            relation_columns = self.columns_schema
+            if column_name not in relation_columns:
+                _raise_incomplete_cursor_column(incremental.cursor_path, "this relation")
+            return self._apply_incremental(
+                incremental=incremental,
+                target_query=self.sqlglot_expression,
+                column_ref=sge.Column(this=sge.to_identifier(column_name, quoted=True)),
+                column_lookup_columns=relation_columns,
+            )
+
+        if not self._table_name:
+            raise ValueError(
+                f"Incremental cursor `{incremental.cursor_path}` references table "
+                f"`{table_name}` but the relation has no base table to resolve joins. "
+                "Call `.incremental()` on `dataset.table(...)`, not on a `.query(...)`."
+            )
+        table_name = naming.normalize_table_identifier(table_name)
+        if table_name not in self._dataset.schema.tables:
+            raise ValueError(
+                f"Incremental cursor target table `{table_name}` not found in dataset schema."
+            )
+        target_columns = self._dataset.schema.get_table_columns(table_name)
+        if column_name not in target_columns:
+            _raise_incomplete_cursor_column(incremental.cursor_path, f"table `{table_name}`")
+        if self._table_name not in _extract_joined_table_aliases(self.sqlglot_expression):
+            raise ValueError(
+                f"Incremental cursor `{incremental.cursor_path}` requires a "
+                f"base-table relation to resolve the join to `{table_name}`. "
+                f"This relation is derived from base table `{self._table_name}` "
+                "(e.g. via `.from_loads()`, `dataset.table(load_ids=...)`, or "
+                "`.select()`), so a dotted cursor cannot be applied. Use a "
+                f"cursor on a column of `{self._table_name}` instead, or drop "
+                "the derivation."
+            )
+
+        query = _apply_join(
+            self.sqlglot_expression,
+            schema=self._dataset.schema,
+            left_table=self._table_name,
+            right_table=table_name,
+            projection_prefix=table_name,
+            kind="inner",
+            project=False,
+        )
+        target_qualifier = _extract_joined_table_aliases(query)[table_name]
+        return self._apply_incremental(
+            incremental=incremental,
+            target_query=query,
+            column_ref=sge.Column(
+                this=sge.to_identifier(column_name, quoted=True),
+                table=sge.to_identifier(target_qualifier, quoted=False),
+            ),
+            column_lookup_columns=target_columns,
+        )
+
+    def _apply_incremental(
+        self,
+        *,
+        incremental: Incremental[Any],
+        target_query: sge.Query,
+        column_ref: sge.Column,
+        column_lookup_columns: TTableSchemaColumns,
+    ) -> Self:
+        """Build the WHERE for `incremental`."""
+        column_name = column_ref.name
+        sqlglot_type = _sqlglot_type_for_column(column_lookup_columns, column_name)
+        _maybe_warn_on_cursor_missing_raise(incremental, column_lookup_columns, column_name)
+        condition = _build_incremental_condition(
+            incremental,
+            column_ref,
+            sqlglot_type,
+            destination_capabilities=self.sql_client.capabilities,
+        )
+
+        rel = self.__copy__()
+        rel._sqlglot_expression = (
+            target_query.where(condition) if condition is not None else target_query
+        )
+        rel._incremental_ctx = _RelationIncrementalContext(
+            incremental=incremental,
+            cursor_column=column_ref.copy(),
+        )
+        return rel
+
+    @property
+    def is_incremental(self) -> bool:
+        """True if any clause on this relation was produced by `.incremental()`."""
+        return self._incremental_ctx is not None
+
+    def _incremental_aggregate_relation(self) -> Optional[Self]:
+        """Return a relation computing `<last_value_func>(cursor)` over this relation
+        or `None` if this relation is not incremental.
+        """
+        if self._incremental_ctx is None:
+            return None
+        agg_query = _build_incremental_aggregate(
+            self.sqlglot_expression,
+            self._incremental_ctx,
+            destination_capabilities=self.sql_client.capabilities,
+        )
+        rel = self.__copy__()
+        rel._sqlglot_expression = agg_query
+        # derived relation — do not re-advance state from the aggregate itself.
+        rel._incremental_ctx = None
+        return rel
+
     # NOTE we currently force to have one column selected; we could be more flexible
     # and rewrite the query to compute the AGG of all selected columns
     # `SELECT AGG(col1), AGG(col2), ... FROM table``
@@ -590,16 +733,14 @@ class Relation(WithSqlClient):
     def with_load_id_col(self) -> dlt.Relation:
         """Return the relation with the `_dlt_load_id` included.
 
-        This only works on relations created via ``.table()``.
+        This only works on relations created via `.table()`.
 
-        There are 3 cases:
-        - If the relation is a root table, this is a no-op
-        - If the relation has a root key, join relation to root table
-        - If the relation has a parent key, iteratively join the root to the relation
-        - Else raise
+        If the relation already includes `_dlt_load_id`, it is returned unchanged.
+        Otherwise, the root table is joined to add the column to the current relation.
 
-        This should only raise if the `dlt.Schema` was tempered, breaking the
-        dlt-generated root and parent relationships.
+        Raises:
+            ValueError: If called on a non-table relation, a root table without
+                `_dlt_load_id`, or a relation whose root load ID column cannot be located.
         """
         if not self._table_name or self._query is not None:
             raise ValueError(
@@ -607,16 +748,36 @@ class Relation(WithSqlClient):
                 " It can't be applied to arbitrary relation."
             )
 
-        table_schema = self._dataset.schema.tables[self._table_name]
+        normalized_load_id = self._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
 
-        if self._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID) in self.columns:
+        if normalized_load_id in self.columns:
             return self
-        elif schema_utils.has_column_with_prop(table_schema, "root_key"):
-            return _add_load_id_via_root_key(self)
-        elif schema_utils.has_column_with_prop(table_schema, "parent_key"):
-            return _add_load_id_via_parent_key(self)
-        else:
-            raise ValueError
+
+        root_table_name = schema_utils.get_root_table(
+            self._dataset.schema.tables, self._table_name
+        )["name"]
+        if root_table_name == self._table_name:
+            raise ValueError(
+                f"{root_table_name} is a root table, but load id column is not present."
+            )
+
+        join_alias = "_dlt_root"
+        joined = self.join(root_table_name, alias=join_alias)
+        joined_expression = joined.sqlglot_expression.copy()
+        left_projection = joined_expression.selects[: len(self.sqlglot_expression.selects)]
+        load_id_output_name = f"{join_alias}__{normalized_load_id}"
+        load_id_expr = next(
+            (expr for expr in joined_expression.selects if expr.output_name == load_id_output_name),
+            None,
+        )
+        if load_id_expr is None:
+            raise ValueError(f"Could not locate column {normalized_load_id}")
+
+        joined_expression.set("expressions", [*left_projection, load_id_expr.this.copy()])
+
+        rel = self.__copy__()
+        rel._sqlglot_expression = joined_expression
+        return rel
 
     def from_loads(
         self,
@@ -706,6 +867,7 @@ class Relation(WithSqlClient):
     def __copy__(self) -> Self:
         rel = self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
         rel._table_name = self._table_name
+        rel._incremental_ctx = self._incremental_ctx
         return rel
 
 
@@ -726,154 +888,3 @@ def _get_relation_output_columns_schema(
         allow_partial=allow_partial,
     )
     return columns_schema, normalized_query
-
-
-def _add_load_id_via_root_key_query(
-    table_name: str,
-    root_table_name: str,
-    child_root_key: str,
-    root_row_key: str,
-    *,
-    normalized_load_id: str = C_DLT_LOAD_ID,
-) -> sge.Select:
-    child_table = sge.Table(
-        this=sge.to_identifier(table_name, quoted=True),
-        alias=sge.TableAlias(this=sge.to_identifier("child", quoted=False)),
-    )
-    root_table_expr = sge.Table(
-        this=sge.to_identifier(root_table_name, quoted=True),
-        alias=sge.TableAlias(this=sge.to_identifier("root", quoted=False)),
-    )
-
-    # Build column list: child.*, root._dlt_load_id
-    columns = [
-        sge.Column(table=sge.to_identifier("child", quoted=False), this=sge.Star()),
-        sge.Column(
-            table=sge.to_identifier("root", quoted=False),
-            this=sge.to_identifier(normalized_load_id, quoted=True),
-        ),
-    ]
-
-    join_condition = sge.EQ(
-        this=sge.Column(
-            table=sge.to_identifier("child", quoted=False),
-            this=sge.to_identifier(child_root_key, quoted=True),
-        ),
-        expression=sge.Column(
-            table=sge.to_identifier("root", quoted=False),
-            this=sge.to_identifier(root_row_key, quoted=True),
-        ),
-    )
-
-    query = (
-        sge.Select(expressions=columns)
-        .from_(child_table)
-        .join(root_table_expr, on=join_condition, join_type="INNER")
-    )
-    return query
-
-
-def _add_load_id_via_root_key(relation: dlt.Relation) -> dlt.Relation:
-    """Return the input relation with the `_dlt_load_id` column added.
-
-    This is done by joining the `root_table._dlt_id` with the `table._dlt_root_id`
-    """
-    origin_table_name: str = relation._table_name
-    tables_schema = relation._dataset.schema.tables
-    root_table = schema_utils.get_root_table(tables_schema, origin_table_name)
-    root_table_name = root_table["name"]
-
-    ref = schema_utils.create_root_child_reference(tables_schema, origin_table_name)
-    child_root_key = ref["columns"][0]
-    root_row_key = ref["referenced_columns"][0]
-
-    # Construct SELECT with INNER JOIN
-    query = _add_load_id_via_root_key_query(
-        table_name=origin_table_name,
-        root_table_name=root_table_name,
-        child_root_key=child_root_key,
-        root_row_key=root_row_key,
-        normalized_load_id=relation._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID),
-    )
-
-    rel = relation.__copy__()
-    rel._sqlglot_expression = query
-    return rel
-
-
-def _add_load_id_via_parent_key_query(
-    table_name: str, table_schemas: TSchemaTables, normalized_load_id: str = C_DLT_LOAD_ID
-) -> sge.Select:
-    # The reference_chain goes from root to the queried table
-    # Each reference contains: child table -> parent table relationship
-    # We need to build joins from the queried table back to root
-    reference_chain = []
-    root_table_name = schema_utils.get_root_table(table_schemas, table_name)["name"]
-    for reference in schema_utils.get_all_parent_child_references_from_root(
-        table_schemas, root_table_name
-    ):
-        reference_chain.append(reference)
-        if reference["table"] == table_name:
-            break
-
-    queried_table = sge.Table(
-        this=sge.to_identifier(table_name, quoted=True),
-        alias=sge.TableAlias(this=sge.to_identifier("t0", quoted=False)),
-    )
-
-    # build final table query with all columns explicitly + _dlt_load_id from root table
-    columns = [
-        sge.Column(
-            table=sge.to_identifier("t0", quoted=False),
-            this=sge.to_identifier(col_name, quoted=True),
-        )
-        for col_name in table_schemas[table_name]["columns"]
-    ]
-    columns.append(
-        sge.Column(
-            table=sge.to_identifier(f"t{len(reference_chain)}", quoted=False),
-            this=sge.to_identifier(normalized_load_id, quoted=True),
-        )
-    )
-    query = sge.Select(expressions=columns).from_(queried_table)
-
-    # loop through references from table to root to append INNER JOINs
-    for i, ref in enumerate(reversed(reference_chain)):
-        parent_alias = f"t{i + 1}"
-        parent_table = sge.Table(
-            this=sge.to_identifier(ref["referenced_table"], quoted=True),
-            alias=sge.TableAlias(this=sge.to_identifier(parent_alias, quoted=False)),
-        )
-        join_condition = sge.EQ(
-            this=sge.Column(
-                table=sge.to_identifier(f"t{i}", quoted=False),
-                this=sge.to_identifier(ref["columns"][0], quoted=True),
-            ),
-            expression=sge.Column(
-                table=sge.to_identifier(parent_alias, quoted=False),
-                this=sge.to_identifier(ref["referenced_columns"][0], quoted=True),
-            ),
-        )
-        query = query.join(parent_table, on=join_condition, join_type="INNER")
-
-    return query
-
-
-def _add_load_id_via_parent_key(relation: dlt.Relation) -> dlt.Relation:
-    """Return the input relation with the `_dlt_load_id` column added.
-
-    This is done by iteratively joining the `root_table._dlt_id` with `child._dlt_parent_id`
-    until the input relation is reached.
-    """
-    origin_table_name: str = relation._table_name
-    table_schemas = relation._dataset.schema.tables
-
-    query = _add_load_id_via_parent_key_query(
-        table_name=origin_table_name,
-        table_schemas=table_schemas,
-        normalized_load_id=relation._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID),
-    )
-
-    rel = relation.__copy__()
-    rel._sqlglot_expression = query
-    return rel

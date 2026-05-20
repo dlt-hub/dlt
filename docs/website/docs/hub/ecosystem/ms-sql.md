@@ -6,10 +6,6 @@ keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 
 # MS SQL replication
 
-import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
-
-<DltHubFeatureAdmonition />
-
 dltHub provides a comprehensive solution for syncing an MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes — including inserts, updates, and deletes — into your destination.
 
 ## Prerequisites
@@ -66,7 +62,7 @@ This approach ensures that you have a complete dataset from the initial load and
 Get the Change Tracking version **before you execute the initial load** to make sure you do not miss any updates that may happen during it. This may result in "replaying" a few changes that happen during the load, but this will not have any impact on the destination data due to the `merge` write disposition.
 
 ```py
-from dlt.hub.sources.mssql import get_current_change_tracking_version
+from dlthub.sources.mssql import get_current_change_tracking_version
 from sqlalchemy import create_engine
 
 connection_url = "mssql+pyodbc://username:password@your_server:port/YourDatabaseName?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"

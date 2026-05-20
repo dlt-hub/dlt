@@ -158,9 +158,21 @@ const config = {
           },
           {
             type: 'docSidebar',
+            sidebarId: 'hubSidebar',
+            position: 'left',
+            label: 'dltHub',
+          },
+          {
+            type: 'docSidebar',
             sidebarId: 'cookbookSidebar',
             position: 'left',
             label: 'Cookbook',
+          },
+          {
+            type: 'docSidebar',
+            sidebarId: 'educationSidebar',
+            position: 'left',
+            label: 'Education',
           },
           { to: '/release-highlights', label: "What's new?", position: 'left' },
           { to: 'https://dlthub.com/blog', label: 'Blog', position: 'right' },

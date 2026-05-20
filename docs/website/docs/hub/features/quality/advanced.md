@@ -5,7 +5,7 @@ keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 ---
 
 :::warning
-🚧 This feature is under development. Interested in becoming an early tester? [Join dltHub early access](https://info.dlthub.com/waiting-list).
+This feature is in public preview
 :::
 
 This page covers more in-depth details about data quality features, such as metrics and checks. It shows the full flexibility available for advanced use cases. It can also serve as an FAQ and helper for debugging.
@@ -16,13 +16,13 @@ Note that these APIs are more likely to change than the basics page.
 Internally, metrics and checks are defined as `dlt.source` objects that are executed by the pipeline. You can interact with these objects directly, unlocking the ability to:
 
 - load data into destination A and write metrics and checks to destination B
-- run data quality checks and metrics disjointed from the primary `pipeline.run()` (e.g., on a schedule, after another trigger, etc.)
+- run data quality checks and metrics disjointed from the primary `pipeline.run()` (for example, on a schedule, after another trigger, etc.)
 - dynamically modify metrics and checks to execute via Python code
 - have a central data quality pipeline that you run for multiple pipelines / datasets
 
 
 ## Metrics and checks use a special `dlt.Schema`
-Currently, a `dlt.Dataset` is associated with a single `dlt.Schema`. This defines what tables are known and available to the dataset's API (e.g., `dataset.table(...)`).
+Currently, a `dlt.Dataset` is associated with a single `dlt.Schema`. This defines what tables are known and available to the dataset's API (for example, `dataset.table(...)`).
 
 But a `dlt.Pipeline` can be associated with multiple `dlt.Schema`, such as when loading several sources.
 
@@ -51,11 +51,11 @@ So far, we explained how a result is converted into an outcome. The check **leve
 For instance:
 - **Row-level** checks produce a result per record. It's possible to inspect which specific records pass / failed the check.
 
-- **Table-level** checks produce a result per table (e.g., result is "the number of unique values" and decision is "is this greater than 5?"). 
+- **Table-level** checks produce a result per table (for example, result is "the number of unique values" and decision is "is this greater than 5?"). 
 
-    These checks can often be rewritten as row-level checks (e.g., "is this value unique?")
+    These checks can often be rewritten as row-level checks (for example, "is this value unique?")
 
-- **Dataset-level** checks produce a result per dataset. This typically involves multiple tables, temporal comparisons, or pipeline information (e.g., "the number of rows in `orders` is higher than the number of rows in 'customers')
+- **Dataset-level** checks produce a result per dataset. This typically involves multiple tables, temporal comparisons, or pipeline information (for example, "the number of rows in `orders` is higher than the number of rows in 'customers')
 
 :::important
 Notice that the **check level** relates to the result and not the **input data** of the check. For instance, a row-level check can involve multiple tables as input.

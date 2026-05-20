@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, date  # noqa: I251
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 from dlt.common import logger, pendulum
 from dlt.common.time import (
@@ -90,3 +90,32 @@ def apply_lag(
         # do not cross initial_value
         return initial_value
     return lagged_last_value  # type: ignore[no-any-return]
+
+
+def apply_lag_with_suppression(
+    lag: Optional[float],
+    last_value_func: LastValueFunc[TCursorValue],
+    initial_value: Optional[TCursorValue],
+    end_value: Optional[TCursorValue],
+    last_value: Optional[TCursorValue],
+    resource_name: Optional[str] = None,
+) -> Optional[TCursorValue]:
+    """Conditionally apply lag to `last_value`, mirroring `Incremental.last_value` rules.
+
+    Returns `last_value` unchanged when:
+    - `lag` is falsy or `last_value` is None
+    - `last_value_func` is not `max` or `min` (logs warning)
+    - `end_value` is set (lag auto-deactivated; logs info)
+    """
+    if not lag or last_value is None:
+        return last_value
+    if last_value_func not in (max, min):
+        logger.warning(
+            f"Lag on {resource_name} is only supported for max or min last_value_func."
+            f" Provided: {last_value_func}"
+        )
+        return last_value
+    if end_value is not None:
+        logger.info(f"Lag on {resource_name} is deactivated if end_value is set in incremental.")
+        return last_value
+    return apply_lag(lag, initial_value, last_value, last_value_func)

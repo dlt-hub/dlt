@@ -920,3 +920,13 @@ def test_join_columns_schema_resolves_with_name_mutating_normalizer(
         for column_name in normalized_dataset.schema.tables[normalized_right]["columns"].keys()
     }
     assert expected_right_aliases.issubset(schema_cols)
+
+
+def test_join_does_not_project_incomplete_target_columns(
+    dataset_with_incomplete_join_target: dlt.Dataset,
+) -> None:
+    relation = dataset_with_incomplete_join_target.table("products").join("categories")
+    rows = relation.fetchall()
+    assert rows is not None
+    # 3 products inner-joined to 2 categories on category_id → 3 rows
+    assert len(rows) == 3

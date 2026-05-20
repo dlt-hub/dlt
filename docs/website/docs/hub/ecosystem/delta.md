@@ -6,10 +6,6 @@ keywords: [delta, delta lake]
 
 # Delta
 
-import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
-
-<DltHubFeatureAdmonition />
-
 The Delta destination is based on the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
 
 :::warning
@@ -21,23 +17,19 @@ Under the hood, dltHub uses the [deltalake library](https://pypi.org/project/del
 Make sure you have installed the necessary dependencies:
 ```sh
 pip install deltalake
-pip install pyarrow>=2.0.18
 ```
 
-Initialize a dltHub project in the current working directory with the following command:
+If you don't have a dltHub workspace yet, scaffold one with `uvx dlthub-start@latest` (see the [installation guide](../getting-started/installation.md)). Then, from inside the workspace, add a Delta pipeline:
 
 ```sh
-# replace sql_database with the source of your choice
-dlt project init sql_database delta
+dlthub pipeline init sql_database delta
 ```
 
-This will create a Delta destination in your `dlt.yml`, where you can configure the destination:
+Configure the Delta destination in your `config.toml`:
 
-```yaml
-destinations:
-  delta_destination:
-    type: delta
-    bucket_url: "s3://your_bucket" # replace with bucket url
+```toml
+[destination.delta]
+bucket_url = "s3://your_bucket" # replace with bucket url
 ```
 
 The credentials can be defined in the `secrets.toml`:

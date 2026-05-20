@@ -190,7 +190,7 @@ class ReferenceFollowupJob(FilesystemLoadJob):
 class TableFormatLoadFilesystemJob(ReferenceFollowupJob):
     @property
     def arrow_dataset(self) -> Any:
-        from dlt.common.libs.pyarrow import pyarrow
+        import pyarrow.dataset
 
         return pyarrow.dataset.dataset(self.file_paths)
 

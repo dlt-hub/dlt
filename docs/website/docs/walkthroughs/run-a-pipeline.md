@@ -11,9 +11,7 @@ pipeline state, trace and handle the most common problems.
 
 ## 1. Write and execute pipeline script
 
-Once you have [created a new pipeline](create-a-pipeline) or
-[added and verified a source](add-a-verified-source), you will want to use it to load data. You need to write
-(or [customize](add-a-verified-source#3-customize-or-write-a-pipeline-script)) a pipeline script,
+Once you have [created a new pipeline](create-a-pipeline), you will want to use it to load data. You need to write a pipeline script,
 like the one below that loads data from the [chess.com](https://www.chess.com) API:
 
 ```py
@@ -288,4 +286,3 @@ using the **JOB file path** provided.
   retries, and logging, so you are well-informed when something goes wrong.
 - [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that
   your pipeline script is automatically executed on a schedule.
-

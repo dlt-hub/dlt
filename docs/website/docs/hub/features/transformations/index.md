@@ -5,11 +5,7 @@ keywords: [transformation, dataset, sql, pipeline, ibis, arrow]
 ---
 # Transformations: Reshape data after loading
 
-import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
-
-<DltHubFeatureAdmonition />
-
-`dlt transformations` let you build new tables or full datasets from datasets that have _already_ been ingested with `dlt`. `dlt transformations` are written and run in a very similar fashion to dlt source and resources. `dlt transformations` require you to have loaded data to a location, for example a local duckdb database, a bucket or a warehouse on which the transformations may be executed. `dlt transformations` are fully supported for all of our sql destinations including all filesystem and bucket formats.
+`dlthub transformations` let you build new tables or full datasets from datasets that have _already_ been ingested with `dlt`. `dlt transformations` are written and run in a very similar fashion to dlt source and resources. `dlt transformations` require you to have loaded data to a location, for example a local duckdb database, a bucket or a warehouse on which the transformations may be executed. `dlt transformations` are fully supported for all of our sql destinations including all filesystem and bucket formats.
 
 You create them with the `@dlt.hub.transformation` decorator, which has the same signature as the `@dlt.resource` decorator but yields a SQL query, including the resulting
 column schema, rather than data items. dlt transformations support the same write_dispositions per destination as dlt resources do.
@@ -118,11 +114,91 @@ If you prefer to write your queries in SQL, you can omit ibis expressions by sim
 
 The identifiers (table and column names) used in these raw SQL expressions must correspond to the identifiers as they are present in your dlt schema, NOT in your destination database schema.
 
-## Using pandas dataframes or arrow tables
+## Using Pandas or Polars DataFrames and Arrow tables
 
-You can also write transformations directly using pandas or arrow. Note that in this case your transformation resource behaves like a regular resource: column-level hints will not be propagated, and `dlt` will simply treat the yielded dataframes or arrow tables like data from any other resource. This behavior may change in the future.
+You can also write transformations directly using Pandas or Polars DataFrames and Arrow tables. Note that in this case your transformation resource behaves like a regular resource: column-level hints will not be propagated, and `dlt` will simply treat the yielded DataFrames or Arrow tables like data from any other resource. This behavior may change in the future.
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::arrow_dataframe_operations-->
+
+
+## Incremental transformations
+
+When source data keeps growing, rerunning the same full transformation every time is slow and expensive.
+
+Incremental transformations let each run work on the right slice of source data instead of the whole dataset. Each slice is defined by a _cursor_: a column whose values dlt compares against a range to decide if a row is in scope. Common choices are `created_at`, `updated_at`, an increasing `id`, or the dlt-managed `_dlt_loads.inserted_at`.
+
+There are two common ways to choose the slice:
+
+- [Use the scheduler interval](#the-scheduler-interval). dltHub Platform uses this approach: the scheduler sets `[start, end)` interval this run is responsible for.
+- [Continue from the previous run](#continue-from-the-previous-run). dltHub stores the last cursor value it processed and the next run starts after that value.
+
+### The scheduler interval
+
+Use a scheduler interval when the orchestrator decides what time range each run should process. This is the natural fit for cron schedules, retries, and backfills because the run does not depend on what happened in a previous run.
+
+Set `allow_external_schedulers=True` on the cursor and dltHub Platform owns the interval: its cron schedules set `DLT_INTERVAL_START` and `DLT_INTERVAL_END`, which are picksed up to filter the source data.
+
+Here's an example. The transformation below reads the `orders` table and writes only the rows whose `created_at` falls in the `[start, end)` window to a new table `orders_window`.
+
+Given an `orders` table with one row per day:
+
+| id | created_at |
+| --- | --- |
+| 1  | 2026-01-01 |
+| 2  | 2026-01-02 |
+| …  | … |
+| 10 | 2026-01-10 |
+
+and a scheduler window of `[2026-01-05, 2026-01-10)`, the run writes ids 5 to 9 to `orders_window` (id 10 is excluded by the open upper bound).
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_scheduler_window_definition-->
+
+Re-running the same `[start, end)` (start is included, end is excluded) interval produces the same transformation input, which makes this pattern a good fit for partition backfills and idempotent retries.
+
+### Continue from the previous run
+
+Use a stateful cursor for runs not tied to an external scheduler, where each run should continue from the last successful one. dltHub stores the cursor state internally and uses it in the next run of the transformation.
+
+The transformation below appends rows from `orders` whose `created_at` is later than the persisted `last_value` to a new table `recent_orders`.
+
+:::note Implicit cursor
+The cursor below is declared on the decorator; the body yields a bare relation (Ibis expressions and raw SQL strings work too) and dltHub applies the filter automatically. The [scheduler example above](#the-scheduler-interval) shows the alternative form, with the cursor as a function argument.
+:::
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_stateful_cursor_definition-->
+
+Now suppose `orders` is loaded in two batches:
+
+| batch   | ids    | `created_at`              |
+| ---     | ---    | ---                       |
+| initial | 1..3   | 2026-01-01 .. 2026-01-03  |
+| later   | 4..5   | 2026-01-04 .. 2026-01-05  |
+
+The first run has no `last_value` yet, so it starts from `initial_value` (`2000-01-01`), writes the three initial rows to `recent_orders`, and advances `last_value` to `2026-01-03`. The next run sees the two later rows fall past `last_value`, appends them, and advances `last_value` to `2026-01-05`.
+
+:::caution Set `range_start="open"` on stateful cursors
+A stateful cursor persists `last_value` after each run. With the default `range_start="closed"`, the next run's filter is `cursor >= last_value`, so the row at the boundary is re-emitted every time. Set `range_start="open"` to make the filter `cursor > last_value` and exclude the boundary row.
+:::
+
+### Cursor column choices
+
+Use a domain cursor when the source table has a column that represents creation or update order. For append-only data, `created_at` or an increasing `id` is usually enough. For mutable data, use a cursor that changes whenever the row changes, such as `updated_at`; rows whose cursor value does not advance are intentionally ignored by the next stateful run.
+
+Use `_dlt_loads.inserted_at` when the source table has no domain timestamp and you want to process data by the time dltHub loaded it. A dotted cursor path such as `_dlt_loads.inserted_at` tells dltHub to follow the schema reference from the base table to `_dlt_loads`, join it, and filter on the joined column. The join is filter-only: columns from `_dlt_loads` are not added to the destination table.
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_load_time_cursor_definition-->
+
+:::note
+Under the hood, when dltHub can run the transformation directly as SQL/model job, the source query is modified to include the cursor filter. When the transformation is materialized first, for example if source and destination are different physical engines, or when you yield Python objects such as lists, Arrow tables, or DataFrames, filtering happens during extraction.
+:::
+
+### State and safety rules
+
+- `LIMIT` is rejected on stateful relation incrementals. Advancing state from a limited result can skip rows that were not returned. Remove the limit or use an explicit bounded window.
+- SQL-based cursors support `max` and `min` last-value functions. Custom Python `last_value_func` callables cannot be pushed down to SQL.
+- Null handling follows `on_cursor_value_missing`. For SQL pushdown, `"include"` adds `OR cursor IS NULL`; `"exclude"` adds `AND cursor IS NOT NULL`; `"raise"` cannot raise in the middle of a query and falls back to excluding null cursor values when needed.
+
+For lower-level cursor rules, including range inclusivity and `lag`, see [Filter to an incremental cursor](../../../general-usage/dataset-access/dataset.md#filter-to-an-incremental-cursor) and [Cursor-based incremental loading](../../../general-usage/incremental/cursor.md).
 
 
 ## Schema evolution and hints lineage
@@ -144,7 +220,7 @@ You can inspect the computed result schema during development by looking at the 
 ### Column level hint forwarding
 
 When creating or updating tables with transformation resources, `dlt` will also forward certain column hints to the new tables. In our fruitshop source, we have applied a custom hint named
-`x-annotation-pii` set to True for the `name` column, which indicates that this column contains PII (personally identifiable information). 
+`x-annotation-pii` set to True for the `name` column, which indicates that this column contains PII (personally identifiable information).
 Downstream of the transformation layer, we may want to know which columns originate from columns that contain private data:
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::column_level_lineage-->
@@ -157,7 +233,7 @@ Downstream of the transformation layer, we may want to know which columns origin
 
 ## Lifecycle of a SQL transformation
 
-In this section, we focus on the lifecycle of transformations that yield a `Relation` object, which we call SQL transformations here. This is in contrast to Python-based transformations that yield dataframes or arrow tables, which go through the regular extract, normalize, and load lifecycle of a `dlt` resource.
+In this section, we focus on the lifecycle of transformations that yield a `Relation` object, which we call SQL transformations here. This is in contrast to Python-based transformations that yield dataframes, arrow tables, or polars frames, which go through the regular extract, normalize, and load lifecycle of a `dlt` resource.
 
 ### Extract
 
@@ -169,7 +245,7 @@ At this stage, the SQL string is just the user's original query — either the s
 In the normalize stage, `.model` files are read and processed. The normalization process modifies your SQL queries to ensure they execute correctly and integrate with `dlt`'s features.
 
 :::info
-The normalization described here applies only to SQL-based transformations. Python-based transformations, such as those using dataframes or arrow tables, follow the [regular normalization process](../../../reference/explainers/how-dlt-works.md#normalize).
+The normalization described here applies only to SQL-based transformations. Python-based transformations, such as those using dataframes, arrow tables, or polars frames, follow the [regular normalization process](../../../reference/explainers/how-dlt-works.md#normalize).
 :::
 
 #### Adding `dlt` columns
@@ -271,22 +347,3 @@ This script demonstrates:
 - Loading only the aggregated results to a production warehouse (Postgres)
 - Reducing warehouse compute costs by performing transformations locally in DuckDB
 - Using multiple pipelines in a single workflow for different stages of processing
-
-### Incremental transformations example
-
-:::info
-This example demonstrates how to perform incremental transformations using an incremental primary key from the original tables. We're actively working to make incremental transformations based on `_dlt_load_id`s even easier in the near future.
-:::
-
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_transformations-->
-
-This example demonstrates how you can incrementally transform incoming new data for the customers table into a cleaned_customers table where the name column has been removed. It:
- * Uses primary key-based incremental loading to process only new data
- * Tracks the highest ID processed so far to filter out already processed records
- * Handles first-time runs with the PipelineNeverRan exception
- * Removes sensitive data (name column) during the transformation
- * Uses write_disposition="append" to add only new records to the destination table
- * Can be run repeatedly as new data arrives, processing only the delta
-
-
-

@@ -60,12 +60,6 @@ class DestinationClient(JobClientBase):
             if is_dlt_table_or_column(table["name"], self.schema._dlt_tables_prefix):
                 return FinalizedLoadJob(file_path)
 
-        skipped_columns: List[str] = []
-        if self.config.skip_dlt_columns_and_tables:
-            for column in list(self.schema.get_table(table["name"])["columns"].keys()):
-                if is_dlt_table_or_column(column, self.schema._dlt_tables_prefix):
-                    skipped_columns.append(column)
-
         # save our state in destination name scope
         load_state = destination_state()
 
@@ -76,7 +70,6 @@ class DestinationClient(JobClientBase):
                 self.config,
                 load_state,
                 self.destination_callable,
-                skipped_columns,
             )
         if parsed_file.file_format in ["jsonl", "typed-jsonl"]:
             return DestinationJsonlLoadJob(
@@ -84,7 +77,6 @@ class DestinationClient(JobClientBase):
                 self.config,
                 load_state,
                 self.destination_callable,
-                skipped_columns,
             )
         return None
 

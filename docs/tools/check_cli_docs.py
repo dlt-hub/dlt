@@ -52,15 +52,43 @@ class _WidthFormatter(argparse.RawTextHelpFormatter):
         super().__init__(prog, width=99999, max_help_position=99999)
 
 
-def _set_prog_recursive(
-    parser: argparse.ArgumentParser, old_prog: str, new_prog: str
-) -> None:
-    """Propagates prog to a parser and all nested subparsers."""
-    parser.prog = parser.prog.replace(old_prog, new_prog, 1)
-    for action in parser._actions:
-        if isinstance(action, argparse._SubParsersAction):
-            for subparser in action._name_parser_map.values():
-                _set_prog_recursive(subparser, old_prog, new_prog)
+def _escape_mdx(s: str) -> str:
+    """Escape `<` / `>` so MDX does not parse `<word>` as a JSX tag.
+
+    Skips fenced code blocks (```...```) and inline code spans (`...`),
+    since MDX renders those verbatim.
+    """
+    if not s:
+        return s
+    out: List[str] = []
+    in_fence = False
+    i = 0
+    n = len(s)
+    while i < n:
+        if s.startswith("```", i):
+            out.append("```")
+            i += 3
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            out.append(s[i])
+            i += 1
+            continue
+        if s[i] == "`":
+            j = s.find("`", i + 1)
+            if j != -1:
+                out.append(s[i : j + 1])
+                i = j + 1
+                continue
+        ch = s[i]
+        if ch == "<":
+            out.append("&lt;")
+        elif ch == ">":
+            out.append("&gt;")
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def render_argparse_markdown(
@@ -114,6 +142,11 @@ def render_argparse_markdown(
         if nesting == 0:
             help_string = description
             description = None
+
+        # MDX parses `<word>` as a JSX tag; escape angle brackets in prose.
+        # Usage (inside ```sh) and backtick-wrapped tokens are left untouched.
+        help_string = _escape_mdx(help_string) if help_string else help_string
+        description = _escape_mdx(description) if description else description
 
         if not parser.description:
             print(
@@ -185,7 +218,7 @@ def render_argparse_markdown(
                 else:
                     quoted_title = f"`{arg_title}`"
                 if quoted_title:
-                    section += f"* {quoted_title} - {arg_help.capitalize()}\n"
+                    section += f"* {quoted_title} - {_escape_mdx(arg_help.capitalize())}\n"
 
             extracted_sections.append({"header": header.capitalize(), "section": section})
 
@@ -273,8 +306,7 @@ def main() -> None:
 
     from dlt._workspace.cli._dlt import _create_parser
 
-    cli_parser, _ = _create_parser()
-    _set_prog_recursive(cli_parser, cli_parser.prog, args.executable_name)
+    cli_parser, _, _ = _create_parser(host=args.executable_name)
     result = render_argparse_markdown(args.executable_name, cli_parser, commands=args.commands)
 
     if args.compare:

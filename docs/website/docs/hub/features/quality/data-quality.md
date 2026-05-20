@@ -1,16 +1,16 @@
 ---
-title: "Data quality 🧪"
+title: "Data quality"
 description: Validate your data and control its quality
 keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 ---
 
 :::warning
-🚧 This feature is under development. Interested in becoming an early tester? [Join dltHub early access](https://info.dlthub.com/waiting-list).
+This feature is in public preview
 :::
 
 dltHub data quality features include metrics for monitoring dataset properties over time, and checks to validate them against expectations. Together, they offer visibility and allow to catch data issues early. Metrics and checks are defined via Python code. The extensive configuration allows you to specify what to monitor and validate, when, how, and where to store results.
 
-This page covers the basics of metrics and checks. You should notice a lot of symmetry (e.g., `with_metrics()` and `with_checks()`). The later parts of this page cover notions applicable to both. 
+This page covers the basics of metrics and checks. You should notice a lot of symmetry (for example, `with_metrics()` and `with_checks()`). The later parts of this page cover notions applicable to both. 
 
 ## Metrics
 
@@ -279,7 +279,7 @@ dq.read_check(
 Data quality (both metrics and checks) can be executed at different stages of the pipeline lifecycle. This impacts several aspects including:
 - available **input data**
 - compute resources used
-- **actions** available after a failed check (e.g., prevent invalid data load)
+- **actions** available after a failed check (for example, prevent invalid data load)
 
 <!--How does this affect transactions? How do we handle errors in the data quality part-->
 
@@ -287,7 +287,7 @@ Data quality (both metrics and checks) can be executed at different stages of th
 The post-load execution is the simplest option. The pipeline goes through `Extract -> Normalize -> Load` as usual. Then, the checks are executed on the destination.
 
 Properties:
-- Failed records can't be dropped or quarantined before load. All records must be written, checked, and then handled. This only works with `write_disposition="append"` or destinations supporting snapshots (e.g. `iceberg`, `ducklake`).
+- Failed records can't be dropped or quarantined before load. All records must be written, checked, and then handled. This only works with `write_disposition="append"` or destinations supporting snapshots (for example `iceberg`, `ducklake`).
 - Checks have access to the full dataset. This includes current and past loads + internal dlt tables.
 - Computed directly on the destination. This scales well with the size of the data and the complexity of the checks.
 - Results and outcome are directly stored on the dataset. No data movement is required.
@@ -310,7 +310,7 @@ Work in progress. Currently unavailable.
 :::
 
 
-The pre-load execution via staging dataset allows you to execute checks on the destination and trigger actions before data is loaded into the dataset. This is effectively using **post-load** checks before a 2nd load phase.
+The pre-load execution via staging dataset allows you to execute checks on the destination and trigger actions before data is loaded into the dataset. This is effectively using **post-load** checks before a second load phase.
 
 :::info
 `dlt` uses staging datasets for other features such as `merge` and `replace` write dispositions.
@@ -322,7 +322,7 @@ Properties:
 - Checks have access to the current load. 
     - If the staging dataset is on the same destination, checks can access the full dataset. 
     - If the staging dataset is on a different destination, communication between the staging dataset and the dataset.
-- Computed on the staging destination.  This scales well with the size of the data and the complexity of the checks.
+- Computed on the staging destination. This scales well with the size of the data and the complexity of the checks.
 - Data and checks results & outcome can be safely stored on the staging dataset until review. This helps human-in-the-loop workflows without reprocessing the full pipeline.
 
 
@@ -356,7 +356,7 @@ Properties:
 - Failed records can be dropped or quarantined before load. This works with all `write_disposition
 - Checks only have access to the current load. Checking against the full dataset requires communication between the staging destination and the main destination.
 - Computed on the machine running the pipeline. The resource need to match the compute requirements.
-- Data and checks results & outcome may be lost if the runtime is ephemeral (e.g., AWS Lambda timeout). In this case, the pipeline must process the data again.
+- Data and checks results & outcome may be lost if the runtime is ephemeral (for example, AWS Lambda timeout). In this case, the pipeline must process the data again.
 
 ```mermaid
 sequenceDiagram
@@ -373,6 +373,6 @@ sequenceDiagram
 ## Roadmap
 - Define checks that depend on metrics (this should reduce verbosity)
 - Support user-defined group-by metrics
-- Support completely custom checks via `@dlt.hub.transformation` (e.g., SQL, SQLGlot, Ibis, Narwhals, Polars)
-- Trigger actions based on check result or outcome (e.g., send Slack notification)
+- Support completely custom checks via `@dlt.hub.transformation` (for example, SQL, SQLGlot, Ibis, Narwhals, Polars)
+- Trigger actions based on check result or outcome (for example, send Slack notification)
 - Track metrics and checks changes via `dlt.Schema` versioning

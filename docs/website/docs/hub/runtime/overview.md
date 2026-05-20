@@ -1,156 +1,86 @@
 ---
 title: Overview
-description: Deploy and run dlt pipelines and notebooks in the cloud
-keywords: [runtime, deployment, cloud, scheduling, notebooks, dashboard]
+description: Deploy and run dlt pipelines, transformations and notebooks in the cloud with the dltHub platform
+keywords: [dlthub platform, deployment, cloud, scheduling, notebooks, dashboard, jobs, triggers, manifest]
 ---
 
-# dltHub Runtime
+# dltHub platform
 
-dltHub Runtime is a managed cloud platform for running your `dlt` pipelines and notebooks. It provides:
+The dltHub platform is a managed cloud platform for running your [`dlt` pipelines](../../general-usage/pipeline.md), [transformations](../features/transformations/index.md), and [notebooks](../../general-usage/dataset-access/marimo.md). It mirrors your local [dltHub Workspace](../workspace/overview.md) into the cloud (called a **workspace deployment**), so your familiar dlt pipelines, [datasets](../core-concepts/datasets.md), notebooks, and dashboards run remotely with the same code that runs on your machine.
 
-- Cloud execution of batch pipelines and interactive applications (notebooks, dashboards, and MCP servers)
-- Scheduling with cron expressions
-- A web dashboard for monitoring runs, viewing logs, and managing jobs
-- Secure secrets management with multiple profiles
+For a high-level summary of platform capabilities, see [Pipeline operations](../introduction.md#pipeline-operations) in the introduction.
 
-dltHub Runtime creates a mirror of your local workspace (called a **workspace deployment**). You continue working with your familiar dlt pipelines, datasets, notebooks, and dashboards - they just run remotely instead of on your machine.
+## Where to start
 
-:::caution
-Each GitHub account can have only one remote workspace. When you run `dlt runtime login`, it connects your current local workspace to this remote workspace. If you later connect a different local repository and deploy or launch a job, it will replace your existing [**deployment** and **configuration**](#deployments-and-configurations), making any previously scheduled jobs defunct.
+| If you want to... | Go to |
+|-------------------|-------|
+| Convert a Python project into a dltHub workspace and set up credentials | [Workspace setup](workspace-setup.md) |
+| Push code to the cloud — ad-hoc runs or full manifest deploys | [Deployments](deploying.md) |
+| Schedule with cron/intervals, chain follow-ups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers and scheduling](triggers.md) |
+| Configure timeouts, dependencies, timezone, and per-job TOML sections | [Job configuration](job-configuration.md) |
+| Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs | [Monitoring and debugging](monitor-and-debug.md) |
+| Pick a deployment region | [Regions](regions.md) |
 
-Support for multiple remote workspaces (mirroring multiple local repositories) is planned for next year.
-:::
+If you prefer a guided walkthrough, follow the [dltHub platform tutorial](../getting-started/runtime-tutorial.md).
 
-## Credentials and configs
+## Key concepts
 
-### Understanding workspace profiles
+### Jobs vs runs
 
-dlt Runtime uses **profiles** to manage different configurations for different environments. The two main profiles are:
+- A **Job** is a script registered in your workspace. It defines what code to run and optionally a schedule.
+- A **Run** is a single execution of a job. Each run has its own logs, status, and metadata. See [run states](monitor-and-debug.md#understand-run-states).
 
-| Profile | Purpose | Credentials |
-|---------|---------|-------------|
-| `prod` | Production/batch jobs | Read/write access to your destination |
-| `access` | Interactive notebooks and dashboards | Read-only access (for safe data exploration) |
+### Batch vs interactive
 
-### Setting up configuration files
+- **Batch jobs** run with the [`prod` profile](../core-concepts/profiles-dlthub.md) and are meant for scheduled [data loading](../../general-usage/pipeline.md).
+- **Interactive jobs** run with the [`access` profile](../core-concepts/profiles-dlthub.md) and are meant for [notebooks](../../general-usage/dataset-access/marimo.md), [dashboards](../workspace/dashboard.md), and Streamlit apps.
 
-Configuration files live in the `.dlt/` directory:
+### Interactive application types
 
-```text
-.dlt/
-├── config.toml           # Default config (local development)
-├── secrets.toml          # Default secrets (gitignored, local only)
-├── prod.config.toml      # Production profile config
-├── prod.secrets.toml     # Production secrets (gitignored)
-├── access.config.toml    # Access profile config
-└── access.secrets.toml   # Access secrets (gitignored)
-```
+| Type | Description |
+|------|-------------|
+| Notebooks | [Marimo notebooks](../../general-usage/dataset-access/marimo.md) for the pipeline dashboard, exploration, and analysis |
+| Streamlit apps | Interactive [Streamlit dashboards](../workspace/dashboard.md) |
+| MCP servers | Model Context Protocol servers that provide tool and data access for AI assistants and agents |
 
-Below you will find an example with the credentials set for the MotherDuck destination. You can swap it for any other cloud destination you prefer (for example
-   [BigQuery](../../dlt-ecosystem/destinations/bigquery.md),
-   [Snowflake](../../dlt-ecosystem/destinations/snowflake.md),
-   [AWS S3](../../dlt-ecosystem/destinations/filesystem.md), …).
+Each interactive application is exposed via a unique public URL tied to its run.
 
-**Default `config.toml`** (for local development with DuckDB):
+### Profiles
 
-```toml
-[runtime]
-log_level = "WARNING"
-dlthub_telemetry = true
+[Profiles](../core-concepts/profiles-dlthub.md) let you keep different configurations for different environments:
 
-# Runtime connection settings (set after login)
-auth_base_url = "https://dlthub.app/api/auth"
-api_base_url = "https://dlthub.app/api/api"
-workspace_id = "your-workspace-id" # will be set by the runtime cli automatically
+- Local development can use [DuckDB](../../dlt-ecosystem/destinations/duckdb.md) with no credentials needed
+- Production runs use [MotherDuck](../../dlt-ecosystem/destinations/motherduck.md) (or [any cloud destination](../../dlt-ecosystem/destinations/index.md)) with full read/write access
+- Interactive sessions use read-only credentials for safety
 
-[destination.fruitshop_destination]
-destination_type = "duckdb"
-```
+See [profiles in dltHub](../core-concepts/profiles-dlthub.md) for details, and [Workspace setup](workspace-setup.md#understanding-workspace-profiles) for the relevant profile table.
 
-**`prod.config.toml`** (for batch jobs running on Runtime):
+### Deployments and configurations
 
-```toml
-[destination.fruitshop_destination]
-destination_type = "motherduck"
-```
+- **Deployment** — your code files (`.py` scripts, notebooks)
+- **Configuration** — your `.dlt/*.toml` files ([settings and secrets](../../general-usage/credentials/index.md))
 
-**`prod.secrets.toml`** (for batch jobs - read/write credentials):
-
-```toml
-[destination.fruitshop_destination.credentials]
-database = "your_database"
-password = "your-motherduck-service-token"  # Read/write token
-```
-
-**`access.config.toml`** (for interactive notebooks):
-
-```toml
-[destination.fruitshop_destination]
-destination_type = "motherduck"
-```
-
-**`access.secrets.toml`** (for interactive notebooks - read-only credentials):
-
-```toml
-[destination.fruitshop_destination.credentials]
-database = "your_database"
-password = "your-motherduck-read-only-token"  # Read-only token
-```
-
-:::warning Security
-Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Never commit secrets to version control. The Runtime securely stores your secrets when you sync your configuration.
-:::
+Both are versioned separately, so you can update code without changing secrets and vice versa.
 
 ## Web UI
 
-Visit [dlthub.app](https://dlthub.app) to access the web dashboard. The dashboard provides:
+Visit [app.dlthub.com](https://app.dlthub.com) to access the web dashboard. It provides workspace overview, jobs and runs management, run details with execution logs, deployment & config inspection, pipeline dashboards, and workspace settings.
 
-### Overview
-The workspace overview shows all your jobs and recent runs at a glance. Lists auto-refresh every 10 seconds.
+For monitoring runs, streaming logs, and diagnosing failures, see [Monitoring and debugging](monitor-and-debug.md).
 
-### Jobs
-View and manage all jobs in your workspace. A **job** represents a script that can be run on demand or on a schedule.
+#### Public links for interactive jobs
 
-From the Jobs page you can:
-- View job details and run history
-- Change or cancel schedules for batch jobs
-- Create and manage **public links** for interactive jobs (notebooks/dashboards)
+Notebooks and dashboards can be shared via public links. Manage them either from the dashboard — open the job's context menu (or its detail page) and click **Manage Public Link** to toggle the link — or from the CLI:
 
-#### Public kinks for interactive jobs
+```sh
+# Generate a public link
+dlthub job publish fruitshop_notebook.py
 
-Interactive jobs like notebooks and dashboards can be shared via public links. To manage public links:
-1. Open the context menu on a job in the job list, or go to the job detail page
-2. Click "Manage Public Link"
-3. Enable the link to generate a shareable URL, or disable it to revoke access
+# Revoke an active link
+dlthub job unpublish fruitshop_notebook.py
+```
 
-Anyone with an active public link can view the running notebook or dashboard. This is useful for sharing dashboards with stakeholders who don't have Runtime access.
-
-### Runs
-Monitor all job runs with:
-- Run status (pending, running, completed, failed, cancelled)
-- Start time and duration
-- Trigger type (manual, scheduled, API)
-
-### Run details
-Click on any run to see:
-- Full execution logs
-- Run metadata
-- Pipeline information
-
-### Deployment & config
-View the files deployed to Runtime:
-- Current deployment version
-- Configuration profiles
-- File listing
-
-### Dashboard
-Access the dlt pipeline dashboard to visualize:
-- Pipeline schemas
-- Load information
-- Data lineage
-
-### Settings
-Manage workspace settings and view workspace metadata.
+Anyone with an active link can view the running notebook or dashboard — useful for sharing dashboards with stakeholders without dltHub platform access.
 
 ## CLI reference
 
@@ -160,199 +90,29 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 
 | Command | Description |
 |---------|-------------|
-| `dlt runtime login` | Authenticate with GitHub OAuth |
-| `dlt runtime logout` | Clear local credentials |
-| `dlt runtime launch <script>` | Deploy and run a batch script |
-| `dlt runtime serve <script> [--app-type marimo (default) \| streamlit \| mcp]` | Deploy and run an interactive application |
-| `dlt runtime schedule <script> "<cron>"` | Schedule a script with cron expression |
-| `dlt runtime schedule <script> cancel` | Cancel a scheduled script |
-| `dlt runtime logs <script> [run_number]` | View logs for a run |
-| `dlt runtime cancel <script> [run_number]` | Cancel a running job |
-| `dlt runtime dashboard` | Open the web dashboard |
-| `dlt runtime deploy` | Sync code and config without running |
-| `dlt runtime info` | Show workspace overview |
+| `dlthub login` | Authenticate with GitHub OAuth (interactive workspace selection) |
+| `dlthub logout` | Clear local credentials |
+| `dlthub workspace list` | List all accessible workspaces |
+| `dlthub workspace connect [name_or_id]` | Connect project to a workspace (interactive picker if no arg) |
+| `dlthub local info` | Show local workspace info |
+| `dlthub show` | Open the dltHub dashboard |
+| `dlthub local run <script_or_job>` | Run a batch job on the local machine (recommended before deploying) |
+| `dlthub local serve <script_or_job>` | Serve an interactive app on the local machine |
+| `dlthub run [<script_or_selector>] [-f] [--refresh]` | Deploy and run a batch script or named job |
+| `dlthub serve [<script_or_selector>] [-f]` | Deploy and serve an interactive application |
+| `dlthub deploy [--dry-run] [--show-manifest]` | Deploy jobs from `__deployment__.py` |
+| `dlthub job trigger <selectors...> [--refresh] [--dry-run] [--profile NAME]` | Trigger runs for matching jobs (for example `tag:backfill`, `schedule:*`) |
+| `dlthub pipeline run <pipeline_name> [-f] [--refresh]` | Run a job by pipeline name |
+| `dlthub job cancel <selector_or_name>...` | Cancel active runs for matching jobs |
+| `dlthub job runs cancel <selector_or_name> [run_number]` | Cancel a specific run (defaults to latest) |
+| `dlthub job logs <selector_or_name> [run_number] [-f]` | View or stream logs for a run |
+| `dlthub job publish <script_path>` | Generate a public link for an interactive notebook/app |
+| `dlthub job unpublish <script_path>` | Revoke a public link |
 
-### Deployment Commands
+## Platform limits
 
-```sh
-# Sync only code (deployment)
-dlt runtime deployment sync
-
-# Sync only configuration (secrets and config)
-dlt runtime configuration sync
-
-# List all deployments
-dlt runtime deployment list
-
-# Get deployment details
-dlt runtime deployment info [version_number]
-```
-
-### Job commands
-
-```sh
-# List all jobs
-dlt runtime job list
-
-# Get job details
-dlt runtime job info <script_path_or_job_name>
-
-# Create a job without running it
-dlt runtime job create <script_path> [--name NAME] [--schedule "CRON"] [--interactive] [--app-type marimo (default) | streamlit | mcp]
-```
-
-### Job run commands
-
-```sh
-# List all runs
-dlt runtime job-run list [script_path_or_job_name]
-
-# Get run details
-dlt runtime job-run info <script_path_or_job_name> [run_number]
-
-# Create a new run
-dlt runtime job-run create <script_path_or_job_name>
-
-# View run logs
-dlt runtime job-run logs <script_path_or_job_name> [run_number] [-f/--follow]
-
-# Cancel a run
-dlt runtime job-run cancel <script_path_or_job_name> [run_number]
-```
-
-### Configuration commands
-
-```sh
-# List configuration versions
-dlt runtime configuration list
-
-# Get configuration details
-dlt runtime configuration info [version_number]
-
-# Sync local configuration to Runtime
-dlt runtime configuration sync
-```
-
-## Development workflow
-
-A typical development flow:
-
-1. **Develop locally** with DuckDB (`dev` profile):
-   ```sh
-   uv run python fruitshop_pipeline.py
-   ```
-
-2. **Test your notebook locally**:
-   ```sh
-   uv run marimo edit fruitshop_notebook.py
-   ```
-
-3. **Run pipeline in Runtime** (`prod` profile):
-   ```sh
-   uv run dlt runtime launch fruitshop_pipeline.py
-   ```
-
-4. **Run notebook in Runtime** (`access` profile):
-   ```sh
-   uv run dlt runtime serve fruitshop_notebook.py
-   ```
-
-5. **Check run status and logs**:
-   ```sh
-   uv run dlt runtime logs fruitshop_pipeline.py
-   ```
-
-## Key concepts
-
-### Jobs vs runs
-
-- A **Job** is a script registered in your workspace. It defines what code to run and optionally a schedule.
-- A **Run** is a single execution of a job. Each run has its own logs, status, and metadata.
-
-### Batch vs interactive
-
-- **Batch jobs** run with the `prod` profile and are meant for scheduled data loading
-- **Interactive jobs** run with the `access` profile and are meant for notebooks, dashboards, mcp servers and streamlit apps.
-
-### Interactive application types
-
-dltHub Runtime supports multiple types of interactive applications. All interactive jobs run with the `access` profile by default.
-
-| Type | Description |
-|-----|-------------|
-| Notebooks | Marimo notebooks for the pipeline dashboard, exploration and analysis |
-| Streamlit apps | Interactive Streamlit dashboards |
-| MCP servers* | Model Context Protocol (MCP) HTTP servers (mounted at `/mcp`) |
-
-Each interactive application is exposed via a unique public URL tied to its run.
-
-\* **MCP servers requirement**
-
-MCP applications must expose an `mcp` object created with `FastMCP`.
-The Runtime imports this object to start the server.
-
-Minimal example:
-
-```py
-from fastmcp import FastMCP
-
-mcp = FastMCP("simple-mcp")
-
-@mcp.tool
-def ping() -> str:
-    return "pong"
-```
-
-### Serving Streamlit and MCP applications
-
-Via job create and job run commands:
-```sh
-dlt runtime job create report.py --interactive --app-type streamlit
-dlt runtime job-run create report.py
-```
-
-Via serve command:
-
-```sh
-dlt runtime serve mcp_server.py --app-type mcp``
-```
-
-### Profiles
-
-Profiles allow you to have different configurations for different environments:
-
-- Local development can use DuckDB with no credentials needed
-- Production runs use MotherDuck (or other destinations) with full read/write access
-- Interactive sessions use read-only credentials for safety
-
-### Deployments and configurations
-
-- **Deployment**: Your code files (`.py` scripts, notebooks)
-- **Configuration**: Your `.dlt/*.toml` files (settings and secrets)
-
-Both are versioned separately, allowing you to update code without changing secrets and vice versa.
-
-## Current limitations
-
-- **Runtime limits**: Jobs are limited to 120 minutes maximum execution time
-- **Interactive timeout**: Notebooks are killed after about 5 minutes of inactivity (no open browser tab)
-- **UI operations**: Creating jobs must currently be done via CLI (schedules can be changed in the WebUI)
-- **Pagination**: List views show the top 100 items
-- **Log latency**: Logs may lag 20-30 seconds during execution; they are guaranteed complete after run finishes (completed or failed state)
-
-## Troubleshooting
-
-### No 'access' profile detected
-If you see this warning, your interactive notebooks will use the default configuration. Create `access.config.toml` and `access.secrets.toml` files with read-only credentials.
-
-### No 'prod' profile detected
-Batch jobs will use the default configuration. Create `prod.config.toml` and `prod.secrets.toml` files with read/write credentials.
-
-### Job not using latest code
-The CLI does not yet detect whether local code differs from remote. Run `dlt runtime deployment sync` to ensure your latest code is deployed.
-
-### Logs not appearing
-Logs may lag 20-30 seconds during execution. Wait for the run to complete for guaranteed complete logs, or use `--follow` to tail logs in real-time:
-```sh
-dlt runtime logs my_pipeline.py --follow
-```
+- **Platform limits**: non-interactive jobs default to 2 hours maximum execution time (override with `execute={"timeout": "6h"}` in the decorator — see [Job configuration](job-configuration.md#execution-constraints))
+- **Interactive timeout**: interactive jobs (notebooks, dashboards, MCP servers) are capped at 15 minutes of execution time and are not extended
+- **UI operations**: new jobs must currently be created via the CLI; once a job exists, subsequent runs can be triggered from the Web UI (and schedules can be changed there too)
+- **Pagination**: list views are paginated; the page size can be adjusted in the Web UI
+- **Log latency**: logs typically lag a few seconds during execution and are guaranteed complete after the run finishes (completed or failed state)

@@ -6,10 +6,6 @@ keywords: [Iceberg, pyiceberg]
 
 # Iceberg
 
-import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
-
-<DltHubFeatureAdmonition />
-
 Apache Iceberg is an open table format designed for high-performance analytics on large datasets. It supports ACID transactions, schema evolution, and time travel.
 
 The Iceberg destination in dlt allows you to load data into Iceberg tables using the [pyiceberg](https://py.iceberg.apache.org/) library. It supports multiple catalog types and both local and cloud storage backends.
@@ -192,7 +188,7 @@ It supports two modes:
 
 ### Polaris catalog
 
-[Polaris](https://polaris.apache.org/) - is an open-source, fully-featured catalog for Iceberg. Its configuration is similar to Lakekeeper, with some differences in credential scopes and URI.
+[Polaris](https://polaris.apache.org/) - is an open-source, fully featured catalog for Iceberg. Its configuration is similar to Lakekeeper, with some differences in credential scopes and URI.
 <Tabs
   groupId="filesystem-type"
   defaultValue="toml"

@@ -28,7 +28,7 @@ If you prefer to skip the tutorial and see the code example right away, check ou
 ### Supported databases
 
 :::tip dltHub Features
-Check out [dltHub Features](https://info.dlthub.com/waiting-list) for support of change tracking for Microsoft SQL Server.
+For Microsoft SQL Server change tracking support, see the [MS SQL replication](../../../hub/ecosystem/ms-sql.md) docs.
 :::
 
 We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/), which include, but are not limited to, the following database engines:
@@ -54,6 +54,8 @@ We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/
 Note that there are many unofficial dialects, such as [DuckDB](https://duckdb.org/).
 :::
 
-import DocCardList from '@theme/DocCardList';
-
-<DocCardList />
+- [Setup](./setup.md)
+- [Configuration](./configuration.md)
+- [Usage](./usage.md)
+- [Troubleshooting](./troubleshooting.md)
+- [Advanced](./advanced.md)

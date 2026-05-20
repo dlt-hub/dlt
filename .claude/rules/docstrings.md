@@ -5,6 +5,8 @@ paths:
 
 # Docstring rules
 
+- DO NOT state the obvious, do not document your thought process
+
 Google style docstrings throughout. Three levels of detail:
 
 ## Short form (internal methods, properties)

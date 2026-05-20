@@ -1,7 +1,16 @@
-import itertools
 from collections.abc import Mapping as C_Mapping
 import os
-from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar, Union
+from typing import (
+    Any,
+    Dict,
+    ContextManager,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+)
 
 from dlt.common import logger
 from dlt.common.configuration.providers.provider import (
@@ -49,6 +58,9 @@ from dlt.common.configuration.exceptions import (
 )
 
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
+
+COMPACT_LAYOUT_SECTIONS: Set[str] = {known_sections.SOURCES}
+"""Top-level sections that support compact config layout (top.name as shortcut for top.section.name)."""
 
 
 def resolve_configuration(
@@ -568,10 +580,11 @@ def _build_section_lookup_paths(
             break
         ns.pop()
 
-    # compact sources layout: insert sources.name path after sources.section
+    # compact layout: insert <top>.name path after <top>.section
+    # applies to top-level sections registered in COMPACT_LAYOUT_SECTIONS
     if (
         len(explicit_sections) >= 3
-        and explicit_sections[0] == known_sections.SOURCES
+        and explicit_sections[0] in COMPACT_LAYOUT_SECTIONS
         and explicit_sections[1] != explicit_sections[2]
     ):
         compact = (explicit_sections[0], explicit_sections[2]) + tuple(embedded_sections)

@@ -3,7 +3,7 @@ from typing import List
 from pydantic import Field
 
 from dlt.common.typing import Annotated
-from dlt._workspace.cli._ai_context_api_client import search_sources
+from dlt._workspace.mcp.tools._ai_context_api_client import search_sources
 from dlt._workspace.cli.exceptions import AiContextApiError
 from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 from dlt._workspace.typing import TSourceItem

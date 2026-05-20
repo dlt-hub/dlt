@@ -47,11 +47,27 @@ from dlt.common.utils import set_working_dir
 
 DLT_TEST_STORAGE_ROOT = "DLT_TEST_STORAGE_ROOT"
 PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
-STORAGE_ROOT_PREFIX = "_storage"
+STORAGE_ROOT_PREFIX = os.path.abspath("_storage")
 
 
 def get_test_worker_id() -> str:
-    return os.environ.get(PYTEST_XDIST_WORKER, "gw0")
+    wid = os.environ.get(PYTEST_XDIST_WORKER)
+    # under xdist `PYTEST_XDIST_TESTRUNUID` is set in every process (controller + workers);
+    # the per-worker `PYTEST_XDIST_WORKER` is only set in workers. if we fall through to
+    # the "gw0" default while xdist is active, workers will share `_storage_gw0` and rmtree
+    # each other's state — fail loudly instead.
+    if wid is None and "PYTEST_XDIST_TESTRUNUID" in os.environ:
+        raise RuntimeError(
+            "running under xdist but PYTEST_XDIST_WORKER is not set — test storage would"
+            " collide across workers"
+        )
+    return wid or "gw0"
+
+
+def get_test_worker_idx() -> int:
+    worker_id = get_test_worker_id()
+    assert worker_id.startswith("gw")
+    return int(worker_id.removeprefix("gw"))
 
 
 def compute_test_storage_root() -> str:
@@ -435,6 +451,21 @@ def setup_secret_providers_to_current_module(request):
             yield
         finally:
             sys.path.pop(0)
+
+
+def unload_modules_at_path(path: str) -> None:
+    abs_dir = os.path.realpath(path)
+    for name in list(sys.modules.keys()):
+        mod = sys.modules.get(name)
+        mod_file = getattr(mod, "__file__", None) if mod else None
+        if not mod_file:
+            continue
+        try:
+            mod_abs = os.path.realpath(mod_file)
+        except (OSError, ValueError):
+            continue
+        if mod_abs.startswith(abs_dir):
+            del sys.modules[name]
 
 
 def data_to_item_format(

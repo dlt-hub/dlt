@@ -43,7 +43,6 @@ const REDIRECTS = [
         from: "/docs/general-usage/credentials/config_specs",
         to: "/docs/general-usage/credentials/complex_types/"
     },
-
     // tutorial redirects
     {
         from: "/docs/tutorial/intro",

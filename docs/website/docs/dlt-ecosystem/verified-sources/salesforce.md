@@ -86,9 +86,6 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the guide on
-[how to add a verified source.](../../walkthroughs/add-a-verified-source)
-
 ### Add credentials
 
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can
@@ -274,4 +271,3 @@ To create your data pipeline using single loading and [incremental data loading]
    > To read more about Salesforce query limits, please refer to their official [documentation here](https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_limit.htm).
 
 <!--@@@DLT_TUBA salesforce-->
-
