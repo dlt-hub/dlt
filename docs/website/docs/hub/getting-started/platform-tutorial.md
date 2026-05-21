@@ -1,5 +1,5 @@
 ---
-title: Deploy trusted dlt pipelines and dashboards
+title: Deploy to the dltHub platform
 description: Tutorial walking through deployment on the managed dltHub Platform
 keywords: [deployment, dlthub, dashboard, dlt pipeline]
 ---
