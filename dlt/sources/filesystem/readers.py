@@ -3,7 +3,7 @@ from dlt.common import json
 from dlt.common.typing import copy_sig_any
 from dlt.sources import TDataItems, DltResource, DltSource
 from dlt.sources.filesystem import FileItemDict
-from dlt.common.libs.pandas import pandas as pd
+from dlt.common.libs.pandas import pandas
 
 from .helpers import fetch_arrow, fetch_json
 
@@ -23,8 +23,6 @@ def _read_csv(
     Returns:
         TDataItem: The file content
     """
-    
-
     # apply defaults to pandas kwargs
     kwargs = {**{"header": "infer", "chunksize": chunksize}, **pandas_kwargs}
     # For some remote file systems (for example, sftp/paramiko), decoding may happen before
@@ -42,9 +40,8 @@ def _read_csv(
         # Here we use pandas chunksize to read the file in chunks and avoid loading the whole file
         # in memory.
         with file_obj.open(mode=open_mode, **open_kwargs) as file:
-            for df in pd.read_csv(file, **kwargs): # type: ignore[attr-defined]
+            for df in pandas.read_csv(file, **kwargs):
                 yield df.to_dict(orient="records")
-
 
 # NOTE inconsistent kwarg convention across readers `chunk_size` vs. `chunksize`
 # snakecased `chunk_size` is the more appropriate Python convention
