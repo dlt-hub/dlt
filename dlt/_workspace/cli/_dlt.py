@@ -247,8 +247,9 @@ def _create_parser(
 
     installed_commands: Dict[str, _compose.ComposedExecutable] = {}
 
-    # install top level commands
-    for name, group in top_groups.items():
+    # install top level commands. iterate sorted so subcommand order is deterministic
+    # regardless of plugin discovery order (varies across interpreter / install set, #3454)
+    for name, group in sorted(top_groups.items()):
         command_parser = subparsers.add_parser(
             name,
             help=group[0].help_string,
@@ -256,8 +257,8 @@ def _create_parser(
         )
         installed_commands[name] = _compose.configure_parser(command_parser, group)
 
-    # attach sub commands to commands
-    for (parent_name, sub_name), sub_group in sub_groups.items():
+    # attach sub commands to commands (also sorted for deterministic rendering, #3454)
+    for (parent_name, sub_name), sub_group in sorted(sub_groups.items()):
         if parent_name not in installed_commands:
             warnings.warn(
                 f"sub-subcommand {sub_name!r} skipped: parent {parent_name!r} is not"

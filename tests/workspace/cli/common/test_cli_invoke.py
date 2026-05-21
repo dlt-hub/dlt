@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 import pytest
@@ -91,6 +92,26 @@ def test_create_parser_filters_none_hookimpls() -> None:
     assert "init" in installed
     # parser was built without raising
     assert parser is not None
+
+
+@pytest.mark.parametrize("host", ["dlt", "dlthub"], ids=["dlt", "dlthub"])
+def test_top_level_subcommands_are_alphabetically_ordered(host: str) -> None:
+    """Top-level subcommands must render in a stable, alphabetical order — see #3454.
+
+    Plugin discovery order varies across systems (interpreter version, installed package set,
+    entry point registration order), which previously made `dlt --help` and the generated CLI
+    docs non-deterministic.
+    """
+    parser, _pre, _installed = _create_parser(host)
+    top_subparsers = next(
+        (a for a in parser._actions if isinstance(a, argparse._SubParsersAction)),
+        None,
+    )
+    assert top_subparsers is not None, "expected top-level subparsers action"
+    choices = list(top_subparsers.choices.keys())
+    assert choices == sorted(choices), (
+        f"top-level CLI subcommands are not alphabetically ordered: {choices!r}"
+    )
 
 
 @pytest.mark.parametrize(
