@@ -34,7 +34,7 @@ This scaffolds a workspace with `.dlt/.workspace` already set, the AI toolkits v
 
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines—from local development to production.
 
-[More about dlt Workspace](../workspace/overview.md)
+[More about dlt Workspace](./workspace.md)
 
 
 ## Step 1: Initialize a custom pipeline
@@ -71,10 +71,10 @@ A collaborative AI-human workflow that integrates `dlt` with AI editors and agen
 - **Claude**
 - **Cursor**
 - **Codex**
-- [the full list](../../dlt-ecosystem/llm-tooling/llm-native-workflow#setup)
+- [the full list](./rest-api-source.md#setup)
 
 
-Start with the [`/find-source` skill](../../dlt-ecosystem/llm-tooling/llm-native-workflow.md#find-source--discover-your-data-source) to describe your data source in natural language—the assistant identifies a verified source or researches the API, then chains into pipeline scaffolding.
+Start with the [`/find-source` skill](./rest-api-source.md#find-source--discover-your-data-source) to describe your data source in natural language—the assistant identifies a verified source or researches the API, then chains into pipeline scaffolding.
 
 
 
@@ -84,5 +84,5 @@ Start with the [`/find-source` skill](../../dlt-ecosystem/llm-tooling/llm-native
 
 Once your pipeline runs locally:
 * [Monitor via the workspace dashboard](../../general-usage/dataset-access/data-quality-dashboard)
-* Set up [Profiles](../core-concepts/profiles-dlthub.md) to manage separate dev, prod, and test environments
-* [Deploy to runtime](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline)
+* Set up [Profiles](../pipeline-operations/profiles.md) to manage separate dev, prod, and test environments
+* [Deploy to runtime](../getting-started/platform-tutorial.md#5-run-your-first-pipeline)

@@ -30,7 +30,7 @@ A few real-world scenarios where dlt transformations can be useful:
 For the example below, you can copy–paste everything into one script and run it.
 
 :::note
-It is useful to know how to use dlt [Datasets and Relations](../../../general-usage/dataset-access/dataset.md), since these are heavily used in transformations.
+It is useful to know how to use dlt [Datasets and Relations](../../general-usage/dataset-access/dataset.md), since these are heavily used in transformations.
 :::
 
 ### 1. Load some example data
@@ -59,7 +59,7 @@ to the correct new schema, and you could also set a different write disposition 
 ## Defining a transformation
 
 :::info
-Most of the following examples will be using the ibis expressions of the `dlt.Dataset`. Read the detailed [dataset docs](../../../general-usage/dataset-access/dataset.md) to learn how to use these.
+Most of the following examples will be using the ibis expressions of the `dlt.Dataset`. Read the detailed [dataset docs](../../general-usage/dataset-access/dataset.md) to learn how to use these.
 :::
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::orders_per_user-->
@@ -198,7 +198,7 @@ Under the hood, when dltHub can run the transformation directly as SQL/model job
 - SQL-based cursors support `max` and `min` last-value functions. Custom Python `last_value_func` callables cannot be pushed down to SQL.
 - Null handling follows `on_cursor_value_missing`. For SQL pushdown, `"include"` adds `OR cursor IS NULL`; `"exclude"` adds `AND cursor IS NOT NULL`; `"raise"` cannot raise in the middle of a query and falls back to excluding null cursor values when needed.
 
-For lower-level cursor rules, including range inclusivity and `lag`, see [Filter to an incremental cursor](../../../general-usage/dataset-access/dataset.md#filter-to-an-incremental-cursor) and [Cursor-based incremental loading](../../../general-usage/incremental/cursor.md).
+For lower-level cursor rules, including range inclusivity and `lag`, see [Filter to an incremental cursor](../../general-usage/dataset-access/dataset.md#filter-to-an-incremental-cursor) and [Cursor-based incremental loading](../../general-usage/incremental/cursor.md).
 
 
 ## Schema evolution and hints lineage
@@ -245,7 +245,7 @@ At this stage, the SQL string is just the user's original query — either the s
 In the normalize stage, `.model` files are read and processed. The normalization process modifies your SQL queries to ensure they execute correctly and integrate with `dlt`'s features.
 
 :::info
-The normalization described here applies only to SQL-based transformations. Python-based transformations, such as those using dataframes, arrow tables, or polars frames, follow the [regular normalization process](../../../reference/explainers/how-dlt-works.md#normalize).
+The normalization described here applies only to SQL-based transformations. Python-based transformations, such as those using dataframes, arrow tables, or polars frames, follow the [regular normalization process](../../reference/explainers/how-dlt-works.md#normalize).
 :::
 
 #### Adding `dlt` columns

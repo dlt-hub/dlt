@@ -23,9 +23,9 @@ Before you start, make sure you have followed the [installation instructions](..
 
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines—from local development to production.
 
-[More about dlt Workspace →](../workspace/overview.md)
+[More about dlt Workspace →](../ingestion/workspace.md)
 
-[Scaffold](../workspace/init.md) a workspace with `uvx dlthub-start@latest`, then add a pipeline to it from inside the workspace:
+[Scaffold](../ingestion/init.md) a workspace with `uvx dlthub-start@latest`, then add a pipeline to it from inside the workspace:
 
 ```sh
 dlthub pipeline init pokemon_api duckdb
@@ -50,9 +50,9 @@ Once your workspace is scaffolded, you'll have two familiar `toml` files in `.dl
 | Profile      | Description                                                                                                                          |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **`dev`**    | Default profile for local development.                                                                                               |
-| **`prod`**   | Production profile, [used by the dltHub platform to run pipelines](../runtime/workspace-setup.md#understanding-workspace-profiles).         |
+| **`prod`**   | Production profile, [used by the dltHub platform to run pipelines](./workspace-setup.md#understanding-workspace-profiles).         |
 | **`tests`**  | Profile for automated test runs and CI/CD.                                                                                           |
-| **`access`** | Read-only production profile [for interactive notebooks on the dltHub platform](../runtime/workspace-setup.md#understanding-workspace-profiles). |
+| **`access`** | Read-only production profile [for interactive notebooks on the dltHub platform](./workspace-setup.md#understanding-workspace-profiles). |
 
 :::note
 The `dev` profile is active by default when you create a workspace. The others become active when pinned or automatically selected by the dltHub platform.
@@ -215,7 +215,7 @@ You'll see your pipeline connected to the remote MotherDuck dataset and ready fo
 
 #### Schedule the pipeline to run on the dltHub platform
 
-Now you're ready to deploy your Workspace to the dltHub platform and [schedule your pipeline to run](../getting-started/runtime-tutorial.md#7-schedule-a-pipeline).
+Now you're ready to deploy your Workspace to the dltHub platform and [schedule your pipeline to run](../getting-started/platform-tutorial.md#7-schedule-a-pipeline).
 Note that the dltHub platform will automatically use the `prod` profile you just created.
 
 ## Inspecting and managing profiles
@@ -249,6 +249,6 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 
 ## Next steps
 
-* [Configure the workspace](../workspace/overview.md)
-* [Deploy your pipeline](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline)
+* [Configure the workspace](../ingestion/workspace.md)
+* [Deploy your pipeline](../getting-started/platform-tutorial.md#5-run-your-first-pipeline)
 * [Monitor and debug pipelines](../../general-usage/pipeline#monitor-the-loading-progress)

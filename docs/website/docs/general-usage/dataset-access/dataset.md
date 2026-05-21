@@ -171,7 +171,7 @@ The translation from `Incremental` to SQL follows these rules:
 - `on_cursor_value_missing="include"` translates to `... OR cursor IS NULL`; `"exclude"` to `... AND cursor IS NOT NULL`. `"raise"` cannot raise mid-query in SQL pushdown, so it falls back to `IS NOT NULL` and emits a warning when the cursor column is nullable.
 - `lag` is applied to the lower bound exactly as it would be during a resource extraction.
 
-See [Incremental transformations](../../hub/features/transformations/index.md#incremental-transformations) for using this in `@dlt.hub.transformation`, including stateful cursors, scheduler-owned windows, and `_dlt_loads.inserted_at` load-time cursors.
+See [Incremental transformations](../../hub/transformations/index.md#incremental-transformations) for using this in `@dlt.hub.transformation`, including stateful cursors, scheduler-owned windows, and `_dlt_loads.inserted_at` load-time cursors.
 
 ### Join related tables
 

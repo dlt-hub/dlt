@@ -107,5 +107,5 @@ The Dashboard page provides a workspace-wide overview, summarizing job status an
 ## See also
 
 - [dltHub platform overview](overview.md)
-- [Profiles](../core-concepts/profiles-dlthub.md)
+- [Profiles](./profiles.md)
 - [CLI reference](../command-line-interface.md)

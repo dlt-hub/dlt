@@ -86,4 +86,4 @@ See [Tags and bulk triggering](triggers.md#tags-and-bulk-triggering) for how tag
 ## Next steps
 
 - [Triggers and scheduling](triggers.md) — schedule and chain jobs
-- [Deployments](deploying.md) — push these decorators to the dltHub platform
+- [Deployments](deployments.md) — push these decorators to the dltHub platform

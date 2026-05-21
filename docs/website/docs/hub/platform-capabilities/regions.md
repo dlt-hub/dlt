@@ -84,5 +84,5 @@ We are developing a self-contained logging path that will keep log transit fully
 
 ## See also
 
-- [dltHub platform overview](overview.md)
-- [Profiles in dltHub](../core-concepts/profiles-dlthub.md)
+- [dltHub platform overview](../pipeline-operations/overview.md)
+- [Profiles in dltHub](../pipeline-operations/profiles.md)

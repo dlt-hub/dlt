@@ -17,20 +17,20 @@ Once your pipeline is running and your data is loaded, the next step is to under
 - **`data-exploration`** — connects to your loaded pipeline data, profiles it, plans charts, and assembles an interactive [marimo](../../general-usage/dataset-access/marimo.md) dashboard with Altair visualizations.
 - **`transformations`** — maps your raw source tables to canonical business concepts, builds a Kimball-style CDM, and generates `@dlt.hub.transformation` functions to populate it.
 
-Both toolkits work with **Claude Code**, **Cursor**, and **Codex** and are designed to integrate directly into the workflow started by the [rest-api-pipeline toolkit](llm-native-workflow.md).
+Both toolkits work with **Claude Code**, **Cursor**, and **Codex** and are designed to integrate directly into the workflow started by the [rest-api-pipeline toolkit](../ingestion/rest-api-source.md).
 
 ## Setup
 
 ### Install the toolkits
 
-If you have already run `dlthub ai init` (as part of the [REST API pipeline guide](llm-native-workflow.md#setup)), you only need to install the toolkits:
+If you have already run `dlthub ai init` (as part of the [REST API pipeline guide](../ingestion/rest-api-source.md#setup)), you only need to install the toolkits:
 
 ```sh
 uv run dlthub ai toolkit install data-exploration
 uv run dlthub ai toolkit install transformations
 ```
 
-If this is a fresh project, set up `uv`  and initialize your coding assistant first — see the [setup steps](llm-native-workflow.md#setup).
+If this is a fresh project, set up `uv`  and initialize your coding assistant first — see the [setup steps](../ingestion/rest-api-source.md#setup).
 
 ## Explore your data
 
@@ -170,5 +170,5 @@ By the end of this guide you should have:
 - A working `@dlt.hub.transformation` script that populates the CDM
 
 Next steps:
-- [Deploy and schedule your pipeline](llm-native-workflow.md#handover-to-other-toolkits) with the `dlthub-runtime` toolkit
+- [Deploy and schedule your pipeline](../ingestion/rest-api-source.md#handover-to-other-toolkits) with the `dlthub-runtime` toolkit
 - [Replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset.md)

@@ -27,7 +27,7 @@ uv add "dlt[hub]"
 touch .dlt/.workspace
 ```
 
-The `.dlt/.workspace` file activates [profile support](../core-concepts/profiles-dlthub.md) and enables the `dlthub` CLI command (including `dlthub profile` and `dlthub local`).
+The `.dlt/.workspace` file activates [profile support](./profiles.md) and enables the `dlthub` CLI command (including `dlthub profile` and `dlthub local`).
 
 ## 3. Log in to the dltHub platform
 
@@ -59,7 +59,7 @@ The dltHub platform uses **profiles** to manage different configurations for dif
 
 When you run a script locally, dlt uses `dev`. When the dltHub platform executes a **batch job**, it uses `prod`. When the dltHub platform serves an **interactive job** (notebook, dashboard, MCP), it uses `access`. If `access` is not configured, interactive jobs fall back to `prod`.
 
-See [profiles in dltHub](../core-concepts/profiles-dlthub.md) for the full reference.
+See [profiles in dltHub](./profiles.md) for the full reference.
 
 ### Setting up configuration files
 
@@ -133,6 +133,6 @@ Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Ne
 
 ## Next steps
 
-- [Deployments](deploying.md) — quick deploys and the full deployment workflow
+- [Deployments](deployments.md) — quick deploys and the full deployment workflow
 - [Triggers and scheduling](triggers.md) — schedule jobs, chain follow-ups, and backfill with intervals
-- [Monitoring and debugging](monitor-and-debug.md) — watch runs, stream logs, diagnose failures
+- [Monitoring and debugging](monitoring.md) — watch runs, stream logs, diagnose failures

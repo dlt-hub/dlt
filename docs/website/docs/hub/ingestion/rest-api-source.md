@@ -45,7 +45,7 @@ pip install --upgrade "dlt[hub]"
 
 ### Initialize the AI assistant
 
-First create the dlthub workspace and install dependencies (see the [installation guide](../../hub/getting-started/installation.md)):
+First create the dlthub workspace and install dependencies (see the [installation guide](../getting-started/installation.md)):
 ```sh
 uvx dlthub-start@latest
 ```
@@ -205,7 +205,7 @@ Load package 1749667187.541553 is LOADED and contains no failed jobs
 
 A pipeline that runs without errors is not necessarily correct. Before moving on, the assistant helps you validate results using the dashboard, MCP queries, and schema inspection.
 
-You can open [Workspace Dashboard](../../hub/workspace/dashboard.md) to apply your own judgement:
+You can open [Workspace Dashboard](./dashboard.md) to apply your own judgement:
 
 ```sh
 dlthub local pipeline show github_pipeline
@@ -219,7 +219,7 @@ dlthub local pipeline show github_pipeline
 | 4) Do I have the right business data? | Required entities and attributes are present |
 | 5) Are my data types correct? | Numbers, dates, booleans are not stored as strings |
 
-See the [full checklist](../../hub/workspace/dashboard.md#using-the-dashboard) for detailed steps.
+See the [full checklist](./dashboard.md#using-the-dashboard) for detailed steps.
 
 ## Extend and harden
 
@@ -233,7 +233,7 @@ With this skill, you can add additional API endpoints to your source. The assist
 
 ### `/view-data` — explore your dataset
 
-Open the [dlt Dashboard](../../hub/workspace/dashboard.md) for visual inspection, or use the Python dataset API for programmatic exploration:
+Open the [dlt Dashboard](./dashboard.md) for visual inspection, or use the Python dataset API for programmatic exploration:
 
 ```py
 import dlt

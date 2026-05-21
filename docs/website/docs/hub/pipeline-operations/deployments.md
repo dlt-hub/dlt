@@ -182,7 +182,7 @@ dlthub pipeline run github_pipeline
 dlthub serve github_report_notebook
 ```
 
-For diagnosing failed runs, viewing logs, and dashboards, see [Monitoring and debugging](monitor-and-debug.md).
+For diagnosing failed runs, viewing logs, and dashboards, see [Monitoring and debugging](monitoring.md).
 
 ## Deployments and configurations are versioned separately
 

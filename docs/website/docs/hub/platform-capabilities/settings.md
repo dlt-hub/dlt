@@ -69,4 +69,4 @@ Existing keys can be deleted at any time. Once deleted, the key can no longer au
 
 - [Users and roles](users-and-roles.md)
 - [Regions and data residency](regions.md)
-- [dltHub platform overview](overview.md)
+- [dltHub platform overview](../pipeline-operations/overview.md)

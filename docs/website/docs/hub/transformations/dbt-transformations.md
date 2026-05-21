@@ -220,7 +220,7 @@ log_level="INFO"
 
 ## Running dbt package directly
 
-If you'd like to run your dbt package without a pipeline instance, please refer to our [dbt runner docs](../../../dlt-ecosystem/transformations/dbt/dbt.md).
+If you'd like to run your dbt package without a pipeline instance, please refer to our [dbt runner docs](../../dlt-ecosystem/transformations/dbt/dbt.md).
 
 ## Understanding incremental processing
 

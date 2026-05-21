@@ -169,5 +169,5 @@ Intervals in `run_context` remain UTC datetimes, but they align to tick boundari
 ## Next steps
 
 - [Job configuration](job-configuration.md) — execution timeouts, dependency groups, TOML config sections
-- [Deployments](deploying.md) — `dlthub deploy` and the deployment manifest
-- [Monitoring and debugging](monitor-and-debug.md) — watch what triggers fire and diagnose failures
+- [Deployments](deployments.md) — `dlthub deploy` and the deployment manifest
+- [Monitoring and debugging](monitoring.md) — watch what triggers fire and diagnose failures
