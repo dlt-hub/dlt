@@ -62,7 +62,7 @@ If you don't have `uv` yet, either [install it first](#configuration-of-the-pyth
 pipx run dlthub-start
 ```
 
-Either way, it prompts for a workspace name, scaffold, and which AI agents to wire up (Claude / Cursor / Codex), scaffolds a workspace with `.dlt/.workspace` already set, vendors the AI toolkits (`rest-api-pipeline`, `transformations`, `dlthub-runtime`, `data-exploration`), and runs `uv sync` so `dlt[hub]` and all workspace dependencies are installed.
+Either way, it prompts for a workspace name, scaffold, and which AI agents to wire up (Claude / Cursor / Codex), scaffolds a workspace with `.dlt/.workspace` already set, vendors the AI toolkits (`rest-api-pipeline`, `transformations`, `dlthub-platform`, `data-exploration`), and runs `uv sync` so `dlt[hub]` and all workspace dependencies are installed.
 
 For the recommended defaults non-interactively, pass a name explicitly:
 
