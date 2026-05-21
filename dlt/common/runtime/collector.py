@@ -160,7 +160,6 @@ class LogCollector(Collector):
                 total=total,
             )
             self.messages[counter_key] = None
-            self.last_log_time = None
         else:
             counter_info = self.counter_info[counter_key]
             if inc_total:
