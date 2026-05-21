@@ -118,7 +118,8 @@ hf = [
     "pyarrow>=21.0.0",  # minimum version that supports CDC (https://huggingface.co/blog/parquet-cdc)
 ]
 sftp = [
-    "paramiko>=3.3.0"
+    # paramiko 5.0.0 dropped GSSAPI support and broke SFTP filesystem (#3931). cap until upgrade evaluated.
+    "paramiko>=3.3.0,<5"
 ]
 http = [
     "aiohttp>3.9.0"
