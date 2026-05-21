@@ -505,6 +505,64 @@ Above, we set the CSV file format without a header, with **|** as a separator, a
 You'll need these settings when [importing external files](../../general-usage/resource.md#import-external-files).
 :::
 
+### Snowflake adapter — table & column comments and tags
+
+Use `snowflake_adapter` to attach Snowflake-specific table and column metadata
+to a resource. The adapter writes extension hints into the table schema that
+the destination then emits as `COMMENT ON TABLE`, column-level `COMMENT` clauses,
+and `ALTER TABLE … SET TAG` statements after table creation.
+
+```py
+from dlt.destinations.adapters import snowflake_adapter
+
+@dlt.resource
+def orders():
+    ...
+
+snowflake_adapter(
+    orders,
+    table_comment="Shopify orders — one row per checkout",
+    table_tags={
+        "governance.domain": "commerce",
+        "governance.cost_center": "data_eng",
+    },
+    column_comments={
+        "customer_email": "Buyer's email (PII)",
+        "amount_total": "Order grand total in customer's currency",
+    },
+    column_tags={
+        "customer_email": {"governance.pii_class": "internal"},
+    },
+)
+```
+
+Arguments:
+
+* **`table_comment`** (str) — single-line description applied as
+  `COMMENT ON TABLE`. Falls back to the resource's generic `description`
+  hint when not set; equivalent column-level fallback already exists in
+  the destination.
+* **`table_tags`** (dict) — `{tag_name: value}` pairs. Tag names may be
+  qualified (`governance.cost_center`) or unqualified. Values are cast to
+  string by Snowflake. **The tag object must already exist** — issue
+  `CREATE TAG <name>` via your governance/Terraform/Snowcap tooling first.
+  The adapter intentionally does not create tag objects (would require
+  CREATE TAG privilege on the loader role).
+* **`column_comments`** (dict) — `{column_name: comment}`. Equivalent to
+  setting `description` on each column via `apply_hints(columns={...})`.
+* **`column_tags`** (dict of dicts) — `{column_name: {tag_name: value, ...}}`.
+  Same tag semantics as `table_tags`.
+
+Differences from the Databricks adapter:
+
+* **Tags are dicts, not lists.** Snowflake tags are first-class objects
+  with values; the Databricks-style `["pii"]` shape isn't expressible.
+* **No `table_properties` / `cluster` / `partition` arguments.** Snowflake
+  doesn't have TBLPROPERTIES, and clustering is configured via
+  destination-level `create_indexes` + `cluster_by_max_per_table`. Iceberg
+  tables on Snowflake live behind a separate catalog integration, not a
+  CREATE TABLE option.
+
 ### Query tagging
 
 `dlt` [tags sessions](https://docs.snowflake.com/en/sql-reference/parameters#query-tag) used for Snowflake operations with the following properties:
