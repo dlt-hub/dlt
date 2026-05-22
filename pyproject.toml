@@ -530,7 +530,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 pythonpath = ["dlt"]
 norecursedirs = [".direnv", ".eggs", "build", "dist"]
-addopts = "-p no:xdist --showlocals --durations 10 -m 'not rfam'"
+addopts = "-p no:xdist --showlocals --durations 200 -m 'not rfam'"
 xfail_strict = true
 timeout = 1800
 faulthandler_timeout = 1500
