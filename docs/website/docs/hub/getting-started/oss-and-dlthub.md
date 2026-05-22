@@ -66,12 +66,3 @@ Every component below is part of dltHub and requires a license. Most components 
 :::tip
 If you have a specific question, feature request, or unique use case, feel free to [reach out](https://dlthub.com/contact).
 :::
-
-
-## Getting started
-
-Bootstrap a new dltHub workspace in one command:
-
-```sh
-uvx dlthub-start@latest my-workspace
-```

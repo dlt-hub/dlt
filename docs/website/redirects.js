@@ -168,7 +168,11 @@ const REDIRECTS = [
     },
     {
         from: "/docs/hub/workspace/overview",
-        to: "/docs/hub/ingestion/workspace"
+        to: "/docs/hub/getting-started/installation"
+    },
+    {
+        from: "/docs/hub/ingestion/workspace",
+        to: "/docs/hub/getting-started/installation"
     },
     {
         from: "/docs/hub/workspace/init",

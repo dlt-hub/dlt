@@ -23,7 +23,7 @@ Before you start, make sure you have followed the [installation instructions](..
 
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines—from local development to production.
 
-[More about dlt Workspace →](../ingestion/workspace.md)
+[More about dlt Workspace →](../getting-started/installation.md#what-is-a-dlthub-workspace)
 
 [Scaffold](../ingestion/init.md) a workspace with `uvx dlthub-start@latest`, then add a pipeline to it from inside the workspace:
 
@@ -249,6 +249,6 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 
 ## Next steps
 
-* [Configure the workspace](../ingestion/workspace.md)
+* [Configure the workspace](../getting-started/installation.md#what-is-a-dlthub-workspace)
 * [Deploy your pipeline](../getting-started/platform-tutorial.md#5-run-your-first-pipeline)
 * [Monitor and debug pipelines](../../general-usage/pipeline#monitor-the-loading-progress)

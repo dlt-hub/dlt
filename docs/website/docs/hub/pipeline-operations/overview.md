@@ -6,7 +6,7 @@ keywords: [dlthub platform, deployment, cloud, scheduling, notebooks, dashboard,
 
 # dltHub platform
 
-The dltHub platform is a managed cloud platform for running your [`dlt` pipelines](../../general-usage/pipeline.md), [transformations](../transformations/index.md), and [notebooks](../../general-usage/dataset-access/marimo.md). It mirrors your local [dltHub Workspace](../ingestion/workspace.md) into the cloud (called a **workspace deployment**), so your familiar dlt pipelines, [datasets](../data-discovery/datasets.md), notebooks, and dashboards run remotely with the same code that runs on your machine.
+The dltHub platform is a managed cloud platform for running your [`dlt` pipelines](../../general-usage/pipeline.md), [transformations](../transformations/index.md), and [notebooks](../../general-usage/dataset-access/marimo.md). It mirrors your local [dltHub Workspace](../getting-started/installation.md#what-is-a-dlthub-workspace) into the cloud (called a **workspace deployment**), so your familiar dlt pipelines, [datasets](../data-discovery/datasets.md), notebooks, and dashboards run remotely with the same code that runs on your machine.
 
 For a high-level summary of platform capabilities, see [Pipeline operations](../getting-started/introduction.md#pipeline-operations) in the introduction.
 

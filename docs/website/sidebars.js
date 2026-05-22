@@ -420,7 +420,6 @@ const sidebars = {
       type: 'category',
       label: 'Ingestion',
       items: [
-        'hub/ingestion/workspace',
         'hub/ingestion/init',
         'hub/ingestion/rest-api-source',
         'hub/ingestion/dashboard',

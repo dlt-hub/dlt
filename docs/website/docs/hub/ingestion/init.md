@@ -34,7 +34,7 @@ This scaffolds a workspace with `.dlt/.workspace` already set, the AI toolkits v
 
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines—from local development to production.
 
-[More about dlt Workspace](./workspace.md)
+[More about dlt Workspace](../getting-started/installation.md#what-is-a-dlthub-workspace)
 
 
 ## Step 1: Initialize a custom pipeline

@@ -100,6 +100,10 @@ The Web UI at [app.dlthub.com](https://app.dlthub.com) provides built-in dashboa
 
 The Dashboard page provides a workspace-wide overview, summarizing job status and recent run activity.
 
+## Pipeline dashboard in the platform UI
+
+The same [pipeline and dataset troubleshooting dashboard](../ingestion/dashboard.md) you run locally is available directly in the dltHub platform Web UI under the **Notebooks** section. Open it from there to inspect schemas, query loaded data, and review run traces for pipelines deployed on the platform — no local setup required.
+
 ## Known limitations
 
 - Batch jobs have a configurable **maximum runtime**. Jobs exceeding this limit are automatically cancelled. See [Platform limits](overview.md#platform-limits) for details.

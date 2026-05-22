@@ -36,7 +36,7 @@ dltHub is built around the open-source library [dlt](../../intro.md). It reuses 
 * [Managed infrastructure for pipelines and data apps](../pipeline-operations/overview.md)
 * [Observability](../ingestion/dashboard.md) for pipelines and data apps
 
-dltHub supports both local and managed cloud development. From a [dltHub Workspace](../ingestion/workspace.md), with isolated [profiles](../pipeline-operations/profiles.md) for `dev`, `prod`, and `access` environments, a single developer can deploy and operate pipelines, transformations, and notebooks with a single command. The [platform](../pipeline-operations/overview.md), [workspace dashboard](../ingestion/dashboard.md), and validation tools provide monitoring, troubleshooting, and reliability across the full data workflow:
+dltHub supports both local and managed cloud development. From a [dltHub Workspace](./installation.md#what-is-a-dlthub-workspace), with isolated [profiles](../pipeline-operations/profiles.md) for `dev`, `prod`, and `access` environments, a single developer can deploy and operate pipelines, transformations, and notebooks with a single command. The [platform](../pipeline-operations/overview.md), [workspace dashboard](../ingestion/dashboard.md), and validation tools provide monitoring, troubleshooting, and reliability across the full data workflow:
 
 ```mermaid
 flowchart LR

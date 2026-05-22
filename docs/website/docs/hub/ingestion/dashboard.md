@@ -1,13 +1,16 @@
 ---
-title: dltHub Dashboard
-description: Open a comprehensive dashboard with information about your pipeline
-keywords: [pipeline, schema, data, inspect]
+title: Pipeline and dataset troubleshooting
+description: Troubleshoot pipelines and inspect loaded datasets using the local dltHub dashboard, a marimo-based web app
+keywords: [pipeline, schema, data, inspect, troubleshoot, dashboard]
 ---
 
-# dltHub Dashboard
+# Pipeline and dataset troubleshooting
 
 Once you have run a [pipeline](../../general-usage/pipeline.md) locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the [marimo](https://marimo.io/) Python notebook framework. For this to work, you will need a few additional dependencies.
 
+:::info Also available on the dltHub platform
+The same dashboard is available on the managed dltHub platform under the **Notebooks** section, alongside built-in run logs and metrics. See [Monitoring and debugging](../pipeline-operations/monitoring.md) for the platform-side troubleshooting flow.
+:::
 
 :::tip
 The dashboard works with all [destinations](../../general-usage/destination.md) that are supported by the [dataset interface](../../general-usage/dataset-access/dataset.md). Vector databases are not supported at this moment. However, you can still inspect metadata such as run traces, schemas, and pipeline state.
