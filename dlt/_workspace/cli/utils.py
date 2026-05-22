@@ -1,8 +1,10 @@
 import argparse
 import ast
 import os
+import platform
 import shutil
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Set, Tuple
+import subprocess
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Tuple
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
@@ -11,17 +13,14 @@ from dlt.common.storages.configuration import TSchemaFileFormat
 from dlt.common.time import ensure_pendulum_datetime_non_utc
 from dlt.common.typing import TAnyDateTime, TFun
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.pluggable_run_context import (
     PluggableRunContext,
-    RunContextBase,
     ProfilesRunContext,
 )
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.runtime import run_context
-from dlt.common.runtime.exec_info import get_plus_version
 from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.versioned_state import json_decode_state
@@ -30,33 +29,16 @@ from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import get_trace_file_path
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
-from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
+from dlt._workspace.cli.exceptions import CliCommandInnerException
 from dlt._workspace.cli import echo as fmt
-from dlt._workspace.deployment import (
-    DEFAULT_DEPLOYMENT_MODULE,
-    humanize_trigger,
-    manifest_from_module,
-)
-from dlt._workspace.deployment._job_ref import format_job_label
-from dlt._workspace.deployment._trigger_helpers import parse_trigger
-from dlt._workspace.deployment.exceptions import InvalidTrigger
-from dlt._workspace.deployment.manifest import expand_triggers
 from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
-from dlt._workspace.profile import BUILT_IN_PROFILES, read_profile_pin
 from dlt._workspace.typing import (
     ProviderInfo,
     ProviderLocationInfo,
-    TCurrentProfileInfo,
-    TDeploymentJobInfo,
-    TDeploymentManifestInfo,
-    TLocationInfo,
     TLocationScope,
-    TProfileInfo,
-    TProviderInfo,
     TSchemaExport,
-    TToolkitIndexEntry,
-    TWorkspaceInfo,
 )
+from dlt._workspace.profile import is_local_profile
 
 
 REQUIREMENTS_TXT = "requirements.txt"
@@ -72,6 +54,16 @@ AIRFLOW_DAGS_FOLDER = os.path.join("dags")
 AIRFLOW_BUILD_FOLDER = os.path.join("build")
 MODULE_INIT = "__init__.py"
 DATETIME_FORMAT = "YYYY-MM-DD HH:mm:ss"
+
+
+def is_hub_available() -> bool:
+    # check if hub is connected
+    from dlt import hub
+
+    if not hub.__found__:
+        fmt.warning("Install %s for workspace dashboard and mcp support" % fmt.bold("dlt[hub]"))
+        return False
+    return True
 
 
 def get_pipeline_trace_mtime(pipelines_dir: str, pipeline_name: str) -> float:
@@ -152,14 +144,52 @@ def date_from_timestamp_with_ago(
     return f"{ago} ({time_formatted})"
 
 
+def open_local_folder(folder: str) -> None:
+    """Open a folder in the OS file explorer."""
+    system = platform.system()
+    if system == "Windows":
+        os.startfile(folder)  # type: ignore[attr-defined,unused-ignore]
+    elif system == "Darwin":
+        subprocess.run(["open", folder], check=True)
+    elif shutil.which("wslview"):
+        subprocess.run(["wslview", folder], check=True)
+    else:
+        subprocess.run(["xdg-open", folder], check=True)
+
+
+def open_url(url: str) -> None:
+    """Open `url` in the default browser. WSL2-aware via wslview."""
+    # wslview probed first: WSL reports platform.system()=="Linux", but xdg-open
+    # would fail there with no in-WSL browser, so route to the Windows one.
+    system = platform.system()
+    try:
+        if shutil.which("wslview"):
+            subprocess.run(["wslview", url], check=True)
+        elif system == "Windows":
+            os.startfile(url)  # type: ignore[attr-defined,unused-ignore]
+        elif system == "Darwin":
+            subprocess.run(["open", url], check=True)
+        elif shutil.which("xdg-open"):
+            subprocess.run(["xdg-open", url], check=True)
+        else:
+            import webbrowser
+
+            webbrowser.open(url)
+    except Exception:
+        # Headless / CI: callers already echoed the URL, so failure is non-fatal.
+        pass
+
+
 def display_run_context_info() -> None:
     run_context = dlt.current.run_context()
     if isinstance(run_context, ProfilesRunContext):
-        if run_context.default_profile != run_context.profile:
-            # print warning
+        # warn when active profile is not local-only — such profiles map to
+        # data synced with dltHub, so a local destructive command can affect it
+        if not is_local_profile(run_context.profile):
             fmt.echo(
-                "Profile `%s` is active."
-                % (fmt.style(run_context.profile, fg="yellow", reset=True),),
+                "Profile `%s` is active and is not a local-only profile — "
+                "this command may read or write data synced to dltHub."
+                % fmt.style(run_context.profile, fg="yellow", reset=True),
                 err=True,
             )
 
@@ -213,136 +243,6 @@ def add_mcp_arg_parser(subparsers: Any, description: str, help_str: str, default
     )
 
 
-def _may_safe_delete_local(run_context: RunContextBase, deleted_dir_type: str) -> bool:
-    deleted_dir = getattr(run_context, deleted_dir_type)
-    deleted_abs = os.path.abspath(deleted_dir)
-    run_dir_abs = os.path.abspath(run_context.run_dir)
-    settings_dir_abs = os.path.abspath(run_context.settings_dir)
-
-    # never allow deleting run_dir or settings_dir themselves
-    for ctx_abs, label in (
-        (run_dir_abs, "run dir (workspace root)"),
-        (settings_dir_abs, "settings dir"),
-    ):
-        if deleted_abs == ctx_abs:
-            fmt.error(
-                f"{deleted_dir_type} `{deleted_dir}` is the same as {label} and cannot be deleted"
-            )
-            return False
-
-    # ensure deleted directory is inside run_dir
-    try:
-        common = os.path.commonpath([deleted_abs, run_dir_abs])
-    except ValueError:
-        # occurs when paths are on different drives on windows
-        common = ""
-    if common != run_dir_abs:
-        fmt.error(
-            f"{deleted_dir_type} `{deleted_dir}` is not within run dir (workspace root) and cannot"
-            " be deleted"
-        )
-        return False
-
-    return True
-
-
-def _wipe_dir(
-    run_context: RunContextBase, dir_attr: str, echo_template: str, recreate_dirs: bool = True
-) -> None:
-    """Echo, safely wipe and optionally recreate a directory from run context.
-
-    Args:
-        run_context: Current run context.
-        dir_attr: Attribute name on the run context that holds the directory path, eg. "local_dir".
-        echo_template: Template used to echo the action to the user. Must contain a single %s placeholder for the styled path.
-        recreate_dirs: when True, recreate the directory after deletion.
-    """
-    dir_path = getattr(run_context, dir_attr, None)
-    if not dir_path:
-        raise CliCommandException()
-
-    # ensure we never attempt to operate on run_dir or settings_dir
-    if not _may_safe_delete_local(run_context, dir_attr):
-        raise CliCommandException()
-
-    # show relative path to the user when shorter
-    display_dir = os.path.relpath(dir_path, ".")
-    if len(display_dir) > len(dir_path):
-        display_dir = dir_path
-
-    fmt.echo(echo_template % fmt.style(display_dir, fg="yellow"))
-
-    if os.path.exists(dir_path):
-        shutil.rmtree(dir_path, onerror=FileStorage.rmtree_del_ro)
-
-    if recreate_dirs:
-        os.makedirs(dir_path, exist_ok=True)
-
-
-def check_delete_local_data(run_context: RunContextBase, skip_data_dir: bool) -> List[str]:
-    """Display paths to be deleted and ask for confirmation.
-
-    Args:
-        run_context: current run context.
-        skip_data_dir: when True, do not include the data_dir in the deletion set.
-
-    Returns:
-        A list of run_context attribute names that should be deleted. Empty list if user cancels.
-
-    Raises:
-        CliCommandException: if context is invalid or deletion is not safe.
-    """
-    # ensure profiles context
-    if not isinstance(run_context, ProfilesRunContext):
-        fmt.error("Cannot delete local data for a context without profiles")
-        raise CliCommandException()
-
-    attrs: list[str] = ["local_dir"]
-    if not skip_data_dir:
-        attrs.append("data_dir")
-
-    # ensure we never attempt to operate on run_dir or settings_dir
-    for attr in attrs:
-        if not _may_safe_delete_local(run_context, attr):
-            raise CliCommandException()
-
-    # display relative paths to run_dir
-    fmt.echo("The following dirs will be deleted:")
-    for attr in attrs:
-        dir_path = getattr(run_context, attr)
-        display_dir = os.path.relpath(dir_path, run_context.run_dir)
-        if attr == "local_dir":
-            template = "- %s (locally loaded data)"
-        elif attr == "data_dir":
-            template = "- %s (pipeline working folders)"
-        else:
-            raise ValueError(attr)
-
-        fmt.echo(template % fmt.style(display_dir, fg="yellow", reset=True))
-
-    # ask for confirmation
-    if not fmt.confirm("Do you want to proceed?", default=False):
-        return []
-
-    return attrs
-
-
-def delete_local_data(
-    run_context: RunContextBase, dir_attrs: List[str], recreate_dirs: bool = True
-) -> None:
-    """Delete local data directories after explicit confirmation.
-
-    Args:
-        run_context: current run context.
-        dir_attrs: A list of run_context attribute names that should be deleted.
-        recreate_dirs: when True, recreate directories after deletion.
-    """
-
-    # delete selected directories
-    for attr in dir_attrs:
-        _wipe_dir(run_context, attr, "Deleting %s", recreate_dirs)
-
-
 def parse_init_script(
     command: str, script_source: str, init_script_name: str
 ) -> PipelineScriptVisitor:
@@ -376,7 +276,7 @@ def ensure_git_command(command: str) -> None:
 
 
 def track_command(
-    command: str, track_before: bool, *args: str, **kwargs: str
+    command: str, track_before: bool, *args: str, **kwargs: Any
 ) -> Callable[[TFun], TFun]:
     """Return a telemetry decorator for CLI commands.
 
@@ -399,6 +299,8 @@ def track_command(
     Returns:
         a decorator that applies telemetry tracking to the decorated function.
     """
+    # pass the function so the host is resolved at invocation time, not import time
+    kwargs.setdefault("host", fmt.get_cli_host_name)
     return with_telemetry("command", command, track_before, *args, **kwargs)
 
 
@@ -455,181 +357,6 @@ def get_provider_locations() -> List[ProviderInfo]:
 
         result.append(ProviderInfo(provider, loc_infos))
     return result
-
-
-def fetch_profiles_list() -> List[TProfileInfo]:
-    """Return all available profiles with their status flags.
-
-    Works with ProfilesRunContext (workspace). Returns an empty list for OSS RunContext.
-    """
-    ctx = Container()[PluggableRunContext].context
-    if not isinstance(ctx, ProfilesRunContext):
-        return []
-
-    pinned = read_profile_pin(ctx)
-    current = ctx.profile
-    configured = set(ctx.configured_profiles())
-
-    return [
-        TProfileInfo(
-            name=name,
-            description=BUILT_IN_PROFILES.get(name, "custom profile"),
-            is_current=name == current,
-            is_pinned=name == pinned,
-            is_configured=name in configured,
-        )
-        for name in ctx.available_profiles()
-    ]
-
-
-def fetch_workspace_info() -> TWorkspaceInfo:
-    """Return workspace information as a structured dict.
-
-    Works with both OSS RunContext (no profiles) and WorkspaceRunContext.
-    Always includes all provider locations (verbose mode).
-    """
-    from dlt._workspace.cli.ai.utils import load_toolkits_index
-
-    ctx = Container()[PluggableRunContext].context
-
-    # profile info — only when profiles are available
-    profile_info: Optional[TCurrentProfileInfo] = None
-    configured_profiles: List[str] = []
-    if isinstance(ctx, ProfilesRunContext):
-        configured_profiles = ctx.configured_profiles()
-        profile_info = TCurrentProfileInfo(
-            name=ctx.profile,
-            description="",
-            is_current=True,
-            is_pinned=ctx.profile == read_profile_pin(ctx),
-            is_configured=ctx.profile in configured_profiles,
-            data_dir=ctx.data_dir,
-            local_dir=ctx.local_dir,
-        )
-
-    # workspace name — only meaningful for WorkspaceRunContext
-    name: Optional[str] = None
-    if isinstance(ctx, ProfilesRunContext):
-        name = ctx.name
-
-    # provider locations — always verbose (all locations)
-    providers: List[TProviderInfo] = []
-    for info in get_provider_locations():
-        providers.append(
-            TProviderInfo(
-                name=info.provider.name,
-                is_empty=info.provider.is_empty,
-                locations=[
-                    TLocationInfo(
-                        path=loc.path,
-                        present=loc.present,
-                        scope=loc.scope,
-                        profile_name=loc.profile_name,
-                    )
-                    for loc in info.locations
-                ],
-            )
-        )
-
-    # dlt and dlthub versions
-    plus_version = get_plus_version()
-    dlthub_version: Optional[str] = plus_version["version"] if plus_version else None
-
-    # initialized: config.toml exists in settings dir
-    initialized = os.path.isfile(make_dlt_settings_path("config.toml"))
-
-    # installed toolkits from local index
-    installed_toolkits: Dict[str, TToolkitIndexEntry] = load_toolkits_index()
-
-    return TWorkspaceInfo(
-        name=name,
-        run_dir=ctx.run_dir,
-        settings_dir=ctx.settings_dir,
-        global_dir=ctx.global_dir,
-        profile=profile_info,
-        configured_profiles=configured_profiles,
-        providers=providers,
-        dlt_version=dlt.__version__,
-        dlthub_version=dlthub_version,
-        initialized=initialized,
-        installed_toolkits=installed_toolkits,
-    )
-
-
-def fetch_deployment_info() -> TDeploymentManifestInfo:
-    """Summarize the workspace deployment manifest.
-
-    Returns a model with status = "not_found" when the default deployment
-    module doesn't exist, "generation_failed" when it exists but loading
-    raises, or "ok" with the full manifest summary.
-    """
-    try:
-        manifest, _warnings = manifest_from_module(DEFAULT_DEPLOYMENT_MODULE)
-    except ImportError as exc:
-        default_file = os.path.join(os.getcwd(), f"{DEFAULT_DEPLOYMENT_MODULE}.py")
-        if not os.path.isfile(default_file):
-            return TDeploymentManifestInfo(status="not_found")
-        return TDeploymentManifestInfo(
-            status="generation_failed", error=f"{type(exc).__name__}: {exc}"
-        )
-    except Exception as exc:
-        return TDeploymentManifestInfo(
-            status="generation_failed", error=f"{type(exc).__name__}: {exc}"
-        )
-
-    jobs_info: List[TDeploymentJobInfo] = []
-    counts: Dict[str, int] = {}
-    for job_def in manifest.get("jobs", []):
-        expose = job_def.get("expose") or {}
-        deliver = job_def.get("deliver") or {}
-        entry_point = job_def["entry_point"]
-        # category priority: explicit expose.category > delivers to a pipeline > job_type
-        category: str
-        if expose.get("category"):
-            category = expose["category"]
-        elif deliver.get("pipeline_name"):
-            category = "pipeline"
-        else:
-            category = entry_point["job_type"]
-        counts[category] = counts.get(category, 0) + 1
-
-        expanded = expand_triggers(job_def)
-        default = job_def.get("default_trigger")
-        default_human: Optional[str] = None
-        other_human: List[str] = []
-        for trig in expanded:
-            # skip manual: synthetic triggers in the summary
-            try:
-                if parse_trigger(trig).type == "manual":
-                    continue
-            except InvalidTrigger:
-                pass
-            humanized = humanize_trigger(trig)
-            if trig == default and default_human is None:
-                default_human = humanized
-            else:
-                other_human.append(humanized)
-
-        entry: TDeploymentJobInfo = {
-            "job_ref": job_def["job_ref"],
-            "display_label": format_job_label(
-                job_def["job_ref"],
-                job_def.get("expose"),
-                job_def.get("deliver"),
-            ),
-            "category": category,
-            "triggers": other_human,
-        }
-        if default_human is not None:
-            entry["default_trigger"] = default_human
-        jobs_info.append(entry)
-
-    return TDeploymentManifestInfo(
-        status="ok",
-        total_jobs=len(jobs_info),
-        counts_by_category=counts,
-        jobs=jobs_info,
-    )
 
 
 def fetch_schema_export(

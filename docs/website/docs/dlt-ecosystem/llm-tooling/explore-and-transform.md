@@ -7,7 +7,7 @@ keywords: [cursor, claude, codex, llm, data exploration, transformations, marimo
 # Explore and Transform your data with dltHub AI Workbench
 
 :::info
-The dltHub AI Workbench is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE). Sign up [here](https://dlthub.com/solutions/for-small-data-teams) for early access to dltHub.
+The dltHub AI Workbench is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
 :::
 
 ## Overview
@@ -23,14 +23,14 @@ Both toolkits work with **Claude Code**, **Cursor**, and **Codex** and are desig
 
 ### Install the toolkits
 
-If you have already run `dlt ai init` (as part of the [REST API pipeline guide](llm-native-workflow.md#setup)), you only need to install the toolkits:
+If you have already run `dlthub ai init` (as part of the [REST API pipeline guide](llm-native-workflow.md#setup)), you only need to install the toolkits:
 
 ```sh
-uv run dlt ai toolkit data-exploration install
-uv run dlt ai toolkit transformations install
+uv run dlthub ai toolkit install data-exploration
+uv run dlthub ai toolkit install transformations
 ```
 
-If this is a fresh project, set up `uv`, install `dlt[workspace]`, and initialize your coding assistant first — see the [setup steps](llm-native-workflow.md#setup).
+If this is a fresh project, set up `uv`  and initialize your coding assistant first — see the [setup steps](llm-native-workflow.md#setup).
 
 ## Explore your data
 
@@ -143,13 +143,6 @@ def dim_person(dataset: dlt.Dataset):
 
 The output script follows naming conventions based on business domain, not source system names (e.g. `person_interactions_to_cdm.py`).
 
-:::note
-The `transformations` toolkit requires `dlt[hub]` and a dltHub license:
-```sh
-uv add "dlt[hub]"
-dlt license issue dlt.hub.transformations
-```
-:::
 
 ### Anatomy of the transformations toolkit
 
@@ -177,5 +170,5 @@ By the end of this guide you should have:
 - A working `@dlt.hub.transformation` script that populates the CDM
 
 Next steps:
-- [Deploy and schedule your pipeline](llm-native-workflow.md#handover-to-other-toolkits) with the `dlthub-runtime` toolkit
+- [Deploy and schedule your pipeline](llm-native-workflow.md#handover-to-other-toolkits) with the `dlthub-platform` toolkit
 - [Replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset.md)

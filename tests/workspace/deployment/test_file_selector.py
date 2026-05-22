@@ -128,9 +128,75 @@ def test_default_ignores_not_applied_with_ignore_file() -> None:
 
 
 def test_configuration_file_selector() -> None:
-    """Test that ConfigurationFileSelector yields only config/secrets from settings dir."""
+    """ConfigurationFileSelector flat-walks `.dlt/` and filters by profile."""
+
     with isolated_workspace("configured_workspace") as ctx:
-        selector = ConfigurationFileSelector(ctx)
-        files = {rel.as_posix() for _, rel in selector}
-        # In this workspace case only .config.toml files exist
-        assert files == {"config.toml", "dev.config.toml"}
+        settings = Path(ctx.settings_dir)
+        settings.mkdir(parents=True, exist_ok=True)
+
+        # seed top-level TOMLs covering workspace-wide + every built-in profile +
+        # one custom synced profile, plus a non-TOML decoy
+        for name in (
+            "config.toml",
+            "secrets.toml",
+            "dev.config.toml",
+            "dev.secrets.toml",
+            "tests.config.toml",
+            "tests.secrets.toml",
+            "prod.config.toml",
+            "prod.secrets.toml",
+            "access.config.toml",
+            "access.secrets.toml",
+            "analytics.config.toml",
+            "README.md",
+        ):
+            (settings / name).write_text("# placeholder")
+        # nested decoys — must be ignored once recursion is gone
+        for subdir, fname in (("state/dev", "config.toml"), ("data/prod", "secrets.toml")):
+            nested = settings / subdir
+            nested.mkdir(parents=True, exist_ok=True)
+            (nested / fname).write_text("# nested")
+
+        # default: dev/tests excluded, synced + custom + workspace-wide kept,
+        # nested decoys ignored, non-TOML skipped
+        files = {rel.as_posix() for _, rel in ConfigurationFileSelector(ctx)}
+        assert files == {
+            "config.toml",
+            "secrets.toml",
+            "prod.config.toml",
+            "prod.secrets.toml",
+            "access.config.toml",
+            "access.secrets.toml",
+            "analytics.config.toml",
+        }
+        # decoys exist on disk but are not yielded
+        assert (settings / "state" / "dev" / "config.toml").exists()
+
+        # local_profiles=[] recovers the pre-fix "include every profile" behavior
+        files_all = {rel.as_posix() for _, rel in ConfigurationFileSelector(ctx, local_profiles=[])}
+        assert {
+            "config.toml",
+            "secrets.toml",
+            "dev.config.toml",
+            "dev.secrets.toml",
+            "tests.config.toml",
+            "tests.secrets.toml",
+            "prod.config.toml",
+            "prod.secrets.toml",
+            "access.config.toml",
+            "access.secrets.toml",
+            "analytics.config.toml",
+        } <= files_all
+        # still no recursion or non-TOML even when filter is empty
+        assert "state/dev/config.toml" not in files_all
+        assert "README.md" not in files_all
+
+        # custom exclude list overrides the default LOCAL_PROFILES
+        files_custom = {
+            rel.as_posix()
+            for _, rel in ConfigurationFileSelector(ctx, local_profiles=["prod", "analytics"])
+        }
+        assert {"prod.config.toml", "prod.secrets.toml", "analytics.config.toml"}.isdisjoint(
+            files_custom
+        )
+        assert {"dev.config.toml", "tests.config.toml"} <= files_custom

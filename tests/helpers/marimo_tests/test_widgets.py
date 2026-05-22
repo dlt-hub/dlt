@@ -18,4 +18,4 @@ def test_render_unknown_app_raises() -> None:
 
 def test_render_non_app_raises() -> None:
     with pytest.raises(ValueError, match="app must be an instance of marimo.App"):
-        marimo_helpers.render("not an app")  # type: ignore[arg-type]
+        marimo_helpers.render("not an app")  # type: ignore[arg-type,unused-ignore]

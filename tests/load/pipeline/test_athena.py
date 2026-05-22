@@ -1,19 +1,25 @@
+import os
 import pytest
 import datetime  # noqa: I251
 from typing import Iterator, Any
+import sqlglot.expressions as sge
 
-import dlt, os
+import dlt
 from dlt.common import pendulum
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination.exceptions import UnsupportedDataType
 from dlt.common.utils import uniq_id
+from dlt.common.libs.sqlglot import resolve_timestamp_cast, build_typed_literal
+
+from dlt.destinations.exceptions import CantExtractTablePrefix, DatabaseTransientException
+from dlt.destinations.adapters import athena_partition, athena_adapter
 from dlt.pipeline.exceptions import PipelineStepFailed
+
+
 from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.load.pipeline.utils import TableBucketTestClient, simple_nested_source
 from tests.pipeline.utils import assert_load_info, load_table_counts
 from tests.pipeline.utils import load_table_counts
-from dlt.destinations.exceptions import CantExtractTablePrefix, DatabaseTransientException
-from dlt.destinations.adapters import athena_partition, athena_adapter
 
 from tests.load.utils import (
     TEST_FILE_LAYOUTS,
@@ -215,6 +221,82 @@ def test_athena_all_datatypes_and_timestamps(
             f"SELECT * FROM {table_name} WHERE col10 = %s", datetime.date(2023, 2, 27)
         )
         assert len(db_rows) == 10
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["athena"], with_table_format=None),
+    ids=lambda x: x.name,
+)
+def test_athena_cast_timestamp_6_on_hive(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """`CAST(... AS TIMESTAMP(6))` must execute on Hive (non-iceberg) athena tables.
+
+    Rows are inserted at full microsecond precision to mirror what `pendulum.now()`
+    produces in real pipelines. Athena Hive's TIMESTAMP(3) column silently truncates
+    the inserted value to millisecond on write; iceberg retains the full microsecond.
+    The TIMESTAMP(6) cast in the WHERE clause executes against both backings.
+    """
+
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
+
+    # microsecond-precision instants — Hive truncates these to .100/.200/.300 ms
+    # on storage; iceberg retains the full value
+    row_ts = [
+        pendulum.datetime(2026, 5, 18, 12, 0, 0, 100147),
+        pendulum.datetime(2026, 5, 18, 12, 0, 0, 200369),
+        pendulum.datetime(2026, 5, 18, 12, 0, 0, 300578),
+    ]
+
+    @dlt.resource(
+        table_name="ts_rows",
+        write_disposition="append",
+        columns=[
+            {"name": "id", "data_type": "bigint", "nullable": False},
+            {"name": "ts", "data_type": "timestamp", "nullable": False},
+        ],
+    )
+    def ts_rows() -> Iterator[Any]:
+        yield [{"id": i, "ts": ts} for i, ts in enumerate(row_ts, start=1)]
+
+    info = pipeline.run(ts_rows, **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # build the same CAST that `resolve_timestamp_cast` produces on the athena
+    # dialect: TIMESTAMP(6) wrapping a microsecond-precision literal. this lets
+    # the incremental WHERE clause keep microsecond precision; athena Hive
+    # columns are stored at TIMESTAMP(3) but the engine accepts the TIMESTAMP(6)
+    # cast in the comparison and truncates implicitly.
+    caps = pipeline.destination_client().capabilities
+    cursor_value = pendulum.datetime(2026, 5, 18, 12, 0, 0, 150147)  # between row 1 and row 2
+    sqlglot_type, lower, _ = resolve_timestamp_cast(cursor_value, None, caps)
+    assert sqlglot_type is not None
+    assert sqlglot_type.sql(dialect="athena") == "TIMESTAMP(6)"
+    literal = build_typed_literal(lower, sqlglot_type).sql(dialect="athena")
+    assert "TIMESTAMP(6)" in literal
+    assert "150147" in literal
+
+    with pipeline.sql_client() as sql_client:
+        table_name = sql_client.make_qualified_table_name("ts_rows")
+
+        # cursor sits between row 1 and row 2 regardless of truncation
+        # (Hive sees .100/.200/.300 ms; iceberg sees .100147/.200369/.300578 us)
+        rows = sql_client.execute_sql(
+            f"SELECT id FROM {table_name} WHERE ts > {literal} ORDER BY id"
+        )
+        assert [r[0] for r in rows] == [2, 3]
+
+        # boundary: cursor equals row 2's pre-truncation value. on iceberg the
+        # exact-microsecond match excludes row 2; on Hive both row 2 and the
+        # cursor land in the same .200 ms bucket, also excluding row 2.
+        cursor_at_row2 = pendulum.datetime(2026, 5, 18, 12, 0, 0, 200369)
+        _, lower_at_row2, _ = resolve_timestamp_cast(cursor_at_row2, None, caps)
+        boundary_literal = build_typed_literal(lower_at_row2, sqlglot_type).sql(dialect="athena")
+        rows = sql_client.execute_sql(
+            f"SELECT id FROM {table_name} WHERE ts > {boundary_literal} ORDER BY id"
+        )
+        assert [r[0] for r in rows] == [3]
 
 
 @pytest.mark.parametrize(

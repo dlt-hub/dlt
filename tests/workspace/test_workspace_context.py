@@ -6,7 +6,11 @@ import tempfile
 import dlt
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace._workspace_context import WorkspaceRunContext, switch_context
-from dlt._workspace.cli.utils import check_delete_local_data, delete_local_data, fetch_profiles_list
+from dlt._workspace.cli.dlthub.utils import (
+    check_delete_local_data,
+    delete_local_data,
+    fetch_profiles_list,
+)
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
 from dlt._workspace.profile import DEFAULT_PROFILE, read_profile_pin, save_profile_pin
@@ -97,7 +101,7 @@ def test_workspace_configuration():
         assert ctx.name == "name_override"
         # check dirs for tests profile
         assert ctx.data_dir == os.path.join(ctx.run_dir, "_data")
-        assert ctx.local_dir.endswith(os.path.join("_local", "tests"))
+        assert ctx.local_dir.endswith(os.path.join(".dlt", DEFAULT_LOCAL_FOLDER, "tests"))
 
         ctx = ctx.switch_profile("dev")
         assert ctx.name == "name_override"
@@ -230,7 +234,7 @@ def test_workspace_pipeline() -> None:
 
         # test wipe function
         with always_choose(always_choose_default=False, always_choose_value=True):
-            delete_local_data(ctx, check_delete_local_data(ctx, skip_data_dir=False))
+            delete_local_data(ctx, check_delete_local_data(ctx, skip_local_data_dir=False))
         # must recreate pipeline
         pipeline = pipeline.drop()
         load_info = pipeline.run([{"foo": 1}, {"foo": 2}], table_name="table_foo")
@@ -313,7 +317,7 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     expected_settings = os.path.join(context.run_dir, DOT_DLT)
     assert context.settings_dir == expected_settings
 
-    # path / .var / profile
+    # .dlt / state / profile
     expected_data_dir = os.path.join(
         context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER, profile
     )
@@ -323,8 +327,8 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     # is a default dir
     assert context._has_default_working_dir() is True
 
-    # local files
-    expected_local_dir = os.path.join(context.run_dir, DEFAULT_LOCAL_FOLDER, profile)
+    # local files: .dlt / data / profile
+    expected_local_dir = os.path.join(context.settings_dir, DEFAULT_LOCAL_FOLDER, profile)
     assert context.local_dir == expected_local_dir
     # got created
     assert os.path.isdir(context.local_dir)

@@ -10,7 +10,7 @@ keywords: [introduction, who, what, how]
 
 ## What is dlt?
 
-dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect and transform the data. dlt and the dlt docs are built from the ground up to be used with LLMs: [LLM-native workflow](dlt-ecosystem/llm-tooling/llm-native-workflow.md) will take your pipeline code to data in a notebook for over [8,000+ sources](https://dlthub.com/workspace).
+dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect and transform the data. dlt and the dlt docs are built from the ground up to be used with coding agents: [Agent-native workflow](dlt-ecosystem/llm-tooling/llm-native-workflow.md) will take your pipeline code to data in a notebook for over [8,000+ sources](https://dlthub.com/workspace).
 
 dlt is designed to be easy to use, flexible, and scalable:
 
@@ -18,7 +18,7 @@ dlt is designed to be easy to use, flexible, and scalable:
 - dlt infers [schemas](./general-usage/schema) and [data types](./general-usage/schema/#data-types), [normalizes the data](./general-usage/schema/#data-normalizer), and handles nested data structures.
 - dlt supports a variety of [popular destinations](./dlt-ecosystem/destinations/) and has an interface to add [custom destinations](./dlt-ecosystem/destinations/destination) to create reverse ETL pipelines.
 - dlt automates pipeline maintenance with [incremental loading](./general-usage/incremental-loading), [schema evolution](./general-usage/schema-evolution), and [schema and data contracts](./general-usage/schema-contracts).
-- dlt supports [Python and SQL data access](general-usage/dataset-access/), [transformations](dlt-ecosystem/transformations) and supports [pipeline inspection](general-usage/dashboard.md) and [visualizing data in Marimo Notebooks](general-usage/dataset-access/marimo).
+- dlt supports [Python and SQL data access](general-usage/dataset-access/), [transformations](dlt-ecosystem/transformations) and supports [pipeline inspection](hub/workspace/dashboard.md) and [visualizing data in Marimo Notebooks](general-usage/dataset-access/marimo).
 - dlt can be deployed anywhere Python runs, be it on [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or any other cloud deployment of your choice.
 
 To get started with dlt, install the library using pip (use [clean virtual environment](reference/installation) for your experiments!):

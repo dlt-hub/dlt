@@ -7,8 +7,8 @@ from dlt.common.configuration.specs.pluggable_run_context import (
 from dlt.common.runtime.exceptions import RunContextNotAvailable
 from dlt.common.runtime.run_context import is_folder_writable, switch_context
 
-DEFAULT_WORKSPACE_WORKING_FOLDER = ".var"
-DEFAULT_LOCAL_FOLDER = "_local"
+DEFAULT_WORKSPACE_WORKING_FOLDER = "state"
+DEFAULT_LOCAL_FOLDER = "data"
 
 
 def default_working_dir(run_dir: str, name: str, profile: str, default_folder: str) -> str:

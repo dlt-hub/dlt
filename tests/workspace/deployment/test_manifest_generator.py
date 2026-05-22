@@ -409,8 +409,8 @@ def test_dashboard_auto_included_for_canonical_deployment() -> None:
 
 def test_dashboard_not_auto_included_for_non_canonical_module() -> None:
     """Non-`__deployment__` modules do not get a dashboard — ad-hoc deployments
-    (`--file foo.py`, framework apps imported by name, etc.) should never have
-    a workspace dashboard tagged on by the manifest generator.
+    (`--deployment foo.py`, framework apps imported by name, etc.) should never
+    have a workspace dashboard tagged on by the manifest generator.
     """
     mod = import_module(f"{WORKSPACE}.deployment_batch_only")
     manifest, _ = generate_manifest(mod)

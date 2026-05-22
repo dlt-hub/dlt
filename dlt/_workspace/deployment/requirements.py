@@ -9,16 +9,19 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, List, Optional, Sequence
+from typing import Any, BinaryIO, Dict, List, Literal, Optional, Sequence
 
 import tomlkit
 from packaging.requirements import Requirement
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
-from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrAny, NotRequired, TypedDict
 from dlt.common.validation import validate_dict
 from dlt.version import DLT_PKG_NAME
+
+DLTHUB_PKG_NAME = "dlthub"
+DLTHUB_CLIENT_PKG_NAME = "dlthub-client"
 
 from dlt._workspace.deployment.launchers import (
     LAUNCHER_DASHBOARD,
@@ -42,8 +45,12 @@ REQUIREMENTS_IN = "requirements.in"
 UV_LOCK = "uv.lock"
 
 __all__ = [
+    "DLTHUB_CLIENT_PKG_NAME",
+    "DLTHUB_PKG_NAME",
     "MAIN_GROUP",
     "REQUIREMENTS_ENGINE_VERSION",
+    "TInstallSpec",
+    "TInstallMode",
     "TWorkspaceRequirementsManifest",
     "WorkspaceRequirementsError",
     "build_dashboard_group",
@@ -51,11 +58,33 @@ __all__ = [
     "default_requirements_manifest",
     "export_workspace_requirements",
     "get_dlt_requirement_spec",
+    "get_pkg_install_spec",
+    "get_workspace_install_specs",
     "load_requirements",
     "migrate_requirements",
     "python_version",
+    "render_pep508",
+    "render_requirements_lines",
+    "render_uv_source",
     "save_requirements",
 ]
+
+
+TInstallMode = Literal["pypi", "path", "editable", "git", "archive"]
+
+
+class TInstallSpec(TypedDict):
+    """How a Python package is installed, derived from PEP 610 `direct_url.json`."""
+
+    name: str
+    extras: List[str]
+    version: str
+    mode: TInstallMode
+    path: NotRequired[str]
+    git_url: NotRequired[str]
+    git_rev: NotRequired[str]
+    archive_url: NotRequired[str]
+
 
 _UV_MISSING_MESSAGE = (
     "`uv` is required to export dependencies from this workspace but was not found"
@@ -77,22 +106,143 @@ class WorkspaceRequirementsError(Exception):
 
 
 def get_dlt_requirement_spec() -> str:
-    """Build a PEP 508 spec for the currently installed dlt distribution.
+    """PEP 508 spec for the currently installed dlt distribution, deployment-mode."""
+    return render_pep508(get_pkg_install_spec(DLT_PKG_NAME), for_deployment=True)
 
-    Uses PEP 610 `direct_url.json` when dlt was installed from a URL (branch
-    zip, git) so the spec survives on a remote runner; falls back to a
-    `dlt==<version>` pin for ordinary index installs.
-    """
-    dist = importlib.metadata.distribution(DLT_PKG_NAME)
+
+def get_pkg_install_spec(pkg_name: str, *, extras: Optional[List[str]] = None) -> TInstallSpec:
+    """Classify the install of `pkg_name` as pypi / path / editable / git."""
+    # raises importlib.metadata.PackageNotFoundError if the package isn't installed
+    dist = importlib.metadata.distribution(pkg_name)
+    version = dist.metadata["Version"] or ""
+    spec: TInstallSpec = {
+        "name": pkg_name,
+        "extras": list(extras or []),
+        "version": version,
+        "mode": "pypi",
+    }
     direct_url_text = dist.read_text("direct_url.json")
-    if direct_url_text:
-        info = json.loads(direct_url_text)
-        # editable local installs (`file://` + `dir_info.editable=True`) can't
-        # be resolved on a remote runner — fall back to a version pin in that case
-        dir_info = info.get("dir_info") or {}
-        if not dir_info.get("editable"):
-            return f"{DLT_PKG_NAME} @ {info['url']}"
-    return f"{DLT_PKG_NAME}=={dist.metadata['Version']}"
+    if not direct_url_text:
+        return spec
+    info = json.loads(direct_url_text)
+    url = info.get("url") or ""
+    vcs_info = info.get("vcs_info") or {}
+    dir_info = info.get("dir_info") or {}
+
+    if vcs_info.get("vcs") == "git":
+        spec["mode"] = "git"
+        spec["git_url"] = url
+        commit = vcs_info.get("commit_id")
+        if commit:
+            spec["git_rev"] = commit
+        return spec
+
+    # both editable and plain local installs use file:// URIs
+    if url.startswith("file://"):
+        spec["mode"] = "editable" if dir_info.get("editable") else "path"
+        spec["path"] = url[len("file://") :]
+        return spec
+
+    # http(s) archive — `pip install https://.../pkg.zip` (incl. github archive URLs)
+    if info.get("archive_info") is not None or url.startswith(("http://", "https://")):
+        spec["mode"] = "archive"
+        spec["archive_url"] = url
+        return spec
+
+    # unknown direct_url variant — fall back to pypi version pin
+    return spec
+
+
+def _name_with_extras(spec: TInstallSpec) -> str:
+    if not spec["extras"]:
+        return spec["name"]
+    return f"{spec['name']}[{','.join(spec['extras'])}]"
+
+
+def render_pep508(spec: TInstallSpec, *, for_deployment: bool) -> str:
+    """PEP 508 line for `[project.dependencies]` / top-of-`requirements.txt`.
+
+    Args:
+        spec: Install spec to render.
+        for_deployment: When True, render a portable line (editable becomes a
+            version pin; path/git become PEP 508 direct refs). When False (used
+            for scaffolding), emit a version pin so `[tool.uv.sources]` can carry
+            the override.
+    """
+    name_extras = _name_with_extras(spec)
+    mode = spec["mode"]
+    version = spec["version"]
+    if mode == "pypi":
+        return f"{name_extras}=={version}" if version else name_extras
+    if mode == "editable":
+        # editable can't be expressed in PEP 508 — both modes fall back to the pin
+        return f"{name_extras}=={version}" if version else name_extras
+    if mode == "path":
+        if for_deployment:
+            return f"{name_extras} @ file://{spec['path']}"
+        return f"{name_extras}=={version}" if version else name_extras
+    if mode == "archive":
+        # PEP 508 direct ref; portable to pip + uv with no source-override needed
+        return f"{name_extras} @ {spec['archive_url']}"
+    # git
+    git_url = spec.get("git_url", "")
+    git_rev = spec.get("git_rev")
+    if for_deployment or not version:
+        ref = f"git+{git_url}@{git_rev}" if git_rev else f"git+{git_url}"
+        return f"{name_extras} @ {ref}"
+    return f"{name_extras}=={version}"
+
+
+def render_uv_source(spec: TInstallSpec) -> Optional[Dict[str, Any]]:
+    """`[tool.uv.sources][<name>]` value, or `None` when a direct ref in deps suffices."""
+    # archives carry the URL inline in `dependencies` (PEP 508 direct ref) — no override
+    mode = spec["mode"]
+    if mode in ("pypi", "archive"):
+        return None
+    if mode == "path":
+        return {"path": spec["path"]}
+    if mode == "editable":
+        return {"path": spec["path"], "editable": True}
+    # git
+    out: Dict[str, Any] = {"git": spec.get("git_url", "")}
+    rev = spec.get("git_rev")
+    if rev:
+        out["rev"] = rev
+    return out
+
+
+def render_requirements_lines(spec: TInstallSpec) -> List[str]:
+    """Lines for `requirements.txt` reproducing `spec`. Editable becomes `-e <path>`."""
+    name_extras = _name_with_extras(spec)
+    mode = spec["mode"]
+    version = spec["version"]
+    if mode == "pypi":
+        return [f"{name_extras}=={version}"] if version else [name_extras]
+    if mode == "editable":
+        return [f"-e {spec['path']}"]
+    if mode == "path":
+        return [f"{name_extras} @ file://{spec['path']}"]
+    if mode == "archive":
+        return [f"{name_extras} @ {spec['archive_url']}"]
+    # git
+    git_url = spec.get("git_url", "")
+    git_rev = spec.get("git_rev")
+    ref = f"git+{git_url}@{git_rev}" if git_rev else f"git+{git_url}"
+    return [f"{name_extras} @ {ref}"]
+
+
+def get_workspace_install_specs() -> List[TInstallSpec]:
+    """Specs for `dlt[hub]` + `dlthub` + `dlthub-client`, skipping ones not installed."""
+    # dlt is always present (it's how this code is running) and tagged with [hub] so
+    # the scaffold's transitive resolution pulls dlthub / dlthub-client. The other two
+    # are only listed when locally installed — that's the signal we need an override.
+    specs: List[TInstallSpec] = [get_pkg_install_spec(DLT_PKG_NAME, extras=["hub"])]
+    for pkg in (DLTHUB_PKG_NAME, DLTHUB_CLIENT_PKG_NAME):
+        try:
+            specs.append(get_pkg_install_spec(pkg))
+        except importlib.metadata.PackageNotFoundError:
+            continue
+    return specs
 
 
 def python_version() -> str:
@@ -301,14 +451,10 @@ def _export_from_pyproject(
 
 
 def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[str]:
-    """Export a `requirements.txt` / `requirements.in` file as sorted PEP 508 specs.
-
-    When `uv` is available, runs `uv pip compile --universal` for a fully
-    resolved, platform-independent lockset. When `uv` is missing, falls back
-    to a pure-Python parse of the file — no resolution, specs are returned
-    as authored.
-    """
-    if _is_uv_available():
+    """Export a `requirements.txt` / `requirements.in` file as sorted PEP 508 specs."""
+    # with uv: `uv pip compile --universal` for a resolved, platform-independent
+    # lockset. without uv: pure-Python parse, specs returned as authored
+    if is_uv_available():
         stdout = _run_uv(
             [
                 "pip",
@@ -325,12 +471,8 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
 
 
 def _parse_requirements_file(file_path: Path) -> List[str]:
-    """Parse a user-authored `requirements.txt` / `.in` file to sorted PEP 508 specs.
-
-    Handles comments, blank lines, line continuations, and skips flag lines
-    (`-e`, `-r`, `--index-url`, ...). Does **not** resolve — returns specs
-    as authored, normalized through `packaging.requirements.Requirement`.
-    """
+    """Parse a user-authored `requirements.txt` / `.in` file to sorted PEP 508 specs."""
+    # does not resolve; flag lines (-e, -r, --index-url) are skipped
     text = file_path.read_text(encoding="utf-8")
     # join line continuations
     text = text.replace("\\\n", "")
@@ -362,13 +504,9 @@ def _dependency_group_names(pyproject_doc: Any) -> List[str]:
 
 
 def _parse_uv_output(text: str) -> List[str]:
-    """Deduplicate and sort the lines of a `uv export` / `uv pip compile` blob.
-
-    We pass `--no-header --no-annotate --no-hashes` / equivalent flags so uv's
-    output is already canonical PEP 508 — one spec per line, no flags, no
-    continuations. We only need to drop blanks/comments and return a stable
-    sorted set.
-    """
+    """Deduplicate and sort the lines of a `uv export` / `uv pip compile` blob."""
+    # callers always pass --no-header --no-annotate --no-hashes (or equivalent),
+    # so the input is already canonical PEP 508 — just drop blanks/comments
     return sorted(
         {
             line.strip()
@@ -419,23 +557,19 @@ def _parse_dep_list(entries: Sequence[Any]) -> List[str]:
     return sorted(set(specs))
 
 
-def _is_uv_available() -> bool:
+def is_uv_available() -> bool:
     """Return `True` if the `uv` binary is on PATH."""
     return shutil.which("uv") is not None
 
 
 def _require_uv() -> None:
     """Raise a user-friendly `WorkspaceRequirementsError` when `uv` is missing."""
-    if not _is_uv_available():
+    if not is_uv_available():
         raise WorkspaceRequirementsError(_UV_MISSING_MESSAGE)
 
 
 def _run_uv(args: List[str], cwd: Path) -> str:
-    """Invoke `uv` with the given args, returning stdout on success.
-
-    Callers are expected to have checked `_is_uv_available()` first; the
-    `FileNotFoundError` branch is a last-resort safety net.
-    """
+    """Invoke `uv` with the given args, returning stdout on success."""
     try:
         proc = subprocess.run(
             ["uv", *args],

@@ -10,7 +10,7 @@ try:
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt.helpers.marimo",
-        ["dlt[workspace]"],
+        ["marimo", "mowidgets"],
     )
 
 from dlt.helpers.marimo._load_package_viewer import app as load_package_viewer

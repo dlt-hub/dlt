@@ -204,4 +204,18 @@ def pytest_configure(config):
 
 # faulthandler.enable()  # makes sure the module is initialised
 
+
+@pytest.fixture(autouse=True)
+def _reset_cli_global_state() -> None:
+    """Resets the CLI debug flag and active host name before each test."""
+    # both are module-level globals on dlt._workspace.cli; in-process tests
+    # (script_runner inprocess, direct command calls) leak them across tests
+    try:
+        from dlt._workspace.cli import _debug as _cli_debug, echo as _cli_echo
+    except ImportError:
+        return
+    _cli_debug.disable_debug()
+    _cli_echo.set_cli_host_name("dlt")
+
+
 # atexit.register(lambda: faulthandler.dump_traceback(file=sys.stderr, all_threads=True))

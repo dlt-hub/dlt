@@ -19,8 +19,7 @@ try:
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "Workspace Dashboard",
-        ["dlt[workspace]"],
-        "to install the dlt workspace extra.",
+        ["marimo", "pyarrow", "ibis-framework"],
     )
 
 from dlt._workspace.helpers.dashboard.const import (

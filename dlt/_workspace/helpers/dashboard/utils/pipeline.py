@@ -1,9 +1,5 @@
 """Pipeline info, config resolution, destination details, and misc pipeline helpers."""
 
-import os
-import platform
-import shutil
-import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
 from dlt._workspace.helpers.dashboard.typing import TNameValueItem, TPipelineListItem
@@ -142,19 +138,6 @@ def get_local_data_path(pipeline: dlt.Pipeline) -> str:
     except (PipelineConfigMissing, ConfigFieldMissingException, ConfigurationValueError):
         pass
     return None
-
-
-def open_local_folder(folder: str) -> None:
-    """Open a folder in the file explorer"""
-    system = platform.system()
-    if system == "Windows":
-        os.startfile(folder)  # type: ignore[attr-defined,unused-ignore]
-    elif system == "Darwin":
-        subprocess.run(["open", folder], check=True)
-    elif shutil.which("wslview"):
-        subprocess.run(["wslview", folder], check=True)
-    else:
-        subprocess.run(["xdg-open", folder], check=True)
 
 
 def pipeline_link_list(config: DashboardConfiguration, pipelines: List[TPipelineListItem]) -> str:

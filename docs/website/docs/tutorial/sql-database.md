@@ -268,7 +268,7 @@ In the first run of the pipeline `python sql_database_pipeline.py`, the entire t
 Congratulations on completing the tutorial! You learned how to set up a SQL Database source in dlt and run a data pipeline to load the data into DuckDB.
 
 With your pipeline code ready, we recommend the following next steps:
-- Inspect your pipeline and data in [workspace dashboard](../general-usage/dashboard.md)
+- Inspect your pipeline and data in [workspace dashboard](../hub/workspace/dashboard.md)
 - [Access your data](../general-usage/dataset-access/) using `dataset` interface
 - [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.
 

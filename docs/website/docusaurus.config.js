@@ -158,6 +158,12 @@ const config = {
           },
           {
             type: 'docSidebar',
+            sidebarId: 'hubSidebar',
+            position: 'left',
+            label: 'dltHub',
+          },
+          {
+            type: 'docSidebar',
             sidebarId: 'cookbookSidebar',
             position: 'left',
             label: 'Cookbook',

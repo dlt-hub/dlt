@@ -91,17 +91,6 @@ def _escape_mdx(s: str) -> str:
     return "".join(out)
 
 
-def _set_prog_recursive(
-    parser: argparse.ArgumentParser, old_prog: str, new_prog: str
-) -> None:
-    """Propagates prog to a parser and all nested subparsers."""
-    parser.prog = parser.prog.replace(old_prog, new_prog, 1)
-    for action in parser._actions:
-        if isinstance(action, argparse._SubParsersAction):
-            for subparser in action._name_parser_map.values():
-                _set_prog_recursive(subparser, old_prog, new_prog)
-
-
 def render_argparse_markdown(
     name: str,
     parser: argparse.ArgumentParser,
@@ -317,8 +306,7 @@ def main() -> None:
 
     from dlt._workspace.cli._dlt import _create_parser
 
-    cli_parser, _ = _create_parser()
-    _set_prog_recursive(cli_parser, cli_parser.prog, args.executable_name)
+    cli_parser, _, _ = _create_parser(host=args.executable_name)
     result = render_argparse_markdown(args.executable_name, cli_parser, commands=args.commands)
 
     if args.compare:
