@@ -1,7 +1,7 @@
 # Tests destinations that can run without credentials.
 # i.e. local postgres, duckdb, filesystem (with local fs/memory bucket)
 
-name: dest local
+name: local
 
 on:
   workflow_call:
