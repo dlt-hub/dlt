@@ -18,10 +18,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # `suite` is set on each row (not a top-level axis) so we can skip sqlalchemy-2 on 3.14.
         include:
 
           # macos tests
+          - os: blacksmith-12vcpu-macos-latest
+            platform: macos
+            python-version: "3.11"
+            shell: bash
+            suite: common/pipeline-mindeps-workspace
           - os: blacksmith-12vcpu-macos-latest
             platform: macos
             python-version: "3.11"
@@ -38,6 +42,11 @@ jobs:
             platform: linux
             python-version: "3.10"
             shell: bash
+            suite: common/pipeline-mindeps-workspace
+          - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
+            python-version: "3.10"
+            shell: bash
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
@@ -48,6 +57,11 @@ jobs:
             platform: linux
             python-version: "3.11"
             shell: bash
+            suite: common/pipeline-mindeps-workspace
+          - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
+            python-version: "3.11"
+            shell: bash
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
@@ -58,6 +72,11 @@ jobs:
             platform: linux
             python-version: "3.12"
             shell: bash
+            suite: common/pipeline-mindeps-workspace
+          - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
+            python-version: "3.12"
+            shell: bash
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
@@ -68,6 +87,11 @@ jobs:
             platform: linux
             python-version: "3.13"
             shell: bash
+            suite: common/pipeline-mindeps-workspace
+          - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
+            python-version: "3.13"
+            shell: bash
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
@@ -75,13 +99,20 @@ jobs:
             shell: bash
             suite: sqlalchemy-2
 
+          # 3.14: early suite only (no pipeline-full / sqlalchemy-2 tail)
           - os: blacksmith-12vcpu-macos-latest
             platform: macos
             python-version: "3.14"
             shell: bash
-            suite: pipeline-full
+            suite: common/pipeline-mindeps-workspace
 
           # linux test with minimal dependencies
+          - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux-lowest-direct
+            python-version: "3.11"
+            shell: bash
+            uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
+            suite: common/pipeline-mindeps-workspace
           - os: blacksmith-8vcpu-ubuntu-2404
             platform: linux-lowest-direct
             python-version: "3.11"
@@ -101,6 +132,12 @@ jobs:
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--upgrade' # could also be 'direct'
+            suite: common/pipeline-mindeps-workspace
+          - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux-upgrade
+            python-version: "3.11"
+            shell: bash
+            uv_sync_args: '--upgrade' # could also be 'direct'
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
             platform: linux-upgrade
@@ -114,12 +151,22 @@ jobs:
             platform: windows
             python-version: "3.11"
             shell: cmd
+            suite: common/pipeline-mindeps-workspace
+          - os: blacksmith-8vcpu-windows-2025
+            platform: windows
+            python-version: "3.11"
+            shell: cmd
             suite: pipeline-full
           - os: blacksmith-8vcpu-windows-2025
             platform: windows
             python-version: "3.11"
             shell: cmd
             suite: sqlalchemy-2
+          - os: blacksmith-8vcpu-windows-2025
+            platform: windows
+            python-version: "3.13"
+            shell: cmd
+            suite: common/pipeline-mindeps-workspace
           - os: blacksmith-8vcpu-windows-2025
             platform: windows
             python-version: "3.13"
@@ -168,61 +215,65 @@ jobs:
         env:
           UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
 
+      # --- common / pipeline-mindeps / workspace (sqlalchemy 1.4 path) ---
       - name: Run common tests with minimum dependencies
         run: make test-common-core
         env:
           PYTEST_XDIST_N: auto
-        if: matrix.suite == 'pipeline-full'
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run tools tests
         run: make test-tools
-        if: matrix.suite == 'pipeline-full'
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Install min dependencies to import core source
         run: make install-common-source
         env:
           UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+        if: matrix.suite == 'common/pipeline-mindeps-workspace' || matrix.suite == 'pipeline-full' || matrix.suite == 'sqlalchemy-2'
 
       - name: Run min dependencies source tests
         run: make test-common-source
-        if: matrix.suite == 'pipeline-full'
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Install duckdb dependencies
         run: make install-pipeline-min
         env:
           UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+        if: matrix.suite == 'common/pipeline-mindeps-workspace' || matrix.suite == 'pipeline-full' || matrix.suite == 'sqlalchemy-2'
 
       - name: Run pipeline tests with minimum deps
         run: make test-pipeline-min
         env:
           PYTEST_XDIST_N: auto
-        if: matrix.suite == 'pipeline-full'
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Install pyarrow
         run: make install-pipeline-arrow
-        if: matrix.python-version != '3.14'
+        if: (matrix.suite == 'common/pipeline-mindeps-workspace' || matrix.suite == 'pipeline-full' || matrix.suite == 'sqlalchemy-2') && matrix.python-version != '3.14'
 
       - name: Run pipeline tests with pyarrow but no pandas installed
         run: make test-pipeline-arrow
-        if: matrix.suite == 'pipeline-full' && matrix.python-version != '3.14'
+        if: matrix.suite == 'common/pipeline-mindeps-workspace' && matrix.python-version != '3.14'
 
       - name: Install workspace dependencies
         run: make install-workspace
         env:
           UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
-        if: matrix.python-version != '3.14'
+        if: (matrix.suite == 'common/pipeline-mindeps-workspace' || matrix.suite == 'pipeline-full' || matrix.suite == 'sqlalchemy-2') && matrix.python-version != '3.14'
 
       - name: Run workspace tests
         run: make test-workspace
         env:
           PYTEST_XDIST_N: auto
-        if: matrix.suite == 'pipeline-full' && matrix.python-version != '3.14'
+        if: matrix.suite == 'common/pipeline-mindeps-workspace' && matrix.python-version != '3.14'
 
+      # --- pipeline-full (install chain only, then full extract/pipeline suite) ---
       - name: Install pipeline and sources dependencies
         run: make install-pipeline-full
         env:
           UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
-        if: matrix.python-version != '3.14'
+        if: (matrix.suite == 'pipeline-full' || matrix.suite == 'sqlalchemy-2') && matrix.python-version != '3.14'
 
       - name: Run extract and pipeline tests
         run: make test-pipeline-full
@@ -230,6 +281,7 @@ jobs:
           PYTEST_XDIST_N: auto
         if: matrix.suite == 'pipeline-full' && matrix.python-version != '3.14'
 
+      # --- sqlalchemy 2 (sql_database + pyiceberg libs) ---
       - name: Upgrade sql alchemy
         run: make install-sqlalchemy2
         if: matrix.suite == 'sqlalchemy-2' && matrix.python-version != '3.14'
