@@ -7,7 +7,7 @@ on:
 jobs:
   build_docs:
     name: docs | build docs
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
 
     steps:
       - name: Check out

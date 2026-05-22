@@ -133,6 +133,10 @@ const REDIRECTS = [
         to: "/docs/hub/introduction"
     },
     {
+        from: "/docs/hub/intro",
+        to: "/docs/hub/introduction"
+    },
+    {
         from: "/docs/general-usage/connectors",
         to: "/docs/dlt-ecosystem/verified-sources/"
     },

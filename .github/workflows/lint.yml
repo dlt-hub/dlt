@@ -13,7 +13,7 @@ jobs:
       fail-fast: true
       matrix:
         os:
-          - ubuntu-latest
+          - blacksmith-8vcpu-ubuntu-2404
         python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     defaults:
@@ -64,7 +64,7 @@ jobs:
   matrix_job_required_check:
     name: lint | code & tests
     needs: run_lint
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     if: always()
     steps:
       - name: Check matrix job results

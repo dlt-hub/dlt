@@ -299,11 +299,11 @@ Once your pipeline is validated, you can continue to the next phase of the data 
   Two skills drive the workflow: `/explore-data` (entry point skill) connects to your data, profiles it by mapping the intent to the available data and identifying potential gaps, while `/build-notebook` assembles the charts into a marimo dashboard and launches it in your browser.
   The toolkit is designed for iterative development: create one chart and launch the notebook, then iterate — add or refine charts and re-launch.
 
-- **`dlthub-runtime`** — deploy, schedule, and monitor your pipeline in production
+- **`dlthub-platform`** — deploy, schedule, and monitor your pipeline in production
 
 ```sh
 uv run dlthub ai toolkit install data-exploration
-uv run dlthub ai toolkit install dlthub-runtime
+uv run dlthub ai toolkit install dlthub-platform
 ```
 
 ## Results
