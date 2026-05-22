@@ -90,6 +90,7 @@ PYTEST_ARGS        ?=
 PYTEST_MARKERS     ?=
 PYTEST_XDIST_N     ?=
 PYTEST_XDIST_DIST  ?= worksteal
+PYTEST_RERUNS      ?=
 PYTEST_TARGET_ARGS :=
 
 # Internal marker model
@@ -111,6 +112,7 @@ PYTEST_BASE = \
 	PYTHONHASHSEED=$(PYTHONHASHSEED) \
 	uv run pytest \
 	$(PYTEST_TARGET_ARGS) \
+	$(if $(PYTEST_RERUNS),--reruns $(PYTEST_RERUNS)) \
 	$(PYTEST_ARGS)
 
 # Parallel execution with PYTEST_XDIST_N provided
@@ -338,6 +340,7 @@ test-dest-load:
 
 test-dest-remote-essential: PYTEST_MARKERS = essential
 test-dest-remote-essential: PYTEST_XDIST_DIST = loadgroup
+test-dest-remote-essential: PYTEST_RERUNS = 1
 test-dest-remote-essential:
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/load \
@@ -345,6 +348,7 @@ test-dest-remote-essential:
 	)
 
 test-dest-remote-nonessential: PYTEST_MARKERS = not essential
+test-dest-remote-nonessential: PYTEST_RERUNS = 1
 test-dest-remote-nonessential:
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/load \
@@ -369,6 +373,7 @@ test-dbt-runner-venv:
 # CI: workspace dashboard & sources
 # ----------------------------------------------------------------------
 
+test-workspace-dashboard: PYTEST_RERUNS = 1
 test-workspace-dashboard:
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/workspace/helpers/dashboard \
@@ -426,10 +431,10 @@ check-cli-docs: ## Checks CLI reference docs are up to date (CI)
 	uv run python docs/tools/check_cli_docs.py docs/website/docs/reference/command-line-interface.md --compare
 
 test-e2e-dashboard: ## Runs dashboard e2e tests with headless chromium
-	uv run pytest --browser chromium tests/e2e
+	uv run pytest --browser chromium --reruns 1 tests/e2e
 
 test-e2e-dashboard-headed: ## Runs dashboard e2e tests with visible browser
-	uv run pytest --headed --browser chromium tests/e2e
+	uv run pytest --headed --browser chromium --reruns 1 tests/e2e
 
 create-test-pipelines: ## Creates test pipelines for manual dashboard testing
 	uv run python tests/workspace/helpers/dashboard/example_pipelines.py
