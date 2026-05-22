@@ -36,18 +36,24 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena-iceberg\", \"athena-s3-tables\"]"
               extras: "--extra athena"
+              xdist_workers: 12
+              runs_on: blacksmith-8vcpu-ubuntu-2404
 
             - name: athena iceberg
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena\", \"athena-s3-tables\"]"
               extras: "--extra athena"
+              xdist_workers: 12
+              runs_on: blacksmith-8vcpu-ubuntu-2404
 
             - name: athena s3 tables
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena\", \"athena-iceberg\"]"
               extras: "--extra athena"
+              xdist_workers: 12
+              runs_on: blacksmith-8vcpu-ubuntu-2404
 
             # BigQuery
             - name: bigquery
@@ -193,7 +199,7 @@ jobs:
     defaults:
       run:
         shell: bash
-    runs-on: "ubuntu-latest"
+    runs-on: ${{ matrix.runs_on || 'ubuntu-latest' }}
 
     services:
       # we need local postgres to run ducklake tests quickly
