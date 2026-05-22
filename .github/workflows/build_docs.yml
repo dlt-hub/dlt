@@ -32,3 +32,6 @@ jobs:
 
       - name: Install python dependencies
         run: cd docs/website && npm run build
+
+      - name: Verify redirects
+        run: cd docs/website && npm run verify-redirects
