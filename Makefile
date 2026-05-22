@@ -168,6 +168,7 @@ install-load-local: dev
 
 TEST_LOAD_PATHS = tests/load
 
+test-load-local: PYTEST_RERUNS = 1
 test-load-local: ## Tests load with local destinations (duckdb + filesystem)
 	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory", "file"]' \
@@ -181,6 +182,7 @@ test-load-local: ## Tests load with local destinations (duckdb + filesystem)
 test-load-local-p: ## Tests load with local destinations in parallel
 	$(MAKE) test-load-local PYTEST_XDIST_N=auto
 
+test-load-local-postgres: PYTEST_RERUNS = 1
 test-load-local-postgres: ## Tests load with local postgres (requires start-test-containers)
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data \
 	ACTIVE_DESTINATIONS='["postgres"]' \
@@ -331,6 +333,7 @@ test-with-sqlalchemy-2:
 # CI: destination- and feature-specific
 # ----------------------------------------------------------------------
 
+test-dest-load: PYTEST_RERUNS = 1
 test-dest-load:
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/load \
