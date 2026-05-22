@@ -14,10 +14,11 @@ env:
 
 jobs:
   run_common:
-    name: test
+    name: test (${{ matrix.python-version }}, ${{ matrix.suite }})
     strategy:
       fail-fast: false
       matrix:
+        suite: [pipeline-full, sqlalchemy-2]
         include:
 
           # macos tests
@@ -63,6 +64,11 @@ jobs:
             python-version: "3.13"
             shell: cmd
 
+        exclude:
+          # Python 3.14 skips the pipeline-full install/test tail; no sqlalchemy-2 leg.
+          - python-version: "3.14"
+            suite: sqlalchemy-2
+
     defaults:
       run:
         shell: ${{ matrix.shell }}
@@ -104,9 +110,11 @@ jobs:
         run: make test-common-core
         env:
           PYTEST_XDIST_N: auto
+        if: matrix.suite == 'pipeline-full'
 
       - name: Run tools tests
         run: make test-tools
+        if: matrix.suite == 'pipeline-full'
 
       - name: Install min dependencies to import core source
         run: make install-common-source
@@ -115,6 +123,7 @@ jobs:
 
       - name: Run min dependencies source tests
         run: make test-common-source
+        if: matrix.suite == 'pipeline-full'
 
       - name: Install duckdb dependencies
         run: make install-pipeline-min
@@ -125,6 +134,7 @@ jobs:
         run: make test-pipeline-min
         env:
           PYTEST_XDIST_N: auto
+        if: matrix.suite == 'pipeline-full'
 
       - name: Install pyarrow
         run: make install-pipeline-arrow
@@ -132,7 +142,7 @@ jobs:
 
       - name: Run pipeline tests with pyarrow but no pandas installed
         run: make test-pipeline-arrow
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'pipeline-full' && matrix.python-version != '3.14'
 
       - name: Install workspace dependencies
         run: make install-workspace
@@ -144,7 +154,7 @@ jobs:
         run: make test-workspace
         env:
           PYTEST_XDIST_N: auto
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'pipeline-full' && matrix.python-version != '3.14'
 
       - name: Install pipeline and sources dependencies
         run: make install-pipeline-full
@@ -156,18 +166,17 @@ jobs:
         run: make test-pipeline-full
         env:
           PYTEST_XDIST_N: auto
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'pipeline-full' && matrix.python-version != '3.14'
 
-      # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
         run: make install-sqlalchemy2
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'sqlalchemy-2' && matrix.python-version != '3.14'
 
       - name: Run sql database tests and others that require sqlalchemy 2.0
         run: make test-with-sqlalchemy-2
         env:
           PYTEST_XDIST_N: auto
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'sqlalchemy-2' && matrix.python-version != '3.14'
 
   matrix_job_required_check:
     name: common | common tests
