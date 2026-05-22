@@ -14,7 +14,7 @@ env:
 
 jobs:
   run_common:
-    name: test (${{ matrix.python-version }}, ${{ matrix.suite }})
+    name: test (${{ matrix.platform }}, ${{ matrix.python-version }}, ${{ matrix.suite }})
     strategy:
       fail-fast: false
       matrix:
@@ -23,60 +23,73 @@ jobs:
 
           # macos tests
           - os: blacksmith-12vcpu-macos-latest
+            platform: macos
             python-version: "3.11"
             shell: bash
             suite: pipeline-full
           - os: blacksmith-12vcpu-macos-latest
+            platform: macos
             python-version: "3.11"
             shell: bash
             suite: sqlalchemy-2
 
           # linux tests
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
             python-version: "3.10"
             shell: bash
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
             python-version: "3.10"
             shell: bash
             suite: sqlalchemy-2
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
             python-version: "3.11"
             shell: bash
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
             python-version: "3.11"
             shell: bash
             suite: sqlalchemy-2
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
             python-version: "3.12"
             shell: bash
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
             python-version: "3.12"
             shell: bash
             suite: sqlalchemy-2
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
             python-version: "3.13"
             shell: bash
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux
             python-version: "3.13"
             shell: bash
             suite: sqlalchemy-2
 
           - os: blacksmith-12vcpu-macos-latest
+            platform: macos
             python-version: "3.14"
             shell: bash
             suite: pipeline-full
 
           # linux test with minimal dependencies
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux-lowest-direct
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux-lowest-direct
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
@@ -84,11 +97,13 @@ jobs:
 
           # linux test with newest available allowed packages (will update lockfile, should not be committed if run locally)
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux-upgrade
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--upgrade' # could also be 'direct'
             suite: pipeline-full
           - os: blacksmith-8vcpu-ubuntu-2404
+            platform: linux-upgrade
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--upgrade' # could also be 'direct'
@@ -96,18 +111,22 @@ jobs:
 
           # windows tests
           - os: blacksmith-8vcpu-windows-2025
+            platform: windows
             python-version: "3.11"
             shell: cmd
             suite: pipeline-full
           - os: blacksmith-8vcpu-windows-2025
+            platform: windows
             python-version: "3.11"
             shell: cmd
             suite: sqlalchemy-2
           - os: blacksmith-8vcpu-windows-2025
+            platform: windows
             python-version: "3.13"
             shell: cmd
             suite: pipeline-full
           - os: blacksmith-8vcpu-windows-2025
+            platform: windows
             python-version: "3.13"
             shell: cmd
             suite: sqlalchemy-2
