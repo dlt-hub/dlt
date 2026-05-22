@@ -1,5 +1,5 @@
 
-name: tools | dbt runner
+name: dbt
 
 on:
   workflow_call:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   run_dbt:
-    name: tools | dbt (${{ matrix.suite }})
+    name: ${{ matrix.suite }}
     strategy:
       fail-fast: false
       matrix:

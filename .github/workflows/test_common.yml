@@ -1,4 +1,4 @@
-name: common | common
+name: common
 
 on:
   workflow_call:
@@ -14,7 +14,7 @@ env:
 
 jobs:
   run_common:
-    name: test (${{ matrix.platform }}, ${{ matrix.python-version }}, ${{ matrix.suite }})
+    name: ${{ matrix.platform }} · py${{ matrix.python-version }} · ${{ matrix.suite }}
     strategy:
       fail-fast: false
       matrix:
@@ -293,7 +293,7 @@ jobs:
         if: matrix.suite == 'sqlalchemy-2' && matrix.python-version != '3.14'
 
   matrix_job_required_check:
-    name: common | common tests
+    name: common · check
     needs: run_common
     runs-on: ubuntu-latest
     if: always()

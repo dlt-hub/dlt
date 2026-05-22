@@ -1,7 +1,7 @@
 # Tests destinations that can run without credentials.
 # i.e. local postgres, duckdb, filesystem (with local fs/memory bucket)
 
-name: dest | postgres, duckdb, fs, weaviate, qdrant
+name: dest local
 
 on:
   workflow_call:
@@ -15,7 +15,7 @@ env:
 jobs:
 
   run_destinations_local:
-    name: dest | local
+    name: ${{ matrix.name }}
 
     strategy:
       fail-fast: false

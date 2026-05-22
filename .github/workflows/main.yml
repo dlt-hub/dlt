@@ -44,12 +44,12 @@ jobs:
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
 
   test_common:
-    name: run common tests on all python versions and OSes
+    name: common
     needs: [lint]
     uses: ./.github/workflows/test_common.yml
 
   test_dashboard:
-    name: run dashboard tests
+    name: dashboard
     needs: [lint]
     uses: ./.github/workflows/test_tools_dashboard.yml
 
@@ -58,27 +58,27 @@ jobs:
   # Other tests that do not require remote connections
   #
   test_destinations_local:
-    name: run local destination tests without secrets
+    name: dest local
     needs: test_common
     uses: ./.github/workflows/test_destinations_local.yml
 
   test_sources_local:
-    name: run local source tests without secrets
+    name: src local
     needs: test_common
     uses: ./.github/workflows/test_sources_local.yml
 
   test_hub:
-    name: test dlthub features
+    name: hub
     needs: lint
     uses: ./.github/workflows/test_hub.yml
 
   test_tools_airflow:
-    name: test airflow helpers
+    name: airflow
     needs: lint
     uses: ./.github/workflows/test_tools_airflow.yml
 
   test_tools_build_images:
-    name: test build images
+    name: build images
     needs: lint
     uses: ./.github/workflows/test_tools_build_images.yml
 
@@ -88,7 +88,7 @@ jobs:
   #
 
   test_destinations_remote:
-    name: test remote destinations with secrets
+    name: dest remote
     needs: [authorize_secrets, test_common]
     uses: ./.github/workflows/test_destinations_remote.yml
     secrets: inherit
@@ -99,7 +99,7 @@ jobs:
   # Other tools and tests that require secrets
   #
   test_tools_dbt_runner:
-    name: test dbt runner
+    name: dbt
     needs: [test_common, authorize_secrets]
     uses: ./.github/workflows/test_tools_dbt_runner.yml
     secrets: inherit

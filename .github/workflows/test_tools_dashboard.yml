@@ -1,4 +1,4 @@
-name: common | common
+name: dashboard
 
 on:
   workflow_call:
@@ -15,7 +15,7 @@ env:
 
 jobs:
   run_common:
-    name: test
+    name: py${{ matrix.python-version }} · ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -111,7 +111,7 @@ jobs:
         if: matrix.python-version != '3.14.0-beta.4'
 
   matrix_job_required_check:
-    name: common | common tests
+    name: dashboard · check
     needs: run_common
     runs-on: blacksmith-2vcpu-ubuntu-2404
     if: always()

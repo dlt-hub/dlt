@@ -1,6 +1,6 @@
 # Tests sources against a couple of local destinations
 
-name: src | rest_api, sql_database, filesystem
+name: src local
 
 on:
   workflow_call:
@@ -16,7 +16,7 @@ env:
 
 jobs:
   run_loader:
-    name: src | ${{ matrix.name }} (${{ matrix.suite }})
+    name: ${{ matrix.name }} · ${{ matrix.suite }}
     strategy:
       fail-fast: false
       matrix:
