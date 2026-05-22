@@ -8,13 +8,28 @@ on:
 jobs:
 
   run_lint:
-    name: lint
+    # Job title: matrix.display_name + optional "-{N}vcpu" (runner image is matrix.os only).
+    name: ${{ matrix.display_name }}${{ matrix.vcpus && format('-{0}vcpu', matrix.vcpus) || '' }}
     strategy:
       fail-fast: true
       matrix:
-        os:
-          - blacksmith-8vcpu-ubuntu-2404
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          - display_name: "3.10"
+            vcpus: 8
+            os: blacksmith-8vcpu-ubuntu-2404
+            python-version: "3.10"
+          - display_name: "3.11"
+            vcpus: 8
+            os: blacksmith-8vcpu-ubuntu-2404
+            python-version: "3.11"
+          - display_name: "3.12"
+            vcpus: 8
+            os: blacksmith-8vcpu-ubuntu-2404
+            python-version: "3.12"
+          - display_name: "3.13"
+            vcpus: 8
+            os: blacksmith-8vcpu-ubuntu-2404
+            python-version: "3.13"
 
     defaults:
       run:
@@ -62,7 +77,7 @@ jobs:
 
 
   matrix_job_required_check:
-    name: lint | code & tests
+    name: lint-check
     needs: run_lint
     runs-on: blacksmith-2vcpu-ubuntu-2404
     if: always()

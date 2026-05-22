@@ -25,7 +25,7 @@ env:
 jobs:
 
   run_lint:
-    name: docs | snippets
+    name: snippets
     runs-on: ubuntu-latest
 
     # Service containers to run with `container-job`

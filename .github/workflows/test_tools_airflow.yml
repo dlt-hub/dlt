@@ -6,18 +6,23 @@ on:
 
 jobs:
   run_airflow:
-    name: airflow ${{ matrix.airflow-version }}
+    # Job title: matrix.display_name + optional "-{N}vcpu" (runner image is matrix.os only).
+    name: ${{ matrix.display_name }}${{ matrix.vcpus && format('-{0}vcpu', matrix.vcpus) || '' }}
     runs-on: blacksmith-8vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:
         include:
-          - airflow-version: "2"
+          - display_name: airflow-2
+            vcpus: 8
+            airflow-version: "2"
             python-version: "3.12"
             airflow-pin: ""
             run-unit-tests: true
             run-smoke-test: false
-          - airflow-version: "3"
+          - display_name: airflow-3
+            vcpus: 8
+            airflow-version: "3"
             python-version: "3.12"
             airflow-pin: "apache-airflow>=3.1"
             run-unit-tests: false

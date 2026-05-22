@@ -19,7 +19,7 @@ jobs:
   # check for secret-requiring jobs: secrets are only available for internal (same-repo) PRs under pull_request.
   # fork PRs with the `ci from fork` label are handled separately by fork_tests_with_secrets.yml (pull_request_target).
   authorize_secrets:
-    name: secrets available (internal PRs only)
+    name: secrets (internal PRs)
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize') }}
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
@@ -28,7 +28,7 @@ jobs:
   # testing and linting of docs snippets is always run to catch problems in the docs
   # NOTE: we could splint linting and testing of docs so linter can also always run for fork PRs
   test_docs:
-    name: lint and test snippets, examples and notebooks in docs, lints tools
+    name: docs
     uses: ./.github/workflows/test_docs.yml
     secrets: inherit
 
@@ -38,7 +38,7 @@ jobs:
     uses: ./.github/workflows/build_docs.yml
   
   lint:
-    name: lint on all python versions
+    name: lint
     needs: get_docs_changes
     uses: ./.github/workflows/lint.yml
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'

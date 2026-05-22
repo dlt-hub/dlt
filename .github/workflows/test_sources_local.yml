@@ -16,33 +16,39 @@ env:
 
 jobs:
   run_loader:
-    name: ${{ matrix.name }} · ${{ matrix.suite }}
+    # Job title: matrix.display_name + optional "-{N}vcpu" (runner image is matrix.os only).
+    name: ${{ matrix.display_name }}${{ matrix.vcpus && format('-{0}vcpu', matrix.vcpus) || '' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: postgres etc.
+          - display_name: postgres-sources-load
+            vcpus: 8
             dbms_extras: "--extra postgres --extra postgis"
             needs_postgres: true
             pytest_mark: "not mssql and not oracle"
             suite: sources-load
-          - name: postgres etc.
+          - display_name: postgres-sql-database
+            vcpus: 8
             dbms_extras: "--extra postgres --extra postgis"
             needs_postgres: true
             pytest_mark: "not mssql and not oracle"
             suite: sql-database
-          - name: mssql
+          - display_name: mssql-sources-load
+            vcpus: 8
             dbms_extras: "--extra mssql"
             needs_mssql: true
             pytest_mark: "mssql"
             suite: sources-load
-          - name: mssql
+          - display_name: mssql-sql-database
+            vcpus: 8
             dbms_extras: "--extra mssql"
             needs_mssql: true
             pytest_mark: "mssql"
             suite: sql-database
           # Oracle: sqlalchemy 2 / sql_database only (no sources-load leg on SA 1.4)
-          - name: oracle
+          - display_name: oracle-sql-database
+            vcpus: 8
             dbms_extras: "--extra oracle"
             needs_oracle: true
             pytest_mark: "oracle"
