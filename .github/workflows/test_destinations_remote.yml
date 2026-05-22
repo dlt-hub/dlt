@@ -37,7 +37,6 @@ jobs:
               excluded_destination_test_configuration_ids: "[\"athena-iceberg\", \"athena-s3-tables\"]"
               extras: "--extra athena"
               xdist_workers: 12
-              runs_on: blacksmith-8vcpu-ubuntu-2404
 
             - name: athena iceberg
               destinations: "[\"athena\"]"
@@ -45,7 +44,6 @@ jobs:
               excluded_destination_test_configuration_ids: "[\"athena\", \"athena-s3-tables\"]"
               extras: "--extra athena"
               xdist_workers: 12
-              runs_on: blacksmith-8vcpu-ubuntu-2404
 
             - name: athena s3 tables
               destinations: "[\"athena\"]"
@@ -53,7 +51,6 @@ jobs:
               excluded_destination_test_configuration_ids: "[\"athena\", \"athena-iceberg\"]"
               extras: "--extra athena"
               xdist_workers: 12
-              runs_on: blacksmith-8vcpu-ubuntu-2404
 
             # BigQuery
             - name: bigquery
