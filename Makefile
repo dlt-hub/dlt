@@ -337,6 +337,7 @@ test-dest-load:
 	)
 
 test-dest-remote-essential: PYTEST_MARKERS = essential
+test-dest-remote-essential: PYTEST_XDIST_DIST = loadgroup
 test-dest-remote-essential:
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/load \

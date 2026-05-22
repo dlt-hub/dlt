@@ -38,6 +38,9 @@ from tests.utils import (
     auto_module_test_storage,
 )
 
+# Same worker under pytest-xdist --dist=loadgroup (see make test-dest-remote-essential).
+pytestmark = pytest.mark.xdist_group("read_interfaces")
+
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "created_at", "_dlt_load_id", "_dlt_id"]
 
 # items.created_at is generated as `ITEMS_EPOCH + timedelta(seconds=i)` for i in range(total_records)
