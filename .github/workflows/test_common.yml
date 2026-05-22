@@ -14,8 +14,7 @@ env:
 
 jobs:
   run_common:
-    # Job title: matrix.display_name + optional "-{N}vcpu" (runner image is matrix.os only).
-    name: ${{ matrix.display_name }}${{ matrix.vcpus && format('-{0}vcpu', matrix.vcpus) || '' }}
+    name: ${{ matrix.display_name }}
     strategy:
       fail-fast: false
       matrix:
@@ -23,21 +22,18 @@ jobs:
 
           # macos tests
           - display_name: macos-3.11-common/pipeline-mindeps-workspace
-            vcpus: 12
             os: blacksmith-12vcpu-macos-latest
             platform: macos
             python-version: "3.11"
             shell: bash
             suite: common/pipeline-mindeps-workspace
           - display_name: macos-3.11-pipeline-full
-            vcpus: 12
             os: blacksmith-12vcpu-macos-latest
             platform: macos
             python-version: "3.11"
             shell: bash
             suite: pipeline-full
           - display_name: macos-3.11-sqlalchemy-2
-            vcpus: 12
             os: blacksmith-12vcpu-macos-latest
             platform: macos
             python-version: "3.11"
@@ -46,84 +42,72 @@ jobs:
 
           # linux tests
           - display_name: linux-3.10-common/pipeline-mindeps-workspace
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.10"
             shell: bash
             suite: common/pipeline-mindeps-workspace
           - display_name: linux-3.10-pipeline-full
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.10"
             shell: bash
             suite: pipeline-full
           - display_name: linux-3.10-sqlalchemy-2
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.10"
             shell: bash
             suite: sqlalchemy-2
           - display_name: linux-3.11-common/pipeline-mindeps-workspace
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.11"
             shell: bash
             suite: common/pipeline-mindeps-workspace
           - display_name: linux-3.11-pipeline-full
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.11"
             shell: bash
             suite: pipeline-full
           - display_name: linux-3.11-sqlalchemy-2
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.11"
             shell: bash
             suite: sqlalchemy-2
           - display_name: linux-3.12-common/pipeline-mindeps-workspace
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.12"
             shell: bash
             suite: common/pipeline-mindeps-workspace
           - display_name: linux-3.12-pipeline-full
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.12"
             shell: bash
             suite: pipeline-full
           - display_name: linux-3.12-sqlalchemy-2
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.12"
             shell: bash
             suite: sqlalchemy-2
           - display_name: linux-3.13-common/pipeline-mindeps-workspace
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.13"
             shell: bash
             suite: common/pipeline-mindeps-workspace
           - display_name: linux-3.13-pipeline-full
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.13"
             shell: bash
             suite: pipeline-full
           - display_name: linux-3.13-sqlalchemy-2
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux
             python-version: "3.13"
@@ -132,7 +116,6 @@ jobs:
 
           # 3.14: early suite only (no pipeline-full / sqlalchemy-2 tail)
           - display_name: macos-3.14-common/pipeline-mindeps-workspace
-            vcpus: 12
             os: blacksmith-12vcpu-macos-latest
             platform: macos
             python-version: "3.14"
@@ -141,7 +124,6 @@ jobs:
 
           # linux test with minimal dependencies
           - display_name: linux-lowest-direct-3.11-common/pipeline-mindeps-workspace
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux-lowest-direct
             python-version: "3.11"
@@ -149,7 +131,6 @@ jobs:
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
             suite: common/pipeline-mindeps-workspace
           - display_name: linux-lowest-direct-3.11-pipeline-full
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux-lowest-direct
             python-version: "3.11"
@@ -157,7 +138,6 @@ jobs:
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
             suite: pipeline-full
           - display_name: linux-lowest-direct-3.11-sqlalchemy-2
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux-lowest-direct
             python-version: "3.11"
@@ -167,7 +147,6 @@ jobs:
 
           # linux test with newest available allowed packages (will update lockfile, should not be committed if run locally)
           - display_name: linux-upgrade-3.11-common/pipeline-mindeps-workspace
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux-upgrade
             python-version: "3.11"
@@ -175,7 +154,6 @@ jobs:
             uv_sync_args: '--upgrade' # could also be 'direct'
             suite: common/pipeline-mindeps-workspace
           - display_name: linux-upgrade-3.11-pipeline-full
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux-upgrade
             python-version: "3.11"
@@ -183,7 +161,6 @@ jobs:
             uv_sync_args: '--upgrade' # could also be 'direct'
             suite: pipeline-full
           - display_name: linux-upgrade-3.11-sqlalchemy-2
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             platform: linux-upgrade
             python-version: "3.11"
@@ -193,42 +170,36 @@ jobs:
 
           # windows tests
           - display_name: windows-3.11-common/pipeline-mindeps-workspace
-            vcpus: 8
             os: blacksmith-8vcpu-windows-2025
             platform: windows
             python-version: "3.11"
             shell: cmd
             suite: common/pipeline-mindeps-workspace
           - display_name: windows-3.11-pipeline-full
-            vcpus: 8
             os: blacksmith-8vcpu-windows-2025
             platform: windows
             python-version: "3.11"
             shell: cmd
             suite: pipeline-full
           - display_name: windows-3.11-sqlalchemy-2
-            vcpus: 8
             os: blacksmith-8vcpu-windows-2025
             platform: windows
             python-version: "3.11"
             shell: cmd
             suite: sqlalchemy-2
           - display_name: windows-3.13-common/pipeline-mindeps-workspace
-            vcpus: 8
             os: blacksmith-8vcpu-windows-2025
             platform: windows
             python-version: "3.13"
             shell: cmd
             suite: common/pipeline-mindeps-workspace
           - display_name: windows-3.13-pipeline-full
-            vcpus: 8
             os: blacksmith-8vcpu-windows-2025
             platform: windows
             python-version: "3.13"
             shell: cmd
             suite: pipeline-full
           - display_name: windows-3.13-sqlalchemy-2
-            vcpus: 8
             os: blacksmith-8vcpu-windows-2025
             platform: windows
             python-version: "3.13"

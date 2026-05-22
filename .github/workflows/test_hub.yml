@@ -13,8 +13,7 @@ env:
 
 jobs:
   run_hub_features:
-    # Job title: matrix.display_name + optional "-{N}vcpu" (runner image is matrix.os only).
-    name: ${{ matrix.display_name }}${{ matrix.vcpus && format('-{0}vcpu', matrix.vcpus) || '' }}
+    name: ${{ matrix.display_name }}
     strategy:
       fail-fast: false
       matrix:

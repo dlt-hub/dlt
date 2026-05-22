@@ -15,8 +15,7 @@ env:
 
 jobs:
   run_common:
-    # Job title: matrix.display_name + optional "-{N}vcpu" (runner image is matrix.os only).
-    name: ${{ matrix.display_name }}${{ matrix.vcpus && format('-{0}vcpu', matrix.vcpus) || '' }}
+    name: ${{ matrix.display_name }}
     strategy:
       fail-fast: false
       matrix:
@@ -24,36 +23,30 @@ jobs:
 
           # macos tests
           - display_name: macos-3.12
-            vcpus: 12
             os: blacksmith-12vcpu-macos-latest
             python-version: "3.12"
             shell: bash
 
           # linux tests
           - display_name: linux-3.10
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.10"
             shell: bash
           - display_name: linux-3.11
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
           - display_name: linux-3.12
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.12"
             shell: bash
           - display_name: linux-3.13
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.13"
             shell: bash
 
           # linux test with minimal dependencies
           - display_name: linux-3.11-mindeps
-            vcpus: 8
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
@@ -62,7 +55,6 @@ jobs:
           # mac test with newest available allowed packages (will update lockfile, should not be committed if run locally)
           # TODO: revert to linux
           - display_name: macos-3.11-upgrade
-            vcpus: 12
             os: blacksmith-12vcpu-macos-latest
             python-version: "3.11"
             shell: bash
@@ -71,7 +63,6 @@ jobs:
 
           # windows tests
           - display_name: windows-3.12
-            vcpus: 8
             os: blacksmith-8vcpu-windows-2025
             python-version: "3.12"
             shell: cmd

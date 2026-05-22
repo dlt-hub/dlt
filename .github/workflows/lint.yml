@@ -8,26 +8,21 @@ on:
 jobs:
 
   run_lint:
-    # Job title: matrix.display_name + optional "-{N}vcpu" (runner image is matrix.os only).
-    name: ${{ matrix.display_name }}${{ matrix.vcpus && format('-{0}vcpu', matrix.vcpus) || '' }}
+    name: ${{ matrix.display_name }}
     strategy:
       fail-fast: true
       matrix:
         include:
-          - display_name: "3.10"
-            vcpus: 8
+          - display_name: linux-3.10
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.10"
-          - display_name: "3.11"
-            vcpus: 8
+          - display_name: linux-3.11
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
-          - display_name: "3.12"
-            vcpus: 8
+          - display_name: linux-3.12
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.12"
-          - display_name: "3.13"
-            vcpus: 8
+          - display_name: linux-3.13
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.13"
 

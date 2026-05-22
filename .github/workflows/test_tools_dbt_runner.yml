@@ -12,17 +12,14 @@ env:
 
 jobs:
   run_dbt:
-    # Job title: matrix.display_name + optional "-{N}vcpu" (runner image is matrix.os only).
-    name: ${{ matrix.display_name }}${{ matrix.vcpus && format('-{0}vcpu', matrix.vcpus) || '' }}
+    name: ${{ matrix.display_name }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - display_name: no-venv
-            vcpus: 8
             suite: no-venv
           - display_name: venv
-            vcpus: 8
             suite: venv
     defaults:
       run:
