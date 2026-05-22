@@ -6,6 +6,10 @@ keywords: [delta, delta lake]
 
 # Delta
 
+:::note
+Use of the dltHub platform and toolkits is subject to a commercial dltHub License.
+:::
+
 The Delta destination is based on the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
 
 :::warning

@@ -106,7 +106,7 @@ The same [pipeline and dataset troubleshooting dashboard](../ingestion/dashboard
 
 ## Known limitations
 
-- Batch jobs have a configurable **maximum runtime**. Jobs exceeding this limit are automatically cancelled. See [Platform limits](overview.md#platform-limits) for details.
+Batch jobs have a configurable **maximum runtime**. Jobs exceeding this limit are automatically cancelled. See [Platform limits](overview.md#platform-limits) for details.
 
 ## See also
 

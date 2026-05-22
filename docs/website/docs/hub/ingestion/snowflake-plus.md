@@ -6,6 +6,10 @@ keywords: [Snowflake, Iceberg, destination]
 
 # Snowflake+ Iceberg / Open Catalog
 
+:::note
+Use of the dltHub platform and toolkits is subject to a commercial dltHub License.
+:::
+
 Snowflake+ is a drop-in replacement for [OSS Snowflake destination](../../dlt-ecosystem/destinations/snowflake.md) that adds [Apache Iceberg tables](https://docs.snowflake.com/en/user-guide/tables-iceberg) creation and related features.
 
 It uses Snowflake to manage Iceberg data - tables are created and data is copied via Snowflake SQL and automatically visible in Snowflake (HORIZON)
