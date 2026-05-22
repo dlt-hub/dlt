@@ -56,6 +56,13 @@ def sync_from_vendor():
 
 Static egress routing forces job traffic through the US region. See [Regions and data residency](regions.md) for how regional data planes relate to your organization.
 
+The static egress IPs are:
+- 4.205.113.62
+- 44.221.24.144
+- 34.193.87.36
+- 98.80.106.70
+- 54.81.217.233
+
 ## Job configuration via TOML
 
 Jobs read configuration through dlt's standard config system. The default section is the containing module name:
