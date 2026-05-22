@@ -36,21 +36,18 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena-iceberg\", \"athena-s3-tables\"]"
               extras: "--extra athena"
-              xdist_workers: 24
 
             - display_name: athena iceberg
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena\", \"athena-s3-tables\"]"
               extras: "--extra athena"
-              xdist_workers: 24
 
             - display_name: athena s3 tables
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena\", \"athena-iceberg\"]"
               extras: "--extra athena"
-              xdist_workers: 24
 
             # BigQuery
             - display_name: bigquery
@@ -123,7 +120,6 @@ jobs:
               filesystem_drivers: "[\"s3\"]"
               extras: "--extra lance --extra s3"
               post_install_commands: "uv run pip install openai"
-              always_run_all_tests: true
 
             # Motherduck
             - display_name: motherduck
