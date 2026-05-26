@@ -1,7 +1,7 @@
 ---
 title: Job configuration
 description: Per-job options on the dltHub platform — execution timeouts, dependency groups, and TOML configuration sections
-keywords: [dlthub platform, job configuration, timeout, dependency groups, execute, require, expose, section]
+keywords: [dlthub platform, job configuration, timeout, dependency groups, static egress, execute, require, expose, section]
 ---
 
 # Job configuration
@@ -43,6 +43,25 @@ def transform(run_context: TJobRunContext):
 ```
 
 The dltHub platform composes the execution environment from the workspace's base dependencies plus the job's declared groups.
+
+## Static egress IPs
+
+Use this when you must whitelist outbound IP addresses so external systems can grant your jobs access to private resources. Opt in per job so outbound requests use your workspace's static egress IPs:
+
+```py
+@run.pipeline(my_pipeline, require={"static_egress_ips": True})
+def sync_from_vendor():
+    ...
+```
+
+Static egress routing forces job traffic through the US region. See [Regions and data residency](regions.md) for how regional data planes relate to your organization.
+
+The static egress IPs are:
+- 4.205.113.62
+- 44.221.24.144
+- 34.193.87.36
+- 98.80.106.70
+- 54.81.217.233
 
 ## Job configuration via TOML
 

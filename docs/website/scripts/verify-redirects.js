@@ -21,6 +21,7 @@ const redirects = require('../redirects.js');
 // ---------------------------------------------------------------------------
 let errors = 0;
 let warnings = 0;
+let develOnlyWarnings = 0;
 
 function error(msg) {
   console.error(`  ERROR: ${msg}`);
@@ -40,6 +41,14 @@ function targetExists(rel) {
   const candidates = [
     path.join(BUILD_DIR, rel + '.html'),
     path.join(BUILD_DIR, rel, 'index.html'),
+  ];
+  return candidates.some((c) => fs.existsSync(c));
+}
+
+function targetExistsOnDevel(rel) {
+  const candidates = [
+    path.join(BUILD_DIR, 'devel', rel + '.html'),
+    path.join(BUILD_DIR, 'devel', rel, 'index.html'),
   ];
   return candidates.some((c) => fs.existsSync(c));
 }
@@ -92,9 +101,15 @@ for (const r of redirects) {
 
   checked++;
   const rel = r.to.replace(/^\/docs\//, '').replace(/\/$/, '');
-  if (!targetExists(rel)) {
-    error(`redirect target ${r.to} has no HTML page (from: ${r.from}, checked ${rel}.html and ${rel}/index.html)`);
+  if (targetExists(rel)) {
+    continue;
   }
+  if (targetExistsOnDevel(rel)) {
+    warn(`(devel-only): ${r.to} — resolves on devel, awaits next release (from: ${r.from})`);
+    develOnlyWarnings++;
+    continue;
+  }
+  error(`redirect target ${r.to} has no HTML page (from: ${r.from}, checked ${rel}.html and ${rel}/index.html)`);
 }
 
 if (skipped > 0) {
@@ -102,7 +117,12 @@ if (skipped > 0) {
 }
 
 if (errors === 0) {
-  ok(`all ${checked} checked redirect targets resolve to existing pages`);
+  if (develOnlyWarnings === 0) {
+    ok(`all ${checked} checked redirect targets resolve to existing pages`);
+  } else {
+    const masterResolved = checked - develOnlyWarnings;
+    ok(`${masterResolved}/${checked} checked redirect targets resolve in master; ${develOnlyWarnings} resolve only on devel (await next release)`);
+  }
 }
 
 // Summary
