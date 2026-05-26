@@ -70,7 +70,7 @@ That command generates static content into the `build` directory, which can be s
 
 The full build runs these steps in order:
 
-1. **`npm run update-versions`** — clones `dlt`, checks out the latest release tag, freezes the content into `versioned_docs/version-master/`. This is the **master snapshot** (served at `/docs/`); your branch is served at `/docs/devel/`. See [Docs versions](#docs-versions) below.
+1. **`npm run update-versions`** — clones `dlt`, checks out the `master` branch, freezes the content into `versioned_docs/version-master/`. This is the **master snapshot** (served at `/docs/`); your branch is served at `/docs/devel/`. See [Docs versions](#docs-versions) below.
 2. **`make preprocess-docs`** (from `docs/`) — Python preprocessor: expands `<!--@@@DLT_SNIPPET-->` markers, generates the API reference, etc.
 3. **`docusaurus build --out-dir build/docs`** — the static site build itself. Fails on broken internal markdown links.
 4. **`node scripts/verify-llms-txt.js`** — checks the generated `llms.txt` index against the sidebar.
