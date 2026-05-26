@@ -7,7 +7,6 @@ from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeCredentials,
-    DUCKLAKE_STORAGE_PATTERN,
 )
 from dlt.destinations import ducklake
 
@@ -22,6 +21,7 @@ from tests.load.utils import (
 from tests.pipeline.utils import assert_load_info
 from tests.utils import get_test_storage_root
 
+DUCKLAKE_STORAGE_PATTERN = "%s.files"
 
 @pytest.mark.parametrize(
     "catalog",
