@@ -70,7 +70,7 @@ class PurchaseRow(TypedDict):
 
 
 class MarketingUserRow(TypedDict):
-    id: int
+    id: int  # noqa: A003
     segment: str
 
 

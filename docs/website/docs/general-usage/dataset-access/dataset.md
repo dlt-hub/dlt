@@ -175,35 +175,64 @@ See [Incremental transformations](../../hub/features/transformations/index.md#in
 
 ### Join related tables
 
-The `join()` method follows relationships already defined in the dlt schema. It can resolve direct schema references between tables as well as multi-hop parent/child paths when one table is an ancestor or descendant of the other. This makes `join()` well suited for navigating nested tables created by dlt and tables connected by explicit references. Joined columns are appended from the target table only and are prefixed with the target table name, or with the alias you provide.
+The `join()` method appends a related table to the current relation. It works in two modes:
+
+- [Auto-join via schema references](#auto-join-via-schema-references): dlt builds the join condition from parent/child relationships dlt creates during loading, plus any `references` you declared on a resource.
+- [Explicit `on` predicate](#explicit-join-condition): when you pass `on=`, you write the join condition yourself. Use it for any join the auto mode cannot do, including [joins across two datasets](#cross-dataset-joins) on the same physical destination.
 
 By default, `join()` creates an `inner` join. Use `kind="left"`, `"right"`, or `"full"` to choose another SQL join type.
 
-When you do not specify an alias, joined columns use the joined table name as their prefix. For example, `dataset["users"].join("users__orders")` adds columns such as `users__orders__order_id`. When you pass `alias="orders"`, the same column is projected as `orders__order_id` instead. Use `alias` to make result columns easier to read or to avoid output name conflicts.
+When you do not specify an `alias`, joined columns use the target table name as their prefix. For example, `dataset["users"].join("users__orders")` adds columns such as `users__orders__order_id`. When you pass `alias="orders"`, the same column is projected as `orders__order_id` instead. Use `alias` to make result columns easier to read or to avoid output name conflicts.
+
+#### Auto-join via schema references
+
+With no `on` argument, `join()` follows relationships already defined in the dlt schema. It can resolve direct schema references between tables as well as multi-hop parent/child paths when one table is an ancestor or descendant of the other. This makes the auto mode well suited for navigating nested tables created by dlt and tables connected by explicit references. Joined columns are appended from the target table only and are prefixed with the target table name, or with the alias you provide.
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::join_related_tables-->
 
-**Limits:** `join()` only works when dlt can resolve a supported schema-defined path between the current relation's base table and the target table. Both sides must be base-table relations, for example `dataset["users"].join("users__orders")`. You cannot call `join()` after transforming a relation with methods such as `select()` or `where()`.
+The auto mode works on relations from `dataset[name]` or `dataset.table(name)`, and on relations chained from them with `where()`, `select()`, `order_by()`, and similar methods. It does not work on relations from `dataset.query("...")`, use the explicit form below for those cases.
 
-`join()` does not support:
+The auto mode does not support:
 
 - arbitrary join conditions
-- joins on columns that are not defined as schema references
+- joins on columns that you pick yourself
 - self-joins
 - joins across different datasets
 - joins between tables that are only related indirectly through a shared ancestor or another non-linear schema path
 
-In practice, this means `join()` supports ancestor/descendant navigation, but not general graph traversal across the schema.
-
-For example:
+In practice, this means the auto mode supports ancestor/descendant navigation, but not general graph traversal across the schema:
 
 - `dataset["users__orders__items"].join("users")` works because `users` is an ancestor in the nested table hierarchy
 - joining two sibling tables just because both descend from `users` does not work
-- joining two tables on a custom predicate such as `orders.customer_email = customers.email` does not work unless that relationship is defined in the schema
+- joining two tables on a custom predicate such as `orders.customer_email = customers.email` does not work: use the explicit form below instead
 
-When `join()` needs intermediate tables to reach the target, those tables are used only to build the join path. Their columns are not added to the result automatically. Only columns from the explicitly joined target table are appended.
+When the auto mode needs intermediate tables to reach the target, those tables are used only to build the join path. Their columns are not added to the result automatically. Only columns from the explicitly joined target table are appended.
 
-For arbitrary join logic, use Ibis.
+#### Explicit join condition
+
+Pass `on=` to write the join condition yourself, as a SQL string or a `sqlglot` expression. Use this form whenever the auto mode does not work for your tables: for example, when joining two top-level tables that dlt did not create from a parent/child relationship.
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::join_explicit_on-->
+
+The right-hand side can be a table name, a table relation, or a relation you already transformed with `select()`, `where()`, etc. When you pass a transformed relation, its filters and column selection carry over to the joined result.
+
+The left-hand side can be a table relation, a relation chained from one with `where()`, `select()`, `order_by()`, and similar methods, or a `dataset.query("...")` that reads from a single table.
+
+Self-joins are not supported, even with explicit `on`. For self-joins, multi-way joins with mixed conditions, or fully programmatic join construction, use [Ibis](#modifying-queries-with-ibis-expressions).
+
+#### Cross-dataset joins
+
+When you pass `on`, the right-hand side may be a `Relation` from a different `dlt.Dataset`, as long as both datasets share the same physical destination — for example, two pipelines that write to the same DuckDB file, or to the same database server with different dataset/schema names.
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::join_cross_dataset-->
+
+Cross-dataset joins:
+
+- require an explicit `on` condition: the auto mode does not span datasets
+- are rejected when the two relations live on different physical destinations
+- are not supported on filesystem destinations
+
+When two datasets share table names that would otherwise clash in the join (for example, both have a `users` table), give one side a stable alias in your SQL e.g. with `dataset.query("SELECT ... AS alias_name FROM users")` — and refer to that alias in `on`. Without an alias, `join()` cannot tell the two tables apart and will raise.
 
 ### Chain operations
 
