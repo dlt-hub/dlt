@@ -17,6 +17,7 @@ from dlt.common.utils import simple_repr, without_none
 from sqlglot import maybe_parse
 from sqlglot.optimizer.merge_subqueries import merge_subqueries
 from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
+from sqlglot.schema import Schema as SQLGlotSchema
 
 import sqlglot.expressions as sge
 
@@ -116,6 +117,7 @@ class Relation(WithSqlClient):
         self._sqlglot_expression: sge.Query = None
         self._schema: Optional[TTableSchemaColumns] = None
         self._incremental_ctx: Optional[_RelationIncrementalContext] = None
+        self._foreign_schemas: dict[str, list[dlt.Schema]] = {}
 
     def df(self, *args: Any, **kwargs: Any) -> pd.DataFrame | None:
         with self._cursor() as cursor:
@@ -271,7 +273,7 @@ class Relation(WithSqlClient):
 
             query = bind_query(
                 qualified_query=_qualified_query,
-                sqlglot_schema=self._dataset.sqlglot_schema,
+                sqlglot_schema=self._relation_sqlglot_schema(),
                 expand_table_name=_expand,
                 casefold_identifier=self.sql_client.capabilities.casefold_identifier,
             )
@@ -465,11 +467,6 @@ class Relation(WithSqlClient):
                 kind=kind,
             )
         else:
-            if not is_same_dataset:
-                self._dataset._add_foreign_schemas(
-                    target_dataset.dataset_name,
-                    list(target_dataset.schemas),
-                )
             # pass Relation as target when it's been transformed so it
             # becomes a subquery (preserving WHERE, SELECT, LIMIT, etc.)
             subquery_rhs: Optional[Relation] = (
@@ -485,10 +482,21 @@ class Relation(WithSqlClient):
                 projection_prefix=projection_prefix,
                 kind=kind,
                 destination_dialect=self.destination_dialect,
+                left_dataset_name=self._dataset.dataset_name,
             )
 
         rel = self.__copy__()
         rel._sqlglot_expression = query
+
+        # carry the RHS relation's foreign datasets
+        if isinstance(other, dlt.Relation):
+            for ds_name, schemas in other._foreign_schemas.items():
+                if ds_name == self._dataset.dataset_name:
+                    continue
+                rel._foreign_schemas[ds_name] = list(schemas)
+        if not is_same_dataset:
+            rel._foreign_schemas[target_dataset.dataset_name] = list(target_dataset.schemas)
+
         return rel
 
     def _resolve_join_target(
@@ -538,21 +546,18 @@ class Relation(WithSqlClient):
                 ds_name, tbl_name = other.split(".", 1)
                 if ds_name == self._dataset.dataset_name:
                     target_dataset = self._dataset
-                elif ds_name in self._dataset._foreign_schemas:
-                    target_dataset = self._dataset
-                    # columns come from the foreign schemas already registered
                     target_table = tbl_name
-                    target_columns = _find_table_columns(
-                        self._dataset._foreign_schemas[ds_name], tbl_name
-                    )
+                    target_columns = _find_table_columns(target_dataset.schemas, target_table)
+                elif ds_name in self._foreign_schemas:
+                    target_dataset = self._dataset
+                    target_table = tbl_name
+                    target_columns = _find_table_columns(self._foreign_schemas[ds_name], tbl_name)
                     return target_dataset, target_table, target_columns
                 else:
                     raise ValueError(
                         f"Dataset `{ds_name}` is not registered. Pass a Relation from the "
                         "foreign dataset to automatically register its schema."
                     )
-                target_table = tbl_name
-                target_columns = _find_table_columns(target_dataset.schemas, target_table)
             else:
                 target_dataset = self._dataset
                 target_table = other
@@ -981,7 +986,15 @@ class Relation(WithSqlClient):
         rel = self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
         rel._table_name = self._table_name
         rel._incremental_ctx = self._incremental_ctx
+        rel._foreign_schemas = {k: list(v) for k, v in self._foreign_schemas.items()}
         return rel
+
+    def _relation_sqlglot_schema(self) -> SQLGlotSchema:
+        schema_map: dict[str, Sequence[dlt.Schema]] = {
+            self._dataset.dataset_name: list(self._dataset.schemas),
+            **self._foreign_schemas,
+        }
+        return lineage.create_sqlglot_schema(schema_map, dialect=self.destination_dialect)
 
 
 def _get_relation_output_columns_schema(
@@ -994,7 +1007,7 @@ def _get_relation_output_columns_schema(
     columns_schema, normalized_query = lineage.compute_columns_schema(
         # use dlt schema compliant query so lineage will work correctly on non case folded identifiers
         relation.sqlglot_expression,
-        relation._dataset.sqlglot_schema,
+        relation._relation_sqlglot_schema(),
         dialect=relation.destination_dialect,
         infer_sqlglot_schema=infer_sqlglot_schema,
         allow_anonymous_columns=allow_anonymous_columns,

@@ -1033,21 +1033,25 @@ def test_explicit_on_with_projected_rhs(
     assert "orders__amount" not in df.columns
 
 
-def test_cross_dataset_join_registers_foreign_schemas(
+def test_cross_dataset_join(
     cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
-    """Cross-dataset join registers the foreign dataset's schemas."""
     ds_a, ds_b = cross_dataset_duckdb
     users = ds_a.table("users")
     purchases = ds_b.table("purchases")
 
-    assert ds_b.dataset_name not in ds_a._foreign_schemas
+    joined = users.join(purchases, on="users.id = purchases.user_id")
 
-    users.join(purchases, on="users.id = purchases.user_id")
-
-    assert ds_b.dataset_name in ds_a._foreign_schemas
-    foreign_schemas = ds_a._foreign_schemas[ds_b.dataset_name]
+    assert ds_b.dataset_name in joined._foreign_schemas
+    assert ds_b.dataset_name not in users._foreign_schemas
+    foreign_schemas = joined._foreign_schemas[ds_b.dataset_name]
     assert len(foreign_schemas) >= 1
+
+    df = joined.df()
+    assert len(df) == 3
+    assert "purchases__sku" in df.columns
+    assert "purchases__quantity" in df.columns
+    assert sorted(df["purchases__sku"]) == ["G-001", "W-001", "W-001"]
 
 
 def test_cross_dataset_join_requires_on(
@@ -1059,21 +1063,6 @@ def test_cross_dataset_join_requires_on(
 
     with pytest.raises(ValueError, match="`on` is required"):
         users.join(purchases)
-
-
-def test_cross_dataset_join_e2e(
-    cross_dataset_duckdb: TCrossDsFixture,
-) -> None:
-    ds_a, ds_b = cross_dataset_duckdb
-    users = ds_a.table("users")
-    purchases = ds_b.table("purchases")
-
-    joined = users.join(purchases, on="users.id = purchases.user_id")
-    df = joined.df()
-    assert len(df) == 3
-    assert "purchases__sku" in df.columns
-    assert "purchases__quantity" in df.columns
-    assert sorted(df["purchases__sku"]) == ["G-001", "W-001", "W-001"]
 
 
 _MATCHED = {
@@ -1127,3 +1116,36 @@ def test_join_does_not_project_incomplete_target_columns(
     assert rows is not None
     # 3 products inner-joined to 2 categories on category_id → 3 rows
     assert len(rows) == 3
+
+
+def test_cross_dataset_join_with_transformed_rhs_preserves_foreign_dataset_binding(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_a, ds_b = cross_dataset_duckdb
+    users = ds_a.table("users")
+    filtered_purchases = ds_b.table("purchases").where("quantity", "gt", 1)
+
+    joined = users.join(filtered_purchases, on="users.id = purchases.user_id").order_by("id")
+    df = joined.df()
+
+    assert len(df) == 1
+    assert list(df["name"]) == ["Alice"]
+    assert list(df["purchases__purchase_id"]) == [1]
+    assert list(df["purchases__sku"]) == ["W-001"]
+    assert list(df["purchases__quantity"]) == [2]
+
+
+def test_cross_dataset_join_with_same_table_names_keeps_sources_unambiguous(
+    same_named_cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_a, ds_b = same_named_cross_dataset_duckdb
+    crm_users = ds_a.query("SELECT * FROM users AS crm_users")
+    marketing_users = ds_b.table("users")
+
+    joined = crm_users.join(marketing_users, on="crm_users.id = users.id", alias="marketing")
+    df = joined.order_by("id").df()
+
+    assert len(df) == 2
+    assert list(df["id"]) == [1, 2]
+    assert list(df["name"]) == ["Alice", "Bob"]
+    assert list(df["marketing__segment"]) == ["pro", "free"]

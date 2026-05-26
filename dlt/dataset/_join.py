@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Set, TypeVar, Union
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from dlt.dataset.relation import Relation, TJoinType
 
 _INTERMEDIATE_JOIN_ALIAS_PREFIX = "_dlt_int_t"
+
+_TExpr = TypeVar("_TExpr", bound=sge.Expression)
 
 
 class _JoinRef(TypedDict):
@@ -154,25 +156,36 @@ def _build_join_condition_from_pairs(
     return reduce(lambda x, y: sge.And(this=x, expression=y), conditions)
 
 
+def _identifier_name(node: Any) -> Optional[str]:
+    """Return the string name of an sqlglot identifier-or-string node."""
+    if isinstance(node, sge.Identifier):
+        return node.name
+    if isinstance(node, str):
+        return node
+    return None
+
+
+def _subquery_alias_name(subquery: sge.Subquery) -> Optional[str]:
+    """Return the alias name of a subquery, or `None`."""
+    alias_expr = subquery.args.get("alias")
+    if not isinstance(alias_expr, sge.TableAlias):
+        return None
+    return _identifier_name(alias_expr.this)
+
+
 def _extract_table_qualifier(table_expr: sge.Expression) -> Optional[tuple[str, str]]:
     if not isinstance(table_expr, sge.Table):
         return None
 
-    table_identifier = table_expr.args.get("this")
-    if isinstance(table_identifier, sge.Identifier):
-        table_name = table_identifier.name
-    elif isinstance(table_identifier, str):
-        table_name = table_identifier
-    else:
+    table_name = _identifier_name(table_expr.args.get("this"))
+    if table_name is None:
         return None
 
     alias_expr = table_expr.args.get("alias")
     if isinstance(alias_expr, sge.TableAlias):
-        alias_identifier = alias_expr.this
-        if isinstance(alias_identifier, sge.Identifier):
-            return table_name, alias_identifier.name
-        if isinstance(alias_identifier, str):
-            return table_name, alias_identifier
+        alias_name = _identifier_name(alias_expr.this)
+        if alias_name is not None:
+            return table_name, alias_name
 
     return table_name, table_name
 
@@ -268,20 +281,18 @@ def _discover_join_params(
     return joins, target_qualifier
 
 
-def _normalize_left_projection(query: sge.Select, left_table: str) -> list[sge.Expression]:
-    """Qualify the left-side projection so an added JOIN can't leak right-side columns.
-
-    Bare `Star` becomes `<left_table>.*`; unqualified `Column`s get their
-    `table` set to `<left_table>`.
-    """
-    origin_identifier = sge.to_identifier(left_table, quoted=False)
+def _normalize_left_projection(
+    query: sge.Select, left_source_qualifier: str
+) -> list[sge.Expression]:
+    """Qualify the left-side projection so an added JOIN cannot leak right-side columns."""
+    origin_identifier = sge.to_identifier(left_source_qualifier, quoted=False)
     normalized: list[sge.Expression] = []
     for expr in query.selects:
         if isinstance(expr, sge.Star):
-            normalized.append(sge.Column(table=origin_identifier, this=sge.Star()))
+            normalized.append(sge.Column(table=origin_identifier.copy(), this=sge.Star()))
         elif isinstance(expr, sge.Column) and expr.args.get("table") is None:
             expr_copy = expr.copy()
-            expr_copy.set("table", origin_identifier)
+            expr_copy.set("table", origin_identifier.copy())
             normalized.append(expr_copy)
         else:
             normalized.append(expr)
@@ -291,7 +302,7 @@ def _normalize_left_projection(query: sge.Select, left_table: str) -> list[sge.E
 def _apply_join_projection(
     query: sge.Select,
     *,
-    left_table: str,
+    left_source_qualifier: str,
     target_columns: TTableSchemaColumns,
     target_qualifier: str,
     projection_prefix: str,
@@ -307,7 +318,7 @@ def _apply_join_projection(
     exist in the left projection and should be accepted as a no-op instead of raising
     a collision error.
     """
-    normalized_left_expressions = _normalize_left_projection(query, left_table)
+    normalized_left_expressions = _normalize_left_projection(query, left_source_qualifier)
 
     existing_projection_column_names = {
         expr.output_name
@@ -387,10 +398,12 @@ def _apply_join(
         )
         query = query.join(join_expr)
 
+    left_source_qualifier = _left_source_qualifier(query) or left_table
+
     if project:
         _apply_join_projection(
             query,
-            left_table=left_table,
+            left_source_qualifier=left_source_qualifier,
             target_columns=schema.get_table_columns(right_table),
             target_qualifier=target_qualifier,
             projection_prefix=projection_prefix,
@@ -399,26 +412,82 @@ def _apply_join(
     else:
         # filter-only join: qualify the left projection so a bare `*` does not
         # expand across the joined table and leak right-side columns at runtime.
-        query.set("expressions", _normalize_left_projection(query, left_table))
+        query.set("expressions", _normalize_left_projection(query, left_source_qualifier))
     return query
 
 
-def _rewrite_on_qualifiers(
-    on_expr: sge.Expression,
-    target_table: str,
-    internal_alias: str,
-) -> sge.Expression:
-    """Rewrite column qualifiers in the ON expression that reference the target table.
+def _qualify_physical_tables_with_dataset(expression: _TExpr, dataset_name: str) -> _TExpr:
+    """Bind every physical table reference in ``expression`` to ``dataset_name``."""
+    expression = expression.copy()
+    cte_names = {cte.alias_or_name for cte in expression.find_all(sge.CTE)}
+    db_identifier = sge.to_identifier(dataset_name, quoted=False)
+    for table in expression.find_all(sge.Table):
+        if table.name in cte_names:
+            continue
+        if table.args.get("db"):
+            continue
+        table.set("db", db_identifier.copy())
+    return expression
 
-    The user writes ``on="users.id = orders.user_id"`` using logical table names.
-    Once the target is aliased internally, those references must point to the alias
-    so the SQL engine can resolve them.
-    """
+
+def _left_source_qualifier(query: sge.Query) -> Optional[str]:
+    """Return the qualifier used to reference the FROM source (alias or table name)."""
+    from_expr = query.args.get("from_") or query.args.get("from")
+    if not isinstance(from_expr, sge.From):
+        return None
+    from_this = from_expr.this
+    if isinstance(from_this, sge.Table):
+        result = _extract_table_qualifier(from_this)
+        return result[1] if result else None
+    if isinstance(from_this, sge.Subquery):
+        return _subquery_alias_name(from_this)
+    return None
+
+
+def _collect_left_qualifiers(query: sge.Query) -> Set[str]:
+    """Collect qualifiers (table names or aliases) the LHS exposes to ON binding."""
+    qualifiers: Set[str] = set()
+    sources: list[sge.Expression] = []
+
+    from_expr = query.args.get("from_") or query.args.get("from")
+    if isinstance(from_expr, sge.From) and from_expr.this is not None:
+        sources.append(from_expr.this)
+
+    for join in query.args.get("joins") or []:
+        if join.this is not None:
+            sources.append(join.this)
+
+    for source in sources:
+        if isinstance(source, sge.Table):
+            result = _extract_table_qualifier(source)
+            if result:
+                qualifiers.add(result[1])
+        elif isinstance(source, sge.Subquery):
+            alias_name = _subquery_alias_name(source)
+            if alias_name is not None:
+                qualifiers.add(alias_name)
+
+    return qualifiers
+
+
+def _bind_on_predicate(
+    on_expr: sge.Expression,
+    *,
+    left_qualifiers: Set[str],
+    right_qualifiers: Set[str],
+    right_internal_alias: str,
+) -> sge.Expression:
+    """Rewrite RHS-side column qualifiers in ``on_expr`` to the internal RHS alias."""
     on_expr = on_expr.copy()
     for col in on_expr.find_all(sge.Column):
         table_node = col.args.get("table")
-        if isinstance(table_node, sge.Identifier) and table_node.name == target_table:
-            table_node.set("this", internal_alias)
+        if not isinstance(table_node, sge.Identifier):
+            continue
+        qualifier = table_node.name
+        if qualifier in left_qualifiers:
+            continue
+        if qualifier in right_qualifiers:
+            col.set("table", sge.to_identifier(right_internal_alias, quoted=False))
     return on_expr
 
 
@@ -433,6 +502,7 @@ def _apply_explicit_join(
     projection_prefix: str,
     kind: "TJoinType",
     destination_dialect: TSqlGlotDialect,
+    left_dataset_name: str,
 ) -> sge.Select:
     """Apply an explicit-ON join to ``expression`` and return the new query.
 
@@ -441,29 +511,44 @@ def _apply_explicit_join(
         target: Right-hand Relation object (if transformed/subquery), or None for
             string / base-table targets.
         target_table: Bare table name for schema lookups and projection.
-        target_dataset_name: Foreign dataset qualifier, or None for local.
+        target_dataset_name: Dataset name for the right-hand side.
         target_columns: Columns from the right-hand side for projection.
         on: Join condition as a SQL string or sqlglot expression.
         projection_prefix: Prefix for appended column aliases.
         kind: SQL join type.
         destination_dialect: Dialect for parsing string ON expressions.
+        left_dataset_name: Dataset name for the left-hand side.
     """
     query = expression.copy()
     if not isinstance(query, sge.Select):
         raise ValueError(f"Join query `{query}` must be an SQL SELECT statement.")
 
+    # bind LHS physical tables to the LHS dataset before composing the join.
+    # otherwise, adding the RHS dataset to the resolver makes bare LHS tables
+    # ambiguous
+    query = _qualify_physical_tables_with_dataset(query, left_dataset_name)
+
+    from_expr = query.args.get("from_") or query.args.get("from")
+    if not isinstance(from_expr, sge.From) or not isinstance(from_expr.this, sge.Table):
+        raise ValueError(
+            "Cannot apply explicit join: left-side query must have a base table "
+            "in its FROM clause (not a subquery or derived table)."
+        )
+    left_source_qualifier = _left_source_qualifier(query) or from_expr.this.name
+
     internal_alias = f"_dlt_jt_{projection_prefix}"
 
-    # build target expression
     target_expr: sge.Expression
-    if target is not None:
-        # transformed Relation -> subquery (preserves WHERE, SELECT, etc.)
+    if target is not None and target._query is not None:
+        # transformed Relation: embed as subquery
+        rhs_inner = target.sqlglot_expression
+        if target_dataset_name:
+            rhs_inner = _qualify_physical_tables_with_dataset(rhs_inner, target_dataset_name)
         target_expr = sge.Subquery(
-            this=target.sqlglot_expression,
+            this=rhs_inner,
             alias=sge.TableAlias(this=sge.to_identifier(internal_alias, quoted=False)),
         )
     else:
-        # base-table target (Relation with _table_name, or str)
         table_node_args: dict[str, sge.Expression] = {
             "this": sge.to_identifier(target_table, quoted=True),
             "alias": sge.TableAlias(this=sge.to_identifier(internal_alias, quoted=False)),
@@ -477,22 +562,21 @@ def _apply_explicit_join(
     else:
         on_expr = on
 
-    on_expr = _rewrite_on_qualifiers(on_expr, target_table, internal_alias)
+    left_qualifiers = _collect_left_qualifiers(query)
+    right_qualifiers = {target_table, projection_prefix}
+    on_expr = _bind_on_predicate(
+        on_expr,
+        left_qualifiers=left_qualifiers,
+        right_qualifiers=right_qualifiers,
+        right_internal_alias=internal_alias,
+    )
 
     join_expr = sge.Join(this=target_expr, kind=kind.upper()).on(on_expr)
     query = query.join(join_expr)
 
-    from_expr = query.args.get("from_") or query.args.get("from")
-    if not isinstance(from_expr, sge.From) or not isinstance(from_expr.this, sge.Table):
-        raise ValueError(
-            "Cannot apply explicit join: left-side query must have a base table "
-            "in its FROM clause (not a subquery or derived table)."
-        )
-    left_table = from_expr.this.this.name
-
     _apply_join_projection(
         query,
-        left_table=left_table,
+        left_source_qualifier=left_source_qualifier,
         target_columns=target_columns,
         target_qualifier=internal_alias,
         projection_prefix=projection_prefix,

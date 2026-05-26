@@ -13,6 +13,7 @@ from tests.dataset.utils import (
     annotated_references,
     crm,
     inventory,
+    marketing_users,
     relational_tables,
 )
 from tests.utils import (
@@ -126,6 +127,34 @@ def cross_dataset_duckdb(module_tmp_path: pathlib.Path) -> TCrossDsFixture:
         dev_mode=True,
     )
     pipeline_b.run(inventory())
+
+    return pipeline_a.dataset(), pipeline_b.dataset()
+
+
+@pytest.fixture(scope="module")
+def same_named_cross_dataset_duckdb(module_tmp_path: pathlib.Path) -> TCrossDsFixture:
+    # Below both datasets have a `users` table, but with different schema and data
+    db_path = str(module_tmp_path / "same_named_cross_dataset.db")
+
+    pipeline_a = dlt.pipeline(
+        pipeline_name="same_name_cross_ds_a",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="crm_data",
+        dev_mode=True,
+    )
+    source_a = crm(0)
+    source_a.root_key = True
+    pipeline_a.run(source_a)
+
+    pipeline_b = dlt.pipeline(
+        pipeline_name="same_name_cross_ds_b",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="marketing_data",
+        dev_mode=True,
+    )
+    pipeline_b.run(marketing_users())
 
     return pipeline_a.dataset(), pipeline_b.dataset()
 

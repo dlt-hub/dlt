@@ -69,6 +69,11 @@ class PurchaseRow(TypedDict):
     quantity: int
 
 
+class MarketingUserRow(TypedDict):
+    id: int
+    segment: str
+
+
 class CustomerRow(TypedDict):
     customer_id: int
     name: str
@@ -199,6 +204,13 @@ PURCHASES: list[PurchaseRow] = [
 ]
 
 
+MARKETING_USERS: list[MarketingUserRow] = [
+    {"id": 1, "segment": "pro"},
+    {"id": 2, "segment": "free"},
+    {"id": 4, "segment": "trial"},
+]
+
+
 @dlt.source
 def inventory():
     @dlt.resource(name="warehouses")
@@ -223,6 +235,15 @@ def inventory():
         yield PURCHASES
 
     return [warehouses(), inventory_items(), purchases()]
+
+
+@dlt.source
+def marketing_users():
+    @dlt.resource(name="users")
+    def users():
+        yield MARKETING_USERS
+
+    return [users()]
 
 
 CUSTOMERS: list[CustomerRow] = [
