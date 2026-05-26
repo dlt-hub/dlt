@@ -200,6 +200,12 @@ On the other hand, if the `id` field was already a string, then introducing new 
 
 Now go ahead and try to add a new record where `id` is a float number; you should see a new field `id__v_double` in the schema.
 
+#### Float to decimal coercion
+
+When coercing a Python `float` (IEEE 754 double-precision binary) to `decimal` or `wei`, `dlt` converts via `str()` first to avoid binary expansion artifacts. For example, `34.7` as a float would expand to `34.700000000000002842...` if passed directly to `Decimal()`, so `dlt` uses `Decimal(str(34.7))` which preserves `34.7`.
+
+This follows user intent when a decimal type is explicitly chosen over float, but it is **not mathematically precise** — the `str()` conversion finds the first stable decimal representation and discards the unstable binary tail. If your decimals represent currency or require exact precision, avoid storing them as floats in the source data. Use `Decimal('34.70')` or strings instead.
+
 #### No-coercion normalizer
 
 If you use `relational_no_coercion` (see [Data normalizer](#data-normalizer)), **every** type mismatch produces a variant column. No cross-type conversion is attempted. For example, sending `"200"` to a `bigint` column creates `col__v_text` instead of parsing it as an integer. This gives you stricter schema control: the original values are always preserved exactly as received, and mismatches are immediately visible as separate columns.
