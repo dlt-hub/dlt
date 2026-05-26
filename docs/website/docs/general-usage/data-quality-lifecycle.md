@@ -122,7 +122,7 @@ Monitoring the reliability of the delivery mechanism itself. Even perfectly vali
 
 ## Validate data quality during development
 
-Use the [dlt Dashboard](../hub/ingestion/dashboard.md) to interactively inspect your pipeline during development. The dashboard lets you:
+Use the [dltHub Dashboard](../hub/ingestion/dashboard.md) to interactively inspect your pipeline during development. The dashboard lets you:
 
 - Query loaded data and verify row counts match expectations
 - Inspect schemas, columns, and all column hints
