@@ -613,7 +613,9 @@ class Relation(WithSqlClient):
             self._dataset.schema.tables, self._table_name
         )["name"]
         if root_table_name == self._table_name:
-            raise ValueError(f"{root_table_name} is a root table, but load id column is not present.")
+            raise ValueError(
+                f"{root_table_name} is a root table, but load id column is not present."
+            )
 
         join_alias = "_dlt_root"
         joined = self.join(root_table_name, alias=join_alias)
