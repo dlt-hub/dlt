@@ -91,7 +91,7 @@ $ npm run build
 $ npm run verify-redirects
 ```
 
-Run this whenever you add or change entries in `redirects.js`. See [Redirects](#redirects) below for how to interpret the output (errors vs. devel-only warnings)
+Run this whenever you add or change entries in `redirects.js`. See [Redirects](#redirects) below for the source-of-truth and how to add new entries.
 
 ## Deployment
 
@@ -105,14 +105,42 @@ This will build the project fully and serve via a local wrangler webserver which
 
 ## Redirects
 
-Redirects are defined in [`redirects.js`](redirects.js) as one shared list, consumed in two places:
+The docs site builds two snapshots: `master` (frozen at the last `dlt` release, mounted at `/docs/`) and `devel` (your current branch, mounted at `/docs/devel/`). Each version owns its own redirect rules, scoped to that version's URL space. A build-time step merges them into a single, version-prefixed list that the Cloudflare worker and the verifier both consume.
 
-- **Cloudflare worker (`worker.ts`)** — serves the redirects in production.
-- **`scripts/verify-redirects.js`** — runs in CI to check every `to` target resolves to an HTML page in `build/docs/`.
+### How to add or change a redirect
 
-The docs site builds two snapshots: `master` (frozen at the last `dlt` release, mounted at `/docs/`) and `devel` (your current branch, mounted at `/docs/devel/`). Verification checks targets against master first. If a target only resolves under `build/docs/devel/<path>` it emits a **warning** ("devel-only — awaits next release") instead of an error. This is the expected state during a docs restructure: once the next `dlt` release refreshes master, the warning auto-clears. Targets that resolve in neither snapshot still error and block CI.
+Edit [`redirects.js`](redirects.js) — that file is the **devel** version's redirect source. Write entries with bare `/docs/...` paths, **without any `/devel/` prefix**:
 
-Verification runs as a dedicated `Verify redirects` step in `.github/workflows/build_docs.yml`, after the docs build.
+```js
+{ from: "/docs/old/path",   to: "/docs/new/path" },
+```
+
+The compile step (see below) prefixes both fields with `/docs/devel/` when emitting the version-scoped output. So the entry above ends up matching the URL `/docs/devel/old/path` in production — exactly where the page lives in this version.
+
+Pre-snapshotted versions (currently just `master`) have their own redirect files under `versioned_redirects/version-<v>.js`. Those are populated by `tools/update_versions.js`, which clones each tag and snapshots its `docs/website/redirects.js`. You don't edit those files by hand — to change `master`'s redirects, edit `redirects.js` on the `master` branch and push.
+
+The lone catchall `{ from: "/", to: "/docs/devel/intro" }` is the exception: its `from` doesn't start with `/docs/`, so the compiler treats it as version-independent and passes it through unchanged.
+
+### Compile step
+
+`tools/compile_redirects.js` reads:
+
+1. `./redirects.js` (the devel source).
+2. Every `./versioned_redirects/version-*.js` (snapshotted by `update_versions.js`).
+
+It rewrites each entry's leading `/docs/` to `/docs/<version-path>/` (devel → `/docs/devel/`, master → `/docs/`, any future tag → `/docs/<tag>/`) and writes the merged list to `redirects.compiled.js`. That file is a **build artifact** — gitignored and regenerated on every build.
+
+### Where the compiled file is used
+
+- **Cloudflare worker (`worker.ts`)** — imports `redirects.compiled.js`. Wrangler bundles the import into the deployed worker. Exact pathname match per entry; no version-routing logic in the worker.
+- **`scripts/verify-redirects.js`** — loads `redirects.compiled.js`, checks each `to` resolves to an HTML page in `build/docs/<rel>`, and **also recompiles in memory** from the per-version sources and diffs the result against the on-disk compiled file to guard against a stale compiled file.
+
+
+### Lifecycle: what happens after merge to `master`
+
+The build runs the same way on every branch: `update_versions.js` always clones `origin/master` and snapshots its `redirects.js` into `versioned_redirects/version-master.js`. The local `./redirects.js` is always treated as the `current` (devel-prefixed) version.
+
+When a devel→master merge ships the next release, the only thing that changes is what `origin/master` points to. The next build on master snapshots the just-merged `redirects.js` as the master version's source, so the same authored rules that previously compiled with the `/devel/` prefix now also compile with **no** prefix — they catch the bare `/docs/...` URLs on the freshly released master.
 
 ## Docs versions
 

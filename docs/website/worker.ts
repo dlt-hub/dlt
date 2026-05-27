@@ -1,7 +1,7 @@
 // cloudflare worker implementation to serve the website docs
 import { instrument, ResolveConfigFn } from '@microlabs/otel-cf-workers';
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
-import REDIRECTS from './redirects.js';
+import REDIRECTS from './redirects.compiled.js';
 
 const ROUTE_404 = "/docs/404";
 

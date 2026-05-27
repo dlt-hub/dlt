@@ -9,6 +9,7 @@ const REPO_PREPROCESSED_FILES_DIR = REPO_DOCS_DIR + "/docs_processed"
 const REPO_URL = "https://github.com/dlt-hub/dlt.git"
 const VERSIONED_DOCS_FOLDER = "versioned_docs"
 const VERSIONED_SIDEBARS_FOLDER = "versioned_sidebars"
+const VERSIONED_REDIRECTS_FOLDER = "versioned_redirects"
 const ENV_FILE = '.env'
 
 // no doc versions below this version will be deployed
@@ -64,10 +65,12 @@ console.log(`Will create docs versions for ${selectedVersions}`)
 // create folders
 fs.rmSync(VERSIONED_DOCS_FOLDER, { recursive: true, force: true })
 fs.rmSync(VERSIONED_SIDEBARS_FOLDER, { recursive: true, force: true })
+fs.rmSync(VERSIONED_REDIRECTS_FOLDER, { recursive: true, force: true })
 fs.rmSync("versions.json", { force: true })
 
 fs.mkdirSync(VERSIONED_DOCS_FOLDER);
 fs.mkdirSync(VERSIONED_SIDEBARS_FOLDER);
+fs.mkdirSync(VERSIONED_REDIRECTS_FOLDER);
 
 // check that checked out repo is on devel
 console.log("Checking branch")
@@ -168,6 +171,18 @@ for (const version of selectedVersions) {
     console.log(`Moving snapshot`)
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_DOCS_FOLDER, VERSIONED_DOCS_FOLDER, {recursive: true})
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_SIDEBARS_FOLDER, VERSIONED_SIDEBARS_FOLDER, {recursive: true})
+
+    // Snapshot the version's redirects.js — each version owns the redirect rules
+    // that apply to its own URL space. tools/compile_redirects.js consumes these
+    // alongside the devel-branch redirects.js at the website root.
+    const versionRedirectsSrc = REPO_DOCS_DIR + "/redirects.js";
+    if (fs.existsSync(versionRedirectsSrc)) {
+        const versionRedirectsDst = `${VERSIONED_REDIRECTS_FOLDER}/version-${version}.js`;
+        fs.cpSync(versionRedirectsSrc, versionRedirectsDst);
+        console.log(`Snapshotted redirects → ${versionRedirectsDst}`);
+    } else {
+        console.warn(`No redirects.js found in tag ${version}; skipping redirect snapshot`);
+    }
 
     backfillVersionedSidebars(VERSIONED_SIDEBARS_FOLDER, ['cookbookSidebar', "educationSidebar"]);
 }
