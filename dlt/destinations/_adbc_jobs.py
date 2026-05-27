@@ -49,13 +49,15 @@ def has_adbc_driver(driver: str, disable_adbc_detection: bool = False) -> Tuple[
 
 class AdbcParquetCopyJob(RunnableLoadJob, HasFollowupJobs, ABC):
     _ingest_per_rowgroup: bool = False
-    """When True, call `adbc_ingest` once per parquet row-group and commit between calls.
+    """When True, call `adbc_ingest` once per parquet row-group instead of once per file.
 
     Some ADBC drivers (notably mssql) buffer the entire input stream in memory before
     flushing to the destination, so loading a parquet file that exceeds available
-    memory triggers the OOM killer. Iterating row-group-by-row-group bounds the
-    in-driver buffer at the size of a single row-group. Drivers that already stream
-    incrementally (postgres) can leave this off and keep the single-call form.
+    memory triggers the OOM killer. The driver flushes its buffer on every
+    `adbc_ingest` call, so iterating row-group-by-row-group bounds the in-driver
+    buffer at the size of a single row-group while still committing the whole file in
+    one transaction. Drivers that already stream incrementally (postgres) can leave
+    this off and keep the single-call form.
     """
 
     def __init__(self, file_path: str) -> None:
@@ -112,7 +114,6 @@ class AdbcParquetCopyJob(RunnableLoadJob, HasFollowupJobs, ABC):
                         mode="append",
                         **ingest_kwargs,  # type: ignore[arg-type,unused-ignore]
                     )
-                    conn.commit()
             else:
                 rows = cur.adbc_ingest(
                     self.load_table_name,
@@ -120,7 +121,7 @@ class AdbcParquetCopyJob(RunnableLoadJob, HasFollowupJobs, ABC):
                     mode="append",
                     **ingest_kwargs,  # type: ignore[arg-type,unused-ignore]
                 )
-                conn.commit()
+            conn.commit()
             logger.info(
                 f"{rows} rows copied from {self._file_name} to"
                 f" {self.load_table_name}.{schema_name} in {time.monotonic()-t_} s"

@@ -88,9 +88,10 @@ def test_per_rowgroup_ingest_calls_adbc_ingest_per_rowgroup(tmp_path) -> None:
 
     job.run()
 
-    # one ingest call per row-group, with a commit after each
+    # one ingest call per row-group (bounds driver memory), but a single
+    # commit for the whole file so atomicity is preserved
     assert cur.adbc_ingest.call_count == 3
-    assert conn.commit.call_count == 3
+    assert conn.commit.call_count == 1
 
     # every ingest call must receive a pyarrow.Table, not an iterator,
     # because the driver memory bound only holds when the call is bounded too
