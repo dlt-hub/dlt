@@ -74,6 +74,11 @@ class LoadJobTerminalException(DestinationTerminalException):
         super().__init__(f"Job with `{file_path=:}` encountered unrecoverable problem: {message}")
 
 
+class LoadJobTransientException(DestinationTransientException):
+    def __init__(self, file_path: str, message: str) -> None:
+        super().__init__(f"Job with `{file_path=:}` encountered recoverable problem: {message}")
+
+
 class LoadJobInvalidStateTransitionException(DestinationTerminalException):
     def __init__(self, from_state: TLoadJobState, to_state: TLoadJobState) -> None:
         self.from_state = from_state

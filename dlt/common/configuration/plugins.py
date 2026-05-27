@@ -1,6 +1,21 @@
+import functools
 import os
 import warnings
-from typing import Any, ClassVar, Dict, List, Optional, Protocol, Sequence, Set
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Protocol,
+    Sequence,
+    Set,
+    Type,
+    Union,
+)
 import pluggy
 import argparse
 import importlib.metadata
@@ -11,6 +26,10 @@ from dlt.common.known_env import DLT_DISABLE_PLUGINS
 
 hookspec = pluggy.HookspecMarker("dlt")
 hookimpl = pluggy.HookimplMarker("dlt")
+
+
+TCliCommandCompose = Literal["replace", "extend", "additive"]
+"""How a CLI command merges with other plugins' commands of the same `(parent, command)`."""
 
 
 class PluginContext(ContainerInjectableContext):
@@ -97,7 +116,7 @@ def plug_run_context(
 
 
 class SupportsCliCommand(Protocol):
-    """Protocol for defining one dlt cli command"""
+    """Protocol for defining one dlt cli command."""
 
     command: str
     """name of the command"""
@@ -108,8 +127,18 @@ class SupportsCliCommand(Protocol):
     docs_url: Optional[str]
     """the default docs url to be printed in case of an exception"""
 
+    parent: Optional[str] = None
+    """When set, this command is registered as a subcommand under the top-level `parent` command"""
+    compose: TCliCommandCompose = "replace"
+    """How this command merges when multiple plugins register the same `(parent, command)`.
+
+    - `replace` (default): first registered wins; rest dropped.
+    - `extend`: first plugin's `configure_parser` runs; ALL plugins' `execute` fire in order.
+    - `additive`: additional subparsers may be added to top level command
+    """
+
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
-        """Configures the parser for the given argument"""
+        """Configures the parser for the given argument."""
         ...
 
     def execute(self, args: argparse.Namespace) -> None:
@@ -117,9 +146,37 @@ class SupportsCliCommand(Protocol):
         ...
 
 
+_TCommandDefFunc = Callable[[str], Optional[Type[SupportsCliCommand]]]
+
+
+def only_host(hosts: Union[str, Iterable[str]]) -> Callable[[_TCommandDefFunc], _TCommandDefFunc]:
+    """Emits cli command only if one if `hosts` was requested via plugin hook."""
+    allowed = frozenset({hosts} if isinstance(hosts, str) else hosts)
+
+    def decorator(fn: _TCommandDefFunc) -> _TCommandDefFunc:
+        @functools.wraps(fn)
+        def wrapper(host: str) -> Optional[Type[SupportsCliCommand]]:
+            if host not in allowed:
+                return None
+            return fn(host)
+
+        return wrapper
+
+    return decorator
+
+
 @hookspec()
-def plug_cli() -> SupportsCliCommand:
-    """Spec for plugin hook that returns current run context."""
+def plug_cli(host: str) -> Optional[Type[SupportsCliCommand]]:
+    """Spec for plugin hook that returns a CLI command class for a given CLI host.
+
+    Args:
+        host: Name of the CLI host requesting commands (e.g. `"dlt"`, `"dlthub"`).
+            Plugins return their command class only if they contribute to this host;
+
+    Returns:
+        Optional[Type[SupportsCliCommand]]: Command class to register, or `None` when
+        the plugin does not contribute to the requested host.
+    """
 
 
 class SupportsMcpFeatures(Protocol):

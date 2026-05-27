@@ -1,17 +1,12 @@
 import os
 import ast
-import shutil
 import warnings
 from importlib.metadata import Distribution
 from typing import Dict, Optional, Sequence, Tuple
 
 from dlt.common.libs import git
 from dlt.common.configuration.specs import known_sections
-from dlt.common.configuration.providers import (
-    SECRETS_TOML,
-    ConfigTomlProvider,
-    SecretsTomlProvider,
-)
+from dlt.common.configuration.providers import SECRETS_TOML
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.version import DLT_PKG_NAME, __version__
 from dlt.common.destination import Destination
@@ -27,7 +22,7 @@ import dlt.reflection.names as n
 from dlt.reflection.script_inspector import import_pipeline_script
 
 from dlt._workspace.cli import echo as fmt, _pipeline_files as files_ops, source_detection, utils
-from dlt._workspace.cli.config_toml_writer import WritableConfigValue, write_values
+from dlt._workspace.cli.config_toml_writer import WritableConfigValue
 from dlt._workspace.cli._pipeline_files import (
     TEMPLATE_FILES,
     SOURCES_MODULE_NAME,
@@ -36,6 +31,7 @@ from dlt._workspace.cli._pipeline_files import (
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
 )
+from dlt._workspace.cli._write_state import WorkspaceWriteState
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli._urls import DLT_INIT_DOCS_URL, DLT_AI_DOCS_URL  # noqa: F401
 
@@ -98,9 +94,9 @@ def init_command(
         display_source_name = source_name[7:]
         fmt.warning(
             "The `dlthub:<source>` syntax is deprecated. User dltHub AI Workbench instead:\n"
-            "dlt ai init\n"
+            "%s\n"
             "will get you started. See %s for more details."
-            % fmt.bold(DLT_AI_DOCS_URL)
+            % (fmt.cli_cmd("ai init"), fmt.bold(DLT_AI_DOCS_URL))
         )
         source_name = "context_rest_api"
 
@@ -138,34 +134,25 @@ def init_pipeline_at_destination(
     target_dependency_system: str = None,
     display_source_name: str = None,
 ) -> Tuple[Optional[Dict[str, str]], files_ops.TSourceType]:
-    """
-    Initializes a pipeline at the specified destination by setting up the required files, configurations, and dependencies.
-
-    This function handles the discovery of the source type (template, core, or verified), prepares the destination storage,
-    resolves conflicts for existing files, and generates necessary configuration files (e.g., `config.toml`, `secrets.toml`).
-    It also validates compatibility with the installed dlt version and optionally creates an example pipeline script,
-    that loads data from the source to a specifiable destination.
+    """Scaffold a pipeline (config, secrets, optional example script) for `source_name` → `destination_type`.
 
     Args:
-        - source_name (str): The name of the source to initialize.
-        - destination_type (str): The type of destination (e.g., "bigquery", "redshift").
-        - repo_location (str): The location of the verified sources repository.
-        - branch (str, optional): The branch of the repository to use. Defaults to None.
-        - eject_source (bool, optional): Whether to eject the source code. Defaults to False.
-        - dry_run (bool, optional): If True, no files are modified, and the changes are returned as a preview. Defaults to False.
-        - skip_example_pipeline_script (bool, optional): If True, skips creating the example pipeline script. Defaults to False.
-        - destination_storage_path (str, optional): Path to the destination storage. Defaults to None.
-        - settings_dir (str, optional): Path to the settings directory. Defaults to None.
-        - sources_dir (str, optional): Path to the sources directory. Defaults to None.
-        - target_dependency_system (str, optional): Additional context used to adjust the welcome message. Valid options are
-            `requirements.txt` or `pyproject.toml`, Default to None, in which case it will be determined based on the destination storage.
+        source_name (str): Name of the source to initialize.
+        destination_type (str): Destination name (e.g. "bigquery", "redshift").
+        repo_location (str): Verified-sources repository URL or local path.
+        branch (str): Branch in `repo_location` to fetch from.
+        eject_source (bool): When True, copy the core source's code into the project so the user can edit it.
+        dry_run (bool): When True, return the planned file copies without writing.
+        add_example_pipeline_script (bool): When True, generate an example pipeline script.
+        destination_storage_path (str): Project root to write into.
+        settings_dir (str): Directory for `config.toml` / `secrets.toml`.
+        sources_dir (str): Directory under which verified sources are copied.
+        target_dependency_system (str): `"requirements.txt"` or `"pyproject.toml"`; controls the welcome message.
+        display_source_name (str): User-facing source name (e.g. for deprecated `dlthub:<source>` syntax).
 
     Returns:
-        Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], files_ops.TSourceType]:
-            A tuple containing:
-            - A dictionary of copied files (destination path -> source path).
-            - The type of the source (e.g., "template", "core", "verified").
-            - Name of the selected ide for dlthub sources (defaults to "cursor")
+        `(copied_files, source_type)` where `copied_files` maps destination paths to source paths
+        (or `None` on dry-run) and `source_type` is `"template"`, `"core"`, or `"verified"`.
     """
     # validate the user-facing name (display_source_name for dlthub: sources)
     name_to_validate = display_source_name or source_name
@@ -453,12 +440,13 @@ def init_pipeline_at_destination(
         else:
             if source_configuration.is_default_template:
                 fmt.echo(
-                    "NOTE: Could not find a dlt source or template wih the name %s. Selecting the"
+                    "NOTE: Could not find a dlt source or template with the name %s. Selecting the"
                     " default template." % (fmt.bold(source_name))
                 )
                 fmt.echo(
-                    "NOTE: In case you did not want to use the default template, run 'dlt init -l'"
+                    "NOTE: In case you did not want to use the default template, run '%s'"
                     " to see all available sources and templates."
+                    % fmt.cli_cmd("init -l")
                 )
             fmt.echo(
                 "Creating and configuring a new pipeline with the dlt core template %s (%s)"
@@ -481,83 +469,63 @@ def init_pipeline_at_destination(
         add_example_pipeline_script,
     )
 
-    # copy files at the very end
-    copy_files = []
-    # copy template files
-    for file_name in TEMPLATE_FILES:
-        dest_path = dest_storage.make_full_path(file_name)
-        if templates_storage.has_file(file_name):
-            if dest_storage.has_file(dest_path):
-                # do not overwrite any init files
-                continue
-            copy_files.append((templates_storage.make_full_path(file_name), dest_path))
+    # stage all writes; commit at the very end
+    state = WorkspaceWriteState(dest_storage, settings_dir)
 
-    # only those that were modified should be copied from verified sources
-    for file_name in remote_modified:
-        copy_files.append(
-            (
-                source_configuration.storage.make_full_path(file_name),
-                # copy into where "sources" reside in run context, being root dir by default
-                dest_storage.make_full_path(os.path.join(sources_dir, file_name)),
+    for file_name in TEMPLATE_FILES:
+        if templates_storage.has_file(file_name):
+            state.add_file_copy(
+                templates_storage.make_full_path(file_name),
+                dest_storage.make_full_path(file_name),
+                accept_existing=True,
             )
+
+    # verified-source files: conflicts already resolved earlier in `_select_source_files`
+    for file_name in remote_modified:
+        state.add_file_copy(
+            source_configuration.storage.make_full_path(file_name),
+            dest_storage.make_full_path(os.path.join(sources_dir, file_name)),
         )
-    # if dry-run, do not actually modify storage, just return file content
+
     pipeline_script_target_path = dest_storage.make_full_path(
         os.path.join(sources_dir, source_configuration.dest_pipeline_script)
     )
+
+    for value in required_secrets.values():
+        state.add_secrets_value(value)
+    for value in required_config.values():
+        state.add_config_value(value)
+
+    if dependency_system is None:
+        state.add_new_file(
+            dest_storage.make_full_path(utils.REQUIREMENTS_TXT),
+            "\n".join(source_configuration.requirements.compiled()),
+        )
+
     if dry_run:
-        files_to_create: Dict[str, str] = {}
-        for source_path, dest_path in copy_files:
-            try:
-                files_to_create[dest_path] = dest_storage.load(source_path)
-            except UnicodeDecodeError:
-                fmt.warning(
-                    f"File {source_path} was skipped not a text file. It will not be copied to"
-                    f" {dest_path}"
-                )
+        files_to_create = state.preview()
         if add_example_pipeline_script:
             files_to_create[pipeline_script_target_path] = dest_script_source
         # todo: handle remote index changes?
         return files_to_create, source_type
 
-    # modify storage
-    else:
-        for src_path, dest_path in copy_files:
-            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-            shutil.copy2(src_path, dest_path)
-        if remote_index:
-            # delete files
-            for file_name in remote_deleted:
-                if dest_storage.has_file(file_name):
-                    dest_storage.delete(file_name)
-            files_ops.save_verified_source_local_index(
-                source_name, remote_index, remote_modified, remote_deleted
-            )
-        # create example script
-        if (
-            not dest_storage.has_file(source_configuration.dest_pipeline_script)
-            and add_example_pipeline_script
-        ):
-            dest_storage.save(pipeline_script_target_path, dest_script_source)
+    copied_files = state.commit(allow_overwrite=True)
 
-        # generate tomls with comments
-        secrets_prov = SecretsTomlProvider(settings_dir)
-        write_values(secrets_prov._config_toml, required_secrets.values(), overwrite_existing=False)
+    if remote_index:
+        for file_name in remote_deleted:
+            if dest_storage.has_file(file_name):
+                dest_storage.delete(file_name)
+        files_ops.save_verified_source_local_index(
+            source_name, remote_index, remote_modified, remote_deleted
+        )
 
-        config_prov = ConfigTomlProvider(settings_dir)
-        write_values(config_prov._config_toml, required_config.values(), overwrite_existing=False)
+    if (
+        not dest_storage.has_file(source_configuration.dest_pipeline_script)
+        and add_example_pipeline_script
+    ):
+        dest_storage.save(pipeline_script_target_path, dest_script_source)
 
-        # write toml files
-        secrets_prov.write_toml()
-        config_prov.write_toml()
-
-        # if there's no dependency system write the requirements file
-        if dependency_system is None:
-            requirements_txt = "\n".join(source_configuration.requirements.compiled())
-            dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
-
-        copied_files: Dict[str, str] = {dest_path: src_path for src_path, dest_path in copy_files}
-        return copied_files, source_type
+    return copied_files, source_type
 
 
 def _clone_and_get_verified_sources_storage(repo_location: str, branch: str = None) -> FileStorage:
@@ -683,21 +651,16 @@ def _welcome_message(
         compiled_requirements = source_configuration.requirements.compiled()
         for dep in compiled_requirements:
             fmt.echo("  " + fmt.bold(dep))
-        if destination_type:
-            fmt.echo(
-                "  If the dlt dependency is already added, make sure you install the extra for %s"
-                " to it"
-                % fmt.bold(destination_type)
-            )
+        qs = "' '"
         if dependency_system == utils.REQUIREMENTS_TXT:
-            qs = "' '"
             fmt.echo(
                 "  To install with pip: %s"
                 % fmt.bold(f"pip3 install '{qs.join(compiled_requirements)}'")
             )
         elif dependency_system == utils.PYPROJECT_TOML:
-            fmt.echo("  If you are using poetry you may issue the following command:")
-            fmt.echo(fmt.bold("  poetry add %s -E %s" % (DLT_PKG_NAME, destination_type)))
+            fmt.echo(
+                "  To add with uv: %s" % fmt.bold(f"uv add '{qs.join(compiled_requirements)}'")
+            )
         fmt.echo()
     else:
         fmt.echo(
@@ -770,7 +733,6 @@ def _list_core_destinations() -> list[str]:
     return dlt.destinations.__all__
 
 
-@utils.track_command("init", False, "source_name", "destination_type")
 def init_command_wrapper(
     source_name: str,
     destination_type: str,

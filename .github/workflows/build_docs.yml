@@ -7,7 +7,7 @@ on:
 jobs:
   build_docs:
     name: docs | build docs
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
 
     steps:
       - name: Check out
@@ -32,3 +32,6 @@ jobs:
 
       - name: Install python dependencies
         run: cd docs/website && npm run build
+
+      - name: Verify redirects
+        run: cd docs/website && npm run verify-redirects

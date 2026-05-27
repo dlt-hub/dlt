@@ -1,24 +1,27 @@
 import io
 import os
 import contextlib
+import shutil
 import pytest
 import logging
 from subprocess import CalledProcessError
 from typing import Any
+from pytest_console_scripts import ScriptRunner
 
 import dlt
 from dlt.common.runners.venv import Venv
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.utils import custom_environ
 
 from dlt._workspace.cli import echo, _init_command, _pipeline_command
 
 from tests.workspace.cli.utils import (
+    WORKSPACE_CLI_CASES_DIR,
     auto_echo_default_choice,
     repo_dir,
     cloned_init_repo,
     _cached_init_repo,
 )
-
 
 CHOOSE_PRIORITY_CASES = [
     # always_confirm=True overrides everything
@@ -348,3 +351,52 @@ def test_pipeline_command_drop_with_global_args(
         assert "players_games" not in pipeline.default_schema.tables
     else:
         assert "players_games" in pipeline.default_schema.tables
+
+
+def test_invoke_list_pipelines(legacy_workspace_context, script_runner: ScriptRunner) -> None:
+    result = script_runner.run(["dlt", "pipeline", "--list-pipelines"])
+    # directory does not exist (we point to TEST_STORAGE)
+    assert result.returncode == 0
+    assert "No pipelines found in" in result.stdout
+
+    result = script_runner.run(["dlt", "pipeline", "--list-pipelines"])
+    assert result.returncode == 0
+    assert "No pipelines found in" in result.stdout
+
+
+def test_invoke_pipeline(legacy_workspace_context, script_runner: ScriptRunner) -> None:
+    # info on non existing pipeline
+    result = script_runner.run(["dlt", "pipeline", "debug_pipeline", "info"])
+    assert result.returncode == -2
+    assert "No local pipeline state found" in result.stderr
+
+    shutil.copytree(
+        os.path.join(WORKSPACE_CLI_CASES_DIR, "deploy_pipeline"), ".", dirs_exist_ok=True
+    )
+
+    # dummy_pipeline.py needs `api_key` via `dlt.secrets.value`; the case provides it only via
+    # profile-aware `dev.secrets.toml`, which the bare legacy `RunContext` does not load
+    with custom_environ({"COMPLETED_PROB": "1.0", "SOURCES__API_KEY": "legacy_api_key"}):
+        venv = Venv.restore_current()
+        print(venv.run_script("dummy_pipeline.py"))
+
+    # we check output test_pipeline_command else
+    result = script_runner.run(["dlt", "pipeline", "dummy_pipeline", "info"])
+    assert result.returncode == 0
+    result = script_runner.run(["dlt", "pipeline", "dummy_pipeline", "trace"])
+    assert result.returncode == 0
+    result = script_runner.run(["dlt", "pipeline", "dummy_pipeline", "failed-jobs"])
+    assert result.returncode == 0
+    result = script_runner.run(["dlt", "pipeline", "dummy_pipeline", "load-package"])
+    assert result.returncode == 0
+    result = script_runner.run(
+        ["dlt", "pipeline", "dummy_pipeline", "load-package", "NON EXISTENT"]
+    )
+    assert result.returncode == -1
+    # use debug flag to raise an exception
+    result = script_runner.run(
+        ["dlt", "--debug", "pipeline", "dummy_pipeline", "load-package", "NON EXISTENT"]
+    )
+    # exception terminates command
+    assert result.returncode == 1
+    assert "LoadPackageNotFound" in result.stderr

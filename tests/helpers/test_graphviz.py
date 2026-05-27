@@ -6,6 +6,7 @@ import pytest
 import graphviz  # type: ignore[import-untyped]
 
 import dlt
+from dlt.common.schema.normalizers import naming_from_reference
 from dlt.common.schema.typing import (
     PIPELINE_STATE_TABLE_NAME,
     TStoredSchema,
@@ -59,6 +60,7 @@ def test_schema_to_graphviz_skips_incomplete_tables_and_columns() -> None:
 
     dot = schema_to_graphviz(
         stored_schema,
+        naming=naming_from_reference("snake_case"),
         include_dlt_tables=False,
         include_internal_dlt_ref=False,
         include_parent_child_ref=False,
@@ -83,7 +85,7 @@ def test_generate_valid_graphviz(example_schema: dlt.Schema, tmp_path: pathlib.P
     expected_file_path = (tmp_path / file_name).with_suffix(f".{format_}")
 
     stored_schema = example_schema.to_dict()
-    dot = schema_to_graphviz(stored_schema)
+    dot = schema_to_graphviz(stored_schema, naming=example_schema.naming)
     graph = graphviz.Source(source=dot)
 
     graph.render(filename=file_name, directory=tmp_path, format=format_, cleanup=True)
@@ -93,7 +95,9 @@ def test_generate_valid_graphviz(example_schema: dlt.Schema, tmp_path: pathlib.P
 @pytest.mark.parametrize("include_dlt_tables", (True, False))
 def test_include_dlt_tables(example_schema: dlt.Schema, include_dlt_tables: bool) -> None:
     stored_schema = example_schema.to_dict()
-    dot = schema_to_graphviz(stored_schema, include_dlt_tables=include_dlt_tables)
+    dot = schema_to_graphviz(
+        stored_schema, naming=example_schema.naming, include_dlt_tables=include_dlt_tables
+    )
 
     # ensures the table name doesn't appear in tables (nodes) or references (edges)
     assert (LOADS_TABLE_NAME in dot) is include_dlt_tables
@@ -117,6 +121,7 @@ def test_include_internal_dlt_ref(
     stored_schema = example_schema.to_dict()
     dot = schema_to_graphviz(
         stored_schema,
+        naming=example_schema.naming,
         include_dlt_tables=True,  # must be True to produce references
         include_internal_dlt_ref=include_internal_dlt_ref,
         # disable other refs to isolate tested behavior
@@ -144,6 +149,7 @@ def test_include_parent_child_ref(
     stored_schema = example_schema.to_dict()
     dot = schema_to_graphviz(
         stored_schema,
+        naming=example_schema.naming,
         include_parent_child_ref=include_parent_child_ref,
         # disable other refs to isolate tested behavior
         include_root_child_ref=False,
@@ -168,6 +174,7 @@ def test_include_root_child_ref(example_schema: dlt.Schema, include_root_child_r
     stored_schema = example_schema.to_dict()
     dot = schema_to_graphviz(
         stored_schema,
+        naming=example_schema.naming,
         include_root_child_ref=include_root_child_ref,
         # disable other refs to isolate tested behavior
         include_parent_child_ref=False,

@@ -98,7 +98,7 @@ print(pipeline.last_trace.last_normalize_info)
 
 ### Prerequisites
 
-Please make sure the `dlt` library is installed. Refer to the [installation guide](../../../intro).
+Please make sure the `dlt` library is installed. Refer to the [installation guide](../../../intro.md).
 
 ### Initialize the filesystem source
 
@@ -110,7 +110,7 @@ To get started with your data pipeline, follow these steps:
    dlt init filesystem duckdb
    ```
 
-   The [dlt init command](../../../reference/command-line-interface) will initialize
+   The [dlt init command](../../../reference/command-line-interface.md) will initialize
    [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/filesystem_pipeline.py)
    with the filesystem as the source and [duckdb](../../destinations/duckdb.md) as the destination.
 
@@ -200,7 +200,7 @@ You don't need any credentials for the local filesystem.
 
 ### Add credentials to dlt pipeline
 
-To provide credentials to the filesystem source, you can use [any method available](../../../general-usage/credentials/setup) in dlt.
+To provide credentials to the filesystem source, you can use [any method available](../../../general-usage/credentials/setup.md) in dlt.
 One of the easiest ways is to use configuration files. The `.dlt` folder in your working directory contains two files: `config.toml` and `secrets.toml`. Sensitive information, like passwords and access tokens, should only be put into `secrets.toml`, while any other configuration, like the path to a bucket, can be specified in `config.toml`.
 
 <Tabs
@@ -312,7 +312,7 @@ export SOURCES__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY = "Please set me 
 ```
 
 :::tip
-dlt supports more ways of authorizing with cloud storage, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../../../general-usage/credentials/complex_types#gcp-credentials).
+dlt supports more ways of authorizing with cloud storage, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../../../general-usage/credentials/complex_types.md#gcp-credentials).
 :::
 
 ## Usage
@@ -389,7 +389,7 @@ filesystem_pipe = filesystem(
 - `read_csv_duckdb()` - processes CSV files using DuckDB, which usually shows better performance than Pandas. Control batch size with `chunk_size` (defaults to 5000 rows). Set `use_pyarrow=True` to yield Arrow format instead of JSON. Accepts additional `**duckdb_kwargs` passed to DuckDB's `read_csv()`.
 
 :::tip
-We advise that you give each resource a [specific name](../../../general-usage/resource#duplicate-and-rename-resources) before loading with `pipeline.run`. This will ensure that data goes to a table with the name you want and that each pipeline uses a [separate state for incremental loading.](../../../general-usage/state#read-and-write-pipeline-state-in-a-resource)
+We advise that you give each resource a [specific name](../../../general-usage/resource.md#duplicate-and-rename-resources) before loading with `pipeline.run`. This will ensure that data goes to a table with the name you want and that each pipeline uses a [separate state for incremental loading.](../../../general-usage/state.md#read-and-write-pipeline-state-in-a-resource)
 :::
 
 ### 3. Create and run a pipeline
@@ -404,7 +404,7 @@ info = pipeline.run(filesystem_pipe)
 print(info)
 ```
 
-For more information on how to create and run the pipeline, read the [Walkthrough: Run a pipeline](../../../walkthroughs/run-a-pipeline).
+For more information on how to create and run the pipeline, read the [Walkthrough: Run a pipeline](../../../walkthroughs/run-a-pipeline.md).
 
 ### 4. Apply hints
 
@@ -431,7 +431,7 @@ Here are a few simple ways to load your data incrementally:
 3. [Combine loading only updated files and records](#combine-loading-only-updated-files-and-records). Finally, you can combine both methods. It could be useful if new records could be added to existing files, so you not only want to filter the modified files, but also the modified records.
 
 #### Load files based on modification date
-For example, to load only new CSV files with [incremental loading](../../../general-usage/incremental-loading), you can use the `apply_hints` method.
+For example, to load only new CSV files with [incremental loading](../../../general-usage/incremental-loading.md), you can use the `apply_hints` method.
 
 ```py
 import dlt
@@ -625,7 +625,7 @@ print(load_info)
 
 ## Standalone filesystem resource
 
-You can use the [standalone filesystem](../../../general-usage/resource#declare-a-standalone-resource) resource to list files in cloud storage or a local filesystem. This allows you to customize file readers or manage files using [fsspec](https://filesystem-spec.readthedocs.io/en/latest/index.html).
+You can use the [standalone filesystem](../../../general-usage/resource.md#declare-a-standalone-resource) resource to list files in cloud storage or a local filesystem. This allows you to customize file readers or manage files using [fsspec](https://filesystem-spec.readthedocs.io/en/latest/index.html).
 
 ```py
 from dlt.sources.filesystem import filesystem

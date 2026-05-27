@@ -371,7 +371,8 @@ def job(
 
         require: Runtime resource requirements. Accepts `TRequireSpec` with:
             `dependency_groups`, `profile` (workspace profile), `machine`
-            (machine spec), `region` (runner placement).
+            (machine spec), `region` (runner placement), `static_egress_ips`
+            (static outbound IPs for third-party allowlists).
 
         deliver: A `@dlt.source`, standalone `@dlt.resource`, or called source
             instance for delivery association.
@@ -472,7 +473,7 @@ def interactive(
             `tags`, `starred`, `manual`. The `interface` argument is merged
             into expose automatically.
         require: Runtime resource requirements. Accepts `TRequireSpec` with:
-            `dependency_groups`, `profile`, `machine`, `region`.
+            `dependency_groups`, `profile`, `machine`, `region`, `static_egress_ips`.
         spec: Optional configuration spec class.
 
     Returns:
@@ -539,7 +540,7 @@ def pipeline_run(
         expose: UI presentation (`TJobExposeSpec`): `tags`, `starred`, `manual`.
 
         require: Resource requirements (`TRequireSpec`): `dependency_groups`,
-            `profile`, `machine`, `region`.
+            `profile`, `machine`, `region`, `static_egress_ips`.
 
         interval: Overall time range for interval-based scheduling.
 

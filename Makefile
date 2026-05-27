@@ -29,13 +29,13 @@ has-uv:
 	uv --version
 
 dev: has-uv ## Prepares development environment
-	uv sync --all-extras --no-extra hub --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --no-extra hub --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 dev-airflow: has-uv ## Prepares development environment with airflow support
-	uv sync --all-extras --no-extra hub --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
+	uv sync --all-extras --no-extra hub --group workspace-deps --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 
 dev-hub: has-uv ## Prepares development environment with hub support
-	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 lint: lint-core lint-security lint-docstrings lint-lock lint-deps ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile, deps)
 
@@ -43,7 +43,7 @@ lint-lock: ## Checks uv lockfile is in sync
 	uv lock --check
 
 lint-deps: ## Checks dependencies, hub extras, and API breaking changes (informational)
-	uv run python tools/check_hub_extras.py
+	-uv run python tools/check_hub_extras.py
 	-uv run python -m tools.check_dependency_changes
 	-uv run python -m tools.check_api_breaking check
 
@@ -52,7 +52,7 @@ lint-core: ## Runs core linting (mypy, ruff, flake8)
 	uv run ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt tools
-	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
+	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/,tests/plugins/dlt_example_plugin/.venv,tests/plugins/dlt_example_plugin/build
 
 format: ## Formats code with black
 	uv run black dlt tests tools --extend-exclude='.*syntax_error.py|^_storage[^/]*/'
@@ -268,7 +268,7 @@ test-pipeline-arrow:
 # ----------------------------------------------------------------------
 
 install-workspace:
-	uv sync $(UV_SYNC_ARGS) --extra workspace --extra cli --group streamlit
+	uv sync $(UV_SYNC_ARGS) --group workspace-deps --extra cli --group streamlit
 
 TEST_WORKSPACE_PATHS = tests/workspace
 

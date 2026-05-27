@@ -64,7 +64,34 @@ For most authoring purposes, once you are happy with your changes running locall
 $ npm run build
 ```
 
-That command generates static content into the `build` directory, which can be served using any static contents hosting service, for example, `npm run serve`
+That command generates static content into the `build` directory, which can be served using `npm run serve`.
+
+### What `npm run build` does
+
+The full build runs these steps in order:
+
+1. **`npm run update-versions`** — clones `dlt`, checks out the `master` branch, freezes the content into `versioned_docs/version-master/`. This is the **master snapshot** (served at `/docs/`); your branch is served at `/docs/devel/`. See [Docs versions](#docs-versions) below.
+2. **`make preprocess-docs`** (from `docs/`) — Python preprocessor: expands `<!--@@@DLT_SNIPPET-->` markers, generates the API reference, etc.
+3. **`docusaurus build --out-dir build/docs`** — the static site build itself. Fails on broken internal markdown links.
+4. **`node scripts/verify-llms-txt.js`** — checks the generated `llms.txt` index against the sidebar.
+
+### Running individual checks
+
+After a full build, you can re-run the verifiers standalone — useful when iterating on one concern without rebuilding everything:
+
+```
+$ npm run verify-llms          # llms.txt index check
+$ npm run verify-redirects     # redirect targets check
+```
+
+**`verify-redirects` is no longer part of `npm run build` — CI runs it as a dedicated `Verify redirects` step in `.github/workflows/build_docs.yml`.** To reproduce CI locally:
+
+```
+$ npm run build
+$ npm run verify-redirects
+```
+
+Run this whenever you add or change entries in `redirects.js`. See [Redirects](#redirects) below for how to interpret the output (errors vs. devel-only warnings)
 
 ## Deployment
 
@@ -78,7 +105,14 @@ This will build the project fully and serve via a local wrangler webserver which
 
 ## Redirects
 
-Simple redirects are managed with the cloudflare worker in `worker.js`. 
+Redirects are defined in [`redirects.js`](redirects.js) as one shared list, consumed in two places:
+
+- **Cloudflare worker (`worker.ts`)** — serves the redirects in production.
+- **`scripts/verify-redirects.js`** — runs in CI to check every `to` target resolves to an HTML page in `build/docs/`.
+
+The docs site builds two snapshots: `master` (frozen at the last `dlt` release, mounted at `/docs/`) and `devel` (your current branch, mounted at `/docs/devel/`). Verification checks targets against master first. If a target only resolves under `build/docs/devel/<path>` it emits a **warning** ("devel-only — awaits next release") instead of an error. This is the expected state during a docs restructure: once the next `dlt` release refreshes master, the warning auto-clears. Targets that resolve in neither snapshot still error and block CI.
+
+Verification runs as a dedicated `Verify redirects` step in `.github/workflows/build_docs.yml`, after the docs build.
 
 ## Docs versions
 
@@ -152,7 +186,7 @@ Hub pages receive special treatment in swizzled theme components:
 - **`src/theme/DocBreadcrumbs`** — When the current URL contains `/hub/`, a dltHub logo is rendered next to the breadcrumb trail (via the `breadcrumbsContainerPlus` CSS class and an `<img>` tag).
 - **`src/components/DltHubFeatureAdmonition.js`** — A reusable admonition component imported by hub pages to display licensing/feature notices.
 
-In production, the Cloudflare worker (`worker.js`) redirects the legacy `/plus/` URL prefix to `/hub/`.
+In production, the Cloudflare worker (`worker.ts`) redirects the legacy `/plus/` URL prefix to `/hub/`.
 
 ## Page overlays (Root.js)
 

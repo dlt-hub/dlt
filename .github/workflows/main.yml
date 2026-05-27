@@ -21,7 +21,7 @@ jobs:
   authorize_secrets:
     name: secrets available (internal PRs only)
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize') }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - run: true
 

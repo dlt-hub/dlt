@@ -10,7 +10,7 @@ keywords: [loader file format, jsonl, parquet, csv, insert-values, insert]
 
 To set the pipeline's loader file format, you can either:
 
-1. Set the parameter at the resource level: `@dlt.resource(file_format=...)` ([learn more](../../general-usage/resource#pick-loader-file-format-for-a-particular-resource))
+1. Set the parameter at the resource level: `@dlt.resource(file_format=...)` ([learn more](../general-usage/resource.md#pick-loader-file-format-for-a-particular-resource))
 
 2. Set the parameter at the pipeline level: `pipeline.run(..., loader_file_format=...)`
 
