@@ -58,10 +58,10 @@ jobs:
       # - name: Start weaviate
       #   run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 
-      - name: Setup node 20
-        uses: actions/setup-node@v4
+      - name: Setup node 22
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: '22'
 
       - name: Setup Python
         uses: actions/setup-python@v5
