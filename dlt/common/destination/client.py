@@ -164,15 +164,15 @@ class DestinationClientConfiguration(BaseConfiguration):
 
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
-    def physical_destination(self) -> str:
-        """Returns a non-secret destination identity, or "" when unavailable."""
+    def physical_location(self) -> str:
+        """Returns a non-secret physical location identity, or "" when unavailable."""
         return ""
 
     def fingerprint(self) -> str:
-        """Returns a hash of physical_destination(), or "" when unavailable."""
-        phys_dest = self.physical_destination()
-        if phys_dest:
-            return digest128(phys_dest)
+        """Returns a hash of physical_location(), or "" when unavailable."""
+        phys_loc = self.physical_location()
+        if phys_loc:
+            return digest128(phys_loc)
         return ""
 
     def can_join_with(self, other: "DestinationClientConfiguration") -> bool:
@@ -181,9 +181,9 @@ class DestinationClientConfiguration(BaseConfiguration):
             return False
         if self.destination_type != other.destination_type:
             return False
-        self_phys = self.physical_destination()
-        other_phys = other.physical_destination()
-        if self_phys and other_phys and self_phys == other_phys:
+        self_loc = self.physical_location()
+        other_loc = other.physical_location()
+        if self_loc and other_loc and self_loc == other_loc:
             return True
         return False
 

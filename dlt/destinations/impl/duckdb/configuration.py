@@ -318,7 +318,7 @@ class DuckDbClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingC
         )
         self.create_indexes = create_indexes
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns the database file path or ':memory:'."""
         if self.credentials and self.credentials.database:
             return self.credentials.database

@@ -13,7 +13,7 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
 )
 from dlt.common.destination.client import DestinationClientConfiguration
-from dlt.dataset.dataset import Dataset, is_same_physical_destination
+from dlt.dataset.dataset import Dataset, is_same_physical_location
 from dlt.destinations.impl.postgres.configuration import (
     PostgresClientConfiguration,
     PostgresCredentials,
@@ -92,17 +92,17 @@ ConfigFactory: TypeAlias = Callable[[], DestinationClientConfiguration]
 
 
 class _PhysicalDestinationConfig(DestinationClientConfiguration):
-    def __init__(self, physical_destination: str = "") -> None:
+    def __init__(self, physical_location: str = "") -> None:
         super().__init__()
-        self._physical_destination = physical_destination
+        self._physical_location = physical_location
 
-    def physical_destination(self) -> str:
-        return self._physical_destination
+    def physical_location(self) -> str:
+        return self._physical_location
 
 
 class _StringyPhysicalDestinationConfig(_PhysicalDestinationConfig):
-    def __init__(self, physical_destination: str, display_value: str) -> None:
-        super().__init__(physical_destination)
+    def __init__(self, physical_location: str, display_value: str) -> None:
+        super().__init__(physical_location)
         self._display_value = display_value
 
     def __str__(self) -> str:
@@ -211,30 +211,30 @@ def _lance_config(catalog_root: str, dataset_name: str = "dataset") -> LanceClie
 
 
 # Base DestinationClientConfiguration contract
-def test_base_fingerprint_derived_from_physical_destination() -> None:
+def test_base_fingerprint_derived_from_physical_location() -> None:
     config = _PhysicalDestinationConfig("test-host:5432")
     assert config.fingerprint() == digest128("test-host:5432")
 
 
-def test_base_fingerprint_empty_when_physical_destination_empty() -> None:
+def test_base_fingerprint_empty_when_physical_location_empty() -> None:
     config = DestinationClientConfiguration()
-    assert config.physical_destination() == ""
+    assert config.physical_location() == ""
     assert config.fingerprint() == ""
 
 
-def test_base_can_join_with_default_false_when_physical_destinations_differ() -> None:
+def test_base_can_join_with_default_false_when_physical_locations_differ() -> None:
     config1 = _PhysicalDestinationConfig("host1")
     config2 = _PhysicalDestinationConfig("host2")
     assert_not_joinable(config1, config2)
 
 
-def test_base_can_join_with_default_true_when_same_physical_destination() -> None:
+def test_base_can_join_with_default_true_when_same_physical_location() -> None:
     config1 = _PhysicalDestinationConfig("host1")
     config2 = _PhysicalDestinationConfig("host1")
     assert_joinable(config1, config2)
 
 
-def test_base_can_join_with_default_false_when_empty_physical_destination() -> None:
+def test_base_can_join_with_default_false_when_empty_physical_location() -> None:
     config1 = DestinationClientConfiguration()
     config2 = _PhysicalDestinationConfig("host1")
     assert_not_joinable(config1, config2)
@@ -247,16 +247,16 @@ def test_base_can_join_with_returns_false_for_non_config() -> None:
     assert not config.can_join_with(42)  # type: ignore[arg-type]
 
 
-def test_is_same_physical_destination_delegates_to_can_join_with() -> None:
+def test_is_same_physical_location_delegates_to_can_join_with() -> None:
     config1 = _StringyPhysicalDestinationConfig("host1", "first-display")
     config2 = _StringyPhysicalDestinationConfig("host1", "second-display")
     assert str(config1) != str(config2)
-    assert is_same_physical_destination(
+    assert is_same_physical_location(
         cast(Dataset, _DatasetStub(config1)), cast(Dataset, _DatasetStub(config2))
     )
 
 
-# physical_destination() extraction across destinations
+# physical_location() extraction across destinations
 
 PHYSICAL_DEST_CASES = [
     # Postgres: host:port format
@@ -429,8 +429,8 @@ PHYSICAL_DEST_CASES = [
 
 
 @pytest.mark.parametrize("factory,expected", PHYSICAL_DEST_CASES)
-def test_physical_destination(factory: ConfigFactory, expected: str) -> None:
-    assert factory().physical_destination() == expected
+def test_physical_location(factory: ConfigFactory, expected: str) -> None:
+    assert factory().physical_location() == expected
 
 
 @pytest.mark.parametrize(
@@ -822,16 +822,16 @@ def test_can_join_with_matrix(f1: ConfigFactory, f2: ConfigFactory, expected: bo
 def test_cross_type_rejection(f1: ConfigFactory, f2: ConfigFactory) -> None:
     c1, c2 = f1(), f2()
     if isinstance(c2, _PhysicalDestinationConfig):
-        c2._physical_destination = c1.physical_destination()
+        c2._physical_location = c1.physical_location()
     assert_not_joinable(c1, c2)
 
 
-def test_cross_type_different_physical_destinations() -> None:
+def test_cross_type_different_physical_locations() -> None:
     sf = SnowflakeClientConfiguration(
         credentials=SnowflakeCredentials("snowflake://u:p@a1.snowflake.com/db")
     )
     bq = BigQueryClientConfiguration(credentials=GcpServiceAccountCredentials(project_id="p2"))
-    assert sf.physical_destination() != bq.physical_destination()
+    assert sf.physical_location() != bq.physical_location()
     assert_not_joinable(sf, bq)
 
 
@@ -856,18 +856,18 @@ def test_filesystem_cannot_join_with_non_filesystem() -> None:
 
 def test_filesystem_fingerprint_empty_for_local() -> None:
     c = FilesystemDestinationClientConfiguration(bucket_url="/local/p")
-    assert c.physical_destination() == ""
+    assert c.physical_location() == ""
     assert c.fingerprint() == ""
 
 
 # MotherDuck token-based joinability
 
 
-def test_motherduck_token_not_exposed_as_physical_destination() -> None:
+def test_motherduck_token_not_exposed_as_physical_location() -> None:
     md = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:db?motherduck_token=token")
     )
-    assert md.physical_destination() == ""
+    assert md.physical_location() == ""
 
 
 def test_motherduck_fingerprint_hashes_token() -> None:
@@ -878,7 +878,7 @@ def test_motherduck_fingerprint_hashes_token() -> None:
 
 
 def test_motherduck_can_join_with_same_token_without_exposing_location() -> None:
-    """Same token can join without exposing token via physical destination."""
+    """Same token can join without exposing token via physical location."""
     c1 = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:db?motherduck_token=token")
     )
@@ -1019,21 +1019,21 @@ def test_lance_and_lancedb_cannot_join_with_each_other() -> None:
     assert_not_joinable(lance, lancedb)
 
 
-def test_weaviate_physical_destination_but_not_joinable() -> None:
+def test_weaviate_physical_location_but_not_joinable() -> None:
     c1 = WeaviateClientConfiguration(
         credentials=WeaviateCredentials(url="https://cluster.weaviate.cloud")
     )
     c2 = WeaviateClientConfiguration(
         credentials=WeaviateCredentials(url="https://cluster.weaviate.cloud")
     )
-    assert c1.physical_destination() == "cluster.weaviate.cloud"
+    assert c1.physical_location() == "cluster.weaviate.cloud"
     assert c1.fingerprint() == digest128("cluster.weaviate.cloud")
     assert_not_joinable(c1, c2)
 
 
-def test_qdrant_physical_destination_but_not_joinable() -> None:
+def test_qdrant_physical_location_but_not_joinable() -> None:
     c1 = QdrantClientConfiguration(qd_location="https://cluster.qdrant.io")
     c2 = QdrantClientConfiguration(qd_location="https://cluster.qdrant.io")
-    assert c1.physical_destination() == "https://cluster.qdrant.io"
+    assert c1.physical_location() == "https://cluster.qdrant.io"
     assert c1.fingerprint() == digest128("https://cluster.qdrant.io")
     assert_not_joinable(c1, c2)

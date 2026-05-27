@@ -284,7 +284,7 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
                 " `destination.databricks.credentials.client_secret`."
             )
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns the server hostname."""
         if self.credentials and self.credentials.server_hostname:
             return self.credentials.server_hostname

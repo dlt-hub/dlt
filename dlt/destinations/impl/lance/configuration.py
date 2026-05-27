@@ -356,7 +356,7 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
             props.update(self.credentials.to_namespace_properties())
         return connect(self.catalog_type, props)
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns the resolved Lance catalog root."""
         if (
             isinstance(self.credentials, DirectoryCatalogCredentials)
@@ -370,9 +370,9 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
         if not isinstance(other, LanceClientConfiguration):
             return False
 
-        self_phys = self.physical_destination()
-        other_phys = other.physical_destination()
-        if not self_phys or not other_phys or self_phys != other_phys:
+        self_loc = self.physical_location()
+        other_loc = other.physical_location()
+        if not self_loc or not other_loc or self_loc != other_loc:
             return False
 
         return self.dataset_name == other.dataset_name

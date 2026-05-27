@@ -165,7 +165,7 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     Both have UTF-8 encoding. LongAsMax=yes is automatically configured.
     """
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns host:port."""
         if self.credentials and self.credentials.host:
             port = self.credentials.port or 1433

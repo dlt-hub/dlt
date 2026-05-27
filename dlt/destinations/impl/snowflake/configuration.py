@@ -178,7 +178,7 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     use_decfloat: bool = False
     """Whether to use DECFLOAT type for unbound decimals instead of DECIMAL"""
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns the account host."""
         if self.credentials and self.credentials.host:
             return self.credentials.host

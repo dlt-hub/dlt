@@ -148,7 +148,7 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
         if self.qd_path and not os.path.isabs(self.qd_path):
             self.qd_path = self.make_location(self.qd_path, "%s.qdrant")
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns the Qdrant connection location."""
         return self.qd_location or ""
 

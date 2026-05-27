@@ -142,7 +142,7 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
     automatic_migration: bool = False
     """When true, attaches with `AUTOMATIC_MIGRATION true` so DuckDB migrates an older DuckLake catalog schema on attach."""
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns credential-free catalog identity plus ducklake name."""
         if not self.credentials or not self.credentials.catalog:
             return ""

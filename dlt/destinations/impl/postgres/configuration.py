@@ -48,8 +48,8 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     csv_format: Optional[CsvFormatConfiguration] = None
     """Optional csv format configuration"""
 
-    def physical_destination(self) -> str:
-        """Returns host:port as the physical destination identifier."""
+    def physical_location(self) -> str:
+        """Returns host:port as the physical location identifier."""
         if self.credentials and self.credentials.host:
             port = self.credentials.port or 5432
             return f"{self.credentials.host}:{port}"
@@ -62,9 +62,9 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         if self.destination_type != other.destination_type:
             return False
 
-        self_phys = self.physical_destination()
-        other_phys = other.physical_destination()
-        if not self_phys or not other_phys or self_phys != other_phys:
+        self_loc = self.physical_location()
+        other_loc = other.physical_location()
+        if not self_loc or not other_loc or self_loc != other_loc:
             return False
 
         self_db = self.credentials.database if self.credentials else None

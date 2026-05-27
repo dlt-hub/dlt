@@ -45,7 +45,7 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return super().resolve_credentials_type()
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns scheme://netloc for remote filesystems, or "" for local."""
         if not self.bucket_url:
             return ""
@@ -62,7 +62,7 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
         # Explicit override to resolve MRO ambiguity: without it, Python picks
         # FilesystemConfiguration.fingerprint() (which hashes the raw bucket URL)
         # over DestinationClientConfiguration.fingerprint() (which hashes
-        # physical_destination()).  Do not remove.
+        # physical_location()).  Do not remove.
         return DestinationClientStagingConfiguration.fingerprint(self)
 
     def can_join_with(self, other: DestinationClientConfiguration) -> bool:

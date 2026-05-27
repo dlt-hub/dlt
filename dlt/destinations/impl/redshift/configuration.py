@@ -27,7 +27,7 @@ class RedshiftClientConfiguration(PostgresClientConfiguration):
     staging_iam_role: Optional[str] = None
     has_case_sensitive_identifiers: bool = False
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns host:port."""
         if self.credentials and self.credentials.host:
             port = self.credentials.port or 5439

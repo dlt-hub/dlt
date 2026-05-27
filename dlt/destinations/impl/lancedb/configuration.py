@@ -191,7 +191,7 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
         # TODO: move uri back to credentials to make it more like other connections
         self.credentials.uri = self.lance_uri
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns the resolved LanceDB URI, or "" for external native clients."""
         if not self.lance_uri or self.lance_uri == ":external:":
             return ""
@@ -213,9 +213,9 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
         if not isinstance(other, LanceDBClientConfiguration):
             return False
 
-        self_phys = self.physical_destination()
-        other_phys = other.physical_destination()
-        if not self_phys or not other_phys or self_phys != other_phys:
+        self_loc = self.physical_location()
+        other_loc = other.physical_location()
+        if not self_loc or not other_loc or self_loc != other_loc:
             return False
 
         return self.dataset_separator == other.dataset_separator

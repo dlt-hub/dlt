@@ -266,7 +266,7 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
                         self.make_location(db or None, SQLITE_DB_NAME_PAT)
                     )
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns sqlite path for sqlite, otherwise host:port."""
         if not self.credentials:
             return ""
@@ -303,27 +303,27 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
             return False
 
         if self_dialect == "sqlite":
-            self_phys = self.physical_destination()
-            other_phys = other.physical_destination()
-            return bool(self_phys and other_phys and self_phys == other_phys)
+            self_loc = self.physical_location()
+            other_loc = other.physical_location()
+            return bool(self_loc and other_loc and self_loc == other_loc)
 
         if self_dialect == "postgresql":
-            self_phys = self.physical_destination()
-            other_phys = other.physical_destination()
-            if not self_phys or not other_phys or self_phys != other_phys:
+            self_loc = self.physical_location()
+            other_loc = other.physical_location()
+            if not self_loc or not other_loc or self_loc != other_loc:
                 return False
             self_db = self.credentials.database
             other_db = other.credentials.database
             return self_db is not None and other_db is not None and self_db == other_db
 
         if self_dialect in ("mysql", "mssql", "oracle", "db2"):
-            self_phys = self.physical_destination()
-            other_phys = other.physical_destination()
-            return bool(self_phys and other_phys and self_phys == other_phys)
+            self_loc = self.physical_location()
+            other_loc = other.physical_location()
+            return bool(self_loc and other_loc and self_loc == other_loc)
 
-        self_phys = self.physical_destination()
-        other_phys = other.physical_destination()
-        if not self_phys or not other_phys or self_phys != other_phys:
+        self_loc = self.physical_location()
+        other_loc = other.physical_location()
+        if not self_loc or not other_loc or self_loc != other_loc:
             return False
         self_db = self.credentials.database
         other_db = other.credentials.database

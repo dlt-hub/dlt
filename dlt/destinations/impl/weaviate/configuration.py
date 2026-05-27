@@ -64,7 +64,7 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
         }
     )
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns the host part of the connection URL."""
         if self.credentials and self.credentials.url:
             return urlparse(self.credentials.url).hostname or ""

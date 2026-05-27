@@ -134,7 +134,7 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     create_indexes: bool = False
     has_case_sensitive_identifiers: bool = False
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns host:port."""
         if self.credentials and self.credentials.host:
             port = self.credentials.port or 1433

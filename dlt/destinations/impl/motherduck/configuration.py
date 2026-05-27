@@ -126,7 +126,7 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
         False  # should unique indexes be created, this slows loading down massively
     )
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns "" because MotherDuck has no non-secret account identity."""
         return ""
 

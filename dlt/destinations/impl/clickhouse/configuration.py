@@ -96,7 +96,7 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
         "table_engine_type",
     ]
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns host:port."""
         if self.credentials and self.credentials.host:
             return f"{self.credentials.host}:{self.credentials.port}"

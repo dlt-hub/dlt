@@ -36,7 +36,7 @@ class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     staging_data_source: str = None
     """The name of the staging data source"""
 
-    def physical_destination(self) -> str:
+    def physical_location(self) -> str:
         """Returns host:port."""
         if self.credentials and self.credentials.host:
             return f"{self.credentials.host}:{self.credentials.port}"
