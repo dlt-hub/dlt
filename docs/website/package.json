@@ -15,7 +15,9 @@
     "preview:cloudflare": "npm run build && npm run serve:cloudflare",
     "deploy:cloudflare": "npm run build && wrangler deploy",
     "verify-llms": "node scripts/verify-llms-txt.js",
-    "verify-redirects": "node scripts/verify-redirects.js"
+    "verify-redirects": "node scripts/verify-redirects.js",
+    "lint": "biome check .",
+    "lint:format": "biome check --write ."
   },
   "dependencies": {
     "@docusaurus/core": "~3.9.2",
@@ -40,6 +42,7 @@
     "toml": "^3.0.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.16",
     "@docusaurus/module-type-aliases": "~3.9.2",
     "concurrently": "^8.2.2",
     "wrangler": "^4.38.0"

@@ -10,13 +10,13 @@
  *
  * Exits with code 1 if any errors are found.
  */
-const fs = require('fs');
-const path = require('path');
+const fs = require("node:fs");
+const path = require("node:path");
 
-const { compile, OUTPUT_FILE } = require('../tools/compile_redirects.js');
+const { compile, OUTPUT_FILE } = require("../tools/compile_redirects.js");
 
-const BUILD_DIR = path.resolve(__dirname, '..', 'build', 'docs');
-const WEBSITE_DIR = path.resolve(__dirname, '..');
+const BUILD_DIR = path.resolve(__dirname, "..", "build", "docs");
+const _WEBSITE_DIR = path.resolve(__dirname, "..");
 
 let errors = 0;
 let warnings = 0;
@@ -36,14 +36,11 @@ function ok(msg) {
 }
 
 function targetExists(rel) {
-  const candidates = [
-    path.join(BUILD_DIR, rel + '.html'),
-    path.join(BUILD_DIR, rel, 'index.html'),
-  ];
+  const candidates = [path.join(BUILD_DIR, `${rel}.html`), path.join(BUILD_DIR, rel, "index.html")];
   return candidates.some((c) => fs.existsSync(c));
 }
 
-console.log('\n--- redirect targets (redirects.compiled.js) ---');
+console.log("\n--- redirect targets (redirects.compiled.js) ---");
 
 if (!fs.existsSync(BUILD_DIR)) {
   console.error(`Build directory not found: ${BUILD_DIR}`);
@@ -54,7 +51,7 @@ if (!fs.existsSync(BUILD_DIR)) {
 if (!fs.existsSync(OUTPUT_FILE)) {
   console.error(
     `redirects.compiled.js not found at ${OUTPUT_FILE}. ` +
-    `Run 'npm run compile-redirects' first (it runs as part of 'npm run build').`
+      `Run 'npm run compile-redirects' first (it runs as part of 'npm run build').`,
   );
   process.exit(1);
 }
@@ -75,8 +72,8 @@ try {
 if (JSON.stringify(loadedRedirects) !== JSON.stringify(recomputed)) {
   error(
     `redirects.compiled.js is stale — per-version sources (redirects.js / ` +
-    `versioned_redirects/*.js) changed since it was generated. ` +
-    `Re-run 'npm run compile-redirects'.`
+      `versioned_redirects/*.js) changed since it was generated. ` +
+      `Re-run 'npm run compile-redirects'.`,
   );
   console.log(`\n=== Redirects: ${errors} errors, ${warnings} warnings ===`);
   process.exit(1);
@@ -114,20 +111,17 @@ let checked = 0;
 let skipped = 0;
 
 for (const r of loadedRedirects) {
-  if (!r.to.startsWith('/docs/')) {
+  if (!r.to.startsWith("/docs/")) {
     skipped++;
     continue;
   }
 
   checked++;
-  const rel = r.to.replace(/^\/docs\//, '').replace(/\/$/, '');
+  const rel = r.to.replace(/^\/docs\//, "").replace(/\/$/, "");
   if (targetExists(rel)) {
     continue;
   }
-  error(
-    `redirect target ${r.to} has no HTML page (from: ${r.from}, ` +
-    `checked ${rel}.html and ${rel}/index.html)`
-  );
+  error(`redirect target ${r.to} has no HTML page (from: ${r.from}, ` + `checked ${rel}.html and ${rel}/index.html)`);
 }
 
 if (skipped > 0) {
