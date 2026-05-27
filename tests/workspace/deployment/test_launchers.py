@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import dlt
-from dlt._workspace.cli._run_command import build_runtime_entry_point
+from dlt._workspace.deployment._run_helpers import build_runtime_entry_point
 from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.launchers.job import run as job_run
 from dlt._workspace.deployment.typing import TJobDefinition, TRuntimeEntryPoint

@@ -126,7 +126,7 @@ class WorkspaceRunContext(ProfilesRunContext):
                 _to_run_dir(self._config.settings.working_dir) or self._make_default_working_dir()
             )
             self._local_dir = _to_run_dir(self._config.settings.local_dir) or default_working_dir(
-                self.run_dir,
+                self.settings_dir,
                 self.name,
                 self.profile,
                 DEFAULT_LOCAL_FOLDER,

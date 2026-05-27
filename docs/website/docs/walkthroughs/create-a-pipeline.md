@@ -148,7 +148,11 @@ It also prints the `load_info` object.
 Let's explore the loaded data with the [command](../reference/command-line-interface#dlt-pipeline-show) `dlt pipeline <pipeline_name> show`.
 
 :::info
-You will need to install `pip dlt[workspace]`
+You will need to install additional dependencies to run workspace dashboard:
+```sh
+pip install "dlt[hub]" pyarrow marimo ibis-framework
+```
+
 :::
 
 ```sh

@@ -16,12 +16,7 @@ from dlt.common.typing import TTimeInterval
 
 @configspec
 class TimeIntervalContext(ContainerInjectableContext):
-    """Active time interval from an external scheduler or dlt runtime.
-
-    Created with a concrete `(start, end)` datetime tuple, or autodetects
-    from dlt env vars / Airflow. Partial intervals (start without end) are
-    treated as no interval.
-    """
+    """Active time interval from an external scheduler."""
 
     can_create_default: ClassVar[bool] = True
     global_affinity: ClassVar[bool] = False
@@ -43,14 +38,11 @@ class TimeIntervalContext(ContainerInjectableContext):
 
     @property
     def interval(self) -> Optional[TTimeInterval]:
-        """Resolved interval as `(start, end)` datetime tuple, or `None`.
+        """Resolved interval as `(start, end)` datetime tuple, or `None`."""
 
-        Returns the interval explicitly passed to the constructor when set;
-        otherwise re-runs auto-detection on each access so callers always see
-        the current runtime interval rather than a value cached at init time.
-        """
         if self._interval is not None:
             return self._interval
+        # always autodetec if no explicit interval for lazily injected intervals
         return self._detect()
 
     def _detect(self) -> Optional[TTimeInterval]:

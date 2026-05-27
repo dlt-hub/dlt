@@ -1,6 +1,7 @@
 ---
 title: Installation
-description: Installation information for the dlthub package
+description: Install dlt[hub], create a workspace, and license paid features
+keywords: [installation, dlthub, dlthub init, workspace mode, license]
 ---
 
 :::info Supported Python versions
@@ -9,76 +10,41 @@ dltHub currently supports Python versions 3.10-3.13.
 
 :::
 
+## What is a dltHub workspace?
+
+A workspace is a Python project layout that bundles your `dlt` pipelines, transformations, configuration, and AI toolkit setup into a single deployable unit. The same folder runs on your local machine, in CI, and — when you deploy — on the managed dltHub platform, so what you build locally is what runs in production.
+
+Every workspace contains:
+
+- **`.dlt/.workspace`** — a marker file that activates the `dlthub` CLI, [profile support](../pipeline-operations/profiles.md), and the managed-platform commands. Without this file you're using plain OSS `dlt`.
+- **`.dlt/config.toml`** and **`.dlt/secrets.toml`** — settings and credentials, with optional per-profile overrides (`dev`, `prod`, `tests`, `access`).
+- **`pyproject.toml`** (or `requirements.txt`) — workspace-level dependencies like `dlt[hub]`, `duckdb`, `marimo`.
+- **Pipeline files** and an optional **`__deployment__.py`** manifest — the code you run, and the description of how it's deployed.
+- **AI toolkit configuration** — skills, rules, and MCP wiring for Claude Code, Cursor, or Codex (added when you opt in during scaffolding).
+
+For the wider feature surface that a workspace unlocks — [profiles](../pipeline-operations/profiles.md), [data quality](../data-quality/index.md), [transformations](../transformations/index.md), the [managed platform](../pipeline-operations/overview.md), the [dashboard](../ingestion/dashboard.md) — see the [introduction](introduction.md).
+
 ## Quickstart
 
-To install the `dlt[hub]` package, create a new [Python virtual environment](#setting-up-your-environment) and run:
-```sh
-uv pip install "dlt[hub]"
-```
-This will install `dlt` with two additional extras:
-* `dlthub` which enables features that require a [license](#self-licensing)
-* `dlt-runtime` which enables access to [dltHub Runtime](../runtime/overview.md)
-
-When working with locally you'll need several dependencies like `duckdb`, `marimo`, `pyarrow` or `fastmcp`. You can install them all with:
-```sh
-uv pip install "dlt[workspace]"
-```
-
-If you need to install `uv` (a modern package manager), [please refer to the next section](#configuration-of-the-python-environment).
-
-### Upgrade existing installation
-
-To upgrade just the `hub` extra without upgrading `dlt` itself run:
-```sh
-uv pip install -U "dlt[hub]==1.20.0"
-```
-This will keep current `1.20.0` `dlt` and upgrade `dlthub` and `dlt-runtime` to their newest matching versions.
-
-:::tip
-Note that particular `dlt` version expects `dlthub` and `dlt-runtime` versions in a matching range. For example: `1.20.x` versions expects
-`0.20.x` version of a plugin. This is enforced via dependencies in `hub` extra and at import time. Installing plugin directly will not affect
-installed `dlt` version to prevent unwanted upgrades. For example if you run:
-```sh
-uv pip install dlthub
-```
-and it downloads `0.21.0` version of a plugin, `dlt` `1.20.0` will still be there but it will report a wrong plugin version on import (with instructions
-how to install valid plugin version).
-:::
-
-### Enable dltHub Free and Paid features
-
-:::info
-The most recent [dltHub features](../intro.md#tiers--licensing) like profiles and runtime access are hidden behind a feature flag,
-which means you need to manually enable them before use.
-
-To activate these features, create an empty `.dlt/.workspace` file in your project directory; this tells `dlt` to switch from the classic project mode to the Workspace mode.
-
-<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]} groupId="operating-systems" defaultValue="ubuntu">
-<TabItem value="ubuntu">
+If you already have `uv` installed:
 
 ```sh
-mkdir -p .dlt && touch .dlt/.workspace
+uvx dlthub-start@latest
 ```
 
-  </TabItem>
-  <TabItem value="macos">
+If you don't have `uv` yet, either [install it first](#setting-up-your-environment) or run via `pipx` — the CLI will offer to install `uv` for you before syncing dependencies:
 
 ```sh
-mkdir -p .dlt && touch .dlt/.workspace
+pipx run dlthub-start
 ```
 
-  </TabItem>
-  <TabItem value="windows">
+Either way, it prompts for a workspace name, scaffold, and which AI agents to wire up (Claude / Cursor / Codex), scaffolds a workspace with `.dlt/.workspace` already set, vendors the AI toolkits (`rest-api-pipeline`, `transformations`, `dlthub-platform`, `data-exploration`), and runs `uv sync` so `dlt[hub]` and all workspace dependencies are installed.
+
+For the recommended defaults non-interactively, pass a name explicitly:
 
 ```sh
-mkdir .dlt
-type nul > .dlt\.workspace
+uvx dlthub-start@latest my-workspace --yes
 ```
-
-  </TabItem>
-</Tabs>
-
-:::
 
 ## Setting up your environment
 
@@ -116,74 +82,70 @@ Activate the virtual environment using the instructions displayed by `uv`, i.e.:
 source .venv/bin/activate
 ```
 
+## Add dltHub to an existing project
 
-## Licensing 
-
-To access dltHub’s paid features, such as Iceberg support or Python-based transformations, you need a dltHub Software License.
-
-1. [Contact us](https://info.dlthub.com/waiting-list) if you want to purchase a license or get a trial license with unlimited use.
-2. Issue a [limited trial license](#self-licensing) yourself.
-
-
-#### Install your license
-
-If you've received your license from us, you can install it in one of two ways:
-
-In the `secrets.toml` file:
-```toml
-license = "your-dlthub-license-key"
-```
-
-As an environment variable:
+To install `dlt[hub]` into an existing project, activate its virtual environment and run:
 ```sh
-export DLT_LICENSE_KEY="your-dlthub-license-key"
+uv pip install "dlt[hub]"
 ```
+This installs `dlt` plus two plugin packages pulled in by the `hub` extra:
+* `dlthub`—enables the **dlthub** command and features like AI toolkits and transformations
+* `dlthub-client`—enables access to the [managed dltHub Platform](../pipeline-operations/overview.md) (login, deploy, run, serve, ...)
 
-#### Features requiring a license:
+Workspace-level dependencies (destinations like `duckdb`, plus tools like `marimo` or `fastmcp` used by notebooks and MCP jobs) are managed in your workspace's `pyproject.toml`, not via `dlt` extras. Run `dlthub init` (see [below](#enable-workspace-mode))—it scaffolds a `pyproject.toml` you can extend with `uv add <package>`.
 
-- [@dlt.hub.transformation](../features/transformations/index.md) - a powerful Python decorator to build transformation pipelines and notebooks
-- [dbt transformations](../features/transformations/dbt-transformations.md) - a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
-- [Iceberg support](../ecosystem/iceberg.md).
-- [Data Checks](../features/quality/data-quality.md).
-- [MSSQL Change Tracking source](../ecosystem/ms-sql.md).
+## Upgrade existing installation
 
-For more information about the feature scopes, see [Scopes](#scopes).
-Please, also review our [End User License Agreement](../EULA.md)
-
-### Self-licensing
-
-You can self-issue an anonymous 30-day trial license to explore dltHub’s paid features.
-This trial license is intended for development, education, and CI operations only. Self-issued licenses are bound to the specific machine on which they were created. They cannot be transferred or reused on other machines, workspaces, or environments.
-
-See the [Special Terms](../EULA.md#specific-terms-for-the-self-issued-trial-license-self-issued-trial-terms) in our EULA for more details.
-
-#### Issue a Trial License
-
-Choose a scope for the feature you want to test, then issue a license with:
+To upgrade just the `hub` extra without upgrading `dlt` itself run:
 ```sh
-dlt license issue <scope>
+uv pip install -U "dlt[hub]==1.27.0"
 ```
+This keeps the current `1.27.0` `dlt` and upgrades `dlthub` and `dlthub-client` to their newest matching versions.
 
-for example:
+:::tip
+A particular `dlt` version expects `dlthub` and `dlthub-client` versions in a matching range. For example: `1.27.x` expects
+`0.27.x` of each plugin. This is enforced via dependencies in the `hub` extra and at import time. Installing a plugin directly will not change the
+installed `dlt` version (to prevent unwanted upgrades). For example if you run:
 ```sh
-dlt license issue dlthub.transformation
+uv pip install dlthub
 ```
-This will do the following:
-* Issue a new license (or merge with existing scopes) for the [transformations](../features/transformations/index.md) feature.
-* Print your license key in the CLI output.
-* Put the license key into your `toml` file.
+and it downloads `0.28.0` of the plugin, `dlt` `1.27.0` will still be installed but it will report a wrong plugin version on import (with instructions
+how to install a compatible plugin version).
+:::
 
-#### Scopes
+## Enable workspace mode
 
-Display available scopes by running the following command:
+The full dltHub feature surface—profiles, the `dlthub` CLI host, and [managed-platform commands](../pipeline-operations/overview.md)—is gated behind **Workspace mode**, signaled by a `.dlt/.workspace` marker file. The simplest way to turn it on is:
 
 ```sh
-dlt license scopes
+dlthub init
 ```
 
-You can self-issue multiple licenses; newly issued licenses will automatically include previously granted features.
+This scaffolds a fresh dltHub workspace—it creates the `.dlt/.workspace` marker plus `config.toml`, `secrets.toml`, `.gitignore`, and a `pyproject.toml` (or `requirements.txt` if `uv` isn't on `PATH`). See [Initialize a pipeline](../ingestion/init.md) for the next steps.
 
-To view your installed licenses:
+If you'd rather flip the toggle by hand in an existing project, create the empty marker file yourself:
+
+<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]} groupId="operating-systems" defaultValue="ubuntu">
+<TabItem value="ubuntu">
+
 ```sh
-dlt license info
+mkdir -p .dlt && touch .dlt/.workspace
 ```
+
+  </TabItem>
+  <TabItem value="macos">
+
+```sh
+mkdir -p .dlt && touch .dlt/.workspace
+```
+
+  </TabItem>
+  <TabItem value="windows">
+
+```sh
+mkdir .dlt
+type nul > .dlt\.workspace
+```
+
+  </TabItem>
+</Tabs>

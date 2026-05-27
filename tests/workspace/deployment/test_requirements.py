@@ -402,15 +402,15 @@ def test_default_requirements_manifest_is_save_load_stable() -> None:
         "dlt",
         "dlt==1.14.0",
         "dlt>=1.0,<2.0",
-        "dlt[workspace]",
-        "dlt[workspace]==1.14.0",
+        "dlt[hub]",
+        "dlt[hub]==1.14.0",
         "dlt @ https://github.com/dlt-hub/dlt/archive/refs/heads/devel.zip",
         (
-            "dlt[workspace] @"
+            "dlt[hub] @"
             " https://github.com/dlt-hub/dlt/archive/refs/heads/feat/workspace-manifest-concept.zip"
         ),
         "dlt[workspace,providers] @ https://example.com/dlt.zip",
-        "  dlt[workspace] @ https://example.com/dlt.zip  ",
+        "  dlt[hub] @ https://example.com/dlt.zip  ",
     ],
 )
 def test_contains_package_recognizes_dlt_in_every_form(spec: str) -> None:
@@ -451,3 +451,249 @@ def test_export_includes_python_version() -> None:
 def test_default_manifest_includes_python_version() -> None:
     manifest = default_requirements_manifest()
     assert manifest["python_version"] == python_version()
+
+
+def _make_dist(direct_url_payload):
+    """Return a fake `importlib.metadata.Distribution`-like object."""
+    from unittest.mock import MagicMock
+
+    dist = MagicMock()
+    dist.metadata = {"Version": "9.9.9"}
+    if direct_url_payload is None:
+        dist.read_text.return_value = None
+    else:
+        dist.read_text.return_value = json.dumps(direct_url_payload)
+    return dist
+
+
+def _patch_distribution(monkeypatch: pytest.MonkeyPatch, payload) -> None:
+    monkeypatch.setattr(
+        "dlt._workspace.deployment.requirements.importlib.metadata.distribution",
+        lambda _name: _make_dist(payload),
+    )
+
+
+def test_get_pkg_install_spec_pypi(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No `direct_url.json` -> pypi install with version from metadata."""
+    from dlt._workspace.deployment.requirements import get_pkg_install_spec
+
+    _patch_distribution(monkeypatch, None)
+    spec = get_pkg_install_spec("dlt", extras=["hub"])
+    assert spec["mode"] == "pypi"
+    assert spec["version"] == "9.9.9"
+    assert spec["extras"] == ["hub"]
+    assert "path" not in spec and "git_url" not in spec
+
+
+def test_get_pkg_install_spec_editable(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dlt._workspace.deployment.requirements import get_pkg_install_spec
+
+    _patch_distribution(
+        monkeypatch,
+        {"url": "file:///abs/path", "dir_info": {"editable": True}},
+    )
+    spec = get_pkg_install_spec("dlthub-client")
+    assert spec["mode"] == "editable"
+    assert spec["path"] == "/abs/path"
+
+
+def test_get_pkg_install_spec_path_non_editable(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dlt._workspace.deployment.requirements import get_pkg_install_spec
+
+    _patch_distribution(
+        monkeypatch,
+        {"url": "file:///abs/path", "dir_info": {"editable": False}},
+    )
+    spec = get_pkg_install_spec("dlthub")
+    assert spec["mode"] == "path"
+    assert spec["path"] == "/abs/path"
+
+
+def test_get_pkg_install_spec_git(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dlt._workspace.deployment.requirements import get_pkg_install_spec
+
+    _patch_distribution(
+        monkeypatch,
+        {
+            "url": "https://github.com/dlt-hub/dlt.git",
+            "vcs_info": {"vcs": "git", "commit_id": "abc123"},
+        },
+    )
+    spec = get_pkg_install_spec("dlt")
+    assert spec["mode"] == "git"
+    assert spec["git_url"] == "https://github.com/dlt-hub/dlt.git"
+    assert spec["git_rev"] == "abc123"
+
+
+@pytest.mark.parametrize(
+    "url,extra_block",
+    [
+        (
+            "https://github.com/dlt-hub/dlt/archive/refs/heads/main.zip?v=13",
+            {"archive_info": {"hashes": {"sha256": "deadbeef"}}},
+        ),
+        ("https://files.pythonhosted.org/packages/dlt-1.0.0-py3-none-any.whl", {}),
+    ],
+    ids=["github-archive-with-query", "https-wheel-no-archive-info"],
+)
+def test_get_pkg_install_spec_archive(
+    monkeypatch: pytest.MonkeyPatch, url: str, extra_block: Dict[str, object]
+) -> None:
+    """`pip install https://...zip|whl` with or without `archive_info` becomes mode=archive."""
+    from dlt._workspace.deployment.requirements import get_pkg_install_spec
+
+    payload = {"url": url, **extra_block}
+    _patch_distribution(monkeypatch, payload)
+    spec = get_pkg_install_spec("dlt")
+    assert spec["mode"] == "archive"
+    assert spec["archive_url"] == url
+
+
+def _spec(name, mode, **extra):
+    """Build a minimal `TInstallSpec` dict for render-helper tests."""
+    base = {"name": name, "extras": [], "version": "9.9.9", "mode": mode}
+    base.update(extra)
+    return base
+
+
+@pytest.mark.parametrize(
+    "spec,for_deployment,expected",
+    [
+        (_spec("dlt", "pypi"), True, "dlt==9.9.9"),
+        (_spec("dlt", "pypi", extras=["hub"]), True, "dlt[hub]==9.9.9"),
+        (_spec("dlt", "editable", path="/abs"), True, "dlt==9.9.9"),
+        (_spec("dlt", "editable", path="/abs"), False, "dlt==9.9.9"),
+        (_spec("dlt", "path", path="/abs"), True, "dlt @ file:///abs"),
+        (_spec("dlt", "path", path="/abs"), False, "dlt==9.9.9"),
+        (
+            _spec("dlt", "git", git_url="https://example.com/dlt.git", git_rev="abc"),
+            True,
+            "dlt @ git+https://example.com/dlt.git@abc",
+        ),
+        (
+            _spec("dlt", "git", git_url="https://example.com/dlt.git", git_rev="abc"),
+            False,
+            "dlt==9.9.9",
+        ),
+        (
+            _spec(
+                "dlt",
+                "archive",
+                archive_url="https://github.com/dlt-hub/dlt/archive/main.zip?v=13",
+            ),
+            True,
+            "dlt @ https://github.com/dlt-hub/dlt/archive/main.zip?v=13",
+        ),
+        (
+            _spec(
+                "dlt",
+                "archive",
+                extras=["hub"],
+                archive_url="https://github.com/dlt-hub/dlt/archive/main.zip?v=13",
+            ),
+            False,
+            "dlt[hub] @ https://github.com/dlt-hub/dlt/archive/main.zip?v=13",
+        ),
+    ],
+    ids=[
+        "pypi-deployment",
+        "pypi-with-extras",
+        "editable-deployment",
+        "editable-scaffold",
+        "path-deployment-direct-ref",
+        "path-scaffold-version-pin",
+        "git-deployment-direct-ref",
+        "git-scaffold-version-pin",
+        "archive-deployment-direct-ref",
+        "archive-scaffold-direct-ref-with-extras",
+    ],
+)
+def test_render_pep508(spec, for_deployment, expected) -> None:
+    from dlt._workspace.deployment.requirements import render_pep508
+
+    assert render_pep508(spec, for_deployment=for_deployment) == expected
+
+
+@pytest.mark.parametrize(
+    "spec,expected",
+    [
+        (_spec("dlt", "pypi"), None),
+        (_spec("dlt", "path", path="/abs"), {"path": "/abs"}),
+        (_spec("dlt", "editable", path="/abs"), {"path": "/abs", "editable": True}),
+        (
+            _spec("dlt", "git", git_url="https://x/dlt.git", git_rev="abc"),
+            {"git": "https://x/dlt.git", "rev": "abc"},
+        ),
+        (
+            _spec("dlt", "git", git_url="https://x/dlt.git"),
+            {"git": "https://x/dlt.git"},
+        ),
+        # archive direct refs go inline in dependencies — no override needed
+        (_spec("dlt", "archive", archive_url="https://x/dlt.zip"), None),
+    ],
+    ids=["pypi-none", "path", "editable", "git-with-rev", "git-no-rev", "archive-none"],
+)
+def test_render_uv_source(spec, expected) -> None:
+    from dlt._workspace.deployment.requirements import render_uv_source
+
+    assert render_uv_source(spec) == expected
+
+
+@pytest.mark.parametrize(
+    "spec,expected",
+    [
+        (_spec("dlt", "pypi"), ["dlt==9.9.9"]),
+        (_spec("dlt", "pypi", extras=["hub"]), ["dlt[hub]==9.9.9"]),
+        (_spec("dlt", "editable", path="/abs"), ["-e /abs"]),
+        (_spec("dlt", "path", path="/abs"), ["dlt @ file:///abs"]),
+        (
+            _spec("dlt", "git", git_url="https://x/dlt.git", git_rev="abc"),
+            ["dlt @ git+https://x/dlt.git@abc"],
+        ),
+        (
+            _spec("dlt", "archive", archive_url="https://x/dlt.zip?v=13"),
+            ["dlt @ https://x/dlt.zip?v=13"],
+        ),
+    ],
+    ids=[
+        "pypi",
+        "pypi-with-extras",
+        "editable-dash-e",
+        "path-direct-ref",
+        "git",
+        "archive-direct-ref",
+    ],
+)
+def test_render_requirements_lines(spec, expected) -> None:
+    from dlt._workspace.deployment.requirements import render_requirements_lines
+
+    assert render_requirements_lines(spec) == expected
+
+
+def test_get_workspace_install_specs_includes_dlt_with_hub_extra() -> None:
+    from dlt._workspace.deployment.requirements import get_workspace_install_specs
+
+    specs = get_workspace_install_specs()
+    # dlt is always present (we're running inside it)
+    dlt_spec = next((s for s in specs if s["name"] == "dlt"), None)
+    assert dlt_spec is not None
+    assert dlt_spec["extras"] == ["hub"]
+
+
+def test_get_workspace_install_specs_skips_uninstalled_packages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When dlthub / dlthub-client aren't installed, they're omitted (PyPI-via-extra fallback)."""
+    from dlt._workspace.deployment import requirements as req_mod
+
+    real_dist = req_mod.importlib.metadata.distribution
+
+    def _missing_for_hubs(name: str):
+        if name in ("dlthub", "dlthub-client"):
+            raise req_mod.importlib.metadata.PackageNotFoundError(name)
+        return real_dist(name)
+
+    monkeypatch.setattr(req_mod.importlib.metadata, "distribution", _missing_for_hubs)
+    specs = req_mod.get_workspace_install_specs()
+    names = {s["name"] for s in specs}
+    assert names == {"dlt"}

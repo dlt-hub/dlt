@@ -4,13 +4,13 @@ secrets.toml
 *.secrets.toml
 # ignore pinned profile name
 .dlt/profile-name
-# ignore default working dir
-.dlt/.var
-# ignore default local dir (loaded data)
-_local
+# ignore default state dir (pipeline state, working files)
+.dlt/state
+# ignore default data dir (local destination data)
+.dlt/data
 # ignore duckdb
 *.duckdb
-*.wal 
+*.wal
 
 # Git repository
 .git/

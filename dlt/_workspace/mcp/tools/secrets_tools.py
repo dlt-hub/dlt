@@ -4,7 +4,7 @@ from pydantic import Field
 from fastmcp.exceptions import ToolError
 
 from dlt.common.typing import Annotated
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.utils import (
     fetch_secrets_list,
     fetch_secrets_update_fragment,
     fetch_secrets_view_redacted,

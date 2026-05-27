@@ -63,6 +63,7 @@ from dlt.extract.state import resource_state
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
+    ModelIncremental,
     IncrementalTransform,
 )
 from dlt.extract.incremental.lag import apply_lag_with_suppression
@@ -638,14 +639,25 @@ class Incremental(
             self.range_start,
             self.range_end,
         )
+        # ModelIncremental needs a back-reference so it can auto-apply
+        # `relation.incremental(self)` when the user yields a bare relation.
+        if isinstance(transformer, ModelIncremental):
+            transformer._incremental = self
         return transformer
 
     def _get_transform(self, items: TDataItems) -> IncrementalTransform:
         """Gets transform implementation that handles particular data item type"""
+        # Lazy import to avoid failure with a partially-initialised
+        # `dlt.extract` during dlt startup.
+        # TODO: we should consider creating a registry for transforms
+        from dlt.dataset.relation import Relation
+
         # assume list is all of the same type
         for item in items if isinstance(items, list) else [items]:
             if is_arrow_object(item) or is_pandas_frame(item) or is_polars_frame(item):
                 return self._make_or_get_transformer(ArrowIncremental)
+            elif isinstance(item, Relation):
+                return self._make_or_get_transformer(ModelIncremental)
             return self._make_or_get_transformer(JsonIncremental)
         return self._make_or_get_transformer(JsonIncremental)
 
