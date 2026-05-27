@@ -1,6 +1,6 @@
 """Tests for destination configuration-level join-compatibility semantics."""
 
-from typing import Callable, cast
+from typing import Callable, cast, Optional
 
 from typing_extensions import TypeAlias
 
@@ -160,12 +160,14 @@ def _ducklake_creds(catalog_str: str, name: str = DEFAULT_DUCKLAKE_NAME) -> Duck
     )
 
 
-def _fabric_creds(host: str, database: str) -> FabricCredentials:
+def _fabric_creds(host: str, database: str, port: Optional[int] = None) -> FabricCredentials:
     """Build Fabric credentials."""
     # Fabric is normally configured via structured fields, not a connection string.
     credentials = FabricCredentials()
     credentials.host = host
     credentials.database = database
+    if port is not None:
+        credentials.port = port
     return credentials
 
 
@@ -406,7 +408,7 @@ PHYSICAL_DEST_CASES = [
     # Fabric
     pytest.param(
         lambda: FabricClientConfiguration(
-            credentials=_fabric_creds("h.fabric.microsoft.com", "db")
+            credentials=_fabric_creds("h.fabric.microsoft.com", "db", port=1433)
         ),
         "h.fabric.microsoft.com:1433",
         id="fabric_port",
@@ -417,6 +419,11 @@ PHYSICAL_DEST_CASES = [
         ),
         "h.fabric.microsoft.com:1433",
         id="fabric_default_port",
+    ),
+    pytest.param(
+        lambda: FabricClientConfiguration(credentials=FabricCredentials()),
+        "",
+        id="fabric_no_host",
     ),
     pytest.param(
         lambda: MotherDuckClientConfiguration(
