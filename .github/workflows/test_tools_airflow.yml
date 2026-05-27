@@ -7,7 +7,7 @@ on:
 jobs:
   run_airflow:
     name: tools | airflow ${{ matrix.airflow-version }} tests
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:

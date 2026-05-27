@@ -39,7 +39,7 @@ jobs:
     defaults:
       run:
         shell: bash
-    runs-on: "ubuntu-latest"
+    runs-on: blacksmith-8vcpu-ubuntu-2404
 
     steps:
       - name: Check out

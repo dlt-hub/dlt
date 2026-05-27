@@ -368,7 +368,19 @@ def test_job_definition_omits_unset_fields() -> None:
     assert "tags" not in job_def
     assert "deliver" not in job_def
     assert "expose" not in job_def
+    assert "require" not in job_def
     assert job_def["triggers"] == []
+
+
+def test_require_static_egress_ips_stored_on_job_definition() -> None:
+    """`require.static_egress_ips` is passed through to the job definition."""
+
+    @job(require={"static_egress_ips": True})
+    def vendor_sync():
+        pass
+
+    job_def = vendor_sync.to_job_definition()
+    assert job_def["require"]["static_egress_ips"] is True
 
 
 def test_config_key_discovery() -> None:

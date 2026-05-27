@@ -18,11 +18,8 @@ from dlt._workspace.cli.dlthub.ai.utils import (
 )
 from dlt._workspace.cli.dlthub.ai.typing import TToolkitIndexEntry, TToolkitInfo
 
-# stable floor of toolkits always present in the workbench (init is now visible).
-# volatile toolkits (e.g. dlthub-platform) are exercised through dynamic workbench
-# discovery in the *_all_together / user_session tests, so they stay covered without
-# breaking collection-time parametrization when the workbench renames them.
-KNOWN_TOOLKITS = ["data-exploration", "init", "rest-api-pipeline"]
+# known toolkits in the repo (init is now visible)
+KNOWN_TOOLKITS = ["data-exploration", "init", "rest-api-pipeline", "dlthub-platform"]
 INSTALLABLE_TOOLKITS = [t for t in KNOWN_TOOLKITS if t != "init"]
 AGENT_NAMES = ["claude", "cursor", "codex"]
 

@@ -79,7 +79,7 @@ dltHub waives all intellectual property claims over Derivative Works, provided t
    Licensed Materials contained within the Derivative Works.
 
 This waiver extends to the Licensed Materials itself as incorporated into Derivative
-Works — you are free to use, modify, and distribute it within your Derivative Works
+Works—you are free to use, modify, and distribute it within your Derivative Works
 without further restriction, subject only to the scope of use and redistribution
 terms above.
 

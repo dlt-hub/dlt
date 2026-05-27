@@ -158,6 +158,7 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra fabric"
               pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              post_secrets_commands: "uv run python tests/load/fabric/refresh_spn_fabric_token.py"
 
             # Postgres and Redshift (used to be test_destinations.yml)
             - name: redshift
@@ -244,6 +245,10 @@ jobs:
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+
+      - name: Run post secrets commands
+        run: ${{ matrix.post_secrets_commands }}
+        if: ${{ matrix.post_secrets_commands }}
 
       # NOTE: essential tests are always run
       - name: Run essential tests Linux

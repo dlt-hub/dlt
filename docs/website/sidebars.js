@@ -60,10 +60,15 @@ const sidebars = {
             },
           ]
         },
-        'general-usage/dashboard',
         {
           type: 'category',
           label: 'Release highlights',
+          link: {
+            type: 'generated-index',
+            title: 'Release highlights',
+            slug: '/release-highlights',
+            keywords: ['release notes', 'release highlights'],
+          },
           items: [
             { type: 'doc', id: 'release-notes/1.21.2', label: '1.21.2' },
             { type: 'doc', id: 'release-notes/1.19', label: '1.19' },
@@ -75,14 +80,6 @@ const sidebars = {
             { type: 'doc', id: 'release-notes/1.12.1', label: '1.12.1' },
           ]
         },
-      ]
-    },
-    {
-      type: 'category',
-      label: 'Build with AI',
-      items: [
-        { type: 'doc', id: "dlt-ecosystem/llm-tooling/llm-native-workflow", label: 'REST API source' },
-        { type: 'doc', id: "dlt-ecosystem/llm-tooling/explore-and-transform", label: 'Explore & Transform data' },
       ]
     },
     {
@@ -413,55 +410,70 @@ const sidebars = {
       type: 'category',
       label: 'Getting started',
       items: [
-        'hub/intro',
-        'hub/oss-and-dlthub',
+        'hub/getting-started/introduction',
+        'hub/getting-started/oss-and-dlthub',
         'hub/getting-started/installation',
-        'hub/getting-started/runtime-tutorial',
+        'hub/getting-started/platform-tutorial',
       ]
     },
     {
       type: 'category',
       label: 'Ingestion',
       items: [
-        'hub/workspace/init',
-        { type: 'ref', id: 'general-usage/dashboard' },
-        'hub/ecosystem/ms-sql',
-        'hub/ecosystem/delta',
-        'hub/ecosystem/iceberg',
-        'hub/ecosystem/snowflake_plus',
+        'hub/ingestion/init',
+        'hub/ingestion/rest-api-source',
+        'hub/ingestion/dashboard',
+        'hub/ingestion/ms-sql',
+        'hub/ingestion/delta',
+        'hub/ingestion/iceberg',
+        'hub/ingestion/snowflake-plus',
       ]
     },
     {
       type: 'category',
       label: 'Transformations',
       items: [
-        'hub/features/transformations/index',
-        'hub/features/transformations/dbt-transformations',
+        'hub/transformations/index',
+        'hub/transformations/dbt-transformations',
+        'hub/transformations/explore-and-transform',
       ]
     },
     {
       type: 'category',
       label: 'Pipeline operations',
       items: [
-        'hub/runtime/overview',
-        'hub/core-concepts/profiles-dlthub',
+        'hub/pipeline-operations/profiles',
+        'hub/pipeline-operations/overview',
+        'hub/pipeline-operations/workspace-setup',
+        'hub/pipeline-operations/deployments',
+        'hub/pipeline-operations/triggers',
+        'hub/pipeline-operations/job-configuration',
+        'hub/pipeline-operations/monitoring',
       ]
     },
     {
       type: 'category',
       label: 'Data quality & governance',
       items: [
-        'hub/features/quality/data-quality',
-        'hub/features/quality/advanced',
-        'hub/features/quality/tests',
+        'hub/data-quality/index',
+        'hub/data-quality/advanced',
       ]
     },
     {
       type: 'category',
       label: 'Data discovery & serving',
       items: [
-        'hub/core-concepts/datasets',
-        { type: 'ref', id: 'general-usage/dataset-access/marimo' },
+        'hub/data-discovery/datasets',
+        { type: 'doc', id: 'general-usage/dataset-access/marimo' },
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Platform capabilities',
+      items: [
+        'hub/platform-capabilities/regions',
+        'hub/platform-capabilities/users-and-roles',
+        'hub/platform-capabilities/settings',
       ]
     },
     'hub/command-line-interface',
