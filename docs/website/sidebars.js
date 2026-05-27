@@ -252,6 +252,7 @@ const sidebars = {
           id: 'general-usage/merge-loading',
           label: 'Merge',
         },
+        'general-usage/raw-data-export',
         {
           type: 'category',
           label: 'Incremental',

@@ -68,6 +68,10 @@ class ItemTransform(BaseItemTransform[TCustomMetrics], ABC, Generic[TAny, TCusto
     ) -> "ItemTransform[TAny, TCustomMetrics]":
         return self
 
+    def teardown(self) -> None:
+        """Called when extraction ends. Override to flush/close resources."""
+        pass
+
     @abstractmethod
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         """Transforms `item` (a list of TDataItem or a single TDataItem) and returns or yields TDataItems. Returns None to consume item (filter out)"""

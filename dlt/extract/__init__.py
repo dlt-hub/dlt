@@ -4,6 +4,7 @@ from dlt.extract.source import DltSource
 from dlt.extract.reference import SourceFactory, SourceReference
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.extract.incremental import Incremental
+from dlt.extract.raw_data_export import RawDataExporter
 from dlt.extract.wrappers import wrap_additional_type
 from dlt.extract.extractors import materialize_schema_item, with_file_import
 
@@ -22,6 +23,7 @@ __all__ = [
     "transformer",
     "defer",
     "Incremental",
+    "RawDataExporter",
     "wrap_additional_type",
     "materialize_schema_item",
 ]
