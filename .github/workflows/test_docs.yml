@@ -91,6 +91,12 @@ jobs:
       - name: Install dlthub incl alpha releases
         run: cd docs
 
+      - name: Install website node dependencies
+        run: cd docs/website && npm install
+
+      - name: lint website scripts
+        run: cd docs/website && npm run lint
+
       - name: lint docs
         run: cd docs && make lint
 
