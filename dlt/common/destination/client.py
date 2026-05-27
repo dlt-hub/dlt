@@ -464,12 +464,13 @@ class RunnableLoadJob(LoadJob, ABC):
                 f"Transient exception in job {self.job_id()} in file {self._file_path}"
             )
         finally:
-            self.release()
+            self._release()
 
-    def release(self) -> None:
+    def _release(self) -> None:
         """Release job from polling"""
         # sanity check
         assert self._state in ("completed", "retry", "failed")
+        # skip on "retry", including releasing event
         if self._state != "retry":
             # persist terminal state so resume can skip re-execution
             if self._on_completed:

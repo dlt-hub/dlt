@@ -287,11 +287,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             with self.maybe_with_staging_dataset(active_job_client, use_staging_dataset):
                 job.run_managed(active_job_client, self._done_event)
         except Exception as e:
-            # worker died in uncontrollable manner
-            logger.exception()
+            logger.exception(f"worker {job.__class__} died in uncontrollable manner")
             job._state = "retry"
             job._exception = e
-            job.release()
+            job._release()
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
