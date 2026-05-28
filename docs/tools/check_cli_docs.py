@@ -80,6 +80,10 @@ def _escape_mdx(s: str) -> str:
                 out.append(s[i : j + 1])
                 i = j + 1
                 continue
+        if s.startswith("__", i):
+            out.append("\\_\\_")
+            i += 2
+            continue
         ch = s[i]
         if ch == "<":
             out.append("&lt;")
