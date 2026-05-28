@@ -49,16 +49,7 @@ def has_adbc_driver(driver: str, disable_adbc_detection: bool = False) -> Tuple[
 
 class AdbcParquetCopyJob(RunnableLoadJob, HasFollowupJobs, ABC):
     _ingest_per_rowgroup: bool = False
-    """When True, call `adbc_ingest` once per parquet row-group instead of once per file.
-
-    Some ADBC drivers (notably mssql) buffer the entire input stream in memory before
-    flushing to the destination, so loading a parquet file that exceeds available
-    memory triggers the OOM killer. The driver flushes its buffer on every
-    `adbc_ingest` call, so iterating row-group-by-row-group bounds the in-driver
-    buffer at the size of a single row-group while still committing the whole file in
-    one transaction. Drivers that already stream incrementally (postgres) can leave
-    this off and keep the single-call form.
-    """
+    """When True, call `adbc_ingest` once per parquet row-group instead of once per file."""
 
     def __init__(self, file_path: str) -> None:
         super().__init__(file_path)
