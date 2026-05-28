@@ -152,7 +152,7 @@ def load_data():
     # Import your source from the pipeline script
     from pipeline_or_source_script import source
 
-    # Modify the pipeline parameters
+    # Create the pipeline after instance of `PipelineTasksGroup` is created
     pipeline = dlt.pipeline(
         pipeline_name='pipeline_name',
         dataset_name='dataset_name',
@@ -224,6 +224,10 @@ load_data()
   ```
 :::tip
 When you run the `load_data` DAG above, Airflow will call the `source` function every 30 seconds (by default) to be able to monitor the tasks. Make sure that your source function does not perform any long-lasting operations, e.g., reflecting the source database. In the case of [sql_database](../../dlt-ecosystem/verified-sources/sql_database/index.md), we added an option to delay database reflection until data is accessed by a resource.
+:::
+
+:::caution
+Always instantiate `PipelineTasksGroup` **before** creating the `dlt.pipeline`. The constructor of `PipelineTasksGroup` overrides the `DLT_DATA_DIR` environment variable to a fresh random per-worker directory so that Airflow workers, which are reused across DAG runs, do not leak pipeline state between runs.
 :::
 
 ### 3. Import sources and move the relevant code from the pipeline script

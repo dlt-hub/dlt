@@ -27,11 +27,13 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         credentials: DuckLakeCredentials,
         capabilities: DestinationCapabilitiesContext,
         override_data_path: bool = False,
+        automatic_migration: bool = False,
     ) -> None:
         super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
         self.credentials: DuckLakeCredentials = credentials
         self._attach_statement: str = None
         self.override_data_path = override_data_path
+        self.automatic_migration = automatic_migration
 
     def create_dataset(self) -> None:
         if self.has_dataset():
@@ -126,6 +128,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         catalog: ConnectionStringCredentials,
         storage_url: str,
         override_data_path: bool = False,
+        automatic_migration: bool = False,
     ) -> str:
         attach_params = ""
         metadata_schema = metadata_schema or ducklake_name
@@ -153,7 +156,10 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             raise NotImplementedError(str(catalog))
         attach_statement += f" AS {ducklake_name}"
         override_param = ", OVERRIDE_DATA_PATH true" if override_data_path else ""
-        attach_statement += f" (DATA_PATH '{storage_url}'{attach_params}{override_param})"
+        migration_param = ", AUTOMATIC_MIGRATION true" if automatic_migration else ""
+        attach_statement += (
+            f" (DATA_PATH '{storage_url}'{attach_params}{override_param}{migration_param})"
+        )
         return attach_statement
 
     @property
@@ -168,4 +174,5 @@ class DuckLakeSqlClient(DuckDbSqlClient):
                 catalog=self.credentials.catalog,
                 storage_url=self.credentials.storage_url,
                 override_data_path=self.override_data_path,
+                automatic_migration=self.automatic_migration,
             )

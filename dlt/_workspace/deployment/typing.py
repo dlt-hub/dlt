@@ -106,6 +106,8 @@ class TRequireSpec(TypedDict, total=False):
     """Runner region for placement (e.g. `"us-east-1"`, `"eu-west"`)."""
     timezone: str
     """IANA timezone for cron ticks and intervals (e.g. `"America/New_York"`). Default: UTC."""
+    static_egress_ips: bool
+    """When `True`, route outbound traffic through the workspace static egress IPs."""
 
 
 class TEntryPoint(TypedDict):

@@ -28,7 +28,7 @@ If you prefer to skip the tutorial and see the code example right away, check ou
 ### Supported databases
 
 :::tip dltHub Features
-For Microsoft SQL Server change tracking support, see the [MS SQL replication](../../../hub/ecosystem/ms-sql.md) docs.
+For Microsoft SQL Server change tracking support, see the [MS SQL replication](../../../hub/ingestion/ms-sql.md) docs.
 :::
 
 We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/), which include, but are not limited to, the following database engines:

@@ -64,7 +64,34 @@ For most authoring purposes, once you are happy with your changes running locall
 $ npm run build
 ```
 
-That command generates static content into the `build` directory, which can be served using any static contents hosting service, for example, `npm run serve`
+That command generates static content into the `build` directory, which can be served using `npm run serve`.
+
+### What `npm run build` does
+
+The full build runs these steps in order:
+
+1. **`npm run update-versions`** — clones `dlt`, checks out the `master` branch, freezes the content into `versioned_docs/version-master/`. This is the **master snapshot** (served at `/docs/`); your branch is served at `/docs/devel/`. See [Docs versions](#docs-versions) below.
+2. **`make preprocess-docs`** (from `docs/`) — Python preprocessor: expands `<!--@@@DLT_SNIPPET-->` markers, generates the API reference, etc.
+3. **`docusaurus build --out-dir build/docs`** — the static site build itself. Fails on broken internal markdown links.
+4. **`node scripts/verify-llms-txt.js`** — checks the generated `llms.txt` index against the sidebar.
+
+### Running individual checks
+
+After a full build, you can re-run the verifiers standalone — useful when iterating on one concern without rebuilding everything:
+
+```
+$ npm run verify-llms          # llms.txt index check
+$ npm run verify-redirects     # redirect targets check
+```
+
+**`verify-redirects` is no longer part of `npm run build` — CI runs it as a dedicated `Verify redirects` step in `.github/workflows/build_docs.yml`.** To reproduce CI locally:
+
+```
+$ npm run build
+$ npm run verify-redirects
+```
+
+Run this whenever you add or change entries in `redirects.js`. See [Redirects](#redirects) below for the source-of-truth and how to add new entries.
 
 ## Deployment
 
@@ -78,7 +105,42 @@ This will build the project fully and serve via a local wrangler webserver which
 
 ## Redirects
 
-Simple redirects are managed with the cloudflare worker in `worker.js`. 
+The docs site builds two snapshots: `master` (frozen at the last `dlt` release, mounted at `/docs/`) and `devel` (your current branch, mounted at `/docs/devel/`). Each version owns its own redirect rules, scoped to that version's URL space. A build-time step merges them into a single, version-prefixed list that the Cloudflare worker and the verifier both consume.
+
+### How to add or change a redirect
+
+Edit [`redirects.js`](redirects.js) — that file is the **devel** version's redirect source. Write entries with bare `/docs/...` paths, **without any `/devel/` prefix**:
+
+```js
+{ from: "/docs/old/path",   to: "/docs/new/path" },
+```
+
+The compile step (see below) prefixes both fields with `/docs/devel/` when emitting the version-scoped output. So the entry above ends up matching the URL `/docs/devel/old/path` in production — exactly where the page lives in this version.
+
+Pre-snapshotted versions (currently just `master`) have their own redirect files under `versioned_redirects/version-<v>.js`. Those are populated by `tools/update_versions.js`, which clones each tag and snapshots its `docs/website/redirects.js`. You don't edit those files by hand — to change `master`'s redirects, edit `redirects.js` on the `master` branch and push.
+
+The lone catchall `{ from: "/", to: "/docs/devel/intro" }` is the exception: its `from` doesn't start with `/docs/`, so the compiler treats it as version-independent and passes it through unchanged.
+
+### Compile step
+
+`tools/compile_redirects.js` reads:
+
+1. `./redirects.js` (the devel source).
+2. Every `./versioned_redirects/version-*.js` (snapshotted by `update_versions.js`).
+
+It rewrites each entry's leading `/docs/` to `/docs/<version-path>/` (devel → `/docs/devel/`, master → `/docs/`, any future tag → `/docs/<tag>/`) and writes the merged list to `redirects.compiled.js`. That file is a **build artifact** — gitignored and regenerated on every build.
+
+### Where the compiled file is used
+
+- **Cloudflare worker (`worker.ts`)** — imports `redirects.compiled.js`. Wrangler bundles the import into the deployed worker. Exact pathname match per entry; no version-routing logic in the worker.
+- **`scripts/verify-redirects.js`** — loads `redirects.compiled.js`, checks each `to` resolves to an HTML page in `build/docs/<rel>`, and **also recompiles in memory** from the per-version sources and diffs the result against the on-disk compiled file to guard against a stale compiled file.
+
+
+### Lifecycle: what happens after merge to `master`
+
+The build runs the same way on every branch: `update_versions.js` always clones `origin/master` and snapshots its `redirects.js` into `versioned_redirects/version-master.js`. The local `./redirects.js` is always treated as the `current` (devel-prefixed) version.
+
+When a devel→master merge ships the next release, the only thing that changes is what `origin/master` points to. The next build on master snapshots the just-merged `redirects.js` as the master version's source, so the same authored rules that previously compiled with the `/devel/` prefix now also compile with **no** prefix — they catch the bare `/docs/...` URLs on the freshly released master.
 
 ## Docs versions
 
@@ -152,7 +214,7 @@ Hub pages receive special treatment in swizzled theme components:
 - **`src/theme/DocBreadcrumbs`** — When the current URL contains `/hub/`, a dltHub logo is rendered next to the breadcrumb trail (via the `breadcrumbsContainerPlus` CSS class and an `<img>` tag).
 - **`src/components/DltHubFeatureAdmonition.js`** — A reusable admonition component imported by hub pages to display licensing/feature notices.
 
-In production, the Cloudflare worker (`worker.js`) redirects the legacy `/plus/` URL prefix to `/hub/`.
+In production, the Cloudflare worker (`worker.ts`) redirects the legacy `/plus/` URL prefix to `/hub/`.
 
 ## Page overlays (Root.js)
 

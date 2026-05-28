@@ -67,7 +67,7 @@ These checks verify the content of the data against business logic. While struct
 | Validate logic & ranges | **Pydantic Models:** Attach Pydantic models to your resources to enforce logic like `age > 0` or email format validation in-stream. | [Schema Contracts](schema-contracts.md#use-pydantic-models-for-data-validation) | dlt |
 | Filter bad rows | **`add_filter`:** Apply a predicate function to exclude records that don't meet criteria (for example, `lambda x: x["status"] != "deleted"`). | [Transform with add_map](../dlt-ecosystem/transformations/add-map.md) | dlt |
 | Check batch anomalies | **Staging Tests:** Use the portable runtime (for example, Ibis/DuckDB) to query the staging buffer. Example: "Alert if the average order value in this batch is > $10k." | [Staging](../dlt-ecosystem/staging.md) | dlt |
-| Built-in data checks | **Data Quality Checks:** Use built-in checks like `is_in()`, `is_unique()`, `is_primary_key()` with pre-load or post-load execution, plus actions on failure (drop, quarantine, alert). | [Data Quality](https://dlthub.com/docs/hub/features/quality/data-quality) | dlthub |
+| Built-in data checks | **Data Quality Checks:** Use built-in checks like `is_in()`, `is_unique()`, `is_primary_key()` with pre-load or post-load execution, plus actions on failure (drop, quarantine, alert). | [Data Quality](https://dlthub.com/docs/hub/data-quality) | dlthub |
 
 ---
 
@@ -98,7 +98,7 @@ Data quality also means compliance. These features ensure sensitive data is hand
 | Drop sensitive columns | **Column Removal:** Use `add_map` to completely remove columns (for example, `ssn`, `credit_card`) before they ever reach the destination. | [Removing Columns](customising-pipelines/removing_columns.md) | dlt |
 | Enforce PII Contracts | **Pydantic Models:** Use Pydantic schemas to strictly define and detect sensitive fields (for example, `EmailStr`), ensuring they are caught and hashed before loading. | [Schema Contracts](schema-contracts.md) | dlt |
 | Join on private data | **Deterministic Hashing:** Use a secret salt via `dlt.secrets` to deterministically hash IDs, allowing you to join tables on "User ID" without exposing the actual user identity. | [Credentials Setup](credentials/setup.md) | dlt |
-| Track PII through transformations | **Column-Level Hint Forwarding:** PII hints (for example, `x-annotation-pii`) are automatically propagated through SQL transformations, so downstream tables retain knowledge of sensitive origins. | [Transformations](https://dlthub.com/docs/hub/features/transformations#column-level-hint-forwarding) | dlthub |
+| Track PII through transformations | **Column-Level Hint Forwarding:** PII hints (for example, `x-annotation-pii`) are automatically propagated through SQL transformations, so downstream tables retain knowledge of sensitive origins. | [Transformations](https://dlthub.com/docs/hub/transformations#column-level-hint-forwarding) | dlthub |
 
 ---
 
@@ -122,7 +122,7 @@ Monitoring the reliability of the delivery mechanism itself. Even perfectly vali
 
 ## Validate data quality during development
 
-Use the [dlt Dashboard](../hub/workspace/dashboard.md) to interactively inspect your pipeline during development. The dashboard lets you:
+Use the [dltHub Dashboard](../hub/ingestion/dashboard.md) to interactively inspect your pipeline during development. The dashboard lets you:
 
 - Query loaded data and verify row counts match expectations
 - Inspect schemas, columns, and all column hints
@@ -145,4 +145,4 @@ The features marked `dlt` in the tables above are available today in the open-so
 - **Follow-up actions on failure** — Bad data quarantine to enable faster debugging.
 - **Column-level hint forwarding** — Track PII and other sensitive column hints through SQL transformations.
 
-[Learn more about dltHub Data Quality →](https://dlthub.com/docs/hub/features/quality/data-quality)
+[Learn more about dltHub Data Quality →](https://dlthub.com/docs/hub/data-quality)

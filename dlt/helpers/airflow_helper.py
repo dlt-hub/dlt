@@ -414,12 +414,14 @@ class PipelineTasksGroup(TaskGroup):
             Any: Airflow tasks created in order of creation.
         """
 
-        # make sure that pipeline was created after dag was initialized
+        # make sure that pipeline was created after PipelineTasksGroup was instantiated
         if not pipeline.pipelines_dir.startswith(os.environ[DLT_DATA_DIR]):
             raise ValueError(
-                "Please create your Pipeline instance after AirflowTasks are created. The dlt"
-                f" pipelines directory {pipeline.pipelines_dir} is not set correctly"
-                f" ({os.environ[DLT_DATA_DIR]} expected)."
+                f"Pipeline {pipeline.pipeline_name} has pipelines_dir set to"
+                f" '{pipeline.pipelines_dir}' but a fresh random working directory under"
+                f" '{os.environ[DLT_DATA_DIR]}' is expected. Instantiate PipelineTasksGroup"
+                " BEFORE creating the Pipeline so dlt.pipeline() picks up the per-worker"
+                f" random working directory set by PipelineTasksGroup in {DLT_DATA_DIR}."
             )
 
         with self:

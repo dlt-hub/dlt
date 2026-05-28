@@ -10,11 +10,10 @@
  */
 
 // @ts-check
-const fs = require('fs');
-const path = require('path');
+const fs = require("node:fs");
+const path = require("node:path");
 
-
-function *walkSync(dir) {
+function* walkSync(dir) {
   const files = fs.readdirSync(dir, { withFileTypes: true });
   for (const file of files) {
     if (file.isDirectory()) {
@@ -29,495 +28,484 @@ function *walkSync(dir) {
 const sidebars = {
   docsSidebar: [
     {
-      type: 'category',
-      label: 'Getting started',
+      type: "category",
+      label: "Getting started",
       items: [
-        { type: 'doc', id: 'intro', label: 'dlt' },
-        'reference/installation',
+        { type: "doc", id: "intro", label: "dlt" },
+        "reference/installation",
         {
-          type: 'category',
-          label: 'Quickstart',
+          type: "category",
+          label: "Quickstart",
           items: [
             {
-              type: 'doc',
-              id: 'tutorial/rest-api',
-              label: 'REST API',
+              type: "doc",
+              id: "tutorial/rest-api",
+              label: "REST API",
             },
             {
-              type: 'doc',
-              id: 'tutorial/sql-database',
-              label: 'SQL database',
+              type: "doc",
+              id: "tutorial/sql-database",
+              label: "SQL database",
             },
             {
-              type: 'doc',
-              id: 'tutorial/filesystem',
-              label: 'Object store & filesystem',
+              type: "doc",
+              id: "tutorial/filesystem",
+              label: "Object store & filesystem",
             },
             {
-              type: 'doc',
-              id: 'tutorial/load-data-from-an-api',
-              label: 'Custom Python function',
+              type: "doc",
+              id: "tutorial/load-data-from-an-api",
+              label: "Custom Python function",
             },
-          ]
+          ],
         },
         {
-          type: 'category',
-          label: 'Release highlights',
+          type: "category",
+          label: "Release highlights",
           link: {
-            type: 'generated-index',
-            title: 'Release highlights',
-            slug: '/release-highlights',
-            keywords: ['release notes', 'release highlights'],
+            type: "generated-index",
+            title: "Release highlights",
+            slug: "/release-highlights",
+            keywords: ["release notes", "release highlights"],
           },
           items: [
-            { type: 'doc', id: 'release-notes/1.21.2', label: '1.21.2' },
-            { type: 'doc', id: 'release-notes/1.19', label: '1.19' },
-            { type: 'doc', id: 'release-notes/1.18', label: '1.18' },
-            { type: 'doc', id: 'release-notes/1.17', label: '1.17' },
-            { type: 'doc', id: 'release-notes/1.16', label: '1.16' },
-            { type: 'doc', id: 'release-notes/1.15', label: '1.15' },
-            { type: 'doc', id: 'release-notes/1.13-1.14', label: '1.13-1.14' },
-            { type: 'doc', id: 'release-notes/1.12.1', label: '1.12.1' },
-          ]
+            { type: "doc", id: "release-notes/1.21.2", label: "1.21.2" },
+            { type: "doc", id: "release-notes/1.19", label: "1.19" },
+            { type: "doc", id: "release-notes/1.18", label: "1.18" },
+            { type: "doc", id: "release-notes/1.17", label: "1.17" },
+            { type: "doc", id: "release-notes/1.16", label: "1.16" },
+            { type: "doc", id: "release-notes/1.15", label: "1.15" },
+            { type: "doc", id: "release-notes/1.13-1.14", label: "1.13-1.14" },
+            { type: "doc", id: "release-notes/1.12.1", label: "1.12.1" },
+          ],
         },
-      ]
+      ],
     },
     {
-      type: 'category',
-      label: 'Build with AI',
+      type: "category",
+      label: "Core concepts",
       items: [
-        { type: 'doc', id: 'dlt-ecosystem/llm-tooling/llm-native-workflow', label: 'REST API source' },
-        { type: 'doc', id: 'dlt-ecosystem/llm-tooling/explore-and-transform', label: 'Explore & Transform data' },
-      ]
+        {
+          type: "doc",
+          id: "reference/explainers/how-dlt-works",
+          label: "Overview",
+        },
+        "general-usage/glossary",
+        "general-usage/source",
+        "general-usage/resource",
+        "general-usage/pipeline",
+        "general-usage/destination",
+        {
+          type: "doc",
+          id: "general-usage/dataset-access/dataset",
+          label: "Dataset",
+        },
+        "general-usage/state",
+        "general-usage/schema",
+      ],
     },
     {
-      type: 'category',
-      label: 'Core concepts',
+      type: "category",
+      label: "Sources",
       items: [
         {
-          type: 'doc',
-          id: 'reference/explainers/how-dlt-works',
-          label: 'Overview',
-        },
-        'general-usage/glossary',
-        'general-usage/source',
-        'general-usage/resource',
-        'general-usage/pipeline',
-        'general-usage/destination',
-        {
-          type: 'doc',
-          id: 'general-usage/dataset-access/dataset',
-          label: 'Dataset',
-        },
-        'general-usage/state',
-        'general-usage/schema',
-      ]
-    },
-    {
-      type: 'category',
-      label: 'Sources',
-      items: [
-        {
-          type: 'link',
-          label: '10k+ AI Context assets',
-          description: 'Build a custom dlt REST API source with your agent',
-          href: 'https://dlthub.com/workspace',
+          type: "link",
+          label: "10k+ AI Context assets",
+          description: "Build a custom dlt REST API source with your agent",
+          href: "https://dlthub.com/workspace",
         },
         {
-          type: 'category',
-          label: 'REST API',
-          description:'Load data from any REST API',
+          type: "category",
+          label: "REST API",
+          description: "Load data from any REST API",
           items: [
             {
-              type: 'doc',
-              id: 'dlt-ecosystem/verified-sources/rest_api/basic',
-              label: 'Basic',
+              type: "doc",
+              id: "dlt-ecosystem/verified-sources/rest_api/basic",
+              label: "Basic",
             },
             {
-              type: 'doc',
-              id: 'dlt-ecosystem/verified-sources/rest_api/advanced',
-              label: 'Advanced',
+              type: "doc",
+              id: "dlt-ecosystem/verified-sources/rest_api/advanced",
+              label: "Advanced",
             },
-            'dlt-ecosystem/verified-sources/openapi-generator',
-          ]
+            "dlt-ecosystem/verified-sources/openapi-generator",
+          ],
         },
         {
-          type: 'category',
-          label: 'SQL database',
-          description: 'PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more',
+          type: "category",
+          label: "SQL database",
+          description: "PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more",
           items: [
-            'dlt-ecosystem/verified-sources/sql_database/setup',
-            'dlt-ecosystem/verified-sources/sql_database/configuration',
-            'dlt-ecosystem/verified-sources/sql_database/usage',
-            'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
-            'dlt-ecosystem/verified-sources/sql_database/advanced',
-            'walkthroughs/add-incremental-configuration',
-          ]
+            "dlt-ecosystem/verified-sources/sql_database/setup",
+            "dlt-ecosystem/verified-sources/sql_database/configuration",
+            "dlt-ecosystem/verified-sources/sql_database/usage",
+            "dlt-ecosystem/verified-sources/sql_database/troubleshooting",
+            "dlt-ecosystem/verified-sources/sql_database/advanced",
+            "walkthroughs/add-incremental-configuration",
+          ],
         },
         {
-          type: 'doc',
-          id: 'dlt-ecosystem/verified-sources/filesystem/index',
-          label: 'Object store & filesystem',
+          type: "doc",
+          id: "dlt-ecosystem/verified-sources/filesystem/index",
+          label: "Object store & filesystem",
         },
-        'dlt-ecosystem/verified-sources/arrow-pandas',
+        "dlt-ecosystem/verified-sources/arrow-pandas",
         {
-          type: 'category',
-          label: 'Verified sources',
-          description: 'Verified sources maintained by dltHub and the community',
+          type: "category",
+          label: "Verified sources",
+          description: "Verified sources maintained by dltHub and the community",
           items: [
-            'dlt-ecosystem/verified-sources/airtable',
-            'dlt-ecosystem/verified-sources/amazon_kinesis',
-            'dlt-ecosystem/verified-sources/asana',
-            'dlt-ecosystem/verified-sources/chess',
-            'dlt-ecosystem/verified-sources/facebook_ads',
-            'dlt-ecosystem/verified-sources/freshdesk',
-            'dlt-ecosystem/verified-sources/github',
-            'dlt-ecosystem/verified-sources/google_ads',
-            'dlt-ecosystem/verified-sources/google_analytics',
-            'dlt-ecosystem/verified-sources/google_sheets',
-            'dlt-ecosystem/verified-sources/hubspot',
-            'dlt-ecosystem/verified-sources/inbox',
-            'dlt-ecosystem/verified-sources/jira',
-            'dlt-ecosystem/verified-sources/kafka',
-            'dlt-ecosystem/verified-sources/matomo',
-            'dlt-ecosystem/verified-sources/mongodb',
-            'dlt-ecosystem/verified-sources/mux',
-            'dlt-ecosystem/verified-sources/notion',
-            'dlt-ecosystem/verified-sources/personio',
-            'dlt-ecosystem/verified-sources/pg_replication',
-            'dlt-ecosystem/verified-sources/pipedrive',
-            'dlt-ecosystem/verified-sources/salesforce',
-            'dlt-ecosystem/verified-sources/scrapy',
-            'dlt-ecosystem/verified-sources/shopify',
-            'dlt-ecosystem/verified-sources/slack',
-            'dlt-ecosystem/verified-sources/strapi',
-            'dlt-ecosystem/verified-sources/stripe',
-            'dlt-ecosystem/verified-sources/workable',
-            'dlt-ecosystem/verified-sources/zendesk',
-          ]
+            "dlt-ecosystem/verified-sources/airtable",
+            "dlt-ecosystem/verified-sources/amazon_kinesis",
+            "dlt-ecosystem/verified-sources/asana",
+            "dlt-ecosystem/verified-sources/chess",
+            "dlt-ecosystem/verified-sources/facebook_ads",
+            "dlt-ecosystem/verified-sources/freshdesk",
+            "dlt-ecosystem/verified-sources/github",
+            "dlt-ecosystem/verified-sources/google_ads",
+            "dlt-ecosystem/verified-sources/google_analytics",
+            "dlt-ecosystem/verified-sources/google_sheets",
+            "dlt-ecosystem/verified-sources/hubspot",
+            "dlt-ecosystem/verified-sources/inbox",
+            "dlt-ecosystem/verified-sources/jira",
+            "dlt-ecosystem/verified-sources/kafka",
+            "dlt-ecosystem/verified-sources/matomo",
+            "dlt-ecosystem/verified-sources/mongodb",
+            "dlt-ecosystem/verified-sources/mux",
+            "dlt-ecosystem/verified-sources/notion",
+            "dlt-ecosystem/verified-sources/personio",
+            "dlt-ecosystem/verified-sources/pg_replication",
+            "dlt-ecosystem/verified-sources/pipedrive",
+            "dlt-ecosystem/verified-sources/salesforce",
+            "dlt-ecosystem/verified-sources/scrapy",
+            "dlt-ecosystem/verified-sources/shopify",
+            "dlt-ecosystem/verified-sources/slack",
+            "dlt-ecosystem/verified-sources/strapi",
+            "dlt-ecosystem/verified-sources/stripe",
+            "dlt-ecosystem/verified-sources/workable",
+            "dlt-ecosystem/verified-sources/zendesk",
+          ],
         },
-      ]
+      ],
     },
     {
-      type: 'category',
-      label: 'Destinations',
+      type: "category",
+      label: "Destinations",
       items: [
         {
-          type: 'doc',
-          id: 'dlt-ecosystem/destinations/index',
-          label: 'Overview',
+          type: "doc",
+          id: "dlt-ecosystem/destinations/index",
+          label: "Overview",
         },
-        'dlt-ecosystem/destinations/filesystem',
-        'dlt-ecosystem/destinations/sqlalchemy',
-        'dlt-ecosystem/destinations/athena',
-        'dlt-ecosystem/destinations/bigquery',
-        'dlt-ecosystem/destinations/clickhouse',
-        'dlt-ecosystem/destinations/databricks',
-        'dlt-ecosystem/destinations/delta-iceberg',
-        'dlt-ecosystem/destinations/dremio',
-        'dlt-ecosystem/destinations/duckdb',
-        'dlt-ecosystem/destinations/ducklake',
-        'dlt-ecosystem/destinations/huggingface',
-        'dlt-ecosystem/destinations/iceberg',
-        'dlt-ecosystem/destinations/lance',
-        'dlt-ecosystem/destinations/lancedb',
-        'dlt-ecosystem/destinations/fabric',
-        'dlt-ecosystem/destinations/mssql',
-        'dlt-ecosystem/destinations/motherduck',
-        'dlt-ecosystem/destinations/postgres',
-        'dlt-ecosystem/destinations/redshift',
-        'dlt-ecosystem/destinations/snowflake',
-        'dlt-ecosystem/destinations/synapse',
-        'dlt-ecosystem/destinations/qdrant',
-        'dlt-ecosystem/destinations/weaviate',
-        'dlt-ecosystem/destinations/destination',
-        'dlt-ecosystem/destinations/community-destinations',
-      ]
+        "dlt-ecosystem/destinations/filesystem",
+        "dlt-ecosystem/destinations/sqlalchemy",
+        "dlt-ecosystem/destinations/athena",
+        "dlt-ecosystem/destinations/bigquery",
+        "dlt-ecosystem/destinations/clickhouse",
+        "dlt-ecosystem/destinations/databricks",
+        "dlt-ecosystem/destinations/delta-iceberg",
+        "dlt-ecosystem/destinations/dremio",
+        "dlt-ecosystem/destinations/duckdb",
+        "dlt-ecosystem/destinations/ducklake",
+        "dlt-ecosystem/destinations/huggingface",
+        "dlt-ecosystem/destinations/iceberg",
+        "dlt-ecosystem/destinations/lance",
+        "dlt-ecosystem/destinations/lancedb",
+        "dlt-ecosystem/destinations/fabric",
+        "dlt-ecosystem/destinations/mssql",
+        "dlt-ecosystem/destinations/motherduck",
+        "dlt-ecosystem/destinations/postgres",
+        "dlt-ecosystem/destinations/redshift",
+        "dlt-ecosystem/destinations/snowflake",
+        "dlt-ecosystem/destinations/synapse",
+        "dlt-ecosystem/destinations/qdrant",
+        "dlt-ecosystem/destinations/weaviate",
+        "dlt-ecosystem/destinations/destination",
+        "dlt-ecosystem/destinations/community-destinations",
+      ],
     },
     {
-      type: 'category',
-      label: 'Configuration & secrets',
+      type: "category",
+      label: "Configuration & secrets",
       items: [
-        'general-usage/credentials/setup',
-        'general-usage/credentials/advanced',
-        'general-usage/credentials/vaults',
-        'general-usage/credentials/complex_types',
+        "general-usage/credentials/setup",
+        "general-usage/credentials/advanced",
+        "general-usage/credentials/vaults",
+        "general-usage/credentials/complex_types",
         // Unsure item
-        'walkthroughs/add_credentials'
-      ]
+        "walkthroughs/add_credentials",
+      ],
     },
     {
-      type: 'category',
-      label: 'Load strategy',
+      type: "category",
+      label: "Load strategy",
       items: [
         {
-          type: 'doc',
-          id: 'general-usage/full-loading',
-          label: 'Full',
+          type: "doc",
+          id: "general-usage/full-loading",
+          label: "Full",
         },
         {
-          type: 'doc',
-          id: 'general-usage/merge-loading',
-          label: 'Merge',
+          type: "doc",
+          id: "general-usage/merge-loading",
+          label: "Merge",
         },
         {
-          type: 'category',
-          label: 'Incremental',
+          type: "category",
+          label: "Incremental",
           items: [
             {
-              type: 'doc',
-              id: 'general-usage/incremental-loading',
-              label: 'Basic',
+              type: "doc",
+              id: "general-usage/incremental-loading",
+              label: "Basic",
             },
             {
-              type: 'doc',
-              id: 'general-usage/incremental/cursor',
-              label: 'Cursor-based',
+              type: "doc",
+              id: "general-usage/incremental/cursor",
+              label: "Cursor-based",
             },
-            'general-usage/incremental/lag',
+            "general-usage/incremental/lag",
             {
-              type: 'doc',
-              id: 'general-usage/incremental/advanced-state',
-              label: 'State',
+              type: "doc",
+              id: "general-usage/incremental/advanced-state",
+              label: "State",
             },
             {
-              type: 'doc',
-              id: 'general-usage/incremental/troubleshooting',
-              label: 'Troubleshoot',
+              type: "doc",
+              id: "general-usage/incremental/troubleshooting",
+              label: "Troubleshoot",
             },
-          ]
+          ],
         },
-        'dlt-ecosystem/staging',
-      ]
+        "dlt-ecosystem/staging",
+      ],
     },
     {
-      type: 'category',
-      label: 'Schema management',
+      type: "category",
+      label: "Schema management",
       items: [
-        'general-usage/schema-contracts',
-        'general-usage/schema-evolution',
+        "general-usage/schema-contracts",
+        "general-usage/schema-evolution",
         {
-          type: 'doc',
-          id: 'general-usage/dataset-access/view-dlt-schema',
-          label: 'Export & visualize',
+          type: "doc",
+          id: "general-usage/dataset-access/view-dlt-schema",
+          label: "Export & visualize",
         },
-        'walkthroughs/adjust-a-schema',
-        'general-usage/naming-convention',
-      ]
+        "walkthroughs/adjust-a-schema",
+        "general-usage/naming-convention",
+      ],
     },
     {
-      type: 'category',
-      label: 'Transformations',
+      type: "category",
+      label: "Transformations",
       items: [
         {
-          type: 'doc',
-          id: 'dlt-ecosystem/transformations/index',
-          label: 'Overview',
+          type: "doc",
+          id: "dlt-ecosystem/transformations/index",
+          label: "Overview",
         },
         {
-          type: 'category',
-          label: 'Extract, Transform, Load (ETL)',
+          type: "category",
+          label: "Extract, Transform, Load (ETL)",
           items: [
-            { type: 'doc', id: 'dlt-ecosystem/transformations/add-map', label: 'Add column' },
-            { type: 'doc', id: 'general-usage/customising-pipelines/renaming_columns', label: 'Rename column' },
-            { type: 'doc', id: 'general-usage/customising-pipelines/removing_columns', label: 'Remove column' },
-            { type: 'doc', id: 'general-usage/customising-pipelines/pseudonymizing_columns', label: 'Pseudonymize values' },
-          ]
+            { type: "doc", id: "dlt-ecosystem/transformations/add-map", label: "Add column" },
+            { type: "doc", id: "general-usage/customising-pipelines/renaming_columns", label: "Rename column" },
+            { type: "doc", id: "general-usage/customising-pipelines/removing_columns", label: "Remove column" },
+            {
+              type: "doc",
+              id: "general-usage/customising-pipelines/pseudonymizing_columns",
+              label: "Pseudonymize values",
+            },
+          ],
         },
         {
-          type: 'category',
-          label: 'Extract, Load, Transform (ELT)',
+          type: "category",
+          label: "Extract, Load, Transform (ELT)",
           items: [
-            { type: 'doc', id: 'dlt-ecosystem/transformations/python', label: 'Python' },
-            { type: 'doc', id: 'dlt-ecosystem/transformations/sql', label: 'SQL' },
-            { type: 'doc', id: 'dlt-ecosystem/transformations/dbt/dbt', label: 'dbt' },
-            { type: 'link', href: 'https://sqlmesh.readthedocs.io/en/stable/integrations/dlt/', label: 'SQLMesh' },
-          ]
+            { type: "doc", id: "dlt-ecosystem/transformations/python", label: "Python" },
+            { type: "doc", id: "dlt-ecosystem/transformations/sql", label: "SQL" },
+            { type: "doc", id: "dlt-ecosystem/transformations/dbt/dbt", label: "dbt" },
+            { type: "link", href: "https://sqlmesh.readthedocs.io/en/stable/integrations/dlt/", label: "SQLMesh" },
+          ],
         },
-      ]
+      ],
     },
     {
-      type: 'category',
-      label: 'Data quality',
+      type: "category",
+      label: "Data quality",
       items: [
         {
-          type: 'doc',
-          id: 'general-usage/data-quality-lifecycle',
-          label: 'Overview'
+          type: "doc",
+          id: "general-usage/data-quality-lifecycle",
+          label: "Overview",
         },
-        'general-usage/dataset-access/data-quality-dashboard',
-      ]
+        "general-usage/dataset-access/data-quality-dashboard",
+      ],
     },
     {
-      type: 'category',
-      label: 'Deploy',
+      type: "category",
+      label: "Deploy",
       items: [
         {
-          id: 'walkthroughs/deploy-a-pipeline/index',
-          type: 'doc',
-          label: 'Overview',
+          id: "walkthroughs/deploy-a-pipeline/index",
+          type: "doc",
+          label: "Overview",
         },
         {
           type: "category",
           label: "Snowflake",
-          description: 'How to run dlt in Snowflake.',
+          description: "How to run dlt in Snowflake.",
           items: [
             {
               id: "walkthroughs/run-in-snowflake/run-in-snowflake",
-              type: 'doc',
-              label: 'Run dlt',
+              type: "doc",
+              label: "Run dlt",
             },
             {
               id: "walkthroughs/run-in-snowflake/database-connector-app",
-              type: 'doc',
-              label: 'Snowflake Native App',
+              type: "doc",
+              label: "Snowflake Native App",
             },
-          ]
+          ],
         },
         {
-          type: 'category',
-          label: 'Orchestrators',
+          type: "category",
+          label: "Orchestrators",
           items: [
             {
-              id: 'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
-              type: 'doc',
-              label: 'GitHub Actions',
+              id: "walkthroughs/deploy-a-pipeline/deploy-with-github-actions",
+              type: "doc",
+              label: "GitHub Actions",
             },
-            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer', label: 'Airflow' },
-            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions', label: 'Google Cloud Functions' },
-            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run', label: 'Google Cloud Run' },
-            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-kestra', label: 'Kestra' },
-            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-dagster', label: 'Dagster' },
-            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-prefect', label: 'Prefect' },
-            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-modal', label: 'Modal' },
-            { type: 'doc', id: 'walkthroughs/deploy-a-pipeline/deploy-with-orchestra', label: 'Orchestra' },
-          ]
+            { type: "doc", id: "walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer", label: "Airflow" },
+            {
+              type: "doc",
+              id: "walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions",
+              label: "Google Cloud Functions",
+            },
+            {
+              type: "doc",
+              id: "walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run",
+              label: "Google Cloud Run",
+            },
+            { type: "doc", id: "walkthroughs/deploy-a-pipeline/deploy-with-kestra", label: "Kestra" },
+            { type: "doc", id: "walkthroughs/deploy-a-pipeline/deploy-with-dagster", label: "Dagster" },
+            { type: "doc", id: "walkthroughs/deploy-a-pipeline/deploy-with-prefect", label: "Prefect" },
+            { type: "doc", id: "walkthroughs/deploy-a-pipeline/deploy-with-modal", label: "Modal" },
+            { type: "doc", id: "walkthroughs/deploy-a-pipeline/deploy-with-orchestra", label: "Orchestra" },
+          ],
         },
-      ]
-    },
-    {
-      type: 'category',
-      label: 'Performance',
-      items: [
-        { type: 'doc', id: 'reference/performance', label: 'Overview' },
-        'dlt-ecosystem/file-formats',
       ],
     },
     {
-      type: 'category',
-      label: 'Reference',
-      items: [
-        'reference/command-line-interface',
-        'reference/telemetry',
-        'reference/frequently-asked-questions',
-      ],
+      type: "category",
+      label: "Performance",
+      items: [{ type: "doc", id: "reference/performance", label: "Overview" }, "dlt-ecosystem/file-formats"],
+    },
+    {
+      type: "category",
+      label: "Reference",
+      items: ["reference/command-line-interface", "reference/telemetry", "reference/frequently-asked-questions"],
     },
   ],
   hubSidebar: [
     {
-      type: 'category',
-      label: 'Getting started',
+      type: "category",
+      label: "Getting started",
       items: [
-        'hub/introduction',
-        'hub/oss-and-dlthub',
-        'hub/getting-started/installation',
-        'hub/getting-started/runtime-tutorial',
-      ]
+        "hub/getting-started/introduction",
+        "hub/getting-started/oss-and-dlthub",
+        "hub/getting-started/installation",
+        "hub/getting-started/platform-tutorial",
+      ],
     },
     {
-      type: 'category',
-      label: 'Ingestion',
+      type: "category",
+      label: "Ingestion",
       items: [
-        'hub/workspace/overview',
-        'hub/workspace/init',
-        'hub/workspace/dashboard',
-        'hub/ecosystem/ms-sql',
-        'hub/ecosystem/delta',
-        'hub/ecosystem/iceberg',
-        'hub/ecosystem/snowflake_plus',
-      ]
+        "hub/ingestion/init",
+        "hub/ingestion/rest-api-source",
+        "hub/ingestion/dashboard",
+        "hub/ingestion/ms-sql",
+        "hub/ingestion/delta",
+        "hub/ingestion/iceberg",
+        "hub/ingestion/snowflake-plus",
+      ],
     },
     {
-      type: 'category',
-      label: 'Transformations',
+      type: "category",
+      label: "Transformations",
       items: [
-        'hub/features/transformations/index',
-        'hub/features/transformations/dbt-transformations',
-      ]
+        "hub/transformations/index",
+        "hub/transformations/dbt-transformations",
+        "hub/transformations/explore-and-transform",
+      ],
     },
     {
-      type: 'category',
-      label: 'Pipeline operations',
+      type: "category",
+      label: "Pipeline operations",
       items: [
-        'hub/core-concepts/profiles-dlthub',
-        'hub/runtime/overview',
-        'hub/runtime/workspace-setup',
-        'hub/runtime/deploying',
-        'hub/runtime/triggers',
-        'hub/runtime/job-configuration',
-        'hub/runtime/monitor-and-debug',
-      ]
+        "hub/pipeline-operations/profiles",
+        "hub/pipeline-operations/overview",
+        "hub/pipeline-operations/workspace-setup",
+        "hub/pipeline-operations/deployments",
+        "hub/pipeline-operations/triggers",
+        "hub/pipeline-operations/job-configuration",
+        "hub/pipeline-operations/monitoring",
+      ],
     },
     {
-      type: 'category',
-      label: 'Platform capabilities',
-      items: [
-        'hub/runtime/regions',
-        'hub/runtime/users-and-roles',
-        'hub/runtime/settings',
-      ]
+      type: "category",
+      label: "Data quality & governance",
+      items: ["hub/data-quality/index", "hub/data-quality/advanced"],
     },
     {
-      type: 'category',
-      label: 'Data quality & governance',
-      items: [
-        'hub/features/quality/data-quality',
-        'hub/features/quality/advanced',
-      ]
+      type: "category",
+      label: "Data discovery & serving",
+      items: ["hub/data-discovery/datasets", { type: "doc", id: "general-usage/dataset-access/marimo" }],
     },
     {
-      type: 'category',
-      label: 'Data discovery & serving',
+      type: "category",
+      label: "Platform capabilities",
       items: [
-        'hub/core-concepts/datasets',
-        { type: 'doc', id: 'general-usage/dataset-access/marimo' },
-      ]
+        "hub/platform-capabilities/regions",
+        "hub/platform-capabilities/users-and-roles",
+        "hub/platform-capabilities/settings",
+      ],
     },
-    'hub/command-line-interface',
-    'hub/license',
+    "hub/command-line-interface",
+    "hub/license",
   ],
   cookbookSidebar: [
     {
-      type: 'category',
-      label: 'Cookbook',
+      type: "category",
+      label: "Cookbook",
       link: {
-        type: 'doc',
-        id: 'examples/index',
+        type: "doc",
+        id: "examples/index",
       },
       items: [
-        'walkthroughs/dispatch-to-multiple-tables',
-        'walkthroughs/share-a-dataset',
-        'walkthroughs/create-new-destination',
+        "walkthroughs/dispatch-to-multiple-tables",
+        "walkthroughs/share-a-dataset",
+        "walkthroughs/create-new-destination",
       ],
     },
   ],
   educationSidebar: [
     {
-      type: 'category',
-      label: 'Education',
+      type: "category",
+      label: "Education",
       link: {
-        type: 'doc',
-        id: 'tutorial/education',
+        type: "doc",
+        id: "tutorial/education",
       },
-      items: [
-        'tutorial/fundamentals-course',
-        'tutorial/advanced-course',
-      ]
+      items: ["tutorial/fundamentals-course", "tutorial/advanced-course"],
     },
-  ]
+  ],
 };
 
- // insert examples
+// insert examples
 for (const item of sidebars.cookbookSidebar) {
   for (let examplePath of walkSync("./docs_processed/examples")) {
     examplePath = examplePath.replace(/\\/g, "/");
@@ -528,18 +516,16 @@ for (const item of sidebars.cookbookSidebar) {
   }
 }
 
-
 // inject api reference if it exists
-if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
+if (fs.existsSync("./docs_processed/api_reference/sidebar.json")) {
   for (const item of sidebars.docsSidebar) {
-    if (item.label === 'Reference') {
-      item.items.splice(0,0,require("./docs_processed/api_reference/sidebar.json"));
+    if (item.label === "Reference") {
+      item.items.splice(0, 0, require("./docs_processed/api_reference/sidebar.json"));
     }
   }
 }
 
 module.exports = sidebars;
-
 
 /*
 blog:

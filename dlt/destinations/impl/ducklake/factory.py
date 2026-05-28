@@ -32,6 +32,7 @@ class ducklake(Destination[DuckLakeClientConfiguration, "DuckLakeClient"]):
     def __init__(
         self,
         credentials: Optional[DuckLakeCredentials] = None,
+        automatic_migration: bool = False,
         destination_name: Optional[str] = None,
         environment: Optional[str] = None,
         **kwargs: Any,
@@ -44,6 +45,8 @@ class ducklake(Destination[DuckLakeClientConfiguration, "DuckLakeClient"]):
             credentials(Optional[DuckLakeCredentials]): DuckLake credentials or instantiated connection to a DuckLake
                 client (which is a duckdb instance). The DuckLake credentials include
                 catalog name, catalog, and storage
+            automatic_migration (bool, optional): When true, attaches with `AUTOMATIC_MIGRATION true` so DuckDB migrates
+                an older DuckLake catalog schema on attach. Defaults to False.
             destination_name(Optional[str]): Name of a destination which. May be used as ducklake name, if
                 explicit name is not set in `credentials`.
             environment (Optional[str]): Environment of the destination
@@ -51,6 +54,7 @@ class ducklake(Destination[DuckLakeClientConfiguration, "DuckLakeClient"]):
         """
         super().__init__(
             credentials=credentials,
+            automatic_migration=automatic_migration,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

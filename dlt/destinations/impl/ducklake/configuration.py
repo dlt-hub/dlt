@@ -140,6 +140,8 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
     credentials: DuckLakeCredentials = None
     create_indexes: bool = False  # does nothing but required
     override_data_path: bool = False
+    automatic_migration: bool = False
+    """When true, attaches with `AUTOMATIC_MIGRATION true` so DuckDB migrates an older DuckLake catalog schema on attach."""
 
     def fingerprint(self) -> str:
         """Use fingerprint of underlying storage. This is precise to bucket level"""
