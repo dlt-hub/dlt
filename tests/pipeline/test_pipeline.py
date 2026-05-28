@@ -5051,6 +5051,8 @@ def test_ignore_signals_in_load() -> None:
     p.start()
 
     # should raise on KeyboardInterrupt - delayed signals disabled
+    # NOTE: any failing assert below locks the pytest. remove
+    # @pytest.mark.forked to debug
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(dlt.resource([1, 2, 3], name="digits"))
     assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
@@ -5158,6 +5160,8 @@ def test_signal_force_load_step_shutdown(sig: int) -> None:
     p.start()
 
     # should raise regular pipeline exception
+    # NOTE: any failing assert below locks the pytest. remove
+    # @pytest.mark.forked to debug
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run([1, 2, 3], table_name="digits")
     assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)

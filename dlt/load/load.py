@@ -596,8 +596,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                                 self._job_metrics[cid] = prev._replace(
                                     followup_jobs=existing + chain_fups
                                 )
-                if state in ("failed", "completed", "retry"):
-                    self._job_metrics[job.job_id()] = metrics
+                self._job_metrics[job.job_id()] = metrics
 
             if state in ["failed", "completed"]:
                 self.collector.update("Jobs")

@@ -465,7 +465,9 @@ class RunnableLoadJob(LoadJob, ABC):
                 f"Transient exception in job {self.job_id()} in file {self._file_path}"
             )
         finally:
-            self._release(next_state)
+            # skip exception not caught above ie. KeyboardInterrupt
+            if next_state is not None:
+                self._release(next_state)
 
     def _release(self, next_state: TLoadJobState) -> None:
         """Release job from polling"""
