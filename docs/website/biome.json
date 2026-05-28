@@ -1,0 +1,43 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+  "files": {
+    "includes": [
+      "redirects.js",
+      "worker.ts",
+      "tools/**/*.{js,ts}",
+      "scripts/**/*.{js,ts}",
+      "plugins/**/*.{js,ts}",
+      "sidebars.js",
+      "docusaurus.config.js",
+      "babel.config.js",
+      "!**/node_modules",
+      "!build",
+      "!.docusaurus",
+      "!docs_processed",
+      "!versioned_docs",
+      "!versioned_sidebars",
+      "!versioned_redirects",
+      "!redirects.compiled.js",
+      "!.dlt-repo"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  }
+}

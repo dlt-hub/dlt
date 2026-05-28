@@ -58,10 +58,10 @@ jobs:
       # - name: Start weaviate
       #   run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 
-      - name: Setup node 20
-        uses: actions/setup-node@v4
+      - name: Setup node 22
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: '22'
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -90,6 +90,12 @@ jobs:
 
       - name: Install dlthub incl alpha releases
         run: cd docs
+
+      - name: Install website node dependencies
+        run: cd docs/website && npm install
+
+      - name: lint website scripts
+        run: cd docs/website && npm run lint
 
       - name: lint docs
         run: cd docs && make lint
