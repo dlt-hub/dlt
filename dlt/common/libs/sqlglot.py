@@ -1044,6 +1044,21 @@ def normalize_query_identifiers(
     return query
 
 
+def _restore_alias_case_in_clauses(query: sge.Query, alias_rename_map: Dict[str, str]) -> None:
+    """Rewrite bare-column references in ORDER BY / GROUP BY / HAVING back to the original
+    (un-casefolded) alias case so they match SELECT aliases preserved by `bind_query`."""
+    for clause_key in ("order", "group", "having"):
+        clause = query.args.get(clause_key)
+        if clause is None:
+            continue
+        for col in clause.find_all(sge.Column):
+            if col.args.get("table") is not None:
+                continue
+            name_node = col.this
+            if name_node.name in alias_rename_map:
+                name_node.set("this", alias_rename_map[name_node.name])
+
+
 def bind_query(
     qualified_query: sge.Query,
     sqlglot_schema: Any,  # SQLGlotSchema
@@ -1113,12 +1128,17 @@ def bind_query(
             node.set("quoted", True)
 
     # add aliases to output selects to stay compatible with dlt schema after the query
+    alias_rename_map: Dict[str, str] = {}
     if orig_selects:
         for i, orig in orig_selects.items():
             case_folded_orig = casefold_identifier(orig)
             if case_folded_orig != orig:
+                alias_rename_map[case_folded_orig] = orig
                 # somehow we need to alias just top select in UNION (tested on Snowflake)
                 sel_expr = qualified_query.selects[i]
                 qualified_query.selects[i] = sge.alias_(sel_expr, orig, quoted=True)
+
+    if alias_rename_map:
+        _restore_alias_case_in_clauses(qualified_query, alias_rename_map)
 
     return qualified_query

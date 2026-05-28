@@ -13,6 +13,16 @@ from dlt.destinations.queries import build_row_counts_expr, build_select_expr, b
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 
 
+_BIND_QUERY_SCHEMA = SQLGlotSchema(
+    {
+        "my_dataset": {
+            "customers": {"customer_id": str, "country_code": str},
+            "orders": {"order_id": str, "customer_id": str},
+        }
+    }
+)
+
+
 def test_basic() -> None:
     stmt = build_row_counts_expr("my_table", quoted_identifiers=True)
     expected = (
@@ -144,3 +154,86 @@ ORDER BY i.id ASC
         normalized_query = normalized_query_expr.sql()
 
     assert normalized_query == expected_normalized_query
+
+
+def _bind_query_expand(table_name: str, db: Optional[str] = None) -> List[str]:
+    return [db, table_name]
+
+
+@pytest.mark.parametrize(
+    "clause_sql",
+    [
+        pytest.param('ORDER BY "orders__order_id" ASC', id="order_by"),
+        pytest.param('GROUP BY "orders__order_id"', id="group_by"),
+        pytest.param('HAVING "orders__order_id" > 0', id="having"),
+    ],
+)
+def test_bind_query_preserves_alias_case_for_clause_references(clause_sql: str) -> None:
+    query = cast(
+        sge.Query,
+        sqlglot.parse_one(f"""
+            SELECT
+                customers.customer_id AS customer_id,
+                orders.order_id AS "orders__order_id"
+            FROM my_dataset.customers AS customers
+            INNER JOIN my_dataset.orders AS orders
+              ON customers.customer_id = orders.customer_id
+            {clause_sql}
+        """),
+    )
+
+    bound = bind_query(
+        qualified_query=query,
+        sqlglot_schema=_BIND_QUERY_SCHEMA,
+        expand_table_name=_bind_query_expand,
+        casefold_identifier=str.upper,
+    )
+    sql = bound.sql()
+
+    # SELECT alias is preserved in original
+    assert 'AS "orders__order_id"' in sql
+    # clause reference matches the preserved alias case, not the casefolded form
+    assert clause_sql in sql
+
+
+def test_bind_query_casefolds_qualified_columns_in_order_by() -> None:
+    """Table-qualified column references in ORDER BY must still be casefolded."""
+    query = cast(
+        sge.Query,
+        sqlglot.parse_one("""
+            SELECT customers.customer_id AS customer_id
+            FROM my_dataset.customers AS customers
+            ORDER BY customers.customer_id ASC
+        """),
+    )
+
+    bound = bind_query(
+        qualified_query=query,
+        sqlglot_schema=_BIND_QUERY_SCHEMA,
+        expand_table_name=_bind_query_expand,
+        casefold_identifier=str.upper,
+    )
+    sql = bound.sql()
+
+    assert 'ORDER BY "CUSTOMERS"."CUSTOMER_ID"' in sql
+
+
+def test_bind_query_casefolds_unrelated_bare_order_by_identifiers() -> None:
+    query = cast(
+        sge.Query,
+        sqlglot.parse_one("""
+            SELECT customers.customer_id AS customer_id
+            FROM my_dataset.customers AS customers
+            ORDER BY country_code ASC
+        """),
+    )
+
+    bound = bind_query(
+        qualified_query=query,
+        sqlglot_schema=_BIND_QUERY_SCHEMA,
+        expand_table_name=_bind_query_expand,
+        casefold_identifier=str.upper,
+    )
+    sql = bound.sql()
+
+    assert 'ORDER BY "COUNTRY_CODE"' in sql
