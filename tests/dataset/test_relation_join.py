@@ -13,7 +13,7 @@ from dlt.dataset._join import (
     _to_join_ref,
 )
 from dlt.dataset.relation import TJoinType
-from tests.dataset.utils import TCrossDsFixture, TLoadsFixture
+from tests.dataset.utils import TCrossDs3Fixture, TCrossDsFixture, TLoadsFixture
 
 
 class _ColumnRef(TypedDict):
@@ -1149,3 +1149,182 @@ def test_cross_dataset_join_with_same_table_names_keeps_sources_unambiguous(
     assert list(df["id"]) == [1, 2]
     assert list(df["name"]) == ["Alice", "Bob"]
     assert list(df["marketing__segment"]) == ["pro", "free"]
+
+
+@pytest.mark.xfail(reason="Ambiguous qualifier should be rejected")
+def test_cross_dataset_same_named_join_rejects_ambiguous_on_qualifier(
+    same_named_cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_marketing = same_named_cross_dataset_duckdb
+
+    with pytest.raises(ValueError):
+        ds_crm.table("users").join(
+            ds_marketing.table("users"),
+            on="users.id = users.id",
+            alias="marketing",
+        )
+
+
+def test_cross_dataset_join_chain_three_tables(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    joined = (
+        ds_inv.table("purchases")
+        .join(ds_crm.table("users"), on="purchases.user_id = users.id")
+        .join("inventory_items", on="purchases.sku = inventory_items.sku")
+    )
+    df = joined.order_by("purchase_id").df()
+
+    # orphan purchase (user_id=99) is dropped by the inner join to users
+    assert len(df) == 3
+    assert "purchase_id" in df.columns
+    assert "users__name" in df.columns
+    assert "inventory_items__quantity" in df.columns
+    assert list(df["users__name"]) == ["Alice", "Alice", "Bob"]
+    assert list(df["inventory_items__quantity"]) == [50, 30, 50]
+
+
+def test_cross_dataset_join_chain_magic_then_cross(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    joined = (
+        ds_crm.table("users__orders")
+        .join("users")
+        .join(ds_inv.table("purchases"), on="users.id = purchases.user_id")
+    )
+    df = joined.df()
+
+    assert len(df) == 5
+    assert "order_id" in df.columns  # base, unprefixed
+    assert "users__name" in df.columns
+    assert "purchases__sku" in df.columns
+    assert sorted(df["users__name"]) == ["Alice", "Alice", "Alice", "Alice", "Bob"]
+    assert list(df["users__id"]) == list(df["purchases__user_id"])
+
+
+@pytest.mark.xfail(
+    reason=(
+        "Column 'inventory_items.warehouse_id' could not be resolved for table: 'inventory_items'"
+    )
+)
+def test_cross_dataset_join_chain_four_tables(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    """Star-schema joined to three dimensions across two datasets"""
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    joined = (
+        ds_inv.table("purchases")
+        .join(ds_crm.table("users"), on="purchases.user_id = users.id")
+        .join("inventory_items", on="purchases.sku = inventory_items.sku")
+        .join("warehouses", on="inventory_items.warehouse_id = warehouses.warehouse_id")
+    )
+    df = joined.order_by("purchase_id").df()
+
+    assert len(df) == 3
+    assert "warehouses__city" in df.columns
+    assert list(df["warehouses__city"]) == ["Berlin", "Paris", "Berlin"]
+
+
+@pytest.mark.xfail(reason="Column 'users.id' could not be resolved for table: 'users'")
+def test_cross_dataset_join_chain_three_datasets(
+    three_way_cross_dataset_duckdb: TCrossDs3Fixture,
+) -> None:
+    ds_crm, ds_inv, ds_billing = three_way_cross_dataset_duckdb
+
+    joined = (
+        ds_inv.table("purchases")
+        .join(ds_crm.table("users"), on="purchases.user_id = users.id")
+        .join(ds_billing.table("subscriptions"), on="users.id = subscriptions.user_id")
+    )
+    df = joined.order_by("purchase_id").df()
+
+    assert len(df) == 3
+    assert "users__name" in df.columns
+    assert "subscriptions__plan" in df.columns
+    assert list(df["users__name"]) == ["Alice", "Alice", "Bob"]
+    assert list(df["subscriptions__plan"]) == ["enterprise", "enterprise", "free"]
+
+
+def test_cross_dataset_join_chain_does_not_mutate_sources(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    purchases = ds_inv.table("purchases")
+    users = ds_crm.table("users")
+    inventory_items = ds_inv.table("inventory_items")
+
+    purchases_sql = purchases.to_sql()
+    users_sql = users.to_sql()
+    inventory_items_sql = inventory_items.to_sql()
+
+    step1 = purchases.join(users, on="purchases.user_id = users.id")
+    step1_sql = step1.to_sql()
+
+    assert purchases.to_sql() == purchases_sql
+    assert users.to_sql() == users_sql
+    assert inventory_items.to_sql() == inventory_items_sql
+    assert step1.to_sql() == step1_sql
+    # check if rebuild of the first step is identical
+    assert purchases.join(users, on="purchases.user_id = users.id").to_sql() == step1_sql
+
+
+def test_cross_dataset_join_chain_with_filtered_step(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    alice_purchases = ds_inv.table("purchases").where("user_id", "eq", 1)
+    joined = alice_purchases.join(ds_crm.table("users"), on="purchases.user_id = users.id").join(
+        "inventory_items", on="purchases.sku = inventory_items.sku"
+    )
+    df = joined.order_by("purchase_id").df()
+
+    assert len(df) == 2
+    assert list(df["purchase_id"]) == [1, 2]
+    assert list(df["users__name"]) == ["Alice", "Alice"]
+    assert list(df["inventory_items__quantity"]) == [50, 30]
+
+
+@pytest.mark.xfail(reason="unqualified where column `quantity` can't be resolved")
+def test_cross_dataset_join_chain_filter_on_later_colliding_column(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    high_value = ds_inv.table("purchases").where("quantity", "gt", 1)
+    joined = high_value.join(ds_crm.table("users"), on="purchases.user_id = users.id").join(
+        "inventory_items", on="purchases.sku = inventory_items.sku"
+    )
+
+    df = joined.order_by("purchase_id").df()
+    assert len(df) == 1
+    assert list(df["users__name"]) == ["Alice"]
+    assert list(df["inventory_items__quantity"]) == [50]
+
+
+@pytest.mark.xfail(reason="Column 'mkt_users.id' could not be resolved for table: 'mkt_users'")
+def test_cross_dataset_chain_same_named_tables_disambiguated(
+    same_named_cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    """CRM and marketing both expose a `users` table."""
+    ds_crm, ds_mkt = same_named_cross_dataset_duckdb
+
+    marketing = ds_mkt.query("SELECT * FROM users AS mkt_users")
+    joined = (
+        ds_crm.table("users__orders")
+        .join("users")
+        .join(marketing, on="users.id = mkt_users.id", alias="marketing")
+    )
+    df = joined.order_by("order_id").df()
+
+    assert len(df) == 3
+    assert "users__name" in df.columns
+    assert "marketing__segment" in df.columns
+    assert list(df["users__name"]) == ["Alice", "Alice", "Bob"]
+    assert list(df["marketing__segment"]) == ["pro", "pro", "free"]

@@ -74,6 +74,12 @@ class MarketingUserRow(TypedDict):
     segment: str
 
 
+class SubscriptionRow(TypedDict):
+    subscription_id: int
+    user_id: int
+    plan: str
+
+
 class CustomerRow(TypedDict):
     customer_id: int
     name: str
@@ -94,6 +100,7 @@ class CountryRow(TypedDict):
 TLoadStats = dict[str, int]
 TLoadsFixture = tuple[dlt.Dataset, tuple[str, str], tuple[TLoadStats, TLoadStats]]
 TCrossDsFixture = tuple[dlt.Dataset, dlt.Dataset]
+TCrossDs3Fixture = tuple[dlt.Dataset, dlt.Dataset, dlt.Dataset]
 
 
 USERS_DATA_0: list[UserRow] = [
@@ -211,6 +218,13 @@ MARKETING_USERS: list[MarketingUserRow] = [
 ]
 
 
+SUBSCRIPTIONS: list[SubscriptionRow] = [
+    {"subscription_id": 1, "user_id": 1, "plan": "enterprise"},
+    {"subscription_id": 2, "user_id": 2, "plan": "free"},
+    {"subscription_id": 3, "user_id": 3, "plan": "pro"},
+]
+
+
 @dlt.source
 def inventory():
     @dlt.resource(name="warehouses")
@@ -244,6 +258,15 @@ def marketing_users():
         yield MARKETING_USERS
 
     return [users()]
+
+
+@dlt.source
+def billing():
+    @dlt.resource(name="subscriptions")
+    def subscriptions():
+        yield SUBSCRIPTIONS
+
+    return [subscriptions()]
 
 
 CUSTOMERS: list[CustomerRow] = [
