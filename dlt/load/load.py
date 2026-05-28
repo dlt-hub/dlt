@@ -288,9 +288,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 job.run_managed(active_job_client, self._done_event)
         except Exception as e:
             logger.exception(f"worker {job.__class__} died in uncontrollable manner")
-            job._state = "retry"
-            job._exception = e
-            job._release()
+            # release only if job is still running - if this exception comes from _release()
+            # itself - job._state will be already set
+            if job._state == "running":
+                job._exception = e
+                job._release("retry")
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
@@ -594,7 +596,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                                 self._job_metrics[cid] = prev._replace(
                                     followup_jobs=existing + chain_fups
                                 )
-                self._job_metrics[job.job_id()] = metrics
+                if state in ("failed", "completed", "retry"):
+                    self._job_metrics[job.job_id()] = metrics
 
             if state in ["failed", "completed"]:
                 self.collector.update("Jobs")
