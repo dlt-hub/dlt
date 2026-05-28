@@ -125,6 +125,9 @@ def cross_dataset_pipelines(
             "cross-dataset joins are not supported on filesystem destinations"
             " (see dlt/dataset/relation.py:_resolve_join_target)"
         )
+    if destination_config.destination_name == "sqlalchemy_sqlite":
+        # TODO: remove when we attach foreign datasets in sqlite
+        pytest.skip("sqlite cross-dataset joins require ATTACH DATABASE for both datasets")
     destination: Destination[Any, Any]
     if destination_config.destination_type == "duckdb":
         destination_config.setup()
@@ -228,8 +231,13 @@ def test_explicit_on_composite_key(relational_pipeline: Pipeline) -> None:
     ],
 )
 def test_join_kind_matrix(
-    relational_pipeline: Pipeline, kind: TJoinType, expected_rows: int
+    relational_pipeline: Pipeline,
+    destination_config: DestinationTestConfiguration,
+    kind: TJoinType,
+    expected_rows: int,
 ) -> None:
+    if kind == "full" and destination_config.destination_name == "sqlalchemy_mysql":
+        pytest.skip("MySQL does not support FULL JOIN")
     dataset = relational_pipeline.dataset()
     df = (
         dataset.table("customers")
