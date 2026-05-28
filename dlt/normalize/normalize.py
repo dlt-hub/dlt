@@ -88,14 +88,15 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     def create_storages(self) -> None:
         # pass initial normalize storage config embedded in normalize config
         self.normalize_storage = NormalizeStorage(
-            True, config=self.config._normalize_storage_config
+            False, config=self.config._normalize_storage_config
         )
-        # normalize saves in preferred format but can read all supported formats
-        self.load_storage = LoadStorage(
-            True,
-            LoadStorage.ALL_SUPPORTED_FILE_FORMATS,
-            config=self.config._load_storage_config,
-        )
+        if self.normalize_storage.is_storage_ready():
+            # normalize saves in preferred format but can read all supported formats
+            self.load_storage = LoadStorage(
+                True,
+                LoadStorage.ALL_SUPPORTED_FILE_FORMATS,
+                config=self.config._load_storage_config,
+            )
 
     def _collect_and_update_progress(self, load_id: str) -> None:
         """Collects progress from worker files and updates the collector."""

@@ -21,6 +21,8 @@ from typing import (
     Any,
     Tuple,
 )
+import semver
+
 from dlt.common.typing import NotRequired, TypedDict, get_args, DictStrAny, SupportsHumanize
 from dlt.common.pendulum import pendulum
 from dlt.common.json import json
@@ -570,6 +572,15 @@ class PackageStorage:
         self.save_load_package_state(load_id, state)
         if schema:
             self.save_schema(load_id, schema)
+
+    def migrate_package(
+        self, load_id: str, from_version: semver.Version, to_version: semver.Version
+    ) -> None:
+        """Migrates load package using load/normalize storage version"""
+        if from_version == "1.0.0" and from_version < to_version:
+            self.storage.create_folder(
+                os.path.join(load_id, PackageStorage.PENDING_TRANSITIONS_FOLDER), exists_ok=True
+            )
 
     def complete_loading_package(self, load_id: str, load_state: TLoadPackageStatus) -> str:
         """Completes loading the package by writing marker file with`package_state. Returns path to the completed package"""

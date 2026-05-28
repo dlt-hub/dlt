@@ -553,6 +553,12 @@ class Pipeline(SupportsPipeline):
                 config=normalize_config,
                 schema_storage=self._schema_storage,
             )
+            if not normalize_step.normalize_storage.is_storage_ready():
+                logger.info(
+                    f"Normalize step storage not yet created for pipeline {self.pipeline_name}, try"
+                    " again when extract step is completed."
+                )
+                return None
             try:
                 with (
                     signals.intercepted_signals()
@@ -616,6 +622,13 @@ class Pipeline(SupportsPipeline):
             initial_client_config=client.config,
             initial_staging_client_config=staging_client.config if staging_client else None,
         )
+        if not load_step.load_storage.is_storage_ready():
+            logger.info(
+                f"Load step storage not yet created for pipeline {self.pipeline_name}, try again"
+                " when normalize step is completed."
+            )
+            return None
+
         try:
             with (
                 signals.intercepted_signals()
@@ -1027,48 +1040,77 @@ class Pipeline(SupportsPipeline):
     )
     def list_extracted_resources(self) -> Sequence[str]:
         """Returns a list of all the files with extracted resources that will be normalized."""
-        return self._get_normalize_storage().list_files_to_normalize_sorted()
+        storage = self._get_normalize_storage()
+        if storage.is_storage_ready():
+            return storage.list_files_to_normalize_sorted()
+        return []
 
     def list_extracted_load_packages(self) -> Sequence[str]:
         """Returns a list of all load packages ids that are or will be normalized."""
-        return self._get_normalize_storage().extracted_packages.list_packages()
+        storage = self._get_normalize_storage()
+        if storage.is_storage_ready():
+            return storage.extracted_packages.list_packages()
+        return []
 
     def list_normalized_load_packages(self) -> Sequence[str]:
         """Returns a list of all load packages ids that are or will be loaded."""
-        return self._get_load_storage().list_normalized_packages()
+        storage = self._get_load_storage()
+        if storage.is_storage_ready():
+            return storage.list_normalized_packages()
+        return []
 
     def list_completed_load_packages(self) -> Sequence[str]:
         """Returns a list of all load package ids that are completely loaded"""
-        return self._get_load_storage().list_loaded_packages()
+        storage = self._get_load_storage()
+        if storage.is_storage_ready():
+            return storage.list_loaded_packages()
+        return []
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
         """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
         try:
-            return self._get_load_storage().get_load_package_info(load_id)
+            load_storage = self._get_load_storage()
+            if load_storage.is_storage_ready():
+                return load_storage.get_load_package_info(load_id)
+            raise LoadPackageNotFound(load_id)
         except LoadPackageNotFound:
-            return self._get_normalize_storage().extracted_packages.get_load_package_info(load_id)
+            normalize_storage = self._get_normalize_storage()
+            if normalize_storage.is_storage_ready():
+                return normalize_storage.extracted_packages.get_load_package_info(load_id)
+            raise
 
     def get_load_package_state(self, load_id: str) -> TLoadPackageState:
         """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
-        return self._get_load_storage().get_load_package_state(load_id)
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            return load_storage.get_load_package_state(load_id)
+        raise LoadPackageNotFound(load_id)
 
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a specified `load_id`"""
-        return self._get_load_storage().get_load_package_info(load_id).jobs.get("failed_jobs", [])
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            return load_storage.get_load_package_info(load_id).jobs.get("failed_jobs", [])
+        raise LoadPackageNotFound(load_id)
 
     def drop_pending_packages(self, with_partial_loads: bool = True) -> None:
         """Deletes all extracted and normalized packages, including those that are partially loaded by default"""
         # delete normalized packages
         load_storage = self._get_load_storage()
-        for load_id in load_storage.normalized_packages.list_packages():
-            package_info = load_storage.normalized_packages.get_load_package_info(load_id)
-            if PackageStorage.is_package_partially_loaded(package_info) and not with_partial_loads:
-                continue
-            load_storage.normalized_packages.delete_package(load_id)
+        if load_storage.is_storage_ready():
+            for load_id in load_storage.normalized_packages.list_packages():
+                package_info = load_storage.normalized_packages.get_load_package_info(load_id)
+                if (
+                    PackageStorage.is_package_partially_loaded(package_info)
+                    and not with_partial_loads
+                ):
+                    continue
+                load_storage.normalized_packages.delete_package(load_id)
         # delete extracted files
         normalize_storage = self._get_normalize_storage()
-        for load_id in normalize_storage.extracted_packages.list_packages():
-            normalize_storage.extracted_packages.delete_package(load_id)
+        if normalize_storage.is_storage_ready():
+            for load_id in normalize_storage.extracted_packages.list_packages():
+                normalize_storage.extracted_packages.delete_package(load_id)
 
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None) -> TSchemaTables:
@@ -1236,11 +1278,11 @@ class Pipeline(SupportsPipeline):
             return Schema(self.pipeline_name)
 
     def _get_normalize_storage(self) -> NormalizeStorage:
-        return NormalizeStorage(True, self._normalize_storage_config())
+        return NormalizeStorage(False, self._normalize_storage_config())
 
     def _get_load_storage(self) -> LoadStorage:
         return LoadStorage(
-            True,
+            False,
             [],
             self._load_storage_config(),
         )
