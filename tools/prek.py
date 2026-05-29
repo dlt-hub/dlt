@@ -8,12 +8,12 @@ import hashlib
 import os
 import subprocess
 import sys
-import tomllib
+import tomllib  # type: ignore[import-untyped]
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NamedTuple
+from typing import Any, Literal, NamedTuple, cast
 
 Mode = Literal["off", "auto", "confirm"]
 VALID_MODES = frozenset({"off", "auto", "confirm"})
@@ -95,7 +95,7 @@ def parse_mode(local_config: dict[str, Any], check_name: str) -> Mode:
     mode = section.get("mode", "off")
     if mode not in VALID_MODES:
         raise ConfigError(f"Invalid mode {mode!r} for check {check_name!r}")
-    return mode  # type: ignore[return-value]
+    return cast(Mode, mode)
 
 
 def make_command_for(check_name: str) -> str:
@@ -106,12 +106,12 @@ def make_command_for(check_name: str) -> str:
     raise ConfigError(f"Unknown check {check_name!r}; expected one of: {valid}")
 
 
-def load_toml(path: Path) -> dict:
+def load_toml(path: Path) -> dict[str, Any]:
     with open(path, "rb") as file:
-        return tomllib.load(file)
+        return cast(dict[str, Any], tomllib.load(file))
 
 
-def load_local_config(path: Path) -> dict | None:
+def load_local_config(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
         return None
     return load_toml(path)
@@ -225,7 +225,7 @@ def gate_active(*, only_when_pr_open: bool, has_open_pr: bool) -> tuple[bool, st
 
 def plan_checks(
     checks: Sequence[Check],
-    local_config: dict,
+    local_config: dict[str, Any],
     state: dict[str, dict[str, str]],
     fingerprint: Callable[[str], str],
 ) -> list[PlannedCheck]:
@@ -347,7 +347,7 @@ def _confirm_run(make_command: str) -> bool:
 
 def run_gate(
     *,
-    local_config: dict,
+    local_config: dict[str, Any],
     state: dict[str, dict[str, str]],
     deps: GateDeps,
     checks: Sequence[Check] = CHECKS,
@@ -416,7 +416,9 @@ def record_passed_check(
 def main(*, prek_dir: Path | None = None, argv: list[str] | None = None) -> int:
     prek_dir = prek_dir or default_prek_dir()
     parser = argparse.ArgumentParser(description="Pre-push gate for lint and common tests")
-    parser.add_argument("--dry-run", action="store_true", help="Show planned checks without running them")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show planned checks without running them"
+    )
     parser.add_argument(
         "--record",
         metavar="CHECK",

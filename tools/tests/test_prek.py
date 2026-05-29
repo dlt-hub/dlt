@@ -1,7 +1,9 @@
 """Tests for tools/prek.py."""
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -32,11 +34,11 @@ FIXED_NOW = datetime(2026, 5, 29, 12, 0, tzinfo=timezone.utc)
 
 def make_deps(
     *,
-    run_make=None,
-    has_open_pr=lambda: True,
-    confirm=lambda _: True,
-    fingerprint=lambda name: f"fp-{name}",
-    is_tty=lambda: True,
+    run_make: Optional[Callable[[str], int]] = None,
+    has_open_pr: Callable[[], bool] = lambda: True,
+    confirm: Callable[[str], bool] = lambda _: True,
+    fingerprint: Callable[[str], str] = lambda name: f"fp-{name}",
+    is_tty: Callable[[], bool] = lambda: True,
 ) -> GateDeps:
     return GateDeps(
         run_make=run_make or (lambda _target: 0),
@@ -133,7 +135,12 @@ def test_plan_checks_and_dry_run() -> None:
 
 def test_run_gate_flow() -> None:
     calls: list[str] = []
-    deps = make_deps(run_make=lambda target: calls.append(target) or 0)
+
+    def record_make(target: str) -> int:
+        calls.append(target)
+        return 0
+
+    deps = make_deps(run_make=record_make)
 
     skipped = run_gate(
         local_config={"gate": {"only_when_pr_open": True}, "lint": {"mode": "auto"}},
@@ -171,9 +178,7 @@ def test_record_passed_check() -> None:
     )
     assert error is None and unchanged == {}
 
-    updated, error = record_passed_check(
-        check_name="lint", state={}, hooks_enabled=True, deps=deps
-    )
+    updated, error = record_passed_check(check_name="lint", state={}, hooks_enabled=True, deps=deps)
     assert error is None
     assert updated["lint"]["command"] == "make fl"
 
