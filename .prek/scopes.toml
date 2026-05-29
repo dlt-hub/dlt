@@ -4,10 +4,8 @@ globs = ["*.py", "*.md", "*.ipynb"]
 files = [
   "pyproject.toml",
   "uv.lock",
-  "Makefile",
   "docs/pyproject.toml",
   "docs/uv.lock",
-  "docs/Makefile",
   "docs/docs_tools/snippets/lint_setup/template.py",
   "docs/docs_tools/snippets/lint_setup/mypy.ini",
 ]
