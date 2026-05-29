@@ -38,6 +38,9 @@ from tests.utils import (
     auto_module_test_storage,
 )
 
+# Same worker under pytest-xdist --dist=loadgroup (see make test-dest-remote-essential).
+pytestmark = pytest.mark.xdist_group("read_interfaces")
+
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "created_at", "_dlt_load_id", "_dlt_id"]
 
 # items.created_at is generated as `ITEMS_EPOCH + timedelta(seconds=i)` for i in range(total_records)
@@ -71,6 +74,27 @@ def _expected_chunk_count(p: Pipeline) -> List[int]:
         chunk_size,
         total_records - chunk_size,
     ]
+
+
+def _skip_chunk_size_check(
+    pipeline: Pipeline, destination_config: DestinationTestConfiguration
+) -> bool:
+    destination_type = pipeline.destination.destination_type
+    if destination_type in (
+        "dlt.destinations.filesystem",
+        "dlt.destinations.snowflake", # unpredictable chunk size
+        "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
+        "dlt.destinations.lancedb",  # default is 200
+        "dlt.destinations.lance",
+    ):
+        return True
+    # duckdb over parquet files is batched by FILE_MAX_ITEMS, not requested chunk_size
+    if (
+        destination_type == "dlt.destinations.duckdb"
+        and destination_config.file_format == "parquet"
+    ):
+        return True
+    return False
 
 
 def create_test_source(destination_type: str, table_format: TTableFormat) -> DltSource:
@@ -274,11 +298,14 @@ def test_fetchscalar(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-def test_arrow_access(populated_pipeline: Pipeline) -> None:
+def test_arrow_access(
+    populated_pipeline: Pipeline, destination_config: DestinationTestConfiguration
+) -> None:
     table_relationship = populated_pipeline.dataset().items
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
+    skip_chunk_size_check = _skip_chunk_size_check(populated_pipeline, destination_config)
 
     # full table
     table = table_relationship.arrow()
@@ -288,13 +315,12 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     # chunk
     table = table_relationship.arrow(chunk_size=chunk_size)
     assert set(table.column_names) == set(EXPECTED_COLUMNS)
-    # NOTE: chunksize is unpredictable on snowflake
-    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
+    if not skip_chunk_size_check:
         assert table.num_rows == chunk_size
 
     # check frame amount and items counts
     tables = list(table_relationship.iter_arrow(chunk_size=chunk_size))
-    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
+    if not skip_chunk_size_check:
         assert [t.num_rows for t in tables] == expected_chunk_counts
 
     # check all items are present, this MUST also be true for snowflake
@@ -304,19 +330,15 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-def test_dataframe_access(populated_pipeline: Pipeline) -> None:
+def test_dataframe_access(
+    populated_pipeline: Pipeline, destination_config: DestinationTestConfiguration
+) -> None:
     # access via key
     table_relationship = populated_pipeline.dataset()["items"]
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
-    skip_df_chunk_size_check = populated_pipeline.destination.destination_type in [
-        "dlt.destinations.filesystem",
-        "dlt.destinations.snowflake",
-        "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
-        "dlt.destinations.lancedb",  # default is 200
-        "dlt.destinations.lance",
-    ]
+    skip_chunk_size_check = _skip_chunk_size_check(populated_pipeline, destination_config)
 
     # full frame
     df = table_relationship.df()
@@ -326,14 +348,14 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     # TODO: snowflake does not follow a chunk size, make and exception (accept range), same for arrow
     # chunk
     df = table_relationship.df(chunk_size=chunk_size)
-    if not skip_df_chunk_size_check:
+    if not skip_chunk_size_check:
         assert len(df.index) == chunk_size
 
     assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
     # iterate all dataframes
     frames = list(table_relationship.iter_df(chunk_size=chunk_size))
-    if not skip_df_chunk_size_check:
+    if not skip_chunk_size_check:
         assert [len(df.index) for df in frames] == expected_chunk_counts
 
     # check all items are present
@@ -343,12 +365,15 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
+def test_db_cursor_access(
+    populated_pipeline: Pipeline, destination_config: DestinationTestConfiguration
+) -> None:
     # check fetch accessors
     table_relationship = populated_pipeline.dataset().items
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
+    skip_chunk_size_check = _skip_chunk_size_check(populated_pipeline, destination_config)
 
     # check accessing one item
     one = table_relationship.fetchone()
@@ -361,11 +386,13 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
 
     # check fetchmany
     many = table_relationship.fetchmany(chunk_size)
-    assert len(many) == chunk_size
+    if not skip_chunk_size_check:
+        assert len(many) == chunk_size
 
     # check iterfetchmany
     chunks = list(table_relationship.iter_fetch(chunk_size=chunk_size))
-    assert [len(chunk) for chunk in chunks] == expected_chunk_counts
+    if not skip_chunk_size_check:
+        assert [len(chunk) for chunk in chunks] == expected_chunk_counts
     ids = reduce(lambda a, b: a + b, [[item[0] for item in chunk] for chunk in chunks])
     assert set(ids) == set(range(total_records))
 
