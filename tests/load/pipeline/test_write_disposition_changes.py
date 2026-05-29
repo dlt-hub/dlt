@@ -204,3 +204,35 @@ def test_switch_to_merge(
     else:
         # still no propagation setup
         assert "propagation" not in norm_config["config"]
+
+
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+)
+@pytest.mark.essential
+def test_incremental_merge_after_replace_keeps_rows_on_no_new_data(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Regression for #3998: an incremental `merge` resource must not truncate the destination
+    on a run with no new data after a prior `replace` run.
+    """
+
+    @dlt.resource(name="items", write_disposition="merge", primary_key="id")
+    def items(updated_at: Any = dlt.sources.incremental("updated_at")) -> Any:
+        yield from [
+            {"id": 1, "updated_at": "2026-05-28"},
+            {"id": 2, "updated_at": "2020-05-29"},
+        ]
+
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_incremental_merge_after_replace", dev_mode=True
+    )
+
+    # full refresh seeds the table and advances the incremental cursor
+    info = pipeline.run(items(), write_disposition="replace", **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert_table_counts(pipeline, {"items": 2})
+
+    # incremental merge run with no new rows (all filtered by the cursor) must keep the data
+    pipeline.run(items(), **destination_config.run_kwargs)
+    assert_table_counts(pipeline, {"items": 2})
