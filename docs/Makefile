@@ -1,4 +1,5 @@
 .DEFAULT_GOAL := help
+.PHONY: lint lint-parallel lint-core lint-embedded-snippets lint-notebooks lint-website
 
 # Add " ## description" after any target name to include it in `make help` output.
 # Example:  my-target: ## Does something useful
@@ -8,7 +9,13 @@ help: ## Shows this help message
 dev: ## Prepares development environment for docs tooling
 	uv sync
 
-lint: lint-core lint-embedded-snippets lint-notebooks lint-website ## Runs all linters
+LINT_TARGETS := lint-core lint-embedded-snippets lint-notebooks lint-website
+
+lint: $(LINT_TARGETS) ## Runs all linters
+	@:
+
+lint-parallel: ## Runs all linters in parallel (used by make fl)
+	$(MAKE) -j $(words $(LINT_TARGETS)) lint
 
 lint-website: ## Lints the docusaurus website JS/TS sources with Biome
 	cd website && npm run lint
