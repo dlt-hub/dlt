@@ -1152,16 +1152,16 @@ def test_explicit_on_rejects_self_join(
         )
 
 
-@pytest.mark.xfail(reason="ON expression must be non-empty")
+@pytest.mark.parametrize("on", ["", "   "], ids=["empty", "whitespace"])
 def test_explicit_on_rejects_invalid_on_expression(
     dataset_with_relational_tables: dlt.Dataset,
+    on: str,
 ) -> None:
     ds = dataset_with_relational_tables
     with pytest.raises(ValueError, match="non-empty SQL expression"):
-        ds.table("customers").join("orders", on="")
+        ds.table("customers").join("orders", on=on)
 
 
-@pytest.mark.xfail(reason="Unsupported join kind should be rejected")
 def test_explicit_on_rejects_unknown_kind(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
@@ -1378,7 +1378,6 @@ def test_cross_dataset_join_with_same_table_names_keeps_sources_unambiguous(
     assert list(df["marketing__segment"]) == ["pro", "free"]
 
 
-@pytest.mark.xfail(reason="Ambiguous qualifier should be rejected")
 def test_cross_dataset_same_named_join_rejects_ambiguous_on_qualifier(
     same_named_cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
@@ -1435,13 +1434,6 @@ def test_cross_dataset_join_chain_magic_then_cross(
 def test_cross_dataset_join_chain_magic_then_two_crossings(
     three_way_cross_dataset_duckdb: TCrossDs3Fixture,
 ) -> None:
-    """A magic (schema-resolved) join followed by two cross-dataset joins across three
-    systems: nested CRM orders are enriched with their customer (magic, via the parent
-    reference), then bridged to that customer's purchases (inventory) and subscription
-    (billing).
-
-    The magic join emits unqualified CRM tables; the first crossing must retroactively
-    db-qualify them, and the final query interleaves all three datasets."""
     ds_crm, ds_inv, ds_billing = three_way_cross_dataset_duckdb
 
     joined = (

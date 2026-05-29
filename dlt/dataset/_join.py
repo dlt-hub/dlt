@@ -484,6 +484,12 @@ def _bind_on_predicate(
         if not isinstance(table_node, sge.Identifier):
             continue
         qualifier = table_node.name
+        if qualifier in left_qualifiers and qualifier in right_qualifiers:
+            raise ValueError(
+                f"Ambiguous qualifier `{qualifier}` in join `on` expression: it matches both "
+                "the left and right side of the join. Alias one side (e.g. via `query(...)` "
+                "or the join `alias`) so each `on` qualifier is unambiguous."
+            )
         if qualifier in left_qualifiers:
             continue
         if qualifier in right_qualifiers:

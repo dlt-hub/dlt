@@ -9,6 +9,7 @@ from typing import (
     Type,
     TYPE_CHECKING,
     Literal,
+    get_args,
 )
 from textwrap import indent
 from contextlib import contextmanager
@@ -440,6 +441,14 @@ class Relation(WithSqlClient):
         """
         if alias == "":
             raise ValueError("`alias` must be a non-empty string when provided.")
+
+        if kind not in get_args(TJoinType):
+            raise ValueErrorWithKnownValues(
+                key="kind", value_received=kind, valid_values=list(get_args(TJoinType))
+            )
+
+        if isinstance(on, str) and not on.strip():
+            raise ValueError("`on` must be a non-empty SQL expression.")
 
         target_dataset, target_table, target_columns = self._resolve_join_target(other, on=on)
 
