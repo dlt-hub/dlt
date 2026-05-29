@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: install-uv has-uv dev lint lint-root lint-docs format format-docs docs-website-deps fl test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-hub-minimal test-hub-minimal test-hub install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database install-prepush-hooks uninstall-prepush-hooks prek prek-dry
+.PHONY: install-uv has-uv dev lint lint-full lint-docs format format-docs docs-website-deps fl test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-hub-minimal test-hub-minimal test-hub install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database install-prepush-hooks uninstall-prepush-hooks prek prek-dry
 
 PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
 .SILENT:has-uv
@@ -37,9 +37,12 @@ dev-airflow: has-uv ## Prepares development environment with airflow support
 dev-hub: has-uv ## Prepares development environment with hub support
 	uv sync --all-extras --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
-lint: lint-root lint-docs ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile, deps, docs)
+lint: lint-core lint-security lint-docstrings lint-lock lint-deps ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile, deps)
 
-lint-root: lint-core lint-security lint-docstrings lint-lock lint-deps ## Root linters only (no docs)
+lint-full: lint lint-docs ## Root + docs lint (sequential)
+
+lint-docs: ## Runs docs linting (embedded snippets, notebooks, docs tooling)
+	cd docs && $(MAKE) lint
 
 format-docs: ## Formats docs tooling, website, examples, and notebooks
 	cd docs && $(MAKE) format
@@ -50,11 +53,8 @@ docs-website-deps: ## Install docs website node deps (biome; used by make fl)
 fl: ## Format then lint root and docs in parallel (prek pre-push gate)
 	set -e; \
 	$(MAKE) format & $(MAKE) format-docs & $(MAKE) docs-website-deps & wait; \
-	$(MAKE) lint-root & $(MAKE) -C docs lint & wait
+	$(MAKE) lint & $(MAKE) -C docs lint & wait
 	@if [ -f .prek/.enabled ]; then uv run python -m tools.prek --record lint; fi
-
-lint-docs: ## Runs docs linting (embedded snippets, notebooks, docs tooling)
-	cd docs && $(MAKE) lint
 
 lint-lock: ## Checks uv lockfile is in sync
 	uv lock --check
