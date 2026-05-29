@@ -6,8 +6,6 @@ keywords: [dlt, fundamentals, advanced, tutorial, pipeline, python, data enginee
 
 # Welcome to self-paced `dlt` courses!
 
-![simpsons-hello.gif](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/dlt_fundamentals_img1.gif)
-
 Here you'll find self-paced `dlt` courses designed to help you grow from beginner to advanced data engineer. Each course is structured with hands-on lessons that you can complete at your own pace.
 
 ## Available Courses
