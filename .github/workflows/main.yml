@@ -55,28 +55,28 @@ jobs:
 
   #
   # Destination and Sources local tests, do not provide secrets.
-  # With `test-remote-early`, start without waiting for common (mutually exclusive pairs).
+  # With `test-destinations-early`, start without waiting for common (mutually exclusive pairs).
   #
   test_destinations_local_early:
     name: local
-    if: contains(github.event.pull_request.labels.*.name, 'test-remote-early')
+    if: contains(github.event.pull_request.labels.*.name, 'test-destinations-early')
     uses: ./.github/workflows/test_destinations_local.yml
 
   test_destinations_local:
     name: local
     needs: test_common
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'test-remote-early') }}
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'test-destinations-early') }}
     uses: ./.github/workflows/test_destinations_local.yml
 
   test_sources_local_early:
     name: src local
-    if: contains(github.event.pull_request.labels.*.name, 'test-remote-early')
+    if: contains(github.event.pull_request.labels.*.name, 'test-destinations-early')
     uses: ./.github/workflows/test_sources_local.yml
 
   test_sources_local:
     name: src local
     needs: test_common
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'test-remote-early') }}
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'test-destinations-early') }}
     uses: ./.github/workflows/test_sources_local.yml
 
   test_hub:
@@ -95,13 +95,13 @@ jobs:
     uses: ./.github/workflows/test_tools_build_images.yml
 
   #
-  # Remote destination tests need secrets. With `test-remote-early`, start after
+  # Remote destination tests need secrets. With `test-destinations-early`, start after
   # authorize only (mutually exclusive pairs, same check name for branch protection).
 
   test_destinations_remote_early:
     name: remote
     needs: [authorize_secrets]
-    if: contains(github.event.pull_request.labels.*.name, 'test-remote-early')
+    if: contains(github.event.pull_request.labels.*.name, 'test-destinations-early')
     uses: ./.github/workflows/test_destinations_remote.yml
     secrets: inherit
     with:
@@ -110,7 +110,7 @@ jobs:
   test_destinations_remote:
     name: remote
     needs: [authorize_secrets, test_common]
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'test-remote-early') }}
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'test-destinations-early') }}
     uses: ./.github/workflows/test_destinations_remote.yml
     secrets: inherit
     with:
@@ -122,14 +122,14 @@ jobs:
   test_tools_dbt_runner_early:
     name: dbt
     needs: [authorize_secrets]
-    if: contains(github.event.pull_request.labels.*.name, 'test-remote-early')
+    if: contains(github.event.pull_request.labels.*.name, 'test-destinations-early')
     uses: ./.github/workflows/test_tools_dbt_runner.yml
     secrets: inherit
 
   test_tools_dbt_runner:
     name: dbt
     needs: [test_common, authorize_secrets]
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'test-remote-early') }}
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'test-destinations-early') }}
     uses: ./.github/workflows/test_tools_dbt_runner.yml
     secrets: inherit
   
