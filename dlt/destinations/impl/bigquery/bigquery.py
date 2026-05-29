@@ -37,6 +37,7 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,
     CLUSTER_COLUMNS_HINT,
+    GEOGRAPHY_HINT,
     PARTITION_HINT,
     PARTITION_EXPIRATION_DAYS_HINT,
     CLUSTER_HINT,

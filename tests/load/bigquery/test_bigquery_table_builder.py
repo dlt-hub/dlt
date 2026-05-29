@@ -1324,3 +1324,73 @@ def test_adapter_additional_table_hints_parsing_table_expiration() -> None:
     assert some_data._hints["additional_table_hints"][
         "x-bigquery-table-expiration"
     ] == pendulum.datetime(2030, 1, 1)
+
+
+def test_adapter_geography_hint_config() -> None:
+    @dlt.resource(columns=[{"name": "geo_col", "data_type": "text"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    assert some_data.columns["geo_col"] == {"name": "geo_col", "data_type": "text"}  # type: ignore[index]
+
+    # Single column as string.
+    bigquery_adapter(some_data, geography="geo_col")
+
+    from dlt.destinations.impl.bigquery.bigquery_adapter import GEOGRAPHY_HINT
+
+    assert some_data.columns["geo_col"] == {  # type: ignore
+        "name": "geo_col",
+        "data_type": "text",
+        GEOGRAPHY_HINT: True,
+    }
+
+
+def test_adapter_geography_hint_multiple_columns() -> None:
+    @dlt.resource(
+        columns=[
+            {"name": "loc", "data_type": "text"},
+            {"name": "boundary", "data_type": "text"},
+        ]
+    )
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    bigquery_adapter(some_data, geography=["loc", "boundary"])
+
+    from dlt.destinations.impl.bigquery.bigquery_adapter import GEOGRAPHY_HINT
+
+    assert some_data.columns["loc"][GEOGRAPHY_HINT] is True  # type: ignore
+    assert some_data.columns["boundary"][GEOGRAPHY_HINT] is True  # type: ignore
+
+
+def test_geography_column_sql_create(gcp_client: BigQueryClient) -> None:
+    """Verify that columns with the geography hint produce GEOGRAPHY type in CREATE TABLE."""
+    from dlt.destinations.impl.bigquery.bigquery_adapter import GEOGRAPHY_HINT
+
+    mod_update = deepcopy(TABLE_UPDATE)
+    # col5 is text, add geography hint to it
+    mod_update[4][GEOGRAPHY_HINT] = True
+
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
+    assert "`col5` GEOGRAPHY" in sql
+    # Other columns should not be affected
+    assert "`col1` INT64  NOT NULL" in sql
+
+
+def test_geography_column_sql_alter(gcp_client: BigQueryClient) -> None:
+    """Verify that columns with the geography hint produce GEOGRAPHY type in ALTER TABLE."""
+    from dlt.destinations.impl.bigquery.bigquery_adapter import GEOGRAPHY_HINT
+
+    mod_update = deepcopy(TABLE_UPDATE)
+    mod_update[4][GEOGRAPHY_HINT] = True
+
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_update, True)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
+    assert "ADD COLUMN `col5` GEOGRAPHY" in sql
+
+
+def test_geography_from_destination_type(gcp_client: BigQueryClient) -> None:
+    """Verify that GEOGRAPHY db type maps back to text data type."""
+    result = gcp_client.type_mapper.from_destination_type("GEOGRAPHY", None, None)
+    assert result == {"data_type": "text"}
