@@ -81,8 +81,8 @@ embedded-snippet lint setup files.
 Inspect a fingerprint:
 
 ```bash
-uv run python .prek/fingerprint.py lint
-uv run python .prek/fingerprint.py test_common_p
+uv run python -m tools.prek fingerprint lint
+uv run python -m tools.prek fingerprint test_common_p
 ```
 
 ## Makefile targets
@@ -127,10 +127,9 @@ per check.
 | `README.md` | This guide |
 | `local.example.toml` | Config template |
 | `scopes.toml` | Fingerprint inputs per check |
-| `gate.py` | Gate logic, prompts, make invocation, state |
-| `fingerprint.py` | Scope hashing |
-| `pre-push-gate.sh` | prek entrypoint |
-| `prek.toml` | prek hook definition |
+| `prek.toml` | prek hook definition (`uv run python -m tools.prek`) |
 | `plan.md` | Maintainer notes / design sketch |
+
+Implementation and tests: `tools/prek.py` (run via `python -m tools.prek`).
 
 Gitignored: `local.toml`, `.state.toml`, `.enabled`
