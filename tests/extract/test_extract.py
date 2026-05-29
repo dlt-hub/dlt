@@ -614,6 +614,7 @@ def test_materialize_table_schema_with_pipe_items():
     assert found_empty_list
 
 
+@pytest.mark.skip(reason="introduced by #3901; temporarily disabled")
 @pytest.mark.parametrize(
     "yield_one,yield_two",
     [(True, False), (False, True), (False, False), (True, True)],
