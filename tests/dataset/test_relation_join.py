@@ -1392,9 +1392,9 @@ def test_explicit_on_rejects_unknown_kind(
     ds = dataset_with_relational_tables
 
     with pytest.raises(ValueError, match="kind=outer"):
-        ds.table("customers").join(
+        ds.table("customers").join(  # type: ignore[call-overload]
             "orders",
-            kind="outer",  # type: ignore[arg-type]
+            kind="outer",
             on="customers.customer_id = orders.customer_id",
         )
 
