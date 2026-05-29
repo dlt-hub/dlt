@@ -47,7 +47,12 @@ from dlt.dataset._incremental import (
     _RelationIncrementalContext,
     _sqlglot_type_for_column,
 )
-from dlt.dataset._join import _apply_join, _apply_explicit_join, _extract_joined_table_aliases
+from dlt.dataset._join import (
+    _apply_join,
+    _apply_explicit_join,
+    _extract_joined_table_aliases,
+    _left_source_qualifier,
+)
 
 
 if TYPE_CHECKING:
@@ -363,14 +368,22 @@ class Relation(WithSqlClient):
                 f"`{direction}` is an invalid sort order, allowed values are: `asc` and `desc`"
             )
         order_expr = sge.Ordered(
-            this=sge.Column(
-                this=sge.to_identifier(column_name, quoted=True),
-            ),
+            this=self._resolve_output_column(column_name),
             desc=(direction == "desc"),
         )
         rel = self.__copy__()
         rel._sqlglot_expression = rel.sqlglot_expression.order_by(order_expr)
         return rel
+
+    def _resolve_output_column(self, column_name: str) -> sge.Expression:
+        """Resolve an output column name to its projected source expression."""
+        for proj in self.sqlglot_expression.selects:
+            if isinstance(proj, sge.Star) or proj.output_name != column_name:
+                continue
+            source = proj.this if isinstance(proj, sge.Alias) else proj
+            if not isinstance(source, sge.Star):
+                return source.copy()
+        return sge.Column(this=sge.to_identifier(column_name, quoted=True))
 
     @overload
     def join(
@@ -1034,11 +1047,5 @@ def _find_table_columns(schemas: Sequence[dlt.Schema], table_name: str) -> TTabl
 
 
 def _extract_subquery_alias(relation: dlt.Relation) -> str:
-    """Extract a stable alias for a transformed Relation without a base table."""
-    expr = relation.sqlglot_expression
-    from_expr = expr.args.get("from_") or expr.args.get("from")
-    if isinstance(from_expr, sge.From) and isinstance(from_expr.this, sge.Table):
-        table_id = from_expr.this.this
-        if isinstance(table_id, sge.Identifier):
-            return table_id.name
-    return "subquery"
+    """Extract the source qualifier of a transformed Relation without a base table."""
+    return _left_source_qualifier(relation.sqlglot_expression) or "subquery"

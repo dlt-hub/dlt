@@ -15,8 +15,13 @@ if TYPE_CHECKING:
     from dlt.dataset.relation import Relation, TJoinType
 
 _INTERMEDIATE_JOIN_ALIAS_PREFIX = "_dlt_int_t"
+_EXPLICIT_JOIN_ALIAS_PREFIX = "_dlt_jt_"
 
 _TExpr = TypeVar("_TExpr", bound=sge.Expression)
+
+
+def _is_internal_join_alias(qualifier: str) -> bool:
+    return qualifier.startswith((_INTERMEDIATE_JOIN_ALIAS_PREFIX, _EXPLICIT_JOIN_ALIAS_PREFIX))
 
 
 class _JoinRef(TypedDict):
@@ -378,6 +383,11 @@ def _apply_join(
     if not isinstance(query, sge.Select):
         raise ValueError(f"Join query `{query}` must be an SQL SELECT statement.")
 
+    # qualify its bare WHERE/ORDER BY columns so they survive a later join
+    # that introduces a same-named column
+    if not query.args.get("joins"):
+        _qualify_unscoped_predicate_columns(query, _left_source_qualifier(query) or left_table)
+
     join_params, target_qualifier = _discover_join_params(
         query,
         schema=schema,
@@ -444,9 +454,9 @@ def _left_source_qualifier(query: sge.Query) -> Optional[str]:
     return None
 
 
-def _collect_left_qualifiers(query: sge.Query) -> Set[str]:
-    """Collect qualifiers (table names or aliases) the LHS exposes to ON binding."""
-    qualifiers: Set[str] = set()
+def _existing_source_qualifier_map(query: sge.Query) -> dict[str, str]:
+    """Map each existing join input's user-facing qualifier to its SQL qualifier."""
+    qualifier_map: dict[str, str] = {}
     sources: list[sge.Expression] = []
 
     from_expr = query.args.get("from_") or query.args.get("from")
@@ -460,41 +470,64 @@ def _collect_left_qualifiers(query: sge.Query) -> Set[str]:
     for source in sources:
         if isinstance(source, sge.Table):
             result = _extract_table_qualifier(source)
-            if result:
-                qualifiers.add(result[1])
+            if not result:
+                continue
+            table_name, sql_qualifier = result
+            if sql_qualifier == table_name or _is_internal_join_alias(sql_qualifier):
+                # unaliased or internally aliased: the user references it by table name
+                qualifier_map[table_name] = sql_qualifier
+            else:
+                # an explicit alias replaces the table name as the usable qualifier
+                qualifier_map[sql_qualifier] = sql_qualifier
         elif isinstance(source, sge.Subquery):
-            alias_name = _subquery_alias_name(source)
-            if alias_name is not None:
-                qualifiers.add(alias_name)
+            sql_qualifier = _subquery_alias_name(source)
+            if sql_qualifier is None:
+                continue
+            source_qualifier = _left_source_qualifier(source.this) or sql_qualifier
+            qualifier_map[source_qualifier] = sql_qualifier
 
-    return qualifiers
+    return qualifier_map
 
 
 def _bind_on_predicate(
     on_expr: sge.Expression,
     *,
-    left_qualifiers: Set[str],
-    right_qualifiers: Set[str],
-    right_internal_alias: str,
+    existing_qualifier_map: dict[str, str],
+    new_right_qualifiers: Set[str],
+    new_right_alias: str,
 ) -> sge.Expression:
-    """Rewrite RHS-side column qualifiers in ``on_expr`` to the internal RHS alias."""
+    """Rewrite column qualifiers in ``on_expr`` to the SQL qualifiers of the join inputs."""
     on_expr = on_expr.copy()
     for col in on_expr.find_all(sge.Column):
         table_node = col.args.get("table")
         if not isinstance(table_node, sge.Identifier):
             continue
         qualifier = table_node.name
-        if qualifier in left_qualifiers and qualifier in right_qualifiers:
+        in_existing = qualifier in existing_qualifier_map
+        in_new = qualifier in new_right_qualifiers
+        if in_existing and in_new:
             raise ValueError(
                 f"Ambiguous qualifier `{qualifier}` in join `on` expression: it matches both "
                 "the left and right side of the join. Alias one side (e.g. via `query(...)` "
                 "or the join `alias`) so each `on` qualifier is unambiguous."
             )
-        if qualifier in left_qualifiers:
-            continue
-        if qualifier in right_qualifiers:
-            col.set("table", sge.to_identifier(right_internal_alias, quoted=False))
+        if in_new:
+            col.set("table", sge.to_identifier(new_right_alias, quoted=False))
+        elif in_existing:
+            col.set("table", sge.to_identifier(existing_qualifier_map[qualifier], quoted=False))
     return on_expr
+
+
+def _qualify_unscoped_predicate_columns(query: sge.Select, source_qualifier: str) -> None:
+    """Bind unqualified columns in pre-join WHERE/ORDER BY clauses to the single source."""
+    qualifier_identifier = sge.to_identifier(source_qualifier, quoted=False)
+    for clause_key in ("where", "order"):
+        clause = query.args.get(clause_key)
+        if clause is None:
+            continue
+        for col in clause.find_all(sge.Column):
+            if col.args.get("table") is None and col.parent_select is query:
+                col.set("table", qualifier_identifier.copy())
 
 
 def _apply_explicit_join(
@@ -542,7 +575,10 @@ def _apply_explicit_join(
         )
     left_source_qualifier = _left_source_qualifier(query) or from_expr.this.name
 
-    internal_alias = f"_dlt_jt_{projection_prefix}"
+    if not query.args.get("joins"):
+        _qualify_unscoped_predicate_columns(query, left_source_qualifier)
+
+    internal_alias = f"{_EXPLICIT_JOIN_ALIAS_PREFIX}{projection_prefix}"
 
     target_expr: sge.Expression
     if target is not None and target._query is not None:
@@ -568,13 +604,11 @@ def _apply_explicit_join(
     else:
         on_expr = on
 
-    left_qualifiers = _collect_left_qualifiers(query)
-    right_qualifiers = {target_table, projection_prefix}
     on_expr = _bind_on_predicate(
         on_expr,
-        left_qualifiers=left_qualifiers,
-        right_qualifiers=right_qualifiers,
-        right_internal_alias=internal_alias,
+        existing_qualifier_map=_existing_source_qualifier_map(query),
+        new_right_qualifiers={target_table, projection_prefix},
+        new_right_alias=internal_alias,
     )
 
     join_expr = sge.Join(this=target_expr, kind=kind.upper()).on(on_expr)

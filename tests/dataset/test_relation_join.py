@@ -3,6 +3,7 @@ import pathlib
 from typing import Any, Sequence, Callable, TypedDict, Optional
 
 import pytest
+import sqlglot
 import sqlglot.expressions as sge
 
 import dlt
@@ -1024,6 +1025,66 @@ def test_explicit_on_projection_prefix(
     assert right_aliases == expected
 
 
+def _order_by_sort_key(rel: dlt.Relation) -> sge.Column:
+    """Return the single ORDER BY sort-key column of a relation."""
+    order = rel.sqlglot_expression.args.get("order")
+    assert order is not None and len(order.expressions) == 1
+    sort_key = order.expressions[0].this
+    assert isinstance(sort_key, sge.Column)
+    return sort_key
+
+
+@pytest.mark.parametrize(
+    "build_join,order_column,expected_qualifier,expected_column",
+    [
+        pytest.param(
+            lambda ds: ds.table("customers").join(
+                "orders", on="customers.customer_id = orders.customer_id"
+            ),
+            "orders__order_id",
+            "_dlt_jt_orders",
+            "order_id",
+            id="default-prefix",
+        ),
+        pytest.param(
+            lambda ds: ds.table("customers").join(
+                "orders", on="customers.customer_id = orders.customer_id", alias="o"
+            ),
+            "o__order_id",
+            "_dlt_jt_o",
+            "order_id",
+            id="custom-alias",
+        ),
+    ],
+)
+def test_order_by_join_output_resolves_to_source_column(
+    dataset_with_relational_tables: dlt.Dataset,
+    build_join: Callable[[dlt.Dataset], dlt.Relation],
+    order_column: str,
+    expected_qualifier: str,
+    expected_column: str,
+) -> None:
+    rel = build_join(dataset_with_relational_tables).order_by(order_column)
+    sort_key = _order_by_sort_key(rel)
+    assert sort_key.table == expected_qualifier, f"bare alias leaked: {sort_key.sql()}"
+    assert sort_key.name == expected_column
+
+
+def test_order_by_join_output_renders_resolvable_tsql(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    rel = (
+        dataset_with_relational_tables.table("customers")
+        .join("orders", on="customers.customer_id = orders.customer_id")
+        .order_by("orders__order_id")
+    )
+    order_by = sqlglot.transpile(rel.to_sql(), read="duckdb", write="tsql")[0].split("ORDER BY", 1)[
+        1
+    ]
+    assert "[orders__order_id]" not in order_by
+    assert "[_dlt_jt_orders].[order_id]" in order_by
+
+
 def test_explicit_on_projection_alias_collision_rejected(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
@@ -1113,7 +1174,6 @@ def test_explicit_on_with_aggregated_rhs(
     assert "order_totals__amount" not in df.columns
 
 
-@pytest.mark.xfail(reason="Column 'o.customer_id' could not be resolved for table: 'o'")
 def test_explicit_on_with_aliased_query_relations(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
@@ -1541,11 +1601,6 @@ def test_cross_dataset_join_chain_columns_schema_matches_df(
     assert schema_cols == df_cols
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Column 'inventory_items.warehouse_id' could not be resolved for table: 'inventory_items'"
-    )
-)
 def test_cross_dataset_join_chain_four_tables(
     cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
@@ -1565,7 +1620,6 @@ def test_cross_dataset_join_chain_four_tables(
     assert list(df["warehouses__city"]) == ["Berlin", "Paris", "Berlin"]
 
 
-@pytest.mark.xfail(reason="Column 'users.id' could not be resolved for table: 'users'")
 def test_cross_dataset_join_chain_three_datasets(
     three_way_cross_dataset_duckdb: TCrossDs3Fixture,
 ) -> None:
@@ -1585,7 +1639,28 @@ def test_cross_dataset_join_chain_three_datasets(
     assert list(df["subscriptions__plan"]) == ["enterprise", "enterprise", "free"]
 
 
-@pytest.mark.xfail(reason="unqualified where column `quantity` can't be resolved")
+def test_cross_dataset_join_chain_references_aliased_join_by_table_name(
+    three_way_cross_dataset_duckdb: TCrossDs3Fixture,
+) -> None:
+    """A later `on` references an earlier join target by its table name even when that join
+    used a custom `alias`"""
+    ds_crm, ds_inv, ds_billing = three_way_cross_dataset_duckdb
+
+    joined = (
+        ds_inv.table("purchases")
+        .join(ds_crm.table("users"), on="purchases.user_id = users.id", alias="u")
+        .join(ds_billing.table("subscriptions"), on="users.id = subscriptions.user_id")
+    )
+    df = joined.order_by("purchase_id").df()
+
+    assert len(df) == 3
+    # custom alias drives the projection prefix
+    assert "u__name" in df.columns
+    assert "users__name" not in df.columns
+    assert list(df["u__name"]) == ["Alice", "Alice", "Bob"]
+    assert list(df["subscriptions__plan"]) == ["enterprise", "enterprise", "free"]
+
+
 def test_cross_dataset_join_chain_filter_on_later_colliding_column(
     cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
@@ -1602,7 +1677,6 @@ def test_cross_dataset_join_chain_filter_on_later_colliding_column(
     assert list(df["inventory_items__quantity"]) == [50]
 
 
-@pytest.mark.xfail(reason="Column 'mkt_users.id' could not be resolved for table: 'mkt_users'")
 def test_cross_dataset_chain_same_named_tables_disambiguated(
     same_named_cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
