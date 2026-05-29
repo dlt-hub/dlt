@@ -15,13 +15,27 @@ import tomli as tomllib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, cast
+from typing import Any, Literal, NamedTuple, TypedDict, cast
 
 import pendulum
 from pendulum.datetime import DateTime
 
 Mode = Literal["off", "auto", "confirm"]
 VALID_MODES = frozenset({"off", "auto", "confirm"})
+MAX_PASSED_FINGERPRINTS = 50
+
+
+class PassRecord(TypedDict):
+    fingerprint: str
+    passed_at: str
+    command: str
+
+
+class CheckState(TypedDict):
+    passes: list[PassRecord]
+
+
+State = dict[str, CheckState]
 
 
 class Check(NamedTuple):
@@ -53,7 +67,7 @@ class PlannedCheck(NamedTuple):
 
 class GateOutcome(NamedTuple):
     exit_code: int
-    new_state: dict[str, dict[str, str]]
+    new_state: State
     stderr_lines: tuple[str, ...]
 
 
@@ -62,7 +76,7 @@ class ConfigError(Exception):
 
 
 class UnknownScopeError(Exception):
-    """Scope name is missing from scopes.toml."""
+    """Scope name is missing from [tool.prek.scopes] in pyproject.toml."""
 
 
 def repo_root() -> Path:
@@ -122,21 +136,62 @@ def load_local_config(path: Path) -> dict[str, Any] | None:
     return load_toml(path)
 
 
-def load_state(path: Path) -> dict[str, dict[str, str]]:
+def load_state(path: Path) -> State:
     if not path.is_file():
         return {}
     data = load_toml(path)
-    return {name: dict(section) for name, section in data.items() if isinstance(section, dict)}
+    return {
+        name: normalize_check_state(section)
+        for name, section in data.items()
+        if isinstance(section, dict)
+    }
 
 
-def write_state(path: Path, state: dict[str, dict[str, str]]) -> None:
+def normalize_pass_record(raw: dict[str, Any]) -> PassRecord | None:
+    fingerprint = raw.get("fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint:
+        return None
+    passed_at = raw.get("passed_at")
+    command = raw.get("command")
+    return PassRecord(
+        fingerprint=fingerprint,
+        passed_at=passed_at if isinstance(passed_at, str) else "",
+        command=command if isinstance(command, str) else "",
+    )
+
+
+def normalize_check_state(section: dict[str, Any]) -> CheckState:
+    passes: list[PassRecord] = []
+    raw_passes = section.get("passes")
+    if isinstance(raw_passes, list):
+        for item in raw_passes:
+            if isinstance(item, dict):
+                record = normalize_pass_record(item)
+                if record is not None:
+                    passes.append(record)
+    return CheckState(passes=passes[:MAX_PASSED_FINGERPRINTS])
+
+
+def passed_fingerprints(check_state: CheckState | None) -> list[str]:
+    if not check_state:
+        return []
+    return [record["fingerprint"] for record in check_state["passes"]]
+
+
+def fingerprint_is_known(check_state: CheckState | None, fingerprint: str) -> bool:
+    return fingerprint in passed_fingerprints(check_state)
+
+
+def write_state(path: Path, state: State) -> None:
     lines: list[str] = []
     for check_name, data in state.items():
-        lines.append(f"[{check_name}]")
-        for key, value in data.items():
-            lines.append(f'{key} = "{value}"')
-        lines.append("")
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+        for record in data["passes"]:
+            lines.append(f"[[{check_name}.passes]]")
+            lines.append(f'fingerprint = "{record["fingerprint"]}"')
+            lines.append(f'passed_at = "{record["passed_at"]}"')
+            lines.append(f'command = "{record["command"]}"')
+            lines.append("")
+    path.write_text("\n".join(lines).rstrip() + ("\n" if lines else ""), encoding="utf-8")
 
 
 def scope_from_dict(scope: dict[str, list[str]]) -> ScopeDef:
@@ -177,11 +232,13 @@ def fingerprint_files(paths: list[str], read_bytes: Callable[[str], bytes]) -> s
     return aggregate.hexdigest()
 
 
-def load_scopes(scopes_path: Path) -> dict[str, ScopeDef]:
-    raw = load_toml(scopes_path)
-    scopes = raw.get("scopes", {})
+def load_scopes(config_path: Path) -> dict[str, ScopeDef]:
+    raw = load_toml(config_path)
+    tool = raw.get("tool", {})
+    prek = tool.get("prek", {}) if isinstance(tool, dict) else {}
+    scopes = prek.get("scopes", {})
     if not isinstance(scopes, dict):
-        raise ValueError("Invalid [scopes] section in scopes.toml")
+        raise ValueError("Invalid [tool.prek.scopes] section in pyproject.toml")
     return {
         name: scope_from_dict(section)
         for name, section in scopes.items()
@@ -202,8 +259,8 @@ def git_ls_files(root: Path, pathspecs: list[str]) -> list[str]:
     return [line for line in result.stdout.splitlines() if line]
 
 
-def make_fingerprint_fn(root: Path, scopes_path: Path) -> Callable[[str], str]:
-    scopes = load_scopes(scopes_path)
+def make_fingerprint_fn(root: Path, config_path: Path) -> Callable[[str], str]:
+    scopes = load_scopes(config_path)
 
     def fingerprint(scope_name: str) -> str:
         try:
@@ -231,7 +288,7 @@ def gate_active(*, only_when_pr_open: bool, has_open_pr: bool) -> tuple[bool, st
 def plan_checks(
     checks: Sequence[Check],
     local_config: dict[str, Any],
-    state: dict[str, dict[str, str]],
+    state: State,
     fingerprint: Callable[[str], str],
 ) -> list[PlannedCheck]:
     planned: list[PlannedCheck] = []
@@ -240,25 +297,40 @@ def plan_checks(
         if mode == "off":
             continue
         current = fingerprint(check.name)
-        cached = state.get(check.name, {}).get("fingerprint", "")
-        planned.append(PlannedCheck(check, mode, current, cached, current != cached))
+        history = passed_fingerprints(state.get(check.name))
+        cached = history[0] if history else ""
+        planned.append(
+            PlannedCheck(
+                check,
+                mode,
+                current,
+                cached,
+                not fingerprint_is_known(state.get(check.name), current),
+            )
+        )
     return planned
 
 
 def with_passed_check(
-    state: dict[str, dict[str, str]],
+    state: State,
     check_name: str,
     *,
     fingerprint: str,
     command: str,
     passed_at: DateTime,
-) -> dict[str, dict[str, str]]:
-    updated = {name: dict(data) for name, data in state.items()}
-    updated[check_name] = {
-        "fingerprint": fingerprint,
-        "passed_at": passed_at.replace(microsecond=0).isoformat(),
-        "command": command,
-    }
+) -> State:
+    updated: State = {name: CheckState(passes=list(data["passes"])) for name, data in state.items()}
+    passes = list(updated.get(check_name, CheckState(passes=[]))["passes"])
+    passes = [record for record in passes if record["fingerprint"] != fingerprint]
+    passes.insert(
+        0,
+        PassRecord(
+            fingerprint=fingerprint,
+            passed_at=passed_at.replace(microsecond=0).isoformat(),
+            command=command,
+        ),
+    )
+    updated[check_name] = CheckState(passes=passes[:MAX_PASSED_FINGERPRINTS])
     return updated
 
 
@@ -320,7 +392,7 @@ class GateDeps:
             run_make=lambda target: _run_make_target(root, target),
             has_open_pr=lambda: _has_open_pr(root),
             confirm=_confirm_run,
-            fingerprint=make_fingerprint_fn(root, prek_dir / "scopes.toml"),
+            fingerprint=make_fingerprint_fn(root, root / "pyproject.toml"),
             now=lambda: pendulum.now("UTC"),
             is_tty=sys.stdin.isatty,
         )
@@ -353,7 +425,7 @@ def _confirm_run(make_command: str) -> bool:
 def run_gate(
     *,
     local_config: dict[str, Any],
-    state: dict[str, dict[str, str]],
+    state: State,
     deps: GateDeps,
     checks: Sequence[Check] = CHECKS,
 ) -> GateOutcome:
@@ -364,14 +436,16 @@ def run_gate(
     if not active:
         return GateOutcome(0, state, (f"prek gate: skipped ({reason})",))
 
-    new_state = {name: dict(data) for name, data in state.items()}
+    new_state: State = {
+        name: CheckState(passes=list(data["passes"])) for name, data in state.items()
+    }
     for check in checks:
         mode = parse_mode(local_config, check.name)
         if mode == "off":
             continue
 
         fingerprint = deps.fingerprint(check.name)
-        if new_state.get(check.name, {}).get("fingerprint") == fingerprint:
+        if fingerprint_is_known(new_state.get(check.name), fingerprint):
             continue
 
         if mode == "confirm" and not deps.confirm(check.make_command):
@@ -394,10 +468,10 @@ def run_gate(
 def record_passed_check(
     *,
     check_name: str,
-    state: dict[str, dict[str, str]],
+    state: State,
     hooks_enabled: bool,
     deps: GateDeps,
-) -> tuple[dict[str, dict[str, str]], str | None]:
+) -> tuple[State, str | None]:
     try:
         command = make_command_for(check_name)
     except ConfigError as exc:
@@ -458,7 +532,7 @@ def main_fingerprint(*, prek_dir: Path | None = None, argv: list[str] | None = N
 
     root = prek_dir.parent
     try:
-        print(make_fingerprint_fn(root, prek_dir / "scopes.toml")(argv[0]))
+        print(make_fingerprint_fn(root, root / "pyproject.toml")(argv[0]))
     except UnknownScopeError as exc:
         print(str(exc), file=sys.stderr)
         return 1

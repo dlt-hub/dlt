@@ -10,8 +10,12 @@ import pytest
 from tools.prek import (
     CHECKS,
     ConfigError,
+    CheckState,
     GateDeps,
+    MAX_PASSED_FINGERPRINTS,
+    PassRecord,
     ScopeDef,
+    State,
     dry_run_lines,
     fingerprint_files,
     gate_active,
@@ -20,6 +24,7 @@ from tools.prek import (
     matches_globs,
     parse_bool,
     parse_mode,
+    passed_fingerprints,
     plan_checks,
     record_passed_check,
     repo_root,
@@ -153,15 +158,22 @@ def test_run_gate_flow() -> None:
     passed = run_gate(local_config={"lint": {"mode": "auto"}}, state={}, deps=deps)
     assert passed.exit_code == 0
     assert calls == ["fl"]
-    assert passed.new_state["lint"]["fingerprint"] == "fp-lint"
+    assert passed.new_state["lint"]["passes"][0]["fingerprint"] == "fp-lint"
+    assert passed.new_state["lint"]["passes"][0]["command"] == "make fl"
 
     failed = run_gate(
         local_config={"lint": {"mode": "auto"}},
-        state={"lint": {"fingerprint": "old"}},
+        state={
+            "lint": CheckState(
+                passes=[
+                    PassRecord(fingerprint="other", passed_at="t0", command="make fl"),
+                ]
+            )
+        },
         deps=make_deps(run_make=lambda _target: 1),
     )
     assert failed.exit_code == 1
-    assert failed.new_state == {"lint": {"fingerprint": "old"}}
+    assert failed.new_state["lint"]["passes"][0]["fingerprint"] == "other"
 
     declined = run_gate(
         local_config={"lint": {"mode": "confirm"}},
@@ -180,20 +192,69 @@ def test_record_passed_check() -> None:
 
     updated, error = record_passed_check(check_name="lint", state={}, hooks_enabled=True, deps=deps)
     assert error is None
-    assert updated["lint"]["command"] == "make fl"
+    assert updated["lint"]["passes"][0]["command"] == "make fl"
 
     _, error = record_passed_check(check_name="missing", state={}, hooks_enabled=True, deps=deps)
     assert error is not None
 
 
 def test_with_passed_check_and_state_io(tmp_path: Path) -> None:
-    state = {"lint": {"fingerprint": "old", "passed_at": "t0", "command": "make fl"}}
+    state: State = {
+        "lint": CheckState(
+            passes=[
+                PassRecord(fingerprint="old", passed_at="t0", command="make fl"),
+            ]
+        )
+    }
     updated = with_passed_check(
         state, "lint", fingerprint="new", command="make fl", passed_at=FIXED_NOW
     )
-    assert state["lint"]["fingerprint"] == "old"
-    assert updated["lint"]["fingerprint"] == "new"
+    assert state["lint"]["passes"][0]["fingerprint"] == "old"
+    assert updated["lint"]["passes"][0]["fingerprint"] == "new"
+    assert updated["lint"]["passes"][1]["fingerprint"] == "old"
 
     state_path = tmp_path / ".state.toml"
     write_state(state_path, updated)
     assert load_state(state_path) == updated
+
+
+def test_fingerprint_history_skips_known_tree() -> None:
+    deps = make_deps(fingerprint=lambda name: {"lint": "fp-a", "test_common_p": "fp-b"}[name])
+    state: State = {
+        "lint": CheckState(
+            passes=[
+                PassRecord(fingerprint="fp-a", passed_at="t1", command="make fl"),
+                PassRecord(fingerprint="fp-other", passed_at="t0", command="make fl"),
+            ]
+        )
+    }
+
+    outcome = run_gate(local_config={"lint": {"mode": "auto"}}, state=state, deps=deps)
+    assert outcome.exit_code == 0
+    assert outcome.new_state == state
+
+    planned = plan_checks(
+        CHECKS,
+        {"lint": {"mode": "auto"}},
+        state,
+        deps.fingerprint,
+    )
+    assert planned[0].stale is False
+
+
+def test_fingerprint_history_caps_at_max() -> None:
+    history = [
+        PassRecord(fingerprint=f"fp-{index}", passed_at=f"t{index}", command="make fl")
+        for index in range(MAX_PASSED_FINGERPRINTS + 5)
+    ]
+    state: State = {"lint": CheckState(passes=history)}
+    updated = with_passed_check(
+        state,
+        "lint",
+        fingerprint="fp-new",
+        command="make fl",
+        passed_at=FIXED_NOW,
+    )
+    assert len(updated["lint"]["passes"]) == MAX_PASSED_FINGERPRINTS
+    assert updated["lint"]["passes"][0]["fingerprint"] == "fp-new"
+    assert updated["lint"]["passes"][-1]["fingerprint"] == f"fp-{MAX_PASSED_FINGERPRINTS - 2}"

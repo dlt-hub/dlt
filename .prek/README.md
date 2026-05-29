@@ -55,8 +55,20 @@ Checks run in order; a failed lint blocks tests.
 
 `make fl` runs format (root, docs, website deps) in parallel, then root and docs lint in parallel.
 
-A check runs only when its **fingerprint** (hash of tracked files in scope) differs from the last
-successful entry in `.prek/.state.toml` (also gitignored). Passing updates state for that check only.
+A check runs only when its **fingerprint** (hash of tracked files in scope) is not among the
+last 50 successful passes stored in `.prek/.state.toml` (also gitignored). Each pass records
+`fingerprint`, `passed_at`, and `command`. That history lets branch switches and reverts reuse
+a prior pass when the scoped tree matches again. Passing prepends a record and trims the list
+to 50 entries per check.
+
+Example:
+
+```toml
+[[lint.passes]]
+fingerprint = "abc123..."
+passed_at = "2026-05-29T12:00:00+00:00"
+command = "make fl"
+```
 
 After `make install-prepush-hooks`, successful `make fl` and `make test-common-p` also update
 state (no extra commands). Plain `make lint` does not update prek state.
@@ -67,15 +79,17 @@ prek may stash unstaged edits to `~/.cache/prek/patches/` while the hook runs, t
 Built-in prek behavior (from pre-commit), not configurable. Keeps lint/tests from failing on WIP you
 are not pushing.
 
-## Scopes (`scopes.toml`)
+## Scopes (`pyproject.toml`)
 
-Defines which tracked files invalidate each check. Edit when adding new trees that should trigger
+Defines which tracked files invalidate each check (`[tool.prek.scopes.lint]` and
+`[tool.prek.scopes.test_common_p]`). Edit when adding new trees that should trigger
 re-lint or re-test.
 
 **Lint** — `dlt`, `tests`, `tools`, `docs` (`.py`, `.md`, `.ipynb`), plus root/docs config and
 embedded-snippet lint setup files.
 
-**Common tests** — `dlt` and selected `tests/*` suites (see `scopes.toml`), plus `pyproject.toml`,
+**Common tests** — `dlt` and selected `tests/*` suites (see `[tool.prek.scopes]` in
+`pyproject.toml`), plus `pyproject.toml`,
 `uv.lock`, `tests/conftest.py`, `tests/load/test_dummy_client.py`.
 
 Inspect a fingerprint:
@@ -117,8 +131,8 @@ refuses to run so your hook is not deleted.
 **Want to re-run after a pass** — Delete the check’s section from `.prek/.state.toml`, or change a
 file in that check’s scope.
 
-**Stale fingerprint / wrong cache** — Same as above; state stores the last successful fingerprint
-per check.
+**Stale fingerprint / wrong cache** — Delete the check’s section from `.prek/.state.toml`, or change a
+file in that check’s scope. State keeps up to 50 pass records per check for branch hopping.
 
 ## Files in this directory
 
@@ -126,9 +140,7 @@ per check.
 |------|------|
 | `README.md` | This guide |
 | `local.example.toml` | Config template |
-| `scopes.toml` | Fingerprint inputs per check |
 | `prek.toml` | prek hook definition (`uv run python -m tools.prek`) |
-| `plan.md` | Maintainer notes / design sketch |
 
 Implementation and tests: `tools/prek.py` (run via `python -m tools.prek`).
 
