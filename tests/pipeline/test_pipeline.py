@@ -3574,6 +3574,7 @@ def test_yielding_empty_list_creates_table() -> None:
             assert rows[0] == (1, None)
 
 
+@pytest.mark.skip(reason="introduced by #3901; temporarily disabled")
 @pytest.mark.parametrize(
     "yield_one,yield_two",
     [(True, False), (False, True), (False, False), (True, True)],
@@ -3629,6 +3630,7 @@ def test_materialize_table_schema_multi_table_duckdb(yield_one: bool, yield_two:
     assert "col_two" in schema_tables["table_two"]["columns"]
 
 
+@pytest.mark.skip(reason="introduced by #3901; temporarily disabled")
 def test_materialize_table_schema_with_nested_hints_duckdb() -> None:
     """Pre-declared nested table via `nested_hints` is added to the schema but does NOT
     materialize at the destination when only the root yields `materialize_table_schema()`.

@@ -124,10 +124,10 @@ class Extractor:
         self.schema = schema
         self.naming = schema.naming
         self.collector = collector
-        self.tables_with_items: Set[str] = set()
-        """Tracks tables that received items"""
-        self.tables_with_empty: Set[str] = set()
-        """Tracks tables that received empty materialized list"""
+        self.resources_with_items: Set[str] = set()
+        """Tracks resources that received items"""
+        self.resources_with_empty: Set[str] = set()
+        """Track resources that received empty materialized list"""
         self.load_id = load_id
         self.item_storage = item_storage
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
@@ -190,10 +190,10 @@ class Extractor:
         self.collector.update(table_name, inc=new_rows_count)
         # if there were rows or item was empty arrow table
         if new_rows_count > 0 or self.__class__ is ArrowExtractor:
-            self.tables_with_items.add(table_name)
+            self.resources_with_items.add(resource_name)
         else:
             if isinstance(items, MaterializedEmptyList):
-                self.tables_with_empty.add(table_name)
+                self.resources_with_empty.add(resource_name)
 
     def _import_item(
         self,
@@ -210,7 +210,7 @@ class Extractor:
             meta.file_format,
         )
         self.collector.update(table_name, inc=metrics.items_count)
-        self.tables_with_items.add(table_name)
+        self.resources_with_items.add(resource_name)
 
     def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         if not isinstance(items, list):
