@@ -14,7 +14,7 @@ from tools.prek import (
     GateDeps,
     MAX_PASSED_FINGERPRINTS,
     PassRecord,
-    ScopeDef,
+    FingerprintDef,
     State,
     dry_run_lines,
     fingerprint_files,
@@ -28,7 +28,7 @@ from tools.prek import (
     plan_checks,
     record_passed_check,
     repo_root,
-    resolve_scope_files,
+    resolve_fingerprint_files,
     run_gate,
     with_passed_check,
     write_state,
@@ -92,14 +92,14 @@ def test_matches_globs(path: str, globs: list[str], expected: bool) -> None:
     assert matches_globs(path, globs) is expected
 
 
-def test_resolve_scope_files_and_fingerprint(tmp_path: Path) -> None:
+def test_resolve_fingerprint_files_and_fingerprint(tmp_path: Path) -> None:
     (tmp_path / "root.toml").write_text("c", encoding="utf-8")
     (tmp_path / "pkg").mkdir()
     (tmp_path / "pkg" / "keep.py").write_text("a", encoding="utf-8")
 
-    scope = ScopeDef(files=("root.toml",), paths=("pkg",), globs=("*.py",))
-    paths = resolve_scope_files(
-        scope,
+    fingerprint_def = FingerprintDef(files=("root.toml",), paths=("pkg",), globs=("*.py",))
+    paths = resolve_fingerprint_files(
+        fingerprint_def,
         list_tracked=lambda _: ["pkg/keep.py", "pkg/skip.txt"],
         root=tmp_path,
     )

@@ -424,7 +424,7 @@ ignore = [
 line-length = 100
 preview = true
 
-[tool.prek.scopes.lint]
+[tool.dlt.prepush.fingerprints.lint]
 paths = ["dlt", "tests", "tools", "docs"]
 globs = ["*.py", "*.md", "*.ipynb"]
 files = [
@@ -436,7 +436,7 @@ files = [
     "docs/docs_tools/snippets/lint_setup/mypy.ini",
 ]
 
-[tool.prek.scopes.test_common_p]
+[tool.dlt.prepush.fingerprints.test_common_p]
 paths = [
     "dlt",
     "tests/common",

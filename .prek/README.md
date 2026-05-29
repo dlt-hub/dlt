@@ -33,12 +33,12 @@ Copy from `local.example.toml`. Gitignored — per-developer only.
 | Section | Keys | Meaning |
 |---------|------|---------|
 | `[gate]` | `only_when_pr_open` | If `true`, skip all checks unless the current branch has an open PR (`gh pr view`) |
-| `[lint]` | `mode` | How to handle stale lint scope |
-| `[test_common_p]` | `mode` | How to handle stale common-test scope |
+| `[lint]` | `mode` | How to handle a stale lint fingerprint |
+| `[test_common_p]` | `mode` | How to handle a stale common-test fingerprint |
 
 ### Modes
 
-| Mode | When scope is stale |
+| Mode | When the fingerprint is stale |
 |------|---------------------|
 | `off` | Never run this check |
 | `auto` | Run the make target |
@@ -61,10 +61,10 @@ Checks run in order; a failed lint blocks tests.
 
 `make fl` runs format (root, docs, website deps) in parallel, then root and docs lint in parallel.
 
-A check runs only when its **fingerprint** (hash of tracked files in scope) is not among the
+A check runs only when its **fingerprint** (hash of tracked files listed for that check) is not among the
 last 50 successful passes stored in `.prek/.state.toml` (also gitignored). Each pass records
 `fingerprint`, `passed_at`, and `command`. That history lets branch switches and reverts reuse
-a prior pass when the scoped tree matches again. Passing prepends a record and trims the list
+a prior pass when the tree matches again. Passing prepends a record and trims the list
 to 50 entries per check.
 
 Example:
@@ -85,16 +85,16 @@ prek may stash unstaged edits to `~/.cache/prek/patches/` while the hook runs, t
 Built-in prek behavior (from pre-commit), not configurable. Keeps lint/tests from failing on WIP you
 are not pushing.
 
-## Scopes (`pyproject.toml`)
+## Fingerprint inputs (`pyproject.toml`)
 
-Defines which tracked files invalidate each check (`[tool.prek.scopes.lint]` and
-`[tool.prek.scopes.test_common_p]`). Edit when adding new trees that should trigger
+Defines which tracked files feed each check fingerprint (`[tool.dlt.prepush.fingerprints.lint]` and
+`[tool.dlt.prepush.fingerprints.test_common_p]`). Edit when adding new trees that should trigger
 re-lint or re-test.
 
 **Lint** — `dlt`, `tests`, `tools`, `docs` (`.py`, `.md`, `.ipynb`), plus root/docs config and
 embedded-snippet lint setup files.
 
-**Common tests** — `dlt` and selected `tests/*` suites (see `[tool.prek.scopes]` in
+**Common tests** — `dlt` and selected `tests/*` suites (see `[tool.dlt.prepush.fingerprints]` in
 `pyproject.toml`), plus `pyproject.toml`,
 `uv.lock`, `tests/conftest.py`, `tests/load/test_dummy_client.py`.
 
@@ -135,7 +135,7 @@ refuses to run so your hook is not deleted.
 **Docs lint fails** — Run `cd docs && make dev`, then `make fl` (or `cd docs && make format && make lint`).
 
 **Want to re-run after a pass** — Delete `.prek/.state.toml`, remove all `[[lint.passes]]` or
-`[[test_common_p.passes]]` entries for that check, or change a file in that check’s scope.
+`[[test_common_p.passes]]` entries for that check, or change a tracked file in that check’s fingerprint inputs.
 
 **Stale fingerprint / wrong cache** — Same as above. State keeps up to 50 pass records per check
 for branch hopping.

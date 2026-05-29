@@ -1,4 +1,4 @@
-"""Pre-push gate: run lint/tests when scope fingerprints change."""
+"""Pre-push gate: run lint/tests when tracked fingerprint inputs change."""
 
 # ruff: noqa: T201
 # flake8: noqa: T201
@@ -51,7 +51,7 @@ CHECKS: tuple[Check, ...] = (
 CHECK_NAMES = frozenset(check.name for check in CHECKS)
 
 
-class ScopeDef(NamedTuple):
+class FingerprintDef(NamedTuple):
     files: tuple[str, ...]
     paths: tuple[str, ...]
     globs: tuple[str, ...]
@@ -75,8 +75,8 @@ class ConfigError(Exception):
     """Invalid prek local configuration."""
 
 
-class UnknownScopeError(Exception):
-    """Scope name is missing from [tool.prek.scopes] in pyproject.toml."""
+class UnknownCheckError(Exception):
+    """Check name is missing from [tool.dlt.prepush.fingerprints] in pyproject.toml."""
 
 
 def repo_root() -> Path:
@@ -194,11 +194,11 @@ def write_state(path: Path, state: State) -> None:
     path.write_text("\n".join(lines).rstrip() + ("\n" if lines else ""), encoding="utf-8")
 
 
-def scope_from_dict(scope: dict[str, list[str]]) -> ScopeDef:
-    return ScopeDef(
-        files=tuple(scope.get("files", [])),
-        paths=tuple(scope.get("paths", [])),
-        globs=tuple(scope.get("globs", [])),
+def fingerprint_def_from_dict(raw: dict[str, list[str]]) -> FingerprintDef:
+    return FingerprintDef(
+        files=tuple(raw.get("files", [])),
+        paths=tuple(raw.get("paths", [])),
+        globs=tuple(raw.get("globs", [])),
     )
 
 
@@ -207,17 +207,21 @@ def matches_globs(path: str, globs: list[str]) -> bool:
     return any(fnmatch.fnmatch(name, pattern) for pattern in globs)
 
 
-def resolve_scope_files(
-    scope: ScopeDef,
+def resolve_fingerprint_files(
+    fingerprint_def: FingerprintDef,
     *,
     list_tracked: Callable[[list[str]], list[str]],
     root: Path,
 ) -> list[str]:
-    files: set[str] = set(scope.files)
-    for path_prefix in scope.paths:
+    files: set[str] = set(fingerprint_def.files)
+    for path_prefix in fingerprint_def.paths:
         candidates = list_tracked([path_prefix])
-        if scope.globs:
-            files.update(path for path in candidates if matches_globs(path, list(scope.globs)))
+        if fingerprint_def.globs:
+            files.update(
+                path
+                for path in candidates
+                if matches_globs(path, list(fingerprint_def.globs))
+            )
         else:
             files.update(candidates)
     return sorted(path for path in files if (root / path).is_file())
@@ -232,16 +236,17 @@ def fingerprint_files(paths: list[str], read_bytes: Callable[[str], bytes]) -> s
     return aggregate.hexdigest()
 
 
-def load_scopes(config_path: Path) -> dict[str, ScopeDef]:
+def load_fingerprint_defs(config_path: Path) -> dict[str, FingerprintDef]:
     raw = load_toml(config_path)
     tool = raw.get("tool", {})
-    prek = tool.get("prek", {}) if isinstance(tool, dict) else {}
-    scopes = prek.get("scopes", {})
-    if not isinstance(scopes, dict):
-        raise ValueError("Invalid [tool.prek.scopes] section in pyproject.toml")
+    dlt = tool.get("dlt", {}) if isinstance(tool, dict) else {}
+    prepush = dlt.get("prepush", {}) if isinstance(dlt, dict) else {}
+    fingerprints = prepush.get("fingerprints", {})
+    if not isinstance(fingerprints, dict):
+        raise ValueError("Invalid [tool.dlt.prepush.fingerprints] section in pyproject.toml")
     return {
-        name: scope_from_dict(section)
-        for name, section in scopes.items()
+        name: fingerprint_def_from_dict(section)
+        for name, section in fingerprints.items()
         if isinstance(section, dict)
     }
 
@@ -260,15 +265,15 @@ def git_ls_files(root: Path, pathspecs: list[str]) -> list[str]:
 
 
 def make_fingerprint_fn(root: Path, config_path: Path) -> Callable[[str], str]:
-    scopes = load_scopes(config_path)
+    fingerprint_defs = load_fingerprint_defs(config_path)
 
-    def fingerprint(scope_name: str) -> str:
+    def fingerprint(check_name: str) -> str:
         try:
-            scope = scopes[scope_name]
+            fingerprint_def = fingerprint_defs[check_name]
         except KeyError as exc:
-            raise UnknownScopeError(f"Unknown scope: {scope_name}") from exc
-        paths = resolve_scope_files(
-            scope,
+            raise UnknownCheckError(f"Unknown check: {check_name}") from exc
+        paths = resolve_fingerprint_files(
+            fingerprint_def,
             list_tracked=lambda pathspecs: git_ls_files(root, pathspecs),
             root=root,
         )
@@ -527,13 +532,13 @@ def main_fingerprint(*, prek_dir: Path | None = None, argv: list[str] | None = N
     if argv is None:
         argv = sys.argv[1:]
     if len(argv) != 1:
-        print("Usage: python -m tools.prek fingerprint <scope_name>", file=sys.stderr)
+        print("Usage: python -m tools.prek fingerprint <check_name>", file=sys.stderr)
         return 1
 
     root = prek_dir.parent
     try:
         print(make_fingerprint_fn(root, root / "pyproject.toml")(argv[0]))
-    except UnknownScopeError as exc:
+    except UnknownCheckError as exc:
         print(str(exc), file=sys.stderr)
         return 1
     return 0
