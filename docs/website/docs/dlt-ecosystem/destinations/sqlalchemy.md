@@ -335,7 +335,13 @@ Please report issues with particular dialects. We'll try to make them work.
 * Trino does not support PRIMARY/UNIQUE constraints
 
 ### Oracle limitations
-* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
+* In Oracle a schema is owned by a database user, and there is no bare `CREATE SCHEMA` statement (it requires `CREATE SCHEMA AUTHORIZATION <user> ...`, which fails with `ORA-02420` otherwise). dlt therefore does not try to create the schema on Oracle. Your `dataset_name` must point to an existing schema (user). If it does not exist, dlt raises a clear error instead of the cryptic `ORA-02420`. Create the schema in advance, e.g.:
+  ```sql
+  CREATE USER my_dataset IDENTIFIED BY "..." DEFAULT TABLESPACE my_ts QUOTA UNLIMITED ON my_ts;
+  GRANT CREATE SESSION, CREATE TABLE TO my_dataset;
+  ```
+* Regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation and usually cannot create other schemas. For features requiring staging datasets you should either grant schema creation rights to the DB user or point the staging dataset (named `<dataset_name>_staging`) at an existing schema. The staging schema must be pre-created the same way as above. See [staging dataset documentation](../staging.md#staging-dataset) for more details.
+* `dev_mode` and dropping a dataset do not drop the Oracle schema (that would require `DROP USER`, a DBA privilege). dlt drops the tables inside the schema instead and leaves the schema (user) in place.
 
 
 ### Adapting destination for a dialect
@@ -485,7 +491,7 @@ register_dialect_capabilities("my_dialect", MyDialectCapabilities)
 
 After registration, any pipeline using a `my_dialect://` connection URL will automatically use the custom capabilities. No additional configuration is needed.
 
-The `DialectCapabilities` class supports four extension points:
+The `DialectCapabilities` class supports these extension points:
 
 | Method | Description |
 | --- | --- |
@@ -493,6 +499,9 @@ The `DialectCapabilities` class supports four extension points:
 | `type_mapper_class` | Return a custom `DataTypeMapper` subclass for the dialect |
 | `adapt_table` | Modify `sa.Table` objects before they are created or used for loading (e.g. reorder columns for StarRocks) |
 | `is_undefined_relation` | Classify exceptions as "table/schema not found" errors for the dialect |
+| `dataset_exists` | Decide whether a dataset (schema) exists from the schema names reported by the database (e.g. case-insensitive match on Oracle) |
+| `create_dataset` | Create the dataset (schema), or skip/raise for dialects without a bare `CREATE SCHEMA` (e.g. Oracle) |
+| `drop_dataset` | Drop the dataset (schema), or drop the tables within it for dialects that cannot drop schemas (e.g. Oracle) |
 
 :::tip
 Passing `type_mapper=` directly to `dlt.destinations.sqlalchemy()` always takes precedence over the registered dialect capabilities. Use direct passing for one-off overrides and registration for reusable dialect support.

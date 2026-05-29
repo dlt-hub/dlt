@@ -4,12 +4,16 @@ Users can register custom DialectCapabilities subclasses to adapt the destinatio
 for dialects that are not built-in. See register_dialect_capabilities.
 """
 
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, List, Optional, Type, TYPE_CHECKING
 
 import sqlalchemy as sa  # noqa
 
 from dlt.common.destination.capabilities import DataTypeMapper, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
+from dlt.destinations.exceptions import DatabaseException, DatabaseTerminalException
+
+if TYPE_CHECKING:
+    from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 
 
 _GENERIC_UNDEFINED_RELATION_PATTERNS = [
@@ -58,6 +62,8 @@ class DialectCapabilities:
     * adapt_table -- modify an sa.Table object before it is materialized
       (e.g. reorder columns for StarRocks)
     * is_undefined_relation -- detect "table/schema not found" errors for the dialect
+    * dataset_exists / create_dataset / drop_dataset -- adapt schema (dataset) lifecycle
+      for dialects that do not support bare CREATE SCHEMA (e.g. Oracle)
 
     The sqlglot_dialect property maps backend names to sqlglot dialect names. Override
     it in subclasses or add entries to SQLGLOT_DIALECTS for non-obvious mappings.
@@ -126,6 +132,26 @@ class DialectCapabilities:
             if pat in msg:
                 return True
         return None
+
+    def dataset_exists(self, schema_names: List[str], dataset_name: str) -> bool:
+        """Return True if the dataset (schema) exists among the schemas reported by the database.
+
+        Args:
+            schema_names: Schema names as returned by the dialect's get_schema_names.
+            dataset_name: Name of the dataset (schema) dlt is looking for.
+        """
+        return dataset_name in schema_names
+
+    def create_dataset(self, client: "SqlalchemyClient") -> None:
+        """Create the dataset (schema) identified by client.dataset_name."""
+        client.execute_sql(sa.schema.CreateSchema(client.dataset_name))
+
+    def drop_dataset(self, client: "SqlalchemyClient") -> None:
+        """Drop the dataset (schema) identified by client.dataset_name and all objects it contains."""
+        try:
+            client.execute_sql(sa.schema.DropSchema(client.dataset_name, cascade=True))
+        except DatabaseException:  # Try again in case cascade is not supported
+            client.execute_sql(sa.schema.DropSchema(client.dataset_name))
 
 
 DIALECT_CAPS_REGISTRY: Dict[str, Type[DialectCapabilities]] = {}
@@ -214,7 +240,13 @@ class MssqlDialectCapabilities(DialectCapabilities):
 
 
 class OracleDialectCapabilities(DialectCapabilities):
-    """Capabilities for Oracle."""
+    """Capabilities for Oracle.
+
+    In Oracle a schema is owned by a database user and cannot be created with a bare
+    `CREATE SCHEMA` statement (that fails with ORA-02420). dlt therefore treats the dataset
+    as an existing schema (user) that must be created in advance and only manages the tables
+    within it.
+    """
 
     def is_undefined_relation(self, e: Exception) -> Optional[bool]:
         msg = str(e).lower()
@@ -222,6 +254,35 @@ class OracleDialectCapabilities(DialectCapabilities):
         if "00942" in msg:
             return True
         return super().is_undefined_relation(e)
+
+    def dataset_exists(self, schema_names: List[str], dataset_name: str) -> bool:
+        # Oracle folds unquoted identifiers to upper case, so match case-insensitively
+        folded = dataset_name.casefold()
+        return any(name.casefold() == folded for name in schema_names)
+
+    def create_dataset(self, client: "SqlalchemyClient") -> None:
+        # Oracle has no bare CREATE SCHEMA (schemas are users); the schema must already exist
+        if client.has_dataset():
+            return
+        raise DatabaseTerminalException(
+            Exception(
+                f"Oracle schema (user) '{client.dataset_name}' does not exist and cannot be"
+                " created by dlt. In Oracle a schema is owned by a database user and must be"
+                ' created in advance, e.g. `CREATE USER "'
+                f"{client.dataset_name}"
+                '" IDENTIFIED BY ...` with the appropriate quota and grants (CREATE SESSION,'
+                " CREATE TABLE, ...). The staging dataset (named '<dataset_name>_staging') used by"
+                " merge and replace write dispositions must be created the same way. Create the"
+                " schema(s) manually and run the pipeline again."
+            )
+        )
+
+    def drop_dataset(self, client: "SqlalchemyClient") -> None:
+        # Oracle cannot DROP SCHEMA (that would require DROP USER, a DBA privilege the loader
+        # rarely has and which dlt does not own); drop the tables within the schema instead
+        table_names = sa.inspect(client.engine).get_table_names(schema=client.dataset_name)
+        if table_names:
+            client.drop_tables(*table_names)
 
 
 class DuckdbDialectCapabilities(DialectCapabilities):
