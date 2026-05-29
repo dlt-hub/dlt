@@ -17,7 +17,7 @@ if __name__ == "__main__":
     while time.time() < deadline:
         pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
         info = pipeline.normalize() if step == "normalize" else pipeline.load()
-        if info is not None and getattr(info, "loads_ids", None):
+        if info is not None and not info.is_empty:
             completed.extend(info.loads_ids)
             break
         time.sleep(0.3)
