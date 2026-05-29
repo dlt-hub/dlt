@@ -1,8 +1,14 @@
 # Pre-push local verification
 
-Optional pre-push checks via [prek](https://github.com/pre-commit/prek): run `make fl` and/or
-`make test-common-p` before you push, but only when files in each check’s scope have changed since
-the last successful run.
+> **Not a general prek/pre-commit rollout.** prek is used only to install a **pre-push** hook; gate logic lives in `tools/prek.py`. This is not incremental formatting or per-file lint on staged changes — it runs full `make fl` / `make test-common-p` when the hook decides they are needed.
+
+Optional pre-push checks: run `make fl` and/or `make test-common-p` on push when the current tree’s
+fingerprint is not already in local pass history (up to 50 recorded passes per check in
+`.prek/.state.toml`).
+
+**Manual commands always run.** `make fl` and `make test-common-p` execute in full whenever you
+invoke them. The cache applies only to pre-push (`git push`), `make prek`, and `make prek-dry`.
+Successful manual runs still record passes (after hook install) so the next push can skip.
 
 The hook is **opt-in**. Without `.prek/local.toml`, the pre-push hook does nothing.
 
@@ -128,11 +134,11 @@ refuses to run so your hook is not deleted.
 
 **Docs lint fails** — Run `cd docs && make dev`, then `make fl` (or `cd docs && make format && make lint`).
 
-**Want to re-run after a pass** — Delete the check’s section from `.prek/.state.toml`, or change a
-file in that check’s scope.
+**Want to re-run after a pass** — Delete `.prek/.state.toml`, remove all `[[lint.passes]]` or
+`[[test_common_p.passes]]` entries for that check, or change a file in that check’s scope.
 
-**Stale fingerprint / wrong cache** — Delete the check’s section from `.prek/.state.toml`, or change a
-file in that check’s scope. State keeps up to 50 pass records per check for branch hopping.
+**Stale fingerprint / wrong cache** — Same as above. State keeps up to 50 pass records per check
+for branch hopping.
 
 ## Files in this directory
 
