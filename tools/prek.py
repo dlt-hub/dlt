@@ -218,9 +218,7 @@ def resolve_fingerprint_files(
         candidates = list_tracked([path_prefix])
         if fingerprint_def.globs:
             files.update(
-                path
-                for path in candidates
-                if matches_globs(path, list(fingerprint_def.globs))
+                path for path in candidates if matches_globs(path, list(fingerprint_def.globs))
             )
         else:
             files.update(candidates)
