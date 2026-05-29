@@ -531,8 +531,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 pythonpath = ["dlt"]
 norecursedirs = [".direnv", ".eggs", "build", "dist"]
-#TODO: change less durations
-addopts = "-p no:xdist --showlocals --durations 200 -m 'not rfam'"
+addopts = "-p no:xdist --showlocals --durations 10 -m 'not rfam'"
 xfail_strict = true
 timeout = 1800
 faulthandler_timeout = 1500
@@ -542,7 +541,6 @@ python_files = ["test_*.py", "*_test.py"]
 python_functions = ["*_test", "test_*"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
-    "xdist_group(name): group tests on one xdist worker (requires --dist=loadgroup)",
     "essential: marks all essential tests",
     "forked: marks tests that must run in a separate process (forked), e.g. due to global state, crashes, or side effects",
     "no_load: marks tests that do not load anything",
