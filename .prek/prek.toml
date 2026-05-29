@@ -1,0 +1,11 @@
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "pre-push-gate"
+name = "dlt pre-push gate"
+language = "system"
+entry = "bash .prek/pre-push-gate.sh"
+pass_filenames = false
+always_run = true
+stages = ["pre-push"]

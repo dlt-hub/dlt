@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: install-uv has-uv dev lint test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-hub-minimal test-hub-minimal test-hub install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database
+.PHONY: install-uv has-uv dev lint lint-docs test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-hub-minimal test-hub-minimal test-hub install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database setup-hooks uninstall-hooks prek prek-dry
 
 PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
 .SILENT:has-uv
@@ -37,7 +37,10 @@ dev-airflow: has-uv ## Prepares development environment with airflow support
 dev-hub: has-uv ## Prepares development environment with hub support
 	uv sync --all-extras --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
-lint: lint-core lint-security lint-docstrings lint-lock lint-deps ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile, deps)
+lint: lint-core lint-security lint-docstrings lint-lock lint-deps lint-docs ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile, deps, docs)
+
+lint-docs: ## Runs docs linting (embedded snippets, notebooks, docs tooling)
+	cd docs && $(MAKE) lint
 
 lint-lock: ## Checks uv lockfile is in sync
 	uv lock --check
@@ -151,6 +154,7 @@ TEST_COMMON_PATHS = \
 	tests/libs \
 	tests/destinations
 
+test-common: PYTEST_MARKERS = not rfam
 test-common: ## Tests common components without external resources
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_PATHS))
 
@@ -432,3 +436,18 @@ test-e2e-dashboard-headed: ## Runs dashboard e2e tests with visible browser
 
 create-test-pipelines: ## Creates test pipelines for manual dashboard testing
 	uv run python tests/workspace/helpers/dashboard/example_pipelines.py
+
+PREK_VERSION ?= 0.4.2
+
+prek: ## Run pre-push gate now (same as the git hook)
+	uv run python .prek/gate.py
+
+prek-dry: ## Show what the pre-push gate would run (no make, no state update)
+	uv run python .prek/gate.py --dry-run
+
+setup-hooks: ## Install prek and pre-push hook
+	uv tool install prek@$(PREK_VERSION)
+	prek install --hook-type pre-push --config .prek/prek.toml -f
+
+uninstall-hooks: ## Remove pre-push hook
+	prek uninstall --hook-type pre-push --config .prek/prek.toml || true

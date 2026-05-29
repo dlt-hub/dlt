@@ -152,6 +152,11 @@ Our goal is to maintain stability and compatibility across all environments. Ple
 
 `dlt` uses `mypy` and `flake8` (with several plugins) for linting. You can run the linter locally with `make lint`. We also run a code formatter with `black` which you can run with `make format`. The lint step will also ensure that the code is formatted correctly. It is good practice to run `make format && make lint` before every commit.
 
+### Pre-push hooks (optional)
+
+You can run `make lint` and/or `make test-common-p` automatically before each push when tracked
+files in scope change. Setup and configuration: [`.prek/README.md`](.prek/README.md) (`make setup-hooks`).
+
 ## Testing
 
 `dlt` uses `pytest` for testing.
@@ -179,6 +184,8 @@ If, for any reason, you need to access the `pytest-xdist` worker id, do it with 
 ### CI Setup
 
 You can view our GitHub Actions setup in `.github/workflows` to see which tests are run with which dependencies  / extras installed, and which platforms and python versions are used for linting and testing. The main entry point is `.github/workflows/main.yml` which orchestrates all other workflows. Certain dependencies exist, for example no tests will be run if the linter reports problems. Some workflows use test matrixes to test several destinations or run tests on various operating systems and with various python versions or dependency resolution strategies. To reduce CI execution time and improve feedback cycles, parallel test execution via `pytest-xdist` has been enabled in CI. Try to run any test suite that is involved in your development work in parallel if possible, since that is how it will be run in CI. Some CI tests have been restricted the number of workers due to destination performance reasons.
+
+PR label `test-remote-early`: jobs that normally wait for `test_common` (destination, sources, dbt runner, etc.) start in parallel with lint instead. Lint and common still run serially. Use this label only if you run lint and common locally (see [`.prek/README.md`](.prek/README.md)).
 
 ### Common Components
 

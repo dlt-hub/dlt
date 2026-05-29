@@ -1,3 +1,6 @@
+# Prek automatic checks
+.prek/local.toml
+.prek/.state.toml
 
 # Claude Code
 .worktrees

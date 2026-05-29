@@ -1,0 +1,34 @@
+[scopes.lint]
+paths = ["dlt", "tests", "tools", "docs"]
+globs = ["*.py", "*.md", "*.ipynb"]
+files = [
+  "pyproject.toml",
+  "uv.lock",
+  "Makefile",
+  "docs/pyproject.toml",
+  "docs/uv.lock",
+  "docs/Makefile",
+  "docs/docs_tools/snippets/lint_setup/template.py",
+  "docs/docs_tools/snippets/lint_setup/mypy.ini",
+]
+
+[scopes.test_common_p]
+paths = [
+  "dlt",
+  "tests/common",
+  "tests/normalize",
+  "tests/extract",
+  "tests/pipeline",
+  "tests/reflection",
+  "tests/sources",
+  "tests/workspace",
+  "tests/libs",
+  "tests/destinations",
+]
+globs = ["*.py"]
+files = [
+  "pyproject.toml",
+  "uv.lock",
+  "tests/conftest.py",
+  "tests/load/test_dummy_client.py",
+]

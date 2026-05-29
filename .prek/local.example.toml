@@ -1,0 +1,8 @@
+[gate]
+only_when_pr_open = true  # if true, run checks only when the current branch has an open PR
+
+[lint]
+mode = "auto"  # off | auto | confirm
+
+[test_common_p]
+mode = "confirm"  # off | auto | confirm
