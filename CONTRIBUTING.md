@@ -154,8 +154,8 @@ Our goal is to maintain stability and compatibility across all environments. Ple
 
 ### Pre-push hooks (optional)
 
-You can run `make lint` and/or `make test-common-p` automatically before each push when tracked
-files in scope change. Setup and configuration: [`.prek/README.md`](.prek/README.md) (`make setup-hooks`).
+You can run `make fl` and/or `make test-common-p` automatically before each push when tracked
+files in scope change. Setup and configuration: [`.prek/README.md`](.prek/README.md) (`make install-prepush-hooks`).
 
 ## Testing
 

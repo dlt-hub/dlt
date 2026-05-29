@@ -18,14 +18,16 @@ from fingerprint import compute_fingerprint  # noqa: E402
 
 LOCAL_CONFIG_PATH = PREK_DIR / "local.toml"
 STATE_PATH = PREK_DIR / ".state.toml"
+ENABLED_PATH = PREK_DIR / ".enabled"
 
 TMode = Literal["off", "auto", "confirm"]
 TCheck = tuple[str, str, str]
 
 CHECKS: list[TCheck] = [
-    ("lint", "lint", "make lint"),
+    ("lint", "fl", "make fl"),
     ("test_common_p", "test-common-p", "make test-common-p"),
 ]
+CHECK_NAMES = frozenset(check[0] for check in CHECKS)
 VALID_MODES = {"off", "auto", "confirm"}
 
 
@@ -111,6 +113,34 @@ def _run_make(target: str) -> int:
     return subprocess.run(["make", target], cwd=ROOT).returncode
 
 
+def _make_command_for(check_name: str) -> str:
+    for name, _, make_command in CHECKS:
+        if name == check_name:
+            return make_command
+    valid = ", ".join(sorted(CHECK_NAMES))
+    raise SystemExit(f"Unknown check {check_name!r}; expected one of: {valid}")
+
+
+def _save_passed_check(check_name: str) -> None:
+    fingerprint = compute_fingerprint(check_name)
+    state = _load_state()
+    state[check_name] = {
+        "fingerprint": fingerprint,
+        "passed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "command": _make_command_for(check_name),
+    }
+    _write_state(state)
+
+
+def record_check(check_name: str) -> int:
+    """Record a successful check from make fl / make test-common-p (requires .enabled)."""
+    if not ENABLED_PATH.is_file():
+        return 0
+    _make_command_for(check_name)
+    _save_passed_check(check_name)
+    return 0
+
+
 def _plan_checks(
     local_config: dict[str, Any], state: dict[str, dict[str, str]]
 ) -> list[tuple[TCheck, TMode, str, str, bool]]:
@@ -191,12 +221,7 @@ def main() -> int:
             print(f"{make_command} failed. Push aborted.", file=sys.stderr)
             return 1
 
-        state[check_name] = {
-            "fingerprint": fingerprint,
-            "passed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-            "command": make_command,
-        }
-        _write_state(state)
+        _save_passed_check(check_name)
 
     return 0
 
@@ -208,5 +233,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Show which checks would run without executing them or updating state",
     )
+    parser.add_argument(
+        "--record",
+        metavar="CHECK",
+        help="Record a successful check (lint, test_common_p); used after make fl / make test-common-p",
+    )
     args = parser.parse_args()
+    if args.record:
+        raise SystemExit(record_check(args.record))
     raise SystemExit(_dry_run() if args.dry_run else main())
