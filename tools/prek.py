@@ -1,5 +1,8 @@
 """Pre-push gate: run lint/tests when scope fingerprints change."""
 
+# ruff: noqa: T201
+# flake8: noqa: T201
+
 from __future__ import annotations
 
 import argparse
@@ -11,9 +14,11 @@ import sys
 import tomllib  # type: ignore[import-untyped]
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, NamedTuple, cast
+
+import pendulum
+from pendulum.datetime import DateTime
 
 Mode = Literal["off", "auto", "confirm"]
 VALID_MODES = frozenset({"off", "auto", "confirm"})
@@ -246,7 +251,7 @@ def with_passed_check(
     *,
     fingerprint: str,
     command: str,
-    passed_at: datetime,
+    passed_at: DateTime,
 ) -> dict[str, dict[str, str]]:
     updated = {name: dict(data) for name, data in state.items()}
     updated[check_name] = {
@@ -305,7 +310,7 @@ class GateDeps:
     has_open_pr: Callable[[], bool]
     confirm: Callable[[str], bool]
     fingerprint: Callable[[str], str]
-    now: Callable[[], datetime]
+    now: Callable[[], DateTime]
     is_tty: Callable[[], bool]
 
     @classmethod
@@ -316,7 +321,7 @@ class GateDeps:
             has_open_pr=lambda: _has_open_pr(root),
             confirm=_confirm_run,
             fingerprint=make_fingerprint_fn(root, prek_dir / "scopes.toml"),
-            now=lambda: datetime.now(timezone.utc),
+            now=lambda: pendulum.now("UTC"),
             is_tty=sys.stdin.isatty,
         )
 

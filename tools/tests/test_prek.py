@@ -1,10 +1,10 @@
 """Tests for tools/prek.py."""
 
 from collections.abc import Callable
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+import pendulum
 import pytest
 
 from tools.prek import (
@@ -29,7 +29,7 @@ from tools.prek import (
     write_state,
 )
 
-FIXED_NOW = datetime(2026, 5, 29, 12, 0, tzinfo=timezone.utc)
+FIXED_NOW = pendulum.datetime(2026, 5, 29, 12, 0, 0, tz=pendulum.UTC)
 
 
 def make_deps(
