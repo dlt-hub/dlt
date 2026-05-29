@@ -438,6 +438,15 @@ def test_join_projection_prefix_rejects_colliding_alias(
         joined.join("users__orders__items", alias="shared")
 
 
+def test_join_does_not_project_incomplete_target_columns(
+    dataset_with_incomplete_join_target: dlt.Dataset,
+) -> None:
+    relation = dataset_with_incomplete_join_target.table("products").join("categories")
+    rows = relation.fetchall()
+    assert rows is not None
+    assert len(rows) == 3
+
+
 def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
     dataset, _, _ = dataset_with_loads
     with pytest.raises(ValueError, match="must be a non-empty string"):
@@ -930,7 +939,6 @@ def test_explicit_on_joins_relational_tables(
     assert "orders__amount" in df.columns
     assert list(df["orders__amount"]) == [50.0, 75.0, 200.0, 30.0]
 
-    # auto join should fail: no dlt reference between customers and orders
     with pytest.raises(ValueError, match="Unable to resolve reference chain"):
         ds.table("customers").join("orders")
 
@@ -968,6 +976,40 @@ def test_explicit_on_non_eq_predicate(
     assert list(df["orders__amount"]) == [75.0, 200.0]
 
 
+def test_explicit_on_composite_key(
+    dataset_with_annotated_references: dlt.Dataset,
+) -> None:
+    ds = dataset_with_annotated_references
+    joined = ds.table("account_memberships").join(
+        "accounts",
+        on=(
+            "account_memberships.account_id = accounts.account_id "
+            "AND account_memberships.tenant_id = accounts.tenant_id"
+        ),
+    )
+    df = joined.order_by("accounts__name").df()
+
+    assert len(df) == 3
+    assert list(df["accounts__name"]) == ["Acme", "Globex", "Initech"]
+
+
+def test_explicit_on_left_join_keeps_unmatched_left_rows(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    joined = ds.table("countries").join(
+        "customers", kind="left", on="countries.code = customers.country_code"
+    )
+    df = joined.order_by("code").df()
+    assert len(df) == 4
+    assert list(df["code"]) == ["DE", "DE", "ES", "FR"]
+    assert list(df["customers__name"]) == ["Alice", "Charlie", None, "Bob"]
+    es_row = df[df["code"] == "ES"].iloc[0]
+    assert es_row["name"] == "Spain"
+    customers_cols = [c for c in df.columns if c.startswith("customers__")]
+    assert es_row[customers_cols].isna().all()
+
+
 def test_explicit_on_projection_prefix(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
@@ -980,6 +1022,112 @@ def test_explicit_on_projection_prefix(
     assert right_aliases
     expected = {f"o__{col}" for col in ds.schema.tables["orders"]["columns"].keys()}
     assert right_aliases == expected
+
+
+def test_explicit_on_projection_alias_collision_rejected(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    left = ds.query("SELECT customer_id, 1 AS orders__amount FROM customers")
+
+    with pytest.raises(ValueError, match="conflict with existing columns"):
+        left.join("orders", on="customers.customer_id = orders.customer_id")
+
+
+def test_explicit_on_with_filtered_lhs(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    german_customers = ds.table("customers").where("country_code", "eq", "DE")
+    joined = german_customers.join("orders", on="customers.customer_id = orders.customer_id")
+    df = joined.df()
+    assert len(df) == 3
+    assert list(df["name"]) == ["Alice", "Alice", "Charlie"]
+    assert list(df["orders__amount"]) == [50.0, 75.0, 30.0]
+
+
+def test_explicit_on_with_filtered_rhs(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    expensive_orders = ds.table("orders").where("amount", "gt", 50.0)
+    joined = ds.table("customers").join(
+        expensive_orders, on="customers.customer_id = orders.customer_id"
+    )
+    df = joined.df()
+    assert len(df) == 2
+    assert list(df["name"]) == ["Alice", "Bob"]
+    assert list(df["orders__amount"]) == [75.0, 200.0]
+
+
+def test_explicit_on_with_projected_lhs_preserves_left_projection(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    narrow_customers = ds.table("customers").select("customer_id", "name")
+    joined = narrow_customers.join("orders", on="customers.customer_id = orders.customer_id")
+    df = joined.df()
+    assert len(df) == 4
+    lhs_cols = {c for c in df.columns if not c.startswith("orders__")}
+    assert lhs_cols == {"customer_id", "name"}
+    assert "country_code" not in df.columns
+    assert "orders__amount" in df.columns
+    assert list(df["orders__amount"]) == [50.0, 75.0, 200.0, 30.0]
+
+
+def test_explicit_on_with_projected_rhs(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    narrow_orders = ds.table("orders").select("order_id", "customer_id")
+    joined = ds.table("customers").join(
+        narrow_orders, on="customers.customer_id = orders.customer_id"
+    )
+    df = joined.df()
+    assert len(df) == 4
+    rhs_cols = {c for c in df.columns if c.startswith("orders__")}
+    assert rhs_cols == {"orders__order_id", "orders__customer_id"}
+    assert "orders__amount" not in df.columns
+
+
+def test_explicit_on_with_aggregated_rhs(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    order_totals = ds.query(
+        "SELECT customer_id, SUM(amount) AS total_amount FROM orders GROUP BY customer_id"
+    )
+
+    joined = ds.table("customers").join(
+        order_totals,
+        on="customers.customer_id = orders.customer_id",
+        alias="order_totals",
+    )
+    df = joined.order_by("customer_id").df()
+
+    assert len(df) == 3
+    assert list(df["customer_id"]) == [1, 2, 3]
+    assert list(df["name"]) == ["Alice", "Bob", "Charlie"]
+    assert "order_totals__total_amount" in df.columns
+    assert list(df["order_totals__total_amount"]) == [125.0, 200.0, 30.0]
+    assert "order_totals__amount" not in df.columns
+
+
+@pytest.mark.xfail(reason="Column 'o.customer_id' could not be resolved for table: 'o'")
+def test_explicit_on_with_aliased_query_relations(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    customers = ds.query("SELECT * FROM customers AS c")
+    orders = ds.query("SELECT * FROM orders AS o")
+
+    joined = customers.join(orders, on="c.customer_id = o.customer_id")
+    df = joined.order_by("o__order_id").df()
+
+    assert len(df) == 4
+    assert list(df["customer_id"]) == [1, 1, 2, 3]
+    assert list(df["name"]) == ["Alice", "Alice", "Bob", "Charlie"]
+    assert list(df["o__amount"]) == [50.0, 75.0, 200.0, 30.0]
 
 
 def test_explicit_on_rejects_empty_alias(
@@ -1004,47 +1152,73 @@ def test_explicit_on_rejects_self_join(
         )
 
 
-def test_explicit_on_with_filtered_rhs(
+@pytest.mark.xfail(reason="ON expression must be non-empty")
+def test_explicit_on_rejects_invalid_on_expression(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
     ds = dataset_with_relational_tables
-    expensive_orders = ds.table("orders").where("amount", "gt", 50.0)
-    joined = ds.table("customers").join(
-        expensive_orders, on="customers.customer_id = orders.customer_id"
-    )
-    df = joined.df()
-    assert len(df) == 2
-    assert list(df["name"]) == ["Alice", "Bob"]
-    assert list(df["orders__amount"]) == [75.0, 200.0]
+    with pytest.raises(ValueError, match="non-empty SQL expression"):
+        ds.table("customers").join("orders", on="")
 
 
-def test_explicit_on_with_projected_rhs(
+@pytest.mark.xfail(reason="Unsupported join kind should be rejected")
+def test_explicit_on_rejects_unknown_kind(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
     ds = dataset_with_relational_tables
-    narrow_orders = ds.table("orders").select("order_id", "customer_id")
-    joined = ds.table("customers").join(
-        narrow_orders, on="customers.customer_id = orders.customer_id"
+
+    with pytest.raises(ValueError, match="kind=outer"):
+        ds.table("customers").join(  # type: ignore[call-overload]
+            "orders",
+            kind="outer",
+            on="customers.customer_id = orders.customer_id",
+        )
+
+
+@pytest.mark.parametrize(
+    "name_normalizer_ref",
+    (
+        "tests.common.cases.normalizers.title_case",
+        "tests.common.cases.normalizers.sql_upper",
+        "tests.common.cases.normalizers.snake_no_x",
+    ),
+)
+def test_explicit_on_columns_schema_resolves_with_name_mutating_normalizer(
+    dataset_with_relational_tables: dlt.Dataset,
+    name_normalizer_ref: str,
+) -> None:
+    normalized_dataset = _dataset_with_name_normalizer(
+        dataset_with_relational_tables, name_normalizer_ref
     )
-    df = joined.df()
-    assert len(df) == 4
-    rhs_cols = {c for c in df.columns if c.startswith("orders__")}
-    assert rhs_cols == {"orders__order_id", "orders__customer_id"}
-    assert "orders__amount" not in df.columns
+    naming = normalized_dataset.schema.naming
+    customers = naming.normalize_tables_path("customers")
+    orders = naming.normalize_tables_path("orders")
+    customer_id = naming.normalize_identifier("customer_id")
+
+    on_predicate = f'"{customers}"."{customer_id}" = "{orders}"."{customer_id}"'
+    joined = normalized_dataset.table(customers).join(orders, on=on_predicate)
+
+    schema_cols = set(joined.columns_schema.keys())
+    assert schema_cols
+    expected_right_aliases = {
+        f"{orders}__{column_name}"
+        for column_name in normalized_dataset.schema.tables[orders]["columns"].keys()
+    }
+    assert expected_right_aliases.issubset(schema_cols)
 
 
 def test_cross_dataset_join(
     cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
-    ds_a, ds_b = cross_dataset_duckdb
-    users = ds_a.table("users")
-    purchases = ds_b.table("purchases")
+    ds_crm, ds_inv = cross_dataset_duckdb
+    users = ds_crm.table("users")
+    purchases = ds_inv.table("purchases")
 
     joined = users.join(purchases, on="users.id = purchases.user_id")
 
-    assert ds_b.dataset_name in joined._foreign_schemas
-    assert ds_b.dataset_name not in users._foreign_schemas
-    foreign_schemas = joined._foreign_schemas[ds_b.dataset_name]
+    assert ds_inv.dataset_name in joined._foreign_schemas
+    assert ds_inv.dataset_name not in users._foreign_schemas
+    foreign_schemas = joined._foreign_schemas[ds_inv.dataset_name]
     assert len(foreign_schemas) >= 1
 
     df = joined.df()
@@ -1057,9 +1231,9 @@ def test_cross_dataset_join(
 def test_cross_dataset_join_requires_on(
     cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
-    ds_a, ds_b = cross_dataset_duckdb
-    users = ds_a.table("users")
-    purchases = ds_b.table("purchases")
+    ds_crm, ds_inv = cross_dataset_duckdb
+    users = ds_crm.table("users")
+    purchases = ds_inv.table("purchases")
 
     with pytest.raises(ValueError, match="`on` is required"):
         users.join(purchases)
@@ -1084,10 +1258,8 @@ _MATCHED_PLUS_ORPHAN = {
 @pytest.mark.parametrize(
     "kind,expected",
     [
-        # inner + left: both users match, so LEFT adds no extra rows
         pytest.param("inner", _MATCHED, id="inner"),
         pytest.param("left", _MATCHED, id="left"),
-        # right + full: orphan purchase appears with NULL on the user side
         pytest.param("right", _MATCHED_PLUS_ORPHAN, id="right"),
         pytest.param("full", _MATCHED_PLUS_ORPHAN, id="full"),
     ],
@@ -1097,9 +1269,9 @@ def test_cross_dataset_join_kind_parameter(
     kind: TJoinType,
     expected: dict[str, list[Any]],
 ) -> None:
-    ds_a, ds_b = cross_dataset_duckdb
-    users = ds_a.table("users")
-    purchases = ds_b.table("purchases")
+    ds_crm, ds_inv = cross_dataset_duckdb
+    users = ds_crm.table("users")
+    purchases = ds_inv.table("purchases")
 
     joined = users.join(purchases, on="users.id = purchases.user_id", kind=kind)
     df = joined.df()
@@ -1108,22 +1280,29 @@ def test_cross_dataset_join_kind_parameter(
         assert list(df[col]) == expected_values, f"column `{col}` mismatch"
 
 
-def test_join_does_not_project_incomplete_target_columns(
-    dataset_with_incomplete_join_target: dlt.Dataset,
+def test_cross_dataset_join_to_sql_uses_each_dataset_name(
+    cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
-    relation = dataset_with_incomplete_join_target.table("products").join("categories")
-    rows = relation.fetchall()
-    assert rows is not None
-    # 3 products inner-joined to 2 categories on category_id → 3 rows
-    assert len(rows) == 3
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    joined = ds_crm.table("users").join(
+        ds_inv.table("purchases"),
+        on="users.id = purchases.user_id",
+    )
+    sql = joined.to_sql()
+
+    assert f'"{ds_crm.dataset_name}"."users"' in sql
+    assert f'"{ds_inv.dataset_name}"."purchases"' in sql
+    assert f'"{ds_inv.dataset_name}"."users"' not in sql
+    assert f'"{ds_crm.dataset_name}"."purchases"' not in sql
 
 
 def test_cross_dataset_join_with_transformed_rhs_preserves_foreign_dataset_binding(
     cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
-    ds_a, ds_b = cross_dataset_duckdb
-    users = ds_a.table("users")
-    filtered_purchases = ds_b.table("purchases").where("quantity", "gt", 1)
+    ds_crm, ds_inv = cross_dataset_duckdb
+    users = ds_crm.table("users")
+    filtered_purchases = ds_inv.table("purchases").where("quantity", "gt", 1)
 
     joined = users.join(filtered_purchases, on="users.id = purchases.user_id").order_by("id")
     df = joined.df()
@@ -1135,12 +1314,60 @@ def test_cross_dataset_join_with_transformed_rhs_preserves_foreign_dataset_bindi
     assert list(df["purchases__quantity"]) == [2]
 
 
+def test_cross_dataset_join_with_aggregated_rhs(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    purchase_totals = ds_inv.query(
+        "SELECT user_id, SUM(quantity) AS total_quantity FROM purchases GROUP BY user_id"
+    )
+    joined = ds_crm.table("users").join(
+        purchase_totals,
+        on="users.id = purchases.user_id",
+        alias="purchase_totals",
+    )
+    df = joined.order_by("id").df()
+
+    assert len(df) == 2
+    assert list(df["id"]) == [1, 2]
+    assert list(df["name"]) == ["Alice", "Bob"]
+    assert "purchase_totals__total_quantity" in df.columns
+    assert [int(x) for x in df["purchase_totals__total_quantity"]] == [3, 1]
+    assert "purchase_totals__quantity" not in df.columns
+
+
+def test_cross_dataset_join_with_cte_qualifies_body_but_not_alias(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    recent_purchases = ds_inv.query(
+        "WITH recent AS (SELECT * FROM purchases WHERE quantity > 1) SELECT * FROM recent"
+    )
+    joined = ds_crm.table("users").join(recent_purchases, on="users.id = recent.user_id")
+
+    table_qualifiers = {
+        (node.name, node.db or None) for node in joined.sqlglot_expression.find_all(sge.Table)
+    }
+    assert ("users", ds_crm.dataset_name) in table_qualifiers
+    assert ("purchases", ds_inv.dataset_name) in table_qualifiers
+    assert ("recent", None) in table_qualifiers
+
+    df = joined.order_by("id").df()
+    assert len(df) == 1
+    assert list(df["name"]) == ["Alice"]
+    assert list(df["recent__purchase_id"]) == [1]
+    assert list(df["recent__sku"]) == ["W-001"]
+    assert list(df["recent__quantity"]) == [2]
+
+
 def test_cross_dataset_join_with_same_table_names_keeps_sources_unambiguous(
     same_named_cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
-    ds_a, ds_b = same_named_cross_dataset_duckdb
-    crm_users = ds_a.query("SELECT * FROM users AS crm_users")
-    marketing_users = ds_b.table("users")
+    ds_crm, ds_marketing = same_named_cross_dataset_duckdb
+    crm_users = ds_crm.query("SELECT * FROM users AS crm_users")
+    marketing_users = ds_marketing.table("users")
 
     joined = crm_users.join(marketing_users, on="crm_users.id = users.id", alias="marketing")
     df = joined.order_by("id").df()
@@ -1177,7 +1404,6 @@ def test_cross_dataset_join_chain_three_tables(
     )
     df = joined.order_by("purchase_id").df()
 
-    # orphan purchase (user_id=99) is dropped by the inner join to users
     assert len(df) == 3
     assert "purchase_id" in df.columns
     assert "users__name" in df.columns
@@ -1204,6 +1430,123 @@ def test_cross_dataset_join_chain_magic_then_cross(
     assert "purchases__sku" in df.columns
     assert sorted(df["users__name"]) == ["Alice", "Alice", "Alice", "Alice", "Bob"]
     assert list(df["users__id"]) == list(df["purchases__user_id"])
+
+
+def test_cross_dataset_join_chain_magic_then_two_crossings(
+    three_way_cross_dataset_duckdb: TCrossDs3Fixture,
+) -> None:
+    """A magic (schema-resolved) join followed by two cross-dataset joins across three
+    systems: nested CRM orders are enriched with their customer (magic, via the parent
+    reference), then bridged to that customer's purchases (inventory) and subscription
+    (billing).
+
+    The magic join emits unqualified CRM tables; the first crossing must retroactively
+    db-qualify them, and the final query interleaves all three datasets."""
+    ds_crm, ds_inv, ds_billing = three_way_cross_dataset_duckdb
+
+    joined = (
+        ds_crm.table("users__orders")
+        .join("users")
+        .join(ds_inv.table("purchases"), on="users.id = purchases.user_id")
+        .join(ds_billing.table("subscriptions"), on="users.id = subscriptions.user_id")
+    )
+    df = joined.df()
+
+    assert len(df) == 5
+    assert "order_id" in df.columns
+    assert "users__name" in df.columns
+    assert "purchases__sku" in df.columns
+    assert "subscriptions__plan" in df.columns
+    assert sorted(df["users__name"]) == ["Alice", "Alice", "Alice", "Alice", "Bob"]
+    assert sorted(df["subscriptions__plan"]) == [
+        "enterprise",
+        "enterprise",
+        "enterprise",
+        "enterprise",
+        "free",
+    ]
+    assert list(df["users__id"]) == list(df["purchases__user_id"])
+    assert list(df["users__id"]) == list(df["subscriptions__user_id"])
+
+
+def test_cross_dataset_join_then_foreign_dataset_local_hop_with_relation(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    joined = (
+        ds_crm.table("users")
+        .join(ds_inv.table("purchases"), on="users.id = purchases.user_id")
+        .join(ds_inv.table("inventory_items"), on="purchases.sku = inventory_items.sku")
+    )
+    df = joined.order_by("purchases__purchase_id").df()
+
+    assert len(df) == 3
+    assert list(df["purchases__purchase_id"]) == [1, 2, 3]
+    assert list(df["name"]) == ["Alice", "Alice", "Bob"]
+    assert list(df["purchases__sku"]) == ["W-001", "G-001", "W-001"]
+    assert list(df["inventory_items__quantity"]) == [50, 30, 50]
+
+
+def test_cross_dataset_join_chain_with_filtered_step(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    alice_purchases = ds_inv.table("purchases").where("user_id", "eq", 1)
+    joined = alice_purchases.join(ds_crm.table("users"), on="purchases.user_id = users.id").join(
+        "inventory_items", on="purchases.sku = inventory_items.sku"
+    )
+    df = joined.order_by("purchase_id").df()
+
+    assert len(df) == 2
+    assert list(df["purchase_id"]) == [1, 2]
+    assert list(df["users__name"]) == ["Alice", "Alice"]
+    assert list(df["inventory_items__quantity"]) == [50, 30]
+
+
+def test_cross_dataset_join_chain_does_not_mutate_sources(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    purchases = ds_inv.table("purchases")
+    users = ds_crm.table("users")
+    inventory_items = ds_inv.table("inventory_items")
+
+    purchases_sql = purchases.to_sql()
+    users_sql = users.to_sql()
+    inventory_items_sql = inventory_items.to_sql()
+
+    step1 = purchases.join(users, on="purchases.user_id = users.id")
+    step1_sql = step1.to_sql()
+
+    assert purchases.to_sql() == purchases_sql
+    assert users.to_sql() == users_sql
+    assert inventory_items.to_sql() == inventory_items_sql
+    assert step1.to_sql() == step1_sql
+    # check if rebuild of the first step is identical
+    assert purchases.join(users, on="purchases.user_id = users.id").to_sql() == step1_sql
+
+
+def test_cross_dataset_join_chain_columns_schema_matches_df(
+    three_way_cross_dataset_duckdb: TCrossDs3Fixture,
+) -> None:
+    ds_crm, ds_inv, ds_billing = three_way_cross_dataset_duckdb
+
+    joined = (
+        ds_inv.table("purchases")
+        .join(ds_crm.table("users"), on="purchases.user_id = users.id")
+        .join(ds_billing.table("subscriptions"), on="users.id = subscriptions.user_id")
+    )
+
+    schema_cols = set(joined.columns_schema.keys())
+    assert schema_cols, "columns_schema must not be empty"
+
+    df = joined.df()
+    df_cols = set(df.columns)
+
+    assert schema_cols == df_cols
 
 
 @pytest.mark.xfail(
@@ -1250,47 +1593,6 @@ def test_cross_dataset_join_chain_three_datasets(
     assert list(df["subscriptions__plan"]) == ["enterprise", "enterprise", "free"]
 
 
-def test_cross_dataset_join_chain_does_not_mutate_sources(
-    cross_dataset_duckdb: TCrossDsFixture,
-) -> None:
-    ds_crm, ds_inv = cross_dataset_duckdb
-
-    purchases = ds_inv.table("purchases")
-    users = ds_crm.table("users")
-    inventory_items = ds_inv.table("inventory_items")
-
-    purchases_sql = purchases.to_sql()
-    users_sql = users.to_sql()
-    inventory_items_sql = inventory_items.to_sql()
-
-    step1 = purchases.join(users, on="purchases.user_id = users.id")
-    step1_sql = step1.to_sql()
-
-    assert purchases.to_sql() == purchases_sql
-    assert users.to_sql() == users_sql
-    assert inventory_items.to_sql() == inventory_items_sql
-    assert step1.to_sql() == step1_sql
-    # check if rebuild of the first step is identical
-    assert purchases.join(users, on="purchases.user_id = users.id").to_sql() == step1_sql
-
-
-def test_cross_dataset_join_chain_with_filtered_step(
-    cross_dataset_duckdb: TCrossDsFixture,
-) -> None:
-    ds_crm, ds_inv = cross_dataset_duckdb
-
-    alice_purchases = ds_inv.table("purchases").where("user_id", "eq", 1)
-    joined = alice_purchases.join(ds_crm.table("users"), on="purchases.user_id = users.id").join(
-        "inventory_items", on="purchases.sku = inventory_items.sku"
-    )
-    df = joined.order_by("purchase_id").df()
-
-    assert len(df) == 2
-    assert list(df["purchase_id"]) == [1, 2]
-    assert list(df["users__name"]) == ["Alice", "Alice"]
-    assert list(df["inventory_items__quantity"]) == [50, 30]
-
-
 @pytest.mark.xfail(reason="unqualified where column `quantity` can't be resolved")
 def test_cross_dataset_join_chain_filter_on_later_colliding_column(
     cross_dataset_duckdb: TCrossDsFixture,
@@ -1313,9 +1615,9 @@ def test_cross_dataset_chain_same_named_tables_disambiguated(
     same_named_cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
     """CRM and marketing both expose a `users` table."""
-    ds_crm, ds_mkt = same_named_cross_dataset_duckdb
+    ds_crm, ds_marketing = same_named_cross_dataset_duckdb
 
-    marketing = ds_mkt.query("SELECT * FROM users AS mkt_users")
+    marketing = ds_marketing.query("SELECT * FROM users AS mkt_users")
     joined = (
         ds_crm.table("users__orders")
         .join("users")
@@ -1328,177 +1630,3 @@ def test_cross_dataset_chain_same_named_tables_disambiguated(
     assert "marketing__segment" in df.columns
     assert list(df["users__name"]) == ["Alice", "Alice", "Bob"]
     assert list(df["marketing__segment"]) == ["pro", "pro", "free"]
-
-
-def test_explicit_on_left_join_keeps_unmatched_left_rows(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    joined = ds.table("countries").join(
-        "customers", kind="left", on="countries.code = customers.country_code"
-    )
-    df = joined.order_by("code").df()
-    assert len(df) == 4
-    assert list(df["code"]) == ["DE", "DE", "ES", "FR"]
-    assert list(df["customers__name"]) == ["Alice", "Charlie", None, "Bob"]
-    es_row = df[df["code"] == "ES"].iloc[0]
-    assert es_row["name"] == "Spain"
-    customers_cols = [c for c in df.columns if c.startswith("customers__")]
-    assert es_row[customers_cols].isna().all()
-
-
-def test_explicit_on_composite_key(
-    dataset_with_annotated_references: dlt.Dataset,
-) -> None:
-    ds = dataset_with_annotated_references
-    joined = ds.table("account_memberships").join(
-        "accounts",
-        on=(
-            "account_memberships.account_id = accounts.account_id "
-            "AND account_memberships.tenant_id = accounts.tenant_id"
-        ),
-    )
-    df = joined.order_by("accounts__name").df()
-
-    assert len(df) == 3
-    assert list(df["accounts__name"]) == ["Acme", "Globex", "Initech"]
-
-
-def test_explicit_on_with_filtered_lhs(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    german_customers = ds.table("customers").where("country_code", "eq", "DE")
-    joined = german_customers.join("orders", on="customers.customer_id = orders.customer_id")
-    df = joined.df()
-    assert len(df) == 3
-    assert list(df["name"]) == ["Alice", "Alice", "Charlie"]
-    assert list(df["orders__amount"]) == [50.0, 75.0, 30.0]
-
-
-@pytest.mark.xfail(reason="ON expression must be non-empty")
-def test_explicit_on_rejects_invalid_on_expression(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    with pytest.raises(ValueError, match="non-empty SQL expression"):
-        ds.table("customers").join("orders", on="")
-
-
-@pytest.mark.xfail(reason="Unsupported join kind should be rejected")
-def test_explicit_on_rejects_unknown_kind(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-
-    with pytest.raises(ValueError, match="kind=outer"):
-        ds.table("customers").join(  # type: ignore[call-overload]
-            "orders",
-            kind="outer",
-            on="customers.customer_id = orders.customer_id",
-        )
-
-
-def test_explicit_on_with_projected_lhs_preserves_left_projection(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    narrow_customers = ds.table("customers").select("customer_id", "name")
-    joined = narrow_customers.join("orders", on="customers.customer_id = orders.customer_id")
-    df = joined.df()
-    assert len(df) == 4
-    lhs_cols = {c for c in df.columns if not c.startswith("orders__")}
-    assert lhs_cols == {"customer_id", "name"}
-    assert "country_code" not in df.columns
-    assert "orders__amount" in df.columns
-    assert list(df["orders__amount"]) == [50.0, 75.0, 200.0, 30.0]
-
-
-@pytest.mark.xfail(reason="Column 'o.customer_id' could not be resolved for table: 'o'")
-def test_explicit_on_with_aliased_query_relations(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    customers = ds.query("SELECT * FROM customers AS c")
-    orders = ds.query("SELECT * FROM orders AS o")
-
-    joined = customers.join(orders, on="c.customer_id = o.customer_id")
-    df = joined.order_by("o__order_id").df()
-
-    assert len(df) == 4
-    assert list(df["customer_id"]) == [1, 1, 2, 3]
-    assert list(df["name"]) == ["Alice", "Alice", "Bob", "Charlie"]
-    assert list(df["o__amount"]) == [50.0, 75.0, 200.0, 30.0]
-
-
-def test_explicit_on_with_aggregated_rhs(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    order_totals = ds.query(
-        "SELECT customer_id, SUM(amount) AS total_amount FROM orders GROUP BY customer_id"
-    )
-
-    joined = ds.table("customers").join(
-        order_totals,
-        on="customers.customer_id = orders.customer_id",
-        alias="order_totals",
-    )
-    df = joined.order_by("customer_id").df()
-
-    assert len(df) == 3
-    assert list(df["customer_id"]) == [1, 2, 3]
-    assert list(df["name"]) == ["Alice", "Bob", "Charlie"]
-    assert "order_totals__total_amount" in df.columns
-    assert list(df["order_totals__total_amount"]) == [125.0, 200.0, 30.0]
-    assert "order_totals__amount" not in df.columns
-
-
-def test_explicit_on_projection_alias_collision_rejected(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    left = ds.query("SELECT customer_id, 1 AS orders__amount FROM customers")
-
-    with pytest.raises(ValueError, match="conflict with existing columns"):
-        left.join("orders", on="customers.customer_id = orders.customer_id")
-
-
-def test_cross_dataset_join_to_sql_uses_each_dataset_name(
-    cross_dataset_duckdb: TCrossDsFixture,
-) -> None:
-    ds_a, ds_b = cross_dataset_duckdb
-
-    joined = ds_a.table("users").join(
-        ds_b.table("purchases"),
-        on="users.id = purchases.user_id",
-    )
-    sql = joined.to_sql()
-
-    assert f'"{ds_a.dataset_name}"."users"' in sql
-    assert f'"{ds_b.dataset_name}"."purchases"' in sql
-    assert f'"{ds_b.dataset_name}"."users"' not in sql
-    assert f'"{ds_a.dataset_name}"."purchases"' not in sql
-
-
-def test_cross_dataset_join_with_aggregated_rhs(
-    cross_dataset_duckdb: TCrossDsFixture,
-) -> None:
-    ds_a, ds_b = cross_dataset_duckdb
-
-    purchase_totals = ds_b.query(
-        "SELECT user_id, SUM(quantity) AS total_quantity FROM purchases GROUP BY user_id"
-    )
-    joined = ds_a.table("users").join(
-        purchase_totals,
-        on="users.id = purchases.user_id",
-        alias="purchase_totals",
-    )
-    df = joined.order_by("id").df()
-
-    assert len(df) == 2
-    assert list(df["id"]) == [1, 2]
-    assert list(df["name"]) == ["Alice", "Bob"]
-    assert "purchase_totals__total_quantity" in df.columns
-    assert [int(x) for x in df["purchase_totals__total_quantity"]] == [3, 1]
-    assert "purchase_totals__quantity" not in df.columns
