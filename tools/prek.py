@@ -11,7 +11,7 @@ import hashlib
 import os
 import subprocess
 import sys
-import tomllib  # type: ignore[import-untyped]
+import tomli as tomllib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -113,7 +113,7 @@ def make_command_for(check_name: str) -> str:
 
 def load_toml(path: Path) -> dict[str, Any]:
     with open(path, "rb") as file:
-        return cast(dict[str, Any], tomllib.load(file))
+        return tomllib.load(file)
 
 
 def load_local_config(path: Path) -> dict[str, Any] | None:
