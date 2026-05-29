@@ -1,11 +1,7 @@
-const fs = require('fs');
+const fs = require("node:fs");
 
-version_files = [
-    "versions.json",
-    "versioned_docs",
-    "versioned_sidebars"
-]
+version_files = ["versions.json", "versioned_docs", "versioned_sidebars"];
 
-for (let f of version_files) {
-    fs.rmSync(f, { recursive: true, force: true })
+for (const f of version_files) {
+  fs.rmSync(f, { recursive: true, force: true });
 }

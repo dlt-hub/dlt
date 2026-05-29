@@ -163,7 +163,7 @@ class Dataset:
     def sqlglot_schema(self) -> SQLGlotSchema:
         """SQLGlot schema of the dataset derived from all dlt schemas."""
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
-        # to see wether this is stale than to compute a new sqlglot schema
+        # to see whether this is stale than to compute a new sqlglot schema
         return lineage.create_sqlglot_schema(
             {self.dataset_name: list(self.schemas)}, dialect=self.destination_dialect
         )

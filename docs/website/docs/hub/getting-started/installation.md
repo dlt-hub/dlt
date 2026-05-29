@@ -10,6 +10,42 @@ dltHub currently supports Python versions 3.10-3.13.
 
 :::
 
+## What is a dltHub workspace?
+
+A workspace is a Python project layout that bundles your `dlt` pipelines, transformations, configuration, and AI toolkit setup into a single deployable unit. The same folder runs on your local machine, in CI, and — when you deploy — on the managed dltHub platform, so what you build locally is what runs in production.
+
+Every workspace contains:
+
+- **`.dlt/.workspace`** — a marker file that activates the `dlthub` CLI, [profile support](../pipeline-operations/profiles.md), and the managed-platform commands. Without this file you're using plain OSS `dlt`.
+- **`.dlt/config.toml`** and **`.dlt/secrets.toml`** — settings and credentials, with optional per-profile overrides (`dev`, `prod`, `tests`, `access`).
+- **`pyproject.toml`** (or `requirements.txt`) — workspace-level dependencies like `dlt[hub]`, `duckdb`, `marimo`.
+- **Pipeline files** and an optional **`__deployment__.py`** manifest — the code you run, and the description of how it's deployed.
+- **AI toolkit configuration** — skills, rules, and MCP wiring for Claude Code, Cursor, or Codex (added when you opt in during scaffolding).
+
+For the wider feature surface that a workspace unlocks — [profiles](../pipeline-operations/profiles.md), [data quality](../data-quality/index.md), [transformations](../transformations/index.md), the [managed platform](../pipeline-operations/overview.md), the [dashboard](../ingestion/dashboard.md) — see the [introduction](introduction.md).
+
+## Quickstart
+
+If you already have `uv` installed:
+
+```sh
+uvx dlthub-start@latest
+```
+
+If you don't have `uv` yet, either [install it first](#setting-up-your-environment) or run via `pipx` — the CLI will offer to install `uv` for you before syncing dependencies:
+
+```sh
+pipx run dlthub-start
+```
+
+Either way, it prompts for a workspace name, scaffold, and which AI agents to wire up (Claude / Cursor / Codex), scaffolds a workspace with `.dlt/.workspace` already set, vendors the AI toolkits (`rest-api-pipeline`, `transformations`, `dlthub-platform`, `data-exploration`), and runs `uv sync` so `dlt[hub]` and all workspace dependencies are installed.
+
+For the recommended defaults non-interactively, pass a name explicitly:
+
+```sh
+uvx dlthub-start@latest my-workspace --yes
+```
+
 ## Setting up your environment
 
 ### Configuration of the Python environment
@@ -46,31 +82,7 @@ Activate the virtual environment using the instructions displayed by `uv`, i.e.:
 source .venv/bin/activate
 ```
 
-## Quickstart
-
-### Start a new workspace (recommended)
-
-If you already have `uv` installed:
-
-```sh
-uvx dlthub-start@latest
-```
-
-If you don't have `uv` yet, either [install it first](#configuration-of-the-python-environment) or run via `pipx` — the CLI will offer to install `uv` for you before syncing dependencies:
-
-```sh
-pipx run dlthub-start
-```
-
-Either way, it prompts for a workspace name, scaffold, and which AI agents to wire up (Claude / Cursor / Codex), scaffolds a workspace with `.dlt/.workspace` already set, vendors the AI toolkits (`rest-api-pipeline`, `transformations`, `dlthub-platform`, `data-exploration`), and runs `uv sync` so `dlt[hub]` and all workspace dependencies are installed.
-
-For the recommended defaults non-interactively, pass a name explicitly:
-
-```sh
-uvx dlthub-start@latest my-workspace --yes
-```
-
-### Add dltHub to an existing project
+## Add dltHub to an existing project
 
 To install `dlt[hub]` into an existing project, activate its virtual environment and run:
 ```sh
@@ -78,11 +90,11 @@ uv pip install "dlt[hub]"
 ```
 This installs `dlt` plus two plugin packages pulled in by the `hub` extra:
 * `dlthub`—enables the **dlthub** command and features like AI toolkits and transformations
-* `dlthub-client`—enables access to the [managed dltHub Platform](../runtime/overview.md) (login, deploy, run, serve, ...)
+* `dlthub-client`—enables access to the [managed dltHub Platform](../pipeline-operations/overview.md) (login, deploy, run, serve, ...)
 
 Workspace-level dependencies (destinations like `duckdb`, plus tools like `marimo` or `fastmcp` used by notebooks and MCP jobs) are managed in your workspace's `pyproject.toml`, not via `dlt` extras. Run `dlthub init` (see [below](#enable-workspace-mode))—it scaffolds a `pyproject.toml` you can extend with `uv add <package>`.
 
-### Upgrade existing installation
+## Upgrade existing installation
 
 To upgrade just the `hub` extra without upgrading `dlt` itself run:
 ```sh
@@ -101,15 +113,15 @@ and it downloads `0.28.0` of the plugin, `dlt` `1.27.0` will still be installed 
 how to install a compatible plugin version).
 :::
 
-### Enable workspace mode
+## Enable workspace mode
 
-The full dltHub feature surface—profiles, the `dlthub` CLI host, and [managed-platform commands](../runtime/overview.md)—is gated behind **Workspace mode**, signaled by a `.dlt/.workspace` marker file. The simplest way to turn it on is:
+The full dltHub feature surface—profiles, the `dlthub` CLI host, and [managed-platform commands](../pipeline-operations/overview.md)—is gated behind **Workspace mode**, signaled by a `.dlt/.workspace` marker file. The simplest way to turn it on is:
 
 ```sh
 dlthub init
 ```
 
-This scaffolds a fresh dltHub workspace—it creates the `.dlt/.workspace` marker plus `config.toml`, `secrets.toml`, `.gitignore`, and a `pyproject.toml` (or `requirements.txt` if `uv` isn't on `PATH`). See [Initialize a pipeline](../workspace/init.md) for the next steps.
+This scaffolds a fresh dltHub workspace—it creates the `.dlt/.workspace` marker plus `config.toml`, `secrets.toml`, `.gitignore`, and a `pyproject.toml` (or `requirements.txt` if `uv` isn't on `PATH`). See [Initialize a pipeline](../ingestion/init.md) for the next steps.
 
 If you'd rather flip the toggle by hand in an existing project, create the empty marker file yourself:
 

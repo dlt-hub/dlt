@@ -158,7 +158,7 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         return isinstance(ex, (pyarrow.lib.ArrowInvalid, pydremio.MalformedQueryError))
 
     def create_dataset(self) -> None:
-        # We create a sentinel table which defines wether we consider the dataset created
+        # We create a sentinel table which defines whether we consider the dataset created
         sentinel_table_name = self.make_qualified_table_name(self.SENTINEL_TABLE_NAME)
         self.execute_sql(f"CREATE TABLE {sentinel_table_name} (_dlt_id BIGINT)")
 

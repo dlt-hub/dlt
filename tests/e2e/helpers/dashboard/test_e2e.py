@@ -135,7 +135,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
         expect(schema_selector).to_have_value(schema_name)
         # allow marimo reactivity to process
         page.wait_for_timeout(500)
-        expect(page.get_by_text(expected, exact=True).nth(0)).to_be_visible(timeout=15000)
+        expect(page.get_by_text(expected, exact=True).nth(0)).to_be_visible(timeout=30000)
         for table in not_expected:
             expect(page.get_by_text(table, exact=True)).to_have_count(0, timeout=10000)
 

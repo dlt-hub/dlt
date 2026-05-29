@@ -212,12 +212,12 @@ class DltResourceHints:
 
     @property
     def has_dynamic_table_name(self) -> bool:
-        """Tells the extractor wether computed table name may change based on invididual data items"""
+        """Tells the extractor whether computed table name may change based on individual data items"""
         return self._table_name_hint_fun is not None
 
     @property
     def has_other_dynamic_hints(self) -> bool:
-        """Tells the extractor wether computed hints may change based on invididual data items"""
+        """Tells the extractor whether computed hints may change based on individual data items"""
         return self._table_has_other_dynamic_hints
 
     @property

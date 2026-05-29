@@ -31,14 +31,14 @@
  *                      If `sidebar` names a sidebar (e.g. 'hubSidebar'), that sidebar's
  *                      structure is used for grouping; otherwise falls back to directories.
  */
-const fs = require('fs');
-const path = require('path');
+const fs = require("node:fs");
+const path = require("node:path");
 
 // --- Helpers ---------------------------------------------------------------
 
 /** Recursively collect files matching a predicate. */
 function walkFiles(dir, predicate, results = []) {
-  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       walkFiles(full, predicate, results);
@@ -54,11 +54,11 @@ function readFrontmatter(content) {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!match) return {};
   const fm = {};
-  for (const line of match[1].split('\n')) {
+  for (const line of match[1].split("\n")) {
     const m = line.match(/^(title|description|slug)\s*:\s*(.+)/);
     if (m) {
       // Strip surrounding quotes if present
-      fm[m[1]] = m[2].replace(/^['"]|['"]$/g, '').trim();
+      fm[m[1]] = m[2].replace(/^['"]|['"]$/g, "").trim();
     }
   }
   return fm;
@@ -70,14 +70,14 @@ function readFrontmatter(content) {
  */
 function buildSlugMap(sourceDir) {
   const slugMap = {};
-  const mdFiles = walkFiles(sourceDir, (name) => name.endsWith('.md') || name.endsWith('.mdx'));
+  const mdFiles = walkFiles(sourceDir, (name) => name.endsWith(".md") || name.endsWith(".mdx"));
   for (const file of mdFiles) {
-    const content = fs.readFileSync(file, 'utf8');
+    const content = fs.readFileSync(file, "utf8");
     const fm = readFrontmatter(content);
     if (fm.slug) {
       const rel = path.relative(sourceDir, path.dirname(file));
       const key = rel ? `${rel}/${fm.slug}` : fm.slug;
-      slugMap[key.split(path.sep).join('/')] = file;
+      slugMap[key.split(path.sep).join("/")] = file;
     }
   }
   return slugMap;
@@ -92,7 +92,7 @@ function buildSlugMap(sourceDir) {
  *   <Component on one line and end with /> on a later line
  */
 function cleanMarkdown(content) {
-  const lines = content.split('\n');
+  const lines = content.split("\n");
   const result = [];
   let insideComponent = false;
 
@@ -124,7 +124,7 @@ function cleanMarkdown(content) {
     result.push(line);
   }
 
-  return result.join('\n');
+  return result.join("\n");
 }
 
 /**
@@ -136,8 +136,8 @@ function cleanMarkdown(content) {
  * @returns {{docMap: Object, groupOrder: string[]}}
  */
 function buildSidebarMap(sidebarItems, groupDepth = 2) {
-  const docMap = {};       // { [docId]: { group: string, order: number } }
-  const groupOrder = [];   // group names in sidebar traversal order
+  const docMap = {}; // { [docId]: { group: string, order: number } }
+  const groupOrder = []; // group names in sidebar traversal order
   let order = 0;
 
   function addDoc(docId, group) {
@@ -145,48 +145,47 @@ function buildSidebarMap(sidebarItems, groupDepth = 2) {
     if (group && !groupOrder.includes(group)) {
       groupOrder.push(group);
     }
-    docMap[docId] = {group: group || '', order: order++};
+    docMap[docId] = { group: group || "", order: order++ };
   }
 
   function walk(items, breadcrumb) {
     for (const item of items) {
-      if (typeof item === 'string') {
+      if (typeof item === "string") {
         // Direct doc reference like 'reference/installation'
-        const group = breadcrumb.slice(0, groupDepth).join(' > ');
+        const group = breadcrumb.slice(0, groupDepth).join(" > ");
         addDoc(item, group);
         continue;
       }
 
-      if (!item || typeof item !== 'object') continue;
+      if (!item || typeof item !== "object") continue;
 
-      if (item.type === 'ref' || item.type === 'link') {
+      if (item.type === "ref" || item.type === "link") {
         // Cross-sidebar refs and external URLs — skip
         continue;
       }
 
-      if (item.type === 'doc') {
-        const group = breadcrumb.slice(0, groupDepth).join(' > ');
+      if (item.type === "doc") {
+        const group = breadcrumb.slice(0, groupDepth).join(" > ");
         addDoc(item.id, group);
         continue;
       }
 
-      if (item.type === 'category') {
+      if (item.type === "category") {
         const newBreadcrumb = [...breadcrumb, item.label];
         // If the category itself links to a doc, include it
-        if (item.link && item.link.type === 'doc' && item.link.id) {
-          const group = newBreadcrumb.slice(0, groupDepth).join(' > ');
+        if (item.link && item.link.type === "doc" && item.link.id) {
+          const group = newBreadcrumb.slice(0, groupDepth).join(" > ");
           addDoc(item.link.id, group);
         }
         if (item.items) {
           walk(item.items, newBreadcrumb);
         }
-        continue;
       }
     }
   }
 
   walk(sidebarItems, []);
-  return {docMap, groupOrder};
+  return { docMap, groupOrder };
 }
 
 // --- Plugin ----------------------------------------------------------------
@@ -209,30 +208,30 @@ function buildVersionRoutes(siteDir, docsVersions) {
   const routes = [];
 
   // "current" version (devel) — always uses docs_processed/
-  const currentCfg = docsVersions['current'] || {};
-  const currentPrefix = (currentCfg.path || 'devel').replace(/^\/+/, '');
+  const currentCfg = docsVersions.current || {};
+  const currentPrefix = (currentCfg.path || "devel").replace(/^\/+/, "");
   routes.push({
-    prefix: currentPrefix ? currentPrefix + '/' : '',
-    sourceDir: path.join(siteDir, 'docs_processed'),
+    prefix: currentPrefix ? `${currentPrefix}/` : "",
+    sourceDir: path.join(siteDir, "docs_processed"),
     isMaster: false,
   });
 
   // Read versions.json for named versions
-  const versionsJsonPath = path.join(siteDir, 'versions.json');
+  const versionsJsonPath = path.join(siteDir, "versions.json");
   let knownVersions = [];
   if (fs.existsSync(versionsJsonPath)) {
-    knownVersions = JSON.parse(fs.readFileSync(versionsJsonPath, 'utf8'));
+    knownVersions = JSON.parse(fs.readFileSync(versionsJsonPath, "utf8"));
   }
 
   for (const version of knownVersions) {
     const vCfg = docsVersions[version] || {};
-    const vPath = (vCfg.path || version).replace(/^\/+/, '');
-    const vSourceDir = path.join(siteDir, 'versioned_docs', `version-${version}`);
+    const vPath = (vCfg.path || version).replace(/^\/+/, "");
+    const vSourceDir = path.join(siteDir, "versioned_docs", `version-${version}`);
 
     routes.push({
-      prefix: vPath ? vPath + '/' : '', // master has path='/' → prefix=''
+      prefix: vPath ? `${vPath}/` : "", // master has path='/' → prefix=''
       sourceDir: vSourceDir,
-      isMaster: version === 'master',
+      isMaster: version === "master",
     });
   }
 
@@ -243,19 +242,19 @@ function buildVersionRoutes(siteDir, docsVersions) {
 
 module.exports = function llmsTxtPlugin(_context, options) {
   const {
-    siteTitle = 'dlt - data load tool',
-    siteDescription = '',
-    excludeFromMd = ['api_reference/'],
-    excludeFromIndex = ['devel/'],
+    siteTitle = "dlt - data load tool",
+    siteDescription = "",
+    excludeFromMd = ["api_reference/"],
+    excludeFromIndex = ["devel/"],
     separateIndexes = [],
     groupDepth = 2,
   } = options;
 
   return {
-    name: 'llms-txt',
+    name: "llms-txt",
 
-    async postBuild({outDir, siteConfig}) {
-      const baseUrl = siteConfig.baseUrl || '/';
+    async postBuild({ outDir, siteConfig }) {
+      const baseUrl = siteConfig.baseUrl || "/";
       const siteDir = _context.siteDir;
 
       // Extract docs version config from preset
@@ -265,7 +264,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
       // Build version routing table
       const versionRoutes = buildVersionRoutes(siteDir, docsVersions);
       console.log(
-        `[llms-txt] Version routes: ${versionRoutes.map((r) => `"${r.prefix || '/'}" → ${path.basename(r.sourceDir)}`).join(', ')}`
+        `[llms-txt] Version routes: ${versionRoutes.map((r) => `"${r.prefix || "/"}" → ${path.basename(r.sourceDir)}`).join(", ")}`,
       );
 
       // Pre-build slug maps for each source dir
@@ -277,19 +276,19 @@ module.exports = function llmsTxtPlugin(_context, options) {
       }
 
       // Step 1: Discover pages from HTML build output
-      const htmlFiles = walkFiles(outDir, (name) => name.endsWith('.html'));
+      const htmlFiles = walkFiles(outDir, (name) => name.endsWith(".html"));
       const pages = [];
 
       for (const htmlFile of htmlFiles) {
         const rel = path.relative(outDir, htmlFile);
-        const relPosix = rel.split(path.sep).join('/');
+        const relPosix = rel.split(path.sep).join("/");
 
         // Skip non-doc files
         if (
-          relPosix === '404.html' ||
-          relPosix === 'search.html' ||
-          relPosix.startsWith('assets/') ||
-          relPosix.startsWith('search/')
+          relPosix === "404.html" ||
+          relPosix === "search.html" ||
+          relPosix.startsWith("assets/") ||
+          relPosix.startsWith("search/")
         ) {
           continue;
         }
@@ -300,46 +299,42 @@ module.exports = function llmsTxtPlugin(_context, options) {
         }
 
         // Match to a version route (longest prefix wins)
-        const route = versionRoutes.find((r) =>
-          r.prefix === '' ? true : relPosix.startsWith(r.prefix)
-        );
+        const route = versionRoutes.find((r) => (r.prefix === "" ? true : relPosix.startsWith(r.prefix)));
         if (!route || !fs.existsSync(route.sourceDir)) {
           continue;
         }
 
         // Strip version prefix to get the inner doc path
-        const innerRel = route.prefix
-          ? relPosix.slice(route.prefix.length)
-          : relPosix;
+        const innerRel = route.prefix ? relPosix.slice(route.prefix.length) : relPosix;
 
         // Step 2: Map HTML path to source .md file
         const basename = path.basename(innerRel);
 
         // Skip underscore-prefixed partials (MDX fragments imported by other pages)
-        if (basename.startsWith('_')) {
+        if (basename.startsWith("_")) {
           continue;
         }
 
         let sourceFile = null;
 
-        if (basename === 'index.html') {
+        if (basename === "index.html") {
           const dirPart = path.dirname(innerRel);
-          const candidate = path.join(route.sourceDir, dirPart, 'index.md');
+          const candidate = path.join(route.sourceDir, dirPart, "index.md");
           if (fs.existsSync(candidate)) {
             sourceFile = candidate;
           }
         } else {
-          const stem = innerRel.replace(/\.html$/, '');
+          const stem = innerRel.replace(/\.html$/, "");
           const lastSegment = path.basename(stem);
           // Try .md, then .mdx, then index.md/mdx (category pages),
           // then dir-collapsed stem/stem.md (Docusaurus collapses foo/foo.md → foo.html),
           // then slug map
-          const candidateMd = path.join(route.sourceDir, stem + '.md');
-          const candidateMdx = path.join(route.sourceDir, stem + '.mdx');
-          const candidateIndexMd = path.join(route.sourceDir, stem, 'index.md');
-          const candidateIndexMdx = path.join(route.sourceDir, stem, 'index.mdx');
-          const candidateSameMd = path.join(route.sourceDir, stem, lastSegment + '.md');
-          const candidateSameMdx = path.join(route.sourceDir, stem, lastSegment + '.mdx');
+          const candidateMd = path.join(route.sourceDir, `${stem}.md`);
+          const candidateMdx = path.join(route.sourceDir, `${stem}.mdx`);
+          const candidateIndexMd = path.join(route.sourceDir, stem, "index.md");
+          const candidateIndexMdx = path.join(route.sourceDir, stem, "index.mdx");
+          const candidateSameMd = path.join(route.sourceDir, stem, `${lastSegment}.md`);
+          const candidateSameMdx = path.join(route.sourceDir, stem, `${lastSegment}.mdx`);
           const slugMap = slugMaps[route.sourceDir] || {};
 
           if (fs.existsSync(candidateMd)) {
@@ -365,7 +360,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
 
         pages.push({
           htmlRel: relPosix,
-          mdRel: relPosix.replace(/\.html$/, '.md'),
+          mdRel: relPosix.replace(/\.html$/, ".md"),
           sourceFile,
           sourceDir: route.sourceDir,
           isMaster: route.isMaster,
@@ -380,9 +375,9 @@ module.exports = function llmsTxtPlugin(_context, options) {
         const destFile = path.join(outDir, page.mdRel);
         const destDir = path.dirname(destFile);
         if (!fs.existsSync(destDir)) {
-          fs.mkdirSync(destDir, {recursive: true});
+          fs.mkdirSync(destDir, { recursive: true });
         }
-        const content = fs.readFileSync(page.sourceFile, 'utf8');
+        const content = fs.readFileSync(page.sourceFile, "utf8");
         const cleaned = cleanMarkdown(content);
         fs.writeFileSync(destFile, cleaned);
         copiedCount++;
@@ -390,13 +385,11 @@ module.exports = function llmsTxtPlugin(_context, options) {
       console.log(`[llms-txt] Copied ${copiedCount} .md files to build output`);
 
       // Step 4: Generate llms.txt (master version only)
-      const masterPages = pages.filter(
-        (p) => p.isMaster && !excludeFromIndex.some((pat) => p.mdRel.includes(pat))
-      );
+      const masterPages = pages.filter((p) => p.isMaster && !excludeFromIndex.some((pat) => p.mdRel.includes(pat)));
 
       // Load sidebar definitions and build sidebar maps
       let sidebars = {};
-      const sidebarsPath = path.join(siteDir, 'sidebars.js');
+      const sidebarsPath = path.join(siteDir, "sidebars.js");
       try {
         sidebars = require(sidebarsPath);
       } catch (e) {
@@ -408,7 +401,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
       if (sidebars.docsSidebar) {
         mainSidebarMap = buildSidebarMap(sidebars.docsSidebar, groupDepth);
         console.log(
-          `[llms-txt] Main sidebar map: ${Object.keys(mainSidebarMap.docMap).length} docs in ${mainSidebarMap.groupOrder.length} groups`
+          `[llms-txt] Main sidebar map: ${Object.keys(mainSidebarMap.docMap).length} docs in ${mainSidebarMap.groupOrder.length} groups`,
         );
       }
 
@@ -420,19 +413,19 @@ module.exports = function llmsTxtPlugin(_context, options) {
        * @param {Object|null} sidebarInfo - {docMap, groupOrder} from buildSidebarMap, or null
        * @param {string} pathPrefix - Prefix to strip from mdRel for directory-based fallback grouping
        */
-      function buildLlmsTxt(title, description, pageList, sidebarInfo, pathPrefix = '') {
+      function buildLlmsTxt(title, description, pageList, sidebarInfo, pathPrefix = "") {
         const groups = {};
         const topLevel = [];
         const sidebarGroupSet = new Set(); // track which groups came from sidebar
 
         for (const page of pageList) {
-          const content = fs.readFileSync(page.sourceFile, 'utf8');
+          const content = fs.readFileSync(page.sourceFile, "utf8");
           const fm = readFrontmatter(content);
-          const pageTitle = fm.title || path.basename(page.mdRel, '.md');
-          const pageDesc = fm.description || '';
+          const pageTitle = fm.title || path.basename(page.mdRel, ".md");
+          const pageDesc = fm.description || "";
 
           // Derive docId (strip .md extension only — keep full path for sidebar lookup)
-          const docId = page.mdRel.replace(/\.md$/, '');
+          const docId = page.mdRel.replace(/\.md$/, "");
 
           let group = null;
           let sidebarOrder = null;
@@ -443,17 +436,19 @@ module.exports = function llmsTxtPlugin(_context, options) {
           // sidebar uses foo/foo), then the original source doc ID (for slug
           // overrides where the URL differs from the source filename)
           const docBasename = path.basename(docId);
-          const sourceDocId = path.relative(page.sourceDir, page.sourceFile)
-            .split(path.sep).join('/')
-            .replace(/\.(md|mdx)$/, '');
-          const sidebarEntry = sidebarInfo && (
-            sidebarInfo.docMap[docId] ||
-            sidebarInfo.docMap[docId + '/index'] ||
-            sidebarInfo.docMap[docId + '/' + docBasename] ||
-            sidebarInfo.docMap[sourceDocId]
-          );
+          const sourceDocId = path
+            .relative(page.sourceDir, page.sourceFile)
+            .split(path.sep)
+            .join("/")
+            .replace(/\.(md|mdx)$/, "");
+          const sidebarEntry =
+            sidebarInfo &&
+            (sidebarInfo.docMap[docId] ||
+              sidebarInfo.docMap[`${docId}/index`] ||
+              sidebarInfo.docMap[`${docId}/${docBasename}`] ||
+              sidebarInfo.docMap[sourceDocId]);
           if (sidebarEntry) {
-            group = sidebarEntry.group;  // may be '' for top-level
+            group = sidebarEntry.group; // may be '' for top-level
             sidebarOrder = sidebarEntry.order;
             if (group) sidebarGroupSet.add(group);
           } else if (sidebarInfo) {
@@ -461,11 +456,9 @@ module.exports = function llmsTxtPlugin(_context, options) {
             continue;
           } else {
             // No sidebar available — fall back to directory-based grouping
-            const groupPath = pathPrefix
-              ? page.mdRel.slice(pathPrefix.length)
-              : page.mdRel;
-            const parts = groupPath.split('/');
-            group = parts.length > 1 ? parts[0] : '';
+            const groupPath = pathPrefix ? page.mdRel.slice(pathPrefix.length) : page.mdRel;
+            const parts = groupPath.split("/");
+            group = parts.length > 1 ? parts[0] : "";
           }
 
           const entry = {
@@ -509,28 +502,28 @@ module.exports = function llmsTxtPlugin(_context, options) {
 
         let txt = `# ${title}\n\n`;
         if (description) {
-          const descLines = description.split('\n').map((l) => `> ${l}`);
-          txt += descLines.join('\n') + '\n\n';
+          const descLines = description.split("\n").map((l) => `> ${l}`);
+          txt += `${descLines.join("\n")}\n\n`;
         }
 
         if (topLevel.length > 0) {
           for (const p of sortPages(topLevel)) {
-            const desc = p.description ? `: ${p.description}` : '';
+            const desc = p.description ? `: ${p.description}` : "";
             txt += `- [${p.title}](${baseUrl}${p.mdRel})${desc}\n`;
           }
-          txt += '\n';
+          txt += "\n";
         }
 
         for (const group of orderedGroups) {
           txt += `## ${group}\n`;
           for (const p of sortPages(groups[group])) {
-            const desc = p.description ? `: ${p.description}` : '';
+            const desc = p.description ? `: ${p.description}` : "";
             txt += `- [${p.title}](${baseUrl}${p.mdRel})${desc}\n`;
           }
-          txt += '\n';
+          txt += "\n";
         }
 
-        return {txt, groups: orderedGroups, count: pageList.length};
+        return { txt, groups: orderedGroups, count: pageList.length };
       }
 
       // Generate separate llms.txt files for configured prefixes
@@ -547,30 +540,28 @@ module.exports = function llmsTxtPlugin(_context, options) {
         if (sep.sidebar && sidebars[sep.sidebar]) {
           sepSidebarMap = buildSidebarMap(sidebars[sep.sidebar], groupDepth);
           console.log(
-            `[llms-txt] ${sep.sidebar} map: ${Object.keys(sepSidebarMap.docMap).length} docs in ${sepSidebarMap.groupOrder.length} groups`
+            `[llms-txt] ${sep.sidebar} map: ${Object.keys(sepSidebarMap.docMap).length} docs in ${sepSidebarMap.groupOrder.length} groups`,
           );
         }
 
-        const {txt, groups, count} = buildLlmsTxt(sep.title, sep.description, matching, sepSidebarMap, prefix);
-        const sepPath = path.join(outDir, prefix, 'llms.txt');
+        const { txt, groups, count } = buildLlmsTxt(sep.title, sep.description, matching, sepSidebarMap, prefix);
+        const sepPath = path.join(outDir, prefix, "llms.txt");
         const sepDir = path.dirname(sepPath);
         if (!fs.existsSync(sepDir)) {
-          fs.mkdirSync(sepDir, {recursive: true});
+          fs.mkdirSync(sepDir, { recursive: true });
         }
         fs.writeFileSync(sepPath, txt);
-        console.log(
-          `[llms-txt] Generated ${prefix}llms.txt with ${count} entries in ${groups.length} groups`
-        );
+        console.log(`[llms-txt] Generated ${prefix}llms.txt with ${count} entries in ${groups.length} groups`);
       }
 
       // Generate main llms.txt from remaining pages
-      const {txt: mainTxt, groups: mainGroups, count: mainCount} = buildLlmsTxt(
-        siteTitle, siteDescription, remainingPages, mainSidebarMap
-      );
-      fs.writeFileSync(path.join(outDir, 'llms.txt'), mainTxt);
-      console.log(
-        `[llms-txt] Generated llms.txt with ${mainCount} entries in ${mainGroups.length} groups`
-      );
+      const {
+        txt: mainTxt,
+        groups: mainGroups,
+        count: mainCount,
+      } = buildLlmsTxt(siteTitle, siteDescription, remainingPages, mainSidebarMap);
+      fs.writeFileSync(path.join(outDir, "llms.txt"), mainTxt);
+      console.log(`[llms-txt] Generated llms.txt with ${mainCount} entries in ${mainGroups.length} groups`);
     },
   };
 };

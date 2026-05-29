@@ -8,7 +8,10 @@ help: ## Shows this help message
 dev: ## Prepares development environment for docs tooling
 	uv sync
 
-lint: lint-core lint-embedded-snippets lint-notebooks ## Runs all linters
+lint: lint-core lint-embedded-snippets lint-notebooks lint-website ## Runs all linters
+
+lint-website: ## Lints the docusaurus website JS/TS sources with Biome
+	cd website && npm run lint
 
 # Generated example test files (docs/examples/**/test_*.py) are gitignored and
 # created by prepare-examples-tests, so exclude them from mypy
