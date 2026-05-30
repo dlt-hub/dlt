@@ -5420,9 +5420,11 @@ def test_pipeline_steps_in_separate_processes() -> None:
     on the filesystem.
     """
     # propagate the test run context's data_dir so subprocesses use the same test storage
+    # inherit the parent environment - replacing it breaks Winsock init on Windows (WinError 10106)
     subprocess_env = {
         **os.environ,
         DLT_DATA_DIR: dlt.current.run_context().data_dir,
+        DLT_LOCAL_DIR: dlt.current.run_context().local_dir,
     }
     pipeline_name = "separate_steps_" + uniq_id()
     script_path = f"{PIPELINE_TEST_CASES_PATH}separate_steps/pipeline_step_loop.py"
