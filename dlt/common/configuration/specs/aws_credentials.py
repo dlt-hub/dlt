@@ -131,6 +131,30 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             )
         return super().to_session_credentials()
 
+    def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
+        """When the underlying credentials come from a refreshable provider
+        (ECS task role, EKS IRSA, EC2 instance profile, assumed role, SSO),
+        omit the static ``key``/``secret``/``token`` so that ``s3fs`` falls back
+        to its own ``aiobotocore`` default chain. The aiobotocore session honors
+        the same refreshable provider, preventing ``ExpiredToken`` errors on
+        long-running S3 writes once the temporary token rotates mid-process.
+
+        Static credentials (env vars, explicit IAM user keys) are passed through
+        unchanged.
+        """
+        creds = super().to_s3fs_credentials()
+        if self.has_default_credentials():
+            try:
+                from botocore.credentials import RefreshableCredentials
+
+                underlying = self.default_credentials().get_credentials()
+                if isinstance(underlying, RefreshableCredentials):
+                    for k in ("key", "secret", "token"):
+                        creds.pop(k, None)
+            except ImportError:
+                pass
+        return creds
+
     def to_sts_credentials(self) -> Dict[str, str]:
         """Return session credentials with a session token, generating one via STS if needed."""
         sess_creds = self.to_session_credentials()
