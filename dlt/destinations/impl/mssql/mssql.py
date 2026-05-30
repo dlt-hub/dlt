@@ -92,6 +92,9 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
 
 class MssqlParquetCopyJob(AdbcParquetCopyJob):
     _config: MsSqlClientConfiguration
+    # mssql ADBC driver buffers the full input stream in memory; flush per row-group
+    # to bound peak memory and avoid OOM on large parquet files
+    _ingest_per_rowgroup: bool = True
 
     if TYPE_CHECKING:
         from adbc_driver_manager.dbapi import Connection
