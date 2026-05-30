@@ -29,6 +29,11 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     force_iceberg: Optional[bool] = None
     table_location_layout: Optional[str] = DEFAULT_TABLE_LOCATION_LAYOUT
     table_properties: Optional[Dict[str, str]] = None
+    truncate_iceberg_staging: Optional[bool] = None
+    """When True, the staging external table that backs each iceberg target is
+    truncated before each load, regardless of write disposition. Required when
+    appending into iceberg tables to keep the staging→iceberg copy scoped to the
+    current load. Defaults to False to preserve existing behaviour."""
     lakeformation_config: Optional[LakeformationConfig] = None
     info_tables_query_threshold: int = 90
     # athena slows down when this value is too high, see for context:
@@ -40,6 +45,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         "athena_work_group",
         "aws_data_catalog",
         "info_tables_query_threshold",
+        "truncate_iceberg_staging",
     ]
 
     def to_connector_params(self, use_catalog_name: bool = True) -> Dict[str, Any]:

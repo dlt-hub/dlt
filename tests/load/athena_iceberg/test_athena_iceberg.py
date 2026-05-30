@@ -166,3 +166,40 @@ def test_iceberg_location_tag(destination_config: DestinationTestConfiguration) 
     pipeline.run([7, 8, 9], table_name="digits", refresh="drop_sources")
     data = [s[0] for s in pipeline.dataset().digits.fetchall()]
     assert set(data) == set([7, 8, 9])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        with_table_format="iceberg",
+        subset=["athena"],
+        aws_data_catalog=None,
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg_staging_truncate_flag(destination_config: DestinationTestConfiguration) -> None:
+    """``truncate_iceberg_staging=True`` opts the iceberg staging external table
+    into a pre-load truncate, so subsequent appends do not re-copy older loads
+    into the iceberg target via the staging ``INSERT INTO ... SELECT *``.
+    """
+    from dlt.destinations import athena
+
+    destination = athena(truncate_iceberg_staging=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_iceberg_staging_truncate_flag", dev_mode=True, destination=destination,
+    )
+
+    @dlt.resource(name="items_iceberg", write_disposition="append", table_format="iceberg")
+    def items(start: int, count: int):
+        for i in range(start, start + count):
+            yield {"id": i, "name": f"item-{i}"}
+
+    pipeline.run(items(0, 3))
+    pipeline.run(items(100, 2))
+
+    # 3 from first load + 2 from second; without the flag the second load also
+    # re-inserts the first load's 3 rows (= 8 total) because the staging table
+    # accumulates parquet files across loads.
+    counts = load_table_counts(pipeline, "items_iceberg")
+    assert counts["items_iceberg"] == 5

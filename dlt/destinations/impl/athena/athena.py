@@ -465,9 +465,15 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         return super().should_load_data_to_staging_dataset(table_name)
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
-        # on athena we only truncate replace tables that are not iceberg
         table = self.prepare_load_table(table_name)
-        if table["write_disposition"] == "replace" and not self._is_iceberg_table(table):
+        if self._is_iceberg_table(table):
+            # Iceberg targets get their data copied out of the staging external
+            # table with ``INSERT INTO target SELECT * FROM staging``. Without
+            # an opt-in truncate, parquet files accumulate in the staging
+            # location across loads and every subsequent ``INSERT`` re-copies
+            # the older loads' rows into the iceberg target.
+            return bool(self.config.truncate_iceberg_staging)
+        if table["write_disposition"] == "replace":
             return True
         return False
 
