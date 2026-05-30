@@ -162,16 +162,7 @@ def test_aws_credentials_with_endpoint_url(environment: Dict[str, str]) -> None:
 
 
 def test_aws_credentials_to_s3fs_omits_refreshable_token() -> None:
-    """Refreshable credentials must not be frozen into s3fs static kwargs.
-
-    When the underlying provider is ``RefreshableCredentials`` (ECS task role,
-    EKS IRSA, EC2 instance profile, assumed role, SSO), ``to_s3fs_credentials``
-    must omit ``key``/``secret``/``token`` so that s3fs falls back to its own
-    aiobotocore default chain and refreshes the token before expiry. Otherwise
-    long-running S3 writes die with ``ExpiredToken`` once the provider rotates
-    the temporary credentials. Static credentials are unaffected (covered by
-    other tests in this module). See issue #4003.
-    """
+    """RefreshableCredentials must not freeze into s3fs static kwargs (#4003)."""
     import botocore.session
     from botocore.credentials import RefreshableCredentials
 
