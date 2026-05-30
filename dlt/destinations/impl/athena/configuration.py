@@ -29,6 +29,15 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     force_iceberg: Optional[bool] = None
     table_location_layout: Optional[str] = DEFAULT_TABLE_LOCATION_LAYOUT
     table_properties: Optional[Dict[str, str]] = None
+    scope_iceberg_staging_insert_to_load: Optional[bool] = None
+    """When True (default), the staging→iceberg ``INSERT INTO`` copy is
+    scoped to the current load via ``WHERE _dlt_load_id = '<load_id>'``.
+    Each staging parquet file is written with a constant ``_dlt_load_id``,
+    so Athena prunes non-matching files at the parquet row-group reader
+    via column min/max statistics — no Hive partition is required and
+    query cost stays bounded even when the staging external table
+    accumulates files from older loads. Set to False to restore the
+    legacy unbounded ``SELECT *`` behaviour."""
     lakeformation_config: Optional[LakeformationConfig] = None
     info_tables_query_threshold: int = 90
     # athena slows down when this value is too high, see for context:
@@ -40,6 +49,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         "athena_work_group",
         "aws_data_catalog",
         "info_tables_query_threshold",
+        "scope_iceberg_staging_insert_to_load",
     ]
 
     def to_connector_params(self, use_catalog_name: bool = True) -> Dict[str, Any]:

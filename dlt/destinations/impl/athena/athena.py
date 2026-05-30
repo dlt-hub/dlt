@@ -3,6 +3,7 @@ from typing import (
     Any,
     Sequence,
     Tuple,
+    Type,
     List,
     Dict,
     Iterable,
@@ -42,6 +43,9 @@ from dlt.common.schema.typing import (
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.destination.client import FollowupJobRequest, SupportsStagingDestination, LoadJob
+from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.storages.load_package import load_package_state as current_load_package
 from dlt.destinations.sql_jobs import (
     SqlStagingCopyFollowupJob,
     SqlStagingReplaceFollowupJob,
@@ -64,6 +68,61 @@ from dlt.destinations.impl.athena.utils import is_s3_tables_catalog
 
 
 boto3_client_lock = Lock()
+
+
+class AthenaIcebergStagingCopyFollowupJob(SqlStagingCopyFollowupJob):
+    """Iceberg-aware ``INSERT INTO ... SELECT *`` that filters the staging
+    external table by the current ``_dlt_load_id``.
+
+    Each staging parquet file is written with a constant ``_dlt_load_id``,
+    so a WHERE clause on that column lets Athena prune non-matching files
+    via parquet row-group min/max statistics. No Hive partition setup is
+    required; query cost stays bounded even when the staging external
+    table accumulates files from older loads (e.g. when the operator
+    deliberately keeps staging for audit and does not enable the
+    ``truncate_iceberg_staging`` flag).
+    """
+
+    @classmethod
+    def _generate_insert_sql(
+        cls,
+        table_chain: Sequence[PreparedTableSchema],
+        sql_client: SqlClientBase[Any],
+        truncate_first: bool,
+    ) -> List[str]:
+        try:
+            current_load_id = current_load_package()["load_id"]
+        except Exception:
+            current_load_id = None
+
+        if not current_load_id:
+            return super()._generate_insert_sql(table_chain, sql_client, truncate_first)
+
+        sql: List[str] = []
+        load_id_literal = sql_client.capabilities.escape_literal(current_load_id)
+        for table in table_chain:
+            with sql_client.with_staging_dataset():
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            column_names = get_columns_names_with_prop(table, "name")
+            columns = ", ".join(map(sql_client.escape_column_name, column_names))
+            if truncate_first:
+                sql.append(sql_client._truncate_table_sql(table_name))
+            if C_DLT_LOAD_ID in column_names:
+                where = (
+                    f" WHERE {sql_client.escape_column_name(C_DLT_LOAD_ID)} ="
+                    f" {load_id_literal}"
+                )
+            else:
+                # Defensive: skip the filter on tables that lack `_dlt_load_id`
+                # for any reason. dlt adds it by default, so this branch should
+                # not be reached on dlt-managed tables.
+                where = ""
+            sql.append(
+                f"INSERT INTO {table_name}({columns})"
+                f" SELECT {columns} FROM {staging_table_name}{where}"
+            )
+        return sql
 
 
 class AthenaMergeJob(SqlMergeFollowupJob):
@@ -428,7 +487,16 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         if self._is_iceberg_table(table_chain[0]):
-            return [SqlStagingCopyFollowupJob.from_table_chain(table_chain, self.sql_client)]
+            # `scope_iceberg_staging_insert_to_load` defaults to True so the
+            # staging→iceberg copy stays scoped to the current load. Setting
+            # the flag to False restores the legacy unbounded SELECT for
+            # operators who rely on the historical accumulation semantic.
+            job_cls: Type[SqlStagingCopyFollowupJob] = (
+                AthenaIcebergStagingCopyFollowupJob
+                if self.config.scope_iceberg_staging_insert_to_load is not False
+                else SqlStagingCopyFollowupJob
+            )
+            return [job_cls.from_table_chain(table_chain, self.sql_client)]
         return super()._create_append_followup_jobs(table_chain)
 
     def _create_replace_followup_jobs(

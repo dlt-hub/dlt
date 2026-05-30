@@ -166,3 +166,39 @@ def test_iceberg_location_tag(destination_config: DestinationTestConfiguration) 
     pipeline.run([7, 8, 9], table_name="digits", refresh="drop_sources")
     data = [s[0] for s in pipeline.dataset().digits.fetchall()]
     assert set(data) == set([7, 8, 9])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        with_table_format="iceberg",
+        subset=["athena"],
+        aws_data_catalog=None,
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg_staging_insert_scoped_to_load(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Two consecutive appends into the same iceberg table must not duplicate
+    earlier loads' rows in the target. The staging external table accumulates
+    parquet files across loads (default behaviour); the WHERE filter on
+    ``_dlt_load_id`` keeps the staging→iceberg copy scoped to the current load.
+    """
+    pipeline = destination_config.setup_pipeline(
+        "test_iceberg_staging_insert_scoped_to_load", dev_mode=True,
+    )
+
+    @dlt.resource(name="items_iceberg", write_disposition="append", table_format="iceberg")
+    def items(start: int, count: int):
+        for i in range(start, start + count):
+            yield {"id": i, "name": f"item-{i}"}
+
+    pipeline.run(items(0, 3))
+    pipeline.run(items(100, 2))
+
+    counts = load_table_counts(pipeline, "items_iceberg")
+    # 3 from first load + 2 from second; the legacy unbounded SELECT would yield
+    # 8 because the second load re-copies the accumulated staging files.
+    assert counts["items_iceberg"] == 5
