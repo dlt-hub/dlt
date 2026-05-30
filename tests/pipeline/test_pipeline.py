@@ -5369,6 +5369,12 @@ def test_load_not_yet_existing_package() -> None:
 
     # inject schema - simulates pipeline synced from destination
     pipeline._inject_schema(Schema("default"))
+
+    # polling normalize/load on an empty folder must not rewrite state.json - concurrent processes
+    # share the working dir and a write back here would clobber a concurrent extract's state
+    state_path = pipeline._pipeline_storage.make_full_path(pipeline.STATE_FILE)
+    state_mtime = os.stat(state_path).st_mtime_ns
+
     # skipped
     assert pipeline.normalize() is None
     # normalize storage must not be created
@@ -5377,6 +5383,9 @@ def test_load_not_yet_existing_package() -> None:
     # same for load
     assert pipeline.load() is None
     assert pipeline._get_load_storage().is_storage_ready() is False
+
+    # nothing changed, so state was not persisted again
+    assert os.stat(state_path).st_mtime_ns == state_mtime
 
 
 def test_package_accessors_on_fresh_pipeline() -> None:

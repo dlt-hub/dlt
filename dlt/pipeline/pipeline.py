@@ -97,7 +97,11 @@ from dlt.common.pipeline import (
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive, simple_repr, without_none
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
-from dlt.common.versioned_state import json_encode_state, json_decode_state
+from dlt.common.versioned_state import (
+    json_encode_state,
+    json_decode_state,
+    generate_state_version_hash,
+)
 
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
@@ -160,7 +164,9 @@ def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
 
             # backup and restore state
             should_extract_state = may_extract_state and self.config.restore_from_destination
-            with self.managed_state(extract_state=should_extract_state):
+            with self.managed_state(extract_state=should_extract_state) as state:
+                # refresh props from the freshly read state
+                self._state_to_props(state)
                 return f(self, *args, **kwargs)
 
         return _wrap  # type: ignore
@@ -196,8 +202,9 @@ def with_schemas_sync(f: TFun) -> TFun:
                 self._schema_storage.save_import_schema_if_not_exists(schema)
                 # only now save the schema, already linked to itself if saved as import schema
                 self._schema_storage.commit_live_schema(name)
-            # refresh list of schemas if any new schemas are added
-            self.schema_names = self._list_schemas_sorted()
+            # refresh only when default_schema_name is aleady set
+            if self.default_schema_name:
+                self.schema_names = self._list_schemas_sorted()
             return rv
 
     return _wrap  # type: ignore
@@ -422,8 +429,8 @@ class Pipeline(SupportsPipeline):
         return self
 
     @with_runtime_trace()
-    @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(may_extract_state=True)
+    @with_schemas_sync
     @with_config_section((known_sections.EXTRACT,))
     def extract(
         self,
@@ -1776,6 +1783,11 @@ class Pipeline(SupportsPipeline):
         Makes the state to be available via StateInjectableContext
         """
         state = self._get_state()
+        # snapshot loaded state to detect real changes on exit. concurrent processes may share the
+        # working dir, so a pure attach must not write state back and clobber another writer.
+        # NOTE: _local must participate in the hash, so we do not exclude it
+        had_state_file = self._pipeline_storage.has_file(Pipeline.STATE_FILE)
+        loaded_hash = generate_state_version_hash(state)
         try:
             # add the state to container as a context
             with self._container.injectable_context(StateInjectableContext(state=state)):
@@ -1789,8 +1801,9 @@ class Pipeline(SupportsPipeline):
         else:
             # this modifies state in place
             self._bump_version_and_extract_state(state, extract_state)
-            # so we save modified state here
-            self._save_state(state)
+            # save only when state actually changed or was never persisted
+            if not had_state_file or generate_state_version_hash(state) != loaded_hash:
+                self._save_state(state)
 
     def _state_to_props(self, state: TPipelineState) -> None:
         """Write `state` to pipeline props."""
@@ -1840,7 +1853,10 @@ class Pipeline(SupportsPipeline):
         if self._staging:
             state["staging_type"] = self._staging.destination_type
             state["staging_name"] = self._staging.configured_name
-        state["schema_names"] = self._list_schemas_sorted()
+        # update schemas only when default_schema_name is aleady set
+        # prevents race condition (another process writes schemas)
+        if self.default_schema_name:
+            state["schema_names"] = self._list_schemas_sorted()
         return state
 
     def _save_and_extract_state_and_schema(
