@@ -62,3 +62,25 @@ def test_query_result_bucket_optional() -> None:
         athena_config.query_result_bucket = None
         connector_params = athena_config.to_connector_params()
         assert connector_params["s3_staging_dir"] is None
+
+
+def test_iceberg_bucket_url_optional() -> None:
+    # iceberg_bucket_url is Optional[str] so it should be resolved even when None.
+    # see: https://github.com/dlt-hub/dlt/issues/3823
+    hints = AthenaClientConfiguration.get_resolvable_fields()
+    assert AthenaClientConfiguration.is_field_resolved(None, hints["iceberg_bucket_url"])
+
+    # default: iceberg target falls back to staging_config.bucket_url
+    with cm_yield_client("athena", "dummy_dataset", enter_client=False) as client:
+        athena_config = cast(AthenaClientConfiguration, client.config)
+        assert athena_config.iceberg_bucket_url is None
+
+    # explicit override: the override round-trips through resolved config
+    with cm_yield_client(
+        "athena",
+        "dummy_dataset",
+        {"iceberg_bucket_url": "s3://my-iceberg-target"},
+        enter_client=False,
+    ) as client:
+        athena_config = cast(AthenaClientConfiguration, client.config)
+        assert athena_config.iceberg_bucket_url == "s3://my-iceberg-target"

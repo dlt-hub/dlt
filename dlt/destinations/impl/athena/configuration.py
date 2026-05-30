@@ -29,6 +29,14 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     force_iceberg: Optional[bool] = None
     table_location_layout: Optional[str] = DEFAULT_TABLE_LOCATION_LAYOUT
     table_properties: Optional[Dict[str, str]] = None
+    iceberg_bucket_url: Optional[str] = None
+    """Optional S3 root for the final iceberg table ``LOCATION``. When set, the
+    iceberg target lives at ``{iceberg_bucket_url}/{table_location_layout}``
+    while staging external tables stay under ``staging_config.bucket_url``.
+    Defaults to ``None`` -- iceberg targets fall back to the staging bucket,
+    preserving existing behaviour. Useful when staging and final-table prefixes
+    sit under different IAM policies, lifecycle rules, or bucket-level
+    encryption keys. See https://github.com/dlt-hub/dlt/issues/3823."""
     lakeformation_config: Optional[LakeformationConfig] = None
     info_tables_query_threshold: int = 90
     # athena slows down when this value is too high, see for context:
@@ -40,6 +48,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         "athena_work_group",
         "aws_data_catalog",
         "info_tables_query_threshold",
+        "iceberg_bucket_url",
     ]
 
     def to_connector_params(self, use_catalog_name: bool = True) -> Dict[str, Any]:

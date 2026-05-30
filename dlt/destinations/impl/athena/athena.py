@@ -332,7 +332,11 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
-        bucket = self.config.staging_config.bucket_url
+        staging_bucket = self.config.staging_config.bucket_url
+        # Iceberg targets may live in a dedicated bucket independent of the
+        # staging external tables; fall back to staging bucket when not set
+        # (preserves prior behaviour). See https://github.com/dlt-hub/dlt/issues/3823
+        iceberg_bucket = self.config.iceberg_bucket_url or staging_bucket
         dataset = self.sql_client.dataset_name
 
         sql: List[str] = []
@@ -374,7 +378,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                     # create unique tag for iceberg table so it is never recreated in the same folder
                     # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
                     # iceberg tables without it, by default tag is not added
-                    location = f"{bucket}/" + table_location_layout.format(
+                    location = f"{iceberg_bucket}/" + table_location_layout.format(
                         dataset_name=dataset,
                         table_name=table_prefix.rstrip("/"),
                         location_tag=uniq_id(6),
@@ -387,7 +391,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                 sql.append(stmt)
             else:
                 # external tables always here
-                location = f"{bucket}/{dataset}/{table_prefix}"
+                location = f"{staging_bucket}/{dataset}/{table_prefix}"
                 logger.info(f"Will create EXTERNAL table {table_name} from {location}")
                 sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
                         ({columns})
