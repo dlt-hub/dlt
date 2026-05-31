@@ -1951,11 +1951,15 @@ def test_apply_hints_table_variants() -> None:
     table_a = empty.compute_table_schema(meta=TableNameMeta("table_a"))
     assert table_a["name"] == "table_a"
     assert table_a["write_disposition"] == "replace"
+    # a registered variant carries its variant name
+    assert table_a["variant_name"] == "table_a"
 
     # unknown table (without variant) - created out resource hints
     table_unk = empty.compute_table_schema(meta=TableNameMeta("table_unk"))
     assert table_unk["name"] == "table_unk"
     assert table_unk["write_disposition"] == "append"
+    # not a registered variant - dispatched table name carries no variant_name
+    assert "variant_name" not in table_unk
 
     # resource hints are base for table variants
     empty.apply_hints(
@@ -1967,6 +1971,7 @@ def test_apply_hints_table_variants() -> None:
     table_b = empty.compute_table_schema(meta=TableNameMeta("table_b"))
     assert table_b["name"] == "table_b"
     assert table_b["write_disposition"] == "merge"
+    assert table_b["variant_name"] == "table_b"
     assert len(table_b["columns"]) == 1
     assert table_b["columns"]["id"]["primary_key"] is True
     # overwrite table_b, remove column def and primary_key

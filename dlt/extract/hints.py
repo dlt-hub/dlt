@@ -40,6 +40,7 @@ from dlt.common.schema.utils import (
     migrate_complex_types,
     new_column,
     new_table,
+    normalize_table_identifiers,
     remove_compound_props,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
@@ -263,9 +264,13 @@ class DltResourceHints:
             # look for variant
             default_table_name = meta.table_name
             root_table_template = self._hints_variants.get(default_table_name, self._hints)
+            variant_name = (
+                default_table_name if default_table_name in self._hints_variants else None
+            )
         else:
             default_table_name = self.name
             root_table_template = self._hints
+            variant_name = None
 
         if not root_table_template:
             return new_table(default_table_name, resource=self.name)
@@ -294,6 +299,8 @@ class DltResourceHints:
         table_schema = self._hints_to_table_schema(resolved_template)
         if not is_nested_table(table_schema):
             table_schema["resource"] = self.name
+        if variant_name:
+            table_schema["variant_name"] = variant_name
         migrate_complex_types(table_schema, warn=True)
         validate_dict_ignoring_xkeys(
             spec=TTableSchema,
@@ -391,6 +398,23 @@ class DltResourceHints:
         #     nested_table_schemas.insert(0, placeholder_table_schema)
 
         return nested_table_schemas
+
+    def compute_tables(
+        self, naming: NamingConvention, item: TDataItem = None, meta: Any = None
+    ) -> List[TTableSchema]:
+        """Computes normalized root and nested table schemas for this resource.
+
+        Raises `DataItemRequiredForDynamicTableHints` when the table name is dynamic and `item` is
+        not provided.
+        """
+        root_table_schema = self.compute_table_schema(item, meta)
+        nested_tables_schema = self.compute_nested_table_schemas(
+            root_table_schema["name"], naming, item, meta
+        )
+        return [
+            normalize_table_identifiers(table_schema, naming)
+            for table_schema in (root_table_schema, *nested_tables_schema)
+        ]
 
     def apply_hints(
         self,
