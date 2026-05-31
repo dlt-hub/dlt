@@ -9,12 +9,16 @@ from dlt.common.storages.exceptions import NoMigrationPathException, WrongStorag
 class VersionedStorage:
     VERSION_FILE = ".version"
 
-    def __init__(
-        self, version: Union[semver.Version, str], is_owner: bool, storage: FileStorage
+    def __init__(self, storage: FileStorage) -> None:
+        self.storage = storage
+
+    def ensure_migration(
+        self,
+        version: Union[semver.Version, str],
+        is_owner: bool,
     ) -> None:
         if isinstance(version, str):
             version = semver.Version.parse(version)
-        self.storage = storage
         # read current version
         if self.storage.has_file(VersionedStorage.VERSION_FILE):
             existing_version = self._load_version()
@@ -22,7 +26,7 @@ class VersionedStorage:
                 if existing_version > version:
                     # version cannot be downgraded
                     raise NoMigrationPathException(
-                        storage.storage_path, existing_version, existing_version, version
+                        self.storage.storage_path, existing_version, existing_version, version
                     )
                 if is_owner:
                     # only owner can migrate storage
@@ -31,19 +35,19 @@ class VersionedStorage:
                     migrated_version = self._load_version()
                     if version != migrated_version:
                         raise NoMigrationPathException(
-                            storage.storage_path, existing_version, migrated_version, version
+                            self.storage.storage_path, existing_version, migrated_version, version
                         )
                 else:
                     # we cannot use storage and we must wait for owner to upgrade it
                     raise WrongStorageVersionException(
-                        storage.storage_path, existing_version, version
+                        self.storage.storage_path, existing_version, version
                     )
         else:
             if is_owner:
                 self._save_version(version)
             else:
                 raise WrongStorageVersionException(
-                    storage.storage_path, semver.Version.parse("0.0.0"), version
+                    self.storage.storage_path, semver.Version.parse("0.0.0"), version
                 )
 
     def migrate_storage(self, from_version: semver.Version, to_version: semver.Version) -> None:
@@ -59,6 +63,10 @@ class VersionedStorage:
     @property
     def version(self) -> semver.Version:
         return self._load_version()
+
+    def is_storage_ready(self) -> bool:
+        # assumes that storage structure is created "atomically" together with top level folder
+        return self.storage.has_folder(".")
 
     def _load_version(self) -> semver.Version:
         version_str = self.storage.load(VersionedStorage.VERSION_FILE)

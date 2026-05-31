@@ -73,7 +73,8 @@ def init_normalize(default_schemas_path: str = None) -> Iterator[Normalize]:
         {"import_schema_path": default_schemas_path, "external_schema_format": "json"}
     ):
         # inject the destination capabilities
-        n = Normalize()
+        # own the normalize storage so direct (non-pipeline) test usage creates folders
+        n = Normalize(is_storage_owner=True)
         yield n
 
 

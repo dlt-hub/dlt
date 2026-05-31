@@ -1154,6 +1154,25 @@ def load_table(name: str) -> Dict[str, TTableSchemaColumns]:
         return json.load(f)
 
 
+@contextlib.contextmanager
+def prevent_client_reopen(client: JobClientBase) -> Iterator[JobClientBase]:
+    """No-ops `client.__enter__`/`__exit__` while a caller already holds the connection open."""
+    original_class = client.__class__
+    NoOpLifecycle = type(
+        f"_NoLifecycle{original_class.__name__}",
+        (original_class,),
+        {
+            "__enter__": lambda self: self,
+            "__exit__": lambda self, exc_type, exc_val, exc_tb: None,
+        },
+    )
+    client.__class__ = NoOpLifecycle
+    try:
+        yield client
+    finally:
+        client.__class__ = original_class
+
+
 def expect_load_file(
     client: JobClientBase,
     file_storage: FileStorage,
@@ -1184,7 +1203,8 @@ def expect_load_file(
 
         if isinstance(job, RunnableLoadJob):
             job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
-            job.run_managed(client, None)
+            with prevent_client_reopen(client):
+                job.run_managed(client, None)
         # TODO: use semaphore
         while job.state() == "running":
             sleep(0.1)

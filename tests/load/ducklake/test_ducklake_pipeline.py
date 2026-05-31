@@ -78,8 +78,17 @@ def test_all_catalogs(catalog: str) -> None:
     # test catalog location if applicable
     catalog_location = pipeline.destination_client().config.credentials.catalog.database  # type: ignore
     if "." in catalog_location:
-        # it is a file
-        assert pathlib.Path(get_test_storage_root(), catalog_location).exists()
+        catalog_file = pathlib.Path(get_test_storage_root(), catalog_location)
+        assert catalog_file.exists()
+        # verify the catalog file has the expected on-disk backend format. regression for #3870
+        # where a `duckdb:///` URI silently produced a SQLite-format file at `catalog.duckdb`.
+        header = catalog_file.read_bytes()[:16]
+        if catalog_location.endswith(".duckdb"):
+            assert b"DUCK" in header, f"expected DuckDB-format catalog, got: {header!r}"
+        elif catalog_location.endswith(".sqlite"):
+            assert header.startswith(
+                b"SQLite format"
+            ), f"expected SQLite-format catalog, got: {header!r}"
 
 
 @pytest.mark.parametrize(
