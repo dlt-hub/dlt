@@ -99,7 +99,10 @@ class AthenaIcebergStagingCopyFollowupJob(SqlStagingCopyFollowupJob):
             return super()._generate_insert_sql(table_chain, sql_client, truncate_first)
 
         sql: List[str] = []
-        load_id_literal = sql_client.capabilities.escape_literal(current_load_id)
+        escape_lit = sql_client.capabilities.escape_literal
+        if escape_lit is None:
+            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
+        load_id_literal = escape_lit(current_load_id)
         for table in table_chain:
             with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
