@@ -101,19 +101,20 @@ def init_client(
     # get all tables that actually have load jobs with data
     tables_with_jobs = set(job.table_name for job in new_jobs) - tables_no_data
 
-    # get tables to truncate by extending tables with jobs with all their nested tables
+    # initial tables contain child tables already
     initial_truncate_names = (
         set(t["name"] for t in truncate_tables if drop_staging_filter(t))
         if truncate_tables
         else set()
     )
+
+    # get tables to truncate by extending tables with jobs with all their nested tables
     truncate_table_names = set(
         _extend_tables_with_table_chain(
             schema,
             tables_with_jobs,
             tables_with_jobs,
-            lambda table_name: truncate_filter(table_name)
-            or (table_name in initial_truncate_names),
+            truncate_filter,
         )
     )
 
@@ -129,7 +130,8 @@ def init_client(
         job_client,
         expected_update,
         tables_with_jobs | dlt_tables,
-        truncate_table_names,
+        truncate_tables=truncate_table_names,
+        initial_truncate_tables=initial_truncate_names,
         drop_tables=drop_table_names,
     )
 
@@ -162,7 +164,7 @@ def init_client(
                     job_client,
                     expected_update,
                     all_staging_tables | {schema.version_table_name},
-                    staging_tables_with_jobs,  # only truncate tables with jobs in this load
+                    truncate_tables=staging_tables_with_jobs,  # only truncate tables with jobs in this load
                     staging_info=True,
                     drop_tables=drop_table_names,  # try to drop all the same tables on staging
                 )
@@ -174,7 +176,9 @@ def _init_dataset_and_update_schema(
     job_client: JobClientBase,
     expected_update: TSchemaTables,
     update_tables: Iterable[str],
-    truncate_tables: Iterable[str] = None,
+    *,
+    truncate_tables: Set[str] = None,
+    initial_truncate_tables: Set[str] = None,
     staging_info: bool = False,
     drop_tables: Iterable[str] = None,
 ) -> TSchemaTables:
@@ -203,14 +207,19 @@ def _init_dataset_and_update_schema(
         f" {staging_text}"
     )
     applied_update = job_client.update_stored_schema(
-        only_tables=update_tables, expected_update=expected_update
+        only_tables=update_tables,
+        expected_update=expected_update,
+        # force schema update if tables dropped or truncated via refresh
+        force=bool(drop_tables or initial_truncate_tables),
     )
-    if truncate_tables:
+    if truncate_tables or initial_truncate_tables:
+        if initial_truncate_tables:
+            truncate_tables = initial_truncate_tables | (truncate_tables or set())
         logger.info(
             f"Client for {job_client.config.destination_type} will truncate tables {staging_text}"
         )
+        job_client.initialize_storage(truncate_tables=truncate_tables)
 
-    job_client.initialize_storage(truncate_tables=truncate_tables)
     return applied_update
 
 
