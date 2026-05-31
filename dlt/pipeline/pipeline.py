@@ -1783,11 +1783,10 @@ class Pipeline(SupportsPipeline):
         Makes the state to be available via StateInjectableContext
         """
         state = self._get_state()
-        # snapshot loaded state to detect real changes on exit. concurrent processes may share the
-        # working dir, so a pure attach must not write state back and clobber another writer.
-        # NOTE: _local must participate in the hash, so we do not exclude it
-        had_state_file = self._pipeline_storage.has_file(Pipeline.STATE_FILE)
-        loaded_hash = generate_state_version_hash(state)
+        # compute full hash to save local state only if changed
+        full_hash = ""
+        if self._pipeline_storage.has_file(Pipeline.STATE_FILE):
+            full_hash = generate_state_version_hash(state)
         try:
             # add the state to container as a context
             with self._container.injectable_context(StateInjectableContext(state=state)):
@@ -1802,7 +1801,7 @@ class Pipeline(SupportsPipeline):
             # this modifies state in place
             self._bump_version_and_extract_state(state, extract_state)
             # save only when state actually changed or was never persisted
-            if not had_state_file or generate_state_version_hash(state) != loaded_hash:
+            if generate_state_version_hash(state) != full_hash:
                 self._save_state(state)
 
     def _state_to_props(self, state: TPipelineState) -> None:
