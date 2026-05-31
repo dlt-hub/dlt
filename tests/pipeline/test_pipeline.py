@@ -23,7 +23,7 @@ from dlt.common import json, pendulum, Decimal
 from dlt.common.configuration import resolve
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.known_env import DLT_DATA_DIR, DLT_LOCAL_DIR
-from dlt.common.storages import FileStorage
+from dlt.common.storages import FileStorage, SchemaStorage
 from dlt.common.storages.exceptions import LoadPackageNotFound
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.configuration.container import Container
@@ -962,6 +962,37 @@ def test_extract_multiple_sources() -> None:
     # pipeline state is successfully rollbacked after the last extract and default_3 and 4 schemas are not present
     assert set(p.schema_names) == {"default", "default_2"}
     assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
+
+
+def test_state_schema_names_update_live_schemas() -> None:
+    """Live schemas created outside of pipeline do not impact default schema name
+    but are correctly incorporated into schema list
+    """
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
+    p.config.restore_from_destination = False
+
+    # schema written before any default schema exists is not pulled into the persisted state
+    p._schema_storage.set_live_schema(Schema("out_of_band_early"))
+    assert p.load() is None
+    assert p.default_schema_name is None
+    assert p.schema_names == []
+    assert "out_of_band_early" not in dlt.attach(pipeline_name=pipeline_name).state.get(
+        "schema_names", []
+    )
+
+    # establish a default schema, the run lists schemas from storage so the early one is now in
+    p.run([1, 2, 3], table_name="digits", schema=Schema("default"))
+    assert p.default_schema_name == "default"
+    assert p.schema_names == ["default", "out_of_band_early"]
+
+    # another schema appears on storage out of band, the next run absorbs all storage schemas
+    p._schema_storage.set_live_schema(Schema("out_of_band_late"))
+    p.run([4, 5, 6], table_name="digits")
+    expected = {"default", "out_of_band_early", "out_of_band_late"}
+    assert set(p.state["schema_names"]) == expected
+    # and it is persisted - a freshly attached pipeline reads the same list
+    assert set(dlt.attach(pipeline_name=pipeline_name).state["schema_names"]) == expected
 
 
 # Helper functions for state extraction tests
