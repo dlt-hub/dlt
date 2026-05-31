@@ -99,10 +99,12 @@ class AthenaIcebergStagingCopyFollowupJob(SqlStagingCopyFollowupJob):
             return super()._generate_insert_sql(table_chain, sql_client, truncate_first)
 
         sql: List[str] = []
-        escape_lit = sql_client.capabilities.escape_literal
-        if escape_lit is None:
-            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
-        load_id_literal = escape_lit(current_load_id)
+        # `_dlt_load_id` is a VARCHAR column; always quote as a string literal
+        # so Athena's parquet reader can prune row-groups via min/max stats.
+        # Using a generic numeric/typed escape_literal would render a load_id
+        # like "1780238139.7988734" as a DOUBLE literal and trigger
+        # `TYPE_MISMATCH: Cannot apply operator: varchar = double`.
+        load_id_literal = "'" + current_load_id.replace("'", "''") + "'"
         for table in table_chain:
             with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
