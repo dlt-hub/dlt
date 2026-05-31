@@ -823,17 +823,24 @@ class FilesystemClient(
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> TSchemaTables:
-        applied_update = super().update_stored_schema(only_tables, expected_update)
+        applied_update = super().update_stored_schema(only_tables, expected_update, force)
 
         # don't store schema when used as staging
         if not self.config.as_staging_destination:
             # check if schema with hash exists
             current_hash = self.schema.stored_version_hash
-            if not self._get_stored_schema_by_hash_or_newest(current_hash):
+            stored = self._get_stored_schema_by_hash_or_newest(current_hash)
+            if not stored or force:
                 logger.info(
                     f"Schema with hash {self.schema.stored_version_hash} not found in the storage."
                     " upgrading"
+                    if not stored
+                    else (
+                        f"Schema with hash {self.schema.stored_version_hash} found in storage but"
+                        " update is enforced (tables to truncate/drop), ensuring table dirs"
+                    )
                 )
                 # create destination dirs for all tables
                 # TODO: find only tables with changes
@@ -841,7 +848,9 @@ class FilesystemClient(
                 dirs_to_create = self.get_table_dirs(table_names)
                 for _, directory in zip(table_names, dirs_to_create):
                     self.fs_client.makedirs(directory, exist_ok=True)
-                self._update_schema_in_storage(self.schema)
+                # do not write a duplicate schema file when the hash is already stored
+                if not stored:
+                    self._update_schema_in_storage(self.schema)
 
         # we assume that expected_update == applied_update so table schemas in dest were not
         # externally changed

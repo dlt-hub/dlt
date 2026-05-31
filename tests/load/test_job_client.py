@@ -147,6 +147,32 @@ def test_get_update_basic_schema(client: SqlJobClientBaseWithDestinationTestConf
     assert this_schema.schema == json.dumps(schema.to_dict())
     first_version_schema = this_schema.schema
 
+    # enforcing an update on an unchanged schema (as a truncate refresh does) re-applies DDL but
+    # must NOT write a duplicate version row
+    if client.config.destination_type not in ["filesystem"]:
+        versions_table = client.sql_client.make_qualified_table_name(version_table_name)
+        version_hash_column = client.sql_client.escape_column_name(
+            schema.naming.normalize_identifier("version_hash")
+        )
+
+        def _version_row_count() -> int:
+            return len(
+                list(
+                    client.sql_client.execute_sql(
+                        f"SELECT * FROM {versions_table} WHERE {version_hash_column} = %s",
+                        schema.stored_version_hash,
+                    )
+                )
+            )
+
+        rows_before = _version_row_count()
+        client.update_stored_schema(force=True)
+        assert _version_row_count() == rows_before
+    else:
+        client.update_stored_schema(force=True)
+    # the stored schema is still resolvable by hash
+    assert client.get_stored_schema_by_hash(schema.version_hash) is not None
+
     # modify schema
     schema.tables["event_slot"]["write_disposition"] = "replace"
     schema._bump_version()
@@ -275,6 +301,36 @@ def test_schema_update_create_table(
     assert table_update["_dlt_id"]["nullable"] is False
     _, storage_columns = list(client.get_storage_tables([table_name]))[0]
     assert len(storage_columns) > 0
+
+    # a refresh that truncates/drops tables enforces the schema update so a table that is missing
+    # in the destination gets re-created even when the schema hash is already stored
+    versions_table = client.sql_client.make_qualified_table_name(schema.version_table_name)
+    version_hash_column = client.sql_client.escape_column_name(
+        schema.naming.normalize_identifier("version_hash")
+    )
+
+    def _version_row_count() -> int:
+        return len(
+            list(
+                client.sql_client.execute_sql(
+                    f"SELECT * FROM {versions_table} WHERE {version_hash_column} = %s",
+                    schema.stored_version_hash,
+                )
+            )
+        )
+
+    rows_before = _version_row_count()
+    # drop the table directly in the destination, schema (and its hash) stays stored
+    client.sql_client.drop_tables(table_name)
+    assert len(list(client.get_storage_tables([table_name]))[0][1]) == 0
+    # a plain update skips on a hash match: the table is NOT re-created
+    client.update_stored_schema()
+    assert len(list(client.get_storage_tables([table_name]))[0][1]) == 0
+    # a forced update re-runs the DDL and re-creates the table
+    client.update_stored_schema(force=True)
+    assert len(list(client.get_storage_tables([table_name]))[0][1]) > 0
+    # ... without writing a duplicate version row
+    assert _version_row_count() == rows_before
 
 
 @pytest.mark.parametrize(
@@ -903,6 +959,62 @@ def test_get_resumed_job(
         restore=True,
     )
     assert r_job.state() == "ready"
+
+
+@pytest.mark.parametrize(
+    "client",
+    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True, default_vector_configs=True),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_initialize_storage_truncate_tables(
+    client: SqlJobClientBaseWithDestinationTestConfiguration, file_storage: FileStorage
+) -> None:
+    if not client.capabilities.preferred_loader_file_format:
+        pytest.skip("preferred loader file format not set, destination will only work with staging")
+    # this mirrors what a `drop_data` refresh does: truncate the table but keep it (and its
+    # stored schema) in the destination
+    user_table_name = prepare_table(client)
+    load_json = {
+        "_dlt_id": uniq_id(),
+        "_dlt_root_id": uniq_id(),
+        "sender_id": "90238094809sajlkjxoiewjhduuiuehd",
+        "timestamp": pendulum.now(),
+    }
+    with io.BytesIO() as f:
+        write_dataset(
+            client,
+            f,
+            [load_json],
+            client.schema.get_table(user_table_name),
+            file_format=client.destination_config.file_format,
+        )
+        dataset = f.getvalue()
+    expect_load_file(
+        client,
+        file_storage,
+        dataset,
+        user_table_name,
+        file_format=client.destination_config.file_format,
+    )
+    qualified_table = client.sql_client.make_qualified_table_name(user_table_name)
+    assert len(list(client.sql_client.execute_sql(f"SELECT * FROM {qualified_table}"))) == 1
+    stored_before = client.get_stored_schema_by_hash(client.schema.stored_version_hash)
+    assert stored_before is not None
+
+    # truncate the table - the data is removed but the stored schema is untouched
+    client.initialize_storage(truncate_tables=[user_table_name])
+    if client.config.destination_type == "filesystem":
+        # filesystem table formats cannot distinguish truncate from drop - the whole table is
+        # removed (no columns reported), so we cannot query it
+        assert len(list(client.get_storage_tables([user_table_name]))[0][1]) == 0
+    else:
+        # sql destinations keep the (now empty) table
+        assert len(list(client.sql_client.execute_sql(f"SELECT * FROM {qualified_table}"))) == 0
+        assert len(list(client.get_storage_tables([user_table_name]))[0][1]) > 0
+    stored_after = client.get_stored_schema_by_hash(client.schema.stored_version_hash)
+    assert stored_after is not None
+    assert stored_after.version_hash == stored_before.version_hash
 
 
 @pytest.mark.parametrize(
