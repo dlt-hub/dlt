@@ -593,6 +593,36 @@ class PackageStorage:
                 recursively=True,
             )
 
+    def is_empty_package(self, load_id: str) -> bool:
+        """Package is empty if it does not contain any jobs or commands in package state"""
+        # package is already processed - not empty
+        if self.get_schema_update_file(load_id) is None:
+            return False
+        # there are tables to truncate / delete
+        package_state = self.get_load_package_state(load_id)
+        dropped_tables = package_state.get("dropped_tables", [])
+        truncated_tables = package_state.get("truncated_tables", [])
+        # and no jobs
+        return (
+            len(dropped_tables) == 0
+            and len(truncated_tables) == 0
+            and len(self.list_new_jobs(load_id)) == 0
+        )
+
+    def get_schema_update_file(self, load_id: str) -> Optional[TSchemaTables]:
+        """Reads the update file from load package `load_id` and returns its content.
+        Returns none if update file is already processed
+        """
+        package_path = self.get_package_path(load_id)
+        if not self.storage.has_folder(package_path):
+            raise FileNotFoundError(package_path)
+        schema_update_file = os.path.join(package_path, PackageStorage.SCHEMA_UPDATES_FILE_NAME)
+        if self.storage.has_file(schema_update_file):
+            schema_update: TSchemaTables = json.loads(self.storage.load(schema_update_file))
+            return schema_update
+        else:
+            return None
+
     def delete_package(self, load_id: str, not_exists_ok: bool = False) -> None:
         package_path = self.get_package_path(load_id)
         if not self.storage.has_folder(package_path):

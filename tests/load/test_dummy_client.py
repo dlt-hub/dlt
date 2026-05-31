@@ -156,6 +156,23 @@ def test_get_new_jobs_info() -> None:
     assert len(load.get_new_jobs_info(load_id)) == 2
 
 
+def test_run_deletes_empty_package() -> None:
+    # a normalized package with a schema update file but no jobs and no refresh commands is empty
+    load = setup_loader()
+    load_id, _ = prepare_load_package(load.load_storage, [])
+    assert load.load_storage.normalized_packages.is_empty_package(load_id) is True
+    assert load_id in load.load_storage.list_normalized_packages()
+
+    # run deletes the empty package without loading anything to the destination
+    run_metrics = load.run(None)
+    assert run_metrics.pending_items == 0
+    assert load_id not in load.load_storage.list_normalized_packages()
+    assert not load.load_storage.normalized_packages.storage.has_folder(load_id)
+    # no jobs were created and the package was not completed
+    assert len(dummy_impl.JOBS) == 0
+    assert load._loaded_packages == []
+
+
 def test_get_completed_table_chain_single_job_per_table() -> None:
     load = setup_loader()
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)

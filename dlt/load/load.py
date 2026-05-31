@@ -17,11 +17,7 @@ from dlt.common.storages.load_storage import (
     LoadPackageInfo,
     ParsedLoadJobFileName,
 )
-from dlt.common.storages.load_package import (
-    LoadPackageStateInjectableContext,
-    commit_load_package_state,
-    load_package_state as current_load_package,
-)
+from dlt.common.storages.load_package import LoadPackageStateInjectableContext
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.logger import pretty_format_exception
@@ -598,7 +594,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     )
 
         if finalized_jobs:
-            self._persist_job_metrics_to_state()
+            self._persist_job_metrics_to_state(load_id)
 
         return remaining_jobs, finalized_jobs, pending_exception
 
@@ -634,8 +630,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # get dropped and truncated tables that were added in the extract step if refresh was requested
         # NOTE: if naming convention was updated those names correspond to the old naming convention
         # and they must be like that in order to drop existing tables
-        dropped_tables = current_load_package()["state"].get("dropped_tables", [])
-        truncated_tables = current_load_package()["state"].get("truncated_tables", [])
+        package_state = self.load_storage.normalized_packages.get_load_package_state(load_id)
+        dropped_tables = package_state.get("dropped_tables", [])
+        truncated_tables = package_state.get("truncated_tables", [])
 
         # initialize analytical storage ie. create dataset required by passed schema
         with self.get_destination_client(schema) as job_client:
@@ -784,6 +781,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         # load the schema from the package
         load_id = loads[0]
+        if self.load_storage.normalized_packages.is_empty_package(load_id):
+            # delete empty package
+            self.load_storage.normalized_packages.delete_package(load_id)
+            logger.info(f"Empty load package {load_id} processed")
+            return TRunMetrics(False, len(loads) - 1)
+
         logger.info(f"Loading schema from load package in {load_id}")
         schema = self.load_storage.normalized_packages.load_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
@@ -799,23 +802,25 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # the same load id may be processed across multiple runs
                 if self.current_load_id is None:
                     self._job_metrics = {}
-                    self._restore_job_metrics_from_state()
+                    self._restore_job_metrics_from_state(load_id)
                     self._step_info_start_load_id(load_id)
                 self.load_single_package(load_id, schema)
 
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
 
-    def _persist_job_metrics_to_state(self) -> None:
+    def _persist_job_metrics_to_state(self, load_id: str) -> None:
         """Write all collected job metrics into the load package state."""
 
-        state = current_load_package()["state"]
-        state["load_metrics"] = {job_id: m._asdict() for job_id, m in self._job_metrics.items()}
-        commit_load_package_state()
+        package_state = self.load_storage.normalized_packages.get_load_package_state(load_id)
+        package_state["load_metrics"] = {
+            job_id: m._asdict() for job_id, m in self._job_metrics.items()
+        }
+        self.load_storage.normalized_packages.save_load_package_state(load_id, package_state)
 
-    def _restore_job_metrics_from_state(self) -> None:
+    def _restore_job_metrics_from_state(self, load_id: str) -> None:
         """Restore previously persisted job metrics from load package state."""
 
-        state = current_load_package()["state"]
+        state = self.load_storage.normalized_packages.get_load_package_state(load_id)
         try:
             for job_id, m in state.get("load_metrics", {}).items():
                 self._job_metrics[job_id] = LoadJobMetrics(**m)

@@ -339,11 +339,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             logger.info(
                 f"Found {len(schema_files)} files in schema {schema.name} load_id {load_id}"
             )
-            if len(schema_files) == 0:
-                # delete empty package
-                self.normalize_storage.extracted_packages.delete_package(load_id)
-                logger.info(f"Empty package {load_id} processed")
-                continue
             with self.collector(f"Normalize {schema.name} in {load_id}"):
                 self.collector.update("Files", 0, len(schema_files))
                 # self.verify_package(load_id, schema, schema_files)
@@ -352,11 +347,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
 
         # return info on still pending packages (if extractor saved something in the meantime)
         return TRunMetrics(False, len(self.normalize_storage.extracted_packages.list_packages()))
-
-    # def verify_package(self, load_id, schema: Schema, schema_files: Sequence[str]) -> None:
-    #     """Verifies package schema and jobs against destination capabilities"""
-    #     # get all tables in schema files
-    #     table_names = set(ParsedLoadJobFileName.parse(job).table_name for job in schema_files)
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
         """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""

@@ -87,6 +87,50 @@ def test_is_partially_loaded(load_storage: LoadStorage) -> None:
     assert PackageStorage.is_package_partially_loaded(info) is True
 
 
+@pytest.mark.parametrize(
+    "case,expected_empty",
+    [
+        # no schema update file: package already processed (update consumed) - never treated as empty
+        ("schema_update_consumed", False),
+        # normalized package with a schema update file but nothing to do
+        ("no_jobs_no_commands", True),
+        # package carries data jobs
+        ("with_jobs", False),
+        # package carries refresh commands even though it has no jobs
+        ("with_dropped_tables", False),
+        ("with_truncated_tables", False),
+        # commands and jobs together
+        ("with_dropped_and_jobs", False),
+    ],
+)
+def test_is_empty_package(load_storage: LoadStorage, case: str, expected_empty: bool) -> None:
+    package_storage = load_storage.new_packages
+    load_id = create_load_id()
+    package_storage.create_package(load_id, schema=Schema("mock"))
+
+    # a freshly normalized package always has a schema update file (empty here); when it is missing
+    # the package was already processed
+    if case != "schema_update_consumed":
+        package_storage.save_schema_updates(load_id, {})
+
+    if case in ("with_jobs", "with_dropped_and_jobs"):
+        package_storage.storage.save(
+            os.path.join(load_id, PackageStorage.NEW_JOBS_FOLDER, "mock_table.abc.0.jsonl"), "x"
+        )
+
+    if case in ("with_dropped_tables", "with_dropped_and_jobs"):
+        state = package_storage.get_load_package_state(load_id)
+        state["dropped_tables"] = [{"name": "dropped_table"}]
+        package_storage.save_load_package_state(load_id, state)
+
+    if case == "with_truncated_tables":
+        state = package_storage.get_load_package_state(load_id)
+        state["truncated_tables"] = [{"name": "truncated_table"}]
+        package_storage.save_load_package_state(load_id, state)
+
+    assert package_storage.is_empty_package(load_id) is expected_empty
+
+
 def test_save_load_schema(load_storage: LoadStorage) -> None:
     # mock schema version to some random number so we know we load what we save
     schema = Schema("event")
