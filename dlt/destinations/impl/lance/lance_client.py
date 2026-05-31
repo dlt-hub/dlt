@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import copy
 from types import TracebackType
 from typing import (
     Dict,
@@ -186,20 +187,36 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         # we don't pass branch here — `uri` always returns base URI
         return self.open_lance_dataset(table_name).uri
 
-    def drop_tables(self, *tables: str) -> None:
-        """Drops tables from lance dataset namespace."""
+    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        """Drops tables from lance dataset namespace and optionally deletes the stored schema."""
         for table_name in tables:
-            self.drop_table(table_name)
+            if self.table_exists(table_name):
+                self.drop_table(table_name)
+        if delete_schema:
+            self._delete_schema_in_storage(self.schema)
+
+    @raise_destination_error
+    def _delete_schema_in_storage(self, schema: Schema) -> None:
+        """Deletes all stored versions with the same name as `schema`. No-op if table is missing."""
+        if not self.table_exists(self.schema.version_table_name):
+            return
+        col = self.schema.naming.normalize_identifier("schema_name")
+        ds = self.open_lance_dataset(
+            self.schema.version_table_name, branch_name=self.config.branch_name
+        )
+        ds.delete(f'`{col}` = "{schema.name}"')
 
     def drop_storage(self) -> None:
         """Drops dataset namespace and all its tables."""
         if self.dataset_namespace_exists():
             self.drop_dataset_namespace()
 
+    @raise_destination_error
     def truncate_table(self, table_name: str) -> None:
         """Truncates table by deleting all rows in active branch."""
         self.open_lance_dataset(table_name, branch_name=self.config.branch_name).delete("true")
 
+    @raise_destination_error
     def create_branch_if_not_exists(self, table_name: str, branch_name: str) -> None:
         ds = self.open_lance_dataset(table_name)
         if branch_name not in ds.branches.list():
@@ -327,28 +344,29 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update)
+        super().update_stored_schema(only_tables, expected_update, force)
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         except DestinationUndefinedEntity:
             schema_info = None
 
-        if schema_info is None:
+        applied_update: TSchemaTables = {}
+        if schema_info is None or force:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
-                "not found in the storage. upgrading"
+                "not found in the storage (or update enforced). upgrading"
             )
-            # TODO: return a real updated table schema (like in SQL job client)
-            self._execute_schema_update(only_tables)
+            applied_update = self._execute_schema_update(
+                only_tables, store_schema=schema_info is None
+            )
         else:
             logger.debug(
                 f"Schema with hash {self.schema.stored_version_hash} "
                 f"inserted at {schema_info.inserted_at} found "
                 "in storage, no upgrade required"
             )
-        # we assume that expected_update == applied_update so table schemas in dest were not
-        # externally changed
         return applied_update
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
@@ -370,6 +388,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         try:
             arrow_schema = self.get_table_schema(table_name)
+        except DestinationUndefinedEntity:
+            # `open_lance_dataset` already mapped a missing table/namespace to this exception
+            return False, table_schema
         except Exception as e:
             if is_lance_undefined_entity_exception(e):
                 return False, table_schema
@@ -433,15 +454,26 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         return arrow_schema
 
+    @raise_destination_error
     def add_null_columns_to_table(self, table_name: str, new_columns: List[TColumnSchema]) -> None:
         new_fields = [dlt_column_to_arrow_field(col, self.capabilities) for col in new_columns]
         self.open_lance_dataset(table_name, branch_name=self.config.branch_name).add_columns(
             new_fields
         )
 
-    def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
+    def _execute_schema_update(
+        self, only_tables: Iterable[str], store_schema: bool = True
+    ) -> TSchemaTables:
+        applied_update: TSchemaTables = {}
         for table_name in only_tables or self.schema.tables:
             table_exists = self.table_exists(table_name)
+            # diff against the destination: for a new table all columns are new
+            existing_columns = self.get_storage_table(table_name)[1] if table_exists else {}
+            new_columns = self.schema.get_new_table_columns(
+                table_name,
+                existing_columns,
+                self.capabilities.generates_case_sensitive_identifiers(),
+            )
 
             # create new table if it doesn't exist
             if not table_exists:
@@ -452,17 +484,19 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 self.create_branch_if_not_exists(table_name, branch_name)
 
             # add new columns to existing table (on the branch if configured)
-            if table_exists:
-                _, existing_columns = self.get_storage_table(table_name)
-                new_columns = self.schema.get_new_table_columns(
-                    table_name,
-                    existing_columns,
-                    self.capabilities.generates_case_sensitive_identifiers(),
-                )
-                if new_columns:
-                    self.add_null_columns_to_table(table_name, new_columns)
+            if table_exists and new_columns:
+                self.add_null_columns_to_table(table_name, new_columns)
 
-        self.update_schema_in_storage()
+            # record the migration applied to this table (new table or added columns)
+            if new_columns:
+                partial_table = copy(self.prepare_load_table(table_name))
+                partial_table["columns"] = {c["name"]: c for c in new_columns}
+                applied_update[table_name] = partial_table
+
+        # skip writing the version row when the schema is already stored (enforced update)
+        if store_schema:
+            self._update_schema_in_storage(self.schema)
+        return applied_update
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Retrieves the latest completed state for a pipeline."""
@@ -500,9 +534,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         return StateInfo.from_normalized_mapping(row, self.schema.naming)
 
     def _get_latest_schema(self, filter_: Optional[str] = None) -> Optional[StorageSchemaInfo]:
-        ds = self.open_lance_dataset(
-            self.schema.version_table_name, branch_name=self.config.branch_name
-        )
+        try:
+            ds = self.open_lance_dataset(
+                self.schema.version_table_name, branch_name=self.config.branch_name
+            )
+        except DestinationUndefinedEntity:
+            # version table not created yet (empty storage)
+            return None
         table = ds.scanner(filter=filter_, prefilter=True).to_table() if filter_ else ds.to_table()
         rows = table.to_pylist()
         try:
@@ -524,14 +562,14 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             return self._get_latest_schema(filter_=f'`{col}` = "{schema_name}"')
         return self._get_latest_schema()
 
-    def update_schema_in_storage(self) -> None:
+    def _update_schema_in_storage(self, schema: Schema) -> None:
         record = {
-            "version": self.schema.version,
-            "engine_version": self.schema.ENGINE_VERSION,
+            "version": schema.version,
+            "engine_version": schema.ENGINE_VERSION,
             "inserted_at": pendulum.now(),
-            "schema_name": self.schema.name,
-            "version_hash": self.schema.stored_version_hash,
-            "schema": json.dumps(self.schema.to_dict()),
+            "schema_name": schema.name,
+            "version_hash": schema.stored_version_hash,
+            "schema": json.dumps(schema.to_dict()),
         }
         records = [{self.schema.naming.normalize_identifier(k): v for k, v in record.items()}]
         write_disposition = self.schema.get_table(self.schema.version_table_name).get(

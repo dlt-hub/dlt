@@ -1,3 +1,4 @@
+from copy import copy
 from types import TracebackType
 from typing import (
     List,
@@ -176,18 +177,33 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         """
         return self.db_client.create_table(table_name, schema=schema, mode=mode)
 
+    @lancedb_error
     def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
-        """Drop multiple LanceDB tables.
+        """Drop multiple LanceDB tables and optionally delete the stored schema.
 
         Args:
             table_names: The names of the tables to drop.
+            delete_schema: If True, also delete all versions of the current schema from storage.
         """
-        if not tables:
-            return
+        if tables:
+            existing_tables = self.list_table_names()
+            for table_name in tables:
+                fq_table_name = self.make_qualified_table_name(table_name)
+                if fq_table_name in existing_tables:
+                    self.db_client.drop_table(fq_table_name)
+        if delete_schema:
+            self._delete_schema_in_storage(self.schema)
 
-        for table_name in tables:
-            if table_name in self.list_table_names():
-                self.db_client.drop_table(table_name)
+    @lancedb_error
+    def _delete_schema_in_storage(self, schema: Schema) -> None:
+        """Deletes all stored versions with the same name as `schema`. No-op if table is missing."""
+        fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
+        if fq_version_table_name not in self.list_table_names():
+            return
+        version_table: "lancedb.table.Table" = self.db_client.open_table(fq_version_table_name)
+        version_table.checkout_latest()
+        p_schema_name = self.schema.naming.normalize_identifier("schema_name")
+        version_table.delete(f'`{p_schema_name}` = "{schema.name}"')
 
     def delete_table(self, table_name: str) -> None:
         """Delete a LanceDB table.
@@ -316,28 +332,29 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update)
+        super().update_stored_schema(only_tables, expected_update, force)
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         except DestinationUndefinedEntity:
             schema_info = None
 
-        if schema_info is None:
+        applied_update: TSchemaTables = {}
+        if schema_info is None or force:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
-                "not found in the storage. upgrading"
+                "not found in the storage (or update enforced). upgrading"
             )
-            # TODO: return a real updated table schema (like in SQL job client)
-            self._execute_schema_update(only_tables)
+            applied_update = self._execute_schema_update(
+                only_tables, store_schema=schema_info is None
+            )
         else:
             logger.debug(
                 f"Schema with hash {self.schema.stored_version_hash} "
                 f"inserted at {schema_info.inserted_at} found "
                 "in storage, no upgrade required"
             )
-        # we assume that expected_update == applied_update so table schemas in dest were not
-        # externally changed
         return applied_update
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
@@ -386,7 +403,10 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         # TODO: Update method below doesn't work for bulk NULL assignments, raise with LanceDB developers.
         # table.update(values={field.name: None})
 
-    def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
+    def _execute_schema_update(
+        self, only_tables: Iterable[str], store_schema: bool = True
+    ) -> TSchemaTables:
+        applied_update: TSchemaTables = {}
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
             new_columns: List[TColumnSchema] = self.schema.get_new_table_columns(
@@ -396,6 +416,10 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
             )
             logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
             if new_columns:
+                # record the migration applied to this table (new table or added columns)
+                partial_table = copy(self.prepare_load_table(table_name))
+                partial_table["columns"] = {c["name"]: c for c in new_columns}
+                applied_update[table_name] = partial_table
                 if exists:
                     field_schemas: List[TArrowField] = [
                         make_arrow_field_schema(column["name"], column, self.type_mapper)
@@ -429,24 +453,21 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
                     fq_table_name = self.make_qualified_table_name(table_name)
                     self.create_table(fq_table_name, table_schema)
 
-        self.update_schema_in_storage()
+        # skip writing the version row when the schema is already stored (enforced update)
+        if store_schema:
+            self._update_schema_in_storage(self.schema)
+        return applied_update
 
     @lancedb_error
-    def update_schema_in_storage(self) -> None:
+    def _update_schema_in_storage(self, schema: Schema) -> None:
         records = [
             {
-                self.schema.naming.normalize_identifier("version"): self.schema.version,
-                self.schema.naming.normalize_identifier(
-                    "engine_version"
-                ): self.schema.ENGINE_VERSION,
+                self.schema.naming.normalize_identifier("version"): schema.version,
+                self.schema.naming.normalize_identifier("engine_version"): schema.ENGINE_VERSION,
                 self.schema.naming.normalize_identifier("inserted_at"): pendulum.now(),
-                self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
-                self.schema.naming.normalize_identifier(
-                    "version_hash"
-                ): self.schema.stored_version_hash,
-                self.schema.naming.normalize_identifier("schema"): json.dumps(
-                    self.schema.to_dict()
-                ),
+                self.schema.naming.normalize_identifier("schema_name"): schema.name,
+                self.schema.naming.normalize_identifier("version_hash"): schema.stored_version_hash,
+                self.schema.naming.normalize_identifier("schema"): json.dumps(schema.to_dict()),
             }
         ]
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
@@ -518,6 +539,9 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
     @lancedb_error
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
+        # version table not created yet (empty storage)
+        if fq_version_table_name not in self.list_table_names():
+            return None
 
         version_table: "lancedb.table.Table" = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()

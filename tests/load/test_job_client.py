@@ -61,18 +61,35 @@ TEST_NAMING_CONVENTIONS = (
     "tests.common.cases.normalizers.title_case",
 )
 
+# parametrize for tests that run on sql destinations only
+sql_client_configs = pytest.mark.parametrize(
+    "client",
+    destinations_configs(default_sql_configs=True),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+
+# parametrize for tests that also run on destinations read through duckdb table scanners:
+# filesystem table formats and lance/lancedb vector dbs (weaviate/qdrant have no such sql client)
+fs_vector_client_configs = pytest.mark.parametrize(
+    "client",
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
+    ),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+
 
 @pytest.fixture
 def file_storage() -> FileStorage:
     return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_initialize_storage(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     assert client.is_storage_initialized()
 
@@ -82,6 +99,8 @@ def test_initialize_storage(client: SqlJobClientBaseWithDestinationTestConfigura
     destinations_configs_with_naming_convention(
         default_sql_configs=True,
         table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
         naming_conventions=TEST_NAMING_CONVENTIONS,
     ),
     indirect=True,
@@ -105,12 +124,7 @@ def test_get_schema_on_empty_storage(
     assert [("no_table_1", {}), ("no_table_2", {})] == storage_tables
 
 
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_get_update_basic_schema(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     schema = client.schema
     schema_update = client.update_stored_schema()
@@ -227,6 +241,8 @@ def test_get_update_basic_schema(client: SqlJobClientBaseWithDestinationTestConf
         naming_conventions=TEST_NAMING_CONVENTIONS,
         default_sql_configs=True,
         table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
     ),
     indirect=True,
     ids=lambda x: x.name,
@@ -373,9 +389,7 @@ def test_schema_update_create_table_bigquery_hidden_dataset(
     assert storage_columns.keys() == client.schema.tables["_dlt_version"]["columns"].keys()
 
 
-@pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
-)
+@sql_client_configs
 def test_schema_update_alter_table(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
 ) -> None:
@@ -417,12 +431,7 @@ def test_schema_update_alter_table(
         assert storage_table_cols["col4"]["data_type"] == "timestamp"
 
 
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_drop_tables(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     schema = client.schema
     # Add columns in all tables
@@ -488,9 +497,7 @@ def test_drop_tables(client: SqlJobClientBaseWithDestinationTestConfiguration) -
     assert len(rows) == 2
 
 
-@pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
-)
+@sql_client_configs
 def test_get_storage_table_with_all_types(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
 ) -> None:
@@ -591,6 +598,8 @@ def test_preserve_sql_column_order(
         naming_conventions=TEST_NAMING_CONVENTIONS,
         default_sql_configs=True,
         table_format_local_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
     ),
     indirect=True,
     ids=lambda x: x.name,
@@ -637,9 +646,7 @@ def test_data_writer_load(
     assert db_row[5] is None
 
 
-@pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
-)
+@sql_client_configs
 def test_data_writer_string_escape(
     client: SqlJobClientBaseWithDestinationTestConfiguration, file_storage: FileStorage
 ) -> None:
@@ -667,12 +674,7 @@ def test_data_writer_string_escape(
     assert list(db_row) == list(row.values())
 
 
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_data_writer_string_escape_edge(
     client: SqlJobClientBaseWithDestinationTestConfiguration, file_storage: FileStorage
 ) -> None:
@@ -703,6 +705,8 @@ def test_data_writer_string_escape_edge(
         naming_conventions=TEST_NAMING_CONVENTIONS,
         default_sql_configs=True,
         table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
     ),
     indirect=True,
     ids=lambda x: x.name,
@@ -790,12 +794,7 @@ def test_load_with_all_types(
         ("replace", "staging-optimized"),
     ],
 )
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_write_dispositions(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
     write_disposition: TWriteDisposition,
@@ -809,6 +808,9 @@ def test_write_dispositions(
 
     table_name = "event_test_table" + uniq_id()
     column_schemas, data_row = get_columns_and_row_all_types(client.config)
+    # add _dlt_load_id that some destinations (ie. lancedb) require for merge
+    column_schemas["_dlt_load_id"] = new_column("_dlt_load_id", "text", nullable=False)
+    data_row["_dlt_load_id"] = uniq_id()
     root_table = new_table(
         table_name, write_disposition=write_disposition, columns=column_schemas.values()
     )
@@ -918,9 +920,7 @@ def test_write_dispositions(
             assert db_rows[-1][0] == pk_value
 
 
-@pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
-)
+@sql_client_configs
 def test_get_resumed_job(
     client: SqlJobClientBaseWithDestinationTestConfiguration, file_storage: FileStorage
 ) -> None:
@@ -961,12 +961,7 @@ def test_get_resumed_job(
     assert r_job.state() == "ready"
 
 
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True, default_vector_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_initialize_storage_truncate_tables(
     client: SqlJobClientBaseWithDestinationTestConfiguration, file_storage: FileStorage
 ) -> None:
@@ -1020,7 +1015,10 @@ def test_initialize_storage_truncate_tables(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, table_format_filesystem_configs=True, exclude=["dremio"]
+        default_sql_configs=True,
+        table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["dremio", "weaviate", "qdrant"],
     ),
     ids=lambda x: x.name,
 )
@@ -1239,6 +1237,7 @@ def test_many_schemas_single_dataset(
                 or "NOT NULL" in str(py_ex.value)
                 or "Adding columns with constraints not yet supported" in str(py_ex.value)
                 or "Only nullable columns can be added" in str(py_ex.value)  # Fabric Warehouse
+                or "must be nullable" in str(py_ex.value).lower()  # lance / lancedb
             )
 
 
