@@ -12,13 +12,14 @@ from dlt.common.storages import (
     NormalizeStorageConfiguration,
 )
 from dlt.common.storages.schema_storage import SchemaStorage
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.typing import TTableNames, TDataItems
 from dlt.common.utils import uniq_id
 
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourceExtractionError
 from dlt.extract.extract import ExtractStorage, Extract
-from dlt.extract.hints import TResourceNestedHints, make_hints
+from dlt.extract.hints import TResourceNestedHints, make_hints, make_nested_hints
 from dlt.extract.items_transform import ValidateItem, MetricsItem
 from dlt.extract.items import TableNameMeta, DataItemWithMeta
 
@@ -95,6 +96,9 @@ def test_extract_select_tables_mark(extract_step: Extract) -> None:
 
     schema = expect_tables(extract_step, table_with_name_selectable)
     assert "table_with_name_selectable" not in schema.tables
+    # dynamically dispatched tables are not variants - they carry no variant_name
+    assert "variant_name" not in schema.tables["odd_table"]
+    assert "variant_name" not in schema.tables["even_table"]
 
 
 def test_extract_select_tables_lambda(extract_step: Extract) -> None:
@@ -108,6 +112,9 @@ def test_extract_select_tables_lambda(extract_step: Extract) -> None:
 
     schema = expect_tables(extract_step, table_name_with_lambda)
     assert "table_name_with_lambda" not in schema.tables
+    # event-dispatch via a table_name function is not a variant - no variant_name is set
+    assert "variant_name" not in schema.tables["odd_table"]
+    assert "variant_name" not in schema.tables["even_table"]
 
 
 def test_make_hints_default() -> None:
@@ -223,6 +230,8 @@ def test_extract_hints_table_variant(extract_step: Extract) -> None:
         assert "id" in table["columns"]
         assert table["columns"]["pk"]["primary_key"] is True
         assert table["columns"]["id"]["data_type"] == "bigint"
+        # a registered table variant carries its variant name
+        assert table["variant_name"] == "table_a"
 
         schema = dlt.current.source_schema()
         # table table_a will be created
@@ -240,13 +249,16 @@ def test_extract_hints_table_variant(extract_step: Extract) -> None:
         # get table
         table = resource.compute_table_schema(meta=TableNameMeta("table_b"))
         assert table["write_disposition"] == "replace"
+        assert table["variant_name"] == "table_b"
         schema_table = schema.tables["table_b"]
         assert table == schema_table
 
         # item to resource
         yield {"id": 3, "pk": "C"}
 
-        # dispatch to table a with table meta
+        # dispatch to table a with table meta: a known variant keeps its variant name
+        table = resource.compute_table_schema(meta=TableNameMeta("table_a"))
+        assert table["variant_name"] == "table_a"
         yield dlt.mark.with_table_name({"id": 4, "pk": "D"}, "table_a")
 
     source = DltSource(dlt.Schema("hintable"), "module", [with_table_hints])
@@ -378,6 +390,14 @@ def test_break_nesting_with_primary_key(extract_step: Extract) -> None:
     extract_step.extract(source, 20, 1)
     # schema after extractions must be same as discovered schema
     assert source.schema._schema_tables == pre_extract_schema._schema_tables
+
+    # write disposition on a table broken from nesting is set to defaul (append)
+    # on reload
+    pseudo_root = "with_nested_hints__outer1__innerbar"
+    # in-memory the broken-out table carries no write disposition
+    assert "write_disposition" not in source.schema.tables[pseudo_root]
+    reloaded_schema = dlt.Schema.from_dict(source.schema.to_dict())  # type: ignore[arg-type]
+    assert reloaded_schema.tables[pseudo_root]["write_disposition"] == "append"
 
 
 def test_nested_hints_dynamic_table_names(extract_step: Extract) -> None:
@@ -622,12 +642,13 @@ def test_materialize_table_schema_with_pipe_items():
 def test_materialize_table_schema_multi_table(yield_one: bool, yield_two: bool) -> None:
     """Empty table materialization works correctly for resources that produce multiple tables."""
 
+    # non-normalized table names so the empty-table handling is exercised with normalized identifiers
     @dlt.resource
     def multi_table():
         yield dlt.mark.with_hints(
             dlt.mark.materialize_table_schema(),
             dlt.mark.make_hints(
-                table_name="table_one",
+                table_name="TableOne",
                 write_disposition="replace",
                 columns={"col_one": {"data_type": "text"}},
             ),
@@ -636,16 +657,16 @@ def test_materialize_table_schema_multi_table(yield_one: bool, yield_two: bool) 
         yield dlt.mark.with_hints(
             dlt.mark.materialize_table_schema(),
             dlt.mark.make_hints(
-                table_name="table_two",
+                table_name="TableTwo",
                 write_disposition="replace",
                 columns={"col_two": {"data_type": "bigint"}},
             ),
             create_table_variant=True,
         )
         if yield_one:
-            yield dlt.mark.with_table_name({"col_one": "val"}, table_name="table_one")
+            yield dlt.mark.with_table_name({"col_one": "val"}, table_name="TableOne")
         if yield_two:
-            yield dlt.mark.with_table_name({"col_two": 5}, table_name="table_two")
+            yield dlt.mark.with_table_name({"col_two": 5}, table_name="TableTwo")
 
     p = dlt.pipeline(
         pipeline_name="materialize_multi_" + uniq_id(),
@@ -657,9 +678,15 @@ def test_materialize_table_schema_multi_table(yield_one: bool, yield_two: bool) 
     extracted_tables = {
         job.job_file_info.table_name for job in extract_info.load_packages[0].jobs["new_jobs"]
     }
-    # both tables should always have jobs — either with data or empty files
+    # both tables should always have jobs (data or empty files) under their normalized names
     assert "table_one" in extracted_tables
     assert "table_two" in extracted_tables
+    assert "TableOne" not in extracted_tables
+    assert "TableTwo" not in extracted_tables
+    # variant tables keep their RAW (non-normalized) variant name even though the table identifier
+    # itself is normalized
+    assert p.default_schema.tables["table_one"]["variant_name"] == "TableOne"
+    assert p.default_schema.tables["table_two"]["variant_name"] == "TableTwo"
 
 
 @pytest.mark.parametrize(
@@ -1066,3 +1093,377 @@ def test_object_dynamic_table_mixed_case_normalized(extract_step: Extract) -> No
     assert "another_table" in table_names
     assert "MyTable" not in table_names
     assert "AnotherTable" not in table_names
+    # dynamically dispatched tables are not variants - they carry no variant_name
+    assert "variant_name" not in source.schema.tables["my_table"]
+    assert "variant_name" not in source.schema.tables["another_table"]
+
+
+def _mark_seen_data(schema: dlt.Schema, *table_names: str) -> None:
+    # simulate a completed prior run so tables are treated as existing tables that have seen data
+    for table_name in table_names:
+        schema.tables[table_name].setdefault("x-normalizer", {})["seen-data"] = True
+
+
+def _extract_resource(
+    extract_step: Extract, schema: dlt.Schema, resource: DltResource
+) -> Dict[str, Any]:
+    """Extract a single resource into the shared `schema` (mirrors the per-run extraction) and
+    return its per-table writer metrics (table name -> DataWriterMetrics)."""
+    source = DltSource(schema, "module", [resource])
+    load_id = extract_step.extract_storage.create_load_package(schema)
+    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+    table_metrics: Dict[str, Any] = extract_step._step_info_metrics(load_id)[0]["table_metrics"]
+    extract_step.extract_storage.commit_new_load_package(load_id, schema)
+    return table_metrics
+
+
+@pytest.mark.parametrize(
+    "table_name,expected",
+    [("items", "items"), ("MyItems", "my_items")],
+    ids=["table_is_resource_name", "table_differs_from_resource_name"],
+)
+def test_handle_empty_tables_refreshes_static_write_disposition(
+    extract_step: Extract, table_name: str, expected: str
+) -> None:
+    """#3998 root cause: a static resource that yields no data still refreshes its (stale) write
+    disposition in the schema from the current resource hints - including a full write disposition
+    config (ie. an scd2 merge strategy). A replace table that gets no data still has an empty file
+    written (so it is truncated), while a non-replace one does not. Covers both a table matching the
+    resource name and one with a distinct (non-normalized) table name."""
+    schema = dlt.Schema("empty_tables")
+
+    # a column declared via the decorator makes the table complete, so it survives the
+    # `seen_data_only` filter once data has been seen
+    @dlt.resource(
+        name="items",
+        table_name=table_name,
+        write_disposition="replace",
+        columns=[{"name": "id", "data_type": "bigint"}],
+    )
+    def items_replace(data: Any) -> Any:
+        yield from data
+
+    # first run with data creates the table
+    _extract_resource(extract_step, schema, items_replace([{"Id": 1}]))
+    _mark_seen_data(schema, expected)
+    assert schema.tables[expected]["write_disposition"] == "replace"
+
+    # a replace table that yields no data still gets an empty file (so it is truncated): it appears
+    # in the writer metrics with zero items
+    metrics = _extract_resource(extract_step, schema, items_replace([]))
+    assert metrics[expected].items_count == 0
+
+    # the resource now switches to an scd2 merge config and yields no data
+    @dlt.resource(
+        name="items",
+        table_name=table_name,
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+    )
+    def items_merge() -> Any:
+        yield from []
+
+    # a non-replace table that yields no data must NOT get an empty file - it is absent from metrics
+    metrics = _extract_resource(extract_step, schema, items_merge())
+    assert expected not in metrics
+
+    items_table = schema.tables[expected]
+    # write disposition refreshed from the resource, with the full scd2 merge config applied
+    assert items_table["write_disposition"] == "merge"
+    assert items_table["x-merge-strategy"] == "scd2"  # type: ignore[typeddict-item]
+    # scd2 validity columns were added by the merge config
+    assert "_dlt_valid_from" in items_table["columns"]
+    assert "_dlt_valid_to" in items_table["columns"]
+
+
+def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extract) -> None:
+    """Nested hints that break nesting (a primary key) create a pseudo-root table - both for the
+    default table and for a variant. On an empty run the default root is refreshed from the resource
+    hints and the variant (declared with a non-normalized name) from its own variant hints - keyed
+    by the raw name, so it keeps its own disposition rather than falling back to the resource root.
+    The pseudo-roots are left untouched - we can't re-derive a pseudo-root, and recomputing one as a
+    root would re-apply the nested hints and create spurious tables."""
+    schema = dlt.Schema("empty_tables")
+
+    def make_resource(
+        wd: TWriteDisposition, variant_wd: TWriteDisposition, data: Any
+    ) -> DltResource:
+        # a column makes the root complete (so it survives the seen_data filter); the nested hint's
+        # primary key breaks nesting into a pseudo-root that carries its own (replace) disposition
+        @dlt.resource(
+            name="items",
+            write_disposition=wd,
+            columns=[{"name": "id", "data_type": "bigint"}],
+            nested_hints={
+                "SubItems": make_nested_hints(
+                    primary_key="Id",
+                    write_disposition="replace",
+                    columns=[{"name": "id", "data_type": "bigint"}],
+                )
+            },
+        )
+        def items() -> Any:
+            yield from data
+
+        # the variant has a non-normalized name and its own write disposition; it inherits the
+        # (nesting-breaking) nested hints
+        items.apply_hints(
+            table_name="OtherItems", write_disposition=variant_wd, create_table_variant=True
+        )
+        return items
+
+    # the four tables exercised below: the default root + its pseudo-root, and the variant root +
+    # its pseudo-root
+    roots = ["items", "other_items"]
+    pseudo_roots = ["items__sub_items", "other_items__sub_items"]
+    all_tables = roots + pseudo_roots
+
+    # run 1: replace with data for both the default table and the variant creates all four tables
+    # (each root plus its broken-out, primary-keyed pseudo-root)
+    seed = [
+        {"Id": 1, "SubItems": [{"Id": 101}]},
+        dlt.mark.with_table_name({"Id": 2, "SubItems": [{"Id": 102}]}, "OtherItems"),
+    ]
+    _extract_resource(extract_step, schema, make_resource("replace", "replace", seed))
+    _mark_seen_data(schema, *all_tables)
+    for pseudo in pseudo_roots:
+        assert is_nested_table(schema.tables[pseudo]) is False
+    for table in all_tables:
+        assert schema.tables[table]["write_disposition"] == "replace"
+
+    # run 2: replace with no data - every table (roots and pseudo-roots) is replace, so each gets an
+    # empty file written (so it is truncated), and no spurious cascade table is created
+    metrics = _extract_resource(extract_step, schema, make_resource("replace", "replace", []))
+    for table in all_tables:
+        assert metrics[table].items_count == 0
+    assert "items__sub_items__sub_items" not in schema.tables
+    assert "other_items__sub_items__sub_items" not in schema.tables
+
+    # run 3: default root switches to append, the variant to merge, with no data - no empty files
+    # are written for any table (the resource is append)
+    metrics = _extract_resource(extract_step, schema, make_resource("append", "merge", []))
+    for table in all_tables:
+        assert table not in metrics
+    # the default root is refreshed from the resource hints
+    assert schema.tables["items"]["write_disposition"] == "append"
+    # the variant is refreshed from its own (raw-name-keyed) hints, keeping its own disposition -
+    # a normalized lookup would miss it and wrongly fall back to the resource root's append
+    assert schema.tables["other_items"]["write_disposition"] == "merge"
+    # the pseudo-roots can't be re-derived, so they are left untouched (not switched)
+    for pseudo in pseudo_roots:
+        assert schema.tables[pseudo]["write_disposition"] == "replace"
+    # recomputing a pseudo-root would have re-applied the nested hints and created these tables
+    assert "items__sub_items__sub_items" not in schema.tables
+    assert "other_items__sub_items__sub_items" not in schema.tables
+
+
+@pytest.mark.parametrize("dispatch", ["marked", "dynamic"])
+def test_handle_empty_tables_updates_dispatched_tables(
+    extract_step: Extract, dispatch: str
+) -> None:
+    """Event-dispatch tables - created via with_table_name marks or a dynamic table_name function -
+    have their (static) write disposition refreshed on an empty run, and a replace table that gets
+    no data has an empty file written so it is truncated. Dispatched tables are not variants: they
+    carry no variant_name and are refreshed via their normalized table name."""
+    schema = dlt.Schema("empty_tables")
+
+    def make_resource(wd: TWriteDisposition, data: Any) -> DltResource:
+        # a declared column makes the dispatched tables complete so they survive the seen_data filter
+        if dispatch == "marked":
+
+            @dlt.resource(
+                name="events", write_disposition=wd, columns=[{"name": "id", "data_type": "bigint"}]
+            )
+            def events() -> Any:
+                for d in data:
+                    yield dlt.mark.with_table_name(d, d["kind"])
+
+        else:
+
+            @dlt.resource(
+                name="events",
+                table_name=lambda e: e["kind"],
+                write_disposition=wd,
+                columns=[{"name": "id", "data_type": "bigint"}],
+            )
+            def events() -> Any:
+                yield from data
+
+        return events()
+
+    tables = ["my_issue", "my_purchase"]
+
+    # run 1: replace with data creates both dispatched tables
+    seed = [{"kind": "MyIssue", "id": 1}, {"kind": "MyPurchase", "id": 2}]
+    _extract_resource(extract_step, schema, make_resource("replace", seed))
+    _mark_seen_data(schema, *tables)
+    for table in tables:
+        assert schema.tables[table]["write_disposition"] == "replace"
+        # dispatched tables are not variants - they carry no variant_name
+        assert "variant_name" not in schema.tables[table]
+
+    # run 2 (totally empty): every replace table gets an empty file (so it is truncated)
+    metrics = _extract_resource(extract_step, schema, make_resource("replace", []))
+    for table in tables:
+        assert metrics[table].items_count == 0
+
+    # run 3 (only one table gets data): the table with data is loaded normally, the other still gets
+    # an empty file
+    metrics = _extract_resource(
+        extract_step, schema, make_resource("replace", [{"kind": "MyIssue", "id": 3}])
+    )
+    assert metrics["my_issue"].items_count == 1
+    assert metrics["my_purchase"].items_count == 0
+
+    # run 4: switch to append with no data - tables are refreshed to append and NOT truncated
+    metrics = _extract_resource(extract_step, schema, make_resource("append", []))
+    for table in tables:
+        assert table not in metrics
+        assert schema.tables[table]["write_disposition"] == "append"
+
+
+def test_handle_empty_tables_ignores_dynamic_write_disposition(extract_step: Extract) -> None:
+    """Resources whose write disposition is computed from data are ignored: the disposition cannot
+    be known without data, so the schema is left unchanged when no data is yielded."""
+    schema = dlt.Schema("empty_tables")
+
+    def make_resource(data: Any) -> DltResource:
+        @dlt.resource(
+            name="events",
+            table_name=lambda e: e["kind"],
+            write_disposition=lambda e: e["wd"],
+        )
+        def events() -> Any:
+            yield from data
+
+        return events()
+
+    _extract_resource(
+        extract_step, schema, make_resource([{"kind": "MyIssue", "wd": "replace", "id": 1}])
+    )
+    _mark_seen_data(schema, "my_issue")
+    assert schema.tables["my_issue"]["write_disposition"] == "replace"
+
+    # no data: dynamic write disposition cannot be resolved, so the table is left untouched and is
+    # not truncated (no empty file written)
+    metrics = _extract_resource(extract_step, schema, make_resource([]))
+    assert "my_issue" not in metrics
+    assert schema.tables["my_issue"]["write_disposition"] == "replace"
+
+
+@pytest.mark.parametrize(
+    "resource_wd,member_kind,member_wd,root_truncated,member_truncated",
+    [
+        # a replace resource truncates the root, and a member only if it also accepts replace
+        ("replace", "variant", "replace", True, True),
+        ("replace", "variant", "merge", True, False),
+        ("replace", "pseudo", "replace", True, True),
+        ("replace", "pseudo", "merge", True, False),
+        # an append resource never truncates - not even a replace variant or pseudo-root
+        ("append", "variant", "replace", False, False),
+        ("append", "pseudo", "replace", False, False),
+    ],
+    ids=[
+        "replace_resource-replace_variant",
+        "replace_resource-merge_variant",
+        "replace_resource-replace_pseudo",
+        "replace_resource-merge_pseudo",
+        "append_resource-replace_variant",
+        "append_resource-replace_pseudo",
+    ],
+)
+def test_handle_empty_tables_skips_tables_not_accepting_replace(
+    extract_step: Extract,
+    resource_wd: TWriteDisposition,
+    member_kind: str,
+    member_wd: TWriteDisposition,
+    root_truncated: bool,
+    member_truncated: bool,
+) -> None:
+    """An empty file (truncation) is written only when BOTH the resource and the table accept
+    replace. A replace resource does not truncate a variant or pseudo-root whose own write
+    disposition is not replace; an append resource never truncates, not even a replace variant or
+    pseudo-root."""
+    schema = dlt.Schema("empty_tables")
+    member_table = "other_items" if member_kind == "variant" else "items__sub_items"
+
+    def make_resource(data: Any) -> DltResource:
+        nested: Optional[Dict[TTableNames, TResourceNestedHints]] = (
+            {
+                "SubItems": make_nested_hints(
+                    primary_key="id",
+                    write_disposition=member_wd,
+                    columns=[{"name": "id", "data_type": "bigint"}],
+                )
+            }
+            if member_kind == "pseudo"
+            else None
+        )
+
+        @dlt.resource(
+            name="items",
+            write_disposition=resource_wd,
+            columns=[{"name": "id", "data_type": "bigint"}],
+            nested_hints=nested,
+        )
+        def items() -> Any:
+            yield from data
+
+        if member_kind == "variant":
+            # a variant with its own write disposition, declared with a non-normalized name
+            items.apply_hints(
+                table_name="OtherItems", write_disposition=member_wd, create_table_variant=True
+            )
+        return items
+
+    if member_kind == "variant":
+        seed: Any = [{"id": 1}, dlt.mark.with_table_name({"id": 2}, "OtherItems")]
+    else:
+        seed = [{"id": 1, "SubItems": [{"id": 11}]}]
+
+    # run 1: create the root and the member table
+    _extract_resource(extract_step, schema, make_resource(seed))
+    _mark_seen_data(schema, "items", member_table)
+
+    # run 2: empty - only tables where the resource and the table both accept replace are truncated
+    metrics = _extract_resource(extract_step, schema, make_resource([]))
+    assert ("items" in metrics) is root_truncated
+    assert (member_table in metrics) is member_truncated
+
+
+def test_handle_empty_tables_variant_not_redeclared_left_untouched(extract_step: Extract) -> None:
+    """When a variant is registered in a prior run but not re-declared on the empty run, its write
+    disposition cannot be determined from the (now absent) variant hints. Like a pseudo-root, the
+    decision then falls back to the stored disposition vs the resource disposition: the table is left
+    untouched and not truncated when they differ - even though the resource is replace."""
+    schema = dlt.Schema("empty_tables")
+
+    def make_resource(declare_variant: bool, data: Any) -> DltResource:
+        @dlt.resource(
+            name="items",
+            write_disposition="replace",
+            columns=[{"name": "id", "data_type": "bigint"}],
+        )
+        def items() -> Any:
+            if declare_variant:
+                # a merge variant declared inside the generator (only when there is data)
+                yield dlt.mark.with_hints(
+                    {"id": 1},
+                    make_hints(table_name="OtherItems", write_disposition="merge"),
+                    create_table_variant=True,
+                )
+            yield from data
+
+        return items
+
+    # run 1: the merge variant is registered and gets data; the replace root gets data too
+    _extract_resource(extract_step, schema, make_resource(True, [{"id": 2}]))
+    _mark_seen_data(schema, "items", "other_items")
+    assert schema.tables["other_items"]["write_disposition"] == "merge"
+
+    # run 2: empty - the variant is NOT re-declared, so it is absent from `_hints_variants` and its
+    # disposition can't be determined. Its stored disposition (merge) differs from the resource's
+    # (replace), so it is left untouched and not truncated; only the replace root is truncated
+    metrics = _extract_resource(extract_step, schema, make_resource(False, []))
+    assert "other_items" not in metrics
+    assert schema.tables["other_items"]["write_disposition"] == "merge"
+    assert metrics["items"].items_count == 0

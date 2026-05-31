@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any, Optional
+from typing import Iterator, List, Dict, Any, Optional, Set
 import yaml
 
 from dlt.common import logger
@@ -48,6 +48,7 @@ from dlt.extract.decorators import (
 )
 from dlt.extract.exceptions import UnknownSourceReference
 from dlt.extract.incremental import IncrementalResourceWrapper
+from dlt.extract.items import TableNameMeta
 from dlt.extract.items_transform import ItemTransform
 from dlt.common.metrics import DataWriterAndCustomMetrics
 from dlt.extract.pipe_iterator import PipeIterator
@@ -340,26 +341,70 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             "hints": clean_hints,
         }
 
-    def _write_empty_files(
+    def _handle_empty_tables(
         self, source: DltSource, extractors: Dict[TDataItemFormat, Extractor]
     ) -> None:
+        """Tables that are present in schema and in extracted resources but without data items require special handling"""
         schema = source.schema
         json_extractor = extractors["object"]
         tables_with_items = set().union(*[e.tables_with_items for e in extractors.values()])
         # find REPLACE resources that did not yield any pipe items and create empty jobs for them
-        # NOTE: do not include tables that have never seen data
+        # do not include tables that have never seen data
         data_tables = {t["name"]: t for t in schema.data_tables(seen_data_only=True)}
         tables_by_resources = utils.group_tables_by_resource(data_tables)
         for resource in source.resources.selected.values():
             if resource.name not in tables_by_resources:
                 continue
+            write_disposition = resource.write_disposition
+            # dynamic write dispositions can't be handled here
+            if callable(write_disposition):
+                continue
+            # disposition shorthand used for comparisons and the replace gate below
+            disposition = (
+                write_disposition["disposition"]
+                if isinstance(write_disposition, dict)
+                else write_disposition
+            )
             for table in tables_by_resources[resource.name]:
-                write_disposition = table.get("write_disposition") or resource.write_disposition
-                if write_disposition != "replace" or table["name"] in tables_with_items:
+                table_name = table["name"]
+                # we only need to handle root tables
+                if utils.is_nested_table(table) or table_name in tables_with_items:
                     continue
-                # we only need to write empty files for the root tables
-                if not utils.is_nested_table(table):
-                    json_extractor.write_empty_items_file(table["name"])
+                # best-effort write disposition refresh: the resource write disposition is static
+                # here (dynamic ones were skipped above), so it can be written into existing tables.
+                # the full config (incl. merge strategy) is applied, not just the disposition.
+                wd_config: Any = None
+                if variant_name := table.get("variant_name"):
+                    # 1. variant table: take the write disposition declared on the variant hints
+                    variant_wd = (resource._hints_variants.get(variant_name) or {}).get(
+                        "write_disposition"
+                    )
+                    if isinstance(variant_wd, (str, dict)):
+                        wd_config = variant_wd
+                    elif table.get("write_disposition") != disposition:
+                        # variant has no explicit disposition and we can't be sure - leave it
+                        continue
+                elif len(schema.naming.break_path(table_name)) > 1:
+                    # 2. pseudo-root (nested table broken out by a primary key): can't be
+                    # re-derived from hints, so do not update it
+                    if table.get("write_disposition") != disposition:
+                        continue
+                else:
+                    # 3. a root table created from resource hints (incl. with_table_name marks and
+                    # dynamically dispatched names) - the static write disposition is known
+                    wd_config = write_disposition
+                if wd_config is not None:
+                    if not isinstance(wd_config, dict):
+                        wd_config = {"disposition": wd_config}
+                    table["write_disposition"] = wd_config
+                    resource._merge_write_disposition_dict(table)  # type: ignore[arg-type]
+
+                # write empty files so a replace root is truncated even though it received no data
+                if disposition != "replace":
+                    continue
+                # table itself must accept replace
+                if table.get("write_disposition") == "replace":
+                    json_extractor.write_empty_items_file(table_name)
 
         # collect tables that received empty materialized lists and had no items
         tables_with_empty = (
@@ -418,7 +463,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             resource, pipe_item.item, pipe_item.meta
                         )
 
-                    self._write_empty_files(source, extractors)
+                    self._handle_empty_tables(source, extractors)
                     if left_gens > 0:
                         # go to 100%
                         collector.update("Resources", left_gens)
