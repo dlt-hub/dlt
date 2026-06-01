@@ -21,7 +21,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TSchemaContractDict,
 )
-from dlt.common.schema.utils import has_table_seen_data, is_complete_column
+from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.storages.load_storage import LoadStorage
@@ -493,8 +493,14 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 )
                 schema_updates.append(partial_update)
                 logger.debug(f"Processed {line_no+1} lines from file {extracted_items_file}")
-            # empty json files are when replace write disposition is used in order to truncate table(s)
-            if line is None and root_table_name in self.schema.tables:
+            # generate empty files when (1) input data had no rows (2) rows got filtered out by contract
+            if (
+                root_table_name in self.schema.tables
+                and self.item_storage.get_active_writer(  # no active writer if no rows created
+                    self.load_id, self.schema.name, root_table_name
+                )[1]
+                is None
+            ):
                 root_table = self.schema.tables[root_table_name]
                 if not has_table_seen_data(root_table):
                     # if this is a new table, add normalizer columns
