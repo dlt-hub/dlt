@@ -120,7 +120,7 @@ def cross_dataset_pipelines(
 ) -> Any:
     """Two pipelines on the same physical destination, distinct dataset names."""
     _skip_unsupported_filesystem(destination_config)
-    if destination_config.destination_type == "filesystem":
+    if destination_config.destination_type in ("filesystem", "lance", "lancedb"):
         pytest.skip(
             "cross-dataset joins are not supported on filesystem destinations"
             " (see dlt/dataset/relation.py:_resolve_join_target)"
