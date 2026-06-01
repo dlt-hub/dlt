@@ -25,7 +25,7 @@ class hotdata(Destination[HotdataClientConfiguration, "HotdataClient"]):
         caps.supported_staging_file_formats = []
         caps.loader_parallelism_strategy = "table-sequential"
         caps.max_table_nesting = 1000
-        caps.naming_convention = "direct"
+        caps.naming_convention = "snake_case"
         caps.has_case_sensitive_identifiers = False
         caps.max_identifier_length = 255
         caps.max_column_identifier_length = 255
