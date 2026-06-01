@@ -1035,15 +1035,13 @@ def _order_by_sort_key(rel: dlt.Relation) -> sge.Column:
 
 
 @pytest.mark.parametrize(
-    "build_join,order_column,expected_qualifier,expected_column",
+    "build_join,order_column",
     [
         pytest.param(
             lambda ds: ds.table("customers").join(
                 "orders", on="customers.customer_id = orders.customer_id"
             ),
             "orders__order_id",
-            "_dlt_jt_orders",
-            "order_id",
             id="default-prefix",
         ),
         pytest.param(
@@ -1051,8 +1049,6 @@ def _order_by_sort_key(rel: dlt.Relation) -> sge.Column:
                 "orders", on="customers.customer_id = orders.customer_id", alias="o"
             ),
             "o__order_id",
-            "_dlt_jt_o",
-            "order_id",
             id="custom-alias",
         ),
     ],
@@ -1061,13 +1057,11 @@ def test_order_by_join_output_resolves_to_source_column(
     dataset_with_relational_tables: dlt.Dataset,
     build_join: Callable[[dlt.Dataset], dlt.Relation],
     order_column: str,
-    expected_qualifier: str,
-    expected_column: str,
 ) -> None:
     rel = build_join(dataset_with_relational_tables).order_by(order_column)
     sort_key = _order_by_sort_key(rel)
-    assert sort_key.table == expected_qualifier, f"bare alias leaked: {sort_key.sql()}"
-    assert sort_key.name == expected_column
+    assert sort_key.table == "orders"
+    assert sort_key.name == "order_id"
 
 
 def test_order_by_join_output_renders_resolvable_tsql(
@@ -1082,7 +1076,7 @@ def test_order_by_join_output_renders_resolvable_tsql(
         1
     ]
     assert "[orders__order_id]" not in order_by
-    assert "[_dlt_jt_orders].[order_id]" in order_by
+    assert "[orders].[order_id]" in order_by
 
 
 def test_explicit_on_projection_alias_collision_rejected(
@@ -1438,12 +1432,11 @@ def test_cross_dataset_join_with_same_table_names_keeps_sources_unambiguous(
     assert list(df["marketing__segment"]) == ["pro", "free"]
 
 
-def test_cross_dataset_same_named_join_rejects_ambiguous_on_qualifier(
+def test_cross_dataset_same_named_join_rejects_colliding_target(
     same_named_cross_dataset_duckdb: TCrossDsFixture,
 ) -> None:
     ds_crm, ds_marketing = same_named_cross_dataset_duckdb
-
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="already names a source"):
         ds_crm.table("users").join(
             ds_marketing.table("users"),
             on="users.id = users.id",
@@ -1620,44 +1613,36 @@ def test_cross_dataset_join_chain_four_tables(
     assert list(df["warehouses__city"]) == ["Berlin", "Paris", "Berlin"]
 
 
+@pytest.mark.parametrize(
+    "alias,name_col,absent_name_col",
+    [
+        pytest.param(None, "users__name", "u__name", id="default-prefix"),
+        pytest.param("u", "u__name", "users__name", id="custom-alias"),
+    ],
+)
 def test_cross_dataset_join_chain_three_datasets(
     three_way_cross_dataset_duckdb: TCrossDs3Fixture,
+    alias: Optional[str],
+    name_col: str,
+    absent_name_col: str,
 ) -> None:
+    """A chain whose later `on` resolves an earlier join target by table name. An explicit
+    `alias` only prefixes the projected columns; it is not itself a join qualifier, so
+    `on="users.id = ..."` binds regardless of the alias chosen for the `users` join."""
     ds_crm, ds_inv, ds_billing = three_way_cross_dataset_duckdb
 
     joined = (
         ds_inv.table("purchases")
-        .join(ds_crm.table("users"), on="purchases.user_id = users.id")
+        .join(ds_crm.table("users"), on="purchases.user_id = users.id", alias=alias)
         .join(ds_billing.table("subscriptions"), on="users.id = subscriptions.user_id")
     )
     df = joined.order_by("purchase_id").df()
 
     assert len(df) == 3
-    assert "users__name" in df.columns
+    assert name_col in df.columns
+    assert absent_name_col not in df.columns
     assert "subscriptions__plan" in df.columns
-    assert list(df["users__name"]) == ["Alice", "Alice", "Bob"]
-    assert list(df["subscriptions__plan"]) == ["enterprise", "enterprise", "free"]
-
-
-def test_cross_dataset_join_chain_references_aliased_join_by_table_name(
-    three_way_cross_dataset_duckdb: TCrossDs3Fixture,
-) -> None:
-    """A later `on` references an earlier join target by its table name even when that join
-    used a custom `alias`"""
-    ds_crm, ds_inv, ds_billing = three_way_cross_dataset_duckdb
-
-    joined = (
-        ds_inv.table("purchases")
-        .join(ds_crm.table("users"), on="purchases.user_id = users.id", alias="u")
-        .join(ds_billing.table("subscriptions"), on="users.id = subscriptions.user_id")
-    )
-    df = joined.order_by("purchase_id").df()
-
-    assert len(df) == 3
-    # custom alias drives the projection prefix
-    assert "u__name" in df.columns
-    assert "users__name" not in df.columns
-    assert list(df["u__name"]) == ["Alice", "Alice", "Bob"]
+    assert list(df[name_col]) == ["Alice", "Alice", "Bob"]
     assert list(df["subscriptions__plan"]) == ["enterprise", "enterprise", "free"]
 
 
