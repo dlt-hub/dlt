@@ -1,7 +1,7 @@
 import dataclasses
 
 import os
-from typing import Dict, Final, Optional, Type
+from typing import Dict, Optional, Type
 
 from dlt.common.typing import DictStrAny, DictStrOptionalStr
 
@@ -20,8 +20,10 @@ from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 
 @configspec
-class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration):  # type: ignore[misc]
-    destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
+class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
+    FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration
+):
+    destination_type: str = dataclasses.field(
         default="filesystem", init=False, repr=False, compare=False
     )
     current_datetime: Optional[TCurrentDateTime] = None
@@ -57,13 +59,6 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
 
         url = urlparse(self.bucket_url)
         return f"{url.scheme}://{url.netloc}"
-
-    def fingerprint(self) -> str:
-        # Explicit override to resolve MRO ambiguity: without it, Python picks
-        # FilesystemConfiguration.fingerprint() (which hashes the raw bucket URL)
-        # over DestinationClientConfiguration.fingerprint() (which hashes
-        # physical_location()).  Do not remove.
-        return DestinationClientStagingConfiguration.fingerprint(self)
 
     def can_join_with(self, other: DestinationClientConfiguration) -> bool:
         """Returns True for any other filesystem destination.

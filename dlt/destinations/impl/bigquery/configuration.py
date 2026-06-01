@@ -1,15 +1,17 @@
 import dataclasses
-from typing import ClassVar, List, Final, Optional, Union
+from typing import ClassVar, List, Optional, Union
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import GcpServiceAccountCredentials, GcpOAuthCredentials
-
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.common.utils import digest128
 
 
 @configspec
 class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="bigquery", init=False, repr=False, compare=False)  # type: ignore
+    destination_type: str = dataclasses.field(
+        default="bigquery", init=False, repr=False, compare=False
+    )
     credentials: Union[GcpServiceAccountCredentials, GcpOAuthCredentials] = None
     location: str = "US"
     project_id: Optional[str] = None
@@ -36,6 +38,12 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     def get_location(self) -> str:
         return self.location
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the credentials project id."""
+        if self.credentials and self.credentials.project_id:
+            return digest128(self.credentials.project_id)
+        return ""
 
     def physical_location(self) -> str:
         """Returns configured project id, falling back to credentials."""

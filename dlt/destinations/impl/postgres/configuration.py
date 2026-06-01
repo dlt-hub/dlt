@@ -1,10 +1,11 @@
 import dataclasses
-from typing import Dict, Final, ClassVar, Any, List, Optional
+from typing import Dict, ClassVar, Any, List, Optional
 
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.typing import TSecretStrValue
+from dlt.common.utils import digest128
 
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
@@ -14,7 +15,7 @@ from dlt.common.destination.client import (
 
 @configspec(init=False)
 class PostgresCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = dataclasses.field(default="postgresql", init=False, repr=False, compare=False)  # type: ignore
+    drivername: str = dataclasses.field(default="postgresql", init=False, repr=False, compare=False)
     database: str = None
     username: str = None
     password: TSecretStrValue = None
@@ -40,13 +41,21 @@ class PostgresCredentials(ConnectionStringCredentials):
 
 @configspec
 class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="postgres", init=False, repr=False, compare=False)  # type: ignore
+    destination_type: str = dataclasses.field(
+        default="postgres", init=False, repr=False, compare=False
+    )
     credentials: PostgresCredentials = None
 
     create_indexes: bool = True
 
     csv_format: Optional[CsvFormatConfiguration] = None
     """Optional csv format configuration"""
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the configured host."""
+        if self.credentials and self.credentials.host:
+            return digest128(self.credentials.host)
+        return ""
 
     def physical_location(self) -> str:
         """Returns host:port as the physical location identifier."""

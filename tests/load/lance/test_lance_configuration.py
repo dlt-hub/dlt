@@ -11,7 +11,7 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.runtime.run_context import active
-from dlt.common.utils import uniq_id
+from dlt.common.utils import digest128, uniq_id
 
 from dlt.destinations.impl.lance.configuration import (
     DEFAULT_LANCE_BUCKET_URL,
@@ -63,6 +63,30 @@ def test_lance_storage_configuration_namespace_uri() -> None:
     config = LanceStorageConfiguration(bucket_url="foo", namespace_name="bar")
     config.call_method_in_mro("on_partial")  # to resolve config.local_dir
     assert config.namespace_uri == f"{local_dir_uri}/foo/bar"
+
+
+@pytest.mark.parametrize(
+    "storage,expected_fingerprint",
+    [
+        pytest.param(None, "", id="empty"),
+        pytest.param(
+            LanceStorageConfiguration(bucket_url="data/lance"),
+            digest128(""),
+            id="storage_local",
+        ),
+        pytest.param(
+            LanceStorageConfiguration(bucket_url="s3://my-bucket/path"),
+            digest128("s3://my-bucket"),
+            id="storage_remote_bucket_only",
+        ),
+    ],
+)
+def test_lance_fingerprint(
+    storage: Optional[LanceStorageConfiguration], expected_fingerprint: str
+) -> None:
+    config = LanceClientConfiguration(storage=storage)
+
+    assert config.fingerprint() == expected_fingerprint
 
 
 def test_lance_storage_configuration_options() -> None:

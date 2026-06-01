@@ -356,6 +356,10 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
             props.update(self.credentials.to_namespace_properties())
         return connect(self.catalog_type, props)
 
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the configured storage."""
+        return self.storage.fingerprint() if self.storage else ""
+
     def physical_location(self) -> str:
         """Returns the resolved Lance catalog root."""
         if (

@@ -219,12 +219,12 @@ class Dataset:
 
     # TODO remove method; need to update `dlthub` to avoid conflict
     # this is only used by `dlt.hub.transformation` currently
-    def is_same_physical_location(self, other: dlt.Dataset) -> bool:
+    def is_same_physical_destination(self, other: dlt.Dataset) -> bool:
         """
-        Returns true if the other dataset is on the same physical location
+        Returns true if the other dataset is on the same physical destination
         helpful if we want to run sql queries without extracting the data
         """
-        return is_same_physical_location(self, other)
+        return is_same_physical_destination(self, other)
 
     def query(
         self,
@@ -497,12 +497,13 @@ def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
         raise SqlClientNotAvailable("dataset", dataset.dataset_name, client.config.destination_type)
 
 
-def is_same_physical_location(dataset1: dlt.Dataset, dataset2: dlt.Dataset) -> bool:
-    """Check if tables from both datasets can be joined in a single query."""
-    # NOTE: the name is historical -- this actually checks join compatibility via
-    # can_join_with(), which may return True even when the physical storage
-    # locations differ (e.g. filesystem destinations backed by different buckets).
-    return dataset1.destination_client.config.can_join_with(dataset2.destination_client.config)
+def is_same_physical_destination(dataset1: dlt.Dataset, dataset2: dlt.Dataset) -> bool:
+    """Check if both datasets are at the same physical destination.
+
+    This is done by comparing the fingerprint of both destination configs. There
+    are potential false positive if two different config give access to the same destination.
+    """
+    return str(dataset1.destination_client.config) == str(dataset2.destination_client.config)
 
 
 def _get_dataset_schema_from_destination_using_schema_name(

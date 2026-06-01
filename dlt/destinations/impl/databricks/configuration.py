@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Final, List, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union, cast
 from urllib.parse import urlparse
 
 from dlt.common import logger
@@ -14,6 +14,7 @@ from dlt.common.configuration.specs.base_configuration import (
 from dlt.common.typing import TSecretStrValue
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
+from dlt.common.utils import digest128
 from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
 
 if TYPE_CHECKING:
@@ -235,7 +236,9 @@ class DatabricksZerobusConfiguration(BaseConfiguration):
 
 @configspec
 class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="databricks", init=False, repr=False, compare=False)  # type: ignore[misc]
+    destination_type: str = dataclasses.field(
+        default="databricks", init=False, repr=False, compare=False
+    )
     credentials: DatabricksCredentials = None
     staging_credentials_name: Optional[str] = None
     "If set, credentials with given name will be used in copy command"
@@ -283,6 +286,12 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
                 " `destination.databricks.credentials.client_id` and"
                 " `destination.databricks.credentials.client_secret`."
             )
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the server hostname."""
+        if self.credentials and self.credentials.server_hostname:
+            return digest128(self.credentials.server_hostname)
+        return ""
 
     def physical_location(self) -> str:
         """Returns the server hostname."""

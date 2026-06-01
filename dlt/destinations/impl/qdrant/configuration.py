@@ -1,6 +1,6 @@
 import os
 import dataclasses
-from typing import Optional, Final, Any
+from typing import Optional, Any
 from typing_extensions import Annotated, TYPE_CHECKING
 
 from dlt.common.configuration import configspec, NotResolved
@@ -13,6 +13,7 @@ from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
 )
 from dlt.common.storages.configuration import WithLocalFiles
+from dlt.common.utils import digest128
 
 from dlt.destinations.impl.qdrant.exceptions import InvalidInMemoryQdrantCredentials
 from dlt.destinations.impl.qdrant.warnings import location_on_credentials_deprecated
@@ -72,7 +73,9 @@ class QdrantClientOptions(BaseConfiguration):
 
 @configspec
 class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="qdrant", init=False, repr=False, compare=False)  # type: ignore
+    destination_type: str = dataclasses.field(
+        default="qdrant", init=False, repr=False, compare=False
+    )
     credentials: QdrantCredentials = None
     "Qdrant connection credentials"
     qd_location: Optional[str] = None
@@ -147,6 +150,12 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
         # using path is a fallback for qdrant, activate only if path specified
         if self.qd_path and not os.path.isabs(self.qd_path):
             self.qd_path = self.make_location(self.qd_path, "%s.qdrant")
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the connection location."""
+        if self.qd_location:
+            return digest128(self.qd_location)
+        return ""
 
     def physical_location(self) -> str:
         """Returns the Qdrant connection location."""

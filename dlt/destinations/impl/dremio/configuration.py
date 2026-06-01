@@ -1,10 +1,11 @@
 import dataclasses
-from typing import Final, Optional, Any, Dict, ClassVar, List
+from typing import Optional, Any, Dict, ClassVar, List
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.typing import TSecretStrValue
+from dlt.common.utils import digest128
 
 
 @configspec(init=False)
@@ -31,10 +32,18 @@ class DremioCredentials(ConnectionStringCredentials):
 
 @configspec
 class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="dremio", init=False, repr=False, compare=False)  # type: ignore[misc]
+    destination_type: str = dataclasses.field(
+        default="dremio", init=False, repr=False, compare=False
+    )
     credentials: DremioCredentials = None
     staging_data_source: str = None
     """The name of the staging data source"""
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the configured host."""
+        if self.credentials and self.credentials.host:
+            return digest128(self.credentials.host)
+        return ""
 
     def physical_location(self) -> str:
         """Returns host:port."""

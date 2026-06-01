@@ -1,7 +1,7 @@
 import dataclasses
 import os
 from pathlib import Path
-from typing import Final, Optional, Any, Dict, ClassVar, List
+from typing import Optional, Any, Dict, ClassVar, List
 
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.libs.cryptography import decode_private_key
@@ -10,6 +10,7 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.common.utils import digest128
 from dlt.destinations.impl.snowflake.utils import (
     read_snowflake_session_token,
     snowflake_session_token_available,
@@ -21,7 +22,7 @@ SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
 
 @configspec(init=False)
 class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
-    drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
+    drivername: str = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)
     database: str = None
     host: str = None
     """Snowflake account identifier, e.g. `kgiotue-wn98412`"""
@@ -152,7 +153,9 @@ class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults):
 
 @configspec
 class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
+    destination_type: str = dataclasses.field(
+        default="snowflake", init=False, repr=False, compare=False
+    )
     credentials: SnowflakeCredentials = None
 
     stage_name: Optional[str] = None
@@ -177,6 +180,12 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
 
     use_decfloat: bool = False
     """Whether to use DECFLOAT type for unbound decimals instead of DECIMAL"""
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the account host."""
+        if self.credentials and self.credentials.host:
+            return digest128(self.credentials.host)
+        return ""
 
     def physical_location(self) -> str:
         """Returns the account host."""

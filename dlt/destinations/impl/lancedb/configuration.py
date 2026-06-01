@@ -16,6 +16,7 @@ from dlt.common.destination.client import (
 from dlt.common.pendulum import timedelta
 from dlt.common.storages.configuration import FilesystemConfiguration, WithLocalFiles
 from dlt.common.typing import TSecretStrValue, Annotated
+from dlt.common.utils import digest128
 from dlt.destinations.impl.lancedb.warnings import uri_on_credentials_deprecated
 
 if TYPE_CHECKING:
@@ -190,6 +191,12 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
             self.lance_uri = self.make_location(self.lance_uri, "%s.lancedb")
         # TODO: move uri back to credentials to make it more like other connections
         self.credentials.uri = self.lance_uri
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the LanceDB URI."""
+        if self.lance_uri:
+            return digest128(self.lance_uri)
+        return ""
 
     def physical_location(self) -> str:
         """Returns the resolved LanceDB URI, or "" for external native clients."""

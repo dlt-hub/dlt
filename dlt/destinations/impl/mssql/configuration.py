@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Final, ClassVar, Any, List, Dict, Optional
+from typing import ClassVar, Any, List, Dict, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -7,6 +7,7 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.exceptions import SystemConfigurationException
 
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.common.utils import digest128
 
 
 def escape_mssql_odbc_value(value: Optional[str]) -> str:
@@ -50,7 +51,7 @@ def build_odbc_dsn(params: Dict[str, Any]) -> str:
 
 @configspec(init=False)
 class MsSqlCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = dataclasses.field(default="mssql", init=False, repr=False, compare=False)  # type: ignore
+    drivername: str = dataclasses.field(default="mssql", init=False, repr=False, compare=False)
     database: str = None
     username: str = None
     password: TSecretStrValue = None
@@ -128,11 +129,19 @@ class MsSqlCredentials(ConnectionStringCredentials):
 
 @configspec
 class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="mssql", init=False, repr=False, compare=False)  # type: ignore
+    destination_type: str = dataclasses.field(
+        default="mssql", init=False, repr=False, compare=False
+    )
     credentials: MsSqlCredentials = None
 
     create_indexes: bool = False
     has_case_sensitive_identifiers: bool = False
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the configured host."""
+        if self.credentials and self.credentials.host:
+            return digest128(self.credentials.host)
+        return ""
 
     def physical_location(self) -> str:
         """Returns host:port."""

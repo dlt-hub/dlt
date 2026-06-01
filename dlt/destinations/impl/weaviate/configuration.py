@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Dict, Literal, Optional, Final
+from typing import Dict, Literal, Optional
 from typing_extensions import Annotated
 from urllib.parse import urlparse
 
@@ -9,6 +9,7 @@ from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
 )
+from dlt.common.utils import digest128
 
 TWeaviateBatchConsistency = Literal["ONE", "QUORUM", "ALL"]
 TWeaviateConnectionType = Literal["cloud", "local", "custom"]
@@ -31,7 +32,9 @@ class WeaviateCredentials(CredentialsConfiguration):
 
 @configspec
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="weaviate", init=False, repr=False, compare=False)  # type: ignore
+    destination_type: str = dataclasses.field(
+        default="weaviate", init=False, repr=False, compare=False
+    )
     # make it optional so empty dataset is allowed
     dataset_name: Annotated[Optional[str], NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
@@ -63,6 +66,14 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
             }
         }
     )
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the connection host."""
+        if self.credentials and self.credentials.url:
+            hostname = urlparse(self.credentials.url).hostname
+            if hostname:
+                return digest128(hostname)
+        return ""
 
     def physical_location(self) -> str:
         """Returns the host part of the connection URL."""
