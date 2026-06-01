@@ -605,15 +605,17 @@ class PackageStorage:
             )
 
     def is_empty_package(self, load_id: str) -> bool:
-        """Package is empty if it does not contain any jobs or commands in package state"""
-        # package is already processed - not empty
-        if self.get_schema_update_file(load_id) is None:
+        """Package is empty if it does not contain any jobs or refresh commands (tables to
+        truncate / drop) in package state. A package that is being processed (applied schema
+        update already written) is never considered empty."""
+        applied_schema_update_file = os.path.join(
+            self.get_package_path(load_id), PackageStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME
+        )
+        if self.storage.has_file(applied_schema_update_file):
             return False
-        # there are tables to truncate / delete
         package_state = self.get_load_package_state(load_id)
         dropped_tables = package_state.get("dropped_tables", [])
         truncated_tables = package_state.get("truncated_tables", [])
-        # and no jobs
         return (
             len(dropped_tables) == 0
             and len(truncated_tables) == 0

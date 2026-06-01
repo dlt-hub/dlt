@@ -90,9 +90,7 @@ def test_is_partially_loaded(load_storage: LoadStorage) -> None:
 @pytest.mark.parametrize(
     "case,expected_empty",
     [
-        # no schema update file: package already processed (update consumed) - never treated as empty
-        ("schema_update_consumed", False),
-        # normalized package with a schema update file but nothing to do
+        # no jobs and no refresh commands
         ("no_jobs_no_commands", True),
         # package carries data jobs
         ("with_jobs", False),
@@ -101,6 +99,8 @@ def test_is_partially_loaded(load_storage: LoadStorage) -> None:
         ("with_truncated_tables", False),
         # commands and jobs together
         ("with_dropped_and_jobs", False),
+        # a package being processed (applied schema update written) is never empty
+        ("with_applied_schema_update", False),
     ],
 )
 def test_is_empty_package(load_storage: LoadStorage, case: str, expected_empty: bool) -> None:
@@ -108,14 +108,14 @@ def test_is_empty_package(load_storage: LoadStorage, case: str, expected_empty: 
     load_id = create_load_id()
     package_storage.create_package(load_id, schema=Schema("mock"))
 
-    # a freshly normalized package always has a schema update file (empty here); when it is missing
-    # the package was already processed
-    if case != "schema_update_consumed":
-        package_storage.save_schema_updates(load_id, {})
-
     if case in ("with_jobs", "with_dropped_and_jobs"):
         package_storage.storage.save(
             os.path.join(load_id, PackageStorage.NEW_JOBS_FOLDER, "mock_table.abc.0.jsonl"), "x"
+        )
+
+    if case == "with_applied_schema_update":
+        package_storage.storage.save(
+            os.path.join(load_id, PackageStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME), "{}"
         )
 
     if case in ("with_dropped_tables", "with_dropped_and_jobs"):
