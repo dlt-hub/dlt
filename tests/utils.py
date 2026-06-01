@@ -113,6 +113,7 @@ IMPLEMENTED_DESTINATIONS = {
     "dremio",
     "sqlalchemy",
     "ducklake",
+    "hotdata",
 }
 NON_SQL_DESTINATIONS = {
     "filesystem",
@@ -122,6 +123,7 @@ NON_SQL_DESTINATIONS = {
     "lancedb",
     "lance",
     "destination",
+    "hotdata",
 }
 
 try:
