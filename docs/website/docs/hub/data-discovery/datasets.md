@@ -70,20 +70,12 @@ pipeline = dlt.pipeline(
 
 See [Profiles in dltHub](../pipeline-operations/profiles.md) for the full profile model and [Workspace setup](../pipeline-operations/workspace-setup.md) for the configuration file layout.
 
-## Datasets are the unit of governance
-
-Three governance dimensions matter for datasets:
-
-- **Materialization location** — which destination the dataset lands on. Set per profile via the `[destination.<name>]` block in `.dlt/<profile>.config.toml`.
-- **Access control** — credentials and read/write scope per profile. The `access` profile, used by interactive notebooks, conventionally points at the production destination with read-only credentials. Set per profile via `.dlt/<profile>.secrets.toml`.
-- **Schema modification** — apply [schema contracts](../../general-usage/schema-contracts.md) (`evolve` / `freeze` / `discard`) on resources or sources to control how schemas are allowed to evolve as new data lands.
-
 ## Catalog and discovery in the dashboard
 
 Every load writes schema, traces, and (if enabled) data-quality results into the dataset itself. The dltHub dashboard at [app.dlthub.com](https://app.dlthub.com) reads those tables and surfaces them across two main views:
 
 - **Datasets** — every dataset in your workspace listed with its destination, owning pipeline, runs, success rate, rows and bytes loaded, schema migrations, average run time, and last-run status.
-- **Notebooks** — the `dashboard (workspace)` notebook scaffolded by `dlthub-start` renders per-pipeline panels (schema inspection, data browsing, data-quality results, pipeline state, run traces, and load history). Additional scaffolded notebooks — `starter_data_quality_notebook`, `starter_runs_notebook`, `starter_transformations_notebook` — provide focused views you can edit and serve.
+- **Notebooks** — the `dashboard (workspace)` notebook renders per-pipeline panels (schema inspection, data browsing, data-quality results, pipeline state, run traces, and load history). You can also add your own marimo notebooks.
 
 No additional configuration is needed; landing data into a workspace-configured destination is what populates these views.
 
