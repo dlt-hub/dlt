@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 import dlt
 
@@ -95,6 +95,12 @@ class CustomerOrderRow(TypedDict):
 class CountryRow(TypedDict):
     code: str
     name: str
+
+
+class EmployeeRow(TypedDict):
+    id: int  # noqa: A003
+    name: str
+    manager_id: Optional[int]
 
 
 TLoadStats = dict[str, int]
@@ -288,6 +294,12 @@ COUNTRIES: list[CountryRow] = [
     {"code": "ES", "name": "Spain"},
 ]
 
+EMPLOYEES: list[EmployeeRow] = [
+    {"id": 1, "name": "Alice", "manager_id": None},
+    {"id": 2, "name": "Bob", "manager_id": 1},
+    {"id": 3, "name": "Carol", "manager_id": 1},
+]
+
 
 @dlt.source
 def relational_tables():
@@ -303,7 +315,11 @@ def relational_tables():
     def countries():
         yield COUNTRIES
 
-    return [customers(), orders(), countries()]
+    @dlt.resource(name="employees")
+    def employees():
+        yield EMPLOYEES
+
+    return [customers(), orders(), countries(), employees()]
 
 
 @dlt.source

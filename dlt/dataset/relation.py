@@ -466,10 +466,6 @@ class Relation(WithSqlClient):
 
         target = self._resolve_join_target(other, on=on)
 
-        # self-join detection
-        if target.table_name == self._table_name and not target.is_foreign:
-            raise ValueError("Self-joins are not supported.")
-
         projection_prefix = alias or target.table_name
 
         if on is None:

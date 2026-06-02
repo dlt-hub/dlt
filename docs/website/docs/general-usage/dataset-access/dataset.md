@@ -220,7 +220,17 @@ Refer to the right-hand side in `on` by its source qualifier: the joined table's
 
 The left-hand side can be a table relation, a relation chained from one with `where()`, `select()`, `order_by()`, and similar methods, or a `dataset.query("...")` that reads from a single table.
 
-Self-joins are not supported, even with explicit `on`. For self-joins, multi-way joins with mixed conditions, or fully programmatic join construction, use [Ibis](#modifying-queries-with-ibis-expressions).
+Self-joins work with explicit `on`, but the two instances of the table need distinct SQL qualifiers so the predicate can tell them apart. Alias one side with a `dataset.query(...)` and refer to that alias in `on`:
+
+```py
+# attach each employee's manager from the same table
+managers = dataset.query("SELECT * FROM employees AS managers")
+with_managers = dataset["employees"].join(
+    managers, on="employees.manager_id = managers.id", kind="left"
+)
+```
+
+Joining a base table directly to itself (as in `dataset["employees"].join("employees", ...)`) is rejected, because both sides would share the `employees` qualifier.
 
 #### Cross-dataset joins
 

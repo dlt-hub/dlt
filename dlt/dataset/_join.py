@@ -127,7 +127,11 @@ def _resolve_parent_reference_chain(schema: Schema, left: str, right: str) -> li
 def _resolve_reference_chain(schema: Schema, left: str, right: str) -> list[_JoinRef]:
     """Resolve ordered join steps between two tables."""
     if left == right:
-        raise ValueError(f"Cannot join a table to itself: {left}")
+        raise ValueError(
+            f"Cannot join table `{left}` to itself via schema references. Use an explicit "
+            "`on=` predicate and alias one side (e.g. via `query('SELECT * FROM ... AS alias')`) "
+            "to self-join."
+        )
 
     # Check direct references first
     for ref in schema.references:

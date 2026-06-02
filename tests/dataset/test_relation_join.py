@@ -204,7 +204,7 @@ def test_build_join_condition_rejects_empty_pairs() -> None:
 
 def test_resolve_reference_chain_rejects_self_join(dataset_with_loads: TLoadsFixture) -> None:
     dataset, _, _ = dataset_with_loads
-    with pytest.raises(ValueError, match="Cannot join a table to itself"):
+    with pytest.raises(ValueError, match="to itself"):
         _resolve_reference_chain(dataset.schema, "users", "users")
 
 
@@ -329,7 +329,7 @@ def test_resolve_reference_chain_rejects_unrelated_tables(
         pytest.param(
             lambda ds: ds.table("users"),
             "users",
-            "Self-joins are not supported",
+            "to itself",
             id="self-join",
         ),
         pytest.param(
@@ -1254,16 +1254,56 @@ def test_explicit_on_rejects_empty_alias(
         )
 
 
-def test_explicit_on_rejects_self_join(
+@pytest.mark.parametrize(
+    "build_join,expected_error",
+    [
+        pytest.param(
+            lambda ds: ds.table("employees").join(
+                "employees", on="employees.manager_id = employees.id", alias="mgr"
+            ),
+            "already names a source",
+            id="direct-base-self-join-rejected",
+        ),
+        pytest.param(
+            lambda ds: ds.query("SELECT * FROM employees AS e1").join(
+                "employees", on="e1.manager_id = employees.id", alias="mgr"
+            ),
+            None,
+            id="aliased-query-lhs-base-rhs",
+        ),
+        pytest.param(
+            lambda ds: ds.query("SELECT * FROM employees AS e1").join(
+                ds.query("SELECT * FROM employees AS e2"),
+                on="e1.manager_id = e2.id",
+                alias="mgr",
+            ),
+            None,
+            id="both-aliased-query",
+        ),
+        pytest.param(
+            lambda ds: ds.table("employees").join(
+                ds.query("SELECT * FROM employees AS mgr"),
+                on="employees.manager_id = mgr.id",
+            ),
+            None,
+            id="base-lhs-aliased-query-rhs",
+        ),
+    ],
+)
+def test_self_join_requires_distinct_qualifiers(
     dataset_with_relational_tables: dlt.Dataset,
+    build_join: Callable[[dlt.Dataset], dlt.Relation],
+    expected_error: Optional[str],
 ) -> None:
     ds = dataset_with_relational_tables
-    with pytest.raises(ValueError, match="Self-joins are not supported"):
-        ds.table("customers").join(
-            "customers",
-            on="customers.customer_id = customers.customer_id",
-            alias="c2",
-        )
+    if expected_error is not None:
+        with pytest.raises(ValueError, match=expected_error):
+            build_join(ds)
+        return
+
+    df = build_join(ds).df()
+    assert sorted(df["name"]) == ["Bob", "Carol"]
+    assert sorted(df["mgr__name"]) == ["Alice", "Alice"]
 
 
 @pytest.mark.parametrize("on", ["", "   "], ids=["empty", "whitespace"])
