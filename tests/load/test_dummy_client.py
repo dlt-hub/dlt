@@ -717,8 +717,10 @@ def test_failing_followup_jobs() -> None:
     assert len(dummy_impl.JOBS) == 2
     assert len(dummy_impl.RETRIED_JOBS) == 0
     assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
-    # no metrics were collected
-    assert len(load._job_metrics) == 0
+    # metrics in running state could be collected
+    assert len(load._job_metrics) <= 2
+    for m in load._job_metrics.values():
+        assert m.state in ("running", "ready")
 
     # now we can retry the same load, it will restart the two jobs and successfully
     # create the followup jobs. pending transitions cause fresh job creation via the
@@ -750,8 +752,10 @@ def test_failing_table_chain_followup_jobs() -> None:
     assert len(dummy_impl.JOBS) == 2
     assert len(dummy_impl.RETRIED_JOBS) == 0
     assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
-    # no metrics were collected
-    assert len(load._job_metrics) == 0
+    # metrics in running state could be collected
+    assert len(load._job_metrics) <= 2
+    for m in load._job_metrics.values():
+        assert m.state in ("running", "ready")
 
     # now we can retry the same load, pending transitions cause fresh job creation
     # via the client which picks up the updated config

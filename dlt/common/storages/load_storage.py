@@ -1,5 +1,6 @@
 from os.path import join
 from typing import Iterable, List, Optional, Sequence
+import semver
 
 from dlt.common.data_writers.exceptions import DataWriterNotFound
 from dlt.common.json import json
@@ -21,7 +22,7 @@ from dlt.common.storages.load_package import (
     TLoadPackageState,
     TJobFileFormat,
 )
-from dlt.common.data_writers import DataWriter, FileWriterSpec, TDataItemFormat
+from dlt.common.data_writers import FileWriterSpec, TDataItemFormat
 from dlt.common.storages.exceptions import JobFileFormatUnsupported, LoadPackageNotFound
 
 
@@ -41,7 +42,7 @@ class LoadItemStorage(DataItemStorage):
 
 
 class LoadStorage(VersionedStorage):
-    STORAGE_VERSION = "1.0.0"
+    STORAGE_VERSION = "1.0.1"
     NORMALIZED_FOLDER = "normalized"  # folder within the volume where load packages are stored
     LOADED_FOLDER = "loaded"  # folder to keep the loads that were completely processed
     NEW_PACKAGES_FOLDER = "new"  # folder where new packages are created
@@ -60,12 +61,8 @@ class LoadStorage(VersionedStorage):
         self.supported_job_file_formats: List[TJobFileFormat] = list(supported_file_formats)
         self.config = config
         super().__init__(
-            LoadStorage.STORAGE_VERSION,
-            is_owner,
             FileStorage(config.load_volume_path, "t", makedirs=is_owner),
         )
-        if is_owner:
-            self.initialize_storage()
         # create package storages
         self.new_packages = PackageStorage(
             FileStorage(join(config.load_volume_path, LoadStorage.NEW_PACKAGES_FOLDER)), "new"
@@ -76,6 +73,10 @@ class LoadStorage(VersionedStorage):
         self.loaded_packages = PackageStorage(
             FileStorage(join(config.load_volume_path, LoadStorage.LOADED_FOLDER)), "loaded"
         )
+        if is_owner or self.is_storage_ready():
+            self.ensure_migration(LoadStorage.STORAGE_VERSION, True)
+        if is_owner:
+            self.initialize_storage()
 
     def initialize_storage(self) -> None:
         self.storage.create_folder(LoadStorage.NEW_PACKAGES_FOLDER, exists_ok=True)
@@ -215,3 +216,12 @@ class LoadStorage(VersionedStorage):
             return self.loaded_packages.get_load_package_state(load_id)
         except LoadPackageNotFound:
             return self.normalized_packages.get_load_package_state(load_id)
+
+    def migrate_storage(self, from_version: semver.Version, to_version: semver.Version) -> None:
+        if from_version == "1.0.0" and from_version < to_version:
+            # do migration
+            for load_id in self.list_normalized_packages():
+                self.normalized_packages.migrate_package(load_id, from_version, to_version)
+            # save migrated version
+            from_version = semver.Version.parse("1.0.1")
+            self._save_version(from_version)

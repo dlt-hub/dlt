@@ -235,6 +235,12 @@ def test_databricks_zerobus_load_job_error_handling(
         def grant_zerobus_permissions(self, table_name: str) -> None:
             pass
 
+        def __enter__(self) -> "FakeJobClient":
+            return self
+
+        def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+            pass
+
     job = DatabricksZerobusParquetLoadJob(
         "/tmp/items.1.1.parquet",
         DatabricksClientConfiguration(zerobus=DatabricksZerobusConfiguration()),

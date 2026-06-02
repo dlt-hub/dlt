@@ -291,6 +291,48 @@ def test_ducklake_attach_statement_with_override_data_path() -> None:
     assert expected_attach_statement == attach_statement
 
 
+def test_ducklake_attach_statement_with_automatic_migration() -> None:
+    # we only assert the option is rendered into the ATTACH statement. the actual catalog
+    # migration triggered by `AUTOMATIC_MIGRATION true` is behavior of the ducklake extension
+    # and is tested upstream in the ducklake repo, not here.
+    expected_attach_statement = (
+        "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data'"
+        " AS foo (DATA_PATH '/path/to/storage', METADATA_SCHEMA 'foo',"
+        " AUTOMATIC_MIGRATION true)"
+    )
+    attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data"),
+        ducklake_name="foo",
+        storage_url="/path/to/storage",
+        automatic_migration=True,
+    )
+    assert expected_attach_statement == attach_statement
+    # sqlite/duckdb catalog branch also carries the option
+    sqlite_attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("sqlite:///catalog.sqlite"),
+        ducklake_name="foo",
+        storage_url="/path/to/storage",
+        automatic_migration=True,
+    )
+    assert "AUTOMATIC_MIGRATION true" in sqlite_attach_statement
+
+
+def test_ducklake_attach_statement_without_automatic_migration() -> None:
+    # flag off by default: option absent for both postgres and sqlite/duckdb branches
+    postgres_attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data"),
+        ducklake_name="foo",
+        storage_url="/path/to/storage",
+    )
+    assert "AUTOMATIC_MIGRATION" not in postgres_attach_statement
+    sqlite_attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("sqlite:///catalog.sqlite"),
+        ducklake_name="foo",
+        storage_url="/path/to/storage",
+    )
+    assert "AUTOMATIC_MIGRATION" not in sqlite_attach_statement
+
+
 def test_ducklake_attach_statement_with_metadata_schema() -> None:
     expected_attach_statement = (
         "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data'"

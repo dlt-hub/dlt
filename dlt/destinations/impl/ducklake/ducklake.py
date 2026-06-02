@@ -175,6 +175,7 @@ class DuckLakeClient(DuckDbClient):
             credentials=config.credentials,
             capabilities=capabilities,
             override_data_path=config.override_data_path,
+            automatic_migration=config.automatic_migration,
         )
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:

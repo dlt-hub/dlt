@@ -203,3 +203,13 @@ def test_unknown_migration_path() -> None:
     # must be able to migrate to current version
     with pytest.raises(NoMigrationPathException):
         LoadStorage(False, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+
+
+def test_non_owner_migrates_existing_storage() -> None:
+    # create directory structure as owner with current version
+    LoadStorage(True, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    # downgrade version to a migratable older version
+    write_version(LoadStorage(True, LoadStorage.ALL_SUPPORTED_FILE_FORMATS).storage, "1.0.0")
+    # non-owner opening existing storage migrates it to the current version
+    s = LoadStorage(False, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    assert s.version == LoadStorage.STORAGE_VERSION

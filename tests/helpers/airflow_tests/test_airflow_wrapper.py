@@ -1016,3 +1016,36 @@ def test_on_before_run() -> None:
                 mock.call(f'on_before_run test: {pendulum.tomorrow().format("YYYY-MM-DD")}'),
             ]
         )
+
+
+def test_pipeline_created_before_task_group_raises() -> None:
+    # creating dlt.pipeline before PipelineTasksGroup uses a pipelines_dir that does not
+    # match the per-worker random dir set by PipelineTasksGroup. add_run must surface a
+    # clear error pointing at the ordering and the workaround.
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_wrong_order():
+        early_pipeline = dlt.pipeline(
+            pipeline_name="pipeline_wrong_order",
+            dataset_name="mock_data_" + uniq_id(),
+            destination=dlt.destinations.duckdb(credentials=":pipeline:"),
+        )
+        tasks = PipelineTasksGroup(
+            "pipeline_wrong_order",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
+        )
+        with pytest.raises(ValueError) as exc_info:
+            tasks.add_run(
+                early_pipeline,
+                mock_data_source(),
+                decompose="none",
+                trigger_rule="all_done",
+                retries=0,
+            )
+        message = str(exc_info.value)
+        assert "PipelineTasksGroup" in message
+        assert "BEFORE creating the Pipeline" in message
+        assert "DLT_DATA_DIR" in message
+        assert "pipelines_dir" in message
+
+    dag_wrong_order()

@@ -793,8 +793,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
         ds_2_counts = load_table_counts(p, "lists", "lists__value")
         assert ds_1_counts == ds_2_counts
         # set name and run to another dataset
-        p.dataset_name = ds_3_name
-        info = p.run(s(), **destination_config.run_kwargs)
+        info = p.run(s(), dataset_name=ds_3_name, **destination_config.run_kwargs)
         assert_load_info(info)
         assert info.dataset_name.startswith(dataset_normalizer(ds_3_name))
         ds_3_counts = load_table_counts(p, "lists", "lists__value")

@@ -275,7 +275,7 @@ dlthub workspace deploy [-h] [--deployment DEPLOYMENT] [--dry-run]
 
 **Description**
 
-Sync workspace files, generate job manifest from __deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
+Sync workspace files, generate job manifest from \_\_deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
 
 <details>
 
@@ -285,7 +285,7 @@ Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
 * `--dry-run` - Preview changes without applying them
 * `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
 
@@ -554,7 +554,7 @@ Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Stream logs until the app stops
 * `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
@@ -586,7 +586,7 @@ Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Follow status changes and stream logs until the run completes
 * `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
@@ -1105,7 +1105,7 @@ Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Stream logs until the app stops
 * `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
@@ -1137,7 +1137,7 @@ Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Follow status changes and stream logs until the run completes
 * `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
@@ -1157,7 +1157,7 @@ dlthub deploy [-h] [--timestamps] [--deployment DEPLOYMENT] [--dry-run]
 
 **Description**
 
-Sync workspace files, generate job manifest from __deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
+Sync workspace files, generate job manifest from \_\_deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
 
 <details>
 
@@ -1168,7 +1168,7 @@ Inherits arguments from [`dlthub`](#dlthub).
 **Options**
 * `-h, --help` - Show this help message and exit
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of __deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
 * `--dry-run` - Preview changes without applying them
 * `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
 
@@ -1493,7 +1493,7 @@ Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment FILE` - Path to a .py deployment module. defaults to __deployment__.py.
+* `--deployment FILE` - Path to a .py deployment module. defaults to \_\_deployment__.py.
 * `--job-ref REF` - Pick this job when the selector matches multiple jobs.
 * `--profile NAME` - Override require.profile and the workspace pinned profile.
 * `--dry-run` - Resolve the job and print the entry point without launching
@@ -1529,7 +1529,7 @@ Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment FILE` - Path to a .py deployment module. defaults to __deployment__.py.
+* `--deployment FILE` - Path to a .py deployment module. defaults to \_\_deployment__.py.
 * `--job-ref REF` - Pick this job when the selector matches multiple jobs.
 * `--profile NAME` - Override require.profile and the workspace pinned profile.
 * `--dry-run` - Resolve the job and print the entry point without launching

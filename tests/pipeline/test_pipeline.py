@@ -4,6 +4,7 @@ import io
 from multiprocessing.dummy import DummyProcess
 import pathlib
 import pickle
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
@@ -21,8 +22,9 @@ import dlt
 from dlt.common import json, pendulum, Decimal
 from dlt.common.configuration import resolve
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
-from dlt.common.known_env import DLT_LOCAL_DIR
-from dlt.common.storages import FileStorage
+from dlt.common.known_env import DLT_DATA_DIR, DLT_LOCAL_DIR
+from dlt.common.storages import FileStorage, SchemaStorage
+from dlt.common.storages.exceptions import LoadPackageNotFound
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
@@ -79,6 +81,7 @@ from tests.common.utils import TEST_SENTRY_DSN
 from tests.utils import capture_dlt_logger, get_test_storage_root, skipifwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
+    PIPELINE_TEST_CASES_PATH,
     assert_table_counts,
     assert_load_info,
     airtable_emojis,
@@ -959,6 +962,37 @@ def test_extract_multiple_sources() -> None:
     # pipeline state is successfully rollbacked after the last extract and default_3 and 4 schemas are not present
     assert set(p.schema_names) == {"default", "default_2"}
     assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
+
+
+def test_state_schema_names_update_live_schemas() -> None:
+    """Live schemas created outside of pipeline do not impact default schema name
+    but are correctly incorporated into schema list
+    """
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
+    p.config.restore_from_destination = False
+
+    # schema written before any default schema exists is not pulled into the persisted state
+    p._schema_storage.set_live_schema(Schema("out_of_band_early"))
+    assert p.load() is None
+    assert p.default_schema_name is None
+    assert p.schema_names == []
+    assert "out_of_band_early" not in dlt.attach(pipeline_name=pipeline_name).state.get(
+        "schema_names", []
+    )
+
+    # establish a default schema, the run lists schemas from storage so the early one is now in
+    p.run([1, 2, 3], table_name="digits", schema=Schema("default"))
+    assert p.default_schema_name == "default"
+    assert p.schema_names == ["default", "out_of_band_early"]
+
+    # another schema appears on storage out of band, the next run absorbs all storage schemas
+    p._schema_storage.set_live_schema(Schema("out_of_band_late"))
+    p.run([4, 5, 6], table_name="digits")
+    expected = {"default", "out_of_band_early", "out_of_band_late"}
+    assert set(p.state["schema_names"]) == expected
+    # and it is persisted - a freshly attached pipeline reads the same list
+    assert set(dlt.attach(pipeline_name=pipeline_name).state["schema_names"]) == expected
 
 
 # Helper functions for state extraction tests
@@ -5048,6 +5082,8 @@ def test_ignore_signals_in_load() -> None:
     p.start()
 
     # should raise on KeyboardInterrupt - delayed signals disabled
+    # NOTE: any failing assert below locks the pytest. remove
+    # @pytest.mark.forked to debug
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(dlt.resource([1, 2, 3], name="digits"))
     assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
@@ -5155,6 +5191,8 @@ def test_signal_force_load_step_shutdown(sig: int) -> None:
     p.start()
 
     # should raise regular pipeline exception
+    # NOTE: any failing assert below locks the pytest. remove
+    # @pytest.mark.forked to debug
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run([1, 2, 3], table_name="digits")
     assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
@@ -5352,6 +5390,136 @@ def test_pending_package_exception_warning() -> None:
     # assert pip_ex.value.has_pending_data is False
 
 
+def test_load_not_yet_existing_package() -> None:
+    """Simulates loading step waiting for normalize step producing packages async"""
+    pipeline = dlt.pipeline(
+        pipeline_name="test_load_not_yet_existing_package",
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    # inject schema - simulates pipeline synced from destination
+    pipeline._inject_schema(Schema("default"))
+
+    # polling normalize/load on an empty folder must not rewrite state.json - concurrent processes
+    # share the working dir and a write back here would clobber a concurrent extract's state
+    state_path = pipeline._pipeline_storage.make_full_path(pipeline.STATE_FILE)
+    state_mtime = os.stat(state_path).st_mtime_ns
+
+    # skipped
+    assert pipeline.normalize() is None
+    # normalize storage must not be created
+    assert pipeline._get_normalize_storage().is_storage_ready() is False
+
+    # same for load
+    assert pipeline.load() is None
+    assert pipeline._get_load_storage().is_storage_ready() is False
+
+    # nothing changed, so state was not persisted again
+    assert os.stat(state_path).st_mtime_ns == state_mtime
+
+
+def test_package_accessors_on_fresh_pipeline() -> None:
+    """Utility methods that read normalize/load storages must not create storage folders
+    when called on a freshly created pipeline that has not run extract/normalize/load yet."""
+    pipeline = dlt.pipeline(
+        pipeline_name="test_package_accessors_fresh",
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    # listing methods return empty without creating storage
+    assert pipeline.list_extracted_resources() == []
+    assert pipeline.list_extracted_load_packages() == []
+    assert pipeline.list_normalized_load_packages() == []
+    assert pipeline.list_completed_load_packages() == []
+
+    # package-specific lookups raise LoadPackageNotFound
+    missing_id = "1700000000.1234567"
+    with pytest.raises(LoadPackageNotFound):
+        pipeline.get_load_package_info(missing_id)
+    with pytest.raises(LoadPackageNotFound):
+        pipeline.get_load_package_state(missing_id)
+    with pytest.raises(LoadPackageNotFound):
+        pipeline.list_failed_jobs_in_package(missing_id)
+
+    # drop_pending_packages is a no-op on a fresh pipeline
+    pipeline.drop_pending_packages()
+    pipeline.drop_pending_packages(with_partial_loads=False)
+
+    # storages were never created by any of the calls above
+    assert pipeline._get_normalize_storage().is_storage_ready() is False
+    assert pipeline._get_load_storage().is_storage_ready() is False
+
+
+@pytest.mark.serial
+def test_pipeline_steps_in_separate_processes() -> None:
+    """End-to-end: extract/normalize/load for the same pipeline run in parallel.
+
+    This test simulates pipeline steps handing over load packages and synchronizing
+    on the filesystem.
+    """
+    # propagate the test run context's data_dir so subprocesses use the same test storage
+    # inherit the parent environment - replacing it breaks Winsock init on Windows (WinError 10106)
+    subprocess_env = {
+        **os.environ,
+        DLT_DATA_DIR: dlt.current.run_context().data_dir,
+        DLT_LOCAL_DIR: dlt.current.run_context().local_dir,
+    }
+    pipeline_name = "separate_steps_" + uniq_id()
+    script_path = f"{PIPELINE_TEST_CASES_PATH}separate_steps/pipeline_step_loop.py"
+
+    def _spawn(step: str) -> subprocess.Popen[str]:
+        return subprocess.Popen(
+            [sys.executable, script_path, pipeline_name, step, "60"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=subprocess_env,
+        )
+
+    load_proc = _spawn("load")
+    normalize_proc: Optional[subprocess.Popen[str]] = None
+    try:
+        # start load first - no load storage yet, will loop
+        sleep(1.5)
+
+        # start normalize next - no normalize storage yet, will loop
+        normalize_proc = _spawn("normalize")
+        sleep(1.5)
+
+        # run extract in main process - this creates normalize storage with package files
+        pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+        data = [{"id": i, "name": f"item_{i}"} for i in range(10)]
+        pipeline.extract(dlt.resource(data, name="items"))
+
+        normalize_stdout, normalize_stderr = normalize_proc.communicate(timeout=60)
+        load_stdout, load_stderr = load_proc.communicate(timeout=60)
+    finally:
+        for proc in (normalize_proc, load_proc):
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+
+    assert normalize_proc.returncode == 0, f"normalize subprocess failed: {normalize_stderr}"
+    assert load_proc.returncode == 0, f"load subprocess failed: {load_stderr}"
+    assert (
+        normalize_stdout != "timeout"
+    ), f"normalize did not pick up extract package, stderr: {normalize_stderr}"
+    assert (
+        load_stdout != "timeout"
+    ), f"load did not pick up normalized package, stderr: {load_stderr}"
+
+    # verify the data landed in duckdb
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT id, name FROM items ORDER BY id")
+        assert [(r[0], r[1]) for r in rows] == [(i, f"item_{i}") for i in range(10)]
+
+
 def test_staging_tables_created_after_schema_change_without_data() -> None:
     """Regression test for #2862: staging tables created for all eligible tables.
 
@@ -5538,10 +5706,7 @@ def test_merge_no_child_duplicates_on_duplicate_staging_data(skip_dedup: bool) -
 
 
 def test_no_coercion_normalizer_creates_variant_columns() -> None:
-    """relational_no_coercion normalizer produces variant columns on type mismatch
-    instead of coercing values. Also verifies ensure_this_normalizer accepts the subclass
-    so update/get_normalizer_config work correctly.
-    """
+    """relational_no_coercion normalizer produces variant columns on type mismatch instead of coercing values."""
     no_coercion: TNormalizersConfig = {
         "names": "snake_case",
         "json": {"module": "relational_no_coercion"},
