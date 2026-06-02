@@ -441,18 +441,17 @@ class Relation(WithSqlClient):
             ValueError: If the join cannot be resolved.
 
         Example:
+            >>> # auto join (schema references)
+            >>> dataset["orders"].join("users")
 
-            # auto join (schema references)
-            dataset["orders"].join("users")
+            >>> # explicit ON
+            >>> dataset["orders"].join("users", on="orders._dlt_parent_id = users._dlt_id")
 
-            # explicit ON
-            dataset["orders"].join("users", on="orders._dlt_parent_id = users._dlt_id")
-
-            # cross-dataset join
-            local["orders"].join(
-                foreign["products"],
-                on="orders.product_id = products.id",
-            )
+            >>> # cross-dataset join
+            >>> local["orders"].join(
+            ...     foreign["products"],
+            ...     on="orders.product_id = products.id",
+            ... )
         """
         if alias == "":
             raise ValueError("`alias` must be a non-empty string when provided.")
@@ -547,11 +546,11 @@ class Relation(WithSqlClient):
                 target_table = _left_source_qualifier(other.sqlglot_expression) or "subquery"
                 target_columns = other.columns_schema
             return _JoinTarget(
-                target_dataset.dataset_name,
-                is_foreign,
-                target_table,
-                target_columns,
-                target_dataset.schemas,
+                dataset_name=target_dataset.dataset_name,
+                is_foreign=is_foreign,
+                table_name=target_table,
+                columns=target_columns,
+                schemas=target_dataset.schemas,
                 subquery=other.sqlglot_expression if is_transformed else None,
             )
 
@@ -563,20 +562,20 @@ class Relation(WithSqlClient):
 
             if ds_name == self._dataset.dataset_name:
                 return _JoinTarget(
-                    ds_name,
-                    False,
-                    tbl_name,
-                    _find_table_columns(self._dataset.schemas, tbl_name),
-                    self._dataset.schemas,
+                    dataset_name=ds_name,
+                    is_foreign=False,
+                    table_name=tbl_name,
+                    columns=_find_table_columns(self._dataset.schemas, tbl_name),
+                    schemas=self._dataset.schemas,
                 )
             if ds_name in self._foreign_schemas:
                 foreign_schemas = self._foreign_schemas[ds_name]
                 return _JoinTarget(
-                    ds_name,
-                    True,
-                    tbl_name,
-                    _find_table_columns(foreign_schemas, tbl_name),
-                    foreign_schemas,
+                    dataset_name=ds_name,
+                    is_foreign=True,
+                    table_name=tbl_name,
+                    columns=_find_table_columns(foreign_schemas, tbl_name),
+                    schemas=foreign_schemas,
                 )
             raise ValueError(
                 f"Dataset `{ds_name}` is not registered. Pass a Relation from the "

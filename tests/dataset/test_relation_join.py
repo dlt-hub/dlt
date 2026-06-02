@@ -1212,6 +1212,63 @@ def test_explicit_on_with_aggregated_rhs(
     assert "order_totals__amount" not in df.columns
 
 
+@pytest.mark.parametrize(
+    "lhs_query,expected_ids,expected_totals,expected_names",
+    [
+        pytest.param(
+            "SELECT customer_id, SUM(amount) AS total FROM orders GROUP BY customer_id",
+            [1, 2, 3],
+            [125.0, 200.0, 30.0],
+            ["Alice", "Bob", "Charlie"],
+            id="group-by",
+        ),
+        pytest.param(
+            "SELECT customer_id, SUM(amount) AS total FROM orders "
+            "GROUP BY customer_id HAVING SUM(amount) > 40",
+            [1, 2],
+            [125.0, 200.0],
+            ["Alice", "Bob"],
+            id="group-by-having",
+        ),
+    ],
+)
+def test_explicit_on_with_aggregated_lhs(
+    dataset_with_relational_tables: dlt.Dataset,
+    lhs_query: str,
+    expected_ids: list[int],
+    expected_totals: list[float],
+    expected_names: list[str],
+) -> None:
+    ds = dataset_with_relational_tables
+    agg_lhs = ds.query(lhs_query)
+    joined = agg_lhs.join("customers", on="orders.customer_id = customers.customer_id").order_by(
+        "customer_id"
+    )
+    df = joined.df()
+
+    assert list(df["customer_id"]) == expected_ids
+    assert [float(x) for x in df["total"]] == expected_totals
+    assert list(df["customers__name"]) == expected_names
+    assert "amount" not in df.columns
+
+
+def test_explicit_on_with_distinct_lhs(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    distinct_codes = ds.query("SELECT DISTINCT country_code FROM customers")
+    joined = distinct_codes.join("countries", on="customers.country_code = countries.code")
+
+    outer = joined.sqlglot_expression
+    assert outer.args.get("distinct") is None
+    derived = outer.find(sge.Subquery)
+    assert derived is not None and derived.this.args.get("distinct") is not None
+
+    df = joined.order_by("country_code").df()
+    assert list(df["country_code"]) == ["DE", "FR"]
+    assert list(df["countries__name"]) == ["Germany", "France"]
+
+
 def test_explicit_on_with_aliased_query_relations(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
@@ -1789,9 +1846,6 @@ def test_cross_dataset_join_chain_three_datasets(
     name_col: str,
     absent_name_col: str,
 ) -> None:
-    """A chain whose later `on` resolves an earlier join target by table name. An explicit
-    `alias` only prefixes the projected columns; it is not itself a join qualifier, so
-    `on="users.id = ..."` binds regardless of the alias chosen for the `users` join."""
     ds_crm, ds_inv, ds_billing = three_way_cross_dataset_duckdb
 
     joined = (

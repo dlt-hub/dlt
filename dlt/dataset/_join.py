@@ -480,6 +480,12 @@ def _collect_source_qualifiers(query: sge.Query) -> Set[str]:
     return {qualifier for source in sources if (qualifier := _source_qualifier(source)) is not None}
 
 
+def _is_flat_select(query: sge.Select) -> bool:
+    if any(query.args.get(key) for key in ("group", "having", "qualify", "distinct")):
+        return False
+    return not any(sel.find(sge.AggFunc) for sel in query.selects)
+
+
 def _qualify_unscoped_predicate_columns(query: sge.Select, source_qualifier: str) -> None:
     """Bind unqualified WHERE/ORDER BY columns to the single source."""
     if query.args.get("joins"):
@@ -492,6 +498,23 @@ def _qualify_unscoped_predicate_columns(query: sge.Select, source_qualifier: str
         for col in clause.find_all(sge.Column):
             if col.args.get("table") is None and col.parent_select is query:
                 col.set("table", qualifier_identifier.copy())
+
+
+def _aliased_subquery(query: sge.Query, qualifier: str) -> sge.Subquery:
+    """Wrap `query` as a derived table exposed under `qualifier`."""
+    return sge.Subquery(
+        this=query,
+        alias=sge.TableAlias(this=sge.to_identifier(qualifier, quoted=False)),
+    )
+
+
+def _wrap_as_derived_table(query: sge.Select, qualifier: str) -> sge.Select:
+    """Re-select all of `query`'s columns from it embedded as a derived table."""
+    return (
+        sge.Select()
+        .select(sge.Column(table=sge.to_identifier(qualifier), this=sge.Star()))
+        .from_(_aliased_subquery(query, qualifier))
+    )
 
 
 def _apply_explicit_join(
@@ -525,6 +548,9 @@ def _apply_explicit_join(
         )
     left_source_qualifier = _source_qualifier(from_this) or from_this.name
 
+    if not _is_flat_select(query):
+        query = _wrap_as_derived_table(query, left_source_qualifier)
+
     _qualify_unscoped_predicate_columns(query, left_source_qualifier)
 
     target_qualifier = target.table_name
@@ -543,10 +569,7 @@ def _apply_explicit_join(
         rhs_inner = target.subquery
         if target_dataset_name:
             rhs_inner = _qualify_physical_tables_with_dataset(rhs_inner, target_dataset_name)
-        target_expr = sge.Subquery(
-            this=rhs_inner,
-            alias=sge.TableAlias(this=sge.to_identifier(target_qualifier, quoted=False)),
-        )
+        target_expr = _aliased_subquery(rhs_inner, target_qualifier)
     else:
         target_expr = sge.Table(
             this=sge.to_identifier(target.table_name, quoted=True),
