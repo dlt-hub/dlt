@@ -425,7 +425,8 @@ class Relation(WithSqlClient):
                 pass a Relation from a different `dlt.Dataset`.
             on: Explicit join condition as an SQL string or sqlglot expression.
                 Required for cross-dataset joins and joins between tables
-                without dlt schema references.
+                without dlt schema references. Column and table names in the
+                predicate must use their dlt schema (normalized) names.
             kind: Type of SQL join: ``"inner"``, ``"left"``, ``"right"``,
                 or ``"full"``.
             alias: Projection prefix for the joined table's columns. Columns

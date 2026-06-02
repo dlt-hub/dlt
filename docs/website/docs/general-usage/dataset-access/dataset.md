@@ -220,6 +220,10 @@ Refer to the right-hand side in `on` by its source qualifier: the joined table's
 
 The left-hand side can be a table relation, a relation chained from one with `where()`, `select()`, `order_by()`, and similar methods, or a `dataset.query("...")` that reads from a single table.
 
+:::note
+Write the column and table names in `on` using their dlt schema names: the normalized identifiers you pass to `dataset.table(...)` and see in the dataset's schema, not the original field names from your source. With the default snake_case naming the two usually match, but under a name-mutating [naming convention](../naming-convention.md) you must use the normalized form.
+:::
+
 Self-joins work with explicit `on`, but the two instances of the table need distinct SQL qualifiers so the predicate can tell them apart. Alias one side with a `dataset.query(...)` and refer to that alias in `on`:
 
 ```py
