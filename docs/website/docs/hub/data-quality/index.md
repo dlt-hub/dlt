@@ -270,6 +270,41 @@ dq.run_checks(pipeline, checks={
 Each call to `run_checks` writes results to the `_dlt_checks` table — one row per check, with columns `_dlt_load_id`, `loaded_at`, `table_name`, `check_qualified_name`, `row_count`, `success_count`, and `success_rate`. Each `check_qualified_name` is formatted as `<column>__<check_name>` (for example `payment_method__is_in`). Successive calls append; nothing is overwritten.
 :::
 
+### Explore failing rows with `CheckSuite`
+
+`run_checks` is the persistence path — it writes a summary row per check to `_dlt_checks`, which is what dashboards and `read_check` read from. To inspect the actual rows that failed a check, use `dq.CheckSuite`. It runs the same check objects against a dataset without persisting anything, and exposes the failing and passing rows as `dlt.Relation` objects:
+
+```py
+import dlt
+from dlt.hub import data_quality as dq
+
+orders_dataset = dlt.attach("orders_pipeline").dataset()
+
+suite = dq.CheckSuite(
+    orders_dataset,
+    checks={
+        "orders": [
+            dq.checks.is_in("payment_method", ["card", "cash", "voucher"]),
+            dq.checks.is_not_null("order_id"),
+        ],
+    },
+)
+
+# Inspect the failing rows for one check
+suite.get_failures("orders", "payment_method__is_in").df()
+# ... or the passing rows
+suite.get_successes("orders", "payment_method__is_in").df()
+```
+
+`CheckSuite` does not write to `_dlt_checks`, so dashboards and `read_check` won't see its results. Pick the pattern that matches your goal:
+
+| Pattern | Persists to `_dlt_checks` | Best for |
+|---|---|---|
+| `dq.run_checks(pipeline, checks={...})` | Yes | Scheduled jobs, monitoring history, dashboards |
+| `dq.CheckSuite(dataset, checks={...}).get_failures(...)` | No | Interactive notebooks, debugging row-level failures |
+
+Both APIs accept the same check objects, so you can register checks once and use either path.
+
 ### Read checks
 
 The convenience function `dq.read_check()` allows you to retrieve stored checks with some metadata. This makes it easy to build reporting, dashboard, or analytics over this data.
