@@ -1037,5 +1037,5 @@ def _find_table_columns(schemas: Sequence[dlt.Schema], table_name: str) -> TTabl
     """Find the columns schema for a table across a sequence of schemas."""
     for schema in schemas:
         if table_name in schema.tables:
-            return schema.tables[table_name]["columns"]
+            return schema.get_table_columns(table_name)
     raise ValueError(f"Table `{table_name}` not found in dataset schema")

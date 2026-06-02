@@ -469,10 +469,24 @@ def test_join_projection_prefix_rejects_colliding_alias(
         joined.join("users__orders__items", alias="shared")
 
 
+@pytest.mark.parametrize(
+    "build_join",
+    [
+        pytest.param(lambda ds: ds.table("products").join("categories"), id="magic"),
+        pytest.param(
+            lambda ds: ds.table("products").join(
+                "categories", on="products.category_id = categories.id"
+            ),
+            id="explicit-on",
+        ),
+    ],
+)
 def test_join_does_not_project_incomplete_target_columns(
     dataset_with_incomplete_join_target: dlt.Dataset,
+    build_join: Callable[[dlt.Dataset], dlt.Relation],
 ) -> None:
-    relation = dataset_with_incomplete_join_target.table("products").join("categories")
+    relation = build_join(dataset_with_incomplete_join_target)
+    assert "categories__phantom_field" not in relation.columns_schema
     rows = relation.fetchall()
     assert rows is not None
     assert len(rows) == 3
