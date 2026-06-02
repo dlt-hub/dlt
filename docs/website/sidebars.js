@@ -353,9 +353,9 @@ const sidebars = {
           label: "Overview",
         },
         {
-          type: 'doc',
-          id: 'walkthroughs/deploy-a-pipeline/deploy-with-dlthub',
-          label: 'dltHub',
+          type: "doc",
+          id: "walkthroughs/deploy-a-pipeline/deploy-with-dlthub",
+          label: "dltHub",
         },
         {
           type: "category",
