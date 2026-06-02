@@ -497,7 +497,7 @@ class Relation(WithSqlClient):
         rel = self.__copy__()
         rel._sqlglot_expression = query
 
-        # carry the RHS relation's foreign datasets
+        # carry the RHS relation's foreign schemas
         if isinstance(other, dlt.Relation):
             for ds_name, schemas in other._foreign_schemas.items():
                 if ds_name == self._dataset.dataset_name:
