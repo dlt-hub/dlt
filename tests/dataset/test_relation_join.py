@@ -234,6 +234,36 @@ def test_join_rejects_different_physical_destination(dataset_with_loads: TLoadsF
             rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
 
 
+def test_join_rejects_same_name_on_different_physical_destinations() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        shared_dataset_name = "same_name_diff_dest"
+
+        pipeline_a = dlt.pipeline(
+            pipeline_name="same_name_diff_dest_a",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "a.duckdb")),
+            dataset_name=shared_dataset_name,
+        )
+        pipeline_a.run([{"id": 1}], table_name="users")
+
+        pipeline_b = dlt.pipeline(
+            pipeline_name="same_name_diff_dest_b",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "b.duckdb")),
+            dataset_name=shared_dataset_name,
+        )
+        pipeline_b.run([{"oid": 10}], table_name="orders")
+
+        ds_a = pipeline_a.dataset()
+        ds_b = pipeline_b.dataset()
+        assert ds_a.dataset_name == ds_b.dataset_name
+        assert not ds_a.is_same_physical_destination(ds_b)
+
+        with pytest.raises(ValueError, match="different physical destinations"):
+            ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
+
+
 @pytest.mark.parametrize(
     "dataset_with_loads,left,right,expected_targets",
     [
@@ -944,6 +974,20 @@ def test_explicit_on_joins_relational_tables(
         ds.table("customers").join("orders")
 
 
+def test_explicit_on_join_via_local_dotted_string(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    joined = ds.table("customers").join(
+        f"{ds.dataset_name}.orders", on="customers.customer_id = orders.customer_id"
+    )
+    assert not joined._foreign_schemas
+    df = joined.df()
+    assert len(df) == 4
+    assert "orders__amount" in df.columns
+    assert list(df["orders__amount"]) == [50.0, 75.0, 200.0, 30.0]
+
+
 def test_explicit_on_accepts_sqlglot_expression(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
@@ -1184,6 +1228,22 @@ def test_explicit_on_with_aliased_query_relations(
     assert list(df["o__amount"]) == [50.0, 75.0, 200.0, 30.0]
 
 
+def test_explicit_on_with_constant_rhs_uses_subquery_fallback_qualifier(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    const = ds.query(
+        "SELECT 1 AS customer_id, 'x' AS tag"
+    )  # no FROM clause, no qualifier, falls back to subquery
+    joined = ds.table("customers").join(const, on="customers.customer_id = subquery.customer_id")
+
+    assert "subquery__tag" in joined.columns_schema
+    df = joined.df()
+    assert len(df) == 1
+    assert list(df["name"]) == ["Alice"]
+    assert list(df["subquery__tag"]) == ["x"]
+
+
 def test_explicit_on_rejects_empty_alias(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
@@ -1227,6 +1287,25 @@ def test_explicit_on_rejects_unknown_kind(
             kind="outer",
             on="customers.customer_id = orders.customer_id",
         )
+
+
+def test_explicit_on_rejects_unknown_dotted_string_dataset(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    with pytest.raises(ValueError, match="is not registered"):
+        ds.table("customers").join(
+            "unknown_ds.orders", on="customers.customer_id = orders.customer_id"
+        )
+
+
+def test_explicit_on_rejects_subquery_from_lhs(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    derived = ds.query("SELECT * FROM (SELECT * FROM customers) AS sub")
+    with pytest.raises(ValueError, match="must have a base table"):
+        derived.join("orders", on="sub.customer_id = orders.customer_id")
 
 
 @pytest.mark.parametrize(
@@ -1279,6 +1358,24 @@ def test_cross_dataset_join(
     assert len(df) == 3
     assert "purchases__sku" in df.columns
     assert "purchases__quantity" in df.columns
+    assert sorted(df["purchases__sku"]) == ["G-001", "W-001", "W-001"]
+
+
+def test_cross_dataset_join_accepts_sqlglot_expression(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+    on_expr = sge.EQ(
+        this=sge.Column(table=sge.to_identifier("users"), this=sge.to_identifier("id")),
+        expression=sge.Column(
+            table=sge.to_identifier("purchases"), this=sge.to_identifier("user_id")
+        ),
+    )
+    joined = ds_crm.table("users").join(ds_inv.table("purchases"), on=on_expr)
+
+    assert ds_inv.dataset_name in joined._foreign_schemas
+    df = joined.df()
+    assert len(df) == 3
     assert sorted(df["purchases__sku"]) == ["G-001", "W-001", "W-001"]
 
 
@@ -1527,6 +1624,32 @@ def test_cross_dataset_join_then_foreign_dataset_local_hop_with_relation(
     df = joined.order_by("purchases__purchase_id").df()
 
     assert len(df) == 3
+    assert list(df["purchases__purchase_id"]) == [1, 2, 3]
+    assert list(df["name"]) == ["Alice", "Alice", "Bob"]
+    assert list(df["purchases__sku"]) == ["W-001", "G-001", "W-001"]
+    assert list(df["inventory_items__quantity"]) == [50, 30, 50]
+
+
+def test_cross_dataset_join_via_dotted_string_qualifies_foreign_dataset(
+    cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+
+    joined = ds_crm.table("users").join(
+        ds_inv.table("purchases"), on="users.id = purchases.user_id"
+    )
+    assert ds_inv.dataset_name in joined._foreign_schemas
+
+    chained = joined.join(
+        f"{ds_inv.dataset_name}.inventory_items",
+        on="purchases.sku = inventory_items.sku",
+    )
+    sql = chained.to_sql()
+
+    assert f'"{ds_inv.dataset_name}"."inventory_items"' in sql, sql
+    assert f'"{ds_crm.dataset_name}"."inventory_items"' not in sql, sql
+
+    df = chained.order_by("purchases__purchase_id").df()
     assert list(df["purchases__purchase_id"]) == [1, 2, 3]
     assert list(df["name"]) == ["Alice", "Alice", "Bob"]
     assert list(df["purchases__sku"]) == ["W-001", "G-001", "W-001"]

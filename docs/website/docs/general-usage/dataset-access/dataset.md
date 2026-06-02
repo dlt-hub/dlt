@@ -216,6 +216,8 @@ Pass `on=` to write the join condition yourself, as a SQL string or a `sqlglot` 
 
 The right-hand side can be a table name, a table relation, or a relation you already transformed with `select()`, `where()`, etc. When you pass a transformed relation, its filters and column selection carry over to the joined result.
 
+Refer to the right-hand side in `on` by its source qualifier: the joined table's name, or the alias you gave it in a `dataset.query(...)`. A relation with no identifiable source, for example a constant `dataset.query("SELECT 1 AS id")` that has no `FROM` is exposed under the qualifier `subquery`, so write `subquery.<column>` in `on`.
+
 The left-hand side can be a table relation, a relation chained from one with `where()`, `select()`, `order_by()`, and similar methods, or a `dataset.query("...")` that reads from a single table.
 
 Self-joins are not supported, even with explicit `on`. For self-joins, multi-way joins with mixed conditions, or fully programmatic join construction, use [Ibis](#modifying-queries-with-ibis-expressions).

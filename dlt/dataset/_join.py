@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Set, TypeVar, Union
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Sequence, Set, TypeVar, Union
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -12,11 +12,24 @@ from dlt.common.schema.typing import TTableReference, TTableSchemaColumns
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 
 if TYPE_CHECKING:
-    from dlt.dataset.relation import Relation, TJoinType
+    from dlt.dataset.relation import TJoinType
 
 _INTERMEDIATE_JOIN_ALIAS_PREFIX = "_dlt_int_t"
 
 _TExpr = TypeVar("_TExpr", bound=sge.Expression)
+
+
+class _JoinTarget(NamedTuple):
+    """Resolved right-hand side of a `Relation.join()`."""
+
+    dataset_name: str
+    is_foreign: bool
+    """`True` when the target lives in a different dataset than the left-hand side."""
+    table_name: str
+    columns: TTableSchemaColumns
+    schemas: Sequence[Schema]
+    subquery: Optional[sge.Query] = None
+    """RHS query embedded as a derived table for transformed relations; `None` for base tables."""
 
 
 class _JoinRef(TypedDict):
@@ -190,14 +203,33 @@ def _extract_table_qualifier(table_expr: sge.Expression) -> Optional[tuple[str, 
     return table_name, table_name
 
 
-def _extract_joined_table_aliases(query: sge.Query) -> dict[str, str]:
-    alias_map: dict[str, str] = {}
+def _from_source(query: sge.Query) -> Optional[sge.Expression]:
+    """Return the FROM source expression (table or subquery), or `None`."""
     # sqlglot >= 28 renamed `from` to `from_` internally
     from_expr = query.args.get("from_") or query.args.get("from")
-    if not isinstance(from_expr, sge.From) or not isinstance(from_expr.this, sge.Table):
+    if not isinstance(from_expr, sge.From):
+        return None
+    source: Optional[sge.Expression] = from_expr.this
+    return source
+
+
+def _source_qualifier(source: Optional[sge.Expression]) -> Optional[str]:
+    """Return the SQL qualifier (alias or table name) of a FROM/JOIN source."""
+    if isinstance(source, sge.Table):
+        result = _extract_table_qualifier(source)
+        return result[1] if result else None
+    if isinstance(source, sge.Subquery):
+        return _subquery_alias_name(source)
+    return None
+
+
+def _extract_joined_table_aliases(query: sge.Query) -> dict[str, str]:
+    alias_map: dict[str, str] = {}
+    from_this = _from_source(query)
+    if not isinstance(from_this, sge.Table):
         return alias_map
 
-    tables: list[sge.Table] = [from_expr.this]
+    tables: list[sge.Table] = [from_this]
     for join in query.args.get("joins") or []:
         if isinstance(join.this, sge.Table):
             tables.append(join.this)
@@ -356,6 +388,14 @@ def _apply_join_projection(
     query.set("expressions", [*normalized_left_expressions, *appended_target_columns])
 
 
+def _copy_as_select(expression: sge.Query) -> sge.Select:
+    """Copy `expression` and assert it is a SELECT so a join can be applied."""
+    query = expression.copy()
+    if not isinstance(query, sge.Select):
+        raise ValueError(f"Join query `{query}` must be an SQL SELECT statement.")
+    return query
+
+
 def _apply_join(
     expression: sge.Query,
     *,
@@ -367,21 +407,15 @@ def _apply_join(
     project: bool = True,
 ) -> sge.Select:
     """Apply schema-driven join(s) to `expression` and return the new query."""
-    # `project=False` adds the JOIN without touching the SELECT list — for join targets whose
-    # columns are referenced in WHERE/ON predicates but should not appear in the output
     if left_table not in schema.tables:
         raise ValueError(f"Table `{left_table}` not found in dataset schema")
     if right_table not in schema.tables:
         raise ValueError(f"Table `{right_table}` not found in dataset schema")
 
-    query = expression.copy()
-    if not isinstance(query, sge.Select):
-        raise ValueError(f"Join query `{query}` must be an SQL SELECT statement.")
+    query = _copy_as_select(expression)
 
-    # qualify its bare WHERE/ORDER BY columns so they survive a later join
-    # that introduces a same-named column
-    if not query.args.get("joins"):
-        _qualify_unscoped_predicate_columns(query, _left_source_qualifier(query) or left_table)
+    left_source_qualifier = _left_source_qualifier(query) or left_table
+    _qualify_unscoped_predicate_columns(query, left_source_qualifier)
 
     join_params, target_qualifier = _discover_join_params(
         query,
@@ -403,8 +437,6 @@ def _apply_join(
         )
         query = query.join(join_expr)
 
-    left_source_qualifier = _left_source_qualifier(query) or left_table
-
     if project:
         _apply_join_projection(
             query,
@@ -415,14 +447,12 @@ def _apply_join(
             allow_existing_target_projection=not join_params,
         )
     else:
-        # filter-only join: qualify the left projection so a bare `*` does not
-        # expand across the joined table and leak right-side columns at runtime.
         query.set("expressions", _normalize_left_projection(query, left_source_qualifier))
     return query
 
 
 def _qualify_physical_tables_with_dataset(expression: _TExpr, dataset_name: str) -> _TExpr:
-    """Bind every physical table reference in ``expression`` to ``dataset_name``."""
+    """Bind every physical table reference in `expression` to `dataset_name`."""
     expression = expression.copy()
     cte_names = {cte.alias_or_name for cte in expression.find_all(sge.CTE)}
     db_identifier = sge.to_identifier(dataset_name, quoted=False)
@@ -437,46 +467,19 @@ def _qualify_physical_tables_with_dataset(expression: _TExpr, dataset_name: str)
 
 def _left_source_qualifier(query: sge.Query) -> Optional[str]:
     """Return the qualifier used to reference the FROM source (alias or table name)."""
-    from_expr = query.args.get("from_") or query.args.get("from")
-    if not isinstance(from_expr, sge.From):
-        return None
-    from_this = from_expr.this
-    if isinstance(from_this, sge.Table):
-        result = _extract_table_qualifier(from_this)
-        return result[1] if result else None
-    if isinstance(from_this, sge.Subquery):
-        return _subquery_alias_name(from_this)
-    return None
+    return _source_qualifier(_from_source(query))
 
 
 def _collect_source_qualifiers(query: sge.Query) -> Set[str]:
     """Collect the SQL qualifiers (aliases or table names) of every FROM/JOIN source."""
-    qualifiers: Set[str] = set()
-    sources: list[sge.Expression] = []
-
-    from_expr = query.args.get("from_") or query.args.get("from")
-    if isinstance(from_expr, sge.From) and from_expr.this is not None:
-        sources.append(from_expr.this)
-
-    for join in query.args.get("joins") or []:
-        if join.this is not None:
-            sources.append(join.this)
-
-    for source in sources:
-        if isinstance(source, sge.Table):
-            result = _extract_table_qualifier(source)
-            if result:
-                qualifiers.add(result[1])
-        elif isinstance(source, sge.Subquery):
-            alias_name = _subquery_alias_name(source)
-            if alias_name is not None:
-                qualifiers.add(alias_name)
-
-    return qualifiers
+    sources = [_from_source(query), *(join.this for join in query.args.get("joins") or [])]
+    return {qualifier for source in sources if (qualifier := _source_qualifier(source)) is not None}
 
 
 def _qualify_unscoped_predicate_columns(query: sge.Select, source_qualifier: str) -> None:
-    """Bind unqualified columns in pre-join WHERE/ORDER BY clauses to the single source."""
+    """Bind unqualified WHERE/ORDER BY columns to the single source."""
+    if query.args.get("joins"):
+        return
     qualifier_identifier = sge.to_identifier(source_qualifier, quoted=False)
     for clause_key in ("where", "order"):
         clause = query.args.get(clause_key)
@@ -489,53 +492,38 @@ def _qualify_unscoped_predicate_columns(query: sge.Select, source_qualifier: str
 
 def _apply_explicit_join(
     expression: sge.Query,
+    target: _JoinTarget,
     *,
-    target: Optional["Relation"] = None,
-    target_table: str,
-    target_dataset_name: Optional[str],
-    target_columns: TTableSchemaColumns,
     on: Union[str, sge.Expression],
     projection_prefix: str,
-    kind: "TJoinType",
+    kind: TJoinType,
     destination_dialect: TSqlGlotDialect,
     left_dataset_name: str,
 ) -> sge.Select:
-    """Apply an explicit-ON join to ``expression`` and return the new query.
+    """Apply an explicit-ON join to `expression` and return the new query.
 
     Args:
         expression: Left-side query to join onto.
-        target: Right-hand Relation object (if transformed/subquery), or None for
-            string / base-table targets.
-        target_table: Bare table name for schema lookups and projection.
-        target_dataset_name: Dataset name for the right-hand side.
-        target_columns: Columns from the right-hand side for projection.
+        target: Resolved right-hand side of the join.
         on: Join condition as a SQL string or sqlglot expression.
         projection_prefix: Prefix for appended column aliases.
         kind: SQL join type.
         destination_dialect: Dialect for parsing string ON expressions.
         left_dataset_name: Dataset name for the left-hand side.
     """
-    query = expression.copy()
-    if not isinstance(query, sge.Select):
-        raise ValueError(f"Join query `{query}` must be an SQL SELECT statement.")
+    query = _qualify_physical_tables_with_dataset(_copy_as_select(expression), left_dataset_name)
 
-    # bind LHS physical tables to the LHS dataset before composing the join.
-    # otherwise, adding the RHS dataset to the resolver makes bare LHS tables
-    # ambiguous
-    query = _qualify_physical_tables_with_dataset(query, left_dataset_name)
-
-    from_expr = query.args.get("from_") or query.args.get("from")
-    if not isinstance(from_expr, sge.From) or not isinstance(from_expr.this, sge.Table):
+    from_this = _from_source(query)
+    if not isinstance(from_this, sge.Table):
         raise ValueError(
             "Cannot apply explicit join: left-side query must have a base table "
             "in its FROM clause (not a subquery or derived table)."
         )
-    left_source_qualifier = _left_source_qualifier(query) or from_expr.this.name
+    left_source_qualifier = _source_qualifier(from_this) or from_this.name
 
-    if not query.args.get("joins"):
-        _qualify_unscoped_predicate_columns(query, left_source_qualifier)
+    _qualify_unscoped_predicate_columns(query, left_source_qualifier)
 
-    target_qualifier = target_table
+    target_qualifier = target.table_name
     if target_qualifier in _collect_source_qualifiers(query):
         raise ValueError(
             f"Join target qualifier `{target_qualifier}` already names a source in the query. "
@@ -543,10 +531,12 @@ def _apply_explicit_join(
             "qualifier is unambiguous."
         )
 
+    target_dataset_name = target.dataset_name if target.is_foreign else None
+
     target_expr: sge.Expression
-    if target is not None and target._query is not None:
-        # transformed Relation: embed as subquery
-        rhs_inner = target.sqlglot_expression
+    if target.subquery is not None:
+        # transformed relation: embed its query as a subquery
+        rhs_inner = target.subquery
         if target_dataset_name:
             rhs_inner = _qualify_physical_tables_with_dataset(rhs_inner, target_dataset_name)
         target_expr = sge.Subquery(
@@ -554,12 +544,14 @@ def _apply_explicit_join(
             alias=sge.TableAlias(this=sge.to_identifier(target_qualifier, quoted=False)),
         )
     else:
-        table_node_args: dict[str, sge.Expression] = {
-            "this": sge.to_identifier(target_table, quoted=True),
-        }
-        if target_dataset_name:
-            table_node_args["db"] = sge.to_identifier(target_dataset_name, quoted=False)
-        target_expr = sge.Table(**table_node_args)
+        target_expr = sge.Table(
+            this=sge.to_identifier(target.table_name, quoted=True),
+            db=(
+                sge.to_identifier(target_dataset_name, quoted=False)
+                if target_dataset_name
+                else None
+            ),
+        )
 
     if isinstance(on, str):
         on_expr = sqlglot.parse_one(on, dialect=destination_dialect)
@@ -572,7 +564,7 @@ def _apply_explicit_join(
     _apply_join_projection(
         query,
         left_source_qualifier=left_source_qualifier,
-        target_columns=target_columns,
+        target_columns=target.columns,
         target_qualifier=target_qualifier,
         projection_prefix=projection_prefix,
         allow_existing_target_projection=False,

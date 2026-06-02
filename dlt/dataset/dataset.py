@@ -162,7 +162,7 @@ class Dataset:
     def _is_same_dataset(self, other: dlt.Dataset) -> bool:
         """Whether `other` represents the same logical dataset."""
         # TODO currently only compares dataset name,
-        # once harderned, conside implementing __eq__ based on this method
+        # once hardened, consider implementing __eq__ based on this method
         return self.dataset_name == other.dataset_name
 
     @property

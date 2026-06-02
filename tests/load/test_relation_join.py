@@ -1,4 +1,4 @@
-"""End-to-end tests for ``Relation.join()`` across destinations."""
+"""End-to-end tests for `Relation.join()` across destinations."""
 
 import os
 from typing import Any, cast, Tuple

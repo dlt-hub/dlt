@@ -51,6 +51,7 @@ from dlt.dataset._join import (
     _apply_join,
     _apply_explicit_join,
     _extract_joined_table_aliases,
+    _JoinTarget,
     _left_source_qualifier,
 )
 
@@ -414,14 +415,14 @@ class Relation(WithSqlClient):
     ) -> Self:
         """Join this relation to another table.
 
-        Without ``on``, join conditions are discovered automatically from the
+        Without `on`, join conditions are discovered automatically from the
         schema's reference chain (parent/child/root relationships created by
-        dlt during loading). With ``on``, an explicit join predicate is used
+        dlt during loading). With `on`, an explicit join predicate is used
         instead — this also enables cross-dataset joins.
 
         Args:
             other: Table name or Relation to join. For cross-dataset joins,
-                pass a Relation from a different ``dlt.Dataset``.
+                pass a Relation from a different `dlt.Dataset`.
             on: Explicit join condition as an SQL string or sqlglot expression.
                 Required for cross-dataset joins and joins between tables
                 without dlt schema references.
@@ -438,7 +439,7 @@ class Relation(WithSqlClient):
         Raises:
             ValueError: If the join cannot be resolved.
 
-        Example::
+        Example:
 
             # auto join (schema references)
             dataset["orders"].join("users")
@@ -463,43 +464,33 @@ class Relation(WithSqlClient):
         if isinstance(on, str) and not on.strip():
             raise ValueError("`on` must be a non-empty SQL expression.")
 
-        target_dataset, target_table, target_columns = self._resolve_join_target(other, on=on)
-
-        is_same_dataset = self._dataset._is_same_dataset(target_dataset)
+        target = self._resolve_join_target(other, on=on)
 
         # self-join detection
-        if target_table == self._table_name and is_same_dataset:
+        if target.table_name == self._table_name and not target.is_foreign:
             raise ValueError("Self-joins are not supported.")
 
-        projection_prefix = alias or target_table
+        projection_prefix = alias or target.table_name
 
         if on is None:
             if not self._table_name:
                 raise ValueError("This relation has no base table to resolve references.")
-            if not is_same_dataset:
+            if target.is_foreign:
                 raise ValueError("`on` is required when joining relations from different datasets.")
-            if target_table not in self._dataset.schema.tables:
-                raise ValueError(f"Table `{target_table}` not found in dataset schema")
+            if target.table_name not in self._dataset.schema.tables:
+                raise ValueError(f"Table `{target.table_name}` not found in dataset schema")
             query = _apply_join(
                 self.sqlglot_expression,
                 schema=self._dataset.schema,
                 left_table=self._table_name,
-                right_table=target_table,
+                right_table=target.table_name,
                 projection_prefix=projection_prefix,
                 kind=kind,
             )
         else:
-            # pass Relation as target when it's been transformed so it
-            # becomes a subquery (preserving WHERE, SELECT, LIMIT, etc.)
-            subquery_rhs: Optional[Relation] = (
-                other if isinstance(other, dlt.Relation) and other._query is not None else None
-            )
             query = _apply_explicit_join(
                 self.sqlglot_expression,
-                target=subquery_rhs,
-                target_table=target_table,
-                target_dataset_name=(None if is_same_dataset else target_dataset.dataset_name),
-                target_columns=target_columns,
+                target,
                 on=on,
                 projection_prefix=projection_prefix,
                 kind=kind,
@@ -516,8 +507,8 @@ class Relation(WithSqlClient):
                 if ds_name == self._dataset.dataset_name:
                     continue
                 rel._foreign_schemas[ds_name] = list(schemas)
-        if not is_same_dataset:
-            rel._foreign_schemas[target_dataset.dataset_name] = list(target_dataset.schemas)
+        if target.is_foreign:
+            rel._foreign_schemas[target.dataset_name] = list(target.schemas)
 
         return rel
 
@@ -526,27 +517,22 @@ class Relation(WithSqlClient):
         other: Union[str, Self],
         *,
         on: Union[str, sge.Expression, None] = None,
-    ) -> tuple[dlt.Dataset, str, TTableSchemaColumns]:
-        """Resolve the target dataset, table name, and columns for a join.
-
-        Returns:
-            Tuple of (target_dataset, target_table_name, target_columns).
-        """
+    ) -> _JoinTarget:
+        """Resolve the right-hand side of a join into a `_JoinTarget`."""
         if isinstance(other, dlt.Relation):
             target_dataset = other._dataset
 
-            # physical destination check
-            if not self._dataset._is_same_dataset(target_dataset):
-                if not self._dataset.is_same_physical_destination(target_dataset):
-                    raise ValueError(
-                        "Cannot join relations from different physical destinations: "
-                        f"'{target_dataset.dataset_name}' vs '{self._dataset.dataset_name}'"
-                    )
-                # cross-dataset filesystem not supported
-                if isinstance(self.sql_client, WithSchemas):
-                    raise ValueError(
-                        "Cross-dataset joins are not supported on filesystem destinations."
-                    )
+            if not self._dataset.is_same_physical_destination(target_dataset):
+                raise ValueError(
+                    "Cannot join relations from different physical destinations: "
+                    f"'{target_dataset.dataset_name}' vs '{self._dataset.dataset_name}'"
+                )
+
+            is_foreign = not self._dataset._is_same_dataset(target_dataset)
+            if is_foreign and isinstance(self.sql_client, WithSchemas):
+                raise ValueError(
+                    "Cross-dataset joins are not supported on filesystem destinations."
+                )
 
             target_table = other._table_name
             is_transformed = other._query is not None
@@ -561,33 +547,46 @@ class Relation(WithSqlClient):
                 # no base table at all (e.g., from .query())
                 if on is None:
                     raise ValueError(f"Relation `{other}` has no base table to resolve references.")
-                target_table = _extract_subquery_alias(other)
+                target_table = _left_source_qualifier(other.sqlglot_expression) or "subquery"
                 target_columns = other.columns_schema
-        elif isinstance(other, str):
+            return _JoinTarget(
+                target_dataset.dataset_name,
+                is_foreign,
+                target_table,
+                target_columns,
+                target_dataset.schemas,
+                subquery=other.sqlglot_expression if is_transformed else None,
+            )
+
+        if isinstance(other, str):
             if "." in other:
                 ds_name, tbl_name = other.split(".", 1)
-                if ds_name == self._dataset.dataset_name:
-                    target_dataset = self._dataset
-                    target_table = tbl_name
-                    target_columns = _find_table_columns(target_dataset.schemas, target_table)
-                elif ds_name in self._foreign_schemas:
-                    target_dataset = self._dataset
-                    target_table = tbl_name
-                    target_columns = _find_table_columns(self._foreign_schemas[ds_name], tbl_name)
-                    return target_dataset, target_table, target_columns
-                else:
-                    raise ValueError(
-                        f"Dataset `{ds_name}` is not registered. Pass a Relation from the "
-                        "foreign dataset to automatically register its schema."
-                    )
             else:
-                target_dataset = self._dataset
-                target_table = other
-                target_columns = _find_table_columns(target_dataset.schemas, target_table)
-        else:
-            raise ValueError("`other` must be a table name or a base table relation.")
+                ds_name, tbl_name = self._dataset.dataset_name, other
 
-        return target_dataset, target_table, target_columns
+            if ds_name == self._dataset.dataset_name:
+                return _JoinTarget(
+                    ds_name,
+                    False,
+                    tbl_name,
+                    _find_table_columns(self._dataset.schemas, tbl_name),
+                    self._dataset.schemas,
+                )
+            if ds_name in self._foreign_schemas:
+                foreign_schemas = self._foreign_schemas[ds_name]
+                return _JoinTarget(
+                    ds_name,
+                    True,
+                    tbl_name,
+                    _find_table_columns(foreign_schemas, tbl_name),
+                    foreign_schemas,
+                )
+            raise ValueError(
+                f"Dataset `{ds_name}` is not registered. Pass a Relation from the "
+                "foreign dataset to automatically register its schema."
+            )
+
+        raise ValueError("`other` must be a table name or a base table relation.")
 
     def incremental(self, incremental: Incremental[Any]) -> Self:
         """Filter this relation to a cursor range using an Incremental.
@@ -1044,8 +1043,3 @@ def _find_table_columns(schemas: Sequence[dlt.Schema], table_name: str) -> TTabl
         if table_name in schema.tables:
             return schema.tables[table_name]["columns"]
     raise ValueError(f"Table `{table_name}` not found in dataset schema")
-
-
-def _extract_subquery_alias(relation: dlt.Relation) -> str:
-    """Extract the source qualifier of a transformed Relation without a base table."""
-    return _left_source_qualifier(relation.sqlglot_expression) or "subquery"

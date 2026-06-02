@@ -1086,9 +1086,9 @@ def bind_query(
     Args:
         qualified_query: SQLGlot query expression with qualified table/column references
         sqlglot_schema: Schema mapping for name validation and column resolution
-        expand_table_name: Function ``(table_name, dataset_name | None) -> [catalog, schema, table]``
+        expand_table_name: Function `(table_name, dataset_name | None) -> [catalog, schema, table]`
             that expands a table name to a fully qualified path. The second argument is the
-            dataset qualifier from the query (``node.db``), or `None` for the default dataset.
+            dataset qualifier from the query (`node.db`), or `None` for the default dataset.
         casefold_identifier: Case transformation function (`str`, `str.upper`, or `str.lower`)
 
     Returns:
