@@ -1,7 +1,7 @@
 """End-to-end tests for `Relation.join()` across destinations."""
 
 import os
-from typing import Any, cast, Tuple
+from typing import Any, Tuple
 
 import pytest
 
@@ -17,59 +17,27 @@ from tests.dataset.utils import (
     relational_tables,
 )
 from tests.load.lance_utils import module_lance_rest_server
+from tests.load.read_dataset_fixtures import (
+    destination_config,
+    preserve_module_environ_per_destination_config,
+    skip_if_unsupported_filesystem_format,
+)
 from tests.load.utils import (
     DestinationTestConfiguration,
-    MEMORY_BUCKET,
-    SFTP_BUCKET,
-    destinations_configs,
     drop_pipeline_data,
 )
 from tests.utils import (
-    _preserve_environ,
     auto_module_test_run_context,
     auto_module_test_storage,
     get_test_storage_root,
 )
 
 
-# TODO: same as in test_read_interfaces.py: factor out into a shared helper
-@pytest.fixture(
-    scope="module",
-    params=destinations_configs(
-        default_sql_configs=True,
-        read_only_sqlclient_configs=True,
-        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
-    ),
-    ids=lambda x: x.name,
-)
-def destination_config(
-    request: pytest.FixtureRequest,
-) -> DestinationTestConfiguration:
-    config = cast(DestinationTestConfiguration, request.param)
+def _skip_unsupported(destination_config: DestinationTestConfiguration) -> None:
+    skip_if_unsupported_filesystem_format(destination_config)
     # TODO: remove once https://github.com/dlt-hub/dlt/pull/4011 is merged
-    if config.destination_type == "databricks":
+    if destination_config.destination_type == "databricks":
         pytest.skip("databricks foreign-key emission breaks this fixture. see dlt-hub/dlt#4011")
-    return config
-
-
-# TODO: same code in test_read_interfaces.py: factor out into a shared helper
-@pytest.fixture(scope="module")
-def preserve_module_environ_per_destination_config(
-    destination_config: DestinationTestConfiguration,
-) -> Any:
-    yield from _preserve_environ()
-
-
-# TODO: same code in test_read_interfaces.py: factor out into a shared helper
-def _skip_unsupported_filesystem(destination_config: DestinationTestConfiguration) -> None:
-    if (
-        destination_config.file_format not in ["parquet", "jsonl"]
-        and destination_config.destination_type == "filesystem"
-    ):
-        pytest.skip(
-            "filesystem read-only sqlclient requires jsonl or parquet; got"
-            f" {destination_config.file_format}"
-        )
 
 
 @pytest.fixture(scope="module")
@@ -80,7 +48,7 @@ def relational_pipeline(
     preserve_module_environ_per_destination_config: Any,
     auto_module_test_run_context: Any,
 ) -> Any:
-    _skip_unsupported_filesystem(destination_config)
+    _skip_unsupported(destination_config)
     pipeline = destination_config.setup_pipeline(
         "join_relational_pipeline", dataset_name="join_relational", dev_mode=True
     )
@@ -100,7 +68,7 @@ def crm_pipeline(
     preserve_module_environ_per_destination_config: Any,
     auto_module_test_run_context: Any,
 ) -> Any:
-    _skip_unsupported_filesystem(destination_config)
+    _skip_unsupported(destination_config)
     pipeline = destination_config.setup_pipeline(
         "join_crm_pipeline", dataset_name="join_crm", dev_mode=True
     )
@@ -123,7 +91,7 @@ def cross_dataset_pipelines(
     auto_module_test_run_context: Any,
 ) -> Any:
     """Two pipelines on the same physical destination, distinct dataset names."""
-    _skip_unsupported_filesystem(destination_config)
+    _skip_unsupported(destination_config)
     if destination_config.destination_type in ("filesystem", "lance", "lancedb"):
         pytest.skip(
             "cross-dataset joins are not supported on filesystem destinations"
