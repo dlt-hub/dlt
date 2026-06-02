@@ -129,6 +129,8 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
     dataset_name: Final[Optional[str]] = dataclasses.field(  # type: ignore
         default=None, init=False, repr=False, compare=False
     )
+    always_refresh_views: bool = False
+    """Recreates view before each query to it"""
 
     options: Optional[LanceDBClientOptions] = None
     """LanceDB client options."""

@@ -57,7 +57,10 @@ def get_lance_table_uri(lancedb_client: LanceDBClient, table_name: str) -> str:
 class LanceDBSQLClient(WithTableScanners):
     def __init__(self, lancedb_client: LanceDBClient) -> None:
         self.lancedb_client = lancedb_client
-        super().__init__(remote_client=lancedb_client, dataset_name=lancedb_client.dataset_name)
+        # schema-less (no dataset_name): host the read views in the ephemeral duckdb `main` schema
+        super().__init__(
+            remote_client=lancedb_client, dataset_name=lancedb_client.dataset_name or "main"
+        )
 
     def open_connection(self) -> DuckDBPyConnection:
         with self.credentials.conn_pool._conn_lock:
@@ -73,8 +76,8 @@ class LanceDBSQLClient(WithTableScanners):
         return True
 
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
-        # lance datasets are versioned, always refresh to get the latest data
-        return True
+        # views must be refreshed when schema evolves
+        return self.lancedb_client.config.always_refresh_views
 
     def create_view_select(
         self, table_schema: PreparedTableSchema, schema: Schema = None
