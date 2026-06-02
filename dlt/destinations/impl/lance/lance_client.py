@@ -124,27 +124,40 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def sql_client(self, client: SqlClientBase[Any]) -> None:
         self._sql_client = client
 
+    def make_namespace_id(self) -> List[str]:
+        """Returns namespace `id` for the dataset. Empty (root namespace) when `dataset_name` is
+        not set."""
+        return [] if self.dataset_name is None else [self.dataset_name]
+
     @raise_destination_error
     def list_dataset_namespace_tables(self) -> List[str]:
-        return self.namespace.list_tables(ListTablesRequest(id=[self.dataset_name])).tables
+        return self.namespace.list_tables(ListTablesRequest(id=self.make_namespace_id())).tables
 
     @raise_destination_error
     def create_dataset_namespace(self) -> None:
-        """Creates child namespace for dataset in root namespace."""
-        self.namespace.create_namespace(CreateNamespaceRequest(id=[self.dataset_name]))
+        """Creates child namespace for dataset in root namespace. No-op for the root namespace
+        (`dataset_name` not set) which always exists."""
+        if self.dataset_name is None:
+            return
+        self.namespace.create_namespace(CreateNamespaceRequest(id=self.make_namespace_id()))
 
     @raise_destination_error
     def drop_dataset_namespace(self) -> None:
-        """Drops dataset namespace after removing all its tables."""
+        """Drops dataset namespace after removing all its tables"""
         for table in self.list_dataset_namespace_tables():
             self.namespace.drop_table(DropTableRequest(id=self.make_table_id(table)))
-        self.namespace.drop_namespace(DropNamespaceRequest(id=[self.dataset_name]))
+        # for the root namespace (`dataset_name` not set) only the tables are dropped
+        if self.dataset_name is not None:
+            self.namespace.drop_namespace(DropNamespaceRequest(id=self.make_namespace_id()))
 
     @raise_destination_error
     def dataset_namespace_exists(self) -> bool:
         """Returns True if child namespace for dataset exists in root namespace."""
+        # the root namespace (`dataset_name` not set) always exists
+        if self.dataset_name is None:
+            return True
         try:
-            self.namespace.namespace_exists(NamespaceExistsRequest(id=[self.dataset_name]))
+            self.namespace.namespace_exists(NamespaceExistsRequest(id=self.make_namespace_id()))
             return True
         except Exception as e:
             if is_lance_undefined_entity_exception(e):
@@ -178,7 +191,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     def make_table_id(self, table_name: str) -> List[str]:
         """Returns namespace `table_id` for given table name."""
-        return [self.dataset_name, table_name]
+        return [*self.make_namespace_id(), table_name]
 
     def get_table_schema(self, table_name: str) -> pa.Schema:
         return self.open_lance_dataset(table_name, branch_name=self.config.branch_name).schema
@@ -251,7 +264,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         This provides access to LanceDB-specific features like vector search.
         """
         db = LanceNamespaceDBConnection(self.namespace, storage_options=self.config.storage_options)
-        return db.open_table(table_name, namespace=[self.dataset_name])
+        return db.open_table(table_name, namespace=self.make_namespace_id())
 
     @raise_destination_error
     def _write_records(
@@ -467,21 +480,24 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         applied_update: TSchemaTables = {}
         for table_name in only_tables or self.schema.tables:
             table_exists = self.table_exists(table_name)
-            # diff against the destination: for a new table all columns are new
+
+            # create new table if it doesn't exist
+            if not table_exists:
+                self.create_table(table_name, self.make_arrow_table_schema(table_name))
+
+            # create branch if needed before diffing: a new branch forks from main and inherits
+            # its schema, so columns must be read from the branch *after* it exists
+            if branch_name := self.config.branch_name:
+                self.create_branch_if_not_exists(table_name, branch_name)
+
+            # diff against the destination (branch, if configured): for a new table all columns
+            # are new
             existing_columns = self.get_storage_table(table_name)[1] if table_exists else {}
             new_columns = self.schema.get_new_table_columns(
                 table_name,
                 existing_columns,
                 self.capabilities.generates_case_sensitive_identifiers(),
             )
-
-            # create new table if it doesn't exist
-            if not table_exists:
-                self.create_table(table_name, self.make_arrow_table_schema(table_name))
-
-            # create branch if needed
-            if branch_name := self.config.branch_name:
-                self.create_branch_if_not_exists(table_name, branch_name)
 
             # add new columns to existing table (on the branch if configured)
             if table_exists and new_columns:
