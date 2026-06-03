@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional
 
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
@@ -6,6 +6,24 @@ from sqlglot.schema import Schema as SQLGlotSchema
 from dlt.common.destination.capabilities import TCasefoldIdentifier
 from dlt.common.libs.sqlglot import bind_query
 from dlt.destinations.sql_client import SqlClientBase
+
+
+def make_expand_table_name(
+    sql_client: SqlClientBase[Any],
+) -> Callable[[str, Optional[str]], List[str]]:
+    """Create a `bind_query` table name expander bound to `sql_client`."""
+
+    def _expand(table_name: str, db: Optional[str] = None) -> List[str]:
+        if db is None:
+            # omit dataset name if not provided for backward compatibility
+            return sql_client.make_qualified_table_name_path(
+                table_name, quote=False, casefold=False
+            )
+        return sql_client.make_qualified_table_name_path(
+            table_name, quote=False, casefold=False, dataset_name=db
+        )
+
+    return _expand
 
 
 def _normalize_query(
@@ -19,16 +37,10 @@ def _normalize_query(
 
     TODO: remove after next dlthub release
     """
-
-    def _expand(table_name: str, db: Optional[str] = None) -> List[str]:
-        return sql_client.make_qualified_table_name_path(
-            table_name, quote=False, casefold=False, dataset_name=db
-        )
-
     return bind_query(
         qualified_query,
         sqlglot_schema,
-        expand_table_name=_expand,
+        expand_table_name=make_expand_table_name(sql_client),
         casefold_identifier=casefold_identifier,
     )
 

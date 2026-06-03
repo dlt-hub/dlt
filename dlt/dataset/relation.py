@@ -36,7 +36,7 @@ from dlt.common.typing import Self, TSortOrder, TypedDict
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSchemas, WithSqlClient
-from dlt.destinations.queries import bind_query, build_select_expr
+from dlt.destinations.queries import bind_query, build_select_expr, make_expand_table_name
 from dlt.common.destination.dataset import SupportsDataAccess
 from dlt.dataset._incremental import (
     _build_incremental_aggregate,
@@ -272,16 +272,10 @@ class Relation(WithSqlClient):
             query = self.sqlglot_expression
         else:
             _, _qualified_query = _get_relation_output_columns_schema(self)
-
-            def _expand(table_name: str, db: Optional[str] = None) -> list[str]:
-                return self.sql_client.make_qualified_table_name_path(
-                    table_name, quote=False, casefold=False, dataset_name=db
-                )
-
             query = bind_query(
                 qualified_query=_qualified_query,
                 sqlglot_schema=self._relation_sqlglot_schema(),
-                expand_table_name=_expand,
+                expand_table_name=make_expand_table_name(self.sql_client),
                 casefold_identifier=self.sql_client.capabilities.casefold_identifier,
             )
 
