@@ -329,11 +329,22 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             s3_url_style = aws_creds.s3_url_style or "path"
 
             if isinstance(aws_creds, AwsCredentials) and aws_creds.has_default_credentials():
-                # let DuckDB resolve credentials from botocore's default chain
+                # let DuckDB resolve credentials from botocore's default chain.
+                # REFRESH auto re-runs the chain when temporary credentials expire,
+                # so long-held connections (e.g. streaming Arrow batches for hours
+                # on ECS task roles / EKS IRSA / EC2 instance profile) don't fail
+                # with HTTP 400 ExpiredToken on subsequent S3 GETs. The option
+                # was added in DuckDB 1.1.0, so guard for older versions.
+                refresh_stmt = (
+                    "REFRESH auto,"
+                    if Version(duckdb.__version__) >= Version("1.1.0")
+                    else ""
+                )
                 sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE S3,
                     PROVIDER credential_chain,
+                    {refresh_stmt}
                     REGION '{aws_creds.region_name}',
                     ENDPOINT '{endpoint}',
                     SCOPE '{scope}',
