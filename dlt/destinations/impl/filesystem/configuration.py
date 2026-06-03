@@ -2,6 +2,7 @@ import dataclasses
 
 import os
 from typing import Dict, Optional, Type
+from urllib.parse import urlparse
 
 from dlt.common.typing import DictStrAny, DictStrOptionalStr
 
@@ -48,16 +49,16 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
         return super().resolve_credentials_type()
 
     def physical_location(self) -> str:
-        """Returns scheme://netloc for remote filesystems, or "" for local."""
+        """Returns scheme://netloc for remote filesystems, or the absolute local path."""
         if not self.bucket_url:
             return ""
 
         if self.is_local_path(self.bucket_url):
-            return ""
-
-        from urllib.parse import urlparse
+            return self.make_local_path(self.make_file_url(self.bucket_url))
 
         url = urlparse(self.bucket_url)
+        if url.scheme == "file":
+            return self.make_local_path(self.bucket_url)
         return f"{url.scheme}://{url.netloc}"
 
     def can_join_with(self, other: DestinationClientConfiguration) -> bool:

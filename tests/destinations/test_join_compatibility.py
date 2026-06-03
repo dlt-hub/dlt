@@ -1,6 +1,7 @@
 """Tests for destination configuration-level join-compatibility semantics."""
 
-from typing import Callable, cast, Optional
+import os
+from typing import Callable, cast, Optional, Union
 
 from typing_extensions import TypeAlias
 
@@ -12,6 +13,7 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
 )
 from dlt.common.destination.client import DestinationClientConfiguration
+from dlt.common.runtime.run_context import active
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
 from dlt.common.warnings import Dlt100DeprecationWarning
 from dlt.dataset.dataset import Dataset, is_same_physical_destination
@@ -90,6 +92,7 @@ from dlt.destinations.impl.weaviate.configuration import (
 
 
 ConfigFactory: TypeAlias = Callable[[], DestinationClientConfiguration]
+ExpectedLocation: TypeAlias = Union[str, Callable[[], str]]
 
 
 class _PhysicalDestinationConfig(DestinationClientConfiguration):
@@ -382,7 +385,9 @@ PHYSICAL_DEST_CASES = [
         id="fs_remote",
     ),
     pytest.param(
-        lambda: FilesystemDestinationClientConfiguration(bucket_url="/local/p"), "", id="fs_local"
+        lambda: FilesystemDestinationClientConfiguration(bucket_url="local/p"),
+        lambda: os.path.join(os.path.abspath(active().local_dir), "local/p"),
+        id="fs_local",
     ),
     # DuckLake
     pytest.param(
@@ -435,7 +440,9 @@ PHYSICAL_DEST_CASES = [
 
 
 @pytest.mark.parametrize("factory,expected", PHYSICAL_DEST_CASES)
-def test_physical_location(factory: ConfigFactory, expected: str) -> None:
+def test_physical_location(factory: ConfigFactory, expected: ExpectedLocation) -> None:
+    if callable(expected):
+        expected = expected()
     assert factory().physical_location() == expected
 
 
