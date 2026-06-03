@@ -606,8 +606,13 @@ def test_changing_write_disposition_with_refresh(
     pipeline.run(
         [1, 2, 3], table_name="items", write_disposition="append", **destination_config.run_kwargs
     )
+    # `primary_key` is required by the `upsert` merge strategy
     pipeline.run(
-        [1, 2, 3], table_name="items", write_disposition="merge", **destination_config.run_kwargs
+        [1, 2, 3],
+        table_name="items",
+        write_disposition="merge",
+        primary_key="value",
+        **destination_config.run_kwargs,
     )
 
 
