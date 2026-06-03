@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Sequence, Set, TypeVar, Union
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Sequence, Set, Union
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -15,8 +15,6 @@ if TYPE_CHECKING:
     from dlt.dataset.relation import TJoinType
 
 _INTERMEDIATE_JOIN_ALIAS_PREFIX = "_dlt_int_t"
-
-_TExpr = TypeVar("_TExpr", bound=sge.Expression)
 
 
 class _JoinTarget(NamedTuple):
@@ -455,9 +453,8 @@ def _apply_join(
     return query
 
 
-def _qualify_physical_tables_with_dataset(expression: _TExpr, dataset_name: str) -> _TExpr:
+def _qualify_physical_tables_with_dataset(expression: sge.Expression, dataset_name: str) -> None:
     """Bind every physical table reference in `expression` to `dataset_name`."""
-    expression = expression.copy()
     cte_names = {cte.alias_or_name for cte in expression.find_all(sge.CTE)}
     db_identifier = sge.to_identifier(dataset_name, quoted=False)
     for table in expression.find_all(sge.Table):
@@ -466,7 +463,6 @@ def _qualify_physical_tables_with_dataset(expression: _TExpr, dataset_name: str)
         if table.args.get("db"):
             continue
         table.set("db", db_identifier.copy())
-    return expression
 
 
 def _left_source_qualifier(query: sge.Query) -> Optional[str]:
@@ -538,7 +534,8 @@ def _apply_explicit_join(
         destination_dialect: Dialect for parsing string ON expressions.
         left_dataset_name: Dataset name for the left-hand side.
     """
-    query = _qualify_physical_tables_with_dataset(_copy_as_select(expression), left_dataset_name)
+    query = _copy_as_select(expression)
+    _qualify_physical_tables_with_dataset(query, left_dataset_name)
 
     from_this = _from_source(query)
     if not isinstance(from_this, sge.Table):
@@ -566,9 +563,9 @@ def _apply_explicit_join(
     target_expr: sge.Expression
     if target.subquery is not None:
         # transformed relation: embed its query as a subquery
-        rhs_inner = target.subquery
+        rhs_inner = target.subquery.copy()
         if target_dataset_name:
-            rhs_inner = _qualify_physical_tables_with_dataset(rhs_inner, target_dataset_name)
+            _qualify_physical_tables_with_dataset(rhs_inner, target_dataset_name)
         target_expr = _aliased_subquery(rhs_inner, target_qualifier)
     else:
         target_expr = sge.Table(

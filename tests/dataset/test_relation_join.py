@@ -1173,6 +1173,29 @@ def test_explicit_on_with_filtered_rhs(
     assert list(df["orders__amount"]) == [75.0, 200.0]
 
 
+def test_explicit_on_does_not_mutate_transformed_rhs(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    expensive_orders = ds.table("orders").where("amount", "gt", 50.0)
+    rhs_sql_before = expensive_orders.to_sql()
+    assert expensive_orders.sqlglot_expression.parent is None
+
+    joined = ds.table("customers").join(
+        expensive_orders, on="customers.customer_id = orders.customer_id"
+    )
+
+    # the join leaves the RHS relation untouched
+    assert expensive_orders.sqlglot_expression.parent is None
+    assert expensive_orders.to_sql() == rhs_sql_before
+
+    joined_again = ds.table("customers").join(
+        expensive_orders, on="customers.customer_id = orders.customer_id", alias="o2"
+    )
+    assert list(joined.df()["orders__amount"]) == [75.0, 200.0]
+    assert list(joined_again.df()["o2__amount"]) == [75.0, 200.0]
+
+
 def test_explicit_on_with_projected_lhs_preserves_left_projection(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
