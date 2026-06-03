@@ -519,8 +519,11 @@ class Relation(WithSqlClient):
 
             if not self._dataset.is_same_physical_destination(target_dataset):
                 raise ValueError(
-                    "Cannot join relations from different physical destinations: "
-                    f"'{target_dataset.dataset_name}' vs '{self._dataset.dataset_name}'"
+                    "Cannot join relations from different physical destinations: dataset"
+                    f" '{self._dataset.dataset_name}' on"
+                    f" '{self._dataset.destination_client.config}' vs dataset"
+                    f" '{target_dataset.dataset_name}' on"
+                    f" '{target_dataset.destination_client.config}'"
                 )
 
             is_foreign = not self._dataset._is_same_dataset(target_dataset)
@@ -582,7 +585,9 @@ class Relation(WithSqlClient):
                 "foreign dataset to automatically register its schema."
             )
 
-        raise ValueError("`other` must be a table name or a base table relation.")
+        raise ValueError(
+            f"`other` must be a table name or a `dlt.Relation`, got `{type(other).__name__}`."
+        )
 
     def incremental(self, incremental: Incremental[Any]) -> Self:
         """Filter this relation to a cursor range using an Incremental.

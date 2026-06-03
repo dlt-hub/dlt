@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Sequence, Set, Unio
 
 import sqlglot
 import sqlglot.expressions as sge
+from sqlglot.errors import ParseError, TokenError
 
 from dlt.common.typing import TypedDict
 from dlt.common.schema import Schema, utils as schema_utils
@@ -573,9 +574,17 @@ def _apply_explicit_join(
         )
 
     if isinstance(on, str):
-        on_expr = sqlglot.parse_one(on, dialect=destination_dialect)
+        try:
+            on_expr = sqlglot.parse_one(on, dialect=destination_dialect)
+        except (ParseError, TokenError) as e:
+            raise ValueError(f"Cannot parse `on` join condition `{on}`: {e}") from e
     else:
         on_expr = on
+    if not isinstance(on_expr, sge.Condition):
+        raise ValueError(
+            f"`on` join condition `{on_expr.sql(destination_dialect)}` must be an SQL boolean"
+            " expression (e.g. `left.col = right.col`)."
+        )
 
     join_expr = sge.Join(this=target_expr, kind=kind.upper()).on(on_expr)
     query = query.join(join_expr)

@@ -1,6 +1,6 @@
 import tempfile
 import pathlib
-from typing import Any, Sequence, Callable, TypedDict, Optional
+from typing import Any, Sequence, Callable, TypedDict, Optional, Union
 
 import pytest
 import sqlglot
@@ -260,8 +260,11 @@ def test_join_rejects_same_name_on_different_physical_destinations() -> None:
         assert ds_a.dataset_name == ds_b.dataset_name
         assert not ds_a.is_same_physical_destination(ds_b)
 
-        with pytest.raises(ValueError, match="different physical destinations"):
+        with pytest.raises(ValueError, match="different physical destinations") as exc_info:
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
+
+        assert "a.duckdb" in str(exc_info.value)
+        assert "b.duckdb" in str(exc_info.value)
 
 
 def test_join_rejects_cross_dataset_on_filesystem() -> None:
@@ -370,7 +373,7 @@ def test_resolve_reference_chain_rejects_unrelated_tables(
         pytest.param(
             lambda ds: ds.table("users"),
             123,
-            "`other` must be a table name or a base table relation",
+            "`other` must be a table name or a `dlt.Relation`, got `int`",
             id="invalid-other-type",
         ),
         pytest.param(
@@ -1491,13 +1494,25 @@ def test_self_join_requires_distinct_qualifiers(
     assert sorted(df["mgr__name"]) == ["Alice", "Alice"]
 
 
-@pytest.mark.parametrize("on", ["", "   "], ids=["empty", "whitespace"])
+@pytest.mark.parametrize(
+    "on,match",
+    [
+        pytest.param("", "non-empty SQL expression", id="empty"),
+        pytest.param("   ", "non-empty SQL expression", id="whitespace"),
+        pytest.param("customers.id = (((", "Cannot parse `on`", id="unparsable"),
+        pytest.param("SELECT 1", "must be an SQL boolean expression", id="select-string"),
+        pytest.param(
+            sqlglot.select("1"), "must be an SQL boolean expression", id="select-expression"
+        ),
+    ],
+)
 def test_explicit_on_rejects_invalid_on_expression(
     dataset_with_relational_tables: dlt.Dataset,
-    on: str,
+    on: Union[str, sge.Expression],
+    match: str,
 ) -> None:
     ds = dataset_with_relational_tables
-    with pytest.raises(ValueError, match="non-empty SQL expression"):
+    with pytest.raises(ValueError, match=match):
         ds.table("customers").join("orders", on=on)
 
 
