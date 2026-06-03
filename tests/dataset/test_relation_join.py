@@ -264,6 +264,35 @@ def test_join_rejects_same_name_on_different_physical_destinations() -> None:
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
 
 
+def test_join_rejects_cross_dataset_on_filesystem() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        destination = dlt.destinations.filesystem(str(tmp_path / "data"))
+
+        pipeline_a = dlt.pipeline(
+            pipeline_name="fs_cross_ds_a",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=destination,
+            dataset_name="fs_crm",
+        )
+        pipeline_a.run([{"id": 1, "name": "Alice"}], table_name="users")
+
+        pipeline_b = dlt.pipeline(
+            pipeline_name="fs_cross_ds_b",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=destination,
+            dataset_name="fs_inv",
+        )
+        pipeline_b.run([{"order_id": 10, "user_id": 1}], table_name="orders")
+
+        ds_a = pipeline_a.dataset()
+        ds_b = pipeline_b.dataset()
+        assert ds_a.is_same_physical_destination(ds_b)
+
+        with pytest.raises(ValueError, match="not supported on the `filesystem` destination"):
+            ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
+
+
 @pytest.mark.parametrize(
     "dataset_with_loads,left,right,expected_targets",
     [

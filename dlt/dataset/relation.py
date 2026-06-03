@@ -527,7 +527,8 @@ class Relation(WithSqlClient):
             is_foreign = not self._dataset._is_same_dataset(target_dataset)
             if is_foreign and isinstance(self.sql_client, WithSchemas):
                 raise ValueError(
-                    "Cross-dataset joins are not supported on filesystem destinations."
+                    "Cross-dataset joins are not supported on the"
+                    f" `{self._dataset._destination.destination_name}` destination."
                 )
 
             target_table = other._table_name
