@@ -386,7 +386,7 @@ PHYSICAL_DEST_CASES = [
     ),
     pytest.param(
         lambda: FilesystemDestinationClientConfiguration(bucket_url="local/p"),
-        lambda: os.path.join(os.path.abspath(active().local_dir), "local/p"),
+        lambda: os.path.join(os.path.abspath(active().local_dir), "local", "p"),
         id="fs_local",
     ),
     # DuckLake
