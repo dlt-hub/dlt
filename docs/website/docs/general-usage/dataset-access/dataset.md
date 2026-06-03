@@ -218,7 +218,7 @@ The right-hand side can be a table name, a table relation, or a relation you alr
 
 Refer to the right-hand side in `on` by its source qualifier: the joined table's name, or the alias you gave it in a `dataset.query(...)`. A relation with no identifiable source, for example a constant `dataset.query("SELECT 1 AS id")` that has no `FROM` is exposed under the qualifier `subquery`, so write `subquery.<column>` in `on`.
 
-The left-hand side can be a table relation, a relation chained from one with `where()`, `select()`, `order_by()`, and similar methods, or a `dataset.query("...")` that reads from a single table.
+The left-hand side can be a table relation, a relation chained from one with `where()`, `select()`, `order_by()`, and similar methods, or a `dataset.query("...")` that reads from a single table or an aliased derived table (for example `FROM (SELECT ...) AS totals`).
 
 :::note
 Write the column and table names in `on` using their dlt schema names: the normalized identifiers you pass to `dataset.table(...)` and see in the dataset's schema, not the original field names from your source. With the default snake_case naming the two usually match, but under a name-mutating [naming convention](../naming-convention.md) you must use the normalized form.

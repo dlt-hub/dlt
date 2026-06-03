@@ -541,12 +541,12 @@ def _apply_explicit_join(
     _qualify_physical_tables_with_dataset(query, left_dataset_name)
 
     from_this = _from_source(query)
-    if not isinstance(from_this, sge.Table):
+    left_source_qualifier = _source_qualifier(from_this)
+    if left_source_qualifier is None:
         raise ValueError(
-            "Cannot apply explicit join: left-side query must have a base table "
-            "in its FROM clause (not a subquery or derived table)."
+            "Cannot apply explicit join: left-side query must have a named source "
+            "in its FROM clause (a base table or an aliased derived table)."
         )
-    left_source_qualifier = _source_qualifier(from_this) or from_this.name
 
     where_must_apply_before_join = kind in ("right", "full") and query.args.get("where") is not None
     if not _is_flat_select(query) or where_must_apply_before_join:

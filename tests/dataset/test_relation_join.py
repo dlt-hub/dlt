@@ -1455,6 +1455,25 @@ def test_explicit_on_with_aggregated_lhs(
     assert "amount" not in df.columns
 
 
+def test_explicit_on_chains_after_wrapped_lhs(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    """A second join composes onto a left side already embedded as a derived table."""
+    ds = dataset_with_relational_tables
+    order_totals = ds.query(
+        "SELECT customer_id, SUM(amount) AS total FROM orders GROUP BY customer_id"
+    )
+    joined = order_totals.join("customers", on="orders.customer_id = customers.customer_id").join(
+        "countries", on="customers.country_code = countries.code"
+    )
+    df = joined.order_by("customer_id").df()
+
+    assert len(df) == 3
+    assert [float(x) for x in df["total"]] == [125.0, 200.0, 30.0]
+    assert list(df["customers__name"]) == ["Alice", "Bob", "Charlie"]
+    assert list(df["countries__name"]) == ["Germany", "France", "Germany"]
+
+
 def test_explicit_on_with_distinct_lhs(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
@@ -1611,13 +1630,21 @@ def test_explicit_on_rejects_unknown_dotted_string_dataset(
         )
 
 
-def test_explicit_on_rejects_subquery_from_lhs(
+def test_explicit_on_with_derived_table_lhs(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
     ds = dataset_with_relational_tables
     derived = ds.query("SELECT * FROM (SELECT * FROM customers) AS sub")
-    with pytest.raises(ValueError, match="must have a base table"):
-        derived.join("orders", on="sub.customer_id = orders.customer_id")
+    joined = derived.join("orders", on="sub.customer_id = orders.customer_id")
+    df = joined.order_by("orders__order_id").df()
+
+    assert list(df["name"]) == ["Alice", "Alice", "Bob", "Charlie"]
+    assert [float(x) for x in df["orders__amount"]] == [50.0, 75.0, 200.0, 30.0]
+
+    # an unaliased derived table exposes no qualifier for `on` to reference
+    unaliased = ds.query("SELECT * FROM (SELECT * FROM customers)")
+    with pytest.raises(ValueError, match="named source"):
+        unaliased.join("orders", on="customers.customer_id = orders.customer_id")
 
 
 @pytest.mark.parametrize(
