@@ -15,7 +15,7 @@ Both methods require a configured workspace — see [Workspace setup](workspace-
 
 ## Quick deploy: ad-hoc launch
 
-The fastest way to run an existing script on the dltHub platform is to point `launch` or `serve` at a Python file:
+The fastest way to run an existing script on the dltHub platform is to point `run` or `serve` at a Python file:
 
 ```sh
 # Deploy and run a batch script (uses `prod` profile)
