@@ -572,6 +572,78 @@ def test_limit_then_join_applies_limit_before_join(
     assert sorted(df["products__id"]) == expected_product_ids
 
 
+_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN = pytest.mark.xfail(
+    reason=(
+        "magic join does not wrap a filtered left relation as a derived table, so its WHERE is "
+        "evaluated after the join and drops unmatched right-side rows of right/full joins"
+    ),
+    strict=True,
+)
+
+
+@pytest.mark.parametrize(
+    "build_join,kind,expected_product_ids",
+    [
+        pytest.param(
+            lambda rel, kind: rel.join("products", kind=kind),
+            "left",
+            [10, 12],
+            id="magic-left",
+        ),
+        pytest.param(
+            lambda rel, kind: rel.join("products", kind=kind),
+            "right",
+            [10, 11, 12],
+            id="magic-right",
+            marks=_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN,
+        ),
+        pytest.param(
+            lambda rel, kind: rel.join("products", kind=kind),
+            "full",
+            [10, 11, 12],
+            id="magic-full",
+            marks=_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN,
+        ),
+        pytest.param(
+            lambda rel, kind: rel.join(
+                "products", on="categories.id = products.category_id", kind=kind
+            ),
+            "left",
+            [10, 12],
+            id="explicit-on-left",
+        ),
+        pytest.param(
+            lambda rel, kind: rel.join(
+                "products", on="categories.id = products.category_id", kind=kind
+            ),
+            "right",
+            [10, 11, 12],
+            id="explicit-on-right",
+        ),
+        pytest.param(
+            lambda rel, kind: rel.join(
+                "products", on="categories.id = products.category_id", kind=kind
+            ),
+            "full",
+            [10, 11, 12],
+            id="explicit-on-full",
+        ),
+    ],
+)
+def test_filter_then_join_applies_filter_before_join(
+    dataset_with_incomplete_join_target: dlt.Dataset,
+    build_join: Callable[[dlt.Relation, TJoinType], dlt.Relation],
+    kind: TJoinType,
+    expected_product_ids: list[int],
+) -> None:
+    """`.where()` must filter the left relation before joining, not the joined result."""
+    filtered = dataset_with_incomplete_join_target.table("categories").where("id", "eq", 1)
+    df = build_join(filtered, kind).df()
+
+    assert len(df) == len(expected_product_ids)
+    assert sorted(df["products__id"]) == expected_product_ids
+
+
 def test_windowed_lhs_join_applies_window_before_join(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:

@@ -548,7 +548,8 @@ def _apply_explicit_join(
         )
     left_source_qualifier = _source_qualifier(from_this) or from_this.name
 
-    if not _is_flat_select(query):
+    where_must_apply_before_join = kind in ("right", "full") and query.args.get("where") is not None
+    if not _is_flat_select(query) or where_must_apply_before_join:
         query = _wrap_as_derived_table(query, left_source_qualifier)
 
     _qualify_unscoped_predicate_columns(query, left_source_qualifier)
