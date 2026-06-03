@@ -13,6 +13,7 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
+from dlt.common.warnings import Dlt100DeprecationWarning
 from dlt.dataset.dataset import Dataset, is_same_physical_destination
 from dlt.destinations.impl.postgres.configuration import (
     PostgresClientConfiguration,
@@ -249,9 +250,11 @@ def test_is_same_physical_location_delegates_to_can_join_with() -> None:
     config1 = _StringyPhysicalDestinationConfig("host1", "first-display")
     config2 = _StringyPhysicalDestinationConfig("host1", "second-display")
     assert str(config1) != str(config2)
-    assert is_same_physical_destination(
-        cast(Dataset, _DatasetStub(config1)), cast(Dataset, _DatasetStub(config2))
-    )
+
+    with pytest.warns(Dlt100DeprecationWarning, match="can_join_with"):
+        assert is_same_physical_destination(
+            cast(Dataset, _DatasetStub(config1)), cast(Dataset, _DatasetStub(config2))
+        )
 
 
 # physical_location() extraction across destinations
