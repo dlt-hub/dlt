@@ -569,6 +569,20 @@ def test_limit_then_join_applies_limit_before_join(
     assert sorted(df["products__id"]) == expected_product_ids
 
 
+def test_windowed_lhs_join_applies_window_before_join(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    ds = dataset_with_relational_tables
+    numbered = ds.query(
+        "SELECT customer_id, name, ROW_NUMBER() OVER (ORDER BY name) AS rn FROM customers"
+    )
+    joined = numbered.join("orders", on="customers.customer_id = orders.customer_id")
+    df = joined.order_by("orders__order_id").df()
+
+    assert len(df) == 4
+    assert [int(x) for x in df["rn"]] == [1, 1, 2, 3]
+
+
 def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
     dataset, _, _ = dataset_with_loads
     with pytest.raises(ValueError, match="must be a non-empty string"):
@@ -2012,3 +2026,112 @@ def test_cross_dataset_chain_same_named_tables_disambiguated(
     assert "marketing__segment" in df.columns
     assert list(df["users__name"]) == ["Alice", "Alice", "Bob"]
     assert list(df["marketing__segment"]) == ["pro", "pro", "free"]
+
+
+@pytest.mark.parametrize(
+    "build_local_join,local_table,check_column,expected_values",
+    [
+        pytest.param(
+            lambda ds, rel: rel.join("users", on="orders.user_id = users.id"),
+            "users",
+            "users__name",
+            ["Alice", "Bob"],
+            id="bare-table-name",
+        ),
+        pytest.param(
+            lambda ds, rel: rel.join(f"{ds.dataset_name}.users", on="orders.user_id = users.id"),
+            "users",
+            "users__name",
+            ["Alice", "Bob"],
+            id="dataset-qualified-string",
+        ),
+        pytest.param(
+            lambda ds, rel: rel.join(
+                ds.query("SELECT * FROM users AS u"), on="orders.user_id = u.id"
+            ),
+            "users",
+            "u__name",
+            ["Alice", "Bob"],
+            id="aliased-local-query",
+        ),
+        pytest.param(
+            lambda ds, rel: rel.join("_dlt_loads", on="orders._dlt_load_id = _dlt_loads.load_id"),
+            "_dlt_loads",
+            "_dlt_loads__status",
+            [0, 0],
+            id="dlt-loads-system-table",
+        ),
+    ],
+)
+def test_cross_dataset_join_then_local_join_to_same_named_table(
+    build_local_join: Callable[[dlt.Dataset, dlt.Relation], dlt.Relation],
+    local_table: str,
+    check_column: str,
+    expected_values: list[Any],
+) -> None:
+    """A local join target shadowed by a same-named foreign table must bind to the local dataset."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        db_path = str(tmp_path / "shadowed.duckdb")
+
+        pipeline_crm = dlt.pipeline(
+            pipeline_name="shadowed_local_target_a",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(db_path),
+            dataset_name="crm_data",
+        )
+        pipeline_crm.run(
+            [{"order_id": 1, "user_id": 1}, {"order_id": 2, "user_id": 2}],
+            table_name="orders",
+        )
+        pipeline_crm.run(
+            [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}],
+            table_name="users",
+        )
+
+        pipeline_mkt = dlt.pipeline(
+            pipeline_name="shadowed_local_target_b",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(db_path),
+            dataset_name="mkt_data",
+        )
+        pipeline_mkt.run(
+            [{"id": 1, "segment": "pro"}, {"id": 2, "segment": "free"}],
+            table_name="users",
+        )
+
+        ds_crm = pipeline_crm.dataset()
+        ds_mkt = pipeline_mkt.dataset()
+
+        foreign_joined = ds_crm.table("orders").join(
+            ds_mkt.query("SELECT * FROM users AS mkt_users"),
+            on="orders.user_id = mkt_users.id",
+            alias="marketing",
+        )
+        joined = build_local_join(ds_crm, foreign_joined)
+
+        sql = joined.to_sql()
+        assert f'"{ds_crm.dataset_name}"."{local_table}"' in sql, sql
+
+        df = joined.order_by("order_id").df()
+        assert list(df[check_column]) == expected_values
+        assert list(df["marketing__segment"]) == ["pro", "free"]
+
+
+def test_magic_join_after_cross_dataset_resolves_local_target(
+    same_named_cross_dataset_duckdb: TCrossDsFixture,
+) -> None:
+    """A magic join target shadowed by a same-named foreign table must bind to the local dataset."""
+    ds_crm, ds_marketing = same_named_cross_dataset_duckdb
+    marketing = ds_marketing.query("SELECT * FROM users AS mkt_users")
+
+    joined = (
+        ds_crm.table("users__orders")
+        .join(marketing, on="mkt_users.id = 1", alias="marketing", kind="left")
+        .join("users")
+    )
+    df = joined.order_by("order_id").df()
+
+    assert len(df) == 3
+    assert list(df["users__name"]) == ["Alice", "Alice", "Bob"]
+    assert list(df["marketing__segment"]) == ["pro", "pro", "pro"]

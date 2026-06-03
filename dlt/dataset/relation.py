@@ -53,6 +53,7 @@ from dlt.dataset._join import (
     _extract_joined_table_aliases,
     _JoinTarget,
     _left_source_qualifier,
+    _qualify_physical_tables_with_dataset,
 )
 
 
@@ -487,6 +488,10 @@ class Relation(WithSqlClient):
                 destination_dialect=self.destination_dialect,
                 left_dataset_name=self._dataset.dataset_name,
             )
+
+        # bind tables left unqualified (e.g. magic join targets) to the local dataset so
+        # lineage stays unambiguous once foreign schemas are registered
+        _qualify_physical_tables_with_dataset(query, self._dataset.dataset_name)
 
         rel = self.__copy__()
         rel._sqlglot_expression = query

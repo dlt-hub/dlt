@@ -481,7 +481,7 @@ def _is_flat_select(query: sge.Select) -> bool:
         query.args.get(key) for key in ("group", "having", "qualify", "distinct", "limit", "offset")
     ):
         return False
-    return not any(sel.find(sge.AggFunc) for sel in query.selects)
+    return not any(sel.find(sge.AggFunc, sge.Window) for sel in query.selects)
 
 
 def _qualify_unscoped_predicate_columns(query: sge.Select, source_qualifier: str) -> None:
@@ -560,23 +560,16 @@ def _apply_explicit_join(
             "qualifier is unambiguous."
         )
 
-    target_dataset_name = target.dataset_name if target.is_foreign else None
-
     target_expr: sge.Expression
     if target.subquery is not None:
         # transformed relation: embed its query as a subquery
         rhs_inner = target.subquery.copy()
-        if target_dataset_name:
-            _qualify_physical_tables_with_dataset(rhs_inner, target_dataset_name)
+        _qualify_physical_tables_with_dataset(rhs_inner, target.dataset_name)
         target_expr = _aliased_subquery(rhs_inner, target_qualifier)
     else:
         target_expr = sge.Table(
             this=sge.to_identifier(target.table_name, quoted=True),
-            db=(
-                sge.to_identifier(target_dataset_name, quoted=False)
-                if target_dataset_name
-                else None
-            ),
+            db=sge.to_identifier(target.dataset_name, quoted=False),
         )
 
     if isinstance(on, str):
