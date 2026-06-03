@@ -26,7 +26,7 @@ Scaffolds a local workspace with the dltHub AI Workbench, example pipelines, and
 
 dltHub is an agent-native data engineering platform for building, running, and operating production-grade data pipelines. The toolchain is designed to be driven from coding agents — Claude Code, Codex, and Cursor — through [scaffolding commands](../ingestion/init.md) and [per-source context files](../ingestion/rest-api-source.md). A developer or analyst comfortable with Python and a coding agent can build and operate ingestion, [transformations](../transformations/index.md), [quality checks](../data-quality/index.md), and data apps end-to-end without managing infrastructure.
 
-Context — source schemas, annotations, transformation logic, and run metadata — propagates from the data source through transformations to the serving layer. Downstream tools, dashboards, and agents can reason about upstream intent without re-discovering it.
+Context — source schemas, annotations, transformation logic, and run metadata — propagates from the data source through transformations to the serving layer. Downstream tools, dashboards, and agents can reason about upstream intent without rediscovering it.
 
 dltHub is built around the open-source library [dlt](../../intro.md). It reuses the same core concepts ([sources](../../general-usage/source.md), [destinations](../../general-usage/destination.md), [pipelines](../../general-usage/pipeline.md)) and extends the extract-and-load focus of `dlt` with:
 
@@ -58,19 +58,17 @@ On dltHub, users can:
 For an end-to-end walkthrough, watch the [dltHub demo](https://youtu.be/rmpiFSCV8aA), take the [dltHub agentic data engineering course](https://dlthub.learnworlds.com/course/agentic-data-engineering), or sign in to the [dltHub platform](https://app.dlthub.com) to deploy a workspace.
 :::
 
-To get started quickly, follow the [installation instructions](installation.md).
-
 ## Design principles
 
 dltHub is designed around three principles:
 
 - **Transparent and context-aware.** Pipelines, sources, and transformations are plain Python you can inspect, customize, and extend — no black-box abstractions. [Schemas](../../general-usage/schema.md), annotations, run metadata, and traces propagate from the data source through transformations to the serving layer, so both developers and agents can reason about upstream intent and downstream impact without re-deriving it from prompts
 - **Modular and composable.** [Sources](../../general-usage/source.md), [destinations](../../general-usage/destination.md), [transformations](../transformations/index.md), and platform components are independent building blocks. Adopt only the parts you need and integrate the rest with the surrounding ecosystem ([dbt](../transformations/dbt-transformations.md), Ibis, [marimo](../../general-usage/dataset-access/marimo.md), Streamlit, your own destinations)
-- **Agent guardrails with humans in the loop.** Agent-driven workflows include explicit checkpoints — sample runs, generated-code inspection, redacted-secrets commands — so AI-assisted development stays observable and reviewable. Deterministic tooling is used wherever probabilistic behavior is not reliable enough (for example, secrets handling)
+- **Agent guardrails with humans in the loop.** Agent-driven workflows include explicit checkpoints — sample runs, generated-code inspection, redacted-secrets commands — so AI-assisted development stays observable and reviewable. Deterministic tooling is used wherever probabilistic behavior isn't reliable enough (for example, secrets handling)
 
 ## Capabilities
 
-dltHub covers the end-to-end data workflow. Features marked _in public preview_ are broadly available with mature documentation and intended for real workloads, but are not yet fully hardened — expect occasional minor breaking changes. For upcoming features see the [dltHub roadmap](https://dlthub.com/roadmap).
+dltHub covers the end-to-end data workflow. Features marked _in public preview_ are broadly available with mature documentation and intended for real workloads, but aren't yet fully hardened — expect occasional minor breaking changes. For upcoming features see the [dltHub roadmap](https://dlthub.com/roadmap).
 
 ### [Ingestion pipeline development](../ingestion/init.md)
 

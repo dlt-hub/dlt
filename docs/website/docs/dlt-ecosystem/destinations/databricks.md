@@ -344,9 +344,9 @@ Databricks supports the following table hints:
 
 Databricks supports the following column hints:
 
-- `primary_key` - adds a primary key constraint to the column in Unity Catalog.
+- `primary_key` - adds a primary key constraint to the column in Unity Catalog (requires `create_indexes=true`, see the note below).
 - `description` - adds a description to the column. This can also be done by using the adapter parameter `table_comment`.
-- `references` - adds a foreign key constraint to the column in Unity Catalog.
+- `references` - adds a foreign key constraint to the column in Unity Catalog (requires `create_indexes=true`, see the note below).
 - `not_null` - adds a not null constraint to the column.
 - `cluster` - adds a clustering constraint to the column. This can also be done by using the adapter parameter `cluster`.
 

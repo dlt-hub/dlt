@@ -353,6 +353,11 @@ const sidebars = {
           label: "Overview",
         },
         {
+          type: "doc",
+          id: "walkthroughs/deploy-a-pipeline/deploy-with-dlthub",
+          label: "dltHub",
+        },
+        {
           type: "category",
           label: "Snowflake",
           description: "How to run dlt in Snowflake.",
