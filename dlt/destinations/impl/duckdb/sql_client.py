@@ -336,9 +336,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 # with HTTP 400 ExpiredToken on subsequent S3 GETs. The option
                 # was added in DuckDB 1.1.0, so guard for older versions.
                 refresh_stmt = (
-                    "REFRESH auto,"
-                    if Version(duckdb.__version__) >= Version("1.1.0")
-                    else ""
+                    "REFRESH auto," if Version(duckdb.__version__) >= Version("1.1.0") else ""
                 )
                 sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
