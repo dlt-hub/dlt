@@ -492,6 +492,54 @@ def test_join_does_not_project_incomplete_target_columns(
     assert len(rows) == 3
 
 
+_MAGIC_LIMIT_LEAKS_PAST_JOIN = pytest.mark.xfail(
+    reason=(
+        "magic join does not wrap a limited left relation as a derived table, so LIMIT is "
+        "rendered on the joined query instead of the limited left relation"
+    ),
+    strict=True,
+)
+
+
+@pytest.mark.parametrize(
+    "build_join,expected_product_ids",
+    [
+        pytest.param(
+            lambda ds: ds.table("categories").order_by("id").limit(1).join("products"),
+            [10, 12],
+            id="magic",
+            marks=_MAGIC_LIMIT_LEAKS_PAST_JOIN,
+        ),
+        pytest.param(
+            lambda ds: ds.table("categories")
+            .order_by("id")
+            .limit(1)
+            .join("products", on="categories.id = products.category_id"),
+            [10, 12],
+            id="explicit-on-limit",
+        ),
+        pytest.param(
+            lambda ds: ds.query("SELECT * FROM categories ORDER BY id LIMIT 1 OFFSET 1").join(
+                "products", on="categories.id = products.category_id"
+            ),
+            [11],
+            id="explicit-on-limit-offset",
+        ),
+    ],
+)
+def test_limit_then_join_applies_limit_before_join(
+    dataset_with_incomplete_join_target: dlt.Dataset,
+    build_join: Callable[[dlt.Dataset], dlt.Relation],
+    expected_product_ids: list[int],
+) -> None:
+    """`.limit(n)` must bound the left relation before joining, not cap the joined result."""
+    relation = build_join(dataset_with_incomplete_join_target)
+    df = relation.df()
+
+    assert len(df) == len(expected_product_ids)
+    assert sorted(df["products__id"]) == expected_product_ids
+
+
 def test_join_rejects_empty_alias(dataset_with_loads: TLoadsFixture) -> None:
     dataset, _, _ = dataset_with_loads
     with pytest.raises(ValueError, match="must be a non-empty string"):
