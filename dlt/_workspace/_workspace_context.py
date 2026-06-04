@@ -45,6 +45,9 @@ class WorkspaceRunContext(ProfilesRunContext):
         self._global_dir = global_dir()
         self._config: WorkspaceConfiguration = None
 
+    def __repr__(self) -> str:
+        return f"<WorkspaceRunContext(run_dir={self.run_dir!r}, profile={self._profile!r})>"
+
     @property
     def name(self) -> str:
         """Defines workspace name which is (normalized) parent folder name"""

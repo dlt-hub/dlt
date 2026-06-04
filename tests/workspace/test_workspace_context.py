@@ -345,3 +345,24 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     run_context_unpickled = pickle.loads(pickled_)
     assert dict(context.runtime_config) == dict(run_context_unpickled.runtime_config)
     assert dict(context.config) == dict(run_context_unpickled.config)
+
+
+def test_workspace_run_context_repr() -> None:
+    # Test repr with default profile
+    with isolated_workspace("default") as ctx:
+        result = repr(ctx)
+        # must match the exact format specified in the issue
+        assert result == f"<WorkspaceRunContext(run_dir={ctx.run_dir!r}, profile={ctx._profile!r})>"
+        # must contain the actual values to be useful
+        assert ctx.run_dir in result
+        assert ctx._profile in result
+        # must follow Python convention: < > wrapping means object can't be re-instantiated
+        assert result.startswith("<WorkspaceRunContext(")
+        assert result.endswith(")>")
+
+    # Test repr reflects the correct profile when non-default profile is used
+    with isolated_workspace("default", profile="dev") as ctx:
+        result = repr(ctx)
+        assert "dev" in result
+        assert ctx.run_dir in result
+        assert result == f"<WorkspaceRunContext(run_dir={ctx.run_dir!r}, profile={ctx._profile!r})>"
