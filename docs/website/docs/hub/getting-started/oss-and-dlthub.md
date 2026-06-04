@@ -5,10 +5,10 @@ keywords: [dlt, dlthub, open source, source available, pricing, license, workspa
 ---
 
 :::note
-**dltHub offers two products**: dlt (open source) and **dltHub** (commercial, license-gated). This page explains both products and how they relate.
+**dltHub offers two products**: dlt (open source) and **dltHub** (commercial). This page explains both products and how they relate.
 
 - **dlt** — the open source ingestion library, Apache 2.0.
-- **dltHub** — the agentic platform that deploys, monitors, and scales dlt pipelines, with a managed runtime, data quality, transformations, and AI tooling for coding agents. **All dltHub components are license-gated.**
+- **dltHub** — the agentic platform that deploys, monitors, and scales dlt pipelines, with a managed runtime, data quality, transformations, and AI tooling for coding agents. [**All dltHub components are available with a commercial license.**](../license.md)
 :::
 
 ## The two products at a glance
@@ -49,8 +49,9 @@ dltHub is a managed cloud platform for running your dlt pipelines, transformatio
   This creates a runnable workspace with the AI Workbench, example pipelines, and the [`dlt[hub]`](installation.md) extra installed. To add dltHub to an existing project instead, run:
   ```sh
   pip install "dlt[hub]"
+  dlthub init
   ```
-  Either way, you get the dltHub workspace and dashboard, the AI development tooling (`dlthub ai`, MCP server, AI Workbench), per-source contexts, and the `dlthub` library that adds data quality, transformations, and premium sources/destinations. 
+  Either way, you get the dltHub workspace and dashboard, the AI development tooling (`dlthub ai`, MCP server, AI Workbench), per-source contexts, and the `dlthub` library that adds data quality, transformations, and premium sources/destinations.
 
 Every component below is part of dltHub and requires a license. Most components are source-available under their own licenses; all are distributed through the `dlthub` PyPI package or the dltHub repositories.
 

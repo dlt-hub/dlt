@@ -62,6 +62,42 @@ See [profiles in dltHub](./profiles.md) for details, and [Workspace setup](works
 
 Both are versioned separately, so you can update code without changing secrets and vice versa.
 
+## Command line fundamentals
+
+The `dlthub` CLI is split into two scopes:
+
+- **local** — `dlthub local ...` operates on the **local workspace** (files in `.dlt/`, your machine's pipeline working dirs, local profiles).
+- **remote** — `dlthub ...` (unqualified) operates on the **connected dltHub workspace** (the cloud deployment, configurations, jobs, runs).
+
+Most actions and entities exist in both scopes: running a job, serving an interactive app, inspecting workspace state, listing pipelines. Use the local scope to validate jobs before pushing them to the cloud.
+
+Verbs have consistent meaning regardless of the scope or the entity they operate on:
+
+| Verb | Meaning |
+|------|---------|
+| `info` | Print structured information about the entity (workspace, job, run, deployment, configuration) |
+| `list` | Enumerate entities |
+| `run` | Execute a batch job or pipeline |
+| `serve` | Start an interactive job (notebook, dashboard, MCP server, REST app) |
+| `show` | Open the GUI / human-readable interface (web dashboard remotely, marimo view locally) for the entity |
+| `clean` | Remove local artefacts (e.g. wipe pipeline working dirs and locally loaded data) |
+| `sync` | Push local changes to the cloud counterpart |
+| `cancel` | Cancel an in-flight job or run |
+| `connect` | Bind a local entity to a remote one |
+| `deploy` | Push the deployment manifest to the cloud |
+
+The local/remote split makes most pages of this guide read in pairs:
+
+| Local | Remote |
+|-------|--------|
+| `dlthub local run [<selector_or_job>]` | `dlthub run [<selector_or_job>]` |
+| `dlthub local serve [<selector_or_job>]` | `dlthub serve [<selector_or_job>]` |
+| `dlthub local pipeline run <pipeline_name>` | `dlthub pipeline run <pipeline_name>` |
+| `dlthub local info` | `dlthub workspace info` |
+| `dlthub local show` | `dlthub show` |
+
+Run the local form first to catch missing dependencies, misconfigured destinations, or broken decorators without burning a remote slot.
+
 ## Web UI
 
 Visit [app.dlthub.com](https://app.dlthub.com) to access the web dashboard. It provides workspace overview, jobs and runs management, run details with execution logs, deployment & config inspection, pipeline dashboards, and workspace settings.
@@ -116,3 +152,5 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 - **UI operations**: new jobs must currently be created via the CLI; once a job exists, subsequent runs can be triggered from the Web UI (and schedules can be changed there too)
 - **Pagination**: list views are paginated; the page size can be adjusted in the Web UI
 - **Log latency**: logs typically lag a few seconds during execution and are guaranteed complete after the run finishes (completed or failed state)
+- **One workspace per repo**: a single GitHub repository can only be connected to one remote workspace at a time; reconnecting deactivates jobs deployed under the previous binding — see [Workspace setup](workspace-setup.md#3-log-in-to-the-dlthub-platform)
+- **No drift detection**: the CLI does not yet detect whether local code differs from remote. Run `dlthub workspace deployment sync` (or any `run` / `serve` / `deploy`) to ensure your latest code is deployed
