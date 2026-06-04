@@ -4,6 +4,7 @@ from typing import Any, ClassVar, Dict, Final, List, Optional
 from dlt.common.configuration import configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.specs import AwsCredentials
+from dlt.common.utils import digest128
 from dlt.destinations.impl.athena.utils import is_s3_tables_catalog
 
 
@@ -69,6 +70,13 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
         if region:
             return f"{region}/{catalog}"
+        return ""
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the physical Athena location."""
+        physical_location = self.physical_location()
+        if physical_location:
+            return digest128(physical_location)
         return ""
 
     def __str__(self) -> str:

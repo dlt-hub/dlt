@@ -2,7 +2,6 @@ from typing import Optional
 
 import pytest
 
-from dlt.common.utils import digest128
 from dlt.destinations.impl.duckdb.configuration import (
     DuckDbClientConfiguration,
     DuckDbCredentials,
@@ -18,12 +17,12 @@ pytestmark = pytest.mark.essential
         pytest.param(None, "", id="empty"),
         pytest.param(
             DuckDbCredentials(":memory:"),
-            digest128(":memory:"),
+            "",
             id="memory_database",
         ),
         pytest.param(
             DuckDbCredentials("local.duckdb"),
-            digest128("local.duckdb"),
+            "",
             id="database_path",
         ),
     ],

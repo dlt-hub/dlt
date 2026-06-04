@@ -14,6 +14,7 @@ from dlt.common.destination.client import (
 )
 from dlt.common.storages.configuration import WithLocalFiles
 from dlt.common.typing import Annotated
+from dlt.common.utils import digest128
 from dlt.common.warnings import DltDeprecationWarning
 
 if TYPE_CHECKING:
@@ -286,6 +287,13 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
             if port:
                 return f"{host}:{port}"
             return host
+        return ""
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the physical SQLAlchemy location."""
+        physical_location = self.physical_location()
+        if physical_location:
+            return digest128(physical_location)
         return ""
 
     def can_join_with(self, other: DestinationClientConfiguration) -> bool:

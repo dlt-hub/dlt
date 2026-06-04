@@ -59,7 +59,6 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
 from dlt.common.typing import is_optional_type
-from dlt.common.utils import digest128
 
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
 
@@ -168,11 +167,11 @@ class DestinationClientConfiguration(BaseConfiguration):
         """Returns a non-secret physical location identity, or "" when unavailable."""
         return ""
 
+    # TODO: If we ever clean up fingerprinting across all destinations, consider making
+    # the default `digest128(self.physical_location())`. This will break telemetry
+    # semantics, so it must be a deliberate cutover.
     def fingerprint(self) -> str:
-        """Returns a hash of physical_location(), or "" when unavailable."""
-        phys_loc = self.physical_location()
-        if phys_loc:
-            return digest128(phys_loc)
+        """Returns a destination fingerprint derived from selected configuration fields."""
         return ""
 
     def can_join_with(self, other: "DestinationClientConfiguration") -> bool:
