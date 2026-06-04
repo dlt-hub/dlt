@@ -201,7 +201,7 @@ class FilesystemConfiguration(BaseConfiguration):
         "sftp": SFTPCredentials,
     }
 
-    bucket_url: str = None
+    bucket_url: str = "."
 
     # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
     credentials: FileSystemCredentials = None

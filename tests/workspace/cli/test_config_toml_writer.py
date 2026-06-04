@@ -236,11 +236,8 @@ role = "<configure me>" # fill this in!
         is_default_of_interest=True,
     )
 
-    # bucket_url is mandatory, same for aws credentials
-    assert example_toml.as_string() == """[filesystem]
-bucket_url = "<configure me>" # fill this in!
-
-[filesystem.credentials]
+    # bucket_url now defaults to "." , same for aws credentials
+    assert example_toml.as_string() == """[filesystem.credentials]
 aws_access_key_id = "<configure me>" # fill this in!
 aws_secret_access_key = "<configure me>" # fill this in!
 """
