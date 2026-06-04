@@ -45,17 +45,17 @@ Once your workspace is scaffolded, you'll have two familiar `toml` files in `.dl
 **Anything you place in those files is visible to all profiles**. For example, if you place
 `log_level="INFO"` in `config.toml`, it applies to all profiles. Only when you want certain settings to vary across profiles (for example, `INFO` level for development, `WARNING` for production) do you need to create profile-specific `toml` files.
 
-**dltHub Workspace** predefines several profiles, and together with the **dltHub platform**, assigns them specific functions:
+**dltHub Workspace** predefines several profiles. `dev` and `tests` are local-only and never uploaded; `prod`, `access`, and any custom profile referenced in a job decorator are synchronized to the cloud configuration on every `dlthub deploy`.
 
-| Profile      | Description                                                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **`dev`**    | Default profile for local development.                                                                                               |
-| **`prod`**   | Production profile, [used by the dltHub platform to run pipelines](./workspace-setup.md#understanding-workspace-profiles).         |
-| **`tests`**  | Profile for automated test runs and CI/CD.                                                                                           |
-| **`access`** | Read-only production profile [for interactive notebooks on the dltHub platform](./workspace-setup.md#understanding-workspace-profiles). |
+| Profile      | Scope            | Description                                                                                                                          |
+| ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **`dev`**    | Local only       | Default profile for local development.                                                                                               |
+| **`tests`**  | Local only       | Profile for automated test runs and CI/CD.                                                                                           |
+| **`prod`**   | Synced to cloud  | Production profile, [used by the dltHub platform to run batch pipelines](./workspace-setup.md#understanding-workspace-profiles).         |
+| **`access`** | Synced to cloud  | Read-only production profile [for interactive notebooks on the dltHub platform](./workspace-setup.md#understanding-workspace-profiles). |
 
 :::note
-The `dev` profile is active by default when you create a workspace. The others become active when pinned or automatically selected by the dltHub platform.
+The `dev` profile is active by default when you create a workspace. The others become active when pinned locally or automatically selected by the dltHub platform (`prod` for batch jobs, `access` for interactive ones).
 :::
 
 View available profiles:
@@ -241,7 +241,7 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 ## Best practices
 
 * Use **`dev`** for local testing and experimentation.
-* Use **`prod`** for production jobs and runtime environments.
+* Use **`prod`** for production jobs on the dltHub platform.
 * Keep secrets in separate `<profile>.secrets.toml` files—never in code.
 * Use **named destinations** (like `warehouse`) to simplify switching.
 * Commit `config.toml`, but exclude all `.secrets.toml` files.

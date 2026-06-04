@@ -136,6 +136,10 @@ const sidebars = {
           type: "category",
           label: "SQL database",
           description: "PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more",
+          link: {
+            type: "doc",
+            id: "dlt-ecosystem/verified-sources/sql_database/index",
+          },
           items: [
             "dlt-ecosystem/verified-sources/sql_database/setup",
             "dlt-ecosystem/verified-sources/sql_database/configuration",
