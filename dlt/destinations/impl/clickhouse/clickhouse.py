@@ -302,8 +302,8 @@ class ClickHouseStagingReplaceJob(SqlStagingReplaceFollowupJob):
     """Atomic staging-optimized replace via `EXCHANGE TABLES`.
 
     Requires the destination database to use the `Atomic` or `Shared` engine.
-    The follow-up `TRUNCATE` clears the (now-old) data left in the staging slot
-    so it does not retain previous production data between loads.
+    The previous destination data lands in the staging slot after the swap; dlt
+    truncates staging tables at the start of the next load.
     """
 
     @classmethod
@@ -318,7 +318,6 @@ class ClickHouseStagingReplaceJob(SqlStagingReplaceFollowupJob):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
             sql.append(f"EXCHANGE TABLES {staging_table_name} AND {table_name}")
-            sql.append(f"TRUNCATE TABLE {staging_table_name}")
         return sql
 
 
