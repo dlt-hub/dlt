@@ -361,15 +361,34 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
         return self.storage.fingerprint() if self.storage else ""
 
     def physical_location(self) -> str:
-        """Returns the resolved Lance catalog root."""
+        """Returns the Lance catalog root which identifies the namespace."""
+        # for `rest` catalogs the location is the namespace server uri
+        if self.catalog_type == "rest":
+            if isinstance(self.credentials, RestCatalogCredentials) and self.credentials.uri:
+                return f"rest:{self.credentials.uri.rstrip('/')}"
+            return ""
+
+        # for `dir` catalogs the explicit manifest root takes precedence
+        catalog_root: Optional[str] = None
         if (
             isinstance(self.credentials, DirectoryCatalogCredentials)
             and self.credentials.bucket_url
         ):
-            return f"{self.catalog_type}:{self.credentials.bucket_url.rstrip('/')}"
+            catalog_root = self.credentials.bucket_url
+        elif self.storage and self.storage.bucket_url:
+            # same fallback as on_resolved: catalog colocates with data storage
+            catalog_root = self.storage.namespace_uri
+        if catalog_root:
+            return f"{self.catalog_type}:{catalog_root.rstrip('/')}"
         return ""
 
-    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+    def can_write_from(self, other: DestinationClientConfiguration) -> bool:
+        """Lance does not have an engine that can write. `dlt` is that engine,
+        and returning False here enforces its usage.
+        """
+        return False
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
         """Returns True for the same Lance catalog and bound dlt dataset."""
         if not isinstance(other, LanceClientConfiguration):
             return False
@@ -379,4 +398,6 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
         if not self_loc or not other_loc or self_loc != other_loc:
             return False
 
+        # TODO: remove the dataset check when cross dataset joins are implemented. any
+        # dataset (namespace) under the same catalog root is readable via the same ATTACH
         return self.dataset_name == other.dataset_name
