@@ -3,6 +3,7 @@ from types import ModuleType
 from typing import Any, Dict, List, Optional
 
 from dlt.common import known_env
+from dlt.common.utils import simple_repr
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.provider import ConfigProvider
@@ -46,7 +47,7 @@ class WorkspaceRunContext(ProfilesRunContext):
         self._config: WorkspaceConfiguration = None
 
     def __repr__(self) -> str:
-        return f"<WorkspaceRunContext(run_dir={self.run_dir!r}, profile={self._profile!r})>"
+        return simple_repr("WorkspaceRunContext", run_dir=self.run_dir, profile=self.profile)
 
     @property
     def name(self) -> str:
