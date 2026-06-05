@@ -1,9 +1,10 @@
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Union
 from unittest.mock import patch
 
 import pytest
 from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.resolve import initialize_credentials
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs import (
     ConnectionStringCredentials,
@@ -26,7 +27,6 @@ from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
 from tests.utils import TEST_DICT_CONFIG_PROVIDER, preserve_environ
 from tests.common.utils import json_case_path
 from tests.common.configuration.utils import ConnectionStringCompatCredentials, environment
-
 
 SERVICE_JSON = """
   {
@@ -320,6 +320,76 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
     gcpc_3 = GcpOAuthCredentials()
     gcpc_3.parse_native_representation(OAUTH_USER_INFO % '"refresh_token": "refresh_token",')
     assert dict(gcpc_3) == dict(gcpc_2)
+
+
+def test_gcp_oauth_credentials_reject_service_account_json(environment: Any) -> None:
+    # oauth spec must reject a service account json so a credentials union falls
+    # through to GcpServiceAccountCredentials instead of mis-parsing here (#3328)
+    with pytest.raises(InvalidGoogleOauth2Json):
+        GcpOAuthCredentials().parse_native_representation(
+            SERVICE_JSON
+            % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",'
+        )
+    # the "type" field identifies it even without a private key
+    with pytest.raises(InvalidGoogleOauth2Json):
+        GcpOAuthCredentialsWithoutDefaults().parse_native_representation(SERVICE_JSON % "")
+
+
+def test_gcp_service_credentials_reject_oauth_json(environment: Any) -> None:
+    # service account spec must reject oauth user/app info so a credentials union
+    # falls through to GcpOAuthCredentials instead of mis-parsing here (#3328)
+    with pytest.raises(InvalidGoogleServicesJson):
+        GcpServiceAccountCredentials().parse_native_representation(
+            OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",'
+        )
+    with pytest.raises(InvalidGoogleServicesJson):
+        GcpServiceAccountCredentialsWithoutDefaults().parse_native_representation(
+            OAUTH_USER_INFO % '"refresh_token": "refresh_token",'
+        )
+
+
+def test_gcp_credentials_union_resolves_to_correct_type(environment: Any) -> None:
+    # a service account json must resolve to the service account spec and oauth
+    # info to the oauth spec, whatever the order in the union (#3328)
+    hint = Union[GcpServiceAccountCredentials, GcpOAuthCredentials]
+
+    sa = initialize_credentials(
+        hint,
+        SERVICE_JSON
+        % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",',
+    )
+    assert isinstance(sa, GcpServiceAccountCredentials)
+    assert sa.client_email == "loader@iam.gserviceaccount.com"
+
+    oauth = initialize_credentials(hint, OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",')
+    assert isinstance(oauth, GcpOAuthCredentials)
+    assert (
+        oauth.client_id
+        == "921382012504-3mtjaj1s7vuvf53j88mgdq4te7akkjm3.apps.googleusercontent.com"
+    )
+
+
+def test_gcp_credentials_from_file_path(environment: Any, tmp_path: Any) -> None:
+    # credentials given as a path to a json file are read from disk (#3328)
+    sa_file = tmp_path / "service.json"
+    sa_file.write_text(
+        SERVICE_JSON
+        % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",',
+        encoding="utf-8",
+    )
+    gcpc = GcpServiceAccountCredentials()
+    gcpc.parse_native_representation(str(sa_file))
+    assert gcpc.client_email == "loader@iam.gserviceaccount.com"
+    assert gcpc.project_id == "chat-analytics"
+
+    oauth_file = tmp_path / "oauth.json"
+    oauth_file.write_text(
+        OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",', encoding="utf-8"
+    )
+    gcoauth = GcpOAuthCredentials()
+    gcoauth.parse_native_representation(str(oauth_file))
+    assert gcoauth.client_secret == "gOCSPX-XdY5znbrvjSMEG3pkpA_GHuLPPth"
+    assert gcoauth.refresh_token == "refresh_token"
 
 
 def test_needs_scopes_for_refresh_token() -> None:
