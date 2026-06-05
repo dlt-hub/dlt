@@ -75,6 +75,22 @@ def test_group_orders_commands_deterministically() -> None:
     assert list(sub.keys()) == [("pipeline", "info"), ("workspace", "show")]
 
 
+def test_group_sort_preserves_within_group_order() -> None:
+    # Sorting keys must not reorder commands within a group: group[0] stays the
+    # primary command and the `extend` execute order is preserved (see #3454).
+    record: List[str] = []
+    a = _make_command(name="b", compose_mode="extend", record=record, label="A")
+    b = _make_command(name="b", compose_mode="extend", record=record, label="B")
+    c = _make_command(name="a")
+
+    top, _ = group_commands([a, b, c])
+
+    assert list(top.keys()) == ["a", "b"]  # keys sorted
+    node = configure_parser(argparse.ArgumentParser(), top["b"])
+    node.execute(argparse.Namespace())
+    assert record == ["A", "B"]  # within-group order untouched by the sort
+
+
 def test_classify_groups_same_command_name() -> None:
     a = _make_command(name="x", compose_mode="extend")
     b = _make_command(name="x", compose_mode="extend")
