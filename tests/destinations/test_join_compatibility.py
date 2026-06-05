@@ -395,6 +395,12 @@ PHYSICAL_DEST_CASES = [
         "eu-central-1/awsdatacatalog",
         id="athena_default_catalog",
     ),
+    # catalog names are case-insensitive, AWS docs spell the default `AwsDataCatalog`
+    pytest.param(
+        lambda: _athena_config("eu-central-1", "AwsDataCatalog"),
+        "eu-central-1/awsdatacatalog",
+        id="athena_catalog_casefolded",
+    ),
     # Dremio
     pytest.param(
         lambda: DremioClientConfiguration(credentials=DremioCredentials("grpc://h")),
@@ -794,6 +800,13 @@ ATHENA_JOIN_CASES = [
         lambda: _athena_config("us-west-2", "c2"),
         False,
         id="athena_diff_catalog",
+    ),
+    # catalog names are case-insensitive
+    pytest.param(
+        lambda: _athena_config("us-west-2", "AwsDataCatalog"),
+        lambda: _athena_config("us-west-2", "awsdatacatalog"),
+        True,
+        id="athena_catalog_case_insensitive",
     ),
     pytest.param(
         lambda: AthenaClientConfiguration(

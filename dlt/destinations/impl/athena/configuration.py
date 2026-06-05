@@ -63,7 +63,8 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     def physical_location(self) -> str:
         """Returns region/catalog, or "" when region is unavailable."""
-        catalog = self.aws_data_catalog or DEFAULT_AWS_DATA_CATALOG
+        # athena catalog names are case-insensitive, AWS docs spell the default `AwsDataCatalog`
+        catalog = (self.aws_data_catalog or DEFAULT_AWS_DATA_CATALOG).lower()
         region = None
         if self.credentials:
             region = self.credentials.region_name
