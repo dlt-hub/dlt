@@ -136,7 +136,7 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
             return digest128(self.credentials.password)
         return ""
 
-    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
         """Returns True for MotherDuck configs with the same token."""
         if not isinstance(other, MotherDuckClientConfiguration):
             return False
@@ -148,6 +148,11 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
             return False
 
         return self_token == other_token
+
+    def can_write_from(self, other: "DestinationClientConfiguration") -> bool:
+        # motherduck will be able to write from any attached duckdb
+        # until ATTACH is implemented we require the same token which is used as identity
+        return super().can_read_from(other)
 
 
 class MotherDuckCatalogMissing(NativeValueError):
