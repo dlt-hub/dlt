@@ -218,4 +218,4 @@ In production, the Cloudflare worker (`worker.ts`) redirects the legacy `/plus/`
 
 ## Page overlays (Root.js)
 
-`src/theme/Root.js` wraps the entire Docusaurus app to inject page-specific modal overlays. Currently it adds a floating button on the `/docs/walkthroughs/create-a-pipeline` page that opens a Loom video walkthrough for creating a pipeline with GPT-4. The overlay configuration is a simple object mapping URL paths to `{buttonTitle, title, loomId, text}`.
+`src/theme/Root.js` wraps the entire Docusaurus app to inject page-specific modal overlays, e.g. a floating button that opens a Loom video walkthrough for the page. The overlay configuration is a simple object mapping URL paths to `{buttonTitle, title, loomId, text}` (currently empty).

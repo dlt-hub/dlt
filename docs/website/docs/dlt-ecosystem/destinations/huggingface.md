@@ -6,7 +6,7 @@ keywords: [hugging face, hf, datasets, parquet, filesystem, hub]
 
 # Hugging Face
 
-The Hugging Face destination loads data into [Hugging Face Datasets](https://huggingface.co/docs/datasets/index) repositories. It is built on top of the [filesystem](filesystem) destination and uses the `hf://` protocol to write [Parquet](../file-formats/parquet) files to the Hugging Face Hub.
+The Hugging Face destination loads data into [Hugging Face Datasets](https://huggingface.co/docs/datasets/index) repositories. It is built on top of the [filesystem](filesystem) destination and uses the `hf://` protocol to write [Parquet](../file-formats.md#parquet) files to the Hugging Face Hub.
 
 :::note
 Because this destination extends `filesystem`, most filesystem concepts (file layouts, write dispositions, dlt state sync, etc.) apply here. This page covers the Hugging Face-specific behavior and configuration. Refer to the [filesystem destination docs](filesystem) for the full feature set.
@@ -91,7 +91,7 @@ The Hugging Face destination supports two write dispositions:
 
 ## File format
 
-The Hugging Face destination **always uses [Parquet](../file-formats/parquet)** as the file format, regardless of other configuration. This is required because the [Hugging Face dataset viewer](https://huggingface.co/docs/dataset-viewer/index) needs Parquet files to preview datasets on the Hub.
+The Hugging Face destination **always uses [Parquet](../file-formats.md#parquet)** as the file format, regardless of other configuration. This is required because the [Hugging Face dataset viewer](https://huggingface.co/docs/dataset-viewer/index) needs Parquet files to preview datasets on the Hub.
 
 The Parquet files are written with:
 - **Page index** ([Apache Parquet page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md)) for efficient column statistics and skipping

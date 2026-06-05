@@ -6,7 +6,7 @@ keywords: [tutorial, schema]
 
 # Manually edit a schema
 
-When you [create](create-a-pipeline.md) and then [run](run-a-pipeline.md) a pipeline, you may want
+When you [create](../tutorial/load-data-from-an-api.md) and then [run](run-a-pipeline.md) a pipeline, you may want
 to manually inspect and change the [schema](../general-usage/schema.md) that `dlt` generated for
 you. Here's how you do it.
 

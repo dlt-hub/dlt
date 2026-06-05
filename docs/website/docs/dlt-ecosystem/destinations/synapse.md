@@ -141,8 +141,8 @@ Data is loaded via `INSERT` statements by default.
 > 💡 Multi-row `INSERT INTO ... VALUES` statements are **not** possible in Synapse, because it doesn't support the [Table Value Constructor](https://learn.microsoft.com/en-us/sql/t-sql/queries/table-value-constructor-transact-sql). `dlt` uses `INSERT INTO ... SELECT ... UNION` statements as described [here](https://stackoverflow.com/a/73579830) to work around this limitation.
 
 ## Supported file formats
-* [insert-values](../file-formats/insert-format.md) is used by default
-* [Parquet](../file-formats/parquet.md) is used when [staging](#staging-support) is enabled
+* [insert-values](../file-formats.md#sql-insert) is used by default
+* [Parquet](../file-formats.md#parquet) is used when [staging](#staging-support) is enabled
 
 ## Data type limitations
 * **Synapse cannot load `TIME` columns from Parquet files**. `dlt` will fail such jobs permanently. Use the `insert_values` file format instead, or convert `datetime.time` objects to `str` or `datetime.datetime` to load `TIME` columns.
