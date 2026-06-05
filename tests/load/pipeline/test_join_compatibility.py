@@ -131,7 +131,11 @@ def _run_two_pipeline_check(
     first_destination: Optional[TDestinationReferenceArg],
     second_destination: Optional[TDestinationReferenceArg],
     expected: bool,
+    expected_write: Optional[bool] = None,
 ) -> None:
+    # by default SQL write capability follows read capability
+    if expected_write is None:
+        expected_write = expected
     test_id = uniq_id()
     first_pipeline = destination_config.setup_pipeline(
         "join_first_" + test_id,
@@ -159,8 +163,10 @@ def _run_two_pipeline_check(
 
     first_config = first_pipeline.dataset().destination_client.config
     second_config = second_pipeline.dataset().destination_client.config
-    assert first_config.can_join_with(second_config) is expected
-    assert second_config.can_join_with(first_config) is expected
+    assert first_config.can_read_from(second_config) is expected
+    assert second_config.can_read_from(first_config) is expected
+    assert first_config.can_write_from(second_config) is expected_write
+    assert second_config.can_write_from(first_config) is expected_write
 
 
 @pytest.mark.parametrize(
@@ -176,7 +182,11 @@ def test_same_database_join_compatibility(
     first_destination, second_destination = _make_same_database_destinations(
         destination_config, tmp_path, test_id
     )
-    _run_two_pipeline_check(destination_config, first_destination, second_destination, True)
+    # filesystem at the same location is readable but dlt is the only writing engine
+    expected_write = False if destination_config.destination_type == "filesystem" else None
+    _run_two_pipeline_check(
+        destination_config, first_destination, second_destination, True, expected_write
+    )
 
 
 @pytest.mark.parametrize(
@@ -184,14 +194,15 @@ def test_same_database_join_compatibility(
     FILESYSTEM_DIFFERENT_LOCATION_JOIN_COMPATIBILITY_CONFIGS,
     ids=lambda x: x.name,
 )
-def test_filesystem_different_location_join_compatibility(
+def test_filesystem_different_location_not_compatible(
     destination_config: DestinationTestConfiguration,
     tmp_path: Path,
 ) -> None:
+    # reading across filesystem locations requires auto ATTACH in the duckdb view layer
     first_destination, second_destination = _make_filesystem_different_location_destinations(
         tmp_path, uniq_id()
     )
-    _run_two_pipeline_check(destination_config, first_destination, second_destination, True)
+    _run_two_pipeline_check(destination_config, first_destination, second_destination, False)
 
 
 @pytest.mark.parametrize(

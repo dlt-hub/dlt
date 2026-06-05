@@ -80,9 +80,11 @@ from dlt.destinations.impl.lancedb.configuration import (
     LanceDBCredentials,
 )
 from dlt.destinations.impl.lance.configuration import (
+    DEFAULT_LANCE_NAMESPACE_NAME,
     DirectoryCatalogCredentials,
     LanceClientConfiguration,
     LanceStorageConfiguration,
+    RestCatalogCredentials,
 )
 from dlt.destinations.impl.qdrant.configuration import QdrantClientConfiguration
 from dlt.destinations.impl.weaviate.configuration import (
@@ -126,15 +128,15 @@ class _DatasetStub:
 def assert_joinable(
     config1: DestinationClientConfiguration, config2: DestinationClientConfiguration
 ) -> None:
-    assert config1.can_join_with(config2)
-    assert config2.can_join_with(config1)
+    assert config1.can_read_from(config2)
+    assert config2.can_read_from(config1)
 
 
 def assert_not_joinable(
     config1: DestinationClientConfiguration, config2: DestinationClientConfiguration
 ) -> None:
-    assert not config1.can_join_with(config2)
-    assert not config2.can_join_with(config1)
+    assert not config1.can_read_from(config2)
+    assert not config2.can_read_from(config1)
 
 
 def assert_join_result(
@@ -160,10 +162,12 @@ def _ducklake_creds(
     catalog_str: str,
     name: str = DEFAULT_DUCKLAKE_NAME,
     storage_url: Optional[str] = None,
+    metadata_schema: Optional[str] = None,
 ) -> DuckLakeCredentials:
     """Build DuckLake credentials."""
     return DuckLakeCredentials(
         ducklake_name=name,
+        metadata_schema=metadata_schema,
         catalog=ConnectionStringCredentials(catalog_str),
         storage=(
             FilesystemConfigurationWithLocalFiles(bucket_url=storage_url) if storage_url else None
@@ -223,6 +227,30 @@ def _lance_config(catalog_root: str, dataset_name: str = "dataset") -> LanceClie
     return c
 
 
+def _lance_rest_config(
+    uri: Optional[str], dataset_name: str = "dataset"
+) -> LanceClientConfiguration:
+    """Build Lance config with REST namespace catalog."""
+    c = LanceClientConfiguration(
+        catalog_type="rest",
+        credentials=RestCatalogCredentials(uri=uri),
+    )
+    c._bind_dataset_name(dataset_name)
+    return c
+
+
+def _lance_multi_base_config(
+    catalog_root: Optional[str], storage_root: str, dataset_name: str = "dataset"
+) -> LanceClientConfiguration:
+    """Build Lance config with manifest catalog and data storage in separate locations."""
+    c = LanceClientConfiguration(
+        credentials=DirectoryCatalogCredentials(bucket_url=catalog_root) if catalog_root else None,
+        storage=LanceStorageConfiguration(bucket_url=storage_root),
+    )
+    c._bind_dataset_name(dataset_name)
+    return c
+
+
 # Base DestinationClientConfiguration join contract
 def test_base_can_join_with_default_false_when_physical_locations_differ() -> None:
     config1 = _PhysicalDestinationConfig("host1")
@@ -244,9 +272,9 @@ def test_base_can_join_with_default_false_when_empty_physical_location() -> None
 
 def test_base_can_join_with_returns_false_for_non_config() -> None:
     config = _PhysicalDestinationConfig("host1")
-    assert not config.can_join_with("not a config")  # type: ignore[arg-type]
-    assert not config.can_join_with(None)
-    assert not config.can_join_with(42)  # type: ignore[arg-type]
+    assert not config.can_read_from("not a config")  # type: ignore[arg-type]
+    assert not config.can_read_from(None)
+    assert not config.can_read_from(42)  # type: ignore[arg-type]
 
 
 def test_is_same_physical_location_delegates_to_can_join_with() -> None:
@@ -389,25 +417,38 @@ PHYSICAL_DEST_CASES = [
         lambda: os.path.join(os.path.abspath(active().local_dir), "local", "p"),
         id="fs_local",
     ),
-    # DuckLake
+    # DuckLake: sql catalogs host one lake per metadata schema (defaults to ducklake name)
     pytest.param(
         lambda: DuckLakeClientConfiguration(
-            credentials=_ducklake_creds("pg://u@h:5432/db", "lake")
+            credentials=_ducklake_creds("postgresql://u@h:5432/db", "lake")
         ),
-        "pg://h:5432/db#lake",
+        "postgres://h:5432/db#lake",
         id="dl_remote_cat",
     ),
+    pytest.param(
+        lambda: DuckLakeClientConfiguration(credentials=_ducklake_creds("postgres://u@h:5432/db")),
+        f"postgres://h:5432/db#{DEFAULT_DUCKLAKE_NAME}",
+        id="dl_remote_cat_default_name",
+    ),
+    pytest.param(
+        lambda: DuckLakeClientConfiguration(
+            credentials=_ducklake_creds("postgres://u@h:5432/db", "lake", metadata_schema="meta")
+        ),
+        "postgres://h:5432/db#meta",
+        id="dl_remote_cat_explicit_metadata_schema",
+    ),
+    # DuckLake: file catalogs are the lake themselves, attach name is just an alias
     pytest.param(
         lambda: DuckLakeClientConfiguration(
             credentials=_ducklake_creds("sqlite:///cat.sqlite", "lake")
         ),
-        "sqlite://cat.sqlite#lake",
+        "sqlite://cat.sqlite",
         id="dl_local_cat",
     ),
     pytest.param(
-        lambda: DuckLakeClientConfiguration(credentials=_ducklake_creds("sqlite:///cat.sqlite")),
-        f"sqlite://cat.sqlite#{DEFAULT_DUCKLAKE_NAME}",
-        id="dl_default_name",
+        lambda: DuckLakeClientConfiguration(credentials=_ducklake_creds("md:///md_db", "lake")),
+        "",
+        id="dl_md_cat_no_identity",
     ),
     # Fabric
     pytest.param(
@@ -623,6 +664,7 @@ DUCKLAKE_JOIN_CASES = [
         True,
         id="dl_same_cat_name",
     ),
+    # the file is the lake, attach name does not matter
     pytest.param(
         lambda: DuckLakeClientConfiguration(
             credentials=_ducklake_creds("sqlite:///cat.sqlite", "lake1")
@@ -630,8 +672,47 @@ DUCKLAKE_JOIN_CASES = [
         lambda: DuckLakeClientConfiguration(
             credentials=_ducklake_creds("sqlite:///cat.sqlite", "lake2")
         ),
+        True,
+        id="dl_file_cat_diff_name",
+    ),
+    # sql catalogs: different name means different metadata schema, so a different lake
+    pytest.param(
+        lambda: DuckLakeClientConfiguration(
+            credentials=_ducklake_creds("postgres://u@h:5432/db", "lake1")
+        ),
+        lambda: DuckLakeClientConfiguration(
+            credentials=_ducklake_creds("postgres://u@h:5432/db", "lake2")
+        ),
         False,
-        id="dl_same_cat_diff_name",
+        id="dl_sql_cat_diff_name",
+    ),
+    # sql catalogs: explicit metadata schema overrides the name
+    pytest.param(
+        lambda: DuckLakeClientConfiguration(
+            credentials=_ducklake_creds("postgres://u@h:5432/db", "lake1", metadata_schema="meta")
+        ),
+        lambda: DuckLakeClientConfiguration(
+            credentials=_ducklake_creds("postgres://u@h:5432/db", "lake2", metadata_schema="meta")
+        ),
+        True,
+        id="dl_sql_cat_same_metadata_schema",
+    ),
+    pytest.param(
+        lambda: DuckLakeClientConfiguration(
+            credentials=_ducklake_creds("postgres://u@h:5432/db", "lake", metadata_schema="meta1")
+        ),
+        lambda: DuckLakeClientConfiguration(
+            credentials=_ducklake_creds("postgres://u@h:5432/db", "lake", metadata_schema="meta2")
+        ),
+        False,
+        id="dl_sql_cat_diff_metadata_schema",
+    ),
+    # md catalogs have no non-secret identity
+    pytest.param(
+        lambda: DuckLakeClientConfiguration(credentials=_ducklake_creds("md:///md_db", "lake")),
+        lambda: DuckLakeClientConfiguration(credentials=_ducklake_creds("md:///md_db", "lake")),
+        False,
+        id="dl_md_cat_not_joinable",
     ),
 ]
 
@@ -811,17 +892,38 @@ def test_cross_type_different_physical_locations() -> None:
 # Filesystem special cases
 
 
-def test_filesystem_joinability_is_engine_based_not_location_based() -> None:
-    c1 = FilesystemDestinationClientConfiguration(bucket_url="s3://b1/p")
-    c2 = FilesystemDestinationClientConfiguration(bucket_url="s3://b2/p")
-    c3 = FilesystemDestinationClientConfiguration(bucket_url="/local/p")
-    c4 = FilesystemDestinationClientConfiguration(bucket_url="gs://b/p")
-    assert_joinable(c1, c2)
-    assert_joinable(c1, c3)
-    assert_joinable(c1, c4)
+# NOTE: reading across different filesystem locations requires auto ATTACH in the
+# duckdb view layer; until then only the same storage location is readable
+@pytest.mark.parametrize(
+    "url1,url2,expected",
+    [
+        pytest.param("s3://b/p1", "s3://b/p2", True, id="same_bucket_different_prefix"),
+        pytest.param("s3://b1/p", "s3://b2/p", False, id="different_bucket"),
+        pytest.param("s3://b/p", "gs://b/p", False, id="different_scheme_same_bucket"),
+        pytest.param("/local/p", "/local/p", True, id="same_local_path"),
+        pytest.param("/local/p1", "/local/p2", False, id="different_local_path"),
+        pytest.param("s3://b/p", "/local/p", False, id="remote_vs_local"),
+    ],
+)
+def test_filesystem_can_read_from_same_location(url1: str, url2: str, expected: bool) -> None:
+    c1 = FilesystemDestinationClientConfiguration(bucket_url=url1)
+    c2 = FilesystemDestinationClientConfiguration(bucket_url=url2)
+    assert_join_result(c1, c2, expected)
 
 
-def test_filesystem_cannot_join_with_non_filesystem() -> None:
+def test_filesystem_can_never_write() -> None:
+    """dlt is the only engine that writes to filesystem, so SQL write is never possible."""
+    c1 = FilesystemDestinationClientConfiguration(bucket_url="s3://b/p")
+    c2 = FilesystemDestinationClientConfiguration(bucket_url="s3://b/p")
+    # same location is readable but not writable
+    assert c1.can_read_from(c2)
+    assert not c1.can_write_from(c2)
+    assert not c2.can_write_from(c1)
+    # not even from itself
+    assert not c1.can_write_from(c1)
+
+
+def test_filesystem_cannot_read_from_non_filesystem() -> None:
     c = FilesystemDestinationClientConfiguration(bucket_url="s3://b/p")
     other = _PhysicalDestinationConfig("s3://b")
     assert_not_joinable(c, other)
@@ -897,6 +999,25 @@ SQLA_CASES = [
     pytest.param("postgresql://u@h:5432/db", "mysql://u@h:3306/db", False, id="diff_dialects"),
     pytest.param("unknown://u@h:1234/db", "unknown://u@h:1234/db", True, id="unknown_same"),
     pytest.param("unknown://u@h:1234/db1", "unknown://u@h:1234/db2", False, id="unknown_diff_db"),
+    # dbapi driver suffix does not change the backend identity
+    pytest.param(
+        "mysql+pymysql://u@h:3306/db1", "mysql+mysqldb://u@h:3306/db2", True, id="mysql_dbapi"
+    ),
+    pytest.param(
+        "postgresql+psycopg2://u@h:5432/db", "postgresql://u@h:5432/db", True, id="pg_dbapi"
+    ),
+    # each in-memory database is a separate database
+    pytest.param("sqlite:///:memory:", "sqlite:///:memory:", False, id="sqlite_memory"),
+    # mssql can query across databases via 3-part names
+    pytest.param(
+        "mssql+pyodbc://u@h:1433/db1", "mssql+pyodbc://u@h:1433/db2", True, id="mssql_diff_db"
+    ),
+    # oracle (db links) and db2 (federation) cannot query across databases
+    pytest.param("oracle://u@h:1521/svc", "oracle://u@h:1521/svc", True, id="oracle_same_service"),
+    pytest.param(
+        "oracle://u@h:1521/svc1", "oracle://u@h:1521/svc2", False, id="oracle_diff_service"
+    ),
+    pytest.param("db2://u@h:50000/db1", "db2://u@h:50000/db2", False, id="db2_diff_db"),
 ]
 
 
@@ -914,7 +1035,7 @@ def test_sqlalchemy_can_join_with(conn1: str, conn2: str, expected: bool) -> Non
             lambda: _lancedb_config("/tmp/db.lancedb"),
             lambda: _lancedb_config("/tmp/db.lancedb"),
             True,
-            id="same_uri_dataset_separator",
+            id="same_uri",
         ),
         pytest.param(
             lambda: _lancedb_config("/tmp/db1.lancedb"),
@@ -928,11 +1049,13 @@ def test_sqlalchemy_can_join_with(conn1: str, conn2: str, expected: bool) -> Non
             True,
             id="different_dataset_same_uri",
         ),
+        # any table at the same location is readable via the same ATTACH,
+        # separator only affects table naming
         pytest.param(
             lambda: _lancedb_config("/tmp/db.lancedb", dataset_separator="___"),
             lambda: _lancedb_config("/tmp/db.lancedb", dataset_separator="__"),
-            False,
-            id="different_separator",
+            True,
+            id="different_separator_same_uri",
         ),
         pytest.param(
             lambda: _lancedb_config(":external:"),
@@ -944,6 +1067,18 @@ def test_sqlalchemy_can_join_with(conn1: str, conn2: str, expected: bool) -> Non
 )
 def test_lancedb_can_join_with(f1: ConfigFactory, f2: ConfigFactory, expected: bool) -> None:
     assert_join_result(f1(), f2(), expected)
+
+
+def test_lancedb_can_never_write() -> None:
+    """dlt is the only engine that writes to LanceDB, so SQL write is never possible."""
+    c1 = _lancedb_config("/tmp/db.lancedb")
+    c2 = _lancedb_config("/tmp/db.lancedb")
+    # same location is readable but not writable
+    assert c1.can_read_from(c2)
+    assert not c1.can_write_from(c2)
+    assert not c2.can_write_from(c1)
+    # not even from itself
+    assert not c1.can_write_from(c1)
 
 
 @pytest.mark.parametrize(
@@ -961,16 +1096,78 @@ def test_lancedb_can_join_with(f1: ConfigFactory, f2: ConfigFactory, expected: b
             False,
             id="different_catalog",
         ),
+        # TODO: flip to True when cross dataset joins are implemented
         pytest.param(
             lambda: _lance_config("file:///tmp/lance", dataset_name="dataset1"),
             lambda: _lance_config("file:///tmp/lance", dataset_name="dataset2"),
             False,
-            id="different_dataset",
+            id="different_dataset_same_catalog",
+        ),
+        pytest.param(
+            lambda: _lance_multi_base_config("s3://catalogs/manifest", "s3://data1/lake"),
+            lambda: _lance_multi_base_config("s3://catalogs/manifest", "s3://data2/lake"),
+            True,
+            id="same_catalog_different_data_storage",
+        ),
+        pytest.param(
+            lambda: _lance_rest_config("http://127.0.0.1:2333"),
+            lambda: _lance_rest_config("http://127.0.0.1:2333/"),
+            True,
+            id="same_rest_namespace",
+        ),
+        pytest.param(
+            lambda: _lance_rest_config("http://127.0.0.1:2333"),
+            lambda: _lance_rest_config("http://other:2333"),
+            False,
+            id="different_rest_namespace",
         ),
     ],
 )
 def test_lance_can_join_with(f1: ConfigFactory, f2: ConfigFactory, expected: bool) -> None:
     assert_join_result(f1(), f2(), expected)
+
+
+@pytest.mark.parametrize(
+    "factory,expected",
+    [
+        pytest.param(
+            lambda: _lance_config("file:///tmp/lance"),
+            "dir:file:///tmp/lance",
+            id="explicit_dir_catalog",
+        ),
+        pytest.param(
+            lambda: _lance_multi_base_config("s3://catalogs/manifest", "s3://data/lake"),
+            "dir:s3://catalogs/manifest",
+            id="catalog_takes_precedence_over_storage",
+        ),
+        pytest.param(
+            lambda: _lance_multi_base_config(None, "s3://data/lake"),
+            f"dir:s3://data/lake/{DEFAULT_LANCE_NAMESPACE_NAME}",
+            id="falls_back_to_storage_namespace",
+        ),
+        pytest.param(
+            lambda: _lance_rest_config("http://127.0.0.1:2333/"),
+            "rest:http://127.0.0.1:2333",
+            id="rest_namespace_uri",
+        ),
+        pytest.param(lambda: _lance_rest_config(None), "", id="rest_without_uri"),
+        pytest.param(lambda: LanceClientConfiguration(), "", id="empty"),
+    ],
+)
+def test_lance_physical_location(factory: ConfigFactory, expected: str) -> None:
+    assert factory().physical_location() == expected
+
+
+def test_lance_can_never_write() -> None:
+    """dlt is the only engine that writes to Lance, so SQL write is never possible."""
+    c1 = _lance_config("file:///tmp/lance")
+    c2 = _lance_config("file:///tmp/lance")
+    # same catalog and dataset is readable but not writable
+    assert c1.can_read_from(c2)
+    assert not c1.can_write_from(c2)
+    assert not c2.can_write_from(c1)
+    # not even from itself
+    assert not c1.can_write_from(c1)
 
 
 def test_lance_and_lancedb_cannot_join_with_each_other() -> None:
@@ -995,3 +1192,4 @@ def test_qdrant_physical_location_but_not_joinable() -> None:
     c2 = QdrantClientConfiguration(qd_location="https://cluster.qdrant.io")
     assert c1.physical_location() == "https://cluster.qdrant.io"
     assert_not_joinable(c1, c2)
+    assert not c1.can_write_from(c2)

@@ -149,23 +149,37 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
         return self.credentials.storage.fingerprint()
 
     def physical_location(self) -> str:
-        """Returns credential-free catalog identity plus ducklake name."""
+        """Returns credential-free catalog identity which locates the ducklake."""
         if not self.credentials or not self.credentials.catalog:
             return ""
 
         catalog = self.credentials.catalog
-        ducklake_name = self.credentials.ducklake_name or DEFAULT_DUCKLAKE_NAME
+        drivername = catalog.drivername or ""
+        # attach statement converts `postgresql` to duckdb-known `postgres`
+        if drivername == "postgresql":
+            drivername = "postgres"
 
-        if catalog.host:
+        # TODO: motherduck catalog has no non-secret account identity
+        if drivername == "md":
+            return ""
+
+        # file catalogs: the database file is the lake, attach name is just an alias
+        if drivername in ("duckdb", "sqlite"):
+            if catalog.database:
+                return f"{drivername}://{catalog.database}"
+            return ""
+
+        # sql catalogs host one lake per metadata schema which defaults to ducklake name
+        if catalog.host and catalog.database:
+            metadata_schema = (
+                self.credentials.metadata_schema
+                or self.credentials.ducklake_name
+                or DEFAULT_DUCKLAKE_NAME
+            )
+            # NOTE: ports must be specified (or not) consistently across configs to match
             port_str = f":{catalog.port}" if catalog.port else ""
-            db_str = f"/{catalog.database}" if catalog.database else ""
-            catalog_id = f"{catalog.drivername}://{catalog.host}{port_str}{db_str}"
-        elif catalog.database:
-            catalog_id = f"{catalog.drivername}://{catalog.database}"
-        else:
-            catalog_id = catalog.drivername or "unknown"
-
-        return f"{catalog_id}#{ducklake_name}"
+            return f"{drivername}://{catalog.host}{port_str}/{catalog.database}#{metadata_schema}"
+        return ""
 
     def on_resolved(self) -> None:
         # redirect local catalog database file to `local_dir`

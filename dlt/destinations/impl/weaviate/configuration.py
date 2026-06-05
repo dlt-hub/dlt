@@ -81,6 +81,6 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
             return urlparse(self.credentials.url).hostname or ""
         return ""
 
-    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
         """Weaviate does not support dlt SQL joins."""
         return False

@@ -505,7 +505,7 @@ def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
 )
 def is_same_physical_destination(dataset1: dlt.Dataset, dataset2: dlt.Dataset) -> bool:
     """Check if both datasets are at the same physical destination."""
-    return dataset1.destination_client.config.can_join_with(dataset2.destination_client.config)
+    return dataset1.destination_client.config.can_read_from(dataset2.destination_client.config)
 
 
 def _get_dataset_schema_from_destination_using_schema_name(

@@ -161,7 +161,14 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
         """Returns the Qdrant connection location."""
         return self.qd_location or ""
 
-    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+    # TODO: qdrant supports cross collection (and cross instance) writes via point streaming
+    # (scroll -> upsert, see `qdrant_client.migrate`). this is not SQL so it requires a
+    # qdrant specific model job and a non-SQL transformation input to be useful.
+    def can_write_from(self, other: DestinationClientConfiguration) -> bool:
+        """Qdrant cannot execute SQL models."""
+        return False
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
         """Qdrant does not support dlt SQL joins."""
         return False
 

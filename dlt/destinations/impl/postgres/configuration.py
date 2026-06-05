@@ -64,7 +64,7 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             return f"{self.credentials.host}:{port}"
         return ""
 
-    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
         """Returns True for the same Postgres host:port and database."""
         if not isinstance(other, PostgresClientConfiguration):
             return False

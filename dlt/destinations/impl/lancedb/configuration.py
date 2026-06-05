@@ -215,14 +215,19 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
 
         return self.lance_uri
 
-    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for the same LanceDB URI and table naming layout."""
+    def can_write_from(self, other: DestinationClientConfiguration) -> bool:
+        """LanceDB does not have an engine that can write. `dlt` is that engine,
+        and returning False here enforces its usage.
+        """
+        return False
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True for the same LanceDB URI."""
         if not isinstance(other, LanceDBClientConfiguration):
             return False
 
+        # any table at the same location can be read via the same ATTACH (lance extension),
+        # `dataset_separator` only affects table naming and does not limit readability
         self_loc = self.physical_location()
         other_loc = other.physical_location()
-        if not self_loc or not other_loc or self_loc != other_loc:
-            return False
-
-        return self.dataset_separator == other.dataset_separator
+        return bool(self_loc and other_loc and self_loc == other_loc)

@@ -174,8 +174,10 @@ class DestinationClientConfiguration(BaseConfiguration):
         """Returns a destination fingerprint derived from selected configuration fields."""
         return ""
 
-    def can_join_with(self, other: "DestinationClientConfiguration") -> bool:
-        """Returns True for same-type destinations with the same non-empty identity."""
+    def can_read_from(self, other: "DestinationClientConfiguration") -> bool:
+        """Returns True if `self` can read data from `other`.
+        In case of SQL engines it is an ability to SELECT / JOIN
+        """
         if not isinstance(other, DestinationClientConfiguration):
             return False
         if self.destination_type != other.destination_type:
@@ -185,6 +187,13 @@ class DestinationClientConfiguration(BaseConfiguration):
         if self_loc and other_loc and self_loc == other_loc:
             return True
         return False
+
+    def can_write_from(self, other: "DestinationClientConfiguration") -> bool:
+        """Returns true if `self` can write data from `other`
+        In case of SQL engines it is an ability to INSERT FROM
+        """
+        # in most destinations, ability to read is also the same as abilty to write
+        return self.can_read_from(other)
 
     def __str__(self) -> str:
         """Return displayable destination location"""

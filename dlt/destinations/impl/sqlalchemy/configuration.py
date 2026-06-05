@@ -268,25 +268,23 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
                     )
 
     def physical_location(self) -> str:
-        """Returns sqlite path for sqlite, otherwise host:port."""
+        """Returns sqlite database path for sqlite, otherwise host:port."""
         if not self.credentials:
             return ""
 
-        drivername = self.credentials.drivername or ""
-        database = self.credentials.database
-        host = self.credentials.host
-        port = self.credentials.port
+        if self.get_backend_name() == "sqlite":
+            # each in-memory database is a separate database
+            if SqlalchemyCredentials.is_memory_database(
+                self.credentials.database, self.credentials.query
+            ):
+                return ""
+            return self.credentials.database or ""
 
-        if drivername == "sqlite":
-            if SqlalchemyCredentials.is_memory_database(database, self.credentials.query):
-                return ":memory:"
-            return database or ""
-
-        if host:
-            # Default-vs-explicit port mismatches may reject otherwise valid joins.
-            if port:
-                return f"{host}:{port}"
-            return host
+        if self.credentials.host:
+            # NOTE: default-vs-explicit port mismatches may reject otherwise valid joins
+            if self.credentials.port:
+                return f"{self.credentials.host}:{self.credentials.port}"
+            return self.credentials.host
         return ""
 
     def fingerprint(self) -> str:
@@ -296,7 +294,7 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
             return digest128(physical_location)
         return ""
 
-    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
         """Returns True when dialect-specific destination identities match."""
         if not isinstance(other, SqlalchemyClientConfiguration):
             return False
@@ -304,35 +302,22 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
         if not self.credentials or not other.credentials:
             return False
 
-        self_dialect = (self.credentials.drivername or "").lower()
-        other_dialect = (other.credentials.drivername or "").lower()
-
-        if self_dialect != other_dialect:
+        self_backend = self.get_backend_name()
+        if not self_backend or self_backend != other.get_backend_name():
             return False
-
-        if self_dialect == "sqlite":
-            self_loc = self.physical_location()
-            other_loc = other.physical_location()
-            return bool(self_loc and other_loc and self_loc == other_loc)
-
-        if self_dialect == "postgresql":
-            self_loc = self.physical_location()
-            other_loc = other.physical_location()
-            if not self_loc or not other_loc or self_loc != other_loc:
-                return False
-            self_db = self.credentials.database
-            other_db = other.credentials.database
-            return self_db is not None and other_db is not None and self_db == other_db
-
-        if self_dialect in ("mysql", "mssql", "oracle", "db2"):
-            self_loc = self.physical_location()
-            other_loc = other.physical_location()
-            return bool(self_loc and other_loc and self_loc == other_loc)
 
         self_loc = self.physical_location()
         other_loc = other.physical_location()
         if not self_loc or not other_loc or self_loc != other_loc:
             return False
+
+        # sqlite: the database file is the location. mysql and mssql can query across
+        # databases on the same server (database is schema-like / 3-part names)
+        if self_backend in ("sqlite", "mysql", "mssql"):
+            return True
+
+        # remaining dialects (postgresql, oracle, db2, unknown) bind a connection to a single
+        # database: oracle needs db links and db2 needs federation to query across databases
         self_db = self.credentials.database
         other_db = other.credentials.database
         return self_db is not None and other_db is not None and self_db == other_db
