@@ -10,6 +10,8 @@
     "clear-versions": "node tools/clear_versions.js",
     "update-versions": "node tools/update_versions.js",
     "compile-redirects": "node tools/compile_redirects.js",
+    "check-orphan-docs": "node tools/check_orphan_docs.js",
+    "check-orphan-docs:all": "node tools/check_orphan_docs.js --all",
     "build:cloudflare": "npm run build",
     "serve:cloudflare": "wrangler dev --port 3001 --local",
     "preview:cloudflare": "npm run build && npm run serve:cloudflare",
