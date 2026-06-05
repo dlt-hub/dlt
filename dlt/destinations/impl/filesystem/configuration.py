@@ -61,16 +61,19 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
             return self.make_local_path(self.bucket_url)
         return f"{url.scheme}://{url.netloc}"
 
-    def can_join_with(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for any other filesystem destination.
-
-        Filesystem tables are queried through a local engine (e.g. DuckDB) that
-        can access multiple storage backends in a single query, so join
-        compatibility is determined by the engine, not by the storage location.
+    def can_write_from(self, other: DestinationClientConfiguration) -> bool:
+        """Filesystem does not have an engine that can write. `dlt` is that engine,
+        and setting False here we enforce it's usage
         """
-        if isinstance(other, FilesystemDestinationClientConfiguration):
-            return True
         return False
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        # filesystem tables are queried through a local engine (e.g. DuckDB) that
+        # can access multiple storage backends in a single query, so join
+        # compatibility is determined by the engine, not by the storage location.
+
+        # until auto ATTACH is implemented, storage location must be used
+        return super().can_read_from(other)
 
     def on_resolved(self) -> None:
         # Validate layout and show unused placeholders
