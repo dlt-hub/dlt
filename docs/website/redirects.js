@@ -91,6 +91,54 @@ const REDIRECTS = [
     to: "/docs/tutorial/load-data-from-an-api",
   },
   {
+    from: "/docs/walkthroughs/create-a-pipeline",
+    to: "/docs/tutorial/load-data-from-an-api",
+  },
+  {
+    from: "/docs/dlt-ecosystem/table-formats/delta",
+    to: "/docs/dlt-ecosystem/destinations/delta-iceberg",
+  },
+  {
+    from: "/docs/dlt-ecosystem/file-formats/parquet",
+    to: "/docs/dlt-ecosystem/file-formats#parquet",
+  },
+  {
+    from: "/docs/dlt-ecosystem/file-formats/jsonl",
+    to: "/docs/dlt-ecosystem/file-formats#jsonl",
+  },
+  {
+    from: "/docs/dlt-ecosystem/file-formats/csv",
+    to: "/docs/dlt-ecosystem/file-formats#csv",
+  },
+  {
+    from: "/docs/dlt-ecosystem/file-formats/insert-format",
+    to: "/docs/dlt-ecosystem/file-formats#sql-insert",
+  },
+  {
+    from: "/docs/running-in-production/alerting",
+    to: "/docs/running-in-production/running#using-slack-to-send-messages",
+  },
+  {
+    from: "/docs/running-in-production/monitoring",
+    to: "/docs/running-in-production/running",
+  },
+  {
+    from: "/docs/running-in-production/tracing",
+    to: "/docs/running-in-production/running",
+  },
+  {
+    from: "/docs/general-usage/dataset-access/sql-client",
+    to: "/docs/dlt-ecosystem/transformations/sql",
+  },
+  {
+    from: "/docs/general-usage/dataset-access/ibis-backend",
+    to: "/docs/dlt-ecosystem/transformations/python#using-ibis",
+  },
+  {
+    from: "/docs/dlt-ecosystem/table-formats/iceberg",
+    to: "/docs/dlt-ecosystem/destinations/delta-iceberg",
+  },
+  {
     from: "/docs/load-data-from-an-api",
     to: "/docs/tutorial/load-data-from-an-api",
   },

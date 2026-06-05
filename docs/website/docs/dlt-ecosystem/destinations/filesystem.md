@@ -659,9 +659,9 @@ Adopting this layout offers several advantages:
 ## Supported file formats
 
 You can choose the following file formats:
-* [JSONL](../file-formats/jsonl) is used by default
-* [Parquet](../file-formats/parquet) is supported
-* [CSV](../file-formats/csv) is supported
+* [JSONL](../file-formats.md#jsonl) is used by default
+* [Parquet](../file-formats.md#parquet) is supported
+* [CSV](../file-formats.md#csv) is supported
 
 ## Supported table formats
 
@@ -679,7 +679,7 @@ When a load generates a new state, for example when using incremental loads, a n
 :::
 
 ## Data access
-`filesystem` implements [`sql_client`](../../general-usage/dataset-access/sql-client#the-filesystem-sql-client) which provides read only
+`filesystem` implements [`sql_client`](../transformations/sql.md#the-filesystem-sql-client) which provides read only
 SQL access to files and iceberg/delta tables with duckdb dialect. This also enables [`pipeline.dataset()`](../../general-usage/dataset-access/dataset), giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
 
 By default views that are created are "frozen" to minimize reading from bucket.

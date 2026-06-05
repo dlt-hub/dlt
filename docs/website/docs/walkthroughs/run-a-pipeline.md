@@ -11,7 +11,7 @@ pipeline state, trace and handle the most common problems.
 
 ## 1. Write and execute pipeline script
 
-Once you have [created a new pipeline](create-a-pipeline), you will want to use it to load data. You need to write a pipeline script,
+Once you have [created a new pipeline](../tutorial/load-data-from-an-api.md), you will want to use it to load data. You need to write a pipeline script,
 like the one below that loads data from the [chess.com](https://www.chess.com) API:
 
 ```py

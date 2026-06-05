@@ -271,8 +271,8 @@ dlt will upload the data in Parquet files (or JSONL, if configured) to the bucke
 For more information on staging, see the [Staging support](#staging-support) section below.
 
 ## Supported file formats
-* [Parquet](../file-formats/parquet.md) supported when staging is enabled.
-* [JSONL](../file-formats/jsonl.md) supported when staging is enabled (see limitations below).
+* [Parquet](../file-formats.md#parquet) supported when staging is enabled.
+* [JSONL](../file-formats.md#jsonl) supported when staging is enabled (see limitations below).
 
 The JSONL format has some limitations when used with Databricks:
 

@@ -18,6 +18,16 @@ dlthub workspace info
 
 The command returns the workspace name, job count, latest run status, and the latest deployment and configuration versions. See [`dlthub workspace info`](../command-line-interface.md#dlthub-workspace-info).
 
+## Inspect jobs
+
+```sh
+dlthub job list                    # all jobs
+dlthub job list "tag:ingest"       # jobs matching selector
+dlthub job list batch              # only batch jobs
+dlthub job info <name>             # details for one job
+dlthub job show <name>             # open the job page in the dashboard
+```
+
 ## Inspect runs
 
 List, inspect, and open runs from the CLI:

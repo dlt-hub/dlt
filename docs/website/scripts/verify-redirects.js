@@ -117,7 +117,10 @@ for (const r of loadedRedirects) {
   }
 
   checked++;
-  const rel = r.to.replace(/^\/docs\//, "").replace(/\/$/, "");
+  const rel = r.to
+    .replace(/^\/docs\//, "")
+    .replace(/#.*$/, "")
+    .replace(/\/$/, "");
   if (targetExists(rel)) {
     continue;
   }
