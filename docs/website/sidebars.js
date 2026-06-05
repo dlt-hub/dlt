@@ -321,11 +321,15 @@ const sidebars = {
     {
       type: "category",
       label: "Transformations",
+      link: {
+        type: "doc",
+        id: "dlt-ecosystem/transformations/index",
+      },
       items: [
         {
           type: "doc",
-          id: "dlt-ecosystem/transformations/index",
-          label: "Overview",
+          id: "dlt-ecosystem/transformations/dlthub",
+          label: "dltHub",
         },
         {
           type: "category",
@@ -382,16 +386,15 @@ const sidebars = {
     {
       type: "category",
       label: "Deploy",
+      link: {
+        type: "doc",
+        id: "walkthroughs/deploy-a-pipeline/index",
+      },
       items: [
-        {
-          id: "walkthroughs/deploy-a-pipeline/index",
-          type: "doc",
-          label: "Overview",
-        },
         {
           type: "doc",
           id: "running-in-production/running",
-          label: "Adjust pipeline for production",
+          label: "Adjust a pipeline for production",
         },
         {
           type: "doc",
