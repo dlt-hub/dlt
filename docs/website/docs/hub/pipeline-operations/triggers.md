@@ -139,7 +139,7 @@ Refresh policies:
 ```py
 @run.job(expose={"tags": ["backfill"]}, refresh="always")
 def backfill():
-    """Cascade a refresh; does not load data.""
+    """Cascade a refresh; does not load data."""
 ```
 
 Then trigger it from the CLI:
@@ -149,7 +149,7 @@ dlthub job trigger "tag:backfill"
 dlthub run backfill --refresh    # explicit refresh on a single job
 ```
 
-Note that refesh signal will not drop your data automatically, you should use one of [refresh](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) options available.
+Note that the refresh signal will not drop your data automatically, you should use one of the [refresh](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) options available.
 ```py
 @run.pipeline(
     "report_pipeline",
@@ -160,10 +160,10 @@ def build_report(run_context: TJobRunContext):
     ...
     report_pipeline.run(
         data_source(),
-        refresh="drop_data" if if run_context["refresh"] esle None
+        refresh="drop_data" if run_context["refresh"] else None
     )
 ```
-Above we tell `dlt` to truncate all tables belonging to resources in `data_source()` is refresh signal got passed in `refresh` flag.
+Above we tell `dlt` to truncate all tables belonging to resources in `data_source()` if the refresh signal got passed in the `refresh` flag.
 
 ## Tags and bulk triggering
 

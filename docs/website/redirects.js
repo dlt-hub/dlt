@@ -64,7 +64,11 @@ const REDIRECTS = [
   },
   {
     from: "/docs/visualizations",
-    to: "/docs/general-usage/dataset-access/",
+    to: "/docs/general-usage/dataset-access/dataset",
+  },
+  {
+    from: "/docs/general-usage/dataset-access",
+    to: "/docs/general-usage/dataset-access/dataset",
   },
 
   // top-404 redirects
@@ -164,7 +168,11 @@ const REDIRECTS = [
   },
   {
     from: "/docs/getting-started/build-a-data-pipeline",
-    to: "/docs/build-a-pipeline-tutorial",
+    to: "/docs/tutorial/load-data-from-an-api",
+  },
+  {
+    from: "/docs/build-a-pipeline-tutorial",
+    to: "/docs/tutorial/load-data-from-an-api",
   },
 
   // api_reference paths gained a /dlt/ prefix
