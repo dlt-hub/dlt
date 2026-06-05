@@ -58,6 +58,23 @@ def test_group_splits_top_and_subcommands() -> None:
     assert list(sub.keys()) == [("x", "run")]
 
 
+def test_group_orders_commands_deterministically() -> None:
+    # Regression for #3454: top-level and sub-command order must not depend on
+    # plugin discovery order (which varies across systems). group_commands must
+    # return keys in a deterministic (alphabetical) order.
+    top, sub = group_commands(
+        [
+            _make_command(name="workspace"),
+            _make_command(name="pipeline"),
+            _make_command(name="runtime"),
+            _make_command(name="show", parent="workspace"),
+            _make_command(name="info", parent="pipeline"),
+        ]
+    )
+    assert list(top.keys()) == ["pipeline", "runtime", "workspace"]
+    assert list(sub.keys()) == [("pipeline", "info"), ("workspace", "show")]
+
+
 def test_classify_groups_same_command_name() -> None:
     a = _make_command(name="x", compose_mode="extend")
     b = _make_command(name="x", compose_mode="extend")
