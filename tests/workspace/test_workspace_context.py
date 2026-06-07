@@ -352,10 +352,9 @@ def test_workspace_run_context_repr() -> None:
     with isolated_workspace("default") as ctx:
         result = repr(ctx)
         # must match the exact format specified in the issue
-        assert result == f"<WorkspaceRunContext(run_dir={ctx.run_dir!r}, profile={ctx._profile!r})>"
-        # must contain the actual values to be useful
-        assert ctx.run_dir in result
-        assert ctx._profile in result
+        assert result == f"<WorkspaceRunContext(run_dir={ctx.run_dir!r}, profile={ctx.profile!r})>"
+        # profile must appear as plain string (no escaping needed)
+        assert ctx.profile in result
         # must follow Python convention: < > wrapping means object can't be re-instantiated
         assert result.startswith("<WorkspaceRunContext(")
         assert result.endswith(")>")
@@ -364,5 +363,4 @@ def test_workspace_run_context_repr() -> None:
     with isolated_workspace("default", profile="dev") as ctx:
         result = repr(ctx)
         assert "dev" in result
-        assert ctx.run_dir in result
-        assert result == f"<WorkspaceRunContext(run_dir={ctx.run_dir!r}, profile={ctx._profile!r})>"
+        assert result == f"<WorkspaceRunContext(run_dir={ctx.run_dir!r}, profile={ctx.profile!r})>"
