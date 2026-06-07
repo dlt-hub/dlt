@@ -1140,6 +1140,117 @@ def test_join_columns_schema_resolves_with_name_mutating_normalizer(
     assert expected_right_aliases.issubset(schema_cols)
 
 
+@pytest.mark.parametrize(
+    "build_join",
+    [
+        pytest.param(lambda ds: ds.table("users__orders").join("users"), id="magic"),
+        pytest.param(
+            lambda ds: ds.table("users__orders").join(
+                "users", on="users__orders._dlt_parent_id = users._dlt_id"
+            ),
+            id="explicit-on",
+        ),
+    ],
+)
+def test_join_resolves_physical_dataset_name(
+    build_join: Callable[[dlt.Dataset], dlt.Relation],
+) -> None:
+    """Joins must bind to the physical dataset name when normalization mutates the raw name."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        pipeline = dlt.pipeline(
+            pipeline_name="raw_dataset_name",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "raw_name.duckdb")),
+            dataset_name="GitHubData",
+        )
+        pipeline.run(
+            [
+                {"id": 1, "name": "Alice", "orders": [{"order_id": 101}, {"order_id": 102}]},
+                {"id": 2, "name": "Bob", "orders": [{"order_id": 103}]},
+            ],
+            table_name="users",
+        )
+
+        dataset = pipeline.dataset()
+        assert dataset.dataset_name == "GitHubData"
+        assert dataset.sql_client.dataset_name == "git_hub_data"
+        assert len(dataset.table("users").fetchall()) == 2
+
+        df = build_join(dataset).df()
+        assert len(df) == 3
+        assert sorted(df["users__name"]) == ["Alice", "Alice", "Bob"]
+
+
+@pytest.mark.parametrize(
+    "build_join,expected_names",
+    [
+        pytest.param(
+            lambda ds_crm, ds_mkt: ds_crm.table("orders").join(
+                ds_mkt.table("users"), on="orders.user_id = users.id"
+            ),
+            ["Ann", "Ben"],
+            id="base-table-rhs",
+        ),
+        pytest.param(
+            lambda ds_crm, ds_mkt: ds_crm.table("orders").join(
+                ds_mkt.table("users").where("segment", "eq", "pro"),
+                on="orders.user_id = users.id",
+            ),
+            ["Ann"],
+            id="transformed-rhs",
+        ),
+    ],
+)
+def test_cross_dataset_join_resolves_physical_dataset_names(
+    build_join: Callable[[dlt.Dataset, dlt.Dataset], dlt.Relation],
+    expected_names: list[str],
+) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        db_path = str(tmp_path / "physical_cross.duckdb")
+
+        pipeline_crm = dlt.pipeline(
+            pipeline_name="physical_cross_ds_a",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(db_path),
+            dataset_name="CrmData",
+        )
+        pipeline_crm.run(
+            [{"order_id": 1, "user_id": 1}, {"order_id": 2, "user_id": 2}],
+            table_name="orders",
+        )
+
+        pipeline_mkt = dlt.pipeline(
+            pipeline_name="physical_cross_ds_b",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(db_path),
+            dataset_name="MktData",
+        )
+        pipeline_mkt.run(
+            [
+                {"id": 1, "name": "Ann", "segment": "pro"},
+                {"id": 2, "name": "Ben", "segment": "free"},
+            ],
+            table_name="users",
+        )
+
+        ds_crm = pipeline_crm.dataset()
+        ds_mkt = pipeline_mkt.dataset()
+        assert ds_crm.sql_client.dataset_name != ds_crm.dataset_name
+        assert ds_mkt.sql_client.dataset_name != ds_mkt.dataset_name
+        assert len(ds_crm.table("orders").fetchall()) == 2
+        assert len(ds_mkt.table("users").fetchall()) == 2
+
+        joined = build_join(ds_crm, ds_mkt)
+        df = joined.order_by("order_id").df()
+        assert list(df["users__name"]) == expected_names
+
+        sql = joined.to_sql()
+        assert f'"{ds_crm.sql_client.dataset_name}"."orders"' in sql, sql
+        assert f'"{ds_mkt.sql_client.dataset_name}"."users"' in sql, sql
+
+
 def test_explicit_on_joins_relational_tables(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
@@ -2249,3 +2360,64 @@ def test_magic_join_after_cross_dataset_resolves_local_target(
     assert len(df) == 3
     assert list(df["users__name"]) == ["Alice", "Alice", "Bob"]
     assert list(df["marketing__segment"]) == ["pro", "pro", "pro"]
+
+
+@pytest.mark.xfail(
+    reason=(
+        "magic join resolves chain targets by bare table name, ignoring the dataset qualifier: "
+        "a previously joined foreign BASE table with the same name is treated as the local chain "
+        "table, so foreign rows are silently projected under the local prefix"
+    ),
+    strict=True,
+)
+def test_magic_join_after_foreign_base_table_resolves_local_target() -> None:
+    """A magic join target shadowed by a same-named foreign BASE table must bind to the local dataset."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        db_path = str(tmp_path / "shadowed_base.duckdb")
+
+        pipeline_crm = dlt.pipeline(
+            pipeline_name="shadowed_base_target_a",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(db_path),
+            dataset_name="crm_data",
+        )
+        pipeline_crm.run(
+            [
+                {"id": 1, "name": "Alice", "orders": [{"order_id": 101}, {"order_id": 102}]},
+                {"id": 2, "name": "Bob", "orders": [{"order_id": 103}]},
+            ],
+            table_name="users",
+        )
+
+        pipeline_mkt = dlt.pipeline(
+            pipeline_name="shadowed_base_target_b",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(db_path),
+            dataset_name="marketing_data",
+        )
+        # `name` overlaps with the local users table so the shadowing stays silent
+        pipeline_mkt.run(
+            [
+                {"id": 1, "segment": "pro", "name": "MKT-A"},
+                {"id": 2, "segment": "free", "name": "MKT-B"},
+            ],
+            table_name="users",
+        )
+
+        ds_crm = pipeline_crm.dataset()
+        ds_mkt = pipeline_mkt.dataset()
+
+        joined = (
+            ds_crm.table("users__orders")
+            .join(ds_mkt.table("users"), on="users.id = 1", alias="marketing", kind="left")
+            .join("users")
+        )
+        df = joined.order_by("order_id").df()
+
+        assert len(df) == 3
+        assert list(df["users__name"]) == ["Alice", "Alice", "Bob"]
+        assert list(df["marketing__segment"]) == ["pro", "pro", "pro"]
+        # the local magic target must enter the query alongside the foreign table
+        sql = joined.to_sql()
+        assert f'"{ds_crm.dataset_name}"."users"' in sql, sql

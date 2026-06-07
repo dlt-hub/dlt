@@ -126,6 +126,7 @@ class Relation(WithSqlClient):
         self._schema: Optional[TTableSchemaColumns] = None
         self._incremental_ctx: Optional[_RelationIncrementalContext] = None
         self._foreign_schemas: dict[str, list[dlt.Schema]] = {}
+        self._foreign_physical_names: dict[str, str] = {}
 
     def df(self, *args: Any, **kwargs: Any) -> pd.DataFrame | None:
         with self._cursor() as cursor:
@@ -276,7 +277,9 @@ class Relation(WithSqlClient):
             query = bind_query(
                 qualified_query=_qualified_query,
                 sqlglot_schema=self._relation_sqlglot_schema(),
-                expand_table_name=make_expand_table_name(self.sql_client),
+                expand_table_name=make_expand_table_name(
+                    self.sql_client, self._logical_to_physical_dataset_map()
+                ),
                 casefold_identifier=self.sql_client.capabilities.casefold_identifier,
             )
 
@@ -502,8 +505,12 @@ class Relation(WithSqlClient):
                 if ds_name == self._dataset.dataset_name:
                     continue
                 rel._foreign_schemas[ds_name] = list(schemas)
+                if ds_name in other._foreign_physical_names:
+                    rel._foreign_physical_names[ds_name] = other._foreign_physical_names[ds_name]
         if target.is_foreign:
             rel._foreign_schemas[target.dataset_name] = list(target.schemas)
+            if target.physical_dataset_name is not None:
+                rel._foreign_physical_names[target.dataset_name] = target.physical_dataset_name
 
         return rel
 
@@ -555,6 +562,9 @@ class Relation(WithSqlClient):
                 columns=target_columns,
                 schemas=target_dataset.schemas,
                 subquery=other.sqlglot_expression if is_transformed else None,
+                physical_dataset_name=(
+                    target_dataset.sql_client.dataset_name if is_foreign else None
+                ),
             )
 
         if isinstance(other, str):
@@ -579,6 +589,7 @@ class Relation(WithSqlClient):
                     table_name=tbl_name,
                     columns=_find_table_columns(foreign_schemas, tbl_name),
                     schemas=foreign_schemas,
+                    physical_dataset_name=self._foreign_physical_names.get(ds_name),
                 )
             raise ValueError(
                 f"Dataset `{ds_name}` is not registered. Pass a Relation from the "
@@ -1009,6 +1020,7 @@ class Relation(WithSqlClient):
         rel._table_name = self._table_name
         rel._incremental_ctx = self._incremental_ctx
         rel._foreign_schemas = {k: list(v) for k, v in self._foreign_schemas.items()}
+        rel._foreign_physical_names = dict(self._foreign_physical_names)
         return rel
 
     def _relation_sqlglot_schema(self) -> SQLGlotSchema:
@@ -1017,6 +1029,13 @@ class Relation(WithSqlClient):
             **self._foreign_schemas,
         }
         return lineage.create_sqlglot_schema(schema_map, dialect=self.destination_dialect)
+
+    def _logical_to_physical_dataset_map(self) -> dict[str, str]:
+        """Map each logical dataset qualifier used in the query to its physical name."""
+        return {
+            self._dataset.dataset_name: self.sql_client.dataset_name,
+            **self._foreign_physical_names,
+        }
 
 
 def _get_relation_output_columns_schema(

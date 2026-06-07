@@ -29,6 +29,8 @@ class _JoinTarget(NamedTuple):
     schemas: Sequence[Schema]
     subquery: Optional[sge.Query] = None
     """RHS query embedded as a derived table for transformed relations; `None` for base tables."""
+    physical_dataset_name: Optional[str] = None
+    """Physical (normalized) dataset name; set for foreign targets."""
 
 
 class _JoinRef(TypedDict):
