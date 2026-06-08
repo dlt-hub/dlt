@@ -534,7 +534,11 @@ class Relation(WithSqlClient):
                 )
 
             is_foreign = not self._dataset._is_same_dataset(target_dataset)
-            if is_foreign and isinstance(self.sql_client, WithSchemas):
+            if is_foreign and (
+                isinstance(self.sql_client, WithSchemas)
+                # TODO: drop the sqlite check once we ATTACH foreign datasets
+                or getattr(self.sql_client, "dialect_name", None) == "sqlite"
+            ):
                 raise ValueError(
                     "Cross-dataset joins are not supported on the"
                     f" `{self._dataset._destination.destination_name}` destination."
