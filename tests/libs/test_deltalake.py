@@ -24,6 +24,25 @@ if Version(pa.__version__) < Version("17.0.0"):
     pytest.skip("Tests disabled for pyarrow < 17.0.0", allow_module_level=True)
 
 
+DELTA_ROUNDTRIP_NON_COMPARABLE_COLUMNS = ("null", "time", "decimal_arrow_max_precision")
+
+
+def _canonicalize_delta_roundtrip_table(table: pa.Table) -> pa.Table:
+    table = table.drop_columns(DELTA_ROUNDTRIP_NON_COMPARABLE_COLUMNS)
+
+    # Delta's logical string type does not preserve Arrow string offset width.
+    # e.g. arrows `large_string` is converted to `string` in Delta table.
+    fields = [
+        (
+            field.with_type(pa.string())
+            if pa.types.is_string(field.type) or pa.types.is_large_string(field.type)
+            else field
+        )
+        for field in table.schema
+    ]
+    return table.cast(pa.schema(fields, metadata=table.schema.metadata))
+
+
 @pytest.fixture()
 def filesystem_client() -> Iterator[Tuple[FilesystemClient, str]]:
     """Returns tuple of local `FilesystemClient` instance and remote directory string.
@@ -123,8 +142,9 @@ def test_write_delta_table(
     # table contents should be different because "time" column has type `string`
     # in Delta table, but type `time` in Arrow source table
     assert not dt_arrow_table.equals(arrow_table)
-    casted_cols = ("null", "time", "decimal_arrow_max_precision")
-    assert dt_arrow_table.drop_columns(casted_cols).equals(arrow_table.drop_columns(casted_cols))
+    assert _canonicalize_delta_roundtrip_table(dt_arrow_table).equals(
+        _canonicalize_delta_roundtrip_table(arrow_table)
+    )
 
     # another `append` should create a new table version with twice the number of rows
     write_delta_table(

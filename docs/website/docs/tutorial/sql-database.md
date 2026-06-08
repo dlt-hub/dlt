@@ -269,7 +269,7 @@ Congratulations on completing the tutorial! You learned how to set up a SQL Data
 
 With your pipeline code ready, we recommend the following next steps:
 - Inspect your pipeline and data in [workspace dashboard](../hub/ingestion/dashboard.md)
-- [Access your data](../general-usage/dataset-access/) using `dataset` interface
+- [Access your data](../general-usage/dataset-access/dataset.md) using `dataset` interface
 - [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.
 
 Interested in learning more about dlt? Here are some suggestions:

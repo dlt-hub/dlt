@@ -77,7 +77,7 @@ To handle large datasets efficiently, you can process data in smaller chunks.
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::iterating_fetch_chunks-->
 
-The methods available on the Relation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
+The methods available on the Relation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](../../dlt-ecosystem/transformations/sql.md#supported-methods-on-the-cursor) guide for more information.
 
 ## Connection Handling
 
@@ -279,11 +279,11 @@ df = joined_relation.df()
 All SQL and filesystem destinations supported by `dlt` can utilize this data access interface.
 
 ### Reading data from filesystem
-For filesystem destinations, `dlt` [uses **DuckDB** under the hood](./sql-client.md#the-filesystem-sql-client) to create views on iceberg and delta tables or from Parquet, JSONL and csv files. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data into delta or iceberg tables, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
+For filesystem destinations, `dlt` [uses **DuckDB** under the hood](../../dlt-ecosystem/transformations/sql.md#the-filesystem-sql-client) to create views on iceberg and delta tables or from Parquet, JSONL and csv files. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data into delta or iceberg tables, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
 
 :::tip
 By default `dlt` will not autorefresh views created on iceberg tables and files when new data is loaded. This prevents wasting resources on
-file globbing and reloading iceberg metadata for every query. You can [change this behavior](sql-client.md#control-data-freshness) with `always_refresh_views` flag.
+file globbing and reloading iceberg metadata for every query. You can [change this behavior](../../dlt-ecosystem/transformations/sql.md#control-data-freshness) with `always_refresh_views` flag.
 
 Note: `delta` tables are by default on autorefresh which is implemented by delta core and seems to be pretty efficient.
 :::
@@ -485,7 +485,7 @@ Ibis is a powerful portable Python dataframe library. Learn more about what it i
 `dlt` provides an easy way to hand over your loaded dataset to an Ibis backend connection.
 
 :::tip
-Not all destinations supported by `dlt` have an equivalent Ibis backend. Natively supported destinations include DuckDB (including Motherduck), Postgres (Redshift is supported via the Postgres backend for Ibis versions lower than 10.4.0), Snowflake, Clickhouse, MSSQL (including Synapse), and BigQuery. The filesystem destination is supported via the [Filesystem SQL client](./sql-client#the-filesystem-sql-client); please install the DuckDB backend for Ibis to use it. Mutating data with Ibis on the filesystem will not result in any actual changes to the persisted files.
+Not all destinations supported by `dlt` have an equivalent Ibis backend. Natively supported destinations include DuckDB (including Motherduck), Postgres (Redshift is supported via the Postgres backend for Ibis versions lower than 10.4.0), Snowflake, Clickhouse, MSSQL (including Synapse), and BigQuery. The filesystem destination is supported via the [Filesystem SQL client](../../dlt-ecosystem/transformations/sql.md#the-filesystem-sql-client); please install the DuckDB backend for Ibis to use it. Mutating data with Ibis on the filesystem will not result in any actual changes to the persisted files.
 :::
 
 ### Prerequisites
@@ -529,7 +529,7 @@ print(table.limit(10).execute())
 
 [marimo](https://github.com/marimo-team/marimo) is a reactive Python notebook. It completely revamps the Jupyter notebook experience. Whenever code is executed or you interact with a UI element, dependent cells are re-executed ensuring consistency between code and displayed outputs.
 
-This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich environment to explore loaded data, write data transformations, and create data applications.
+This page shows how dlt + marimo + [ibis](../../dlt-ecosystem/transformations/python.md#using-ibis) provide a rich environment to explore loaded data, write data transformations, and create data applications.
 
 ### Prerequisites
 

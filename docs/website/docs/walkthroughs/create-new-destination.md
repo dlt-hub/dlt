@@ -73,9 +73,9 @@ We keep the config and credentials in `configuration.py`. You should:
 * `max_rows_per_insert`, maximum number of rows supported per insert statement, used with the `insert-values` loader file format (set to `None` for no limit). E.g., MS SQL has a limit of 1000 rows per statement, but most databases have no limit and the statement is divided according to `max_query_length`.
 
 ### Supported loader file formats
-Specify which [loader file formats](../dlt-ecosystem/file-formats/) your destination will support directly and via [storage staging](../dlt-ecosystem/staging.md). Direct support means that the destination is able to load a local file or supports the INSERT command. Loading via staging involves using `filesystem` to send the load package to a (typically) bucket storage and then load from there.
+Specify which [loader file formats](../dlt-ecosystem/file-formats.md) your destination will support directly and via [storage staging](../dlt-ecosystem/staging.md). Direct support means that the destination is able to load a local file or supports the INSERT command. Loading via staging involves using `filesystem` to send the load package to a (typically) bucket storage and then load from there.
 
-> 💡 The [insert-values](../dlt-ecosystem/file-formats/insert-format.md) data format generates large INSERT statements that are executed on the destination. If you have any other option for local loading, avoid using this format. It is typically slower and requires the use of the bullet-proof `escape_literal` function.
+> 💡 The [insert-values](../dlt-ecosystem/file-formats.md#sql-insert) data format generates large INSERT statements that are executed on the destination. If you have any other option for local loading, avoid using this format. It is typically slower and requires the use of the bullet-proof `escape_literal` function.
 
 * `preferred_loader_file_format` - a file format that will be used by default to load data from the local file system. Set to `None` if direct loading is not supported.
 * `supported_loader_file_formats` - file formats that can be loaded from the local file system to the destination. Set to `[]` if direct loading is not supported.

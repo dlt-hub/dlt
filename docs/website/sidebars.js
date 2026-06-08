@@ -55,7 +55,12 @@ const sidebars = {
             {
               type: "doc",
               id: "tutorial/load-data-from-an-api",
-              label: "Custom Python function",
+              label: "Custom Python sources",
+            },
+            {
+              type: "doc",
+              id: "walkthroughs/run-a-pipeline",
+              label: "Run & troubleshoot a pipeline",
             },
           ],
         },
@@ -118,6 +123,10 @@ const sidebars = {
           type: "category",
           label: "REST API",
           description: "Load data from any REST API",
+          link: {
+            type: "doc",
+            id: "dlt-ecosystem/verified-sources/rest_api/index",
+          },
           items: [
             {
               type: "doc",
@@ -136,6 +145,10 @@ const sidebars = {
           type: "category",
           label: "SQL database",
           description: "PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more",
+          link: {
+            type: "doc",
+            id: "dlt-ecosystem/verified-sources/sql_database/index",
+          },
           items: [
             "dlt-ecosystem/verified-sources/sql_database/setup",
             "dlt-ecosystem/verified-sources/sql_database/configuration",
@@ -155,6 +168,10 @@ const sidebars = {
           type: "category",
           label: "Verified sources",
           description: "Verified sources maintained by dltHub and the community",
+          link: {
+            type: "doc",
+            id: "dlt-ecosystem/verified-sources/index",
+          },
           items: [
             "dlt-ecosystem/verified-sources/airtable",
             "dlt-ecosystem/verified-sources/amazon_kinesis",
@@ -228,6 +245,10 @@ const sidebars = {
     {
       type: "category",
       label: "Configuration & secrets",
+      link: {
+        type: "doc",
+        id: "general-usage/credentials/index",
+      },
       items: [
         "general-usage/credentials/setup",
         "general-usage/credentials/advanced",
@@ -292,6 +313,7 @@ const sidebars = {
           id: "general-usage/dataset-access/view-dlt-schema",
           label: "Export & visualize",
         },
+        "general-usage/destination-tables",
         "walkthroughs/adjust-a-schema",
         "general-usage/naming-convention",
       ],
@@ -299,11 +321,15 @@ const sidebars = {
     {
       type: "category",
       label: "Transformations",
+      link: {
+        type: "doc",
+        id: "dlt-ecosystem/transformations/index",
+      },
       items: [
         {
           type: "doc",
-          id: "dlt-ecosystem/transformations/index",
-          label: "Overview",
+          id: "dlt-ecosystem/transformations/dlthub",
+          label: "dltHub",
         },
         {
           type: "category",
@@ -316,6 +342,20 @@ const sidebars = {
               type: "doc",
               id: "general-usage/customising-pipelines/pseudonymizing_columns",
               label: "Pseudonymize values",
+            },
+            {
+              type: "doc",
+              id: "dlt-ecosystem/transformations/encryption",
+              label: "Encrypt values",
+            },
+            {
+              type: "category",
+              label: "Data Enrichment",
+              items: [
+                "general-usage/data-enrichments/user_agent_device_data_enrichment",
+                "general-usage/data-enrichments/currency_conversion_data_enrichment",
+                "general-usage/data-enrichments/url-parser-data-enrichment",
+              ],
             },
           ],
         },
@@ -346,11 +386,15 @@ const sidebars = {
     {
       type: "category",
       label: "Deploy",
+      link: {
+        type: "doc",
+        id: "walkthroughs/deploy-a-pipeline/index",
+      },
       items: [
         {
-          id: "walkthroughs/deploy-a-pipeline/index",
           type: "doc",
-          label: "Overview",
+          id: "running-in-production/running",
+          label: "Adjust a pipeline for production",
         },
         {
           type: "doc",
@@ -404,14 +448,23 @@ const sidebars = {
       ],
     },
     {
-      type: "category",
+      type: "doc",
+      id: "reference/performance",
       label: "Performance",
-      items: [{ type: "doc", id: "reference/performance", label: "Overview" }, "dlt-ecosystem/file-formats"],
     },
     {
       type: "category",
       label: "Reference",
-      items: ["reference/command-line-interface", "reference/telemetry", "reference/frequently-asked-questions"],
+      items: [
+        "reference/command-line-interface",
+        "reference/telemetry",
+        "reference/frequently-asked-questions",
+        {
+          type: "doc",
+          id: "dlt-ecosystem/file-formats",
+          label: "File formats",
+        },
+      ],
     },
   ],
   hubSidebar: [
@@ -494,6 +547,7 @@ const sidebars = {
         "walkthroughs/dispatch-to-multiple-tables",
         "walkthroughs/share-a-dataset",
         "walkthroughs/create-new-destination",
+        "walkthroughs/zendesk-weaviate",
       ],
     },
   ],
@@ -531,18 +585,3 @@ if (fs.existsSync("./docs_processed/api_reference/sidebar.json")) {
 }
 
 module.exports = sidebars;
-
-/*
-blog:
-'build-a-pipeline-tutorial',
-'walkthroughs/zendesk-weaviate',
-{
-  type: 'category',
-  label: 'Data enrichments',
-  items: [
-    'general-usage/data-enrichments/user_agent_device_data_enrichment',
-    'general-usage/data-enrichments/currency_conversion_data_enrichment',
-    'general-usage/data-enrichments/url-parser-data-enrichment'
-  ]
-},
-*/

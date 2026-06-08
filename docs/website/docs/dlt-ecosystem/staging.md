@@ -7,7 +7,7 @@ keywords: [staging, destination]
 
 The goal of staging is to bring the data closer to the database engine so that the modification of the destination (final) dataset happens faster and without errors. `dlt`, when asked, creates two staging areas:
 1. A **staging dataset** used by the [merge](../general-usage/merge-loading.md) and [replace](../general-usage/full-loading.md) loads to deduplicate and merge data with the destination.
-2. A **staging storage** which is typically an S3/GCP bucket where [loader files](file-formats/) are copied before they are loaded by the destination.
+2. A **staging storage** which is typically an S3/GCP bucket where [loader files](./file-formats.md) are copied before they are loaded by the destination.
 
 ## Staging dataset
 `dlt` creates a staging dataset when the write disposition of any of the loaded resources requires it. It creates and migrates required tables exactly like for the main dataset. Data in staging tables is truncated when the load step begins and only for tables that will participate in it.
@@ -54,7 +54,7 @@ Currently, only one destination, the [filesystem](destinations/filesystem.md), c
 6. [Snowflake](destinations/snowflake.md#staging-support)
 
 ### How to use
-In essence, you need to set up two destinations and then pass them to `dlt.pipeline`. Below, we'll use `filesystem` staging with [Parquet](./file-formats/parquet) files to load into the `redshift` destination.
+In essence, you need to set up two destinations and then pass them to `dlt.pipeline`. Below, we'll use `filesystem` staging with [Parquet](./file-formats.md#parquet) files to load into the `redshift` destination.
 
 1. **Set up the S3 bucket and filesystem staging.**
 

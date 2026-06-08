@@ -306,7 +306,7 @@ When resources are [created dynamically](../source.md#create-resources-dynamical
 def stripe():
     # declare a generator function
     def get_resource(
-        endpoints: List[str] = ENDPOINTS,
+        endpoints: Sequence[str] = ENDPOINTS,
         created: dlt.sources.incremental=dlt.sources.incremental("created")
     ):
         ...

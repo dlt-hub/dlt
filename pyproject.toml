@@ -513,6 +513,8 @@ module = [
     "playwright.*",
     "lancedb.*",
     "zerobus.*",
+    # TODO: py.typed dropped in 1.x, restoration tracked in https://github.com/ClickHouse/clickhouse-connect/issues/692
+    "clickhouse_connect.*",
 ]
 ignore_missing_imports = true
 
