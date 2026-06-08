@@ -92,7 +92,7 @@ if __name__ == '__main__':
 
 Explanation:
 - The `sql_database` source has two built-in helper functions: `sql_database()` and `sql_table()`:
-    - `sql_database()` is a [dlt source function](../general-usage/source) that iteratively loads the tables (in this example, `"family"` and `"genome"`) passed inside the `with_resource()` method.
+    - `sql_database()` is a [dlt source function](../general-usage/source) that iteratively loads the tables (in this example, `"family"` and `"genome"`) passed inside the `with_resources()` method.
     - `sql_table()` is a [dlt resource function](../general-usage/resource) that loads standalone tables. For example, if we wanted to only load the table `"family"`, then we could have done it using `sql_table(table="family")`.
 - `dlt.pipeline()` creates a `dlt` pipeline with the name `"sql_to_duckdb_pipeline"` with the destination DuckDB.
 - `pipeline.run()` method loads the data into the destination.
