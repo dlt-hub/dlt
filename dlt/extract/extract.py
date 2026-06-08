@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any, Optional, Set
+from typing import Iterator, List, Dict, Any, Optional
 import yaml
 
 from dlt.common import logger
@@ -17,7 +17,7 @@ from dlt.common.pipeline import (
     SupportsPipeline,
     WithStepInfo,
 )
-from dlt.common.typing import TColumnNames, TLoaderFileFormat
+from dlt.common.typing import TColumnNames, TLoaderFileFormat, TTableHintTemplate
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
@@ -25,6 +25,7 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TSchemaContract,
     TTableFormat,
+    TTableSchema,
     TWriteDispositionConfig,
 )
 from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
@@ -46,7 +47,7 @@ from dlt.extract.decorators import (
     SourceInjectableContext,
     SourceSchemaInjectableContext,
 )
-from dlt.extract.exceptions import UnknownSourceReference
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, UnknownSourceReference
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.items import TableNameMeta
 from dlt.extract.items_transform import ItemTransform
@@ -233,9 +234,58 @@ def describe_extract_data(data: Any) -> List[ExtractDataInfo]:
     return data_info
 
 
+def get_fresh_write_disposition(
+    schema: Schema, resource: DltResource, table: TTableSchema
+) -> Optional[TWriteDispositionConfig]:
+    """Computes updated write disposition based on write disposition hint in resource and actual table definition."""
+
+    # NOTE: this could be converted into a full schema update for tables that didn't receive data but several
+    # improvements should be made. ie. all variant tables must be defined upfront and not come with the data
+    # this is not checked by compute_tables and not checked when schema is merged
+
+    wd_config: TTableHintTemplate[TWriteDispositionConfig] = None
+    table_path = schema.naming.break_path(table["name"])
+    if variant_name := table.get("variant_name"):
+        # variant table: take the write disposition declared on the variant hints
+        wd_config = (resource._hints_variants.get(variant_name) or {}).get("write_disposition")
+    elif len(table_path) > 1:
+        # pseudo-root (nested table broken out by a primary key): recompute the schema
+        root_table_name = table_path[0]
+        if root_table_schema := schema.tables.get(root_table_name):
+            if variant_name := root_table_schema.get("variant_name"):
+                # if root table is a variant it must be present
+                if variant_name not in resource._hints_variants:
+                    # correct computation won't be possible
+                    return None
+
+            with contextlib.suppress(DataItemRequiredForDynamicTableHints):
+                for table_name, _, hints in resource.get_nested_hints(
+                    root_table_name,
+                    schema.naming,
+                    item=None,
+                    meta=TableNameMeta(variant_name) if variant_name else None,
+                ):
+                    if table_name == table["name"]:
+                        wd_config = hints.get("write_disposition")
+                        break
+    else:
+        # static table definition
+        wd_config = resource.write_disposition
+
+    if wd_config is not None:
+        if callable(wd_config):
+            wd_config = None
+        elif isinstance(wd_config, str):
+            wd_config = {"disposition": wd_config}
+    return wd_config
+
+
 class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     original_data: Any
     """Original data from which the extracted DltSource was created. Will be used to describe in extract info"""
+
+    _last_extractors: Dict[TDataItemFormat, Extractor] = None
+    """Most recently used extractors"""
 
     def __init__(
         self,
@@ -348,6 +398,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         schema = source.schema
         json_extractor = extractors["object"]
         tables_with_items = set().union(*[e.tables_with_items for e in extractors.values()])
+        computed_tables = set().union(*[e.computed_tables for e in extractors.values()])
         # find REPLACE resources that did not yield any pipe items and create empty jobs for them
         # do not include tables that have never seen data
         data_tables = {t["name"]: t for t in schema.data_tables(seen_data_only=True)}
@@ -355,55 +406,37 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         for resource in source.resources.selected.values():
             if resource.name not in tables_by_resources:
                 continue
-            write_disposition = resource.write_disposition
+            resource_write_disposition_dict = resource.write_disposition
             # dynamic write dispositions can't be handled here
-            if callable(write_disposition):
+            if callable(resource_write_disposition_dict):
                 continue
+
             # disposition shorthand used for comparisons and the replace gate below
-            disposition = (
-                write_disposition["disposition"]
-                if isinstance(write_disposition, dict)
-                else write_disposition
+            resource_write_disposition = (
+                resource_write_disposition_dict["disposition"]
+                if isinstance(resource_write_disposition_dict, dict)
+                else resource_write_disposition_dict
             )
             for table in tables_by_resources[resource.name]:
                 table_name = table["name"]
                 # we only need to handle root tables
                 if utils.is_nested_table(table) or table_name in tables_with_items:
                     continue
-                # best-effort write disposition refresh: the resource write disposition is static
-                # here (dynamic ones were skipped above), so it can be written into existing tables.
-                # the full config (incl. merge strategy) is applied, not just the disposition.
-                wd_config: Any = None
-                if variant_name := table.get("variant_name"):
-                    # 1. variant table: take the write disposition declared on the variant hints
-                    variant_wd = (resource._hints_variants.get(variant_name) or {}).get(
-                        "write_disposition"
-                    )
-                    if isinstance(variant_wd, (str, dict)):
-                        wd_config = variant_wd
-                    elif table.get("write_disposition") != disposition:
-                        # variant has no explicit disposition and we can't be sure - leave it
-                        continue
-                elif len(schema.naming.break_path(table_name)) > 1:
-                    # 2. pseudo-root (nested table broken out by a primary key): can't be
-                    # re-derived from hints, so do not update it
-                    if table.get("write_disposition") != disposition:
-                        continue
-                else:
-                    # 3. a root table created from resource hints (incl. with_table_name marks and
-                    # dynamically dispatched names) - the static write disposition is known
-                    wd_config = write_disposition
-                if wd_config is not None:
-                    if not isinstance(wd_config, dict):
-                        wd_config = {"disposition": wd_config}
-                    table["write_disposition"] = wd_config
+
+                # we set a dict on table and immediately parse it into table hints in place
+                if table_name not in computed_tables and (
+                    wd_config := get_fresh_write_disposition(schema, resource, table)
+                ):
+                    table["write_disposition"] = wd_config  # type: ignore[typeddict-item]
                     resource._merge_write_disposition_dict(table)  # type: ignore[arg-type]
 
-                # write empty files so a replace root is truncated even though it received no data
-                if disposition != "replace":
+                # truncate tables only for resources marked as "replace"
+                if resource_write_disposition != "replace":
                     continue
+
                 # table itself must accept replace
                 if table.get("write_disposition") == "replace":
+                    # write empty files so a replace root is truncated even though it received no data
                     json_extractor.write_empty_items_file(table_name)
 
         # collect tables that received empty materialized lists and had no items
@@ -464,6 +497,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         )
 
                     self._handle_empty_tables(source, extractors)
+                    self._last_extractors = extractors
                     if left_gens > 0:
                         # go to 100%
                         collector.update("Resources", left_gens)

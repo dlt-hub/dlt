@@ -5,9 +5,17 @@ from dlt.common.storages import PackageStorage, ParsedLoadJobFileName
 from dlt.common.typing import TDataItem, TDataItems
 
 from dlt.extract.extract import ExtractStorage
+from dlt.extract.extractors import Extractor
 from dlt.extract.items_transform import BaseItemTransform, ItemTransform
 
 from tests.utils import TestDataItemFormat
+
+
+def assert_written_tables_are_computed(extractor: Extractor) -> None:
+    """Asserts that every table that received items or an empty materialized list was also computed
+    from data (`tables_with_items` and `tables_with_empty` are subsets of `computed_tables`)."""
+    assert extractor.tables_with_items <= extractor.computed_tables
+    assert extractor.tables_with_empty <= extractor.computed_tables
 
 
 def expect_extracted_file(

@@ -124,6 +124,8 @@ class Extractor:
         self.schema = schema
         self.naming = schema.naming
         self.collector = collector
+        self.computed_tables: Set[str] = set()
+        """Tables that were computed from data"""
         self.tables_with_items: Set[str] = set()
         """Tracks tables that received items"""
         self.tables_with_empty: Set[str] = set()
@@ -256,10 +258,13 @@ class Extractor:
         # drop in next major version
         # TODO: drop in 2.0 also drop SCHEMA__USE_BREAK_PATH_ON_NORMALIZE
         root_table_schema["name"] = self._normalize_table_identifier(root_table_schema["name"])
-        return [
+        normalized_tables = [
             utils.normalize_table_identifiers(table_schema, self.naming)
             for table_schema in (root_table_schema, *nested_tables_schema)
         ]
+        # remember which tables were computed from data so we can handle tables without data later
+        self.computed_tables.update(t["name"] for t in normalized_tables)
+        return normalized_tables
 
     def _compute_and_update_tables(
         self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
