@@ -217,8 +217,7 @@ def dataset_with_incomplete_join_target(module_tmp_path: pathlib.Path) -> dlt.Da
     declares an incomplete column hint via `columns=`.
 
     `phantom_field` is declared on `categories` with no `data_type`, so it never
-    materializes at the destination. `Schema.get_table_columns()` filters it out
-    via `is_complete_column`; raw `schema.tables[...]["columns"]` does not.
+    materializes at the destination.
     """
     pipeline = dlt.pipeline(
         pipeline_name="relation_incomplete_join_target",

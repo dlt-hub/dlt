@@ -202,10 +202,24 @@ def test_build_join_condition_rejects_empty_pairs() -> None:
         _build_join_condition_from_pairs([], left_alias="a", right_alias="b")
 
 
-def test_resolve_reference_chain_rejects_self_join(dataset_with_loads: TLoadsFixture) -> None:
+@pytest.mark.parametrize(
+    "left,right,match",
+    [
+        pytest.param("users", "users", "to itself", id="self-join"),
+        pytest.param(
+            "products", "users__orders", "Unable to resolve reference chain", id="unrelated-tables"
+        ),
+    ],
+)
+def test_resolve_reference_chain_rejection_matrix(
+    dataset_with_loads: TLoadsFixture,
+    left: str,
+    right: str,
+    match: str,
+) -> None:
     dataset, _, _ = dataset_with_loads
-    with pytest.raises(ValueError, match="to itself"):
-        _resolve_reference_chain(dataset.schema, "users", "users")
+    with pytest.raises(ValueError, match=match):
+        _resolve_reference_chain(dataset.schema, left, right)
 
 
 @pytest.mark.parametrize("dataset_with_loads", ["with_root_key"], indirect=True)
@@ -356,14 +370,6 @@ def test_resolve_reference_chain_matrix(
 
     assert [ref["target_table"] for ref in refs] == list(expected_targets)
     assert len(refs) == len(expected_targets)
-
-
-def test_resolve_reference_chain_rejects_unrelated_tables(
-    dataset_with_loads: TLoadsFixture,
-) -> None:
-    dataset, _, _ = dataset_with_loads
-    with pytest.raises(ValueError, match="Unable to resolve reference chain"):
-        _resolve_reference_chain(dataset.schema, "products", "users__orders")
 
 
 @pytest.mark.parametrize(
@@ -544,45 +550,6 @@ _MAGIC_LIMIT_LEAKS_PAST_JOIN = pytest.mark.xfail(
 )
 
 
-@pytest.mark.parametrize(
-    "build_join,expected_product_ids",
-    [
-        pytest.param(
-            lambda ds: ds.table("categories").order_by("id").limit(1).join("products"),
-            [10, 12],
-            id="magic",
-            marks=_MAGIC_LIMIT_LEAKS_PAST_JOIN,
-        ),
-        pytest.param(
-            lambda ds: ds.table("categories")
-            .order_by("id")
-            .limit(1)
-            .join("products", on="categories.id = products.category_id"),
-            [10, 12],
-            id="explicit-on-limit",
-        ),
-        pytest.param(
-            lambda ds: ds.query("SELECT * FROM categories ORDER BY id LIMIT 1 OFFSET 1").join(
-                "products", on="categories.id = products.category_id"
-            ),
-            [11],
-            id="explicit-on-limit-offset",
-        ),
-    ],
-)
-def test_limit_then_join_applies_limit_before_join(
-    dataset_with_incomplete_join_target: dlt.Dataset,
-    build_join: Callable[[dlt.Dataset], dlt.Relation],
-    expected_product_ids: list[int],
-) -> None:
-    """`.limit(n)` must bound the left relation before joining, not cap the joined result."""
-    relation = build_join(dataset_with_incomplete_join_target)
-    df = relation.df()
-
-    assert len(df) == len(expected_product_ids)
-    assert sorted(df["products__id"]) == expected_product_ids
-
-
 _MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN = pytest.mark.xfail(
     reason=(
         "magic join does not wrap a filtered left relation as a derived table, so its WHERE is "
@@ -593,66 +560,79 @@ _MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN = pytest.mark.xfail(
 
 
 @pytest.mark.parametrize(
-    "build_join,kind,expected_product_ids",
+    "build_rel,expected_session_ids",
     [
         pytest.param(
-            lambda rel, kind: rel.join("products", kind=kind),
-            "left",
-            [10, 12],
-            id="magic-left",
+            lambda ds: ds.table("users").order_by("id").limit(1).join("user_sessions"),
+            ["s1", "s2"],
+            id="limit-magic",
+            marks=_MAGIC_LIMIT_LEAKS_PAST_JOIN,
         ),
         pytest.param(
-            lambda rel, kind: rel.join("products", kind=kind),
-            "right",
-            [10, 11, 12],
-            id="magic-right",
+            lambda ds: ds.table("users")
+            .order_by("id")
+            .limit(1)
+            .join("user_sessions", on="users.id = user_sessions.user_id"),
+            ["s1", "s2"],
+            id="limit-explicit-on",
+        ),
+        pytest.param(
+            lambda ds: ds.query("SELECT * FROM users ORDER BY id LIMIT 1 OFFSET 1").join(
+                "user_sessions", on="users.id = user_sessions.user_id"
+            ),
+            ["s3"],
+            id="limit-explicit-on-offset",
+        ),
+        pytest.param(
+            lambda ds: ds.table("users").where("id", "eq", 1).join("user_sessions", kind="left"),
+            ["s1", "s2"],
+            id="filter-magic-left",
+        ),
+        pytest.param(
+            lambda ds: ds.table("users").where("id", "eq", 1).join("user_sessions", kind="right"),
+            ["s1", "s2", "s3"],
+            id="filter-magic-right",
             marks=_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN,
         ),
         pytest.param(
-            lambda rel, kind: rel.join("products", kind=kind),
-            "full",
-            [10, 11, 12],
-            id="magic-full",
+            lambda ds: ds.table("users").where("id", "eq", 1).join("user_sessions", kind="full"),
+            ["s1", "s2", "s3"],
+            id="filter-magic-full",
             marks=_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN,
         ),
         pytest.param(
-            lambda rel, kind: rel.join(
-                "products", on="categories.id = products.category_id", kind=kind
-            ),
-            "left",
-            [10, 12],
-            id="explicit-on-left",
+            lambda ds: ds.table("users")
+            .where("id", "eq", 1)
+            .join("user_sessions", on="users.id = user_sessions.user_id", kind="left"),
+            ["s1", "s2"],
+            id="filter-explicit-on-left",
         ),
         pytest.param(
-            lambda rel, kind: rel.join(
-                "products", on="categories.id = products.category_id", kind=kind
-            ),
-            "right",
-            [10, 11, 12],
-            id="explicit-on-right",
+            lambda ds: ds.table("users")
+            .where("id", "eq", 1)
+            .join("user_sessions", on="users.id = user_sessions.user_id", kind="right"),
+            ["s1", "s2", "s3"],
+            id="filter-explicit-on-right",
         ),
         pytest.param(
-            lambda rel, kind: rel.join(
-                "products", on="categories.id = products.category_id", kind=kind
-            ),
-            "full",
-            [10, 11, 12],
-            id="explicit-on-full",
+            lambda ds: ds.table("users")
+            .where("id", "eq", 1)
+            .join("user_sessions", on="users.id = user_sessions.user_id", kind="full"),
+            ["s1", "s2", "s3"],
+            id="filter-explicit-on-full",
         ),
     ],
 )
-def test_filter_then_join_applies_filter_before_join(
-    dataset_with_incomplete_join_target: dlt.Dataset,
-    build_join: Callable[[dlt.Relation, TJoinType], dlt.Relation],
-    kind: TJoinType,
-    expected_product_ids: list[int],
+def test_lhs_limit_and_filter_apply_before_join(
+    dataset_with_annotated_references: dlt.Dataset,
+    build_rel: Callable[[dlt.Dataset], dlt.Relation],
+    expected_session_ids: list[str],
 ) -> None:
-    """`.where()` must filter the left relation before joining, not the joined result."""
-    filtered = dataset_with_incomplete_join_target.table("categories").where("id", "eq", 1)
-    df = build_join(filtered, kind).df()
+    """LIMIT and WHERE on the left relation must be applied before joining, not to the joined result."""
+    df = build_rel(dataset_with_annotated_references).df()
 
-    assert len(df) == len(expected_product_ids)
-    assert sorted(df["products__id"]) == expected_product_ids
+    assert len(df) == len(expected_session_ids)
+    assert sorted(df["user_sessions__session_id"]) == expected_session_ids
 
 
 def test_windowed_lhs_join_applies_window_before_join(
@@ -1262,52 +1242,50 @@ def test_cross_dataset_join_resolves_physical_dataset_names(
         assert f'"{ds_mkt.sql_client.dataset_name}"."users"' in sql, sql
 
 
-def test_explicit_on_joins_relational_tables(
+@pytest.mark.parametrize(
+    "build_join",
+    [
+        pytest.param(
+            lambda ds: ds.table("customers").join(
+                "orders", on="customers.customer_id = orders.customer_id"
+            ),
+            id="bare-table-name",
+        ),
+        pytest.param(
+            lambda ds: ds.table("customers").join(
+                f"{ds.dataset_name}.orders", on="customers.customer_id = orders.customer_id"
+            ),
+            id="dataset-qualified-string",
+        ),
+        pytest.param(
+            lambda ds: ds.table("customers").join(
+                "orders",
+                on=sge.EQ(
+                    this=sge.Column(
+                        table=sge.to_identifier("customers"),
+                        this=sge.to_identifier("customer_id"),
+                    ),
+                    expression=sge.Column(
+                        table=sge.to_identifier("orders"),
+                        this=sge.to_identifier("customer_id"),
+                    ),
+                ),
+            ),
+            id="sqlglot-expression-on",
+        ),
+    ],
+)
+def test_explicit_on_joins_local_table(
     dataset_with_relational_tables: dlt.Dataset,
+    build_join: Callable[[dlt.Dataset], dlt.Relation],
 ) -> None:
     ds = dataset_with_relational_tables
-    joined = ds.table("customers").join("orders", on="customers.customer_id = orders.customer_id")
-    df = joined.df()
-    assert len(df) == 4
-    assert "orders__amount" in df.columns
-    assert list(df["orders__amount"]) == [50.0, 75.0, 200.0, 30.0]
-
-    with pytest.raises(ValueError, match="Unable to resolve reference chain"):
-        ds.table("customers").join("orders")
-
-
-def test_explicit_on_join_via_local_dotted_string(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    joined = ds.table("customers").join(
-        f"{ds.dataset_name}.orders", on="customers.customer_id = orders.customer_id"
-    )
+    joined = build_join(ds)
     assert not joined._foreign_schemas
     df = joined.df()
     assert len(df) == 4
     assert "orders__amount" in df.columns
     assert list(df["orders__amount"]) == [50.0, 75.0, 200.0, 30.0]
-
-
-def test_explicit_on_accepts_sqlglot_expression(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    on_expr = sge.EQ(
-        this=sge.Column(
-            table=sge.to_identifier("customers"),
-            this=sge.to_identifier("country_code"),
-        ),
-        expression=sge.Column(
-            table=sge.to_identifier("countries"),
-            this=sge.to_identifier("code"),
-        ),
-    )
-    joined = ds.table("customers").join("countries", on=on_expr)
-    df = joined.df()
-    assert len(df) == 3
-    assert list(df["countries__name"]) == ["Germany", "France", "Germany"]
 
 
 def test_explicit_on_non_eq_predicate(
@@ -1435,30 +1413,42 @@ def test_explicit_on_projection_alias_collision_rejected(
         left.join("orders", on="customers.customer_id = orders.customer_id")
 
 
-def test_explicit_on_with_filtered_lhs(
+@pytest.mark.parametrize(
+    "build_join,expected_rows,expected_names,expected_amounts",
+    [
+        pytest.param(
+            lambda ds: ds.table("customers")
+            .where("country_code", "eq", "DE")
+            .join("orders", on="customers.customer_id = orders.customer_id"),
+            3,
+            ["Alice", "Alice", "Charlie"],
+            [50.0, 75.0, 30.0],
+            id="filtered-lhs",
+        ),
+        pytest.param(
+            lambda ds: ds.table("customers").join(
+                ds.table("orders").where("amount", "gt", 50.0),
+                on="customers.customer_id = orders.customer_id",
+            ),
+            2,
+            ["Alice", "Bob"],
+            [75.0, 200.0],
+            id="filtered-rhs",
+        ),
+    ],
+)
+def test_explicit_on_with_filtered_side(
     dataset_with_relational_tables: dlt.Dataset,
+    build_join: Callable[[dlt.Dataset], dlt.Relation],
+    expected_rows: int,
+    expected_names: list[str],
+    expected_amounts: list[float],
 ) -> None:
     ds = dataset_with_relational_tables
-    german_customers = ds.table("customers").where("country_code", "eq", "DE")
-    joined = german_customers.join("orders", on="customers.customer_id = orders.customer_id")
-    df = joined.df()
-    assert len(df) == 3
-    assert list(df["name"]) == ["Alice", "Alice", "Charlie"]
-    assert list(df["orders__amount"]) == [50.0, 75.0, 30.0]
-
-
-def test_explicit_on_with_filtered_rhs(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    expensive_orders = ds.table("orders").where("amount", "gt", 50.0)
-    joined = ds.table("customers").join(
-        expensive_orders, on="customers.customer_id = orders.customer_id"
-    )
-    df = joined.df()
-    assert len(df) == 2
-    assert list(df["name"]) == ["Alice", "Bob"]
-    assert list(df["orders__amount"]) == [75.0, 200.0]
+    df = build_join(ds).df()
+    assert len(df) == expected_rows
+    assert list(df["name"]) == expected_names
+    assert list(df["orders__amount"]) == expected_amounts
 
 
 def test_explicit_on_does_not_mutate_transformed_rhs(
@@ -1729,27 +1719,37 @@ def test_explicit_on_rejects_invalid_on_expression(
         ds.table("customers").join("orders", on=on)
 
 
-def test_explicit_on_rejects_unknown_kind(
+@pytest.mark.parametrize(
+    "build_join,match",
+    [
+        pytest.param(
+            lambda ds: ds.table("customers").join(
+                "orders", kind="outer", on="customers.customer_id = orders.customer_id"
+            ),
+            "kind=outer",
+            id="unknown-kind",
+        ),
+        pytest.param(
+            lambda ds: ds.table("customers").join(
+                "unknown_ds.orders", on="customers.customer_id = orders.customer_id"
+            ),
+            "is not registered",
+            id="unknown-dotted-dataset",
+        ),
+        pytest.param(
+            lambda ds: ds.table("customers").join("orders"),
+            "Unable to resolve reference chain",
+            id="no-on-unresolvable",
+        ),
+    ],
+)
+def test_explicit_on_rejection_matrix(
     dataset_with_relational_tables: dlt.Dataset,
+    build_join: Callable[[dlt.Dataset], dlt.Relation],
+    match: str,
 ) -> None:
-    ds = dataset_with_relational_tables
-
-    with pytest.raises(ValueError, match="kind=outer"):
-        ds.table("customers").join(  # type: ignore[call-overload]
-            "orders",
-            kind="outer",
-            on="customers.customer_id = orders.customer_id",
-        )
-
-
-def test_explicit_on_rejects_unknown_dotted_string_dataset(
-    dataset_with_relational_tables: dlt.Dataset,
-) -> None:
-    ds = dataset_with_relational_tables
-    with pytest.raises(ValueError, match="is not registered"):
-        ds.table("customers").join(
-            "unknown_ds.orders", on="customers.customer_id = orders.customer_id"
-        )
+    with pytest.raises(ValueError, match=match):
+        build_join(dataset_with_relational_tables)
 
 
 def test_explicit_on_with_derived_table_lhs(
@@ -1801,42 +1801,38 @@ def test_explicit_on_columns_schema_resolves_with_name_mutating_normalizer(
     assert expected_right_aliases.issubset(schema_cols)
 
 
+@pytest.mark.parametrize(
+    "on",
+    [
+        pytest.param("users.id = purchases.user_id", id="string"),
+        pytest.param(
+            sge.EQ(
+                this=sge.Column(table=sge.to_identifier("users"), this=sge.to_identifier("id")),
+                expression=sge.Column(
+                    table=sge.to_identifier("purchases"), this=sge.to_identifier("user_id")
+                ),
+            ),
+            id="sqlglot-expression",
+        ),
+    ],
+)
 def test_cross_dataset_join(
     cross_dataset_duckdb: TCrossDsFixture,
+    on: Union[str, sge.Expression],
 ) -> None:
     ds_crm, ds_inv = cross_dataset_duckdb
     users = ds_crm.table("users")
-    purchases = ds_inv.table("purchases")
 
-    joined = users.join(purchases, on="users.id = purchases.user_id")
+    joined = users.join(ds_inv.table("purchases"), on=on)
 
     assert ds_inv.dataset_name in joined._foreign_schemas
     assert ds_inv.dataset_name not in users._foreign_schemas
-    foreign_schemas = joined._foreign_schemas[ds_inv.dataset_name]
-    assert len(foreign_schemas) >= 1
+    assert len(joined._foreign_schemas[ds_inv.dataset_name]) >= 1
 
     df = joined.df()
     assert len(df) == 3
     assert "purchases__sku" in df.columns
     assert "purchases__quantity" in df.columns
-    assert sorted(df["purchases__sku"]) == ["G-001", "W-001", "W-001"]
-
-
-def test_cross_dataset_join_accepts_sqlglot_expression(
-    cross_dataset_duckdb: TCrossDsFixture,
-) -> None:
-    ds_crm, ds_inv = cross_dataset_duckdb
-    on_expr = sge.EQ(
-        this=sge.Column(table=sge.to_identifier("users"), this=sge.to_identifier("id")),
-        expression=sge.Column(
-            table=sge.to_identifier("purchases"), this=sge.to_identifier("user_id")
-        ),
-    )
-    joined = ds_crm.table("users").join(ds_inv.table("purchases"), on=on_expr)
-
-    assert ds_inv.dataset_name in joined._foreign_schemas
-    df = joined.df()
-    assert len(df) == 3
     assert sorted(df["purchases__sku"]) == ["G-001", "W-001", "W-001"]
 
 
