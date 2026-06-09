@@ -402,22 +402,48 @@ def test_hub_pipeline_show_passes_check_when_found(
     assert rc == -1
 
 
-def test_main_in_workspace_prints_dlthub_handoff_note(
+@pytest.mark.parametrize(
+    "argv, expected",
+    [
+        (["dlt", "init", "pokemon", "duckdb"], "dlthub pipeline init pokemon duckdb"),
+        (["dlt", "pipeline", "my_pipe", "trace"], "dlthub local pipeline my_pipe trace"),
+        (["dlt", "schema", "schema.yaml"], "dlthub local schema schema.yaml"),
+        (["dlt", "telemetry"], "dlthub local telemetry"),
+        (["dlt", "--debug", "pipeline", "my_pipe"], "dlthub local pipeline my_pipe"),
+        (["dlt", "deploy", "pipe.py", "airflow-composer"], "dlthub local --help"),
+        (["dlt", "--version"], "dlthub local --help"),
+        (["dlt"], "dlthub local --help"),
+    ],
+    ids=[
+        "init",
+        "pipeline",
+        "schema",
+        "telemetry",
+        "pipeline-after-flag",
+        "deploy-generic",
+        "version-generic",
+        "bare-generic",
+    ],
+)
+def test_main_in_workspace_prints_dlthub_replacement(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    argv: List[str],
+    expected: str,
 ) -> None:
-    """`_main()` inside a workspace tells the user to use the `dlthub` command."""
-    # short-circuit the inner dispatch so we only exercise the handoff branch
-    monkeypatch.setattr("dlt._workspace.cli._dlt.main", lambda host: 0)
-    monkeypatch.setattr("sys.argv", ["dlt", "--version"])
+    """`_main()` inside a workspace does not execute and shows the `dlthub` replacement command."""
+    dispatch = MagicMock()
+    monkeypatch.setattr("dlt._workspace.cli._dlt.main", dispatch)
+    monkeypatch.setattr("sys.argv", argv)
     with pytest.raises(SystemExit) as ei:
         _main()
-    assert ei.value.code == 0
+    assert ei.value.code == -1
+    # nothing got executed
+    dispatch.assert_not_called()
     captured = capsys.readouterr()
     combined = captured.out + captured.err
-    assert "Please use" in combined
-    assert "dlthub" in combined
-    assert "dlthub local --help" in combined
+    assert "dltHub Workspace" in combined
+    assert expected in combined
 
 
 def test_main_outside_workspace_no_handoff_note(
@@ -425,7 +451,7 @@ def test_main_outside_workspace_no_handoff_note(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """In OSS context (no workspace), `_main()` does NOT emit the handoff note."""
+    """In OSS context (no workspace), `_main()` executes and does NOT emit the dlthub note."""
     monkeypatch.setattr("dlt._workspace.cli._dlt.main", lambda host: 0)
     monkeypatch.setattr("sys.argv", ["dlt", "--version"])
     with pytest.raises(SystemExit) as ei:
@@ -433,7 +459,7 @@ def test_main_outside_workspace_no_handoff_note(
     assert ei.value.code == 0
     captured = capsys.readouterr()
     combined = captured.out + captured.err
-    assert "Please use" not in combined
+    assert "dltHub Workspace" not in combined
 
 
 @pytest.mark.parametrize(

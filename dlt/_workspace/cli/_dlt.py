@@ -20,6 +20,14 @@ from dlt._workspace.cli.echo import maybe_no_stdin
 ACTION_EXECUTED = False
 DEFAULT_DOCS_URL = "https://dlthub.com/docs/intro"
 
+_DLT_TO_DLTHUB_COMMANDS: Dict[str, str] = {
+    "init": "pipeline init",
+    "pipeline": "local pipeline",
+    "schema": "local schema",
+    "telemetry": "local telemetry",
+}
+"""Maps `dlt` commands to their `dlthub` replacements suggested in an active workspace."""
+
 
 class _LazyMarkdown:
     """Renderable wrapper that defers `rich.markdown.Markdown` instantiation"""
@@ -370,20 +378,31 @@ def main(host: str = "dlt") -> int:
     return 0
 
 
+def _print_use_dlthub_note() -> None:
+    """Print a note pointing the user to the `dlthub` replacement of the attempted `dlt` command."""
+    args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    command = args[0] if args else ""
+    if replacement := _DLT_TO_DLTHUB_COMMANDS.get(command):
+        suggested = " ".join(["dlthub", replacement, *args[1:]])
+        fmt.echo(
+            "`dlt %s` is not available in an active dltHub Workspace. Run %s instead."
+            % (command, fmt.bold(suggested))
+        )
+    else:
+        fmt.echo(
+            "Use %s as the top level command in an active dltHub Workspace. Check %s and %s"
+            " for former dlt commands."
+            % (fmt.bold("dlthub"), fmt.bold("dlthub --help"), fmt.bold("dlthub local --help"))
+        )
+
+
 def _main() -> None:
     """Entry point for the `dlt` console script."""
-    # when workspace is active, dlt commands mirrors dlthub
+    # when workspace is active, dlt does not execute - it points the user to dlthub
     if is_workspace_active():
-        host = "dlthub"
-        fmt.note(
-            "Please use %s as top level command. Check `%s` for former dlt commands. "
-            "Falling back to dlthub command set."
-            % (fmt.bold("dlthub"), fmt.bold("dlthub local --help"))
-        )
-        fmt.echo()
-    else:
-        host = "dlt"
-    exit(main(host))
+        _print_use_dlthub_note()
+        exit(-1)
+    exit(main("dlt"))
 
 
 def _main_dlthub() -> None:
