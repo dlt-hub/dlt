@@ -24,7 +24,7 @@ try:
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dltHub workspace",
-        [f"{version.DLT_PKG_NAME}[workspace]"],
+        [f"{version.DLT_PKG_NAME}[hub]"],
     )
 
 
