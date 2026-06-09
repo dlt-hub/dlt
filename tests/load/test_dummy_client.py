@@ -364,6 +364,46 @@ def test_spool_job_retry_new() -> None:
         assert metrics.finished_at is None
 
 
+def test_spool_job_retry_worker_setup_exception() -> None:
+    load = setup_loader()
+    load_id, schema = prepare_load_package(load.load_storage, [NORMALIZED_FILES[0]])
+    file = load.load_storage.normalized_packages.list_new_jobs(load_id)[0]
+
+    get_destination_client = load.get_destination_client
+    get_destination_client_calls = 0
+
+    def fail_on_worker_setup(schema):
+        nonlocal get_destination_client_calls
+        get_destination_client_calls += 1
+        # load job setup succeeds
+        if get_destination_client_calls == 1:
+            return get_destination_client(schema)
+        # subsequent calls (e.g. when running the job) fail
+        raise RuntimeError("connect failed")
+
+    with patch.object(load, "get_destination_client", side_effect=fail_on_worker_setup):
+        job = load.submit_job(file, load_id, schema)
+
+    assert job.state() == "retry"
+    assert isinstance(job.exception(), RuntimeError)
+    assert job.failed_message() == "connect failed"
+
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load.load_storage.normalized_packages, load_id=load_id
+        )
+    ):
+        remaining_jobs, finalized_jobs, pending_exception = load.complete_jobs(
+            load_id, [job], schema
+        )
+
+    assert remaining_jobs == []
+    assert finalized_jobs == []
+    assert pending_exception is None
+    assert load.load_storage.normalized_packages.list_new_jobs(load_id)[0].endswith(".1.jsonl")
+    assert load.load_storage.normalized_packages.list_started_jobs(load_id) == []
+
+
 def test_spool_job_retry_spool_new() -> None:
     # this config retries job on start (transient fail)
     load = setup_loader(client_config=DummyClientConfiguration(retry_prob=1.0))

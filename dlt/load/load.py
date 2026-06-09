@@ -278,19 +278,18 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         """
         Start a load job in a separate thread
         """
-        active_job_client = (
-            self.get_staging_destination_client(schema)
-            if use_staging_client
-            else self.get_destination_client(schema)
-        )
         try:
+            active_job_client = (
+                self.get_staging_destination_client(schema)
+                if use_staging_client
+                else self.get_destination_client(schema)
+            )
             with self.maybe_with_staging_dataset(active_job_client, use_staging_dataset):
                 job.run_managed(active_job_client, self._done_event)
         except Exception as e:
             logger.exception(f"worker {job.__class__} died in uncontrollable manner")
-            # release only if job is still running - if this exception comes from _release()
-            # itself - job._state will be already set
-            if job._state == "running":
+            # release only if job was not already released by run_managed/_release()
+            if job._state in ("ready", "running"):
                 job._exception = e
                 job._release("retry")
 
