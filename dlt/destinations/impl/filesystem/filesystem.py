@@ -47,7 +47,7 @@ from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.utils import get_columns_names_with_prop, is_nested_table
+from dlt.common.schema.utils import get_columns_names_with_prop, get_root_table, is_nested_table
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
@@ -198,6 +198,28 @@ class TableFormatLoadFilesystemJob(ReferenceFollowupJob):
     def _partition_columns(self) -> List[str]:
         return get_columns_names_with_prop(self._load_table, "partition")
 
+    def _get_previous_load_id(self) -> Optional[str]:
+        """Returns the most recently completed load_id from the loads table, or None."""
+        loads_table_name = self._job_client.schema.loads_table_name
+        try:
+            files = self._job_client.list_table_files(loads_table_name)
+        except DestinationUndefinedEntity:
+            return None
+        # filename format: {schema_name}__{load_id}.jsonl — load_id is a float timestamp string
+        load_ids: List[str] = []
+        for filepath in files:
+            filename = os.path.splitext(os.path.basename(filepath))[0]
+            parts = filename.rsplit(FILENAME_SEPARATOR, maxsplit=1)
+            if len(parts) == 2:
+                try:
+                    float(parts[1])
+                except ValueError:
+                    continue
+                load_ids.append(parts[1])
+        if not load_ids:
+            return None
+        return max(load_ids, key=float)
+
 
 class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
@@ -226,6 +248,24 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
         except DestinationUndefinedEntity:
             delta_table = None
 
+        previous_load_id: Optional[str] = None
+        root_delta_table = None
+        if (
+            delta_table is not None
+            and self._load_table.get("x-insert-only-scope") == "previous_load"
+        ):
+            previous_load_id = self._get_previous_load_id()
+            if is_nested_table(self._load_table):
+                root_table_name = get_root_table(
+                    self._job_client.schema.tables, self._load_table["name"]
+                )["name"]
+                try:
+                    root_delta_table = self._job_client.load_open_table(
+                        "delta", root_table_name
+                    )
+                except DestinationUndefinedEntity:
+                    pass
+
         with source_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
             if self._load_table["write_disposition"] == "merge" and delta_table is not None:
                 merge_delta_table(
@@ -234,6 +274,8 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     schema=self._load_table,
                     load_table_name=self.load_table_name,
                     streamed_exec=self._job_client.config.deltalake_streamed_exec,
+                    previous_load_id=previous_load_id,
+                    root_table=root_delta_table,
                 )
             else:
                 location = self._job_client.get_open_table_location("delta", self.load_table_name)
@@ -313,11 +355,27 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             return
 
         if self._load_table["write_disposition"] == "merge" and table is not None:
+            previous_load_id: Optional[str] = None
+            root_iceberg_table = None
+            if self._load_table.get("x-insert-only-scope") == "previous_load":
+                previous_load_id = self._get_previous_load_id()
+                if is_nested_table(self._load_table):
+                    root_table_name = get_root_table(
+                        self._job_client.schema.tables, self._load_table["name"]
+                    )["name"]
+                    try:
+                        root_iceberg_table = self._job_client.load_open_table(
+                            "iceberg", root_table_name
+                        )
+                    except DestinationUndefinedEntity:
+                        pass
             merge_iceberg_table(
                 table=table,
                 data=self.arrow_dataset.to_table(),
                 schema=self._load_table,
                 load_table_name=self.load_table_name,
+                previous_load_id=previous_load_id,
+                root_table=root_iceberg_table,
             )
         else:
             write_iceberg_table(
@@ -861,6 +919,13 @@ class FilesystemClient(
                 table["write_disposition"] = "append"
             else:
                 table["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
+        if table["write_disposition"] == "merge" and is_nested_table(table):
+            # propagate insert-only scope from root table to child tables so
+            # the table-format load jobs apply the same scoped dedup behavior
+            root = get_root_table(self.schema.tables, table["name"])
+            scope = root.get("x-insert-only-scope")
+            if scope:
+                table["x-insert-only-scope"] = scope  # type: ignore[typeddict-unknown-key]
         if table["write_disposition"] == "replace":
             replace_strategy = resolve_replace_strategy(
                 table, self.config.replace_strategy, self.capabilities

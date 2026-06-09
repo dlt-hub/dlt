@@ -22,10 +22,12 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TMergeDispositionDict,
     TScd2StrategyDict,
+    TInsertOnlyStrategyDict,
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
     DEFAULT_VALIDITY_COLUMN_NAMES,
+    INSERT_ONLY_SCOPES,
     MERGE_STRATEGIES,
     TTableReferenceParam,
 )
@@ -703,6 +705,10 @@ class DltResourceHints:
                 "unique": False,
                 "row_key": False,
             }
+        elif merge_strategy == "insert-only":
+            md_dict = cast(TInsertOnlyStrategyDict, md_dict)
+            if scope := md_dict.get("scope"):
+                dict_["x-insert-only-scope"] = scope
 
     @staticmethod
     def _merge_incremental_column_hint(dict_: Dict[str, Any]) -> None:
@@ -786,6 +792,14 @@ class DltResourceHints:
                             ensure_pendulum_datetime_utc(wd[ts])
                         except Exception:
                             raise ValueError(f"could not parse `{ts}` value `{wd[ts]}`")
+
+            if wd.get("strategy") == "insert-only":
+                wd = cast(TInsertOnlyStrategyDict, wd)
+                if "scope" in wd and wd["scope"] is not None:
+                    if wd["scope"] not in INSERT_ONLY_SCOPES:
+                        raise ValueErrorWithKnownValues(
+                            "write_disposition['scope']", wd["scope"], INSERT_ONLY_SCOPES
+                        )
 
     @staticmethod
     def validate_reference_hint(template: TResourceHints) -> None:
