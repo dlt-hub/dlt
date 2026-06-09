@@ -12,6 +12,7 @@ sqlalchemy = pytest.importorskip("sqlalchemy", minversion="2.0")
 
 from dlt.common.libs.pyiceberg import (
     get_catalog,
+    add_column_docs_to_arrow_schema,
 )
 
 # ============================================================================
@@ -452,3 +453,88 @@ def test_catalog_from_yaml_parametrized(catalog_config, tmp_path, monkeypatch):
     namespaces = catalog.list_namespaces()
     namespace_list = [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
     assert test_namespace in namespace_list
+
+
+def test_add_column_docs_to_arrow_schema():
+    """Test adding column documentation to PyArrow schema via field metadata."""
+    pa = pytest.importorskip("pyarrow")
+
+    schema = pa.schema(
+        [
+            pa.field("id", pa.int64()),
+            pa.field("name", pa.string()),
+            pa.field("email", pa.string()),
+        ]
+    )
+
+    column_descriptions = {
+        "id": "Unique identifier",
+        "name": "Full name of the user",
+    }
+
+    result_schema = add_column_docs_to_arrow_schema(schema, column_descriptions)
+
+    assert result_schema is not None
+    assert len(result_schema) == 3
+
+    id_field = result_schema.field("id")
+    name_field = result_schema.field("name")
+    email_field = result_schema.field("email")
+
+    assert id_field.metadata is not None
+    assert id_field.metadata.get(b"doc") == b"Unique identifier"
+
+    assert name_field.metadata is not None
+    assert name_field.metadata.get(b"doc") == b"Full name of the user"
+
+    assert email_field.metadata is None
+
+
+def test_add_column_docs_to_arrow_schema_no_descriptions():
+    """Test that schema is returned unchanged when no descriptions provided."""
+    pa = pytest.importorskip("pyarrow")
+
+    schema = pa.schema(
+        [
+            pa.field("id", pa.int64()),
+            pa.field("name", pa.string()),
+        ]
+    )
+
+    result_schema = add_column_docs_to_arrow_schema(schema, None)
+
+    assert result_schema is schema
+
+
+def test_add_column_docs_to_arrow_schema_empty_descriptions():
+    """Test that schema is returned unchanged when descriptions dict is empty."""
+    pa = pytest.importorskip("pyarrow")
+
+    schema = pa.schema(
+        [
+            pa.field("id", pa.int64()),
+        ]
+    )
+
+    result_schema = add_column_docs_to_arrow_schema(schema, {})
+
+    assert result_schema is schema
+
+
+def test_add_column_docs_to_arrow_schema_preserves_existing_metadata():
+    """Test that existing field metadata is preserved when adding doc."""
+    pa = pytest.importorskip("pyarrow")
+
+    schema = pa.schema(
+        [
+            pa.field("id", pa.int64(), metadata={b"custom": b"value"}),
+        ]
+    )
+
+    column_descriptions = {"id": "ID description"}
+
+    result_schema = add_column_docs_to_arrow_schema(schema, column_descriptions)
+
+    id_field = result_schema.field("id")
+    assert id_field.metadata.get(b"custom") == b"value"
+    assert id_field.metadata.get(b"doc") == b"ID description"

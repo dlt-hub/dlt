@@ -1,7 +1,9 @@
 import pytest
+from typing import cast
 
 import dlt
 import pyarrow as pa
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
 from dlt.destinations.impl.filesystem.iceberg_adapter import (
     PARTITION_HINT,
@@ -9,6 +11,7 @@ from dlt.destinations.impl.filesystem.iceberg_adapter import (
     PartitionSpec,
     parse_partition_hints,
     create_identity_specs,
+    get_column_descriptions,
 )
 from dlt.destinations.impl.filesystem.iceberg_partition_spec import (
     build_iceberg_partition_spec,
@@ -18,6 +21,57 @@ from dlt.destinations.impl.filesystem.iceberg_partition_spec import (
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
+
+
+def test_get_column_descriptions_extracts_descriptions() -> None:
+    table_schema = cast(
+        PreparedTableSchema,
+        {
+            "name": "test_table",
+            "columns": {
+                "id": {"name": "id", "data_type": "bigint", "description": "Unique identifier"},
+                "name": {"name": "name", "data_type": "text", "description": "User name"},
+                "email": {"name": "email", "data_type": "text"},
+            },
+        },
+    )
+
+    result = get_column_descriptions(table_schema)
+
+    assert result == {"id": "Unique identifier", "name": "User name"}
+
+
+def test_get_column_descriptions_returns_empty_when_no_descriptions() -> None:
+    table_schema = cast(
+        PreparedTableSchema,
+        {
+            "name": "test_table",
+            "columns": {
+                "id": {"name": "id", "data_type": "bigint"},
+                "name": {"name": "name", "data_type": "text"},
+            },
+        },
+    )
+
+    result = get_column_descriptions(table_schema)
+
+    assert result == {}
+
+
+def test_get_column_descriptions_returns_empty_when_no_columns() -> None:
+    table_schema = cast(PreparedTableSchema, {"name": "test_table"})
+
+    result = get_column_descriptions(table_schema)
+
+    assert result == {}
+
+
+def test_get_column_descriptions_handles_empty_columns() -> None:
+    table_schema = cast(PreparedTableSchema, {"name": "test_table", "columns": {}})
+
+    result = get_column_descriptions(table_schema)
+
+    assert result == {}
 
 
 @pytest.mark.parametrize(

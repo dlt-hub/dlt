@@ -67,6 +67,39 @@ def ensure_iceberg_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
     return cast_arrow_schema_types(schema, ARROW_TO_ICEBERG_COMPATIBLE_ARROW_TYPE_MAP)
 
 
+def add_column_docs_to_arrow_schema(
+    schema: pa.Schema,
+    column_descriptions: Optional[Dict[str, str]] = None,
+) -> pa.Schema:
+    """Adds column documentation to a PyArrow schema via field metadata.
+
+    Column descriptions are added as the b"doc" key in field metadata,
+    which PyIceberg's pyarrow_to_schema() converts to NestedField.doc.
+
+    Args:
+        schema: The PyArrow schema to add documentation to.
+        column_descriptions: Optional dictionary mapping column names to
+            their description strings. If None or empty, the original
+            schema is returned unchanged.
+
+    Returns:
+        A new PyArrow schema with documentation added to field metadata.
+        Fields without descriptions preserve their original metadata.
+    """
+    if not column_descriptions:
+        return schema
+
+    new_fields = []
+    for field in schema:
+        if field.name in column_descriptions:
+            metadata = {**(field.metadata or {}), b"doc": column_descriptions[field.name].encode()}
+            new_fields.append(field.with_metadata(metadata))
+        else:
+            new_fields.append(field)
+
+    return pa.schema(new_fields)
+
+
 def ensure_iceberg_compatible_arrow_data(data: pa.Table) -> pa.Table:
     schema = ensure_iceberg_compatible_arrow_schema(data.schema)
     return data.cast(schema)
@@ -392,6 +425,7 @@ def evolve_table(
     table_id: str,
     table_location: str,
     schema: Optional[pa.Schema] = None,
+    column_descriptions: Optional[Dict[str, str]] = None,
 ) -> IcebergTable:
     try:
         table = catalog.load_table(table_id)
@@ -408,6 +442,12 @@ def evolve_table(
     if schema is not None:
         with table.update_schema() as update:
             update.union_by_name(ensure_iceberg_compatible_arrow_schema(schema))
+
+    # update column docs if provided
+    if column_descriptions:
+        with table.update_schema() as update:
+            for col_name, doc in column_descriptions.items():
+                update.update_column(col_name, doc=doc)
 
     return table
 

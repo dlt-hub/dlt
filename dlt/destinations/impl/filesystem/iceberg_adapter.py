@@ -261,3 +261,22 @@ def create_identity_specs(column_names: List[str]) -> List[PartitionSpec]:
         List of PartitionSpec objects with identity transform
     """
     return [iceberg_partition.identity(column_name) for column_name in column_names]
+
+
+def get_column_descriptions(table_schema: PreparedTableSchema) -> Dict[str, str]:
+    """Extracts column descriptions from dlt table schema columns.
+
+    Args:
+        table_schema: The dlt prepared table schema containing column definitions.
+
+    Returns:
+        A dictionary mapping column names to their description strings.
+        Columns without descriptions are omitted.
+    """
+    descriptions: Dict[str, str] = {}
+    for col_name, col in table_schema.get("columns", {}).items():
+        desc = col.get("description")
+        if desc:
+            descriptions[col_name] = desc
+
+    return descriptions
