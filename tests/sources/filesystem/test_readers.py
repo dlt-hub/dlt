@@ -118,6 +118,27 @@ def test_read_parquet(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> Non
     assert read_data == [data]
 
 
+def test_read_parquet_metadata(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
+    file_ = _create_parquet_file(data=data, tmp_path=tmp_path)
+    iterator = _read_parquet([file_], retrieve_file_metadata=True)
+    read_data = list(iterator)
+
+    assert isinstance(iterator, Iterator)
+    assert isinstance(read_data, list)  # list of batches
+    assert isinstance(read_data[0], list)  # batch of records
+    assert isinstance(read_data[0][0], dict)  # record
+
+    data_with_metadata = [
+        {
+            **record,
+            "file_name": file_["file_name"],
+            "file_modification_date": file_["modification_date"],
+        }
+        for record in data
+    ]
+    assert read_data == [data_with_metadata]
+
+
 def test_read_parquet_use_pyarrow(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
     file_ = _create_parquet_file(data=data, tmp_path=tmp_path)
     iterator = _read_parquet([file_], use_pyarrow=True)
@@ -130,6 +151,29 @@ def test_read_parquet_use_pyarrow(tmp_path: pathlib.Path, data: list[dict[str, A
     assert read_data == [pyarrow.RecordBatch.from_pylist(data)]
 
 
+def test_read_parquet_use_pyarrow_metadata(
+    tmp_path: pathlib.Path, data: list[dict[str, Any]]
+) -> None:
+    file_ = _create_parquet_file(data=data, tmp_path=tmp_path)
+    iterator = _read_parquet([file_], use_pyarrow=True, retrieve_file_metadata=True)
+    read_data = list(iterator)
+
+    assert isinstance(iterator, Iterator)
+    assert isinstance(read_data, list)  # list of batches
+    assert isinstance(read_data[0], pyarrow.RecordBatch)  # batch of records
+    assert isinstance(read_data[0][0], pyarrow.Array)  # column
+    data_with_metadata = [
+        {
+            **record,
+            "file_name": file_["file_name"],
+            "file_modification_date": file_["modification_date"],
+        }
+        for record in data
+    ]
+
+    assert read_data == [pyarrow.RecordBatch.from_pylist(data_with_metadata)]
+
+
 def test_read_csv(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
     file_ = _create_csv_file(data=data, tmp_path=tmp_path)
     iterator = _read_csv([file_])
@@ -140,6 +184,27 @@ def test_read_csv(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
     assert isinstance(read_data[0], list)  # batch of records
     assert isinstance(read_data[0][0], dict)  # record
     assert read_data == [data]
+
+
+def test_read_csv_metadata(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
+    file_ = _create_csv_file(data=data, tmp_path=tmp_path)
+    iterator = _read_csv([file_], retrieve_file_metadata=True)
+    read_data = list(iterator)
+
+    assert isinstance(iterator, Iterator)
+    assert isinstance(read_data, list)  # list of batches
+    assert isinstance(read_data[0], list)  # batch of records
+    assert isinstance(read_data[0][0], dict)  # record
+
+    data_with_metadata = [
+        {
+            **record,
+            "file_name": file_["file_name"],
+            "file_modification_date": file_["modification_date"],
+        }
+        for record in data
+    ]
+    assert read_data == [data_with_metadata]
 
 
 @pytest.mark.parametrize(
@@ -183,6 +248,27 @@ def test_read_jsonl(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
     assert read_data == [data]
 
 
+def test_read_jsonl_metadata(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
+    file_ = _create_jsonl_file(data=data, tmp_path=tmp_path)
+    iterator = _read_jsonl([file_], retrieve_file_metadata=True)
+    read_data = list(iterator)
+
+    assert isinstance(iterator, Iterator)
+    assert isinstance(read_data, list)  # list of batches
+    assert isinstance(read_data[0], list)  # batch of records
+    assert isinstance(read_data[0][0], dict)  # record
+
+    data_with_metadata = [
+        {
+            **record,
+            "file_name": file_["file_name"],
+            "file_modification_date": file_["modification_date"],
+        }
+        for record in data
+    ]
+    assert read_data == [data_with_metadata]
+
+
 def test_read_csv_duckdb(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
     file_ = _create_csv_file(data=data, tmp_path=tmp_path)
     iterator = _read_csv_duckdb([file_])
@@ -193,6 +279,27 @@ def test_read_csv_duckdb(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> 
     assert isinstance(read_data[0], list)  # batch of records
     assert isinstance(read_data[0][0], dict)  # record
     assert read_data == [data]
+
+
+def test_read_csv_duckdb_metadata(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
+    file_ = _create_csv_file(data=data, tmp_path=tmp_path)
+    iterator = _read_csv_duckdb([file_], retrieve_file_metadata=True)
+    read_data = list(iterator)
+
+    assert isinstance(iterator, Iterator)
+    assert isinstance(read_data, list)  # list of batches
+    assert isinstance(read_data[0], list)  # batch of records
+    assert isinstance(read_data[0][0], dict)  # record
+
+    data_with_metadata = [
+        {
+            **record,
+            "file_name": file_["file_name"],
+            "file_modification_date": file_["modification_date"],
+        }
+        for record in data
+    ]
+    assert read_data == [data_with_metadata]
 
 
 def test_read_csv_duckdb_filename(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
@@ -215,3 +322,26 @@ def test_read_csv_duckdb_use_pyarrow(tmp_path: pathlib.Path, data: list[dict[str
     assert isinstance(read_data[0], pyarrow.RecordBatch)  # batch of records
     assert isinstance(read_data[0][0], pyarrow.Array)  # column
     assert read_data == [pyarrow.RecordBatch.from_pylist(data)]
+
+
+def test_read_csv_duckdb_use_pyarrow_metadata(
+    tmp_path: pathlib.Path, data: list[dict[str, Any]]
+) -> None:
+    file_ = _create_csv_file(data=data, tmp_path=tmp_path)
+    iterator = _read_csv_duckdb([file_], use_pyarrow=True, retrieve_file_metadata=True)
+    read_data = list(iterator)
+
+    assert isinstance(iterator, Iterator)
+    assert isinstance(read_data, list)  # list of batches
+    assert isinstance(read_data[0], pyarrow.RecordBatch)  # batch of records
+    assert isinstance(read_data[0][0], pyarrow.Array)  # column
+
+    data_with_metadata = [
+        {
+            **record,
+            "file_name": file_["file_name"],
+            "file_modification_date": file_["modification_date"],
+        }
+        for record in data
+    ]
+    assert read_data == [pyarrow.RecordBatch.from_pylist(data_with_metadata)]

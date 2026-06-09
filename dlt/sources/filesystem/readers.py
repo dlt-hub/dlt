@@ -13,12 +13,16 @@ __source_name__ = "filesystem"
 # NOTE inconsistent kwarg convention across readers `chunk_size` vs. `chunksize`
 # snakecased `chunk_size` is the more appropriate Python convention
 def _read_csv(
-    items: Iterable[FileItemDict], chunksize: int = 10000, **pandas_kwargs: Any
+    items: Iterable[FileItemDict],
+    chunksize: int = 10000,
+    retrieve_file_metadata: bool = False,
+    **pandas_kwargs: Any,
 ) -> Iterator[TDataItems]:
     """Reads csv file with Pandas chunk by chunk.
 
     Args:
         chunksize (int): Number of records to read in one chunk
+        retrieve_file_metadata (bool): Whether to include file metadata (file name and modification date) in the output.
         **pandas_kwargs: Additional keyword arguments passed to Pandas.read_csv
     Returns:
         TDataItem: The file content
@@ -43,16 +47,22 @@ def _read_csv(
         # in memory.
         with file_obj.open(mode=open_mode, **open_kwargs) as file:
             for df in pd.read_csv(file, **kwargs):
+                if retrieve_file_metadata:
+                    df["file_name"] = file_obj["file_name"]
+                    df["file_modification_date"] = file_obj["modification_date"]
                 yield df.to_dict(orient="records")
 
 
 # NOTE inconsistent kwarg convention across readers `chunk_size` vs. `chunksize`
 # snakecased `chunk_size` is the more appropriate Python convention
-def _read_jsonl(items: Iterable[FileItemDict], chunksize: int = 1000) -> Iterator[TDataItems]:
+def _read_jsonl(
+    items: Iterable[FileItemDict], chunksize: int = 1000, retrieve_file_metadata: bool = False
+) -> Iterator[TDataItems]:
     """Reads jsonl file content and extract the data.
 
     Args:
         chunksize (int, optional): The number of JSON lines to load and yield at once, defaults to 1000
+        retrieve_file_metadata (bool, optional): Whether to include file metadata (file name and modification date) in the output.
 
     Returns:
         TDataItem: The file content
@@ -61,7 +71,11 @@ def _read_jsonl(items: Iterable[FileItemDict], chunksize: int = 1000) -> Iterato
         with file_obj.open() as f:
             lines_chunk = []
             for line in f:
-                lines_chunk.append(json.loadb(line))
+                line_data = json.loadb(line)
+                if retrieve_file_metadata:
+                    line_data["file_name"] = file_obj["file_name"]
+                    line_data["file_modification_date"] = file_obj["modification_date"]
+                lines_chunk.append(line_data)
                 if len(lines_chunk) >= chunksize:
                     yield lines_chunk
                     lines_chunk = []
@@ -75,6 +89,7 @@ def _read_parquet(
     items: Iterable[FileItemDict],
     chunksize: int = 1000,
     use_pyarrow: bool = False,
+    retrieve_file_metadata: bool = False,
 ) -> Iterator[TDataItems]:
     """Reads parquet file content and extract the data.
 
@@ -83,16 +98,26 @@ def _read_parquet(
         use_pyarrow (bool, optional): When False (default) batches are converted to Python
             lists of dictionaries for broad destination compatibility; when True, native `pyarrow`
             `RecordBatch` objects are yielded for zero-copy pipelines.
+        retrieve_file_metadata (bool, optional): Whether to include file metadata (file name and modification date) in the output.
 
     Returns:
         TDataItem: The file content
     """
     from pyarrow import parquet as pq
+    import pyarrow as pa
 
     for file_obj in items:
         with file_obj.open() as f:
             parquet_file = pq.ParquetFile(f)
             for batch in parquet_file.iter_batches(batch_size=chunksize):
+                if retrieve_file_metadata:
+                    batch = batch.append_column(
+                        "file_name", pa.repeat(file_obj["file_name"], len(batch))
+                    )
+                    batch = batch.append_column(
+                        "file_modification_date",
+                        pa.repeat(file_obj["modification_date"], len(batch)),
+                    )
                 yield batch if use_pyarrow else batch.to_pylist()
 
 
@@ -102,6 +127,7 @@ def _read_csv_duckdb(
     items: Iterable[FileItemDict],
     chunk_size: Optional[int] = 5000,
     use_pyarrow: bool = False,
+    retrieve_file_metadata: bool = False,
     **duckdb_kwargs: Any,
 ) -> Iterator[TDataItems]:
     """A resource to extract data from the given CSV files.
@@ -115,6 +141,8 @@ def _read_csv_duckdb(
         use_pyarrow (bool):
             Whether to use `pyarrow` to read the data and designate
             data schema. If set to False (by default), JSON is used.
+        retrieve_file_metadata (bool):
+            Whether to include file metadata (file name and modification date) in the output.
         duckdb_kwargs (Dict):
             Additional keyword arguments to pass to the `read_csv()`.
 
@@ -130,6 +158,10 @@ def _read_csv_duckdb(
     for item in items:
         with item.open() as f:
             file_data = duckdb.from_csv_auto(f, **duckdb_kwargs)  # type: ignore
+            if retrieve_file_metadata:
+                file_data = file_data.select(
+                    f"*, '{item['file_name']}' AS file_name, CAST('{item['modification_date']}' AS TIMESTAMP) AS file_modification_date"
+                )
 
             for batch in helper(file_data, chunk_size):
                 if add_filename:
