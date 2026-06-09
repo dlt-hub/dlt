@@ -251,7 +251,6 @@ def _lance_multi_base_config(
     return c
 
 
-# Base DestinationClientConfiguration join contract
 def test_base_can_join_with_default_false_when_physical_locations_differ() -> None:
     config1 = _PhysicalDestinationConfig("host1")
     config2 = _PhysicalDestinationConfig("host2")
@@ -845,9 +844,6 @@ def test_can_join_with_matrix(f1: ConfigFactory, f2: ConfigFactory, expected: bo
     assert_join_result(c1, c2, expected)
 
 
-# Cross-type rejection
-
-
 @pytest.mark.parametrize(
     "f1,f2",
     [
@@ -902,9 +898,6 @@ def test_cross_type_different_physical_locations() -> None:
     assert_not_joinable(sf, bq)
 
 
-# Filesystem special cases
-
-
 # NOTE: reading across different filesystem locations requires auto ATTACH in the
 # duckdb view layer; until then only the same storage location is readable
 @pytest.mark.parametrize(
@@ -940,9 +933,6 @@ def test_filesystem_cannot_read_from_non_filesystem() -> None:
     c = FilesystemDestinationClientConfiguration(bucket_url="s3://b/p")
     other = _PhysicalDestinationConfig("s3://b")
     assert_not_joinable(c, other)
-
-
-# MotherDuck token-based joinability
 
 
 def test_motherduck_token_not_exposed_as_physical_location() -> None:
@@ -994,9 +984,6 @@ def test_motherduck_can_join_with_non_motherduck() -> None:
     )
     pg = PostgresClientConfiguration(credentials=PostgresCredentials("postgresql://h"))
     assert_not_joinable(md, pg)
-
-
-# SQLAlchemy dialect-specific cases
 
 
 SQLA_CASES = [
