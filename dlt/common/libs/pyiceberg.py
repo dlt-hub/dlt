@@ -72,6 +72,15 @@ def ensure_iceberg_compatible_arrow_data(data: pa.Table) -> pa.Table:
     return data.cast(schema)
 
 
+def drop_iceberg_table(catalog: IcebergCatalog, table_id: str) -> None:
+    """Drop an Iceberg table from the catalog."""
+    try:
+        catalog.drop_table(table_id)
+        logger.info(f"Dropped Iceberg table {table_id} from catalog")
+    except NoSuchTableError:
+        logger.warning(f"Iceberg table {table_id} does not exist in catalog, nothing to drop")
+
+
 def write_iceberg_table(
     table: IcebergTable,
     data: pa.Table,
