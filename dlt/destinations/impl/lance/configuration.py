@@ -298,8 +298,7 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
     embeddings: Optional[LanceEmbeddingsConfiguration] = None
     """Optional embeddings configuration to add a vector embedding column."""
     always_refresh_views: bool = False
-    """Recreate the duckdb scanner views on each `dataset()` read. New rows are visible without
-    this (lance reads the latest dataset version on each scan); enable it to also pick up schema
+    """Recreate the duckdb scanner views on each query. Enable it to also pick up schema
     changes (new columns) through an already-open connection."""
 
     @property

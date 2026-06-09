@@ -1215,11 +1215,6 @@ def _extract_resource(
 def test_handle_empty_tables_refreshes_static_write_disposition(
     extract_step: Extract, table_name: str, expected: str
 ) -> None:
-    """#3998 root cause: a static resource that yields no data still refreshes its (stale) write
-    disposition in the schema from the current resource hints - including a full write disposition
-    config (ie. an scd2 merge strategy). A replace table that gets no data still has an empty file
-    written (so it is truncated), while a non-replace one does not. Covers both a table matching the
-    resource name and one with a distinct (non-normalized) table name."""
     schema = dlt.Schema("empty_tables")
 
     # a column declared via the decorator makes the table complete, so it survives the
@@ -1278,18 +1273,22 @@ def test_handle_empty_tables_refreshes_static_write_disposition(
 
 def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extract) -> None:
     """Nested hints that break nesting (a primary key) create a pseudo-root table - both for the
-    default table and for a variant. On an empty run the default root is refreshed from the resource
-    hints and the variant (declared with a non-normalized name) from its own variant hints - keyed
-    by the raw name, so it keeps its own disposition rather than falling back to the resource root.
-    The pseudo-roots are left untouched - we can't re-derive a pseudo-root, and recomputing one as a
-    root would re-apply the nested hints and create spurious tables."""
+    default table and for a variant. On an empty run every table is refreshed from the current
+    hints: the default root from the resource hints, the variant (declared with a non-normalized
+    name) from its own variant hints keyed by the raw name, and each pseudo-root by re-deriving its
+    write disposition from the parent's nested hints. Re-deriving reads the parent's nested hints
+    only (it never recomputes a pseudo-root as a root), so no spurious cascade tables are created.
+    """
     schema = dlt.Schema("empty_tables")
 
     def make_resource(
-        wd: TWriteDisposition, variant_wd: TWriteDisposition, data: Any
+        wd: TWriteDisposition,
+        variant_wd: TWriteDisposition,
+        nested_wd: TWriteDisposition,
+        data: Any,
     ) -> DltResource:
         # a column makes the root complete (so it survives the seen_data filter); the nested hint's
-        # primary key breaks nesting into a pseudo-root that carries its own (replace) disposition
+        # primary key breaks nesting into a pseudo-root that carries its own disposition
         @dlt.resource(
             name="items",
             write_disposition=wd,
@@ -1297,7 +1296,7 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
             nested_hints={
                 "SubItems": make_nested_hints(
                     primary_key="Id",
-                    write_disposition="replace",
+                    write_disposition=nested_wd,
                     columns=[{"name": "id", "data_type": "bigint"}],
                 )
             },
@@ -1324,7 +1323,7 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
         {"Id": 1, "SubItems": [{"Id": 101}]},
         dlt.mark.with_table_name({"Id": 2, "SubItems": [{"Id": 102}]}, "OtherItems"),
     ]
-    _extract_resource(extract_step, schema, make_resource("replace", "replace", seed))
+    _extract_resource(extract_step, schema, make_resource("replace", "replace", "replace", seed))
     _mark_seen_data(schema, *all_tables)
     for pseudo in pseudo_roots:
         assert is_nested_table(schema.tables[pseudo]) is False
@@ -1339,7 +1338,9 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
 
     # run 2: replace with no data - every table (roots and pseudo-roots) is replace, so each gets an
     # empty file written (so it is truncated), and no spurious cascade table is created
-    metrics = _extract_resource(extract_step, schema, make_resource("replace", "replace", []))
+    metrics = _extract_resource(
+        extract_step, schema, make_resource("replace", "replace", "replace", [])
+    )
     for table in all_tables:
         assert metrics[table].items_count == 0
     assert "items__sub_items__sub_items" not in schema.tables
@@ -1351,20 +1352,21 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
     assert object_extractor.tables_with_items == set()
     assert object_extractor.tables_with_empty == set()
 
-    # run 3: default root switches to append, the variant to merge, with no data - no empty files
-    # are written for any table (the resource is append)
-    metrics = _extract_resource(extract_step, schema, make_resource("append", "merge", []))
+    # run 3: default root -> append, variant -> merge, and the nested hint flips replace -> merge,
+    # all with no data. nothing is replace, so no table is truncated, but every disposition is
+    # refreshed from the current hints - including each pseudo-root, re-derived from the nested hints
+    metrics = _extract_resource(extract_step, schema, make_resource("append", "merge", "merge", []))
     for table in all_tables:
         assert table not in metrics
-    # the default root is refreshed from the resource hints
+    # the default root from the resource hints, the variant from its own (raw-name-keyed) hints -
+    # a normalized lookup would miss the variant and wrongly fall back to the resource root's append
     assert schema.tables["items"]["write_disposition"] == "append"
-    # the variant is refreshed from its own (raw-name-keyed) hints, keeping its own disposition -
-    # a normalized lookup would miss it and wrongly fall back to the resource root's append
     assert schema.tables["other_items"]["write_disposition"] == "merge"
-    # the pseudo-roots can't be re-derived, so they are left untouched (not switched)
+    # each pseudo-root is re-derived from the parent's nested hints: replace -> merge
     for pseudo in pseudo_roots:
-        assert schema.tables[pseudo]["write_disposition"] == "replace"
-    # recomputing a pseudo-root would have re-applied the nested hints and created these tables
+        assert schema.tables[pseudo]["write_disposition"] == "merge"
+    # re-deriving reads the parent's nested hints only, never recomputing a pseudo-root as a root,
+    # so no spurious cascade tables are created
     assert "items__sub_items__sub_items" not in schema.tables
     assert "other_items__sub_items__sub_items" not in schema.tables
 
@@ -1375,8 +1377,7 @@ def test_handle_empty_tables_updates_dispatched_tables(
 ) -> None:
     """Event-dispatch tables - created via with_table_name marks or a dynamic table_name function -
     have their (static) write disposition refreshed on an empty run, and a replace table that gets
-    no data has an empty file written so it is truncated. Dispatched tables are not variants: they
-    carry no variant_name and are refreshed via their normalized table name."""
+    no data has an empty file written so it is truncated."""
     schema = dlt.Schema("empty_tables")
 
     def make_resource(wd: TWriteDisposition, data: Any) -> DltResource:
@@ -1448,9 +1449,7 @@ def test_handle_empty_tables_updates_dispatched_tables(
 
 @pytest.mark.parametrize("with_hints", [False, True], ids=["resource_columns", "import_hints"])
 def test_extractor_tables_tracked_file_import(extract_step: Extract, with_hints: bool) -> None:
-    """A file imported via `with_file_import` reaches `tables_with_items` through `_import_item`,
-    and must also be computed (the import path still runs schema computation), so the invariant
-    holds. Covers both resource-declared columns and columns provided via import hints."""
+    """Imported files should have their schemas computed and be marked as containing items"""
     columns: List[TColumnSchema] = [
         {"name": "id", "data_type": "bigint", "nullable": False},
         {"name": "name", "data_type": "text"},

@@ -1,8 +1,3 @@
-"""Arrow-input normalize tests. Kept in a separate module because pyarrow is an optional
-dependency: the minimal `test-common-core` CI run (which executes tests/normalize) has no pyarrow,
-so this module is ignored there and run by `test-pipeline-arrow` instead. Test names contain
-`arrow` so the `-k arrow` filter selects them.
-"""
 from typing import Any, Iterator
 
 import pytest

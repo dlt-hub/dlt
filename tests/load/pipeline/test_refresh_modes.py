@@ -725,11 +725,13 @@ def test_refresh_truncates_or_drops_additional_cases(
     assert tables["mark_variant"]["write_disposition"] == "replace"
 
     if pre_drop:
-        # drop a table at the destination out of band; the local schema still lists it, so the
-        # refresh must survive dropping/truncating a table that no longer exists at the destination
+        # drop tables out of band so refresh must survive truncating/dropping a missing table:
+        # one that gets data on refresh (parent) and two that get none (root event_b, pseudo-root parent__tags)
+        pre_dropped = ["parent", "event_b", "parent__tags"]
         with pipeline.destination_client() as client:
-            client.drop_tables("parent", delete_schema=False)  # type: ignore[attr-defined]
-        assert not table_exists(pipeline, "parent")
+            client.drop_tables(*pre_dropped, delete_schema=False)  # type: ignore[attr-defined]
+        for dropped in pre_dropped:
+            assert not table_exists(pipeline, dropped)
 
     info = pipeline.run(
         refresh_additional_cases(first_run=False), refresh=refresh, **destination_config.run_kwargs

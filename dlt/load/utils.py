@@ -126,10 +126,11 @@ def init_client(
         else set()
     )
     job_client.verify_schema(only_tables=tables_with_jobs | dlt_tables, new_jobs=new_jobs)
+    # include refresh truncate targets so the forced migration (re)creates them before truncation
     applied_update = _init_dataset_and_update_schema(
         job_client,
         expected_update,
-        tables_with_jobs | dlt_tables,
+        tables_with_jobs | dlt_tables | initial_truncate_names,
         truncate_tables=truncate_table_names,
         initial_truncate_tables=initial_truncate_names,
         drop_tables=drop_table_names,
