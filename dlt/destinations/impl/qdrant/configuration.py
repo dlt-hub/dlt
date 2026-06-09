@@ -1,6 +1,6 @@
 import os
 import dataclasses
-from typing import Optional, Any
+from typing import Optional, Final, Any
 from typing_extensions import Annotated, TYPE_CHECKING
 
 from dlt.common.configuration import configspec, NotResolved
@@ -73,9 +73,7 @@ class QdrantClientOptions(BaseConfiguration):
 
 @configspec
 class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
-    destination_type: str = dataclasses.field(
-        default="qdrant", init=False, repr=False, compare=False
-    )
+    destination_type: Final[str] = dataclasses.field(default="qdrant", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: QdrantCredentials = None
     "Qdrant connection credentials"
     qd_location: Optional[str] = None

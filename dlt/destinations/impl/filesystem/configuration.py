@@ -1,7 +1,7 @@
 import dataclasses
 
 import os
-from typing import Dict, Optional, Type
+from typing import Dict, Final, Optional, Type
 from urllib.parse import urlparse
 
 from dlt.common.typing import DictStrAny, DictStrOptionalStr
@@ -24,9 +24,7 @@ from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration
 ):
-    destination_type: str = dataclasses.field(
-        default="filesystem", init=False, repr=False, compare=False
-    )
+    destination_type: Final[str] = dataclasses.field(default="filesystem", init=False, repr=False, compare=False)  # type: ignore[misc]
     current_datetime: Optional[TCurrentDateTime] = None
     extra_placeholders: Optional[TExtraPlaceholders] = None
     max_state_files: int = 100

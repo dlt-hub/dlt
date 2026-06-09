@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Final, List, Optional, Union, cast
 from urllib.parse import urlparse
 
 from dlt.common import logger
@@ -236,9 +236,7 @@ class DatabricksZerobusConfiguration(BaseConfiguration):
 
 @configspec
 class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: str = dataclasses.field(
-        default="databricks", init=False, repr=False, compare=False
-    )
+    destination_type: Final[str] = dataclasses.field(default="databricks", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: DatabricksCredentials = None
     staging_credentials_name: Optional[str] = None
     "If set, credentials with given name will be used in copy command"

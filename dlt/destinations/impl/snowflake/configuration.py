@@ -1,7 +1,7 @@
 import dataclasses
 import os
 from pathlib import Path
-from typing import Optional, Any, Dict, ClassVar, List
+from typing import Final, Optional, Any, Dict, ClassVar, List
 
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.libs.cryptography import decode_private_key
@@ -22,7 +22,7 @@ SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
 
 @configspec(init=False)
 class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
-    drivername: str = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)
+    drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
     database: str = None
     host: str = None
     """Snowflake account identifier, e.g. `kgiotue-wn98412`"""
@@ -153,9 +153,7 @@ class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults):
 
 @configspec
 class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: str = dataclasses.field(
-        default="snowflake", init=False, repr=False, compare=False
-    )
+    destination_type: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: SnowflakeCredentials = None
 
     stage_name: Optional[str] = None

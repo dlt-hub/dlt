@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Dict, Literal, Optional
+from typing import Dict, Final, Literal, Optional
 from typing_extensions import Annotated
 from urllib.parse import urlparse
 
@@ -32,9 +32,7 @@ class WeaviateCredentials(CredentialsConfiguration):
 
 @configspec
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
-    destination_type: str = dataclasses.field(
-        default="weaviate", init=False, repr=False, compare=False
-    )
+    destination_type: Final[str] = dataclasses.field(default="weaviate", init=False, repr=False, compare=False)  # type: ignore[misc]
     # make it optional so empty dataset is allowed
     dataset_name: Annotated[Optional[str], NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False

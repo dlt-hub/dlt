@@ -1,5 +1,5 @@
 import dataclasses
-from typing import ClassVar, Any, List, Dict, Optional
+from typing import ClassVar, Any, Final, List, Dict, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -51,7 +51,7 @@ def build_odbc_dsn(params: Dict[str, Any]) -> str:
 
 @configspec(init=False)
 class MsSqlCredentials(ConnectionStringCredentials):
-    drivername: str = dataclasses.field(default="mssql", init=False, repr=False, compare=False)
+    drivername: Final[str] = dataclasses.field(default="mssql", init=False, repr=False, compare=False)  # type: ignore[misc]
     database: str = None
     username: str = None
     password: TSecretStrValue = None
@@ -129,9 +129,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
 
 @configspec
 class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: str = dataclasses.field(
-        default="mssql", init=False, repr=False, compare=False
-    )
+    destination_type: Final[str] = dataclasses.field(default="mssql", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: MsSqlCredentials = None
 
     create_indexes: bool = False

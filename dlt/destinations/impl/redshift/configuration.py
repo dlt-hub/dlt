@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Optional
+from typing import Final, Optional
 
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration import configspec
@@ -22,9 +22,7 @@ class RedshiftCredentials(PostgresCredentials):
 
 @configspec
 class RedshiftClientConfiguration(PostgresClientConfiguration):
-    destination_type: str = dataclasses.field(
-        default="redshift", init=False, repr=False, compare=False
-    )
+    destination_type: Final[str] = dataclasses.field(default="redshift", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: RedshiftCredentials = None
 
     staging_iam_role: Optional[str] = None

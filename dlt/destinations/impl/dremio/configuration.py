@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Optional, Any, Dict, ClassVar, List
+from typing import Optional, Any, Dict, ClassVar, Final, List
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -32,9 +32,7 @@ class DremioCredentials(ConnectionStringCredentials):
 
 @configspec
 class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: str = dataclasses.field(
-        default="dremio", init=False, repr=False, compare=False
-    )
+    destination_type: Final[str] = dataclasses.field(default="dremio", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: DremioCredentials = None
     staging_data_source: str = None
     """The name of the staging data source"""

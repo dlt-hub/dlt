@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Dict, ClassVar, Any, List, Optional
+from typing import Dict, Final, ClassVar, Any, List, Optional
 
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.configuration import configspec
@@ -15,7 +15,7 @@ from dlt.common.destination.client import (
 
 @configspec(init=False)
 class PostgresCredentials(ConnectionStringCredentials):
-    drivername: str = dataclasses.field(default="postgresql", init=False, repr=False, compare=False)
+    drivername: Final[str] = dataclasses.field(default="postgresql", init=False, repr=False, compare=False)  # type: ignore[misc]
     database: str = None
     username: str = None
     password: TSecretStrValue = None
@@ -41,9 +41,7 @@ class PostgresCredentials(ConnectionStringCredentials):
 
 @configspec
 class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: str = dataclasses.field(
-        default="postgres", init=False, repr=False, compare=False
-    )
+    destination_type: Final[str] = dataclasses.field(default="postgres", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: PostgresCredentials = None
 
     create_indexes: bool = True
