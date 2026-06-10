@@ -1998,24 +1998,80 @@ def test_cross_dataset_same_named_join_rejects_colliding_target(
         )
 
 
-def test_cross_dataset_join_chain_three_tables(
-    cross_dataset_duckdb: TCrossDsFixture,
+@pytest.mark.parametrize(
+    "build_chain,order_column,expected,absent_columns",
+    [
+        pytest.param(
+            lambda ds_crm, ds_inv, ds_billing: ds_inv.table("purchases")
+            .join(ds_crm.table("users"), on="purchases.user_id = users.id")
+            .join("inventory_items", on="purchases.sku = inventory_items.sku")
+            .join("warehouses", on="inventory_items.warehouse_id = warehouses.warehouse_id"),
+            "purchase_id",
+            {
+                "purchase_id": [1, 2, 3],
+                "users__name": ["Alice", "Alice", "Bob"],
+                "inventory_items__quantity": [50, 30, 50],
+                "warehouses__city": ["Berlin", "Paris", "Berlin"],
+            },
+            [],
+            id="local-string-hops-star-schema",
+        ),
+        pytest.param(
+            lambda ds_crm, ds_inv, ds_billing: ds_crm.table("users")
+            .join(ds_inv.table("purchases"), on="users.id = purchases.user_id")
+            .join(ds_inv.table("inventory_items"), on="purchases.sku = inventory_items.sku"),
+            "purchases__purchase_id",
+            {
+                "purchases__purchase_id": [1, 2, 3],
+                "name": ["Alice", "Alice", "Bob"],
+                "purchases__sku": ["W-001", "G-001", "W-001"],
+                "inventory_items__quantity": [50, 30, 50],
+            },
+            [],
+            id="foreign-relation-hop",
+        ),
+        pytest.param(
+            lambda ds_crm, ds_inv, ds_billing: ds_inv.table("purchases")
+            .join(ds_crm.table("users"), on="purchases.user_id = users.id")
+            .join(ds_billing.table("subscriptions"), on="users.id = subscriptions.user_id"),
+            "purchase_id",
+            {
+                "users__name": ["Alice", "Alice", "Bob"],
+                "subscriptions__plan": ["enterprise", "enterprise", "free"],
+            },
+            ["u__name"],
+            id="three-datasets-default-prefix",
+        ),
+        pytest.param(
+            lambda ds_crm, ds_inv, ds_billing: ds_inv.table("purchases")
+            .join(ds_crm.table("users"), on="purchases.user_id = users.id", alias="u")
+            .join(ds_billing.table("subscriptions"), on="users.id = subscriptions.user_id"),
+            "purchase_id",
+            {
+                "u__name": ["Alice", "Alice", "Bob"],
+                "subscriptions__plan": ["enterprise", "enterprise", "free"],
+            },
+            ["users__name"],
+            id="three-datasets-custom-alias",
+        ),
+    ],
+)
+def test_cross_dataset_join_chain_matrix(
+    three_way_cross_dataset_duckdb: TCrossDs3Fixture,
+    build_chain: Callable[[dlt.Dataset, dlt.Dataset, dlt.Dataset], dlt.Relation],
+    order_column: str,
+    expected: dict[str, list[Any]],
+    absent_columns: list[str],
 ) -> None:
-    ds_crm, ds_inv = cross_dataset_duckdb
+    """Join chains across datasets; each case adds one composition dimension."""
+    ds_crm, ds_inv, ds_billing = three_way_cross_dataset_duckdb
+    df = build_chain(ds_crm, ds_inv, ds_billing).order_by(order_column).df()
 
-    joined = (
-        ds_inv.table("purchases")
-        .join(ds_crm.table("users"), on="purchases.user_id = users.id")
-        .join("inventory_items", on="purchases.sku = inventory_items.sku")
-    )
-    df = joined.order_by("purchase_id").df()
-
-    assert len(df) == 3
-    assert "purchase_id" in df.columns
-    assert "users__name" in df.columns
-    assert "inventory_items__quantity" in df.columns
-    assert list(df["users__name"]) == ["Alice", "Alice", "Bob"]
-    assert list(df["inventory_items__quantity"]) == [50, 30, 50]
+    assert len(df) == len(next(iter(expected.values())))
+    for col, values in expected.items():
+        assert list(df[col]) == values, f"column `{col}` mismatch"
+    for col in absent_columns:
+        assert col not in df.columns
 
 
 def test_cross_dataset_join_chain_magic_then_cross(
@@ -2066,25 +2122,6 @@ def test_cross_dataset_join_chain_magic_then_two_crossings(
     ]
     assert list(df["users__id"]) == list(df["purchases__user_id"])
     assert list(df["users__id"]) == list(df["subscriptions__user_id"])
-
-
-def test_cross_dataset_join_then_foreign_dataset_local_hop_with_relation(
-    cross_dataset_duckdb: TCrossDsFixture,
-) -> None:
-    ds_crm, ds_inv = cross_dataset_duckdb
-
-    joined = (
-        ds_crm.table("users")
-        .join(ds_inv.table("purchases"), on="users.id = purchases.user_id")
-        .join(ds_inv.table("inventory_items"), on="purchases.sku = inventory_items.sku")
-    )
-    df = joined.order_by("purchases__purchase_id").df()
-
-    assert len(df) == 3
-    assert list(df["purchases__purchase_id"]) == [1, 2, 3]
-    assert list(df["name"]) == ["Alice", "Alice", "Bob"]
-    assert list(df["purchases__sku"]) == ["W-001", "G-001", "W-001"]
-    assert list(df["inventory_items__quantity"]) == [50, 30, 50]
 
 
 def test_cross_dataset_join_via_dotted_string_qualifies_foreign_dataset(
@@ -2172,55 +2209,6 @@ def test_cross_dataset_join_chain_columns_schema_matches_df(
     df_cols = set(df.columns)
 
     assert schema_cols == df_cols
-
-
-def test_cross_dataset_join_chain_four_tables(
-    cross_dataset_duckdb: TCrossDsFixture,
-) -> None:
-    """Star-schema joined to three dimensions across two datasets"""
-    ds_crm, ds_inv = cross_dataset_duckdb
-
-    joined = (
-        ds_inv.table("purchases")
-        .join(ds_crm.table("users"), on="purchases.user_id = users.id")
-        .join("inventory_items", on="purchases.sku = inventory_items.sku")
-        .join("warehouses", on="inventory_items.warehouse_id = warehouses.warehouse_id")
-    )
-    df = joined.order_by("purchase_id").df()
-
-    assert len(df) == 3
-    assert "warehouses__city" in df.columns
-    assert list(df["warehouses__city"]) == ["Berlin", "Paris", "Berlin"]
-
-
-@pytest.mark.parametrize(
-    "alias,name_col,absent_name_col",
-    [
-        pytest.param(None, "users__name", "u__name", id="default-prefix"),
-        pytest.param("u", "u__name", "users__name", id="custom-alias"),
-    ],
-)
-def test_cross_dataset_join_chain_three_datasets(
-    three_way_cross_dataset_duckdb: TCrossDs3Fixture,
-    alias: Optional[str],
-    name_col: str,
-    absent_name_col: str,
-) -> None:
-    ds_crm, ds_inv, ds_billing = three_way_cross_dataset_duckdb
-
-    joined = (
-        ds_inv.table("purchases")
-        .join(ds_crm.table("users"), on="purchases.user_id = users.id", alias=alias)
-        .join(ds_billing.table("subscriptions"), on="users.id = subscriptions.user_id")
-    )
-    df = joined.order_by("purchase_id").df()
-
-    assert len(df) == 3
-    assert name_col in df.columns
-    assert absent_name_col not in df.columns
-    assert "subscriptions__plan" in df.columns
-    assert list(df[name_col]) == ["Alice", "Alice", "Bob"]
-    assert list(df["subscriptions__plan"]) == ["enterprise", "enterprise", "free"]
 
 
 def test_cross_dataset_join_chain_filter_on_later_colliding_column(

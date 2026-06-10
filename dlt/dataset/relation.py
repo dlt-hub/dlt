@@ -463,13 +463,14 @@ class Relation(WithSqlClient):
             raise ValueError("`on` must be a non-empty SQL expression.")
 
         target = self._resolve_join_target(other, on=on)
+        target_is_foreign = target.dataset_name != self._dataset.dataset_name
 
         projection_prefix = alias or target.table_name
 
         if on is None:
             if not self._table_name:
                 raise ValueError("This relation has no base table to resolve references.")
-            if target.is_foreign:
+            if target_is_foreign:
                 raise ValueError("`on` is required when joining relations from different datasets.")
             if target.table_name not in self._dataset.schema.tables:
                 raise ValueError(f"Table `{target.table_name}` not found in dataset schema")
@@ -506,7 +507,7 @@ class Relation(WithSqlClient):
                 rel._foreign_schemas[ds_name] = list(schemas)
                 if ds_name in other._foreign_physical_names:
                     rel._foreign_physical_names[ds_name] = other._foreign_physical_names[ds_name]
-        if target.is_foreign:
+        if target_is_foreign:
             rel._foreign_schemas[target.dataset_name] = list(target.schemas)
             if target.physical_dataset_name is not None:
                 rel._foreign_physical_names[target.dataset_name] = target.physical_dataset_name
@@ -560,7 +561,6 @@ class Relation(WithSqlClient):
                 target_columns = other.columns_schema
             return _JoinTarget(
                 dataset_name=target_dataset.dataset_name,
-                is_foreign=is_foreign,
                 table_name=target_table,
                 columns=target_columns,
                 schemas=target_dataset.schemas,
@@ -579,7 +579,6 @@ class Relation(WithSqlClient):
             if ds_name == self._dataset.dataset_name:
                 return _JoinTarget(
                     dataset_name=ds_name,
-                    is_foreign=False,
                     table_name=tbl_name,
                     columns=_find_table_columns(self._dataset.schemas, tbl_name),
                     schemas=self._dataset.schemas,
@@ -588,7 +587,6 @@ class Relation(WithSqlClient):
                 foreign_schemas = self._foreign_schemas[ds_name]
                 return _JoinTarget(
                     dataset_name=ds_name,
-                    is_foreign=True,
                     table_name=tbl_name,
                     columns=_find_table_columns(foreign_schemas, tbl_name),
                     schemas=foreign_schemas,

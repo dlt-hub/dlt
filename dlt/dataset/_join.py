@@ -22,8 +22,6 @@ class _JoinTarget(NamedTuple):
     """Resolved right-hand side of a `Relation.join()`."""
 
     dataset_name: str
-    is_foreign: bool
-    """`True` when the target lives in a different dataset than the left-hand side."""
     table_name: str
     columns: TTableSchemaColumns
     schemas: Sequence[Schema]
