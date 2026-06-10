@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any, Optional
+from typing import Iterator, List, Dict, Any, Optional, cast
 import yaml
 
 from dlt.common import logger
@@ -17,12 +17,14 @@ from dlt.common.pipeline import (
     SupportsPipeline,
     WithStepInfo,
 )
+from dlt.common.normalizers.json import helpers as normalize_helpers
 from dlt.common.typing import TColumnNames, TLoaderFileFormat, TTableHintTemplate
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import (
     TAnySchemaColumns,
+    TPartialTableSchema,
     TSchemaContract,
     TTableFormat,
     TTableSchema,
@@ -234,6 +236,18 @@ def describe_extract_data(data: Any) -> List[ExtractDataInfo]:
     return data_info
 
 
+def get_variant_name(schema: Schema, resource: DltResource, table_name: str) -> Optional[str]:
+    """Returns the raw name of a variant declared on `resource` that generates `table_name`,
+    matched by normalized name."""
+    for variant_name in resource._hints_variants:
+        if (
+            normalize_helpers.normalize_table_identifier(schema, schema.naming, variant_name)
+            == table_name
+        ):
+            return variant_name
+    return None
+
+
 def get_fresh_write_disposition(
     schema: Schema, resource: DltResource, table: TTableSchema
 ) -> Optional[TWriteDispositionConfig]:
@@ -245,19 +259,25 @@ def get_fresh_write_disposition(
 
     wd_config: TTableHintTemplate[TWriteDispositionConfig] = None
     table_path = schema.naming.break_path(table["name"])
-    if variant_name := table.get("variant_name"):
-        # variant table: take the write disposition declared on the variant hints
+    # recognize variants by the `variant_name` hint or by normalized name lookup (schemas
+    # created before the hint was introduced)
+    if variant_name := (
+        table.get("variant_name") or get_variant_name(schema, resource, table["name"])
+    ):
+        # variant table: take the write disposition declared on the variant hints. a variant
+        # that is not re-declared keeps the stored disposition
         wd_config = (resource._hints_variants.get(variant_name) or {}).get("write_disposition")
     elif len(table_path) > 1:
         # pseudo-root (nested table broken out by a primary key): recompute the schema
         root_table_name = table_path[0]
         if root_table_schema := schema.tables.get(root_table_name):
-            if variant_name := root_table_schema.get("variant_name"):
-                # if root table is a variant it must be present
-                if variant_name not in resource._hints_variants:
-                    # correct computation won't be possible
-                    return None
-
+            variant_name = root_table_schema.get("variant_name") or get_variant_name(
+                schema, resource, root_table_name
+            )
+            # if root table is a variant it must be re-declared
+            if variant_name and variant_name not in resource._hints_variants:
+                # correct computation won't be possible
+                return None
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                 for table_name, _, hints in resource.get_nested_hints(
                     root_table_name,
@@ -423,12 +443,18 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 if utils.is_nested_table(table) or table_name in tables_with_items:
                     continue
 
-                # we set a dict on table and immediately parse it into table hints in place
+                # apply the fresh disposition as a partial table so hint columns (eg. scd2
+                # validity columns) are normalized and merged like on the data path
                 if table_name not in computed_tables and (
                     wd_config := get_fresh_write_disposition(schema, resource, table)
                 ):
-                    table["write_disposition"] = wd_config  # type: ignore[typeddict-item]
-                    resource._merge_write_disposition_dict(table)  # type: ignore[arg-type]
+                    partial_table: Dict[str, Any] = {
+                        "name": table_name,
+                        "columns": {},
+                        "write_disposition": wd_config,
+                    }
+                    resource._merge_write_disposition_dict(partial_table)
+                    schema.update_table(cast(TPartialTableSchema, partial_table))
 
                 # truncate tables only for resources marked as "replace"
                 if resource_write_disposition != "replace":

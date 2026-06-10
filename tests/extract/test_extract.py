@@ -1223,7 +1223,11 @@ def test_handle_empty_tables_refreshes_static_write_disposition(
         name="items",
         table_name=table_name,
         write_disposition="replace",
-        columns=[{"name": "id", "data_type": "bigint"}],
+        primary_key="id",
+        columns=[
+            {"name": "id", "data_type": "bigint"},
+            {"name": "value", "data_type": "text", "cluster": True},
+        ],
     )
     def items_replace(data: Any) -> Any:
         yield from data
@@ -1231,7 +1235,10 @@ def test_handle_empty_tables_refreshes_static_write_disposition(
     # first run with data creates the table
     _extract_resource(extract_step, schema, items_replace([{"Id": 1}]))
     _mark_seen_data(schema, expected)
-    assert schema.tables[expected]["write_disposition"] == "replace"
+    items_table = schema.tables[expected]
+    items_table["x-custom"] = "keep-me"  # type: ignore[typeddict-unknown-key]
+    assert items_table["write_disposition"] == "replace"
+    assert items_table["columns"]["id"]["primary_key"] is True
     # the single root table is computed from data and received items
     object_extractor = extract_step._last_extractors["object"]
     assert object_extractor.computed_tables == {expected}
@@ -1249,11 +1256,15 @@ def test_handle_empty_tables_refreshes_static_write_disposition(
     assert object_extractor.tables_with_items == set()
     assert object_extractor.tables_with_empty == set()
 
-    # the resource now switches to an scd2 merge config and yields no data
+    # switch to scd2 with non-normalized validity columns, no data, primary key not redeclared
     @dlt.resource(
         name="items",
         table_name=table_name,
-        write_disposition={"disposition": "merge", "strategy": "scd2"},
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "scd2",
+            "validity_column_names": ["ValidFrom", "ValidTo"],
+        },
     )
     def items_merge() -> Any:
         yield from []
@@ -1262,13 +1273,18 @@ def test_handle_empty_tables_refreshes_static_write_disposition(
     metrics = _extract_resource(extract_step, schema, items_merge())
     assert expected not in metrics
 
-    items_table = schema.tables[expected]
     # write disposition refreshed from the resource, with the full scd2 merge config applied
     assert items_table["write_disposition"] == "merge"
-    assert items_table["x-merge-strategy"] == "scd2"  # type: ignore[typeddict-item]
-    # scd2 validity columns were added by the merge config
-    assert "_dlt_valid_from" in items_table["columns"]
-    assert "_dlt_valid_to" in items_table["columns"]
+    assert items_table["x-merge-strategy"] == "scd2"
+    # scd2 validity columns were added by the merge config, normalized like on the data path
+    assert "valid_from" in items_table["columns"]
+    assert "valid_to" in items_table["columns"]
+    assert "ValidFrom" not in items_table["columns"]
+    # existing hints survive the isolated disposition update
+    assert items_table["columns"]["id"]["primary_key"] is True
+    assert items_table["columns"]["id"]["data_type"] == "bigint"
+    assert items_table["columns"]["value"]["cluster"] is True
+    assert items_table["x-custom"] == "keep-me"
 
 
 def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extract) -> None:
@@ -1586,6 +1602,8 @@ def test_handle_empty_tables_skips_tables_not_accepting_replace(
     # run 1: create the root and the member table
     _extract_resource(extract_step, schema, make_resource(seed))
     _mark_seen_data(schema, "items", member_table)
+    # simulate a schema created before `variant_name`: lookup must not need the hint
+    schema.tables[member_table].pop("variant_name", None)
 
     # run 2: empty - only tables where the resource and the table both accept replace are truncated
     metrics = _extract_resource(extract_step, schema, make_resource([]))
