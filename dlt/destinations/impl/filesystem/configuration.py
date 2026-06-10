@@ -2,6 +2,7 @@ import dataclasses
 
 import os
 from typing import Dict, Final, Optional, Type
+from urllib.parse import urlparse
 
 from dlt.common.typing import DictStrAny, DictStrOptionalStr
 
@@ -10,6 +11,7 @@ from dlt.common.configuration import configspec, resolve_type
 from dlt.common.configuration.specs.hf_credentials import HfCredentials
 from dlt.common.destination.client import (
     CredentialsConfiguration,
+    DestinationClientConfiguration,
     DestinationClientStagingConfiguration,
 )
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
@@ -19,10 +21,10 @@ from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 
 @configspec
-class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration):  # type: ignore[misc]
-    destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
-        default="filesystem", init=False, repr=False, compare=False
-    )
+class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
+    FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration
+):
+    destination_type: Final[str] = dataclasses.field(default="filesystem", init=False, repr=False, compare=False)  # type: ignore[misc]
     current_datetime: Optional[TCurrentDateTime] = None
     extra_placeholders: Optional[TExtraPlaceholders] = None
     max_state_files: int = 100
@@ -43,6 +45,33 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return super().resolve_credentials_type()
+
+    def physical_location(self) -> str:
+        """Returns scheme://netloc for remote filesystems, or the absolute local path."""
+        if not self.bucket_url:
+            return ""
+
+        if self.is_local_path(self.bucket_url):
+            return self.make_local_path(self.make_file_url(self.bucket_url))
+
+        url = urlparse(self.bucket_url)
+        if url.scheme == "file":
+            return self.make_local_path(self.bucket_url)
+        return f"{url.scheme}://{url.netloc}"
+
+    def can_write_from(self, other: DestinationClientConfiguration) -> bool:
+        """Filesystem does not have an engine that can write. `dlt` is that engine,
+        and setting False here we enforce it's usage
+        """
+        return False
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        # filesystem tables are queried through a local engine (e.g. DuckDB) that
+        # can access multiple storage backends in a single query, so join
+        # compatibility is determined by the engine, not by the storage location.
+
+        # until auto ATTACH is implemented, storage location must be used
+        return super().can_read_from(other)
 
     def on_resolved(self) -> None:
         # Validate layout and show unused placeholders

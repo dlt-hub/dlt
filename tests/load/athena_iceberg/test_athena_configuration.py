@@ -1,12 +1,39 @@
 from typing import cast
 
+import pytest
+
+from dlt.common.configuration.specs import AwsCredentials
 from dlt.common.typing import StrAny
+from dlt.common.utils import digest128
 from dlt.destinations.impl.athena.configuration import (
     AthenaClientConfiguration,
     DEFAULT_AWS_DATA_CATALOG,
 )
 
 from tests.load.utils import S3_TABLES_CATALOG, cm_yield_client
+
+
+@pytest.mark.parametrize(
+    "config,expected_fingerprint",
+    [
+        pytest.param(AthenaClientConfiguration(), "", id="empty"),
+        pytest.param(
+            AthenaClientConfiguration(credentials=AwsCredentials(region_name="us-west-2")),
+            digest128(f"us-west-2/{DEFAULT_AWS_DATA_CATALOG}"),
+            id="default_catalog",
+        ),
+        pytest.param(
+            AthenaClientConfiguration(
+                credentials=AwsCredentials(region_name="us-west-2"),
+                aws_data_catalog="custom_catalog",
+            ),
+            digest128("us-west-2/custom_catalog"),
+            id="custom_catalog",
+        ),
+    ],
+)
+def test_athena_fingerprint(config: AthenaClientConfiguration, expected_fingerprint: str) -> None:
+    assert config.fingerprint() == expected_fingerprint
 
 
 def test_s3_tables_naming_convention_setting() -> None:

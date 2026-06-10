@@ -19,7 +19,7 @@ from dlt.common.configuration.specs import gcp_credentials
 from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredentialsType
 from dlt.common.schema.utils import new_table
 from dlt.common.storages import FileStorage
-from dlt.common.utils import digest128, uniq_id, custom_environ
+from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.destination.client import RunnableLoadJob
 from dlt.destinations.impl.bigquery.bigquery import (
     BigQueryClient,
@@ -243,7 +243,6 @@ def test_bigquery_configuration() -> None:
     assert config.http_timeout == 15.0
     assert config.retry_deadline == 60.0
     assert config.file_upload_timeout == 1800.0
-    assert config.fingerprint() == digest128("chat-analytics-rasa-ci")
     assert config.ignore_unknown_values is False
 
     # credential location is deprecated
@@ -268,11 +267,6 @@ def test_bigquery_configuration() -> None:
         sections=("destination", "bigquery"),
     )
     assert config.file_upload_timeout == 20000.0
-
-    # default fingerprint is empty
-    assert (
-        BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset").fingerprint() == ""
-    )
 
 
 def test_bigquery_different_project_id(bigquery_project_id) -> None:

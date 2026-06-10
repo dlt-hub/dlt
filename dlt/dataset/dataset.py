@@ -28,6 +28,7 @@ from dlt.common.destination.reference import AnyDestination, TDestinationReferen
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
+from dlt.common.warnings import Dlt100DeprecationWarning, deprecated
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     C_DLT_LOADS_TABLE_LOAD_ID,
@@ -497,13 +498,14 @@ def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
         raise SqlClientNotAvailable("dataset", dataset.dataset_name, client.config.destination_type)
 
 
+@deprecated(
+    "Use `destination_client.config.can_join_with(other.destination_client.config)` instead.",
+    category=Dlt100DeprecationWarning,
+    stacklevel=2,
+)
 def is_same_physical_destination(dataset1: dlt.Dataset, dataset2: dlt.Dataset) -> bool:
-    """Check if both datasets are at the same physical destination.
-
-    This is done by comparing the fingerprint of both destination configs. There
-    are potential false positive if two different config give access to the same destination.
-    """
-    return str(dataset1.destination_client.config) == str(dataset2.destination_client.config)
+    """Check if both datasets are at the same physical destination."""
+    return dataset1.destination_client.config.can_read_from(dataset2.destination_client.config)
 
 
 def _get_dataset_schema_from_destination_using_schema_name(

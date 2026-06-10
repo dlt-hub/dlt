@@ -8,9 +8,13 @@ from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.base_configuration import NotResolved
-from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+)
 from dlt.common.storages.configuration import WithLocalFiles
 from dlt.common.typing import Annotated
+from dlt.common.utils import digest128
 from dlt.common.warnings import DltDeprecationWarning
 
 if TYPE_CHECKING:
@@ -262,3 +266,58 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
                     self.credentials.database = os.path.normpath(
                         self.make_location(db or None, SQLITE_DB_NAME_PAT)
                     )
+
+    def physical_location(self) -> str:
+        """Returns sqlite database path for sqlite, otherwise host:port."""
+        if not self.credentials:
+            return ""
+
+        if self.get_backend_name() == "sqlite":
+            # each in-memory database is a separate database
+            if SqlalchemyCredentials.is_memory_database(
+                self.credentials.database, self.credentials.query
+            ):
+                return ""
+            return self.credentials.database or ""
+
+        if self.credentials.host:
+            # NOTE: default-vs-explicit port mismatches may reject otherwise valid joins
+            if self.credentials.port:
+                return f"{self.credentials.host}:{self.credentials.port}"
+            return self.credentials.host
+        return ""
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the physical SQLAlchemy location."""
+        physical_location = self.physical_location()
+        if physical_location:
+            return digest128(physical_location)
+        return ""
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True when dialect-specific destination identities match."""
+        if not isinstance(other, SqlalchemyClientConfiguration):
+            return False
+
+        if not self.credentials or not other.credentials:
+            return False
+
+        self_backend = self.get_backend_name()
+        if not self_backend or self_backend != other.get_backend_name():
+            return False
+
+        self_loc = self.physical_location()
+        other_loc = other.physical_location()
+        if not self_loc or not other_loc or self_loc != other_loc:
+            return False
+
+        # sqlite: the database file is the location. mysql and mssql can query across
+        # databases on the same server (database is schema-like / 3-part names)
+        if self_backend in ("sqlite", "mysql", "mssql"):
+            return True
+
+        # remaining dialects (postgresql, oracle, db2, unknown) bind a connection to a single
+        # database: oracle needs db links and db2 needs federation to query across databases
+        self_db = self.credentials.database
+        other_db = other.credentials.database
+        return self_db is not None and other_db is not None and self_db == other_db
