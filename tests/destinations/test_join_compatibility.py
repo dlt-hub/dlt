@@ -98,21 +98,18 @@ ExpectedLocation: TypeAlias = Union[str, Callable[[], str]]
 
 
 class _PhysicalDestinationConfig(DestinationClientConfiguration):
-    def __init__(self, physical_location: str = "") -> None:
+    def __init__(self, physical_location: str = "", display_value: Optional[str] = None) -> None:
         super().__init__()
         self._physical_location = physical_location
+        self._display_value = display_value
 
     def physical_location(self) -> str:
         return self._physical_location
 
-
-class _StringyPhysicalDestinationConfig(_PhysicalDestinationConfig):
-    def __init__(self, physical_location: str, display_value: str) -> None:
-        super().__init__(physical_location)
-        self._display_value = display_value
-
     def __str__(self) -> str:
-        return self._display_value
+        if self._display_value is not None:
+            return self._display_value
+        return super().__str__()
 
 
 class _DestinationClientStub:
@@ -277,8 +274,8 @@ def test_base_can_read_from_returns_false_for_non_config() -> None:
 
 
 def test_is_same_physical_location_delegates_to_can_read_from() -> None:
-    config1 = _StringyPhysicalDestinationConfig("host1", "first-display")
-    config2 = _StringyPhysicalDestinationConfig("host1", "second-display")
+    config1 = _PhysicalDestinationConfig("host1", "first-display")
+    config2 = _PhysicalDestinationConfig("host1", "second-display")
     assert str(config1) != str(config2)
 
     with pytest.warns(Dlt100DeprecationWarning, match="can_read_from"):
