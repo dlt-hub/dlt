@@ -148,8 +148,9 @@ with standard settings:
 
 * `delimiter`: change the delimiting character (default: ',')
 * `include_header`: include the header row (default: True)
-* `lineterminator`: specify the string used to terminate lines (default: `\n` - UNIX line endings, use `\r\n` for Windows line endings)
-* `write_encoding`: encoding used to write `csv` files (default: `utf-8`). Use, e.g., `utf-8-sig` to add a BOM for older Excel or `latin-1`/`cp1252` for legacy importers. Applies to the Python CSV writer only; the PyArrow writer always writes `utf-8`
+* `lineterminator`: specify the string used to terminate lines (default: `\n` - UNIX line endings, use `\r\n` for Windows line endings). Applies to the Python CSV writer only; the PyArrow writer always uses `\n`
+* `encoding`: encoding used to write `csv` files (default: `utf-8`). Use, e.g., `utf-8-sig` to add a BOM for older Excel or `latin-1`/`cp1252` for legacy importers. Both writers honor it
+* `encoding_errors`: how characters that cannot be represented in `encoding` are treated (default: `strict` - the load fails). Use a [Python error handler name](https://docs.python.org/3/library/codecs.html#error-handlers), e.g., `replace` to substitute them with `?` or `backslashreplace` to keep them as escape sequences
 * `quoting`: controls when quotes should be generated around field values. Available options:
 
     - `quote_needed` (default): quote only values that need quoting, i.e., non-numeric values
@@ -169,7 +170,7 @@ delimiter="|"
 include_header=false
 quoting="quote_all"
 lineterminator="\r\n"
-write_encoding="latin-1"
+encoding="latin-1"
 ```
 
 Or using environment variables:
@@ -179,7 +180,7 @@ NORMALIZE__DATA_WRITER__DELIMITER=|
 NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
 NORMALIZE__DATA_WRITER__QUOTING=quote_all
 NORMALIZE__DATA_WRITER__LINETERMINATOR=$"\r\n"
-NORMALIZE__DATA_WRITER__WRITE_ENCODING=latin-1
+NORMALIZE__DATA_WRITER__ENCODING=latin-1
 ```
 
 Note the `"$"` prefix before `"\r\n"` to escape the newline character when using environment variables.
@@ -193,16 +194,19 @@ delimiter="|"
 encoding="latin-1"
 ```
 
-Two options are used only when reading:
-* `encoding`: encoding used to decode the `csv` file (default: `utf-8`)
+When reading, `encoding` tells the destination how to decode the `csv` file (default: `utf-8`) and one option is used only when reading:
 * `on_error_continue`: skip lines with errors (only Snowflake)
 
-`csv_format` also accepts the write settings above (except `write_encoding`) - set them when the file being loaded deviates from the defaults, e.g., uses a different delimiter or has no header row.
-
-You'll typically need these settings when [importing external files](../general-usage/resource.md#import-external-files) that `dlt` did not write.
+`csv_format` also accepts the write settings above - set them when the file being loaded deviates from the defaults, e.g., uses a different delimiter or has no header row.
 
 :::caution
-`write_encoding` and `encoding` are two different settings with different purposes: `write_encoding` controls the encoding `dlt` uses to **write** `csv` files during normalize, while `encoding` tells the destination how to **decode** a `csv` file it loads - setting one does not affect the other. With the `filesystem` destination, files are uploaded as-is, so `write_encoding` alone is enough. If the files are instead copied into **postgres** or **snowflake**, also set `encoding` in the destination `csv_format` to the same value - otherwise the destination will decode them as `utf-8` and the load will fail or garble non-ASCII characters.
+Write settings (`[normalize.data_writer]`) and destination read settings (`[destination.<name>.csv_format]`) are resolved independently - which one to set depends on who writes and who reads the files:
+
+* **dlt does both** - in the standard flow (e.g. loading into **postgres** or **snowflake**), `dlt` writes the files and the destination copies them right back. Keep the defaults on both sides: the files exist only as an internal transport format and there is no reason to change how it is encoded.
+* **External systems read the files** - with the `filesystem` destination as the final target, the files are the product. Set the `[normalize.data_writer]` options to whatever the consumer expects, e.g. `encoding="utf-8-sig"` for older Excel or `cp1252` for a legacy importer.
+* **dlt did not write the files** - when [importing external files](../general-usage/resource.md#import-external-files), describe them in `[destination.<name>.csv_format]` so the destination can decode them. Mind that `encoding` goes verbatim into the destination's COPY statement, so it must be an encoding name the destination accepts - and those names do not always match Python's (e.g. `latin-1` vs `ISO_8859_1`).
+
+If you nevertheless combine a custom write encoding with a database destination, mirror the value in the destination `csv_format` - otherwise the destination decodes the files as `utf-8` and the load fails or garbles non-ASCII characters.
 :::
 
 ### Limitations
@@ -210,7 +214,6 @@ You'll typically need these settings when [importing external files](../general-
 
 * binary columns are supported only if they contain valid UTF-8 characters
 * json (nested, struct) types are not supported
-* `write_encoding` is ignored, files are always written as `utf-8`
 
 **csv writer**
 * binary columns are supported only if they contain valid UTF-8 characters (easy to add more encodings)

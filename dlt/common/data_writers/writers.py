@@ -1,5 +1,7 @@
 import abc
+import codecs
 import csv
+import io
 from packaging.version import Version
 from typing import (
     IO,
@@ -14,6 +16,7 @@ from typing import (
     Type,
     NamedTuple,
     TypeVar,
+    Union,
     cast,
 )
 
@@ -25,6 +28,8 @@ from dlt.common.data_writers.exceptions import (
     FileFormatForItemFormatNotFound,
     FileSpecNotFound,
     InvalidDataItem,
+    InvalidEncoding,
+    InvalidEncodingErrors,
 )
 from dlt.common.destination.configuration import (
     CsvFormatConfiguration,
@@ -62,8 +67,6 @@ class FileWriterSpec(NamedTuple):
     supports_compression: bool = False
     file_max_items: Optional[int] = None
     """Set an upper limit on the number of items in one file"""
-    supports_encoding: bool = False
-    """Text format may be written with a custom encoding set via `write_encoding`. Formats that destinations read back as utf-8 must not set it."""
 
 
 EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
@@ -409,6 +412,64 @@ class ParquetDataWriter(DataWriter):
         )
 
 
+def canonical_encoding(encoding: str) -> str:
+    """Validates `encoding` against the Python codec registry and returns its canonical name."""
+    try:
+        return codecs.lookup(encoding).name
+    except LookupError:
+        raise InvalidEncoding(encoding)
+
+
+def validated_encoding_errors(encoding_errors: str) -> str:
+    """Validates `encoding_errors` against registered Python codec error handlers."""
+    try:
+        codecs.lookup_error(encoding_errors)
+    except LookupError:
+        raise InvalidEncodingErrors(encoding_errors)
+    return encoding_errors
+
+
+class Utf8TranscodingWrapper:
+    """Binary sink wrapper that transcodes utf-8 bytes written to it into `encoding`.
+
+    Closing the wrapper flushes the transcoder state but does not close the wrapped stream.
+    """
+
+    def __init__(self, f: IO[bytes], encoding: str, encoding_errors: str = "strict") -> None:
+        self._f = f
+        self._decoder = codecs.getincrementaldecoder("utf-8")()
+        self._encoder = codecs.getincrementalencoder(encoding)(encoding_errors)
+        self._closed = False
+
+    def write(self, b: Union[bytes, memoryview]) -> int:
+        if isinstance(b, memoryview):
+            b = b.tobytes()
+        # decoder buffers a trailing partial multi-byte sequence until the next write
+        text = self._decoder.decode(b)
+        if text:
+            self._f.write(self._encoder.encode(text))
+        return len(b)
+
+    def flush(self) -> None:
+        self._f.flush()
+
+    def close(self) -> None:
+        if not self._closed:
+            self._closed = True
+            if text := self._decoder.decode(b"", True):
+                self._f.write(self._encoder.encode(text, True))
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def writable(self) -> bool:
+        return True
+
+    def tell(self) -> int:
+        return self._f.tell()
+
+
 class CsvWriter(DataWriter):
     @with_config(spec=CsvFormatConfiguration)
     def __init__(
@@ -420,6 +481,8 @@ class CsvWriter(DataWriter):
         include_header: bool = True,
         quoting: CsvQuoting = "quote_needed",
         lineterminator: str = "\n",
+        encoding: str = "utf-8",
+        encoding_errors: str = "strict",
         bytes_encoding: str = "utf-8",
     ) -> None:
         super().__init__(f, caps)
@@ -428,7 +491,14 @@ class CsvWriter(DataWriter):
         self.quoting: CsvQuoting = quoting
         self.lineterminator = lineterminator
         self.writer: csv.DictWriter[str] = None
+        self.encoding = canonical_encoding(encoding)
+        self.encoding_errors = validated_encoding_errors(encoding_errors)
         self.bytes_encoding = bytes_encoding
+        # csv module writes text, encode it into the binary stream with the configured encoding
+        self._text_f: Optional[io.TextIOWrapper] = io.TextIOWrapper(
+            f, encoding=encoding, errors=encoding_errors, newline="", write_through=True
+        )
+        self._f = self._text_f
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         self._columns_schema = columns_schema
@@ -485,13 +555,26 @@ class CsvWriter(DataWriter):
                                 " type as binary.",
                             )
 
-        self.writer.writerows(items)
+        try:
+            self.writer.writerows(items)
+        except UnicodeEncodeError as enc_ex:
+            raise InvalidDataItem(
+                "csv",
+                "object",
+                "Data contains string values with characters that cannot be encoded with the"
+                f" configured `{self.encoding}` encoding: {enc_ex}. Set `encoding_errors` option"
+                " e.g. to `replace` to write such characters anyway.",
+            )
         # count rows that got written
         self.items_count += sum(len(row) for row in items)
 
     def close(self) -> None:
         self.writer = None
         self._first_schema = None
+        if self._text_f is not None:
+            # flush and release the underlying binary stream which is closed by the caller
+            self._text_f.detach()
+            self._text_f = None
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
@@ -499,11 +582,10 @@ class CsvWriter(DataWriter):
             "csv",
             "object",
             file_extension="csv",
-            is_binary_format=False,
+            is_binary_format=True,
             supports_schema_changes="False",
             requires_destination_capabilities=False,
             supports_compression=True,
-            supports_encoding=True,
         )
 
 
@@ -567,12 +649,19 @@ class ArrowToCsvWriter(DataWriter):
         delimiter: str = ",",
         include_header: bool = True,
         quoting: CsvQuoting = "quote_needed",
+        encoding: str = "utf-8",
+        encoding_errors: str = "strict",
     ) -> None:
         super().__init__(f, caps)
         self.delimiter = delimiter
         self._delimiter_b = delimiter.encode("ascii")
         self.include_header = include_header
         self.quoting: CsvQuoting = quoting
+        self.encoding = canonical_encoding(encoding)
+        self.encoding_errors = validated_encoding_errors(encoding_errors)
+        if self.encoding != "utf-8":
+            # pyarrow csv writer emits only utf-8, transcode into the requested encoding
+            self._f = cast(IO[Any], Utf8TranscodingWrapper(f, encoding, encoding_errors))
         self.writer: Any = None
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
@@ -624,6 +713,15 @@ class ArrowToCsvWriter(DataWriter):
                 # write headers only on the first write
                 try:
                     self.writer.write(item)
+                except UnicodeEncodeError as enc_ex:
+                    raise InvalidDataItem(
+                        "csv",
+                        "arrow",
+                        "Arrow data contains string columns with characters that cannot be"
+                        f" encoded with the configured `{self.encoding}` encoding: {enc_ex}. Set"
+                        " `encoding_errors` option e.g. to `replace` to write such characters"
+                        " anyway.",
+                    )
                 except pyarrow.ArrowInvalid as inv_ex:
                     if "Invalid UTF8 payload" in str(inv_ex):
                         raise InvalidDataItem(
@@ -659,6 +757,8 @@ class ArrowToCsvWriter(DataWriter):
             self.writer.close()
             self.writer = None
             self._first_schema = None
+        if isinstance(self._f, Utf8TranscodingWrapper):
+            self._f.close()
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:

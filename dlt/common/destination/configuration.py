@@ -13,10 +13,13 @@ class CsvFormatConfiguration(BaseConfiguration):
     include_header: bool = True
     quoting: CsvQuoting = "quote_needed"
     lineterminator: str = "\n"
+    encoding: str = "utf-8"
+    """Encoding used to write csv files and to decode them when a destination loads them."""
+    encoding_errors: str = "strict"
+    """How characters not representable in `encoding` are treated when writing csv files: a Python error handler name, e.g. `strict` (default, raises), `replace` or `backslashreplace`."""
 
     # read options
     on_error_continue: bool = False
-    encoding: str = "utf-8"
 
     __section__: ClassVar[str] = known_sections.DATA_WRITER
 

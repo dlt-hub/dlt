@@ -4,7 +4,7 @@ import time
 from typing import Iterator, Type
 from uuid import uuid4
 
-from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, InvalidWriteEncoding
+from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
 from dlt.common.data_writers.writers import (
     DataWriter,
     InsertValuesWriter,
@@ -469,18 +469,11 @@ def test_rotation_on_destination_caps_recommended_file_size(
         assert not any(closed_file.file_path.endswith(".gz") for closed_file in writer.closed_files)
 
 
-def test_write_encoding_ignored_by_non_supporting_formats() -> None:
+def test_encoding_ignored_by_non_csv_formats() -> None:
     c1 = new_column("col1", "text")
-    with custom_environ({"DATA_WRITER__WRITE_ENCODING": "latin-1"}):
+    with custom_environ({"DATA_WRITER__ENCODING": "latin-1"}):
         with get_writer(InsertValuesWriter, disable_compression=True) as writer:
             writer.write_data_item([{"col1": "æøå"}], {"col1": c1})
-    # insert files are read back as utf-8 by destinations so encoding setting must not apply
+    # insert files are read back as utf-8 by destinations so csv encoding setting must not apply
     with open(writer.closed_files[0].file_path, "r", encoding="utf-8") as f:
         assert "æøå" in f.read()
-
-
-def test_invalid_write_encoding() -> None:
-    with custom_environ({"DATA_WRITER__WRITE_ENCODING": "no-such-encoding"}):
-        with pytest.raises(InvalidWriteEncoding) as exc_info:
-            get_writer(InsertValuesWriter)
-    assert "no-such-encoding" in str(exc_info.value)
