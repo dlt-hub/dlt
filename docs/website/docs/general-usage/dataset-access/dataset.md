@@ -246,9 +246,9 @@ Cross-dataset joins:
 
 - require an explicit `on` condition: the auto mode does not span datasets
 - are rejected when the two relations live on different physical destinations
-- are not supported on filesystem destinations
+- are not supported on filesystem destinations or on SQLite (via the `sqlalchemy` destination)
 
-When two datasets share table names that would otherwise clash in the join (for example, both have a `users` table), give one side a stable alias in your SQL e.g. with `dataset.query("SELECT ... AS alias_name FROM users")` — and refer to that alias in `on`. Without an alias, `join()` cannot tell the two tables apart and will raise.
+When two datasets share table names that would otherwise clash in the join (for example, both have a `users` table), give one side a stable alias in your SQL, e.g. with `dataset.query("SELECT * FROM users AS alias_name")`, and refer to that alias in `on`. Without an alias, `join()` cannot tell the two tables apart and will raise.
 
 ### Chain operations
 
