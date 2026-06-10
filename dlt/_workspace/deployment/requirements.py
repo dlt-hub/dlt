@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, List, Literal, Optional, Sequence
+from typing import Any, BinaryIO, Dict, List, Literal, Optional, Sequence, Set
 
 import tomlkit
 from packaging.requirements import Requirement
@@ -268,22 +268,12 @@ def build_launcher_requirements() -> Dict[str, List[str]]:
 
 
 def build_dashboard_group() -> List[str]:
-    """Specs for the `DASHBOARD_JOB_REF` group."""
-    return sorted(
-        set(
-            _BASE_LAUNCHER_SPECS
-            + [
-                "botocore",
-                "ibis-framework",
-                "marimo",
-                "numpy",
-                "pandas",
-                "pyarrow",
-                "s3fs",
-                "uvicorn",
-            ]
-        )
-    )
+    """Specs for the `DASHBOARD_JOB_REF` group.
+
+    Matches the dashboard runner's dependency gate plus `s3fs` for artifact access;
+    the launcher baseline (croniter, dlthub, dlt) comes from `launcher_requirements`.
+    """
+    return sorted(["ibis-framework", "marimo", "pyarrow", "s3fs"])
 
 
 def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]]) -> None:
@@ -340,16 +330,20 @@ def export_workspace_requirements(
     else:
         groups = {MAIN_GROUP: []}
 
-    groups[DASHBOARD_JOB_REF] = build_dashboard_group()
-
     resolved_default_groups = list(default_groups) if default_groups else [MAIN_GROUP]
+    # names installed by default groups — always present at runtime, safe to prune against
+    default_names: Set[str] = set()
+    for name in resolved_default_groups:
+        default_names.update(_collect_package_names(groups.get(name, [])))
+    _expand_implied_names(default_names)
+
+    groups[DASHBOARD_JOB_REF] = _prune_specs(build_dashboard_group(), default_names)
 
     launcher_requirements = build_launcher_requirements()
+    for launcher, specs in launcher_requirements.items():
+        launcher_requirements[launcher] = _prune_specs(specs, default_names)
     # inject dlt into every launcher entry unless a default group already names it
-    default_has_dlt = any(
-        _contains_package(groups.get(name, []), DLT_PKG_NAME) for name in resolved_default_groups
-    )
-    if not default_has_dlt:
+    if _normalize_name(DLT_PKG_NAME) not in default_names:
         _inject_dlt_into_launchers(launcher_requirements)
 
     return {
@@ -516,8 +510,8 @@ def _parse_uv_output(text: str) -> List[str]:
     )
 
 
-# PEP 508 leading identifier: first letter/digit then letters/digits/_/-/.
-_LEADING_NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9_.\-]*)")
+# PEP 508 leading identifier: first letter/digit then letters/digits/_/-/., optional extras
+_LEADING_NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9_.\-]*)\s*(?:\[([^\]]*)\])?")
 # PEP 503 normalization: lowercase, runs of `-_.` collapsed to single `-`
 _PEP503_SEP_RE = re.compile(r"[-_.]+")
 
@@ -534,6 +528,53 @@ def _contains_package(specs: Sequence[str], pkg_name: str) -> bool:
         if m and _normalize_name(m.group(1)) == target:
             return True
     return False
+
+
+_IMPLIED_NAMES: Dict[str, List[str]] = {
+    f"{DLT_PKG_NAME}[hub]": [DLTHUB_PKG_NAME, "croniter"],
+    DLTHUB_PKG_NAME: ["croniter"],
+    DLTHUB_CLIENT_PKG_NAME: ["croniter"],
+    "s3fs": ["botocore"],
+    "marimo": ["uvicorn"],
+    "fastmcp": ["uvicorn"],
+}
+"""Launcher specs pulled in transitively when the key package (or extra) is installed."""
+
+
+def _collect_package_names(specs: Sequence[str]) -> Set[str]:
+    """PEP 503 normalized names of `specs`; extras add one `name[extra]` token each."""
+    names: Set[str] = set()
+    for s in specs:
+        m = _LEADING_NAME_RE.match(s)
+        if not m:
+            continue
+        name = _normalize_name(m.group(1))
+        names.add(name)
+        extras = m.group(2)
+        if extras:
+            for extra in extras.split(","):
+                extra = extra.strip()
+                if extra:
+                    names.add(f"{name}[{_normalize_name(extra)}]")
+    return names
+
+
+def _expand_implied_names(names: Set[str]) -> None:
+    """Add names pulled in transitively by meta-packages in `names`."""
+    for implying, implied in _IMPLIED_NAMES.items():
+        if implying in names:
+            names.update(implied)
+
+
+def _prune_specs(specs: List[str], names: Set[str]) -> List[str]:
+    """Drop specs whose PEP 503 normalized name is in `names`, preserving order."""
+    pruned: List[str] = []
+    for s in specs:
+        m = _LEADING_NAME_RE.match(s)
+        if m and _normalize_name(m.group(1)) in names:
+            continue
+        pruned.append(s)
+    return pruned
 
 
 def _parse_dep_list(entries: Sequence[Any]) -> List[str]:
