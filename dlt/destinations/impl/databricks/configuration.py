@@ -286,9 +286,10 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
             )
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of the server hostname."""
-        if self.credentials and self.credentials.server_hostname:
-            return digest128(self.credentials.server_hostname)
+        """Returns a fingerprint of the physical Databricks location."""
+        physical_location = self.physical_location()
+        if physical_location:
+            return digest128(physical_location)
         return ""
 
     def physical_location(self) -> str:
