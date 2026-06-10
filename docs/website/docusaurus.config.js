@@ -165,7 +165,7 @@ const config = {
             sidebarId: "hubSidebar",
             position: "left",
             label: "dltHub",
-            className: 'navbar-cta',
+            className: "navbar-cta",
           },
           {
             type: "docSidebar",
