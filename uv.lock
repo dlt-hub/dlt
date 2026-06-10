@@ -2917,6 +2917,7 @@ workspace-deps = [
     { name = "pyarrow", version = "21.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "pyarrow", version = "23.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "pydbml" },
+    { name = "s3fs" },
 ]
 
 [package.metadata]
@@ -3140,6 +3141,7 @@ workspace-deps = [
     { name = "pathspec", specifier = ">=0.11.2" },
     { name = "pyarrow", specifier = ">=16.0.0" },
     { name = "pydbml", specifier = ">=1.2.0" },
+    { name = "s3fs", specifier = ">=2022.4.0" },
 ]
 
 [[package]]
