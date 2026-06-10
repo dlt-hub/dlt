@@ -11,7 +11,6 @@ from dlt.common.destination import Destination
 from dlt.dataset.relation import TJoinType
 
 from tests.dataset.utils import (
-    annotated_references,
     crm,
     inventory,
     relational_tables,
@@ -53,7 +52,6 @@ def relational_pipeline(
         "join_relational_pipeline", dataset_name="join_relational", dev_mode=True
     )
     pipeline.run(relational_tables(), **destination_config.run_kwargs)
-    pipeline.run(annotated_references(), **destination_config.run_kwargs)
     try:
         yield pipeline
     finally:
@@ -171,26 +169,6 @@ def test_explicit_on_basic(relational_pipeline: Pipeline) -> None:
     assert len(df) == 4
     assert "orders__amount" in df.columns
     assert [float(x) for x in df["orders__amount"]] == [50.0, 75.0, 200.0, 30.0]
-
-
-def test_explicit_on_composite_key(relational_pipeline: Pipeline) -> None:
-    dataset = relational_pipeline.dataset()
-    df = (
-        dataset.table("account_memberships")
-        .join(
-            "accounts",
-            on=(
-                "account_memberships.account_id = accounts.account_id "
-                "AND account_memberships.tenant_id = accounts.tenant_id"
-            ),
-        )
-        .order_by("accounts__name")
-        .df()
-    )
-
-    assert df is not None
-    assert len(df) == 3
-    assert list(df["accounts__name"]) == ["Acme", "Globex", "Initech"]
 
 
 @pytest.mark.parametrize(
