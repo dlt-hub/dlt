@@ -200,7 +200,7 @@ def test_wait_retry_after_int(mock_sleep: mock.MagicMock) -> None:
 
 @pytest.mark.parametrize(
     "retry_after_value",
-    ["0", "-1", "  0  "],
+    ["0", "Tue, 10 Jun 2025 00:00:00 GMT", "  0  "],
 )
 def test_wait_retry_after_zero_falls_through_to_backoff(
     mock_sleep: mock.MagicMock, retry_after_value: str
