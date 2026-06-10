@@ -251,37 +251,37 @@ def _lance_multi_base_config(
     return c
 
 
-def test_base_can_join_with_default_false_when_physical_locations_differ() -> None:
+def test_base_can_read_from_default_false_when_physical_locations_differ() -> None:
     config1 = _PhysicalDestinationConfig("host1")
     config2 = _PhysicalDestinationConfig("host2")
     assert_not_joinable(config1, config2)
 
 
-def test_base_can_join_with_default_true_when_same_physical_location() -> None:
+def test_base_can_read_from_default_true_when_same_physical_location() -> None:
     config1 = _PhysicalDestinationConfig("host1")
     config2 = _PhysicalDestinationConfig("host1")
     assert_joinable(config1, config2)
 
 
-def test_base_can_join_with_default_false_when_empty_physical_location() -> None:
+def test_base_can_read_from_default_false_when_empty_physical_location() -> None:
     config1 = DestinationClientConfiguration()
     config2 = _PhysicalDestinationConfig("host1")
     assert_not_joinable(config1, config2)
 
 
-def test_base_can_join_with_returns_false_for_non_config() -> None:
+def test_base_can_read_from_returns_false_for_non_config() -> None:
     config = _PhysicalDestinationConfig("host1")
     assert not config.can_read_from("not a config")  # type: ignore[arg-type]
     assert not config.can_read_from(None)
     assert not config.can_read_from(42)  # type: ignore[arg-type]
 
 
-def test_is_same_physical_location_delegates_to_can_join_with() -> None:
+def test_is_same_physical_location_delegates_to_can_read_from() -> None:
     config1 = _StringyPhysicalDestinationConfig("host1", "first-display")
     config2 = _StringyPhysicalDestinationConfig("host1", "second-display")
     assert str(config1) != str(config2)
 
-    with pytest.warns(Dlt100DeprecationWarning, match="can_join_with"):
+    with pytest.warns(Dlt100DeprecationWarning, match="can_read_from"):
         assert is_same_physical_destination(
             cast(Dataset, _DatasetStub(config1)), cast(Dataset, _DatasetStub(config2))
         )
@@ -492,7 +492,7 @@ def test_physical_location(factory: ConfigFactory, expected: ExpectedLocation) -
     assert factory().physical_location() == expected
 
 
-# can_join_with() matrices (symmetric)
+# can_read_from() matrices (symmetric)
 
 MSSQL_JOIN_CASES = [
     pytest.param(
@@ -839,7 +839,7 @@ CAN_JOIN_WITH_CASES = (
 
 
 @pytest.mark.parametrize("f1,f2,expected", CAN_JOIN_WITH_CASES)
-def test_can_join_with_matrix(f1: ConfigFactory, f2: ConfigFactory, expected: bool) -> None:
+def test_can_read_from_matrix(f1: ConfigFactory, f2: ConfigFactory, expected: bool) -> None:
     c1, c2 = f1(), f2()
     assert_join_result(c1, c2, expected)
 
@@ -942,7 +942,7 @@ def test_motherduck_token_not_exposed_as_physical_location() -> None:
     assert md.physical_location() == ""
 
 
-def test_motherduck_can_join_with_same_token_without_exposing_location() -> None:
+def test_motherduck_can_read_from_same_token_without_exposing_location() -> None:
     """Same token can join without exposing token via physical location."""
     c1 = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:db?motherduck_token=token")
@@ -965,7 +965,7 @@ def test_motherduck_different_tokens_are_not_proven_joinable() -> None:
     assert_not_joinable(c1, c2)
 
 
-def test_motherduck_can_join_with_missing_token() -> None:
+def test_motherduck_can_read_from_missing_token() -> None:
     """Missing token cannot join."""
     with_token = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:db?motherduck_token=token")
@@ -977,7 +977,7 @@ def test_motherduck_can_join_with_missing_token() -> None:
     assert_not_joinable(w1, w2)
 
 
-def test_motherduck_can_join_with_non_motherduck() -> None:
+def test_motherduck_can_read_from_non_motherduck() -> None:
     """MotherDuck cannot join with other destination types."""
     md = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:db?motherduck_token=token")
@@ -1022,7 +1022,7 @@ SQLA_CASES = [
 
 
 @pytest.mark.parametrize("conn1,conn2,expected", SQLA_CASES)
-def test_sqlalchemy_can_join_with(conn1: str, conn2: str, expected: bool) -> None:
+def test_sqlalchemy_can_read_from(conn1: str, conn2: str, expected: bool) -> None:
     c1 = _sqla_config(conn1)
     c2 = _sqla_config(conn2)
     assert_join_result(c1, c2, expected)
@@ -1065,7 +1065,7 @@ def test_sqlalchemy_can_join_with(conn1: str, conn2: str, expected: bool) -> Non
         ),
     ],
 )
-def test_lancedb_can_join_with(f1: ConfigFactory, f2: ConfigFactory, expected: bool) -> None:
+def test_lancedb_can_read_from(f1: ConfigFactory, f2: ConfigFactory, expected: bool) -> None:
     assert_join_result(f1(), f2(), expected)
 
 
@@ -1123,7 +1123,7 @@ def test_lancedb_can_never_write() -> None:
         ),
     ],
 )
-def test_lance_can_join_with(f1: ConfigFactory, f2: ConfigFactory, expected: bool) -> None:
+def test_lance_can_read_from(f1: ConfigFactory, f2: ConfigFactory, expected: bool) -> None:
     assert_join_result(f1(), f2(), expected)
 
 

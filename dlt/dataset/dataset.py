@@ -225,7 +225,7 @@ class Dataset:
         Returns true if the other dataset is on the same physical destination
         helpful if we want to run sql queries without extracting the data
         """
-        return is_same_physical_destination(self, other)
+        return self.destination_client.config.can_read_from(other.destination_client.config)
 
     def query(
         self,
@@ -499,7 +499,7 @@ def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
 
 
 @deprecated(
-    "Use `destination_client.config.can_join_with(other.destination_client.config)` instead.",
+    "Use `destination_client.config.can_read_from(other.destination_client.config)` instead.",
     category=Dlt100DeprecationWarning,
     stacklevel=2,
 )

@@ -418,7 +418,9 @@ class Relation(WithSqlClient):
         if isinstance(other, dlt.Relation):
             # TODO: remove once we allow cross-dataset joins
             if not (
-                self._dataset.is_same_physical_destination(other._dataset)
+                self._dataset.destination_client.config.can_read_from(
+                    other._dataset.destination_client.config
+                )
                 and self._dataset.dataset_name == other._dataset.dataset_name
             ):
                 raise ValueError(
