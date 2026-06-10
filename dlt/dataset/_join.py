@@ -331,12 +331,13 @@ def _normalize_left_projection(
     for expr in query.selects:
         if isinstance(expr, sge.Star):
             normalized.append(sge.Column(table=origin_identifier.copy(), this=sge.Star()))
-        elif isinstance(expr, sge.Column) and expr.args.get("table") is None:
-            expr_copy = expr.copy()
-            expr_copy.set("table", origin_identifier.copy())
-            normalized.append(expr_copy)
         else:
-            normalized.append(expr)
+            expr_copy = expr.copy()
+            # an unqualified column turns ambiguous once the JOIN adds a same-named column
+            for col in expr_copy.find_all(sge.Column):
+                if col.args.get("table") is None and col.parent_select is None:
+                    col.set("table", origin_identifier.copy())
+            normalized.append(expr_copy)
     return normalized
 
 
@@ -494,10 +495,24 @@ def _is_flat_select(query: sge.Select) -> bool:
 
 
 def _qualify_unscoped_predicate_columns(query: sge.Select, source_qualifier: str) -> None:
-    """Bind unqualified WHERE/ORDER BY columns to the single source."""
+    """Bind unqualified WHERE/ORDER BY columns to the single source.
+
+    ORDER BY references to select output aliases are expanded to their source
+    expressions first, so qualification cannot produce nonexistent columns.
+    """
     if query.args.get("joins"):
         return
     qualifier_identifier = sge.to_identifier(source_qualifier, quoted=False)
+    alias_sources = {
+        sel.output_name: sel.this for sel in query.selects if isinstance(sel, sge.Alias)
+    }
+    order_clause = query.args.get("order")
+    if order_clause is not None and alias_sources:
+        for col in list(order_clause.find_all(sge.Column)):
+            if col.args.get("table") is None and col.parent_select is query:
+                source = alias_sources.get(col.name)
+                if source is not None:
+                    col.replace(source.copy())
     for clause_key in ("where", "order"):
         clause = query.args.get(clause_key)
         if clause is None:

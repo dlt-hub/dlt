@@ -1545,9 +1545,24 @@ def test_explicit_on_with_aggregated_rhs(
             ["Alice", "Bob"],
             id="group-by-having",
         ),
+        pytest.param(
+            "SELECT customer_id, amount AS total FROM orders ORDER BY total",
+            [3, 1, 1, 2],
+            [30.0, 50.0, 75.0, 200.0],
+            ["Charlie", "Alice", "Alice", "Bob"],
+            id="flat-order-by-alias",
+        ),
+        pytest.param(
+            # `customer_id AS cid` aliases a column that also exists in the joined `customers`
+            "SELECT customer_id, customer_id AS cid, amount AS total FROM orders ORDER BY total",
+            [3, 1, 1, 2],
+            [30.0, 50.0, 75.0, 200.0],
+            ["Charlie", "Alice", "Alice", "Bob"],
+            id="flat-alias-shadows-rhs-column",
+        ),
     ],
 )
-def test_explicit_on_with_aggregated_lhs(
+def test_explicit_on_with_query_lhs(
     dataset_with_relational_tables: dlt.Dataset,
     lhs_query: str,
     expected_ids: list[int],
@@ -1555,8 +1570,8 @@ def test_explicit_on_with_aggregated_lhs(
     expected_names: list[str],
 ) -> None:
     ds = dataset_with_relational_tables
-    agg_lhs = ds.query(lhs_query)
-    joined = agg_lhs.join("customers", on="orders.customer_id = customers.customer_id").order_by(
+    query_lhs = ds.query(lhs_query)
+    joined = query_lhs.join("customers", on="orders.customer_id = customers.customer_id").order_by(
         "customer_id"
     )
     df = joined.df()
