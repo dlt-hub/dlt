@@ -69,6 +69,7 @@ jobs:
               destinations: "[\"databricks\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra databricks --extra s3 --extra gs --extra az --extra parquet"
+              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun=ConnectionResetError --only-rerun=RequestError"
 
             # Filesystem
             - name: filesystem_s3_local
@@ -130,6 +131,11 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra motherduck --extra s3 --extra gs --extra az --extra parquet"
               xdist_workers: 1
+              # motherduck tests fail almost exclusively as xdist worker crashes (the worker
+              # segfaults). pytest-rerunfailures always retries worker crashes when
+              # --reruns > 0, independent of --only-rerun. We need --only-rerun sentinel below so
+              # only crashes are retried and genuine failures still fail fast
+              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun=__worker_crash_only__"
 
             # Ducklake
             - name: ducklake
@@ -257,9 +263,11 @@ jobs:
         run: make test-dest-remote-essential
         env:
           PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}
+          PYTEST_ARGS: ${{ matrix.rerun_args || '' }}
 
       - name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
         run: make test-dest-remote-nonessential
         env:
           PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}
+          PYTEST_ARGS: ${{ matrix.rerun_args || '' }}
