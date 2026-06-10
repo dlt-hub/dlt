@@ -17,6 +17,15 @@ class InvalidFileNameTemplateException(DataWriterException, ValueError):
         )
 
 
+class InvalidWriteEncoding(DataWriterException, ValueError):
+    def __init__(self, write_encoding: str):
+        self.write_encoding = write_encoding
+        super().__init__(
+            f"Unknown encoding `{write_encoding}` in `write_encoding`. Use a Python codec name,"
+            " e.g. `utf-8`, `utf-8-sig`, `latin-1` or `cp1252`."
+        )
+
+
 class BufferedDataWriterClosed(DataWriterException):
     def __init__(self, file_name: str):
         self.file_name = file_name

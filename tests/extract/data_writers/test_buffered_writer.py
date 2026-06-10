@@ -4,7 +4,7 @@ import time
 from typing import Iterator, Type
 from uuid import uuid4
 
-from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
+from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, InvalidWriteEncoding
 from dlt.common.data_writers.writers import (
     DataWriter,
     InsertValuesWriter,
@@ -477,3 +477,10 @@ def test_write_encoding_ignored_by_non_supporting_formats() -> None:
     # insert files are read back as utf-8 by destinations so encoding setting must not apply
     with open(writer.closed_files[0].file_path, "r", encoding="utf-8") as f:
         assert "æøå" in f.read()
+
+
+def test_invalid_write_encoding() -> None:
+    with custom_environ({"DATA_WRITER__WRITE_ENCODING": "no-such-encoding"}):
+        with pytest.raises(InvalidWriteEncoding) as exc_info:
+            get_writer(InsertValuesWriter)
+    assert "no-such-encoding" in str(exc_info.value)

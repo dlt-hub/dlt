@@ -1,3 +1,4 @@
+import codecs
 import gzip
 import contextlib
 from typing import ClassVar, Iterator, List, IO, Any, Optional, Type, Generic
@@ -9,6 +10,7 @@ from dlt.common.data_writers.exceptions import (
     DestinationCapabilitiesRequired,
     FileImportNotFound,
     InvalidFileNameTemplateException,
+    InvalidWriteEncoding,
 )
 from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec, count_rows_in_items
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -66,6 +68,10 @@ class BufferedDataWriter(Generic[TWriter]):
             self.file_max_bytes = _caps.recommended_file_size
         self.file_max_items = file_max_items
         self.should_compress = self.writer_spec.supports_compression and not disable_compression
+        try:
+            codecs.lookup(write_encoding)
+        except LookupError:
+            raise InvalidWriteEncoding(write_encoding)
         self.write_encoding = write_encoding
         # the open function is either gzip.open or open
         self.open = gzip.open if self.should_compress else open
