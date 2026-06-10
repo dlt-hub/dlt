@@ -484,7 +484,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             extracted_items_file, "rb"
         ) as f:
             # enumerate jsonl file line by line
-            line: bytes = None
             for line_no, line in enumerate(f):
                 self._maybe_cancel()
                 items: List[TDataItem] = json.loadb(line)
@@ -515,7 +514,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     self.schema.get_table_columns(root_table_name),
                 )
                 logger.debug(
-                    f"No lines in file {extracted_items_file}, written empty load job file"
+                    f"No rows from file {extracted_items_file}, written empty load job file"
                 )
 
         return schema_updates

@@ -341,7 +341,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             logger.info(
                 f"Found {len(schema_files)} files in schema {schema.name} load_id {load_id}"
             )
-            if self.normalize_storage.extracted_packages.is_empty_package(load_id):
+            if not schema_files and self.normalize_storage.extracted_packages.is_empty_package(
+                load_id
+            ):
                 # package has no data and no refresh commands (tables to truncate / drop): drop it
                 # so it does not reach the load step. packages with refresh commands are kept
                 self.normalize_storage.extracted_packages.delete_package(load_id)
