@@ -480,6 +480,7 @@ class Relation(WithSqlClient):
                 right_table=target.table_name,
                 projection_prefix=projection_prefix,
                 kind=kind,
+                dataset_name=self._dataset.dataset_name,
             )
         else:
             query = _apply_explicit_join(
@@ -492,8 +493,6 @@ class Relation(WithSqlClient):
                 left_dataset_name=self._dataset.dataset_name,
             )
 
-        # bind tables left unqualified (e.g. magic join targets) to the local dataset so
-        # lineage stays unambiguous once foreign schemas are registered
         _qualify_physical_tables_with_dataset(query, self._dataset.dataset_name)
 
         rel = self.__copy__()
@@ -655,7 +654,9 @@ class Relation(WithSqlClient):
         target_columns = self._dataset.schema.get_table_columns(table_name)
         if column_name not in target_columns:
             _raise_incomplete_cursor_column(incremental.cursor_path, f"table `{table_name}`")
-        if self._table_name not in _extract_joined_table_aliases(self.sqlglot_expression):
+        if self._table_name not in _extract_joined_table_aliases(
+            self.sqlglot_expression, self._dataset.dataset_name
+        ):
             raise ValueError(
                 f"Incremental cursor `{incremental.cursor_path}` requires a "
                 f"base-table relation to resolve the join to `{table_name}`. "
@@ -674,8 +675,11 @@ class Relation(WithSqlClient):
             projection_prefix=table_name,
             kind="inner",
             project=False,
+            dataset_name=self._dataset.dataset_name,
         )
-        target_qualifier = _extract_joined_table_aliases(query)[table_name]
+        target_qualifier = _extract_joined_table_aliases(query, self._dataset.dataset_name)[
+            table_name
+        ]
         return self._apply_incremental(
             incremental=incremental,
             target_query=query,

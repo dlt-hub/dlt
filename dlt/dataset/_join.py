@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Sequence, Set, Union
+from typing import TYPE_CHECKING, Any, Iterable, NamedTuple, Optional, Sequence, Set, Union
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -228,7 +228,9 @@ def _source_qualifier(source: Optional[sge.Expression]) -> Optional[str]:
     return None
 
 
-def _extract_joined_table_aliases(query: sge.Query) -> dict[str, str]:
+def _extract_joined_table_aliases(
+    query: sge.Query, dataset_name: Optional[str] = None
+) -> dict[str, str]:
     alias_map: dict[str, str] = {}
     from_this = _from_source(query)
     if not isinstance(from_this, sge.Table):
@@ -240,6 +242,8 @@ def _extract_joined_table_aliases(query: sge.Query) -> dict[str, str]:
             tables.append(join.this)
 
     for table in tables:
+        if dataset_name is not None and table.db and table.db != dataset_name:
+            continue
         table_qualifier = _extract_table_qualifier(table)
         if not table_qualifier:
             continue
@@ -249,9 +253,9 @@ def _extract_joined_table_aliases(query: sge.Query) -> dict[str, str]:
     return alias_map
 
 
-def _next_generated_alias_index(qualifier_map: dict[str, str]) -> int:
+def _next_generated_alias_index(qualifiers: Iterable[str]) -> int:
     next_index = 1
-    for qualifier in qualifier_map.values():
+    for qualifier in qualifiers:
         if qualifier.startswith(_INTERMEDIATE_JOIN_ALIAS_PREFIX):
             alias_index = qualifier[len(_INTERMEDIATE_JOIN_ALIAS_PREFIX) :]
             if alias_index.isdigit():
@@ -265,12 +269,13 @@ def _discover_join_params(
     schema: Schema,
     left_table: str,
     right_table: str,
+    dataset_name: Optional[str] = None,
 ) -> tuple[list[_JoinParams], str]:
     """Discover join params from the schema reference chain."""
     # Full reference chain from `left_table` to `right_table`.
     refs = _resolve_reference_chain(schema, left_table, right_table)
 
-    qualifier_map = _extract_joined_table_aliases(expression)
+    qualifier_map = _extract_joined_table_aliases(expression, dataset_name)
     if left_table not in qualifier_map:
         raise ValueError("Join query has no base table to resolve references.")
 
@@ -284,8 +289,8 @@ def _discover_join_params(
         if ref["target_table"] in qualifier_map:
             attach_qualifier = qualifier_map[ref["target_table"]]
 
-    start_index = _next_generated_alias_index(qualifier_map)
-    # last pending target is the target table (right) and shouldn't get aliased later
+    used_qualifiers = _collect_source_qualifiers(expression)
+    start_index = _next_generated_alias_index(used_qualifiers)
     last_pending_target = pending[-1]["target_table"] if pending else None
 
     joins: list[_JoinParams] = []
@@ -294,7 +299,7 @@ def _discover_join_params(
         right_qualifier = target_table
         target_expr = sge.Table(this=sge.to_identifier(target_table, quoted=True))
 
-        if target_table != last_pending_target:
+        if target_table != last_pending_target or target_table in used_qualifiers:
             generated_alias = f"{_INTERMEDIATE_JOIN_ALIAS_PREFIX}{start_index}"
             target_expr = sge.Table(
                 this=sge.to_identifier(target_table, quoted=True),
@@ -312,6 +317,7 @@ def _discover_join_params(
             )
         )
         qualifier_map[target_table] = right_qualifier
+        used_qualifiers.add(right_qualifier)
         attach_qualifier = right_qualifier
 
     target_qualifier = qualifier_map[right_table]
@@ -410,6 +416,7 @@ def _apply_join(
     projection_prefix: str,
     kind: TJoinType = "inner",
     project: bool = True,
+    dataset_name: Optional[str] = None,
 ) -> sge.Select:
     """Apply schema-driven join(s) to `expression` and return the new query."""
     if left_table not in schema.tables:
@@ -427,6 +434,7 @@ def _apply_join(
         schema=schema,
         left_table=left_table,
         right_table=right_table,
+        dataset_name=dataset_name,
     )
 
     for join_param in join_params:

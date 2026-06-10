@@ -2369,16 +2369,8 @@ def test_magic_join_after_cross_dataset_resolves_local_target(
     assert list(df["marketing__segment"]) == ["pro", "pro", "pro"]
 
 
-@pytest.mark.xfail(
-    reason=(
-        "magic join resolves chain targets by bare table name, ignoring the dataset qualifier: "
-        "a previously joined foreign BASE table with the same name is treated as the local chain "
-        "table, so foreign rows are silently projected under the local prefix"
-    ),
-    strict=True,
-)
 def test_magic_join_after_foreign_base_table_resolves_local_target() -> None:
-    """A magic join target shadowed by a same-named foreign BASE table must bind to the local dataset."""
+    """A magic join target shadowed by a same-named foreign base table must bind to the local dataset."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = pathlib.Path(tmp)
         db_path = str(tmp_path / "shadowed_base.duckdb")
