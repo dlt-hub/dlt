@@ -17,6 +17,7 @@ from dlt.common.schema.utils import new_column
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.common.typing import DictStrAny
+from dlt.common.utils import custom_environ
 
 from tests.common.data_writers.utils import get_writer, ALL_OBJECT_WRITERS
 
@@ -466,3 +467,13 @@ def test_rotation_on_destination_caps_recommended_file_size(
         assert all(closed_file.file_path.endswith(".gz") for closed_file in writer.closed_files)
     else:
         assert not any(closed_file.file_path.endswith(".gz") for closed_file in writer.closed_files)
+
+
+def test_write_encoding_ignored_by_non_supporting_formats() -> None:
+    c1 = new_column("col1", "text")
+    with custom_environ({"DATA_WRITER__WRITE_ENCODING": "latin-1"}):
+        with get_writer(InsertValuesWriter, disable_compression=True) as writer:
+            writer.write_data_item([{"col1": "æøå"}], {"col1": c1})
+    # insert files are read back as utf-8 by destinations so encoding setting must not apply
+    with open(writer.closed_files[0].file_path, "r", encoding="utf-8") as f:
+        assert "æøå" in f.read()

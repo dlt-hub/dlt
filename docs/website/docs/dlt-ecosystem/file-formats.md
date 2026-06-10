@@ -35,7 +35,7 @@ pip install "dlt[parquet]"
 Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html) to create the files. The following options can be used to change the behavior of the writer:
 
 - `flavor`: Sanitize schema or set other compatibility options to work with various target systems. Defaults to None, which is the **pyarrow** default.
-- `version`: Determine which Parquet logical types are available for use, whether the reduced set from the Parquet 1.x.x format or the expanded logical types added in later format versions. Defaults to "2.6".
+- `version`: Determine which Parquet logical types are available for use, whether the reduced set from the Parquet 1.x.x format or the expanded logical types added in later format versions. `dlt` defaults to "2.4".
 - `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a column chunk (in bytes). Defaults to None, which is the **pyarrow** default.
 - `row_group_size`: Set the number of rows in a row group. [See here](#row-group-size) how this can optimize parallel processing of queries on your destination over the default setting of `pyarrow`.
 - `timestamp_timezone`: A string specifying the timezone, default is UTC.
@@ -48,6 +48,7 @@ Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org
 :::tip
 The default parquet version used by `dlt` is 2.4. It coerces timestamps to microseconds and truncates nanoseconds silently. Such a setting
 provides the best interoperability with database systems, including loading pandas DataFrames which have nanosecond resolution by default.
+Set `version="2.6"` if you need to preserve nanosecond precision timestamps.
 :::
 
 Read the [pyarrow parquet docs](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html) to learn more about these settings.
@@ -56,7 +57,7 @@ Example:
 
 ```toml
 [data_writer]
-# the default values
+# example values
 flavor="spark"
 version="2.4"
 data_page_size=1048576
@@ -116,9 +117,9 @@ The `row_group_size` configuration setting has limited utility with the `pyarrow
 **CSV** is the most basic file format for storing tabular data, where all values are strings and are separated by a delimiter (typically a comma).
 `dlt` uses it for specific use cases - mostly for performance and compatibility reasons.
 
-Internally, we use two implementations:
-- [Python standard library CSV writer](https://docs.python.org/3/library/csv.html)
-- PyArrow CSV writer - a very fast, multithreaded writer for [Arrow tables](./verified-sources/arrow-pandas.md)
+Internally, we use two implementations, picked based on the shape of the data items:
+- [Python standard library CSV writer](https://docs.python.org/3/library/csv.html) - used when resources yield Python objects (dicts)
+- PyArrow CSV writer - a very fast, multithreaded writer, used when resources yield [Arrow tables, pandas DataFrames, or polars DataFrames](./verified-sources/arrow-pandas.md)
 
 ### Settings
 `dlt` attempts to make both writers generate similarly looking files:
@@ -139,14 +140,16 @@ A,,""
 In the last row, both `text2` and `text3` values are NULL. The Python `csv` writer
 is not able to write unquoted `None` values, so we had to settle for `""`.
 
-Note: all destinations capable of writing CSVs must support it.
+Note: all destinations that support the `csv` format accept files written with the standard settings above.
 
-You can change basic `csv` settings; this may be handy when working with the `filesystem` destination. Other destinations are tested
+#### Write settings
+The settings below control how `dlt` writes `csv` files during **normalize** and are configured in the `[normalize.data_writer]` section. Changing them may be handy when working with the `filesystem` destination. Other destinations are tested
 with standard settings:
 
 * `delimiter`: change the delimiting character (default: ',')
 * `include_header`: include the header row (default: True)
 * `lineterminator`: specify the string used to terminate lines (default: `\n` - UNIX line endings, use `\r\n` for Windows line endings)
+* `write_encoding`: encoding used to write `csv` files (default: `utf-8`). Use, e.g., `utf-8-sig` to add a BOM for older Excel or `latin-1`/`cp1252` for legacy importers. Applies to the Python CSV writer only; the PyArrow writer always writes `utf-8`
 * `quoting`: controls when quotes should be generated around field values. Available options:
 
     - `quote_needed` (default): quote only values that need quoting, i.e., non-numeric values
@@ -166,6 +169,7 @@ delimiter="|"
 include_header=false
 quoting="quote_all"
 lineterminator="\r\n"
+write_encoding="latin-1"
 ```
 
 Or using environment variables:
@@ -175,16 +179,30 @@ NORMALIZE__DATA_WRITER__DELIMITER=|
 NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
 NORMALIZE__DATA_WRITER__QUOTING=quote_all
 NORMALIZE__DATA_WRITER__LINETERMINATOR=$"\r\n"
+NORMALIZE__DATA_WRITER__WRITE_ENCODING=latin-1
 ```
 
 Note the `"$"` prefix before `"\r\n"` to escape the newline character when using environment variables.
 
-A few additional settings are available when copying `csv` to destination tables:
-* **on_error_continue** - skip lines with errors (only Snowflake)
-* **encoding** - encoding of the `csv` file
+#### Read settings
+Destinations that copy `csv` files into tables (**postgres** and **snowflake**) read them according to their own `csv_format` configuration. These settings do not change how `dlt` writes files - they describe the file the destination is loading and are set on the destination, e.g.:
 
-:::tip
-You'll need these settings when [importing external files](../general-usage/resource.md#import-external-files).
+```toml
+[destination.postgres.csv_format]
+delimiter="|"
+encoding="latin-1"
+```
+
+Two options are used only when reading:
+* `encoding`: encoding used to decode the `csv` file (default: `utf-8`)
+* `on_error_continue`: skip lines with errors (only Snowflake)
+
+`csv_format` also accepts the write settings above (except `write_encoding`) - set them when the file being loaded deviates from the defaults, e.g., uses a different delimiter or has no header row.
+
+You'll typically need these settings when [importing external files](../general-usage/resource.md#import-external-files) that `dlt` did not write.
+
+:::caution
+`write_encoding` and `encoding` are two different settings with different purposes: `write_encoding` controls the encoding `dlt` uses to **write** `csv` files during normalize, while `encoding` tells the destination how to **decode** a `csv` file it loads - setting one does not affect the other. With the `filesystem` destination, files are uploaded as-is, so `write_encoding` alone is enough. If the files are instead copied into **postgres** or **snowflake**, also set `encoding` in the destination `csv_format` to the same value - otherwise the destination will decode them as `utf-8` and the load will fail or garble non-ASCII characters.
 :::
 
 ### Limitations
@@ -192,6 +210,7 @@ You'll need these settings when [importing external files](../general-usage/reso
 
 * binary columns are supported only if they contain valid UTF-8 characters
 * json (nested, struct) types are not supported
+* `write_encoding` is ignored, files are always written as `utf-8`
 
 **csv writer**
 * binary columns are supported only if they contain valid UTF-8 characters (easy to add more encodings)

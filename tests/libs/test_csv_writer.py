@@ -341,6 +341,32 @@ def test_csv_lineterminator(test_case: Dict[str, str]) -> None:
             assert content == expected
 
 
+@pytest.mark.parametrize("encoding", ["latin-1", "cp1252", "utf-8-sig"])
+def test_csv_write_encoding(encoding: str) -> None:
+    schema: TTableSchemaColumns = {"name": {"name": "name", "data_type": "text"}}
+    # use characters that encode differently in utf-8 and latin-1/cp1252
+    data = [{"name": "æøå"}, {"name": "Ünïcödé"}]
+
+    with custom_environ({"DATA_WRITER__WRITE_ENCODING": encoding}):
+        with get_writer(CsvWriter, disable_compression=True) as writer:
+            writer.write_data_item(data, schema)
+
+    file_path = writer.closed_files[0].file_path
+    with open(file_path, "r", encoding=encoding, newline="") as f:
+        rows = list(csv.DictReader(f, dialect=csv.unix_dialect))
+    assert [r["name"] for r in rows] == ["æøå", "Ünïcödé"]
+
+    with open(file_path, "rb") as f:
+        raw = f.read()
+    if encoding == "utf-8-sig":
+        # BOM must be written so Excel detects utf-8
+        assert raw.startswith(b"\xef\xbb\xbf")
+    else:
+        # single byte encodings produce sequences that are not valid utf-8
+        with pytest.raises(UnicodeDecodeError):
+            raw.decode("utf-8")
+
+
 @pytest.mark.parametrize(
     "quoting,delimiter,schema,test_data_dict,expected_header,expected_data_rows",
     [

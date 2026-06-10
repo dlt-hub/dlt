@@ -62,6 +62,8 @@ class FileWriterSpec(NamedTuple):
     supports_compression: bool = False
     file_max_items: Optional[int] = None
     """Set an upper limit on the number of items in one file"""
+    supports_encoding: bool = False
+    """Text format may be written with a custom encoding set via `write_encoding`. Formats that destinations read back as utf-8 must not set it."""
 
 
 EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
@@ -501,6 +503,7 @@ class CsvWriter(DataWriter):
             supports_schema_changes="False",
             requires_destination_capabilities=False,
             supports_compression=True,
+            supports_encoding=True,
         )
 
 
