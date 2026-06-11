@@ -160,7 +160,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             self.namespace.namespace_exists(NamespaceExistsRequest(id=self.make_namespace_id()))
             return True
         except Exception as e:
-            if is_lance_undefined_entity_exception(e):
+            if is_lance_undefined_entity_exception(e, self.config.manifest_enabled):
                 return False
             raise
 
@@ -169,7 +169,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         """Creates empty lance dataset from provided PyArrow schema."""
         lance.write_dataset(
             schema.empty_table(),
-            namespace=self.namespace,
+            namespace_client=self.namespace,
             table_id=self.make_table_id(table_name),
             storage_options=self.config.storage_options,
         )
@@ -185,7 +185,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             self.namespace.table_exists(TableExistsRequest(id=self.make_table_id(table_name)))
             return True
         except Exception as e:
-            if is_lance_undefined_entity_exception(e):
+            if is_lance_undefined_entity_exception(e, self.config.manifest_enabled):
                 return False
             raise
 
@@ -253,7 +253,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             LanceDataset: The dataset checked out at the specified branch and version.
         """
         return lance.dataset(
-            namespace=self.namespace,
+            namespace_client=self.namespace,
             table_id=self.make_table_id(table_name),
             storage_options=self.config.storage_options,
         ).checkout_version((branch_name, version_number))
@@ -405,7 +405,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             # `open_lance_dataset` already mapped a missing table/namespace to this exception
             return False, table_schema
         except Exception as e:
-            if is_lance_undefined_entity_exception(e):
+            if is_lance_undefined_entity_exception(e, self.config.manifest_enabled):
                 return False, table_schema
             raise
 

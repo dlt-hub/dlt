@@ -305,6 +305,13 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
     def storage_options(self) -> Optional[Dict[str, str]]:
         return self.storage.options if self.storage else None
 
+    @property
+    def manifest_enabled(self) -> Optional[bool]:
+        """Manifest mode setting of the catalog, `None` when the catalog has no such setting."""
+        if isinstance(self.capabilities, DirectoryCatalogCapabilities):
+            return self.capabilities.manifest_enabled
+        return None
+
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return self.CATALOG_CREDENTIALS.get(self.catalog_type) or CredentialsConfiguration

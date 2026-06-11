@@ -100,7 +100,7 @@ def maybe_lance_rest_server(
     try:
         with RestAdapter(
             "dir",
-            namespace_properties={"root": root},
+            namespace_client_properties={"root": root},
             host=LanceRestServerConfig.HOST,
             port=LanceRestServerConfig.get_port(),
         ):
