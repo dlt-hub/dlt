@@ -583,9 +583,7 @@ const sidebars = {
 // `examples/index` is the link target of the parent Cookbook category, so skip it here —
 // otherwise navigating to the Cookbook landing page auto-expands `dlt` to highlight it.
 for (const item of sidebars.cookbookSidebar) {
-  const dltSubcategory = item.items.find(
-    (entry) => typeof entry === "object" && entry.label === "dlt",
-  );
+  const dltSubcategory = item.items.find((entry) => typeof entry === "object" && entry.label === "dlt");
   if (!dltSubcategory) continue;
   for (let examplePath of walkSync("./docs_processed/examples")) {
     examplePath = examplePath.replace(/\\/g, "/");
