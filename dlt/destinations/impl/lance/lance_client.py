@@ -24,6 +24,7 @@ from lance.namespace import (
     NamespaceExistsRequest,
     TableExistsRequest,
 )
+from lance_namespace import LanceNamespace
 from lancedb.table import LanceTable, _append_vector_columns
 from lancedb.embeddings import EmbeddingFunctionConfig, EmbeddingFunctionRegistry
 from lancedb.namespace import LanceNamespaceDBConnection
@@ -59,6 +60,8 @@ from dlt.common.schema.utils import (
 from dlt.common.storages import ParsedLoadJobFileName
 from dlt.destinations.impl.lance.configuration import (
     LanceClientConfiguration,
+    LanceNamespaceHandle,
+    LanceNamespacePool,
 )
 from dlt.destinations.impl.lance.exceptions import (
     LanceEmbeddingsConfigurationMissing,
@@ -94,10 +97,10 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.config: LanceClientConfiguration = config
         self.type_mapper = self.capabilities.get_type_mapper()
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
-        self.namespace = self.config.make_namespace()
         self.embedding_function = (
             self.config.embeddings.create_embedding_function() if self.config.embeddings else None
         )
+        self._namespace_handle: Optional[LanceNamespaceHandle] = None
         self._sql_client: SqlClientBase[Any] = None
 
     def __enter__(self) -> LanceClient:
@@ -106,7 +109,23 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def __exit__(
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
     ) -> None:
-        pass
+        if self._namespace_handle is not None:
+            self.config.namespace_pool.return_handle(self._namespace_handle)
+            self._namespace_handle = None
+
+    @property
+    def namespace_handle(self) -> LanceNamespaceHandle:
+        """Borrows the shared namespace handle on first access, returned in `__exit__`."""
+        if self._namespace_handle is None:
+            if self.config.namespace_pool is None:
+                # hand-built configs that skipped resolution
+                self.config.namespace_pool = LanceNamespacePool(self.config)
+            self._namespace_handle = self.config.namespace_pool.borrow()
+        return self._namespace_handle
+
+    @property
+    def namespace(self) -> LanceNamespace:
+        return self.namespace_handle.namespace
 
     @property
     def sql_client_class(self) -> Type[LanceSQLClient]:  # type: ignore[override]
@@ -171,7 +190,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             schema.empty_table(),
             namespace_client=self.namespace,
             table_id=self.make_table_id(table_name),
-            storage_options=self.config.storage_options,
+            storage_options=self.namespace_handle.storage_options,
         )
 
     @raise_destination_error
@@ -255,7 +274,8 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         return lance.dataset(
             namespace_client=self.namespace,
             table_id=self.make_table_id(table_name),
-            storage_options=self.config.storage_options,
+            storage_options=self.namespace_handle.storage_options,
+            session=self.namespace_handle.session,
         ).checkout_version((branch_name, version_number))
 
     def open_lancedb_table(self, table_name: str) -> LanceTable:
@@ -263,7 +283,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         This provides access to LanceDB-specific features like vector search.
         """
-        db = LanceNamespaceDBConnection(self.namespace, storage_options=self.config.storage_options)
+        db = LanceNamespaceDBConnection(
+            self.namespace, storage_options=self.namespace_handle.storage_options
+        )
         return db.open_table(table_name, namespace=self.make_namespace_id())
 
     @raise_destination_error

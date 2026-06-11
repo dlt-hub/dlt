@@ -1,8 +1,9 @@
 import os
-from typing import Optional
+from typing import Dict, Optional
 
 import pytest
 from lance.namespace import DirectoryNamespace, RestNamespace
+from lance_namespace import LanceNamespace
 from lancedb.embeddings import CohereEmbeddingFunction, OllamaEmbeddings, OpenAIEmbeddings
 
 import dlt
@@ -21,6 +22,7 @@ from dlt.destinations.impl.lance.configuration import (
     LanceClientConfiguration,
     LanceEmbeddingsConfiguration,
     LanceEmbeddingsCredentials,
+    LanceNamespacePool,
     RestCatalogCapabilities,
     RestCatalogCredentials,
     LanceStorageConfiguration,
@@ -342,3 +344,74 @@ def test_lance_follows_local_dir(
     else:
         expected_catalog = os.path.join(abs_local_dir, catalog_bucket_url)
         assert c.credentials.bucket_url == f"file://{expected_catalog}"
+
+
+def _resolved_config() -> LanceClientConfiguration:
+    return resolve_configuration(
+        LanceClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
+        sections=("destination", "lance"),
+    )
+
+
+def test_lance_namespace_pool_shared_handle() -> None:
+    c = _resolved_config()
+    assert isinstance(c.namespace_pool, LanceNamespacePool)
+
+    handle_1 = c.namespace_pool.borrow()
+    handle_2 = c.namespace_pool.borrow()
+    # same namespace and session dispensed to all borrowers
+    assert handle_1.namespace is handle_2.namespace
+    assert handle_1.session is handle_2.session
+    assert c.namespace_pool._borrows == 2
+
+    c.namespace_pool.return_handle(handle_1)
+    c.namespace_pool.return_handle(handle_2)
+    assert c.namespace_pool._borrows == 0
+    # handle retained at zero borrows for reuse across load steps
+    assert c.namespace_pool.borrow().namespace is handle_1.namespace
+
+
+def test_lance_namespace_pool_copy_isolation() -> None:
+    c = _resolved_config()
+    handle = c.namespace_pool.borrow()
+
+    c_copy = c.copy()
+    assert c_copy.namespace_pool is not c.namespace_pool
+    assert c_copy.namespace_pool.borrow().namespace is not handle.namespace
+
+
+def test_lance_namespace_pool_rebuilds_on_credential_rotation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    c = _resolved_config()
+
+    creds = {"value": {"aws_access_key_id": "key_1"}}
+    monkeypatch.setattr(
+        LanceClientConfiguration, "_fresh_storage_creds", lambda self: dict(creds["value"])
+    )
+    builds = []
+    orig_make_namespace = LanceClientConfiguration.make_namespace
+
+    def counting_make_namespace(
+        self: LanceClientConfiguration, fresh_creds: Optional[Dict[str, str]] = None
+    ) -> "LanceNamespace":
+        builds.append(fresh_creds)
+        # build without the fake creds, the local object store does not accept them
+        return orig_make_namespace(self)
+
+    monkeypatch.setattr(LanceClientConfiguration, "make_namespace", counting_make_namespace)
+
+    # same snapshot borrows the same handle
+    handle_1 = c.namespace_pool.borrow()
+    handle_2 = c.namespace_pool.borrow()
+    assert len(builds) == 1
+    assert handle_1.namespace is handle_2.namespace
+
+    # rotated credentials rebuild the handle and overlay storage options
+    creds["value"] = {"aws_access_key_id": "key_2"}
+    handle_3 = c.namespace_pool.borrow()
+    assert len(builds) == 2
+    assert builds[-1] == {"aws_access_key_id": "key_2"}
+    assert handle_3.namespace is not handle_1.namespace
+    assert handle_3.session is not handle_1.session
+    assert handle_3.storage_options["aws_access_key_id"] == "key_2"
