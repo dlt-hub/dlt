@@ -795,6 +795,53 @@ def test_row_tuples_to_arrow_struct_fallback_to_per_column() -> None:
     assert tbl["float_col"].to_pylist() == [1.5, 2.5]
 
 
+class _DriverRow:
+    """Mimics a non-tuple driver row (e.g. sqlalchemy Row): sequence protocol only."""
+
+    def __init__(self, *values: Any) -> None:
+        self._values = values
+
+    def __iter__(self) -> Any:
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+    def __getitem__(self, idx: int) -> Any:
+        return self._values[idx]
+
+
+@pytest.mark.parametrize("row_shape", ["list", "driver_row"], ids=["list-rows", "driver-rows"])
+def test_row_tuples_to_arrow_non_tuple_rows_use_struct_path(
+    row_shape: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-tuple row shapes are normalized to tuples and take the single-pass
+    struct conversion, producing the same table as plain tuple rows."""
+    import dlt.common.libs.pyarrow as pyarrow_libs
+
+    columns: TTableSchemaColumns = {
+        "int_col": {"name": "int_col", "data_type": "bigint"},
+        "text_col": {"name": "text_col", "data_type": "text"},
+    }
+    base_rows = [(1, "a"), (2, None)]
+    rows: List[Any] = (
+        [list(r) for r in base_rows] if row_shape == "list" else [_DriverRow(*r) for r in base_rows]
+    )
+
+    expected = row_tuples_to_arrow(base_rows, _caps(), columns, "UTC")
+
+    # normalized rows must take the struct path, not the transpose
+    def _no_transpose(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("per-column path used")
+
+    with monkeypatch.context() as m:
+        m.setattr(pyarrow_libs, "transpose_rows_to_columns", _no_transpose)
+        tbl = row_tuples_to_arrow(rows, _caps(), columns, "UTC")
+
+    assert tbl.schema == expected.schema
+    assert tbl.equals(expected)
+
+
 @pytest.mark.parametrize("typed", [True, False], ids=["typed_schema", "untyped_schema"])
 def test_row_tuples_to_arrow_empty_rows(typed: bool) -> None:
     """Empty result sets produce an empty table with all schema columns present."""

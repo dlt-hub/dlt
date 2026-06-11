@@ -1442,6 +1442,11 @@ def row_tuples_to_arrow(
     """
     from dlt.common.libs.pyarrow import pyarrow as pa
 
+    # pyarrow struct conversion accepts only tuples and dicts, and tuple iteration is
+    # ~3x faster than driver row objects (e.g. sqlalchemy Row) in the transpose below
+    if rows and not isinstance(rows[0], (tuple, dict)):
+        rows = [tuple(row) for row in rows]
+
     # compute target arrow types once; None when the type must be inferred from data
     arrow_types: Dict[str, Optional[Any]] = {
         name: get_py_arrow_datatype(column, caps, tz) if column.get("data_type") else None

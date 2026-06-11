@@ -35,7 +35,7 @@ from dlt._workspace.deployment.requirements import (
     migrate_requirements,
     python_version,
     save_requirements,
-    _collect_package_names
+    _collect_package_names,
 )
 from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF
 
