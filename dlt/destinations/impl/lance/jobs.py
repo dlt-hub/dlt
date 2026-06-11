@@ -77,7 +77,7 @@ class LanceLoadJob(RunnableLoadJob):
 
     @staticmethod
     def _get_file_reader(file_path: str) -> pa.RecordBatchReader:
-        parquet_file = pa.parquet.ParquetFile(file_path)
-        return pa.RecordBatchReader.from_batches(
-            parquet_file.schema_arrow, parquet_file.iter_batches()
-        )
+        import pyarrow.dataset
+
+        # native reader: batches are pulled in the writer without per-batch GIL round trips
+        return pyarrow.dataset.dataset(file_path).scanner().to_reader()
