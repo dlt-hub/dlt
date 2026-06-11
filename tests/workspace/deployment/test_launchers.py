@@ -1,5 +1,6 @@
 """Tests for job launchers."""
 
+import importlib.util
 import json
 import os
 import signal
@@ -276,6 +277,25 @@ def test_job_launcher_mcp_fallback() -> None:
 
         job_run(entry_point, run_id="test-6", trigger="manual:")
         mock_run_mcp.assert_called_once()
+
+
+def test_resolve_module_path_returns_file_without_importing() -> None:
+    """resolve_module_path must not execute the target module."""
+    module_name = f"{WORKSPACE}.marimo_notebook"
+    expected = importlib.util.find_spec(module_name).origin
+    sys.modules.pop(module_name, None)
+
+    from dlt._workspace.deployment.launchers._launcher import resolve_module_path
+
+    assert resolve_module_path(module_name) == expected
+    assert module_name not in sys.modules
+
+
+def test_resolve_module_path_unknown_module() -> None:
+    from dlt._workspace.deployment.launchers._launcher import resolve_module_path
+
+    with pytest.raises(ValueError, match="could not be resolved"):
+        resolve_module_path("totally_fake_module_abc123")
 
 
 def test_module_launcher_builds_correct_args() -> None:
