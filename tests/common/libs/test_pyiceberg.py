@@ -1,5 +1,7 @@
 import os
 import socket
+from pathlib import Path
+
 import yaml
 import pytest
 from unittest import mock
@@ -166,7 +168,11 @@ def test_truncate_and_drop_iceberg_table(sqlite_catalog_config, monkeypatch):
     catalog = get_catalog("truncate_drop_catalog", iceberg_catalog_config=sqlite_catalog_config)
     catalog.create_namespace("test_ns")
     data = pa.table({"id": [1, 2, 3]})
-    table = catalog.create_table("test_ns.items", schema=data.schema)
+    warehouse = Path(sqlite_catalog_config["warehouse"])
+    items_dir = warehouse / "items"
+    table = catalog.create_table(
+        "test_ns.items", schema=data.schema, location=_table_location(items_dir)
+    )
     table.append(data)
     assert table.scan().to_arrow().num_rows == 3
     snapshot_count = len(table.metadata.snapshots)
@@ -178,28 +184,51 @@ def test_truncate_and_drop_iceberg_table(sqlite_catalog_config, monkeypatch):
     assert len(table.metadata.snapshots) > snapshot_count
 
     # drop purges files and unregisters the table
-    table_dir = table.location().removeprefix("file://")
     assert drop_iceberg_table(catalog, "test_ns.items") is True
     with pytest.raises(NoSuchTableError):
         catalog.load_table("test_ns.items")
-    assert not any(f.endswith((".parquet", ".json")) for f in _list_files(table_dir))
+    assert not any(f.endswith((".parquet", ".json")) for f in _list_files(items_dir))
     # dropping unregistered table reports False
     assert drop_iceberg_table(catalog, "test_ns.items") is False
 
-    # purge not implemented falls back to drop which leaves files in place
-    table = catalog.create_table("test_ns.kept_files", schema=data.schema)
-    table.append(data)
-    table_dir = table.location().removeprefix("file://")
-    monkeypatch.setattr(
-        catalog, "purge_table", mock.Mock(side_effect=NotImplementedError), raising=True
+    # drop with purge disabled leaves files in place
+    no_purge_dir = warehouse / "no_purge"
+    table = catalog.create_table(
+        "test_ns.no_purge", schema=data.schema, location=_table_location(no_purge_dir)
     )
-    assert drop_iceberg_table(catalog, "test_ns.kept_files") is True
+    table.append(data)
+    assert drop_iceberg_table(catalog, "test_ns.no_purge", purge=False) is True
     with pytest.raises(NoSuchTableError):
-        catalog.load_table("test_ns.kept_files")
-    assert any(f.endswith(".parquet") for f in _list_files(table_dir))
+        catalog.load_table("test_ns.no_purge")
+    assert any(f.endswith(".parquet") for f in _list_files(no_purge_dir))
+
+    # rejected purge falls back to drop which leaves files in place: NotImplementedError is
+    # raised by python catalogs (hive), 400/403 by REST catalog servers (glue, polaris)
+    from pyiceberg.exceptions import BadRequestError, ForbiddenError
+
+    for idx, purge_error in enumerate((NotImplementedError, BadRequestError, ForbiddenError)):
+        table_name = f"test_ns.kept_files_{idx}"
+        table_dir = warehouse / f"kept_files_{idx}"
+        table = catalog.create_table(
+            table_name, schema=data.schema, location=_table_location(table_dir)
+        )
+        table.append(data)
+        monkeypatch.setattr(
+            catalog, "purge_table", mock.Mock(side_effect=purge_error), raising=True
+        )
+        assert drop_iceberg_table(catalog, table_name) is True
+        with pytest.raises(NoSuchTableError):
+            catalog.load_table(table_name)
+        assert any(f.endswith(".parquet") for f in _list_files(table_dir))
 
 
-def _list_files(root: str):
+def _table_location(path) -> str:
+    uri = path.as_uri()
+    # pyiceberg cannot deal with windows absolute file urls
+    return uri.replace("file:///", "file://") if os.name == "nt" else uri
+
+
+def _list_files(root):
     return [os.path.join(dir_, f) for dir_, _, files in os.walk(root) for f in files]
 
 

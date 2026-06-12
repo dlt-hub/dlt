@@ -28,7 +28,7 @@ try:
     import pyiceberg
     from pyiceberg.table import Table as IcebergTable
     from pyiceberg.catalog import Catalog as IcebergCatalog
-    from pyiceberg.exceptions import NoSuchTableError
+    from pyiceberg.exceptions import NoSuchTableError, BadRequestError, ForbiddenError
     from pyiceberg.expressions import AlwaysTrue
     from pyiceberg.partitioning import (
         UNPARTITIONED_PARTITION_SPEC,
@@ -396,17 +396,25 @@ def truncate_iceberg_table(table: IcebergTable) -> None:
     table.delete(delete_filter=AlwaysTrue())
 
 
-def drop_iceberg_table(catalog: IcebergCatalog, table_id: str) -> bool:
-    """Drops `table_id` from `catalog`, purging its files when the catalog supports it.
+def drop_iceberg_table(catalog: IcebergCatalog, table_id: str, purge: bool = True) -> bool:
+    """Drops `table_id` from `catalog`, purging its files when `purge` is set and the catalog
+    supports it.
 
     Returns False when the table is not registered in `catalog`.
     """
     try:
-        try:
-            catalog.purge_table(table_id)
-        except NotImplementedError:
-            # not all catalogs implement purge, drop leaves files in place
-            catalog.drop_table(table_id)
+        if purge:
+            try:
+                catalog.purge_table(table_id)
+                return True
+            except (NotImplementedError, BadRequestError, ForbiddenError) as ex:
+                # purge is not implemented (hive) or rejected by the catalog server (e.g. Polaris
+                # returns 403 unless DROP_WITH_PURGE_ENABLED), drop leaves files in place
+                logger.info(
+                    f"Catalog {catalog.name} rejected purge of iceberg table {table_id}: {ex}."
+                    " Falling back to drop, table files are left in place."
+                )
+        catalog.drop_table(table_id)
         return True
     except NoSuchTableError:
         return False

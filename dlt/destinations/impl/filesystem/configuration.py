@@ -39,6 +39,10 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     """Default Iceberg table properties applied to all tables; per-table adapter properties take precedence."""
     iceberg_namespace_properties: Optional[Dict[str, str]] = None
     """Properties passed to the Iceberg catalog when creating the namespace."""
+    iceberg_use_catalog_purge: bool = False
+    """When true, dropped iceberg tables are purged via the persistent catalog which may leave
+    files in place (e.g. rejected purge, deferred GC). When false, the table is dropped from
+    the catalog and dlt deletes the table files itself."""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:

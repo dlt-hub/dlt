@@ -705,15 +705,15 @@ class FilesystemClient(
                 self._delete_file(filename)
 
     def _drop_open_table_in_catalog(self, table_name: str) -> bool:
-        """Returns True when a persistent catalog handled the drop and owns file deletion;
-        caller deletes table files otherwise."""
+        """Drops iceberg tables from a persistent catalog. Returns True when the catalog also
+        handles file deletion; caller deletes table files otherwise."""
         if table_name in self.schema.tables:
             if not self.is_open_table("iceberg", table_name):
                 return False
         else:
             # dropped tables may be gone from the schema, detect iceberg via the metadata dir
-            location = self.get_open_table_location("iceberg", table_name)
-            if not self.fs_client.exists(f"{location.rstrip('/')}/metadata"):
+            metadata_dir = self.pathlib.join(self.get_table_dir(table_name), "metadata")
+            if not self.fs_client.exists(metadata_dir):
                 return False
         try:
             from dlt.common.libs.pyiceberg import is_ephemeral_catalog, drop_iceberg_table
@@ -723,7 +723,13 @@ class FilesystemClient(
         catalog = self.get_open_table_catalog("iceberg")
         if is_ephemeral_catalog(catalog):
             return False
-        return drop_iceberg_table(catalog, f"{self.dataset_name}.{table_name}")
+        dropped = drop_iceberg_table(
+            catalog,
+            f"{self.dataset_name}.{table_name}",
+            purge=self.config.iceberg_use_catalog_purge,
+        )
+        # without catalog purge dlt deletes the table files itself
+        return dropped and self.config.iceberg_use_catalog_purge
 
     def get_storage_tables(
         self, table_names: Iterable[str]
