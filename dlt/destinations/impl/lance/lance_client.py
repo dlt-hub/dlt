@@ -293,10 +293,18 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         This provides access to LanceDB-specific features like vector search.
         """
+        # NOTE: the pooled `lance.Session` cannot be shared here, lancedb requires its own
+        # session type
         db = LanceNamespaceDBConnection(
             self.namespace, storage_options=self.namespace_handle.storage_options
         )
-        table = db.open_table(table_name, namespace_path=self.make_namespace_id())
+        # storage options must be repeated per call: connection-level options are not
+        # applied when the namespace connection opens the table dataset
+        table = db.open_table(
+            table_name,
+            namespace_path=self.make_namespace_id(),
+            storage_options=self.namespace_handle.storage_options,
+        )
         # lancedb bug: `LanceTable._dataset_uri` reads the connection `_uri` which namespace
         # connections never set, unlike `_dataset_path` which honors the table location.
         # seed the cached property with the real table uri
