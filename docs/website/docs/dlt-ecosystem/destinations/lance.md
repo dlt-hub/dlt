@@ -182,6 +182,10 @@ dir_listing_enabled = true
 
 **When to disable `manifest_enabled`**: if many writers hit the same catalog root concurrently (for example, multiple pipelines or parallel jobs sharing one `bucket_url`/`namespace_name`), conflicting commits to the shared `__manifest` table on S3/GCS can cause contention and retries. Disabling the manifest eliminates the shared write point at the cost of slower listing and no nested-namespace support. If you disable it, give each pipeline run its own `namespace_name` to isolate datasets.
 
+:::note
+You can disable `manifest_enabled` only when the pipeline does not use a `dataset_name`: dlt creates the dataset as a child namespace, which requires manifest mode (loads fail with `Child namespaces are only supported when manifest mode is enabled`). Without a `dataset_name`, tables live in the root namespace and the catalog works with plain directory listing — no `__manifest` commits on table creation and no manifest reads when opening tables, which also makes loads noticeably faster on object stores.
+:::
+
 ### REST Namespace (experimental)
 
 :::warning
