@@ -56,7 +56,11 @@ from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfigu
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
 from dlt.common.storages.configuration import FilesystemConfiguration
-from dlt.common.storages.load_package import LoadJobInfo, create_load_id
+from dlt.common.storages.load_package import (
+    LoadJobInfo,
+    LoadPackageStateInjectableContext,
+    create_load_id,
+)
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
@@ -1213,26 +1217,34 @@ def expect_load_file(
 
         return job
 
-    if isinstance(client, WithStagingDataset) and client.should_load_data_to_staging_dataset(
-        table_name
+    # jobs may use load package state (e.g. lance fragments) - inject it like the loader does
+    package_storage = PackageStorage(
+        FileStorage(os.path.join(file_storage.storage_path, "normalized_" + load_id)), "normalized"
+    )
+    package_storage.create_package(load_id)
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(storage=package_storage, load_id=load_id)
     ):
-        # load to staging dataset on merge
-        with client.with_staging_dataset():
+        if isinstance(client, WithStagingDataset) and client.should_load_data_to_staging_dataset(
+            table_name
+        ):
+            # load to staging dataset on merge
+            with client.with_staging_dataset():
+                job = _run_job(file_name)
+        else:
             job = _run_job(file_name)
-    else:
-        job = _run_job(file_name)
-    # execute table chain job
-    if chain_jobs := client.create_table_chain_completed_followup_jobs(
-        [table], [LoadJobInfo("completed_jobs", full_path, 0, 0, 0, job.job_file_info(), "")]  # type: ignore[arg-type]
-    ):
-        assert len(chain_jobs) == 1, "can't execute more than 1 chain job in this test"
-
-        _run_job(chain_jobs[0].new_file_path())
-
-    if isinstance(job, HasFollowupJobs):
-        if chain_jobs := job.create_followup_jobs("completed"):
+        # execute table chain job
+        if chain_jobs := client.create_table_chain_completed_followup_jobs(
+            [table], [LoadJobInfo("completed_jobs", full_path, 0, 0, 0, job.job_file_info(), "")]  # type: ignore[arg-type]
+        ):
             assert len(chain_jobs) == 1, "can't execute more than 1 chain job in this test"
+
             _run_job(chain_jobs[0].new_file_path())
+
+        if isinstance(job, HasFollowupJobs):
+            if chain_jobs := job.create_followup_jobs("completed"):
+                assert len(chain_jobs) == 1, "can't execute more than 1 chain job in this test"
+                _run_job(chain_jobs[0].new_file_path())
 
     return job
 

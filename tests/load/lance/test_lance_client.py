@@ -147,7 +147,7 @@ def test_lance_client_write_records_into_branch(client_with_storage: LanceClient
 
 
 def test_lance_client_write_records_matches_lancedb_table_add(
-    client_with_storage: LanceClient, tmp_path: str
+    client_with_storage: LanceClient, tmp_path: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Asserts `write_records` produces same table as `lancedb.Table.add()`.
 
@@ -155,6 +155,8 @@ def test_lance_client_write_records_matches_lancedb_table_add(
     """
     client = client_with_storage
 
+    # the shell-provided NAME env var leaks into the `name` config field as last resort lookup
+    monkeypatch.delenv("NAME", raising=False)
     # configure embeddings on client
     embeddings_config = resolve_configuration(
         LanceEmbeddingsConfiguration(),

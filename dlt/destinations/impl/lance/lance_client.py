@@ -6,6 +6,8 @@ from typing import (
     Dict,
     List,
     Any,
+    Sequence,
+    Set,
     Union,
     Tuple,
     Iterable,
@@ -38,6 +40,7 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
 )
 from dlt.common.destination.client import (
+    FollowupJobRequest,
     JobClientBase,
     PreparedTableSchema,
     WithStateSync,
@@ -45,6 +48,8 @@ from dlt.common.destination.client import (
     StateInfo,
     LoadJob,
 )
+from dlt.common.storages import FileStorage
+from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
@@ -68,7 +73,11 @@ from dlt.destinations.impl.lance.exceptions import (
     is_lance_undefined_entity_exception,
     raise_destination_error,
 )
-from dlt.destinations.impl.lance.jobs import LanceLoadJob
+from dlt.destinations.impl.lance.jobs import LanceCommitLoadJob, LanceLoadJob
+from dlt.destinations.job_impl import (
+    FinalizedLoadJobWithFollowupJobs,
+    ReferenceFollowupJobRequest,
+)
 from dlt.destinations.impl.lance.lance_adapter import (
     DEFAULT_REMOVE_ORPHANS,
     VECTORIZE_HINT,
@@ -101,6 +110,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             self.config.embeddings.create_embedding_function() if self.config.embeddings else None
         )
         self._namespace_handle: Optional[LanceNamespaceHandle] = None
+        self._tables_with_jobs: Set[str] = set()
         self._sql_client: SqlClientBase[Any] = None
 
     def __enter__(self) -> LanceClient:
@@ -286,7 +296,12 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         db = LanceNamespaceDBConnection(
             self.namespace, storage_options=self.namespace_handle.storage_options
         )
-        return db.open_table(table_name, namespace=self.make_namespace_id())
+        table = db.open_table(table_name, namespace_path=self.make_namespace_id())
+        # lancedb bug: `LanceTable._dataset_uri` reads the connection `_uri` which namespace
+        # connections never set, unlike `_dataset_path` which honors the table location.
+        # seed the cached property with the real table uri
+        table.__dict__["_dataset_uri"] = self.get_table_uri(table_name)
+        return table
 
     @raise_destination_error
     def _write_records(
@@ -309,6 +324,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 )
             merge_builder.execute(records)
 
+    def prepare_records(
+        self, records: pa.RecordBatchReader, schema: pa.Schema
+    ) -> pa.RecordBatchReader:
+        """Adds embedding columns and casts records to the target dataset schema."""
+        records = _append_vector_columns(records, schema=schema)
+        return _cast_to_target_types(records, schema)
+
     def write_records(
         self,
         records: Union[pa.RecordBatchReader, List[Dict[str, Any]]],
@@ -324,8 +346,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         ds = self.open_lance_dataset(table_name, branch_name=branch_name)
 
         if isinstance(records, pa.RecordBatchReader):
-            records = _append_vector_columns(records, schema=ds.schema)
-            records = _cast_to_target_types(records, ds.schema)
+            records = self.prepare_records(records, ds.schema)
 
         self._write_records(
             ds,
@@ -340,6 +361,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             self.create_dataset_namespace()
         elif truncate_tables:
             for table_name in truncate_tables:
+                if (
+                    table_name in self._tables_with_jobs
+                    and self.prepare_load_table(table_name)["write_disposition"] == "replace"
+                ):
+                    # replaced atomically by the single Overwrite commit of the table chain.
+                    # append tables truncated via refresh still need the truncation
+                    continue
                 if not self.table_exists(table_name):
                     continue
                 self.truncate_table(table_name)
@@ -350,6 +378,8 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def verify_schema(
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
     ) -> List[PreparedTableSchema]:
+        # tables receiving data files are not truncated in `initialize_storage`
+        self._tables_with_jobs = {job.table_name for job in new_jobs or ()}
         loaded_tables = super().verify_schema(only_tables, new_jobs)
 
         for load_table in loaded_tables:
@@ -642,4 +672,30 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
+        if ReferenceFollowupJobRequest.is_reference_job(file_path):
+            return LanceCommitLoadJob(file_path, table, restore=restore)
+        if table["write_disposition"] == "merge":
+            # all job files of the table merge in one commit in `LanceCommitLoadJob`
+            return FinalizedLoadJobWithFollowupJobs(file_path)
         return LanceLoadJob(file_path, table)
+
+    def create_table_chain_completed_followup_jobs(
+        self,
+        table_chain: Sequence[PreparedTableSchema],
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+    ) -> List[FollowupJobRequest]:
+        assert completed_table_chain_jobs is not None
+        jobs = super().create_table_chain_completed_followup_jobs(
+            table_chain, completed_table_chain_jobs
+        )
+        # one commit job per table over all its completed job files
+        for table in table_chain:
+            file_paths = [
+                job.file_path
+                for job in completed_table_chain_jobs
+                if job.job_file_info.table_name == table["name"]
+            ]
+            if file_paths:
+                file_name = FileStorage.get_file_name_from_file_path(file_paths[0])
+                jobs.append(ReferenceFollowupJobRequest(file_name, file_paths))
+        return jobs

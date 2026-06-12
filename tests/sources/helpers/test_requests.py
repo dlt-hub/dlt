@@ -238,7 +238,7 @@ def test_wait_retry_after_zero_then_nonzero_uses_header(mock_sleep: mock.MagicMo
 
     assert mock_sleep.call_count == 2
     assert mock_sleep.call_args_list[0][0][0] == 0  # Retry-After: 0 → backoff, but backoff_factor=0
-    assert 10 <= mock_sleep.call_args_list[1][0][0] <= 11 # Retry-After: 10 → wait for 10
+    assert 10 <= mock_sleep.call_args_list[1][0][0] <= 11  # Retry-After: 10 → wait for 10
 
 
 def test_init_default_client() -> None:

@@ -1,7 +1,7 @@
 import dlt
 import pytest
 
-from typing import cast
+from typing import Any, cast
 
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lance.exceptions import LanceEmbeddingsConfigurationMissing
@@ -216,3 +216,149 @@ def test_lance_pipeline_branching_root_namespace(
         assert "a_new_column" in dev_ds.schema.names
         assert "a_new_column" not in main_ds.schema.names
         assert "a_new_column" not in staging_ds.schema.names
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    ids=lambda x: x.name,
+)
+def test_lance_pipeline_single_commit_per_table(
+    destination_config: DestinationTestConfiguration,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dlt.destinations.impl.lance.lance_client import LanceClient
+
+    # rotate job files so each table loads from multiple parquet files
+    monkeypatch.setenv("NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS", "10")
+    pipe = destination_config.setup_pipeline(
+        pipeline_name="test_lance_single_commit",
+        dev_mode=True,
+    )
+    pipe.run([{"id": i} for i in range(35)], table_name="items")
+
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        assert client.open_lance_dataset("items").count_rows() == 35
+        versions_after_first = len(client.open_lance_dataset("items").versions())
+
+    # append: all job files of a load commit as one version
+    info = pipe.run([{"id": i} for i in range(35, 70)], table_name="items")
+    items_jobs = [
+        j
+        for j in info.load_packages[0].jobs["completed_jobs"]
+        if j.job_file_info.table_name == "items" and j.job_file_info.file_format == "parquet"
+    ]
+    assert len(items_jobs) > 1
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        ds = client.open_lance_dataset("items")
+        assert ds.count_rows() == 70
+        assert len(ds.versions()) == versions_after_first + 1
+        versions_after_second = len(ds.versions())
+
+    # replace: a single Overwrite commit replaces all rows
+    pipe.run([{"id": i} for i in range(15)], table_name="items", write_disposition="replace")
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        ds = client.open_lance_dataset("items")
+        assert ds.count_rows() == 15
+        assert len(ds.versions()) == versions_after_second + 1
+
+    # merge: multiple job files merge in one operation, updates and inserts apply
+    pipe.run(
+        [{"id": i, "v": "old"} for i in range(25)],
+        table_name="merge_items",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    pipe.run(
+        [{"id": i, "v": "new"} for i in range(15, 40)],
+        table_name="merge_items",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        ds = client.open_lance_dataset("merge_items")
+        table = ds.to_table()
+        assert table.num_rows == 40
+        updated = {r["id"]: r["v"] for r in table.to_pylist()}
+        assert updated[10] == "old" and updated[20] == "new" and updated[39] == "new"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    ids=lambda x: x.name,
+)
+def test_lance_pipeline_replace_truncates_jobless_nested_table(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    from dlt.destinations.impl.lance.lance_client import LanceClient
+
+    pipe = destination_config.setup_pipeline(
+        pipeline_name="test_lance_replace_nested",
+        dev_mode=True,
+    )
+
+    # nested lists create a nested table in the replace chain
+    pipe.run(
+        [{"id": 1, "kids": [{"k": 1}, {"k": 2}]}],
+        table_name="items",
+        write_disposition="replace",
+    )
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        assert client.open_lance_dataset("items").count_rows() == 1
+        assert client.open_lance_dataset("items__kids").count_rows() == 2
+        items_versions = len(client.open_lance_dataset("items").versions())
+
+    # no nested data: the jobless nested table is truncated, the parent is replaced
+    # atomically in a single Overwrite commit without an intermediate truncation
+    pipe.run([{"id": 2}, {"id": 3}], table_name="items", write_disposition="replace")
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        ds = client.open_lance_dataset("items")
+        assert sorted(r["id"] for r in ds.to_table().to_pylist()) == [2, 3]
+        assert len(ds.versions()) == items_versions + 1
+        assert client.open_lance_dataset("items__kids").count_rows() == 0
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    ids=lambda x: x.name,
+)
+def test_lance_pipeline_refresh_drop_data(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    from dlt.destinations.impl.lance.lance_client import LanceClient
+
+    pipe = destination_config.setup_pipeline(
+        pipeline_name="test_lance_refresh_drop",
+        dev_mode=True,
+    )
+
+    @dlt.source
+    def two_tables(events: Any, snap: Any) -> Any:
+        return [
+            dlt.resource(events, name="events", write_disposition="append"),
+            dlt.resource(snap, name="snap", write_disposition="replace"),
+        ]
+
+    pipe.run(two_tables([{"id": 1}, {"id": 2}], [{"id": 10}]))
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        snap_versions = len(client.open_lance_dataset("snap").versions())
+
+    # drop_data must truncate the append table even though it receives a data file,
+    # the replace table is still overwritten in a single commit
+    pipe.run(two_tables([{"id": 3}], [{"id": 20}]), refresh="drop_data")
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        events = sorted(r["id"] for r in client.open_lance_dataset("events").to_table().to_pylist())
+        assert events == [3]
+        snap_ds = client.open_lance_dataset("snap")
+        assert [r["id"] for r in snap_ds.to_table().to_pylist()] == [20]
+        assert len(snap_ds.versions()) == snap_versions + 1
