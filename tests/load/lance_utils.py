@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Iterator, Optional
 
 import pytest
 
+from dlt.common.utils import uniq_id
+
 from tests.utils import get_test_storage_root, get_test_worker_id, get_test_worker_idx
 
 if TYPE_CHECKING:
@@ -51,9 +53,42 @@ class LanceRestServerConfig:
         }
 
 
+# random per test session: a shared root accumulates a `__manifest` version per namespace
+# mutation, slowing all namespace operations down with every test run
+_LANCE_ROOT_SUFFIX = uniq_id(4)
+
+
 def get_lance_namespace_name() -> str:
     # isolate per xdist worker — Lance __manifest writes conflict on S3
-    return f"dlt_lance_root_{get_test_worker_id()}"
+    return f"dlt_lance_root_{get_test_worker_id()}_{_LANCE_ROOT_SUFFIX}"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_lance_namespace_root() -> Iterator[None]:
+    """Deletes this session's lance namespace root from remote buckets."""
+    yield
+    from dlt.common.configuration.resolve import resolve_configuration
+    from dlt.common.storages.configuration import FilesystemConfiguration
+    from dlt.common.storages.fsspec_filesystem import fsspec_from_config
+
+    from tests.load.utils import FILE_BUCKET, OBJECT_STORE_RS_BUCKETS
+
+    name = get_lance_namespace_name()
+    for bucket in OBJECT_STORE_RS_BUCKETS:
+        # local files live in the test storage and are cleaned with it
+        if bucket == FILE_BUCKET:
+            continue
+        try:
+            cfg = resolve_configuration(
+                FilesystemConfiguration(bucket_url=bucket), sections=("destination", "filesystem")
+            )
+            fs, path = fsspec_from_config(cfg)
+            root = f"{path}/{name}"
+            if fs.exists(root):
+                fs.rm(root, recursive=True)
+        except Exception:
+            # best effort: no credentials or bucket not used in this session
+            pass
 
 
 def extract_destination_test_configuration(
