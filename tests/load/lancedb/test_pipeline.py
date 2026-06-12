@@ -657,7 +657,7 @@ def test_bring_your_own_vector(destination_config: DestinationTestConfiguration)
         assert results.iloc[0]["id"] == 1
 
         # Check that all rows were loaded
-        assert len(tbl.to_pandas()) == num_rows
+        assert len(tbl.to_arrow().to_pandas()) == num_rows
 
 
 @pytest.mark.parametrize(
@@ -850,7 +850,7 @@ def test_lancedb_remove_nested_orphaned_records_with_chunks(
         }
 
         tbl = open_lance_table(client, "document__embeddings")
-        df = tbl.to_pandas()
+        df = tbl.to_arrow().to_pandas()
         assert set(df["chunk_text"]) == expected_text
 
 
