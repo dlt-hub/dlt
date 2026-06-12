@@ -23,6 +23,10 @@ class MarimoConfiguration(BaseConfiguration):
     session_ttl: int = 120
     """Seconds before closing an idle session."""
     command: Literal["run", "edit"] = "run"
+    asset_url: Optional[str] = (
+        "https://cdn.jsdelivr.net/npm/@marimo-team/frontend@{version}/dist"
+    )
+    """CDN URL for marimo frontend assets. Marimo substitutes `{version}` from the installed package. Set to empty string to disable and serve assets from the app origin."""
 
 
 @configspec

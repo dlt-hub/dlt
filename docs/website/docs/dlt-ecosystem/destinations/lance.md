@@ -152,8 +152,12 @@ bucket_url/
 ```
 
 - **Root namespace** — a physical directory at `bucket_url/namespace_name`. The `namespace_name` defaults to `"dlt_lance_root"` and can be set to `""` to use `bucket_url` directly.
-- **Dataset namespace** — a logical child namespace named after `dataset_name`, tracked in the `__manifest/` catalog. Created automatically when the pipeline runs. All tables for the dataset are registered inside it.
+- **Dataset namespace** — when `dataset_name` is set, a logical child namespace named after it is created automatically (tracked in the `__manifest/` catalog) and all tables for the dataset are registered inside it. `dataset_name` is **optional**: when omitted, tables are created directly in the root namespace (single-level table ids) and no per-dataset child namespace is used.
 - **Tables** — stored as hash-prefixed directories at the root namespace level, not nested under a dataset subdirectory.
+
+:::note
+`dataset_name` is optional for `lance`. If you do not pass one, dlt does **not** auto-generate a dataset name and writes tables to the **root namespace**. Pass a `dataset_name` to isolate a pipeline's tables.
+:::
 
 ```toml
 [destination.lance.storage]
@@ -323,6 +327,15 @@ You can query loaded data using dlt's [dataset access](../../general-usage/datas
 dataset = pipeline.dataset()
 df = dataset["movies"].df()
 ```
+
+Reads go through an in-memory DuckDB instance that scans the Lance datasets via views. Because Lance scans always read the latest dataset version, **new rows appended after a dataset connection was opened are visible without recreating the views**. Picking up **schema changes (new columns)** on an already-open connection requires recreating the views — enable `always_refresh_views` for that:
+
+```toml
+[destination.lance]
+always_refresh_views = true
+```
+
+This recreates the scanner views on every read (a small overhead), so leave it disabled unless you read evolving schemas through a long-lived dataset connection.
 
 ### Low-level Lance access
 

@@ -108,7 +108,7 @@ processing.
 
 ### Controlling intermediary file size and rotation
 `dlt` writes data to intermediary files. You can control the file size and the number of created files by setting the maximum number of data items stored in a single file or the maximum single file size. Keep in mind that the file size is computed after compression has been performed.
-* `dlt` uses a custom version of the [JSON file format](../dlt-ecosystem/file-formats/jsonl.md) between the **extract** and **normalize** stages.
+* `dlt` uses a custom version of the [JSON file format](../dlt-ecosystem/file-formats.md#jsonl) between the **extract** and **normalize** stages.
 * Files created between the **normalize** and **load** stages are the same files that will be loaded to the destination.
 
 :::tip
@@ -123,7 +123,7 @@ Below, we set files to rotate after 100,000 items written or when the filesize e
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml-->
 
 ### Disabling and enabling file compression
-Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
+Several [text file formats](../dlt-ecosystem/file-formats.md) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::compression_toml-->
 
 :::note

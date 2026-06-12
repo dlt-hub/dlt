@@ -450,7 +450,7 @@ The following write dispositions are supported:
 
 ### Fast loading with parquet
 
-[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql**.
+[parquet](../file-formats.md#parquet) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql**.
 The driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
 ```sh
 pip install adbc-driver-manager dbc
@@ -496,8 +496,8 @@ For example, SQLite does not have `DATETIME` or `TIMESTAMP` types, so `timestamp
 
 ## Supported file formats
 
-* [typed-jsonl](../file-formats/jsonl.md) is used by default. JSON-encoded data with typing information included.
-* [Parquet](../file-formats/parquet.md) is supported.
+* [typed-jsonl](../file-formats.md#jsonl) is used by default. JSON-encoded data with typing information included.
+* [Parquet](../file-formats.md#parquet) is supported.
 
 ## Supported column hints
 No indexes or constraints are created on the table. You can enable the following via destination configuration

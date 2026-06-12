@@ -23,6 +23,13 @@ for reaction in reactions:
 p.run(issues, write_disposition="replace", primary_key="id", table_name="issues")
 ```
 
+:::caution
+All tables that belong to a `replace` resource are truncated on each load, including nested tables and tables created by
+[dispatching to many tables](resource.md#dispatch-data-to-many-tables) or as table variants.
+
+Note that a table does not need to receive any data to get truncated.
+:::
+
 ## Choosing the correct replace strategy for your full load
 
 dlt implements three different strategies for doing a full load on your table: `truncate-and-insert`, `insert-from-staging`, and `staging-optimized`. The exact behavior of these strategies can also vary between the available destinations.

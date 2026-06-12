@@ -1,4 +1,4 @@
-import dlt, os, pytest
+import dlt, pytest
 import contextlib
 from typing import Any, Callable, ClassVar, Dict, Iterator, Literal, Union, Optional, Type
 
@@ -1117,6 +1117,36 @@ def test_pydantic_model_evolve_on_existing_table(
         table = pipeline.default_schema.get_table("items")
         # contract blocks the new column
         assert "email" not in table["columns"]
+
+
+def test_replace_contract_discard_all_rows_truncates() -> None:
+    pipeline = get_pipeline()
+
+    @dlt.resource(
+        name="items",
+        write_disposition="replace",
+        columns={"id": {"data_type": "bigint"}},
+        schema_contract={"columns": "discard_row"},
+    )
+    def items(with_new_column: bool) -> Any:
+        # with_new_column adds a NEW column `extra` to every row so discard_row drops them all
+        if with_new_column:
+            yield from [{"id": i, "extra": i} for i in range(5)]
+        else:
+            yield from [{"id": i} for i in range(5)]
+
+    # run 1: rows survive (no new column) - table is populated
+    info = pipeline.run(items(False))
+    assert_load_info(info)
+    assert load_table_counts(pipeline)["items"] == 5
+
+    # run 2: every row is dropped by the contract -> empty job -> replace truncates the table
+    info = pipeline.run(items(True))
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
+    assert load_table_counts(pipeline).get("items", 0) == 0
+    # the new column was blocked by the contract
+    assert "extra" not in pipeline.default_schema.get_table("items")["columns"]
 
 
 @pytest.mark.parametrize("contract_setting", ["freeze", "discard_value", "discard_row"])

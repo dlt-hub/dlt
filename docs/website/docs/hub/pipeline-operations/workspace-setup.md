@@ -20,14 +20,24 @@ The dltHub platform uses `pyproject.toml` to install dependencies remotely.
 
 ## 2. Enable dltHub platform features
 
-Install `dlt[hub]`:
+Install `dlt[hub]` and initialize the workspace:
 
 ```sh
 uv add "dlt[hub]"
-touch .dlt/.workspace
+uv run dlthub init
 ```
 
-The `.dlt/.workspace` file activates [profile support](./profiles.md) and enables the `dlthub` CLI command (including `dlthub profile` and `dlthub local`).
+`dlthub init` scaffolds:
+
+```text
+.dlt/
+├── .workspace          # marker that enables the extended `dlthub` command surface
+├── config.toml         # workspace-wide config
+└── secrets.toml        # workspace-wide secrets (gitignored)
+.gitignore
+```
+
+The `.dlt/.workspace` marker activates [profile support](./profiles.md) and enables the `dlthub` CLI command (including `dlthub profile` and `dlthub local`). Pass `--name <workspace>` to override the default (the current directory's basename), or `--dry-run` to preview the file plan without writing. If you'd rather flip the toggle by hand, see [Enable workspace mode](../getting-started/installation.md#enable-workspace-mode).
 
 ## 3. Log in to the dltHub platform
 
@@ -35,27 +45,50 @@ The `.dlt/.workspace` file activates [profile support](./profiles.md) and enable
 dlthub login
 ```
 
-This opens a GitHub OAuth flow. After authentication, the CLI prompts you to select or create a remote workspace. The workspace ID is stored in `.dlt/config.toml` under `[runtime] workspace_id`.
+This opens a GitHub OAuth device flow and authenticates the current user. Then bind this repo to a remote workspace:
 
-To list workspaces you have access to, use `dlthub workspace list`. To switch workspaces later without logging out, use `dlthub workspace connect [name_or_id]` (omit the argument to pick interactively).
+```sh
+dlthub workspace connect [<name_or_id>] [--org-id <id>]
+```
+
+With no argument, an interactive picker is shown, grouped by organization. The chosen `workspace_id` (and `organization_id`, on the first connect) is persisted to `.dlt/config.toml`. To list workspaces you have access to, use `dlthub workspace list`.
+
+:::note
+The first time you run `dlthub deploy`, `dlthub run`, or `dlthub serve`, the CLI walks you through GitHub OAuth and then prompts you to pick (or create) a remote workspace — so you can skip this step entirely.
+
+`organization_id` is write-once. To switch organizations later, remove the line from `.dlt/config.toml` by hand and run `dlthub workspace connect` again.
+:::
 
 :::caution
-Each GitHub account can have only one remote workspace. When you run `dlthub login`, it connects your current local workspace to that remote workspace. If you later connect a different local repository and deploy, it will replace your existing **deployment** and **configuration**, making any previously scheduled jobs defunct.
+A single GitHub repository can be connected to only one remote workspace at a time. You connect with `dlthub workspace connect`. If you point the same repo at a different remote workspace, jobs deployed under the previous binding are deactivated — run history is preserved but their triggers no longer fire.
 
-Support for multiple remote workspaces (mirroring multiple local repositories) is planned.
+Connecting multiple local repositories to the same remote workspace is not yet supported.
 :::
+
+## 4. Add pipelines
+
+```sh
+dlthub pipeline init <source> <destination>
+```
+
+This reuses the same machinery as `dlt init`, so verified sources and templates work as you'd expect. See [Initialize a pipeline](../ingestion/init.md) for templates, verified sources, and the agentic setup.
 
 ## Credentials and configs
 
 ### Understanding workspace profiles
 
-The dltHub platform uses **profiles** to manage different configurations for different environments. The relevant profiles are:
+The dltHub platform uses **profiles** to manage different configurations for different environments. **Some profiles stay local; others are synchronized with the backend.** Local-only profiles live in your repo and are never uploaded. Synced profiles are pushed to the dltHub platform on every deploy so the cloud runtime can use the same configuration when it executes your jobs.
 
-| Profile | Purpose | Credentials |
-|---------|---------|-------------|
-| `dev` | Local development (default when running on your machine) | Local DuckDB / test credentials |
-| `prod` | Production batch jobs running on the dltHub platform | Read/write access to your destination |
-| `access` | Interactive notebooks and dashboards on the dltHub platform | Read-only access (for safe data exploration) |
+The built-in profiles are:
+
+| Profile | Scope | Purpose | Credentials |
+|---------|-------|---------|-------------|
+| `dev` | Local only | Local development (default when running on your machine) | Local DuckDB / test credentials |
+| `tests` | Local only | Automated tests | Test credentials |
+| `prod` | Synced with backend | Production batch jobs running on the dltHub platform | Read/write access to your destination |
+| `access` | Synced with backend | Interactive notebooks and dashboards on the dltHub platform | Read-only access (for safe data exploration) |
+
+Any custom profile you reference in a job decorator (e.g. `require={"profile": "analytics"}`) is also synced to the cloud configuration.
 
 When you run a script locally, dlt uses `dev`. When the dltHub platform executes a **batch job**, it uses `prod`. When the dltHub platform serves an **interactive job** (notebook, dashboard, MCP), it uses `access`. If `access` is not configured, interactive jobs fall back to `prod`.
 
@@ -67,7 +100,7 @@ Configuration files live in the `.dlt/` directory:
 
 ```text
 .dlt/
-├── .workspace              # Marker file enabling profiles + runtime CLI
+├── .workspace              # Marker file enabling profiles + the `dlthub` CLI
 ├── config.toml             # Workspace-wide config (all profiles)
 ├── secrets.toml            # Workspace-wide secrets (gitignored)
 ├── dev.config.toml         # Dev profile config
@@ -86,11 +119,12 @@ Settings in profile-scoped files override workspace-scoped files. Below is an ex
 log_level = "WARNING"
 dlthub_telemetry = true
 
-# dltHub platform connection settings (set automatically by `dlthub login`)
-auth_base_url = "https://app.dlthub.com/api/auth"
-api_base_url = "https://app.dlthub.com/api/api"
+# Set automatically by `dlthub workspace connect`
 workspace_id = "your-workspace-id"
+organization_id = "your-organization-id"
 ```
+
+`api_base_url` defaults to `https://api.dlthub.com` and only needs to be set when targeting a self-hosted control plane. For non-interactive auth (CI, scripts), set `api_key` in `secrets.toml` under `[runtime]` instead of relying on the OAuth flow.
 
 **`dev.config.toml`** (local DuckDB):
 

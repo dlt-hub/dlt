@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.27.1"
+version = "1.27.2"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.15"
@@ -343,6 +343,7 @@ workspace-deps = [
     "pathspec>=0.11.2",
     "pydbml>=1.2.0",
     "croniter>=6.0.0",
+    "s3fs>=2022.4.0",
 ]
 
 [project.entry-points.dlt]
@@ -514,6 +515,8 @@ module = [
     "playwright.*",
     "lancedb.*",
     "zerobus.*",
+    # TODO: py.typed dropped in 1.x, restoration tracked in https://github.com/ClickHouse/clickhouse-connect/issues/692
+    "clickhouse_connect.*",
 ]
 ignore_missing_imports = true
 

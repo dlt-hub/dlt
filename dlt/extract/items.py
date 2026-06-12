@@ -93,6 +93,9 @@ class TableNameMeta:
     def __init__(self, table_name: str) -> None:
         self.table_name = table_name
 
+    def __repr__(self) -> str:
+        return f"TableNameMeta('{self.table_name}')"
+
 
 class SupportsPipe(Protocol):
     """A protocol with the core Pipe properties and operations"""

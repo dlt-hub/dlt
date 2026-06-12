@@ -7,6 +7,7 @@ from typing import (
 from lancedb.exceptions import MissingValueError, MissingColumnError
 
 from dlt.common.destination.exceptions import (
+    DestinationException,
     DestinationUndefinedEntity,
     DestinationTransientException,
 )
@@ -28,6 +29,9 @@ def lancedb_error(f: TFun) -> TFun:
     def _wrap(self: JobClientBase, *args: Any, **kwargs: Any) -> Any:
         try:
             return f(self, *args, **kwargs)
+        except DestinationException:
+            # already converted (eg. raised by a nested decorated call)
+            raise
         except ValueError as e:
             if is_lancedb_not_found_error(str(e)):
                 raise DestinationUndefinedEntity(e) from e

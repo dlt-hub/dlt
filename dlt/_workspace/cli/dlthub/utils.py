@@ -67,6 +67,7 @@ WORKSPACE_DEPS: List[str] = [
     "pathspec>=0.11.2",
     "pydbml>=1.2.0",
     "croniter>=6.0.0",
+    "s3fs>=2022.4.0",
 ]
 
 

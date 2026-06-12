@@ -31,6 +31,9 @@ from tests.utils import (
 # The tests have only been run as lakeformation admin so far, since the fixtures require
 # permissions to create new tags, and grant lakeformation permissions to the current role
 
+# TODO: re-enable once the test role can register the S3 bucket in lakeformation
+pytestmark = pytest.mark.skip(reason="lakeformation S3 bucket registration permissions not set up")
+
 
 @pytest.fixture(scope="module")
 def botocore_session(

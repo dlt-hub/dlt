@@ -3,6 +3,7 @@ import re
 from typing import Any, List
 
 from dlt.common.destination.exceptions import (
+    DestinationException,
     DestinationUndefinedEntity,
     DestinationTerminalException,
     DestinationTransientException,
@@ -48,6 +49,9 @@ def raise_destination_error(f: TFun) -> TFun:
     def _wrap(self: JobClientBase, *args: Any, **kwargs: Any) -> Any:
         try:
             return f(self, *args, **kwargs)
+        except DestinationException:
+            # already converted (eg. raised by a nested decorated call)
+            raise
         except Exception as e:
             if is_lance_undefined_entity_exception(e):
                 raise DestinationUndefinedEntity(e) from e

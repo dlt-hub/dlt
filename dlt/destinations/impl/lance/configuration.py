@@ -271,6 +271,10 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lance", init=False, repr=False, compare=False
     )
+    # dataset_name is optional: when not set tables are created in the root namespace
+    dataset_name: Final[Optional[str]] = dataclasses.field(  # type: ignore
+        default=None, init=False, repr=False, compare=False
+    )
     catalog_type: LanceCatalogType = "dir"
 
     CATALOG_CREDENTIALS: ClassVar[Dict[LanceCatalogType, Any]] = {
@@ -293,6 +297,9 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
     """Name of branch to use for read/write table operations. Uses `main` branch if not set."""
     embeddings: Optional[LanceEmbeddingsConfiguration] = None
     """Optional embeddings configuration to add a vector embedding column."""
+    always_refresh_views: bool = False
+    """Recreate the duckdb scanner views on each query. Enable it to also pick up schema
+    changes (new columns) through an already-open connection."""
 
     @property
     def storage_options(self) -> Optional[Dict[str, str]]:

@@ -45,7 +45,7 @@ To submit your source code to our verified source repository, please refer to [t
 
 ## If you don't have the source required listed in verified sources?
 
-In case you don't have the source required listed in the [verified sources](../dlt-ecosystem/verified-sources/), you could create your own pipeline by referring to the [following docs](../walkthroughs/create-a-pipeline).
+In case you don't have the source required listed in the [verified sources](../dlt-ecosystem/verified-sources/), you could create your own pipeline by referring to the [following docs](../tutorial/load-data-from-an-api.md).
 
 ## How can I retrieve the complete schema of a `dlt` source?
 

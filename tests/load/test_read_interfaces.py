@@ -76,27 +76,6 @@ def _expected_chunk_count(p: Pipeline) -> List[int]:
     ]
 
 
-def _skip_chunk_size_check(
-    pipeline: Pipeline, destination_config: DestinationTestConfiguration
-) -> bool:
-    destination_type = pipeline.destination.destination_type
-    if destination_type in (
-        "dlt.destinations.filesystem",
-        "dlt.destinations.snowflake", # unpredictable chunk size
-        "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
-        "dlt.destinations.lancedb",  # default is 200
-        "dlt.destinations.lance",
-    ):
-        return True
-    # duckdb over parquet files is batched by FILE_MAX_ITEMS, not requested chunk_size
-    if (
-        destination_type == "dlt.destinations.duckdb"
-        and destination_config.file_format == "parquet"
-    ):
-        return True
-    return False
-
-
 def create_test_source(destination_type: str, table_format: TTableFormat) -> DltSource:
     total_records = _total_records(destination_type)
 
@@ -338,7 +317,14 @@ def test_dataframe_access(
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
-    skip_chunk_size_check = _skip_chunk_size_check(populated_pipeline, destination_config)
+    skip_df_chunk_size_check = populated_pipeline.destination.destination_type in [
+        "dlt.destinations.filesystem",
+        "dlt.destinations.snowflake",
+        "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
+        "dlt.destinations.duckdb",  # vector sizes started to vary
+        "dlt.destinations.lancedb",  # default is 200
+        "dlt.destinations.lance",
+    ]
 
     # full frame
     df = table_relationship.df()
@@ -348,14 +334,14 @@ def test_dataframe_access(
     # TODO: snowflake does not follow a chunk size, make and exception (accept range), same for arrow
     # chunk
     df = table_relationship.df(chunk_size=chunk_size)
-    if not skip_chunk_size_check:
+    if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
 
     assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
     # iterate all dataframes
     frames = list(table_relationship.iter_df(chunk_size=chunk_size))
-    if not skip_chunk_size_check:
+    if not skip_df_chunk_size_check:
         assert [len(df.index) for df in frames] == expected_chunk_counts
 
     # check all items are present
@@ -940,6 +926,15 @@ def test_relation_incremental_datetime_on_dataset(populated_pipeline: Pipeline) 
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
+    if populated_pipeline.destination.destination_type == "dlt.destinations.dremio":
+        # dremio 26.x answers MAX/MIN on iceberg tables from column metadata and decodes the
+        # bounds of a numeric-looking VARCHAR as a DOUBLE. MAX("_dlt_load_id") then loses
+        # precision (eg. '1780221885.501048' -> '1780221885.50105') and the `_dlt_load_id = ...`
+        # filter below matches no rows. MAX on regular (non-numeric) strings is unaffected.
+        # forcing a string expression - MAX(CONCAT(col, '')) or MAX(col || '') - returns the
+        # correct value. still broken as of 26.1.8, no known fixed version.
+        pytest.skip("dremio coerces numeric-like VARCHAR to double in MAX, see comment")
+
     items = populated_pipeline.dataset().items
     orderable_in_chain = populated_pipeline.dataset().orderable_in_chain
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -949,8 +944,6 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     assert all(row[0] < 10 for row in filtered_items_sql)
 
     load_id = items.select("_dlt_load_id").max().fetchscalar()
-    # NOTE: query below tests dremio wrong MAX behavior where strings are casted to decimals, we locked dremio container to 25.0 tag
-    # f'SELECT MAX(CONCAT(\'_\', "_dlt_load_id")) AS "_col_0" FROM "nas"."{populated_pipeline.dataset_name}"."items" AS "items"')
     all_items = items.where(f"_dlt_load_id = '{load_id}'").fetchall()
     assert len(all_items) == total_records
 
@@ -1350,14 +1343,8 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
             table_name_prefix = dataset_name + "___"
             dataset_name = None
             additional_tables += ["dlt_sentinel_table"]
-
-        # filesystem uses duckdb and views to map know tables. for other ibis will list
-        # all available tables so both schemas tables are visible
-        if populated_pipeline.destination.destination_type not in [
-            "dlt.destinations.lancedb",
-        ]:
-            # from aleph schema
-            additional_tables += ["digits"]
+        # from aleph schema
+        additional_tables += ["digits"]
 
         add_table_prefix = lambda x: table_name_prefix + x
 

@@ -18,7 +18,10 @@ const handler = {
     // handle redirects
     for (const redirect of REDIRECTS) {
       if (url.pathname === redirect.from) {
-        url.pathname = redirect.to;
+        // split off the fragment - URL.pathname would percent-encode a "#"
+        const [pathname, hash] = redirect.to.split("#");
+        url.pathname = pathname;
+        if (hash) url.hash = hash;
         return Response.redirect(url.toString(), 301);
       }
     }

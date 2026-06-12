@@ -256,6 +256,10 @@ def repo_events() -> Iterator[TDataItems]:
     yield dlt.mark.with_table_name(item, item["type"])
 ```
 
+Created tables share the hints defined on the resource and evolve according to the received data. If you need separate
+hints per table, use `resource.apply_hints` with the `create_table_variant` option. This is an advanced feature, useful for building
+e.g. an incremental replication resource where a single resource can create many independent tables.
+
 ### Parametrize a resource
 
 You can add arguments to your resource functions like to any other. Below we parametrize our
@@ -708,7 +712,7 @@ info = pipeline.run(orders, destination="snowflake")
 ```
 In the example above, we glob all zipped csv files present on **my_bucket/csv/today** (using the `filesystem` verified source) and send file descriptors to the `orders` transformer. The transformer downloads and imports the files into the extract package. At the end, `dlt` sends them to Snowflake (the table will be created because we use `column` hints to define the schema).
 
-If imported `csv` files are not in `dlt` [default format](../dlt-ecosystem/file-formats/csv.md#default-settings), you may need to pass additional configuration.
+If imported `csv` files are not in `dlt` [default format](../dlt-ecosystem/file-formats.md#settings), you may need to pass additional configuration.
 ```toml
 [destination.snowflake.csv_format]
 delimiter="|"

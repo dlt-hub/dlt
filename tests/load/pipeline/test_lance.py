@@ -3,6 +3,7 @@ import pytest
 
 from typing import cast
 
+from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lance.exceptions import LanceEmbeddingsConfigurationMissing
 from dlt.destinations.impl.lance.lance_adapter import lance_adapter
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -165,3 +166,53 @@ def test_lance_pipeline_replace_in_branch(
         dev_ds = client.open_lance_dataset("items", branch_name="dev")
         assert dev_ds.count_rows() == 1
         assert dev_ds.to_table().column("text").to_pylist() == ["dev-replaced"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    ids=lambda x: x.name,
+)
+def test_lance_pipeline_branching_root_namespace(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Branching and schema evolution work for tables in the ROOT namespace (no `dataset_name`,
+    single-level table ids)."""
+    from dlt.destinations.impl.lance.lance_client import LanceClient
+
+    # build the configured destination but do NOT pass a dataset_name -> root namespace
+    pipe = dlt.pipeline(
+        pipeline_name="test_lance_root_branch_" + uniq_id(),
+        destination=destination_config.destination_factory(),
+        dev_mode=True,
+    )
+    assert pipe.dataset_name is None
+
+    # first run: write to main (no branch)
+    pipe.run([{"id": 1, "text": "main-record"}], table_name="items")
+    # second run: write to "staging" branch (forks from main)
+    pipe.destination.config_params["branch_name"] = "staging"
+    pipe.run([{"id": 2, "text": "b1"}, {"id": 3, "text": "b2"}], table_name="items")
+    # third run: write to "dev" branch with schema evolution (extra column)
+    pipe.destination.config_params["branch_name"] = "dev"
+    pipe.run([{"id": 4, "text": "d1", "a_new_column": 1}], table_name="items")
+
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        assert client.dataset_name is None
+        # tables are addressed at the root namespace with single-level ids
+        assert client.make_table_id("items") == ["items"]
+
+        main_ds = client.open_lance_dataset("items")
+        staging_ds = client.open_lance_dataset("items", branch_name="staging")
+        dev_ds = client.open_lance_dataset("items", branch_name="dev")
+
+        # branches fork from main, not from each other
+        assert main_ds.count_rows() == 1
+        assert staging_ds.count_rows() == 3  # 1 from main + 2 new
+        assert dev_ds.count_rows() == 2  # 1 from main + 1 new
+
+        # schema evolution is branch-isolated
+        assert "a_new_column" in dev_ds.schema.names
+        assert "a_new_column" not in main_ds.schema.names
+        assert "a_new_column" not in staging_ds.schema.names

@@ -8,7 +8,7 @@ keywords: [similarity search, example]
 This article outlines a system to map vectorized ticket data from Zendesk to Qdrant, similar to our guide on the topic concerning [Weaviate](https://dlthub.com/docs/dlt-ecosystem/destinations/qdrant). In this example, we will:
 - Connect to our [Zendesk source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/zendesk).
 - Extract tickets data from our Zendesk source.
-- [Create a dlt pipeline](https://dlthub.com/docs/walkthroughs/create-a-pipeline) with Qdrant as destination.
+- [Create a dlt pipeline](https://dlthub.com/docs/tutorial/load-data-from-an-api) with Qdrant as destination.
 - Vectorize/embed the tickets data from Zendesk.
 - Pass the vectorized data to be stored in Qdrant via the dlt pipeline.
 - Query data that we stored in Qdrant.

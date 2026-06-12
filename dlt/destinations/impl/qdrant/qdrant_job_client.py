@@ -288,15 +288,16 @@ class QdrantClient(JobClientBase, WithStateSync):
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update)
+        applied_update = super().update_stored_schema(only_tables, expected_update, force)
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
-        if schema_info is None:
+        if schema_info is None or force:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
-                "not found in the storage. upgrading"
+                "not found in the storage (or update enforced). upgrading"
             )
-            self._execute_schema_update(only_tables)
+            self._execute_schema_update(only_tables, store_schema=schema_info is None)
         else:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
@@ -490,7 +491,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         version_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
         self._create_point_no_vector(properties, version_table_name)
 
-    def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
+    def _execute_schema_update(self, only_tables: Iterable[str], store_schema: bool = True) -> None:
         is_local = self.config.is_local()
         for table_name in only_tables or self.schema.tables:
             exists = self._collection_exists(table_name)
@@ -517,7 +518,9 @@ class QdrantClient(JobClientBase, WithStateSync):
                             field_schema="datetime",
                         )
 
-        self._update_schema_in_storage(self.schema)
+        # skip writing the version row when the schema is already stored (enforced update)
+        if store_schema:
+            self._update_schema_in_storage(self.schema)
 
     def _collection_exists(self, table_name: str, qualify_table_name: bool = True) -> bool:
         try:

@@ -609,6 +609,9 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         ``UNION ALL BY NAME``.
         """
         existing_tables = set(tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall())
+
+        # TODO: existing table schemas and sql statements can be cached so we do not have to recompute everything
+        #  with every query
         tables_with_data: set[str] = set()
         for s in self.schemas.values():
             tables_with_data.update(s.dlt_table_names())
@@ -691,8 +694,8 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             if not table.this:
                 continue
             schema = table.db
-            # add only tables from the dataset schema
-            if schema or schema.lower() != self.dataset_name.lower():
+            # add only tables that do not have schema prefix or schema prefix is actual dataset
+            if not schema or schema.lower() == self.dataset_name.lower():
                 load_tables[table.name] = table.name
 
         if load_tables:
