@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, List
 
 from dlt.common import json
 from dlt.common.destination.client import HasFollowupJobs, RunnableLoadJob
-from dlt.common.libs.pyarrow import pyarrow as pa
+from dlt.common.libs.pyarrow import pyarrow as pa, get_local_dataset_reader
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.schema.utils import is_nested_table
 from dlt.common.storages.load_package import (
@@ -28,10 +28,8 @@ LANCE_FRAGMENTS_STATE_KEY = "lance_fragments"
 
 
 def _get_file_reader(file_paths: List[str]) -> pa.RecordBatchReader:
-    import pyarrow.dataset
-
     # native reader: batches are pulled in the writer without per-batch GIL round trips
-    return pyarrow.dataset.dataset(file_paths).scanner().to_reader()
+    return get_local_dataset_reader(file_paths)
 
 
 class LanceLoadJob(RunnableLoadJob, HasFollowupJobs):
