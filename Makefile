@@ -146,6 +146,7 @@ TEST_COMMON_PATHS = \
 	tests/pipeline \
 	tests/reflection \
 	tests/sources \
+	tests/workspace \
 	tests/load/test_dummy_client.py \
 	tests/libs \
 	tests/destinations
