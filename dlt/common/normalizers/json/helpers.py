@@ -138,7 +138,7 @@ def requires_root_key(
     """Checks if table chain containing `table` requires root_key to propagate.
 
     1. if there's any table with `root_key` in table chain already - we always propagate
-    2. if write disposition is merge and merge strategy is "delete-insert", "upsert" and root_key_propagation is not False
+    2. if write disposition is merge and merge strategy is "delete-insert", "upsert", "scd2" and root_key_propagation is not False
     3. root_key_propagation is True
     """
     table_name = root_table["name"]
@@ -148,7 +148,7 @@ def requires_root_key(
     else:
         merge_strategy = resolve_merge_strategy(schema.tables, root_table)
         merge_requires = (
-            merge_strategy in ["delete-insert", "upsert", "insert-only"]
+            merge_strategy in ["delete-insert", "upsert", "insert-only", "scd2"]
             if root_key_propagation is None
             else root_key_propagation
         )

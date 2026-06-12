@@ -980,7 +980,7 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
         ("delete-insert", None, False, True),
         ("upsert", None, False, True),
         ("insert-only", None, False, True),
-        ("scd2", None, False, False),
+        ("scd2", None, False, True),
         ("append", None, False, False),
         ("replace", None, False, False),
         # Test with root_key_propagation explicitly True (should always be True)
@@ -1016,7 +1016,7 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
         "delete-insert_default_no-nested_requires-key",
         "upsert_default_no-nested_requires-key",
         "insert-only_default_no-nested_requires-key",
-        "scd2_default_no-nested_no-key-required",
+        "scd2_default_no-nested_requires-key",
         "append_default_no-nested_no-key-required",
         "replace_default_no-nested_no-key-required",
         # Names for explicit True tests
