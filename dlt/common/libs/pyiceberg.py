@@ -29,6 +29,7 @@ try:
     from pyiceberg.table import Table as IcebergTable
     from pyiceberg.catalog import Catalog as IcebergCatalog
     from pyiceberg.exceptions import NoSuchTableError
+    from pyiceberg.expressions import AlwaysTrue
     from pyiceberg.partitioning import (
         UNPARTITIONED_PARTITION_SPEC,
         PartitionSpec as IcebergPartitionSpec,
@@ -383,6 +384,32 @@ def get_catalog(
         "No catalog configuration found, using in-memory SQLite catalog (backward compatibility)"
     )
     return get_sql_catalog(iceberg_catalog_name, "sqlite:///:memory:", credentials)
+
+
+def is_ephemeral_catalog(catalog: IcebergCatalog) -> bool:
+    """In-memory catalogs are rebuilt per client and lose table registrations between loads."""
+    return ":memory:" in catalog.properties.get("uri", "")
+
+
+def truncate_iceberg_table(table: IcebergTable) -> None:
+    """Deletes all rows in a single transactional commit, keeping the table registered with snapshot history."""
+    table.delete(delete_filter=AlwaysTrue())
+
+
+def drop_iceberg_table(catalog: IcebergCatalog, table_id: str) -> bool:
+    """Drops `table_id` from `catalog`, purging its files when the catalog supports it.
+
+    Returns False when the table is not registered in `catalog`.
+    """
+    try:
+        try:
+            catalog.purge_table(table_id)
+        except NotImplementedError:
+            # not all catalogs implement purge, drop leaves files in place
+            catalog.drop_table(table_id)
+        return True
+    except NoSuchTableError:
+        return False
 
 
 def evolve_table(

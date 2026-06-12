@@ -153,6 +153,11 @@ def merge_delta_table(
         )
 
 
+def truncate_delta_table(table: DeltaTable) -> None:
+    """Deletes all rows in a single transactional commit, preserving schema and version history."""
+    table.delete()
+
+
 def get_delta_tables(
     pipeline: Pipeline, *tables: str, schema_name: str = None, include_dlt_tables: bool = False
 ) -> Dict[str, DeltaTable]:

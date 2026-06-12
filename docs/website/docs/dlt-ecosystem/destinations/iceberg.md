@@ -95,6 +95,12 @@ s3.region = "eu-fr-1"                                 # DLT_ICEBERG_CATALOG__ICE
 
 That's it!
 
+## Table truncation and drop
+How dlt empties or drops Iceberg tables depends on the catalog:
+
+- **Persistent catalog** (configured as above): truncation — with [`refresh="drop_data"`](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) or for tables in a `replace` chain that receive no data — is a transactional delete that keeps the table registered and its snapshot history intact. Dropping a table (e.g. with `refresh="drop_sources"`) delegates to the catalog's `purge_table`, which removes the table from the catalog and deletes its files. Catalogs that do not support purging fall back to `drop_table` and leave the files in place.
+- **Ephemeral catalog** (the default in-memory fallback): dlt deletes the table files directly, removing the table entirely; it is recreated on the next load.
+
 ## Set table format
 
 Set the `table_format` argument to `iceberg` when defining your resource:

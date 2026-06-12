@@ -10,13 +10,15 @@ from dlt.common.typing import ConfigValue
 # Skip entire module if SQLAlchemy 2.0 is not installed (required by pyiceberg)
 sqlalchemy = pytest.importorskip("sqlalchemy", minversion="2.0")
 
+import pyarrow as pa
+
 from dlt.common.libs.pyiceberg import (
     get_catalog,
+    get_sql_catalog,
+    is_ephemeral_catalog,
+    truncate_iceberg_table,
+    drop_iceberg_table,
 )
-
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
 
 
 def is_service_available(host: str, port: int, timeout: float = 1.0) -> bool:
@@ -26,11 +28,6 @@ def is_service_available(host: str, port: int, timeout: float = 1.0) -> bool:
             return True
     except (socket.timeout, OSError):
         return False
-
-
-# ============================================================================
-# FIXTURES
-# ============================================================================
 
 
 @pytest.fixture
@@ -156,9 +153,54 @@ def test_persistence_of_sqlite_catalog(tmp_path):
     assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces2]
 
 
-# ============================================================================
-# INTEGRATION / SMOKE TESTS
-# ============================================================================
+def test_is_ephemeral_catalog(tmp_path):
+    assert is_ephemeral_catalog(get_sql_catalog("eph", "sqlite:///:memory:", None))
+    assert not is_ephemeral_catalog(
+        get_sql_catalog("persistent", f"sqlite:///{tmp_path / 'cat.db'}", None)
+    )
+
+
+def test_truncate_and_drop_iceberg_table(sqlite_catalog_config, monkeypatch):
+    from pyiceberg.exceptions import NoSuchTableError
+
+    catalog = get_catalog("truncate_drop_catalog", iceberg_catalog_config=sqlite_catalog_config)
+    catalog.create_namespace("test_ns")
+    data = pa.table({"id": [1, 2, 3]})
+    table = catalog.create_table("test_ns.items", schema=data.schema)
+    table.append(data)
+    assert table.scan().to_arrow().num_rows == 3
+    snapshot_count = len(table.metadata.snapshots)
+
+    # truncate keeps the table registered with a new snapshot
+    truncate_iceberg_table(table)
+    table = catalog.load_table("test_ns.items")
+    assert table.scan().to_arrow().num_rows == 0
+    assert len(table.metadata.snapshots) > snapshot_count
+
+    # drop purges files and unregisters the table
+    table_dir = table.location().removeprefix("file://")
+    assert drop_iceberg_table(catalog, "test_ns.items") is True
+    with pytest.raises(NoSuchTableError):
+        catalog.load_table("test_ns.items")
+    assert not any(f.endswith((".parquet", ".json")) for f in _list_files(table_dir))
+    # dropping unregistered table reports False
+    assert drop_iceberg_table(catalog, "test_ns.items") is False
+
+    # purge not implemented falls back to drop which leaves files in place
+    table = catalog.create_table("test_ns.kept_files", schema=data.schema)
+    table.append(data)
+    table_dir = table.location().removeprefix("file://")
+    monkeypatch.setattr(
+        catalog, "purge_table", mock.Mock(side_effect=NotImplementedError), raising=True
+    )
+    assert drop_iceberg_table(catalog, "test_ns.kept_files") is True
+    with pytest.raises(NoSuchTableError):
+        catalog.load_table("test_ns.kept_files")
+    assert any(f.endswith(".parquet") for f in _list_files(table_dir))
+
+
+def _list_files(root: str):
+    return [os.path.join(dir_, f) for dir_, _, files in os.walk(root) for f in files]
 
 
 def test_priority_explicit_config_over_pyiceberg(tmp_path, monkeypatch):
