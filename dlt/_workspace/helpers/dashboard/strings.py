@@ -96,12 +96,12 @@ If the dashboard cannot connect to the destination, you will receive a warning a
 
 * `dlthub local show` - Start the workspace dashboard
 * `dlthub local pipeline show <pipeline_name>` - Start the workspace dashboard for the selected pipeline
-* `dlthub local pipeline show <pipeline_name>` --edit` - Start a local copy of the workspace dashboard for the selected pipeline in edit mode
+* `dlthub local pipeline show <pipeline_name> --edit` - Start a local copy of the workspace dashboard for the selected pipeline in edit mode
 
 ## Learn more
 
 * [dltHub dashboard docs]({_help_url}) - Dashboard docs
-* [`dlthub local pipeline sync]({_sync_help_url}) command - Learn how to restore a pipeline locally to be able to see it in the dashboard
+* [`dlthub local pipeline sync`]({_sync_help_url}) command - Learn how to restore a pipeline locally to be able to see it in the dashboard
 * [Marimo docs](https://docs.marimo.io/) - Learn more about Marimo, the framework that powers the dltHub workspace dashboard
 
 <small>
