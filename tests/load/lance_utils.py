@@ -3,11 +3,14 @@ from __future__ import annotations
 from contextlib import contextmanager
 import os
 from typing import TYPE_CHECKING, Iterator, Optional
-
 import pytest
 
 from dlt.common.utils import uniq_id
+from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 
+from tests.load.utils import FILE_BUCKET, OBJECT_STORE_RS_BUCKETS
 from tests.utils import get_test_storage_root, get_test_worker_id, get_test_worker_idx
 
 if TYPE_CHECKING:
@@ -67,11 +70,6 @@ def get_lance_namespace_name() -> str:
 def cleanup_lance_namespace_root() -> Iterator[None]:
     """Deletes this session's lance namespace root from remote buckets."""
     yield
-    from dlt.common.configuration.resolve import resolve_configuration
-    from dlt.common.storages.configuration import FilesystemConfiguration
-    from dlt.common.storages.fsspec_filesystem import fsspec_from_config
-
-    from tests.load.utils import FILE_BUCKET, OBJECT_STORE_RS_BUCKETS
 
     name = get_lance_namespace_name()
     for bucket in OBJECT_STORE_RS_BUCKETS:

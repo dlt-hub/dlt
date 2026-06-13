@@ -290,13 +290,7 @@ class LanceNamespaceHandle(NamedTuple):
 
 
 class LanceNamespacePool:
-    """Dispenses a shared namespace, session and storage options to job clients.
-
-    Piggybacks on the configuration being a singleton in the load step, like
-    `DuckDbConnectionPool`. The handle is rebuilt when rotatable storage credentials
-    change so refreshed tokens are picked up; it is retained at zero borrows to be
-    reused across load steps.
-    """
+    """Dispenses a shared namespace, session and storage options to job clients."""
 
     def __init__(self, config: "LanceClientConfiguration") -> None:
         self.config = config
@@ -309,6 +303,8 @@ class LanceNamespacePool:
         import lance
 
         with self._lock:
+            # refreshes default credentials on each borrow
+            # TODO: offload default credential chain to rust crate and remove this
             fresh_creds = self.config._fresh_storage_creds()
             if self._handle is None or fresh_creds != self._handle_creds:
                 storage_options = dict(self.config.storage_options or {}) | (fresh_creds or {})

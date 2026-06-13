@@ -1,12 +1,16 @@
 import dlt
 import pytest
 
-from typing import Any, cast
+from typing import Any, List, cast
 
 from dlt.common.utils import uniq_id
+from dlt.common.destination.exceptions import DestinationTransientException
+
 from dlt.destinations.impl.lance.exceptions import LanceEmbeddingsConfigurationMissing
 from dlt.destinations.impl.lance.lance_adapter import lance_adapter
+from dlt.destinations.impl.lance.lance_client import LanceClient
 from dlt.pipeline.exceptions import PipelineStepFailed
+
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 
 
@@ -227,8 +231,6 @@ def test_lance_pipeline_single_commit_per_table(
     destination_config: DestinationTestConfiguration,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from dlt.destinations.impl.lance.lance_client import LanceClient
-
     # rotate job files so each table loads from multiple parquet files
     monkeypatch.setenv("NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS", "10")
     pipe = destination_config.setup_pipeline(
@@ -362,3 +364,59 @@ def test_lance_pipeline_refresh_drop_data(
         snap_ds = client.open_lance_dataset("snap")
         assert [r["id"] for r in snap_ds.to_table().to_pylist()] == [20]
         assert len(snap_ds.versions()) == snap_versions + 1
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    ids=lambda x: x.name,
+)
+def test_lance_commit_job_retry_idempotency(
+    destination_config: DestinationTestConfiguration,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A commit job retried after its lance commit succeeded must not apply the commit
+    twice: a re-run append detects its fragments in the dataset and skips, a re-run
+    replace repeats the Overwrite commit with the same fragments."""
+    import lance
+    from dlt.destinations.impl.lance.lance_client import LanceClient
+
+    pipe = destination_config.setup_pipeline(
+        pipeline_name="test_lance_commit_retry",
+        dev_mode=True,
+    )
+    pipe.run([{"id": i} for i in range(10)], table_name="items")
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        versions_after_first = len(client.open_lance_dataset("items").versions())
+
+    # crash the items commit job once, right between a successful commit and job completion
+    orig_commit = lance.LanceDataset.commit
+    crashed: List[bool] = []
+
+    def crash_once_after_commit(ds: Any, *args: Any, **kwargs: Any) -> Any:
+        result = orig_commit(ds, *args, **kwargs)
+        if "items" in ds.uri and not crashed:
+            crashed.append(True)
+            raise DestinationTransientException("crash between commit and job completion")
+        return result
+
+    monkeypatch.setattr(lance.LanceDataset, "commit", crash_once_after_commit)
+
+    # append: the retried job must skip the already applied commit, one new version only
+    pipe.run([{"id": i} for i in range(10, 20)], table_name="items")
+    assert crashed
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        ds = client.open_lance_dataset("items")
+        assert ds.count_rows() == 20
+        assert len(ds.versions()) == versions_after_first + 1
+
+    # replace: the retried job repeats the Overwrite commit, same rows come out
+    crashed.clear()
+    pipe.run([{"id": i} for i in range(5)], table_name="items", write_disposition="replace")
+    assert crashed
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        ds = client.open_lance_dataset("items")
+        assert sorted(r["id"] for r in ds.to_table().to_pylist()) == list(range(5))
