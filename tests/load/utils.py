@@ -69,7 +69,6 @@ from dlt.destinations.impl.filesystem.configuration import FilesystemDestination
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.load.lance_utils import LanceRestServerConfig, get_lance_namespace_name
 from tests.utils import (
     ACTIVE_DESTINATIONS,
     ACTIVE_TABLE_FORMATS,
@@ -148,6 +147,16 @@ OBJECT_STORE_RS_BUCKETS = [
     for bucket in (FILE_BUCKET, AWS_BUCKET, GCS_BUCKET, AZ_BUCKET)
     if FilesystemDestinationClientConfiguration.parse_protocol(bucket) in ALL_FILESYSTEM_DRIVERS
 ]
+
+# random per test session: a shared lance namespace root accumulates a `__manifest` version per
+# namespace mutation, slowing all namespace operations down with every test run
+_LANCE_ROOT_SUFFIX = uniq_id(4)
+
+
+def get_lance_namespace_name() -> str:
+    # isolate per xdist worker — Lance __manifest writes conflict on S3
+    return f"dlt_lance_root_{get_test_worker_id()}_{_LANCE_ROOT_SUFFIX}"
+
 
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
@@ -478,33 +487,16 @@ def destinations_configs(
         cid_configs_by_cid["athena-iceberg"],
         cid_configs_by_cid["athena-s3-tables"],
     ]
-
     lance_configs = [
-        # directory namespace configs
-        *[
-            DestinationTestConfiguration(
-                destination_type="lance",
-                extra_info=f"dir-{FilesystemConfiguration.parse_protocol(bucket)}",
-                env_vars={
-                    "DESTINATION__STORAGE__BUCKET_URL": bucket,
-                    "DESTINATION__STORAGE__NAMESPACE_NAME": get_lance_namespace_name(),
-                },
-            )
-            for bucket in OBJECT_STORE_RS_BUCKETS
-        ],
-        # REST namespace configs
-        # NOTE: we exclude cloud storage-backed REST namespaces here because `RestAdapter` (which
-        # we use as test REST Namespace server) does not vend credentials — we only include a
-        # local storage-backed REST namespace, which does not need credentials
-        *[
-            DestinationTestConfiguration(
-                destination_type="lance",
-                extra_info=f"rest-{FilesystemConfiguration.parse_protocol(bucket)}",
-                env_vars=LanceRestServerConfig.get_destination_test_configuration_env_vars(),
-            )
-            for bucket in OBJECT_STORE_RS_BUCKETS
-            if bucket == FILE_BUCKET
-        ],
+        DestinationTestConfiguration(
+            destination_type="lance",
+            extra_info=f"dir-{FilesystemConfiguration.parse_protocol(bucket)}",
+            env_vars={
+                "DESTINATION__STORAGE__BUCKET_URL": bucket,
+                "DESTINATION__STORAGE__NAMESPACE_NAME": get_lance_namespace_name(),
+            },
+        )
+        for bucket in OBJECT_STORE_RS_BUCKETS
     ]
 
     # default non staging sql based configs, one per destination

@@ -2,19 +2,20 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import os
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import Iterator, List, Optional
 import pytest
 
-from dlt.common.utils import uniq_id
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 
-from tests.load.utils import FILE_BUCKET, OBJECT_STORE_RS_BUCKETS
-from tests.utils import get_test_storage_root, get_test_worker_id, get_test_worker_idx
-
-if TYPE_CHECKING:
-    from tests.load.utils import DestinationTestConfiguration
+from tests.load.utils import (
+    FILE_BUCKET,
+    OBJECT_STORE_RS_BUCKETS,
+    DestinationTestConfiguration,
+    get_lance_namespace_name,
+)
+from tests.utils import get_test_storage_root, get_test_worker_idx
 
 
 _LANCE_REST_SERVER_ACTIVE = False
@@ -56,14 +57,21 @@ class LanceRestServerConfig:
         }
 
 
-# random per test session: a shared root accumulates a `__manifest` version per namespace
-# mutation, slowing all namespace operations down with every test run
-_LANCE_ROOT_SUFFIX = uniq_id(4)
+def lance_rest_destination_configs() -> List[DestinationTestConfiguration]:
+    """REST namespace lance configs backed by the in-process test REST server.
 
-
-def get_lance_namespace_name() -> str:
-    # isolate per xdist worker — Lance __manifest writes conflict on S3
-    return f"dlt_lance_root_{get_test_worker_id()}_{_LANCE_ROOT_SUFFIX}"
+    Only local storage-backed REST namespaces are included: `RestAdapter` (our test REST
+    Namespace server) does not vend credentials, so cloud-bucket REST namespaces are excluded.
+    """
+    return [
+        DestinationTestConfiguration(
+            destination_type="lance",
+            extra_info=f"rest-{FilesystemConfiguration.parse_protocol(bucket)}",
+            env_vars=LanceRestServerConfig.get_destination_test_configuration_env_vars(),
+        )
+        for bucket in OBJECT_STORE_RS_BUCKETS
+        if bucket == FILE_BUCKET
+    ]
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -96,8 +104,6 @@ def extract_destination_test_configuration(
     if "destination_config" in request.fixturenames:
         return request.getfixturevalue("destination_config")
 
-    from tests.load.utils import DestinationTestConfiguration
-
     callspec = getattr(request.node, "callspec", None)
     if callspec is None:
         return None
@@ -119,14 +125,12 @@ def maybe_lance_rest_server(
     """Starts ephemeral in-process Lance REST server if not already active and `destination_config` needs it."""
     global _LANCE_REST_SERVER_ACTIVE
 
-    # NOTE: the module-scoped fixture may have already started the server for the entire module, in
-    # which case we can skip starting it again for the auto-used function-scoped fixture
+    # guard against re-entry if the server is already running for the current test
     if _LANCE_REST_SERVER_ACTIVE or not LanceRestServerConfig.needs_fixture(destination_config):
         yield
         return
 
     from lance.namespace import RestAdapter
-    from tests.load.utils import FILE_BUCKET
 
     root = os.path.join(get_test_storage_root(), FILE_BUCKET, get_lance_namespace_name())
     _LANCE_REST_SERVER_ACTIVE = True
@@ -146,13 +150,4 @@ def maybe_lance_rest_server(
 def lance_rest_server(request: pytest.FixtureRequest) -> Iterator[None]:
     """Starts function-scoped ephemeral in-process Lance REST server if needed."""
     with maybe_lance_rest_server(extract_destination_test_configuration(request)):
-        yield
-
-
-@pytest.fixture(scope="module")
-def module_lance_rest_server(
-    destination_config: Optional[DestinationTestConfiguration],
-) -> Iterator[None]:
-    """Starts module-scoped ephemeral in-process Lance REST server if needed."""
-    with maybe_lance_rest_server(destination_config):
         yield

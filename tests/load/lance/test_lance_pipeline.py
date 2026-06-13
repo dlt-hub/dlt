@@ -12,14 +12,22 @@ from dlt.destinations.impl.lance.lance_client import LanceClient
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.lance.lance_utils import lance_rest_destination_configs
 
 
 pytestmark = pytest.mark.essential
 
+# directory namespace configs (from `destinations_configs`) plus the local REST namespace config
+# that runs against the in-process REST server fixture
+lance_destination_configs = [
+    *destinations_configs(default_vector_configs=True, subset=("lance",)),
+    *lance_rest_destination_configs(),
+]
+
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    lance_destination_configs,
     ids=lambda x: x.name,
 )
 def test_lance_pipeline_raises_on_embed_column_without_embeddings_config(
@@ -49,7 +57,7 @@ def test_lance_pipeline_raises_on_embed_column_without_embeddings_config(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    lance_destination_configs,
     ids=lambda x: x.name,
 )
 def test_lance_pipeline_branching(
@@ -128,7 +136,7 @@ def test_lance_pipeline_branching(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    lance_destination_configs,
     ids=lambda x: x.name,
 )
 def test_lance_pipeline_replace_in_branch(
@@ -174,7 +182,7 @@ def test_lance_pipeline_replace_in_branch(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    lance_destination_configs,
     ids=lambda x: x.name,
 )
 def test_lance_pipeline_branching_root_namespace(
@@ -224,7 +232,7 @@ def test_lance_pipeline_branching_root_namespace(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    lance_destination_configs,
     ids=lambda x: x.name,
 )
 def test_lance_pipeline_single_commit_per_table(
@@ -291,7 +299,7 @@ def test_lance_pipeline_single_commit_per_table(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    lance_destination_configs,
     ids=lambda x: x.name,
 )
 def test_lance_pipeline_replace_truncates_jobless_nested_table(
@@ -329,7 +337,7 @@ def test_lance_pipeline_replace_truncates_jobless_nested_table(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    lance_destination_configs,
     ids=lambda x: x.name,
 )
 def test_lance_pipeline_refresh_drop_data(
@@ -368,7 +376,7 @@ def test_lance_pipeline_refresh_drop_data(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_vector_configs=True, subset=("lance",)),
+    lance_destination_configs,
     ids=lambda x: x.name,
 )
 def test_lance_commit_job_retry_idempotency(
