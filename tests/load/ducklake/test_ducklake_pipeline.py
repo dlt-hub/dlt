@@ -1,3 +1,5 @@
+from typing import List
+
 import pytest
 import pathlib
 
@@ -91,11 +93,33 @@ def test_all_catalogs(catalog: str) -> None:
             ), f"expected SQLite-format catalog, got: {header!r}"
 
 
+def _all_bucket_configs() -> List[DestinationTestConfiguration]:
+    configs = list(
+        destinations_configs(
+            all_buckets_filesystem_configs=True,
+            bucket_subset=(GCS_BUCKET, ABFS_BUCKET, AWS_BUCKET),
+        )
+    )
+    # gs:// authenticates only via service account which duckdb cannot use, so it falls back to
+    # fsspec (an order of magnitude slower). access the same bucket through the s3 compatibility
+    # layer (s3:// + interop keys) so duckdb reads/writes natively.
+    if configs and GCS_BUCKET:
+        configs.append(
+            DestinationTestConfiguration(
+                destination_type="filesystem",
+                bucket_url=GCS_BUCKET.replace("gs://", "s3://"),
+                destination_name="filesystem_s3_gcs_comp",
+                extra_info="gcs-via-s3",
+                file_format="jsonl",
+                supports_merge=False,
+            )
+        )
+    return configs
+
+
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        all_buckets_filesystem_configs=True, bucket_subset=(GCS_BUCKET, ABFS_BUCKET, AWS_BUCKET)
-    ),
+    _all_bucket_configs(),
     ids=lambda x: x.name,
 )
 def test_all_buckets(destination_config: DestinationTestConfiguration) -> None:
