@@ -354,8 +354,7 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
     embeddings: Optional[LanceEmbeddingsConfiguration] = None
     """Optional embeddings configuration to add a vector embedding column."""
     always_refresh_views: bool = False
-    """Recreate the duckdb scanner views on each query. Enable it to also pick up schema
-    changes (new columns) through an already-open connection."""
+    """Recreates views to get fresh data and schema of the tables for each query"""
     namespace_pool: Annotated[Optional[LanceNamespacePool], NotResolved()] = None
 
     @property

@@ -343,14 +343,14 @@ dataset = pipeline.dataset()
 df = dataset["movies"].df()
 ```
 
-Reads go through an in-memory DuckDB instance that scans the Lance datasets via views. Because Lance scans always read the latest dataset version, **new rows appended after a dataset connection was opened are visible without recreating the views**. Picking up **schema changes (new columns)** on an already-open connection requires recreating the views — enable `always_refresh_views` for that:
+Reads go through an in-memory DuckDB instance that scans the Lance datasets via views. The DuckDB lance extension caches each dataset per connection at the version it was first opened, so a table read on an **already-open** connection does not pick up data written afterwards — **neither new rows nor schema changes (new columns) are visible** until the connection is refreshed. Enable `always_refresh_views` to refresh on every read; dlt then reopens the DuckDB connection (dropping the cached dataset) and recreates the scanner views, so reads observe the latest dataset version:
 
 ```toml
 [destination.lance]
 always_refresh_views = true
 ```
 
-This recreates the scanner views on every read (a small overhead), so leave it disabled unless you read evolving schemas through a long-lived dataset connection.
+This adds a small overhead per read, so leave it disabled unless you read tables back after writing them through a long-lived dataset connection (or read evolving schemas).
 
 ### Low-level Lance access
 

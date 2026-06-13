@@ -1519,8 +1519,7 @@ def count_job_types(p: dlt.Pipeline) -> Dict[str, Dict[str, Any]]:
 
 
 def set_always_refresh_views(config: BaseConfiguration) -> None:
-    # set filesystem views to autorefresh
-    if isinstance(config, FilesystemDestinationClientConfiguration):
+    if "always_refresh_views" in config.get_resolvable_fields():
         config["always_refresh_views"] = True
 
 
