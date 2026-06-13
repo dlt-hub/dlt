@@ -699,25 +699,32 @@ def test_empty_dataset_allowed(destination_config: DestinationTestConfiguration)
     LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
-def test_dataset_sees_new_rows_through_open_connection(
+def test_open_connection_row_visibility(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """With the default (no view refresh), a dataset opened with a persisted sql client sees rows
-    written after it was opened: lance reads the latest dataset version on each scan."""
+    # default (no refresh): the open connection is cached at its first-opened version
     pipeline = destination_config.setup_pipeline("lance_open_conn_" + uniq_id(), dev_mode=True)
-    info = pipeline.run([{"id": 1, "value": "a"}], table_name="items")
-    assert_load_info(info)
+    assert_load_info(pipeline.run([{"id": 1, "value": "a"}], table_name="items"))
 
-    # open the dataset and keep the sql client connection open for the whole block
     with pipeline.dataset() as ds_:
-        # initial read (also creates the duckdb scanner view for `items`)
-        assert len(ds_.items.fetchall()) == 1
-
+        # initial read opens (and caches) the dataset and creates the duckdb scanner view for `items`
+        assert ds_("SELECT * FROM items").arrow().num_rows == 1
         # append more rows (same schema) while the connection stays open
-        info = pipeline.run([{"id": 2, "value": "b"}], table_name="items")
-        assert_load_info(info)
+        assert_load_info(pipeline.run([{"id": 2, "value": "b"}], table_name="items"))
+        # cached at its first-opened version: the new row is NOT visible
+        assert ds_("SELECT * FROM items").arrow().num_rows == 1
 
-        # new rows are visible without recreating the view
+    # with always_refresh_views: an open connection picks up rows written after it was opened
+    pipeline = destination_config.setup_pipeline(
+        "lance_open_conn_refresh_" + uniq_id(), dev_mode=True
+    )
+    pipeline.destination.config_params["always_refresh_views"] = True
+    assert_load_info(pipeline.run([{"id": 1, "value": "a"}], table_name="items"))
+
+    with pipeline.dataset() as ds_:
+        assert ds_("SELECT * FROM items").arrow().num_rows == 1
+        assert_load_info(pipeline.run([{"id": 2, "value": "b"}], table_name="items"))
+        # the view is recreated on a fresh cursor each read: the new row IS visible
         assert ds_("SELECT * FROM items").arrow().num_rows == 2
 
 

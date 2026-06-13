@@ -10,7 +10,7 @@ inferface.
 from __future__ import annotations
 
 from packaging import version as pkg_version
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Dict, Optional, Tuple, TYPE_CHECKING
 
 import duckdb
 
@@ -78,6 +78,13 @@ class LanceDBSQLClient(WithTableScanners):
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
         # views must be refreshed when schema evolves
         return self.lancedb_client.config.always_refresh_views
+
+    def create_views_for_tables(self, tables: Dict[str, str]) -> None:
+        # lance extension caches datasets so new data is not visible
+        # automatically, we duplicate connection to clear the cache
+        if self.lancedb_client.config.always_refresh_views:
+            self._conn = self.memory_db.duplicate()
+        super().create_views_for_tables(tables)
 
     def create_view_select(
         self, table_schema: PreparedTableSchema, schema: Schema = None
