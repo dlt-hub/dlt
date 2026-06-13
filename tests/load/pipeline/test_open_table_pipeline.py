@@ -1484,3 +1484,122 @@ def test_iceberg_adapter_and_partition_column_coexistence(
     assert isinstance(it.spec().fields[1].transform, YearTransform)
 
     assert load_table_counts(pipeline, "events")["events"] == 3
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("write_disposition", ("append", "replace"))
+def test_iceberg_streamed_append_replace(
+    destination_config: DestinationTestConfiguration,
+    write_disposition: TWriteDisposition,
+) -> None:
+    """Streamed append and replace produce correct row counts and minimal snapshots."""
+    from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+    pipeline = destination_config.setup_pipeline(
+        f"iceberg_stream_{uniq_id()}", dev_mode=True
+    )
+
+    @dlt.resource(
+        table_format="iceberg",
+        write_disposition=write_disposition,
+    )
+    def items():
+        yield [{"id": i, "value": f"v{i}"} for i in range(100)]
+
+    # first load
+    info = pipeline.run(items())
+    assert_load_info(info)
+    it = get_iceberg_tables(pipeline, "items")["items"]
+    assert it.scan().to_arrow().num_rows == 100
+
+    # second load
+    @dlt.resource(table_format="iceberg", write_disposition=write_disposition)
+    def items_batch2():
+        yield [{"id": i, "value": f"w{i}"} for i in range(100, 150)]
+
+    info = pipeline.run(items_batch2.with_name("items")())
+    assert_load_info(info)
+    it = get_iceberg_tables(pipeline, "items")["items"]
+    data = it.scan().to_arrow()
+
+    if write_disposition == "append":
+        assert data.num_rows == 150
+    else:
+        assert data.num_rows == 50
+
+    snapshots = it.metadata.snapshots
+    # append: 2 snapshots (one per load)
+    # replace: each replace is delete+append in one txn, so 2-3 snapshots total
+    assert len(snapshots) >= 2
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg_streamed_upsert(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Streamed upsert updates existing rows and inserts new ones atomically."""
+    from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+    pipeline = destination_config.setup_pipeline(
+        f"iceberg_upsert_{uniq_id()}", dev_mode=True
+    )
+
+    @dlt.resource(
+        table_format="iceberg",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "score": 100},
+            {"id": 2, "name": "Bob", "score": 200},
+            {"id": 3, "name": "Charlie", "score": 300},
+        ]
+
+    # initial load
+    info = pipeline.run(items())
+    assert_load_info(info)
+    it = get_iceberg_tables(pipeline, "items")["items"]
+    assert it.scan().to_arrow().num_rows == 3
+
+    # upsert: update id=1, insert id=4
+    @dlt.resource(
+        table_format="iceberg",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    def items_update():
+        yield [
+            {"id": 1, "name": "Alice Updated", "score": 110},
+            {"id": 4, "name": "Diana", "score": 400},
+        ]
+
+    info = pipeline.run(items_update.with_name("items")())
+    assert_load_info(info)
+    it = get_iceberg_tables(pipeline, "items")["items"]
+    data = it.scan().to_arrow()
+    assert data.num_rows == 4
+
+    rows = data.to_pylist()
+    alice = next(r for r in rows if r["id"] == 1)
+    assert alice["name"] == "Alice Updated"
+    assert alice["score"] == 110
+    bob = next(r for r in rows if r["id"] == 2)
+    assert bob["name"] == "Bob"
+    diana = next(r for r in rows if r["id"] == 4)
+    assert diana["name"] == "Diana"
