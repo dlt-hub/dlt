@@ -29,6 +29,8 @@ class AwsCredentialsWithoutDefaults(
     endpoint_url: Optional[str] = None
     s3_url_style: Optional[str] = None
     """Only needed for duckdb sql_client s3 access, for minio this needs to be set to path for example."""
+    aws_sts_token_expiration_hours: float = 24.0
+    """Lifetime in hours of session tokens minted via STS `get_session_token`. Minted tokens do not auto-refresh."""
 
     def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
         """Dict of keyword arguments that can be passed to s3fs"""
@@ -196,7 +198,9 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             return sess_creds
         sess = self._to_botocore_session()
         client = sess.create_client("sts")
-        token = client.get_session_token()
+        token = client.get_session_token(
+            DurationSeconds=int(self.aws_sts_token_expiration_hours * 3600)
+        )
         return dict(
             aws_access_key_id=token["Credentials"]["AccessKeyId"],
             aws_secret_access_key=token["Credentials"]["SecretAccessKey"],

@@ -404,7 +404,7 @@ def test_aws_default_credentials_s3_connectivity(fs_creds: Dict[str, Any], mode:
             assert s3fs_creds["secret"] == fs_creds["aws_secret_access_key"]
         else:
             # default credentials: key/secret omitted so s3fs resolves via its own chain (the
-            # ambient AWS_* env vars set above), which keeps refreshing for temporary credentials
+            # AWS_* env vars set above), which keeps refreshing for temporary credentials
             assert "key" not in s3fs_creds
             assert "secret" not in s3fs_creds
 
