@@ -63,17 +63,20 @@ class AwsCredentialsWithoutDefaults(
         )
 
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        return self._to_object_store_rs_credentials(self.to_session_credentials())
+
+    def _to_object_store_rs_credentials(self, sess_creds: Dict[str, str]) -> Dict[str, str]:
+        """Create object store credentials from `sess_creds`"""
         # https://docs.rs/object_store/latest/object_store/aws
         # NOTE: delta rs will set the values below in env variables of the current process
         # https://github.com/delta-io/delta-rs/blob/bdf1c4e765ca457e49d4fa53335d42736220f57f/rust/src/storage/s3.rs#L257
-        sess_creds = self.to_session_credentials()
         creds = cast(
             Dict[str, str],
             without_none(
                 dict(
-                    aws_access_key_id=sess_creds["aws_access_key_id"],
-                    aws_secret_access_key=sess_creds["aws_secret_access_key"],
-                    aws_session_token=sess_creds["aws_session_token"],
+                    aws_access_key_id=sess_creds.get("aws_access_key_id"),
+                    aws_secret_access_key=sess_creds.get("aws_secret_access_key"),
+                    aws_session_token=sess_creds.get("aws_session_token"),
                     region=self.region_name,
                     endpoint_url=self.endpoint_url,
                 )
@@ -130,6 +133,42 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
                 aws_session_token=frozen.token,
             )
         return super().to_session_credentials()
+
+    def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
+        # on default credentials omit static key/secret/token so s3fs resolves and refreshes
+        # via its own aiobotocore default chain
+        return self._strip_on_default(super().to_s3fs_credentials(), "key", "secret", "token")
+
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        # only plain refreshable creds (EC2 IMDS / ECS) can be resolved and refreshed by
+        # object_store itself, so we hand over without freezing them. deferred creds
+        # (IRSA/SSO/assume-role) and static creds cannot, so they are passed frozen
+        if self.has_default_credentials() and self._default_credentials_self_refresh():
+            return self._to_object_store_rs_credentials({})
+        return super().to_object_store_rs_credentials()
+
+    def _default_credentials_self_refresh(self) -> bool:
+        try:
+            from botocore.credentials import (
+                RefreshableCredentials,
+                DeferredRefreshableCredentials,
+            )
+        except ImportError:
+            return False
+        current = self.default_credentials().get_credentials()
+        return isinstance(current, RefreshableCredentials) and not isinstance(
+            current, DeferredRefreshableCredentials
+        )
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        # on default credentials omit static s3 keys so pyarrow's S3FileSystem resolves and
+        # refreshes via the AWS default chain. region/endpoint/timeout are preserved
+        return self._strip_on_default(
+            super().to_pyiceberg_fileio_config(),
+            "s3.access-key-id",
+            "s3.secret-access-key",
+            "s3.session-token",
+        )
 
     def to_sts_credentials(self) -> Dict[str, str]:
         """Return session credentials with a session token, generating one via STS if needed."""
