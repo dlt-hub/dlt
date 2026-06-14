@@ -1,3 +1,4 @@
+import os
 from copy import copy
 from typing import Optional, Dict, Any, Union
 
@@ -16,6 +17,23 @@ from dlt.common.utils import without_none
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 
 
+def _object_store_will_refresh_default() -> bool:
+    """True for configurations that object store crate can refresh with current
+    dlt consumers (lance, delta).
+    * AKS workload identity or an env client-secret service principal.
+    """
+    try:
+        from azure.identity._constants import EnvironmentVariables
+    except ImportError:
+        return False
+    # reuses azure-identity's own env var groupings
+    # cert / username-password are excluded (no object_store provider); managed identity is excluded
+    # (not detectable from env without probing IMDS).
+    return all(os.environ.get(v) for v in EnvironmentVariables.WORKLOAD_IDENTITY_VARS) or all(
+        os.environ.get(v) for v in EnvironmentVariables.CLIENT_SECRET_VARS
+    )
+
+
 @configspec
 class AzureCredentialsBase(CredentialsConfiguration, WithObjectStoreRsCredentials):
     azure_storage_account_name: str = None
@@ -32,12 +50,15 @@ class AzureCredentialsBase(CredentialsConfiguration, WithObjectStoreRsCredential
         creds.pop("anon", None)
 
         if isinstance(self, CredentialsWithDefault) and self.has_default_credentials():
-            dc = self.default_credentials()
-
-            # https://learn.microsoft.com/en-us/azure/storage/blobs/authorize-access-azure-active-directory#microsoft-authentication-library-msal
-            creds["azure_storage_token"] = dc.get_token("https://storage.azure.com/.default").token
-
-            return creds
+            # freeze credentials that rust crate cannot refresh itself.
+            # NOTE: relies on the consumer merging AZURE_* env into the passed options - verified
+            # for both delta-rs (AzureConfigHelper) and lance (with_env_azure, unconditional)
+            if not _object_store_will_refresh_default():
+                dc = self.default_credentials()
+                # https://learn.microsoft.com/en-us/azure/storage/blobs/authorize-access-azure-active-directory#microsoft-authentication-library-msal
+                creds["azure_storage_token"] = dc.get_token(
+                    "https://storage.azure.com/.default"
+                ).token
 
         return creds
 
