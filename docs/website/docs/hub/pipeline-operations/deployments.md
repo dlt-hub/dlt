@@ -15,9 +15,12 @@ Both methods require a configured workspace — see [Workspace setup](workspace-
 
 ## Quick deploy: ad-hoc launch
 
-The fastest way to run an existing script on the dltHub platform is to point `launch` or `serve` at a Python file:
+The fastest way to run an existing script on the dltHub platform is to point `run` or `serve` at a Python file:
 
 ```sh
+# run the batch script locally first to catch missing dependencies or broken config
+dlthub local run fruitshop_pipeline.py
+
 # Deploy and run a batch script (uses `prod` profile)
 dlthub run fruitshop_pipeline.py
 
@@ -25,7 +28,8 @@ dlthub run fruitshop_pipeline.py
 dlthub run fruitshop_pipeline.py -f
 
 # Deploy and serve an interactive app (notebook, dashboard, MCP — uses `access` profile)
-dlthub serve fruitshop_notebook.py
+dlthub local serve fruitshop_notebook.py    # local
+dlthub serve fruitshop_notebook.py          # remote
 ```
 
 Under the hood, the CLI generates a single-job deployment manifest from that file and syncs it to the dltHub platform. This **ad-hoc deploy** is great for getting started but does not support:
@@ -164,11 +168,12 @@ dlthub deploy --show-manifest
 
 ### Running and monitoring deployed jobs
 
-Once deployed, scheduled jobs run automatically. You can also run them by hand:
+Once deployed, scheduled jobs run automatically. You can also run them by hand — and run the local counterpart first whenever you want to debug locally:
 
 ```sh
-# launch a specific job by name (ad-hoc run, syncs code first)
-dlthub run load_commits -f
+# run a specific job by name (ad-hoc, syncs code first)
+dlthub local run load_commits         # locally
+dlthub run load_commits -f            # in the cloud
 
 # trigger jobs without re-syncing code (uses currently deployed code)
 dlthub job trigger "tag:ingest"
@@ -176,11 +181,17 @@ dlthub job trigger "schedule:*"
 dlthub job trigger "tag:ingest" --dry-run    # preview only
 
 # trigger by pipeline name
-dlthub pipeline run github_pipeline
+dlthub local pipeline run github_pipeline    # locally
+dlthub pipeline run github_pipeline          # in the cloud
 
 # serve an interactive job
-dlthub serve github_report_notebook
+dlthub local serve github_report_notebook    # locally
+dlthub serve github_report_notebook          # in the cloud
 ```
+
+:::note
+`dlthub pipeline run` (and its local sibling) can only trigger jobs decorated with `@run.pipeline` — they are matched by `deliver.pipeline_name`. Jobs declared with `@run.job` or `@run.interactive` are not addressable this way; use `dlthub run <job_name>` or `dlthub job trigger <selector>` instead.
+:::
 
 For diagnosing failed runs, viewing logs, and dashboards, see [Monitoring and debugging](monitoring.md).
 

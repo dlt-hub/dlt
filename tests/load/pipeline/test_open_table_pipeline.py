@@ -1,12 +1,7 @@
-import csv
 import os
-import posixpath
 from pathlib import Path
-from typing import Any, Callable, List, Dict, cast, Tuple
-from importlib.metadata import version as pkg_version
-from packaging.version import Version
+from typing import Any, List, Tuple
 
-from pytest_mock import MockerFixture
 import dlt
 import pytest
 
@@ -16,15 +11,10 @@ from dlt.common.storages.configuration import (
     FilesystemConfiguration,
     FilesystemConfigurationWithLocalFiles,
 )
-from dlt.common.storages.load_package import ParsedLoadJobFileName
-from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TWriteDisposition, TTableFormat
-from dlt.common.configuration.exceptions import ConfigurationValueError
 
-from dlt.destinations import filesystem
 from dlt.destinations.impl.duckdb.exceptions import IcebergViewException
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
-from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.load.exceptions import LoadClientJobRetry
 
@@ -36,11 +26,10 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     MEMORY_BUCKET,
     FILE_BUCKET,
-    AZ_BUCKET,
-    SFTP_BUCKET,
 )
 from tests.pipeline.utils import (
     load_table_counts,
+    assert_empty_tables,
     assert_load_info,
     load_tables_to_dicts,
     users_materialize_table_schema,
@@ -1243,6 +1232,147 @@ def test_iceberg_namespace_properties(
         assert ns_props["description"] == "test namespace"
     finally:
         del os.environ["DESTINATION__FILESYSTEM__ICEBERG_NAMESPACE_PROPERTIES"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(table_format_local_configs=True, with_table_format="delta"),
+    ids=lambda x: x.name,
+)
+def test_delta_transactional_truncate_on_refresh(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Refresh `drop_data` empties a delta table with a transactional delete that keeps the
+    table, its schema and version history."""
+    from dlt.common.libs.deltalake import get_delta_tables
+
+    pipeline = destination_config.setup_pipeline("delta_truncate", dev_mode=True)
+
+    @dlt.resource(write_disposition="append")
+    def items(emit: bool):
+        if emit:
+            yield [{"id": 1, "value": "a"}, {"id": 2, "value": "b"}]
+
+    info = pipeline.run(items(True), **destination_config.run_kwargs)
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "items")["items"]
+    version = dt.version()
+    assert dt.to_pyarrow_table().num_rows == 2
+
+    info = pipeline.run(items(False), refresh="drop_data", **destination_config.run_kwargs)
+    assert_load_info(info)
+    # table survived truncation with a new version and no rows
+    dt = get_delta_tables(pipeline, "items")["items"]
+    assert dt.version() > version
+    arrow_table = dt.to_pyarrow_table()
+    assert arrow_table.num_rows == 0
+    assert {"id", "value"} <= set(arrow_table.column_names)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(table_format_local_configs=True, with_table_format="iceberg"),
+    ids=lambda x: x.name,
+)
+def test_iceberg_ephemeral_catalog_truncate_deletes_files(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """With the default in-memory catalog, refresh `drop_data` deletes the table files."""
+    pipeline = destination_config.setup_pipeline("iceberg_truncate", dev_mode=True)
+
+    @dlt.resource(write_disposition="append")
+    def items(emit: bool):
+        if emit:
+            yield [{"id": 1}]
+
+    info = pipeline.run(items(True), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    info = pipeline.run(items(False), refresh="drop_data", **destination_config.run_kwargs)
+    assert_load_info(info)
+    client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
+    assert client.list_table_files("items") == []
+    assert_empty_tables(pipeline, "items")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(table_format_local_configs=True, with_table_format="iceberg"),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "iceberg_use_catalog_purge", [True, False], ids=["catalog-purge", "dlt-purge"]
+)
+def test_iceberg_persistent_catalog_truncate_and_drop(
+    destination_config: DestinationTestConfiguration,
+    iceberg_use_catalog_purge: bool,
+    tmp_path: Path,
+) -> None:
+    """With a persistent catalog, refresh `drop_data` empties tables with a transactional delete
+    keeping them registered, while refresh `drop_sources` drops them from the catalog and deletes
+    their files: via catalog purge or by dlt itself depending on `iceberg_use_catalog_purge`."""
+    from pyiceberg.exceptions import NoSuchTableError
+
+    os.environ["ICEBERG_CATALOG__ICEBERG_CATALOG_CONFIG"] = json.dumps(
+        {
+            "type": "sql",
+            "uri": f"sqlite:///{tmp_path / 'catalog.db'}",
+            "warehouse": str(tmp_path / "warehouse"),
+        }
+    )
+    os.environ["DESTINATION__FILESYSTEM__ICEBERG_USE_CATALOG_PURGE"] = str(
+        iceberg_use_catalog_purge
+    )
+
+    pipeline = destination_config.setup_pipeline("iceberg_catalog_refresh", dev_mode=True)
+
+    @dlt.source
+    def src(emit: bool):
+        @dlt.resource(write_disposition="append")
+        def items():
+            if emit:
+                yield [{"id": 1}, {"id": 2}]
+
+        @dlt.resource
+        def keep():
+            yield [{"id": 1}]
+
+        return items, keep
+
+    info = pipeline.run(src(True), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
+    catalog = client.get_open_table_catalog("iceberg")
+    items_id = f"{client.dataset_name}.items"
+    table = catalog.load_table(items_id)
+    assert table.scan().to_arrow().num_rows == 2
+    snapshot_count = len(table.metadata.snapshots)
+
+    # drop_data truncates transactionally: table stays registered with a new snapshot, data
+    # files of past snapshots and table metadata stay in place
+    info = pipeline.run(src(False), refresh="drop_data", **destination_config.run_kwargs)
+    assert_load_info(info)
+    table = catalog.load_table(items_id)
+    assert table.scan().to_arrow().num_rows == 0
+    assert len(table.metadata.snapshots) > snapshot_count
+    table_files = client.list_table_files("items")
+    assert any(f.endswith(".metadata.json") for f in table_files)
+    assert any(f.endswith(".parquet") for f in table_files)
+
+    # drop_sources drops tables from the catalog. pyiceberg purge deletes data files of all
+    # snapshots, manifests and metadata files; dlt file wipe deletes the same when purge is
+    # disabled, so the table dir is empty either way
+    info = pipeline.run(
+        src(True).with_resources("keep"),
+        refresh="drop_sources",
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    with pytest.raises(NoSuchTableError):
+        catalog.load_table(items_id)
+    assert client.list_table_files("items") == []
+    assert load_table_counts(pipeline, "keep") == {"keep": 1}
 
 
 @pytest.mark.parametrize(

@@ -271,8 +271,8 @@ dlt will upload the data in Parquet files (or JSONL, if configured) to the bucke
 For more information on staging, see the [Staging support](#staging-support) section below.
 
 ## Supported file formats
-* [Parquet](../file-formats/parquet.md) supported when staging is enabled.
-* [JSONL](../file-formats/jsonl.md) supported when staging is enabled (see limitations below).
+* [Parquet](../file-formats.md#parquet) supported when staging is enabled.
+* [JSONL](../file-formats.md#jsonl) supported when staging is enabled (see limitations below).
 
 The JSONL format has some limitations when used with Databricks:
 
@@ -344,9 +344,9 @@ Databricks supports the following table hints:
 
 Databricks supports the following column hints:
 
-- `primary_key` - adds a primary key constraint to the column in Unity Catalog.
+- `primary_key` - adds a primary key constraint to the column in Unity Catalog (requires `create_indexes=true`, see the note below).
 - `description` - adds a description to the column. This can also be done by using the adapter parameter `table_comment`.
-- `references` - adds a foreign key constraint to the column in Unity Catalog.
+- `references` - adds a foreign key constraint to the column in Unity Catalog (requires `create_indexes=true`, see the note below).
 - `not_null` - adds a not null constraint to the column.
 - `cluster` - adds a clustering constraint to the column. This can also be done by using the adapter parameter `cluster`.
 

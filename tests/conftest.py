@@ -218,4 +218,25 @@ def _reset_cli_global_state() -> None:
     _cli_echo.set_cli_host_name("dlt")
 
 
+def pytest_sessionfinish(session: "pytest.Session", exitstatus: int) -> None:
+    # A module-level skip (e.g. `skip_if_not_active`) raised while pytest imports a conftest/package
+    # `__init__` aborts collection of the whole tree (pytest-dev/pytest#7085) and exits with
+    # NO_TESTS_COLLECTED (5), which CI masks (`make ... || [ $? -eq 5 ]`) - so the run goes green
+    # having executed nothing.
+    if exitstatus != pytest.ExitCode.NO_TESTS_COLLECTED:
+        return
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    if reporter is None:
+        return
+    skipped_reports = [report for report in reporter.stats.get("skipped", [])]
+    if any(not getattr(report, "nodeid", "") for report in skipped_reports):
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+        reporter.write_line(
+            "ERROR: test collection was aborted by a module-level skip during conftest/package"
+            " import and produced zero tests. A test module with `skip_if_not_active` in"
+            " __init__.py and conftest.py must be present.",
+            red=True,
+        )
+
+
 # atexit.register(lambda: faulthandler.dump_traceback(file=sys.stderr, all_threads=True))

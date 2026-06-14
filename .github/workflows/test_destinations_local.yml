@@ -49,6 +49,7 @@ jobs:
             needs_postgres: true
 
           # Clickhouse OSS (TODO: test with minio s3)
+          # NOTE: runs on the newest clickhouse-connect from uv.lock, remote tests pin the old driver
           - name: clickhouse
             destinations: "[\"clickhouse\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"

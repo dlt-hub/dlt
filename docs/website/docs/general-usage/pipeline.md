@@ -100,7 +100,7 @@ into all CLI commands to get info/trace for that pipeline.
 
 ## Do experiments with dev mode
 
-If you [create a new pipeline script](../walkthroughs/create-a-pipeline.md), you experiment
+If you [create a new pipeline script](../tutorial/load-data-from-an-api.md), you experiment
 a lot. If you want each time the pipeline resets its state and loads data to a
 new dataset, set the `dev_mode` argument of the `dlt.pipeline` method to True. Each time the
 pipeline is created, `dlt` adds a datetime-based suffix to the dataset name.

@@ -4,7 +4,7 @@ description: Running a dlt pipeline in production
 keywords: [running, production, tips]
 ---
 
-# Running
+# Adjust a pipeline to run in production
 
 When running the pipeline in production, you may consider a few additions to your script. We'll use the script below as a starting point.
 
@@ -123,9 +123,90 @@ send_slack_message(pipeline.runtime_config.slack_incoming_hook, message)
 
 ```
 
+### Send schema migration info to Slack
+The code snippet below demonstrates automated Slack notifications for database table updates using the `send_slack_message` function.
+
+```py
+# Import the send_slack_message function from the dlt library
+from dlt.common.runtime.slack import send_slack_message
+
+# Define the URL for your Slack webhook
+hook = "https://hooks.slack.com/services/xxx/xxx/xxx"
+
+# Iterate over each package in the load_info object
+for package in load_info.load_packages:
+    # Iterate over each table in the schema_update of the current package
+    for table_name, table in package.schema_update.items():
+        # Iterate over each column in the current table
+        for column_name, column in table["columns"].items():
+            # Send a message to the Slack channel with the table
+            # and column update information
+            send_slack_message(
+                hook,
+                message=(
+                    f"\tTable updated: {table_name}: "
+                    f"Column changed: {column_name}: "
+                    f"{column['data_type']}"
+                )
+            )
+```
+Refer to this [example](../examples/chess_production/) for a practical application of the method in a production environment.
+
 ## Enable Sentry tracing
 
-You can enable exception and runtime [tracing via Sentry](../running-in-production/tracing.md).
+`dlt` users can configure [Sentry](https://sentry.io) DSN to start receiving rich information on
+executed pipelines, including encountered errors and exceptions. **Sentry tracing is disabled by
+default.**
+
+### When and what we send
+
+An exception trace is sent when:
+
+- Any Python logger (including `dlt`) logs an error.
+- Any Python logger (including `dlt`) logs a warning (enabled only if the `dlt` logging level is
+  `WARNING` or below).
+- On unhandled exceptions.
+
+A transaction trace is sent when the `pipeline.run` is called. We send information when
+[extract, normalize, and load](../reference/explainers/how-dlt-works.md) steps are completed.
+
+The data available in Sentry makes finding and documenting bugs easy, allowing you to easily find
+bottlenecks and profile data extraction, normalization, and loading.
+
+`dlt` adds a set of additional tags (e.g., pipeline name, destination name) to the Sentry data.
+
+Please refer to the Sentry [documentation](https://docs.sentry.io/platforms/python/data-collected/).
+
+### Enable pipeline tracing
+
+To enable Sentry, you should configure the
+[DSN](https://docs.sentry.io/product/sentry-basics/dsn-explainer/) in the `config.toml`:
+
+```toml
+[runtime]
+
+sentry_dsn="https:///<...>"
+```
+
+Alternatively, you can use environment variables:
+
+```sh
+RUNTIME__SENTRY_DSN="https:///<...>"
+```
+
+The Sentry client is configured after the first pipeline is created with `dlt.pipeline()`. Feel free
+to use `sentry_sdk` init again to cover your specific needs.
+
+> 💡 `dlt` does not have Sentry client as a dependency. Remember to install it with `pip install sentry-sdk`.
+
+### Disable all tracing
+
+`dlt` allows you to completely disable pipeline tracing, including the anonymous telemetry and
+Sentry. Using `config.toml`:
+
+```toml
+enable_runtime_trace=false
+```
 
 ## Set the log level and format
 

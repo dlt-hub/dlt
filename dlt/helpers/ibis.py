@@ -226,7 +226,21 @@ def create_ibis_backend(
         sql_client.memory_db = None
         del sql_client
     elif issubclass(destination.spec, LanceDBClientConfiguration):
-        con = _create_ibis_backend_lancedb(client)
+        from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
+        from dlt.destinations.impl.lancedb.sql_client import LanceDBSQLClient
+
+        assert isinstance(client, LanceDBClient)
+        sql_client = client.sql_client
+        assert isinstance(sql_client, LanceDBSQLClient)
+        if schemas:
+            sql_client.set_schemas(schemas)
+        duckdb_conn = sql_client.open_connection()
+        sql_client.create_views_for_all_tables()
+        con = ibis.duckdb.from_connection(duckdb_conn)
+        # disable destructor so connection survives
+        client.sql_client = None
+        sql_client.memory_db = None
+        del sql_client
     else:
         # NOTE: Athena could theoretically work with trino backend, but according to
         # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
@@ -237,20 +251,6 @@ def create_ibis_backend(
         )
 
     return con
-
-
-def _create_ibis_backend_lancedb(client: JobClientBase) -> BaseBackend:
-    from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-
-    assert isinstance(client, LanceDBClient)
-    # open connection but do not close it, ducklake always creates a separate connection
-    # and will not close it in destructor
-    native_con = client.sql_client.open_connection()
-
-    for table_name in client.schema.tables:
-        client.sql_client.create_view(table_name)
-
-    return ibis.duckdb.from_connection(native_con)
 
 
 def create_unbound_ibis_table(schema: Schema, dataset_name: str, table_name: str) -> Table:

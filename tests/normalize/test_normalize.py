@@ -88,7 +88,8 @@ def init_normalize(default_schemas_path: str = None) -> Iterator[Normalize]:
         {"import_schema_path": default_schemas_path, "external_schema_format": "json"}
     ):
         # inject the destination capabilities
-        n = Normalize()
+        # own the normalize storage so direct (non-pipeline) test usage creates folders
+        n = Normalize(is_storage_owner=True)
         yield n
 
 
@@ -395,6 +396,103 @@ def test_normalize_many_packages(
                 full_schema_update=False,
             )
     assert set(schemas) == set(["ethereum", "event"])
+
+
+def test_normalize_drops_empty_package_keeps_refresh(raw_normalize: Normalize) -> None:
+    extract_storage = ExtractStorage(raw_normalize.normalize_storage.config)
+
+    # truly empty package: no items, no refresh commands
+    empty_schema = Schema("empty_pkg")
+    empty_load_id = extract_storage.create_load_package(empty_schema)
+    extract_storage.close_writers(empty_load_id)
+    extract_storage.commit_new_load_package(empty_load_id, empty_schema)
+
+    # refresh package: carries a truncate command but no data items
+    refresh_schema = Schema("refresh_pkg")
+    refresh_load_id = extract_storage.create_load_package(refresh_schema)
+    state = extract_storage.new_packages.get_load_package_state(refresh_load_id)
+    state["truncated_tables"] = [new_table("items")]
+    extract_storage.new_packages.save_load_package_state(refresh_load_id, state)
+    extract_storage.close_writers(refresh_load_id)
+    extract_storage.commit_new_load_package(refresh_load_id, refresh_schema)
+
+    extracted = raw_normalize.normalize_storage.extracted_packages
+    assert extracted.is_empty_package(empty_load_id) is True
+    assert extracted.is_empty_package(refresh_load_id) is False
+
+    raw_normalize.run(None)
+
+    normalized = raw_normalize.load_storage.list_normalized_packages()
+    # empty package was dropped at normalize and never reached the load step
+    assert empty_load_id not in normalized
+    assert not extracted.storage.has_folder(empty_load_id)
+    # refresh package was normalized and its truncate command survived into the load package
+    assert refresh_load_id in normalized
+    refresh_state = raw_normalize.load_storage.normalized_packages.get_load_package_state(
+        refresh_load_id
+    )
+    assert len(refresh_state["truncated_tables"]) == 1
+
+
+@pytest.mark.parametrize("caps", INSERT_CAPS + JSONL_CAPS, indirect=True)
+@pytest.mark.parametrize("write_disposition", ["append", "replace", "merge"])
+def test_normalize_contract_discard_all_rows_writes_empty_job(
+    caps: DestinationCapabilitiesContext, write_disposition: str, raw_normalize: Normalize
+) -> None:
+    """When a `columns: discard_row` contract eliminates ALL rows of a root table, an empty job is
+    still written (so a `replace` table is truncated) with a post-filter row count of 0 - for every
+    write disposition and output writer."""
+    schema = Schema("contracts")
+    schema.update_table(
+        new_table(
+            "items",
+            write_disposition=write_disposition,  # type: ignore[arg-type]
+            schema_contract={"columns": "discard_row"},
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+        )
+    )
+    # every row carries a NEW column `name` so `discard_row` drops all of them
+    items = [{"id": i, "name": f"n{i}"} for i in range(5)]
+    load_id = extract_items(raw_normalize.normalize_storage, items, schema, "items")
+    normalize_pending(raw_normalize)
+
+    # an empty root-table job is written, physically present, and the package is retained
+    files = raw_normalize.load_storage.list_new_jobs(load_id)
+    assert [ParsedLoadJobFileName.parse(f).table_name for f in files] == ["items"]
+    assert raw_normalize.load_storage.normalized_packages.storage.has_file(files[0])
+    assert load_id in raw_normalize.load_storage.list_normalized_packages()
+    # per-job row count is the post-filter value: 0
+    step_info = raw_normalize.get_step_info(MockPipeline("contracts_pipeline", True))  # type: ignore[abstract]
+    assert step_info.row_counts["items"] == 0
+    assert step_info.metrics[load_id][0]["table_metrics"]["items"].items_count == 0
+
+
+@pytest.mark.parametrize("caps", INSERT_CAPS + JSONL_CAPS, indirect=True)
+def test_normalize_empty_extracted_file_writes_empty_job(
+    caps: DestinationCapabilitiesContext, raw_normalize: Normalize
+) -> None:
+    schema = Schema("empties")
+    schema.update_table(
+        new_table(
+            "items",
+            write_disposition="replace",
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+        )
+    )
+    extractor = ExtractStorage(raw_normalize.normalize_storage.config)
+    load_id = extractor.create_load_package(schema)
+    extractor.item_storages["object"].write_empty_items_file(
+        load_id, schema.name, "items", schema.get_table_columns("items")
+    )
+    extractor.close_writers(load_id)
+    extractor.commit_new_load_package(load_id, schema)
+
+    normalize_pending(raw_normalize)
+    files = raw_normalize.load_storage.list_new_jobs(load_id)
+    assert [ParsedLoadJobFileName.parse(f).table_name for f in files] == ["items"]
+    assert raw_normalize.load_storage.normalized_packages.storage.has_file(files[0])
+    step_info = raw_normalize.get_step_info(MockPipeline("empties_pipeline", True))  # type: ignore[abstract]
+    assert step_info.metrics[load_id][0]["table_metrics"]["items"].items_count == 0
 
 
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)

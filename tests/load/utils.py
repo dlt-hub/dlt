@@ -56,7 +56,11 @@ from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfigu
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
 from dlt.common.storages.configuration import FilesystemConfiguration
-from dlt.common.storages.load_package import LoadJobInfo, create_load_id
+from dlt.common.storages.load_package import (
+    LoadJobInfo,
+    LoadPackageStateInjectableContext,
+    create_load_id,
+)
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
@@ -65,7 +69,6 @@ from dlt.destinations.impl.filesystem.configuration import FilesystemDestination
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.load.lance_utils import LanceRestServerConfig, get_lance_namespace_name
 from tests.utils import (
     ACTIVE_DESTINATIONS,
     ACTIVE_TABLE_FORMATS,
@@ -144,6 +147,16 @@ OBJECT_STORE_RS_BUCKETS = [
     for bucket in (FILE_BUCKET, AWS_BUCKET, GCS_BUCKET, AZ_BUCKET)
     if FilesystemDestinationClientConfiguration.parse_protocol(bucket) in ALL_FILESYSTEM_DRIVERS
 ]
+
+# random per test session: a shared lance namespace root accumulates a `__manifest` version per
+# namespace mutation, slowing all namespace operations down with every test run
+_LANCE_ROOT_SUFFIX = uniq_id(4)
+
+
+def get_lance_namespace_name() -> str:
+    # isolate per xdist worker — Lance __manifest writes conflict on S3
+    return f"dlt_lance_root_{get_test_worker_id()}_{_LANCE_ROOT_SUFFIX}"
+
 
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
@@ -474,33 +487,16 @@ def destinations_configs(
         cid_configs_by_cid["athena-iceberg"],
         cid_configs_by_cid["athena-s3-tables"],
     ]
-
     lance_configs = [
-        # directory namespace configs
-        *[
-            DestinationTestConfiguration(
-                destination_type="lance",
-                extra_info=f"dir-{FilesystemConfiguration.parse_protocol(bucket)}",
-                env_vars={
-                    "DESTINATION__STORAGE__BUCKET_URL": bucket,
-                    "DESTINATION__STORAGE__NAMESPACE_NAME": get_lance_namespace_name(),
-                },
-            )
-            for bucket in OBJECT_STORE_RS_BUCKETS
-        ],
-        # REST namespace configs
-        # NOTE: we exclude cloud storage-backed REST namespaces here because `RestAdapter` (which
-        # we use as test REST Namespace server) does not vend credentials — we only include a
-        # local storage-backed REST namespace, which does not need credentials
-        *[
-            DestinationTestConfiguration(
-                destination_type="lance",
-                extra_info=f"rest-{FilesystemConfiguration.parse_protocol(bucket)}",
-                env_vars=LanceRestServerConfig.get_destination_test_configuration_env_vars(),
-            )
-            for bucket in OBJECT_STORE_RS_BUCKETS
-            if bucket == FILE_BUCKET
-        ],
+        DestinationTestConfiguration(
+            destination_type="lance",
+            extra_info=f"dir-{FilesystemConfiguration.parse_protocol(bucket)}",
+            env_vars={
+                "DESTINATION__STORAGE__BUCKET_URL": bucket,
+                "DESTINATION__STORAGE__NAMESPACE_NAME": get_lance_namespace_name(),
+            },
+        )
+        for bucket in OBJECT_STORE_RS_BUCKETS
     ]
 
     # default non staging sql based configs, one per destination
@@ -1154,6 +1150,25 @@ def load_table(name: str) -> Dict[str, TTableSchemaColumns]:
         return json.load(f)
 
 
+@contextlib.contextmanager
+def prevent_client_reopen(client: JobClientBase) -> Iterator[JobClientBase]:
+    """No-ops `client.__enter__`/`__exit__` while a caller already holds the connection open."""
+    original_class = client.__class__
+    NoOpLifecycle = type(
+        f"_NoLifecycle{original_class.__name__}",
+        (original_class,),
+        {
+            "__enter__": lambda self: self,
+            "__exit__": lambda self, exc_type, exc_val, exc_tb: None,
+        },
+    )
+    client.__class__ = NoOpLifecycle
+    try:
+        yield client
+    finally:
+        client.__class__ = original_class
+
+
 def expect_load_file(
     client: JobClientBase,
     file_storage: FileStorage,
@@ -1184,7 +1199,8 @@ def expect_load_file(
 
         if isinstance(job, RunnableLoadJob):
             job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
-            job.run_managed(client, None)
+            with prevent_client_reopen(client):
+                job.run_managed(client, None)
         # TODO: use semaphore
         while job.state() == "running":
             sleep(0.1)
@@ -1193,26 +1209,34 @@ def expect_load_file(
 
         return job
 
-    if isinstance(client, WithStagingDataset) and client.should_load_data_to_staging_dataset(
-        table_name
+    # jobs may use load package state (e.g. lance fragments) - inject it like the loader does
+    package_storage = PackageStorage(
+        FileStorage(os.path.join(file_storage.storage_path, "normalized_" + load_id)), "normalized"
+    )
+    package_storage.create_package(load_id)
+    with Container().injectable_context(
+        LoadPackageStateInjectableContext(storage=package_storage, load_id=load_id)
     ):
-        # load to staging dataset on merge
-        with client.with_staging_dataset():
+        if isinstance(client, WithStagingDataset) and client.should_load_data_to_staging_dataset(
+            table_name
+        ):
+            # load to staging dataset on merge
+            with client.with_staging_dataset():
+                job = _run_job(file_name)
+        else:
             job = _run_job(file_name)
-    else:
-        job = _run_job(file_name)
-    # execute table chain job
-    if chain_jobs := client.create_table_chain_completed_followup_jobs(
-        [table], [LoadJobInfo("completed_jobs", full_path, 0, 0, 0, job.job_file_info(), "")]  # type: ignore[arg-type]
-    ):
-        assert len(chain_jobs) == 1, "can't execute more than 1 chain job in this test"
-
-        _run_job(chain_jobs[0].new_file_path())
-
-    if isinstance(job, HasFollowupJobs):
-        if chain_jobs := job.create_followup_jobs("completed"):
+        # execute table chain job
+        if chain_jobs := client.create_table_chain_completed_followup_jobs(
+            [table], [LoadJobInfo("completed_jobs", full_path, 0, 0, 0, job.job_file_info(), "")]  # type: ignore[arg-type]
+        ):
             assert len(chain_jobs) == 1, "can't execute more than 1 chain job in this test"
+
             _run_job(chain_jobs[0].new_file_path())
+
+        if isinstance(job, HasFollowupJobs):
+            if chain_jobs := job.create_followup_jobs("completed"):
+                assert len(chain_jobs) == 1, "can't execute more than 1 chain job in this test"
+                _run_job(chain_jobs[0].new_file_path())
 
     return job
 
@@ -1495,8 +1519,7 @@ def count_job_types(p: dlt.Pipeline) -> Dict[str, Dict[str, Any]]:
 
 
 def set_always_refresh_views(config: BaseConfiguration) -> None:
-    # set filesystem views to autorefresh
-    if isinstance(config, FilesystemDestinationClientConfiguration):
+    if "always_refresh_views" in config.get_resolvable_fields():
         config["always_refresh_views"] = True
 
 

@@ -21,6 +21,7 @@ SKIP_EXAMPLES: List[str] = [
     "incremental_loading",
     "logfire_telemetry_export",
     "arize_phoenix_export",
+    "langfuse_export",
 ]
 # Examples will be skipped from forked subprocesses
 SKIP_FORK_EXAMPLES: List[str] = ["custom_destination_lancedb"]

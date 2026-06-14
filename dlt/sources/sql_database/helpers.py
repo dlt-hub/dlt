@@ -332,8 +332,9 @@ class TableLoader(BaseTableLoader):
                 # positional mapping (self.columns may be in schema order
                 # after merge_columns reordering)
                 cursor_columns = {c: self.columns[c] for c in columns}
+                # extract tuples to speed up arrow conversion
                 table = row_tuples_to_arrow(
-                    partition,
+                    [row._data for row in partition],
                     columns=cursor_columns,
                     tz=backend_kwargs.get("tz", "UTC"),
                 )

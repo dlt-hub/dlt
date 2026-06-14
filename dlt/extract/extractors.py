@@ -124,6 +124,8 @@ class Extractor:
         self.schema = schema
         self.naming = schema.naming
         self.collector = collector
+        self.computed_tables: Set[str] = set()
+        """Tables computed from data and merged into the schema"""
         self.tables_with_items: Set[str] = set()
         """Tracks tables that received items"""
         self.tables_with_empty: Set[str] = set()
@@ -301,6 +303,7 @@ class Extractor:
                     normalize_identifiers=False,
                     merge_compound_props=False,
                 )
+                self.computed_tables.add(table_name)
 
             # process filters
             if filters:

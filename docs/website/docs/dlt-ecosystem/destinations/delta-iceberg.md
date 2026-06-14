@@ -80,6 +80,9 @@ delta_tables["another_delta_table"].optimize.z_order(["col_a", "col_b"])
 # etc.
 ```
 
+## Table truncation
+When dlt truncates a Delta table — with [`refresh="drop_data"`](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) or for tables in a `replace` chain that receive no data — it runs a transactional delete that commits a new table version with no rows. The table, its schema, and version history stay intact, so readers are never exposed to a partially deleted table. Physical Parquet files are retained for time travel until you run `vacuum`.
+
 ## Google Cloud Storage authentication
 
 Note that not all authentication methods are supported when using Delta table format on Google Cloud Storage:

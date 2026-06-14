@@ -431,7 +431,7 @@ The `_dlt_loads` table will look like this:
 
 The `_dlt_loads` table tracks complete loads and allows chaining transformations on top of them. Many destinations do not support distributed and long-running transactions (e.g., Amazon Redshift). In that case, the user may see the partially loaded data. It is possible to filter such data out: any row with a `load_id` that does not exist in `_dlt_loads` is not yet completed. The same procedure may be used to identify and delete data for packages that never got completed.
 
-For each load, you can test and [alert](../running-in-production/alerting.md) on anomalies (e.g., no data, too much loaded to a table). There are also some useful load stats in [dashboard app](../hub/ingestion/dashboard.md) mentioned above.
+For each load, you can test and [alert](../running-in-production/running.md#using-slack-to-send-messages) on anomalies (e.g., no data, too much loaded to a table). There are also some useful load stats in [dashboard app](../hub/ingestion/dashboard.md) mentioned above.
 
 You can add [transformations](../dlt-ecosystem/transformations/) and chain them together using the `status` column. You start the transformation for all the data with a particular `load_id` with a status of 0 and then update it to 1. The next transformation starts with the status of 1 and is then updated to 2. This can be repeated for every additional transformation.
 
