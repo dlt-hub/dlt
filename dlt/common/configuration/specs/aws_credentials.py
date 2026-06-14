@@ -142,8 +142,13 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
         # only plain refreshable creds (EC2 IMDS / ECS) can be resolved and refreshed by
         # object_store itself, so we hand over without freezing them. deferred creds
-        # (IRSA/SSO/assume-role) and static creds cannot, so they are passed frozen
-        if self.has_default_credentials() and self._default_credentials_self_refresh():
+        # (IRSA/SSO/assume-role) and static creds cannot, so they are passed frozen.
+        # external sessions are always frozen (see `is_external_session`)
+        if (
+            self.has_default_credentials()
+            and not self.is_external_session()
+            and self._default_credentials_self_refresh()
+        ):
             return self._to_object_store_rs_credentials({})
         return super().to_object_store_rs_credentials()
 
@@ -169,6 +174,20 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             "s3.secret-access-key",
             "s3.session-token",
         )
+
+    def is_external_session(self) -> bool:
+        """Tells if default credentials come from a boto3/botocore session passed by the user"""
+        return getattr(self, "_external_session", False)
+
+    def _strip_on_default(self, config: Dict[str, Any], *secret_keys: str) -> Dict[str, Any]:
+        """Removes `secret_keys` from `config` for refreshable default credentials so the
+        consumer resolves and refreshes them via its own default chain. Static config and
+        external sessions (see `is_external_session`) are kept frozen.
+        """
+        if self.has_default_credentials() and not self.is_external_session():
+            for k in secret_keys:
+                config.pop(k, None)
+        return config
 
     def to_sts_credentials(self) -> Dict[str, str]:
         """Return session credentials with a session token, generating one via STS if needed."""
@@ -240,6 +259,8 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             session = self._from_session(native_value)
             if session.get_credentials():
                 self._set_default_credentials(session)
+                # mark as external so we never strip its keys for refresh-capable consumers
+                self._external_session = True
                 self.__is_resolved__ = True
         except Exception:
             raise InvalidBoto3Session(self.__class__, native_value)
