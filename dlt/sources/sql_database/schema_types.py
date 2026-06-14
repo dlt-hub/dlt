@@ -123,7 +123,18 @@ def sqla_col_to_column_schema(
             sql_t = sql_t()
 
     if sql_t is None:
-        # Column ignored by callback
+        # `type_adapter_callback` returned None: drop the reflected type and let the
+        # backend infer the data type from the data (documented behavior). Warn because
+        # inference is per-batch for the `pyarrow`/`pandas` backends, so a column like
+        # NUMERIC(7, 2) can yield incompatible decimal types across batches and fail the
+        # load. Return the SQL type unchanged from the callback to keep the reflected type.
+        logger.warning(
+            f"`type_adapter_callback` returned None for column {sql_col.name} of reflected type"
+            f" {sql_col.type}. dlt will drop the reflected type and infer the data type from the"
+            " data. With the `pyarrow` and `pandas` backends inference happens per batch, so"
+            " types may differ across batches and the load may fail. Return the SQL type"
+            " unchanged from the callback to keep the reflected type."
+        )
         return col
 
     add_precision = reflection_level == "full_with_precision"

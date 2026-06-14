@@ -184,12 +184,19 @@ most of the coercion problems.
 
 ### Adapt reflected types to your needs
 
-You can also override the SQL type by passing a `type_adapter_callback` function. This function takes a `SQLAlchemy` data type as input and returns a new type (or `None` to force the column to be inferred from the data) as output.
+You can also override the SQL type by passing a `type_adapter_callback` function. This function takes a `SQLAlchemy` data type as input and returns:
+- a new `SQLAlchemy` type to override it,
+- the input type unchanged to keep the reflected type,
+- or `None` to drop the reflected type and have `dlt` infer the data type from the data.
 
 This is useful, for example, when:
 - You're loading a data type that is not supported by the destination (e.g., you need JSON type columns to be coerced to string).
 - You're using a sqlalchemy dialect that uses custom types that don't inherit from standard sqlalchemy types.
 - For certain types, you prefer `dlt` to infer the data type from the data and you return `None`.
+
+:::warning
+For a selective override, return the **input type unchanged** for the types you don't adapt (as in the example below). Returning `None` is not a "no change" signal: it discards the reflected type. With the `pyarrow` and `pandas` backends the data type is then inferred per batch, so a column such as `NUMERIC(7, 2)` can produce incompatible types across batches (e.g. `decimal128(5, 2)` vs `decimal128(2, 2)`) and fail the load with `Table schema does not match schema used to create file`.
+:::
 
 In the following example, when loading timestamps from Snowflake, you ensure that they get translated into standard sqlalchemy `timestamp` columns in the resultant schema:
 
