@@ -3,7 +3,6 @@ from typing import Iterator
 
 import pytest
 
-from tests.load.lance_utils import lance_rest_server
 from tests.load.utils import (
     ALL_BUCKETS,
     DEFAULT_BUCKETS,

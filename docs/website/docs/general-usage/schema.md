@@ -323,7 +323,7 @@ The precision for **bigint** is mapped to available integer types, i.e., TINYINT
 
 Selected destinations honor precision hint on **timestamp**. Precision is a numeric value in range of 0 (seconds) to 9 (nanoseconds) and sets the fractional
 number of seconds stored in a column. The default value is 6 (microseconds) which is Python `datetime` precision. `postgres`, `duckdb`, `snowflake`, `synapse` and `mssql` allow setting precision. Additionally, `duckdb` and `filesystem` (via parquet) allow for nanosecond precision if:
-* you configure [parquet version](../dlt-ecosystem/file-formats/parquet.md#writer-settings) to **2.6**
+* you configure [parquet version](../dlt-ecosystem/file-formats.md#writer-settings) to **2.6**
 * you yield tabular data (arrow tables/pandas/polars). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
 
 ### Handling nulls

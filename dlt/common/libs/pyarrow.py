@@ -794,6 +794,18 @@ def columns_to_arrow(
     )
 
 
+def get_local_dataset_reader(file_paths: Sequence[str]) -> pyarrow.RecordBatchReader:
+    """Streams local data files with bounded readahead to limit memory use over throughput."""
+    # NOTE: import inline, pyarrow.dataset pulls heavy dependencies
+    import pyarrow.dataset
+
+    return (
+        pyarrow.dataset.dataset(file_paths)
+        .scanner(batch_size=65536, batch_readahead=2, fragment_readahead=1)
+        .to_reader()
+    )
+
+
 def get_parquet_metadata(parquet_file: TFileOrPath) -> Tuple[int, pyarrow.Schema]:
     """Gets parquet file metadata (including row count and schema)
 
@@ -954,32 +966,12 @@ def concat_batches_and_tables_in_order(
 
 def transpose_rows_to_columns(
     rows: TDataItems, column_names: Iterable[str]
-) -> dict[str, Any]:  # dict[str, np.ndarray]
-    """Transpose rows (data items) into columns (numpy arrays). Returns a dictionary of {column_name: column_data}
-
-    Uses pandas if available. Otherwise, use numpy, which is slower
-    """
-    try:
-        from dlt.common.libs.numpy import numpy as np
-    except MissingDependencyException:
-        raise MissingDependencyException(
-            "dlt pyarrow helpers", ["numpy"], "Numpy is required for this pyarrow operation"
-        )
-
-    try:
-        from pandas._libs import lib
-
-        # NOTE: this is part of public interface now via DataFrame.from_records()
-        pivoted_rows = lib.to_object_array_tuples(rows).T
-    except ImportError:
-        logger.info(
-            "Pandas not installed, reverting to numpy.asarray to create a table which is slower"
-        )
-        pivoted_rows = np.asarray(rows, dtype="object", order="K").T
-    return {
-        column_name: data.ravel()
-        for column_name, data in zip(column_names, np.vsplit(pivoted_rows, len(pivoted_rows)))
-    }
+) -> dict[str, Any]:  # dict[str, Sequence[Any]]
+    """Transpose rows (data items) into columns. Returns a dictionary of {column_name: column_data}"""
+    if not rows:
+        return {column_name: () for column_name in column_names}
+    # plain zip benchmarked faster than numpy/pandas object-array pivoting
+    return dict(zip(column_names, zip(*rows)))
 
 
 def uuid_to_string(arr: Any) -> Any:  # pyarrow.Array -> pyarrow.Array
@@ -1039,22 +1031,24 @@ def uuid_to_string(arr: Any) -> Any:  # pyarrow.Array -> pyarrow.Array
     return fsb36.cast(pa.string())
 
 
-def convert_numpy_to_arrow(
-    column_data: Any,  # 1-dimensional np.ndarray
+def convert_array_to_arrow(
+    column_data: Any,  # 1-dimensional sequence of column values
     caps: DestinationCapabilitiesContext,
     column_schema: TColumnSchema,
     tz: str,
     safe_arrow_conversion: bool,
+    arrow_type: Optional[Any] = None,
 ) -> Any:  # pyarrow.Array
-    """Convert a numpy array to a pyarrow array.
+    """Convert a sequence of column values to a pyarrow array.
 
     Args:
-        rows: data items
+        column_data: column values
         caps: capabilities of the storage backend
-        columns: dlt hints about the table columns (e.g., data type, nullabe)
+        column_schema: dlt hints about the column (e.g., data type, nullable)
         tz: time zone identifier
         safe_arrow_conversion: if False, truncation and loss of precision is allowed
             ref: https://arrow.apache.org/docs/python/generated/pyarrow.compute.CastOptions.html#pyarrow.compute.CastOptions
+        arrow_type: precomputed target arrow type, derived from `column_schema` when None
 
     Returns:
         an arrow Array
@@ -1063,7 +1057,9 @@ def convert_numpy_to_arrow(
 
     dlt_data_type = column_schema.get("data_type")
     inferred_arrow_type = (
-        get_py_arrow_datatype(column_schema, caps, tz) if dlt_data_type is not None else None
+        arrow_type
+        if arrow_type is not None
+        else (get_py_arrow_datatype(column_schema, caps, tz) if dlt_data_type is not None else None)
     )
     inferred_array = None
 
@@ -1402,6 +1398,36 @@ def cast_arrow_as_columns_schema(
     return item.__class__.from_arrays(arrays_out, schema=new_schema)
 
 
+def _row_tuples_to_arrow_struct(
+    rows: TDataItems,
+    columns: TTableSchemaColumns,
+    arrow_types: Dict[str, Optional[Any]],
+) -> Optional[Any]:  # Optional[pyarrow.Table]
+    """Converts row tuples to an arrow table in a single pass via a `StructArray`."""
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    # json values typically need serialization fallbacks which fail the whole struct
+    if any(
+        arrow_types[name] is None or column.get("data_type") == "json"
+        for name, column in columns.items()
+    ):
+        return None
+    try:
+        struct_fields = [pa.field(name, arrow_types[name]) for name in columns]
+        arrays = pa.array(rows, type=pa.struct(struct_fields)).flatten()
+    except Exception as e:
+        logger.debug(
+            "Single-pass arrow conversion not possible, using per-column fallbacks:"
+            f" {type(e).__name__}: {e}"
+        )
+        return None
+    schema = pa.schema(
+        pa.field(field.name, field.type, nullable=columns[field.name].get("nullable", True))
+        for field in struct_fields
+    )
+    return pa.Table.from_arrays(arrays, schema=schema)
+
+
 def row_tuples_to_arrow(
     rows: TDataItems,
     caps: DestinationCapabilitiesContext,
@@ -1428,16 +1454,35 @@ def row_tuples_to_arrow(
     """
     from dlt.common.libs.pyarrow import pyarrow as pa
 
-    columnar = transpose_rows_to_columns(rows, column_names=columns.keys())
+    # pyarrow struct conversion accepts only tuples and dicts, and tuple iteration is
+    # ~3x faster than driver row objects (e.g. sqlalchemy Row) in the transpose below
+    if rows and not isinstance(rows[0], (tuple, dict)):
+        rows = [tuple(row) for row in rows]
+
+    # compute target arrow types once; None when the type must be inferred from data
+    arrow_types: Dict[str, Optional[Any]] = {
+        name: get_py_arrow_datatype(column, caps, tz) if column.get("data_type") else None
+        for name, column in columns.items()
+    }
+
+    if (arrow_table := _row_tuples_to_arrow_struct(rows, columns, arrow_types)) is not None:
+        return arrow_table
+
+    transposed_rows = transpose_rows_to_columns(rows, column_names=columns.keys())
 
     arrow_arrays = []
     arrow_fields = []
-    for column_name, column_data in columnar.items():
+    for column_name, column_data in transposed_rows.items():
         column_schema = columns[column_name]
 
         try:
-            arrow_array = convert_numpy_to_arrow(
-                column_data, caps, column_schema, tz, safe_arrow_conversion
+            arrow_array = convert_array_to_arrow(
+                column_data,
+                caps,
+                column_schema,
+                tz,
+                safe_arrow_conversion,
+                arrow_types[column_name],
             )
         # TODO if converting to arrow fail, should we raise or skip column?
         except PyToArrowConversionException as e:

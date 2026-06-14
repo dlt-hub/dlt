@@ -17,6 +17,25 @@ class InvalidFileNameTemplateException(DataWriterException, ValueError):
         )
 
 
+class InvalidEncoding(DataWriterException, ValueError):
+    def __init__(self, encoding: str):
+        self.encoding = encoding
+        super().__init__(
+            f"Unknown encoding `{encoding}` in csv format configuration. Use a Python codec name,"
+            " e.g. `utf-8`, `utf-8-sig`, `latin-1` or `cp1252`."
+        )
+
+
+class InvalidEncodingErrors(DataWriterException, ValueError):
+    def __init__(self, encoding_errors: str):
+        self.encoding_errors = encoding_errors
+        super().__init__(
+            f"Unknown error handler `{encoding_errors}` in `encoding_errors` of csv format"
+            " configuration. Use a Python error handler name, e.g. `strict`, `replace`,"
+            " `backslashreplace` or `ignore`."
+        )
+
+
 class BufferedDataWriterClosed(DataWriterException):
     def __init__(self, file_name: str):
         self.file_name = file_name

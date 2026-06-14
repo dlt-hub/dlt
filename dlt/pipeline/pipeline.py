@@ -1643,7 +1643,7 @@ class Pipeline(SupportsPipeline):
             destination_needs_dataset = False
             if destination and issubclass(destination.spec, DestinationClientDwhConfiguration):
                 destination_needs_dataset = destination.spec.needs_dataset_name()
-            # if destination is not specified - generate dataset
+            # set default dataset name if destination is specified and requires it
             if destination_needs_dataset:
                 new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
 

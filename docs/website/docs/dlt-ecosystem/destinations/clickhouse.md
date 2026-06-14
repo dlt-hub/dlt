@@ -154,8 +154,8 @@ tables will still be prefixed with `_staging` (or other name that you configure)
 
 ## Supported file formats
 
-- [JSONL](../file-formats/jsonl.md) is the preferred format for both direct loading and staging.
-- [Parquet](../file-formats/parquet.md) is supported for both direct loading and staging.
+- [JSONL](../file-formats.md#jsonl) is the preferred format for both direct loading and staging.
+- [Parquet](../file-formats.md#parquet) is supported for both direct loading and staging.
 
 The `clickhouse` destination has a few specific deviations from the default SQL destinations:
 

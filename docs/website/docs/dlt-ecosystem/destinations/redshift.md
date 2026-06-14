@@ -78,11 +78,11 @@ Use the PostgreSQL driver for PostgreSQL-based setups or the Amazon Redshift dri
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
 
 ## Supported file formats
-[SQL Insert](../file-formats/insert-format) is used by default.
+[SQL Insert](../file-formats.md#sql-insert) is used by default.
 
 When staging is enabled:
-* [JSONL](../file-formats/jsonl.md) is used by default.
-* [Parquet](../file-formats/parquet.md) is supported.
+* [JSONL](../file-formats.md#jsonl) is used by default.
+* [Parquet](../file-formats.md#parquet) is supported.
 
 :::warning
 - **Redshift cannot load `VARBYTE` columns from JSON files**. `dlt` will fail such jobs permanently. Switch to Parquet to load binaries.

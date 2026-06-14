@@ -43,9 +43,10 @@ def _prepare_create_lance_secret_statement(
 class LanceSQLClient(WithTableScanners):
     def __init__(self, lance_client: LanceClient) -> None:
         self.lance_client = lance_client
+        # schema-less (no dataset_name): host the read views in the ephemeral duckdb `main` schema
         super().__init__(
             remote_client=lance_client,
-            dataset_name=lance_client.dataset_name,
+            dataset_name=lance_client.dataset_name or "main",
         )
 
     def open_connection(self) -> DuckDBPyConnection:
@@ -63,8 +64,14 @@ class LanceSQLClient(WithTableScanners):
         return True
 
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
-        # lance datasets are versioned, always refresh to get latest data
-        return True
+        return self.lance_client.config.always_refresh_views
+
+    def create_views_for_tables(self, tables: Dict[str, str]) -> None:
+        # lance extension caches datasets so new data is not visible
+        # automatically, we duplicate connection to clear the cache
+        if self.lance_client.config.always_refresh_views:
+            self._conn = self.memory_db.duplicate()
+        super().create_views_for_tables(tables)
 
     def create_view_select(
         self, table_schema: PreparedTableSchema, schema: Schema = None

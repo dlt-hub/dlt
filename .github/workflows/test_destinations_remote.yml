@@ -56,10 +56,12 @@ jobs:
               extras: "--extra bigquery --extra parquet"
 
             # Clickhouse
+            # NOTE: pins the old pre-1.1 clickhouse-connect for back-compat coverage, local tests run the newest driver
             - name: clickhouse
               destinations: "[\"clickhouse\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--extra clickhouse --extra parquet"
+              post_install_commands: "uv run pip install clickhouse-connect==0.8.17"
 
 
             # Databricks

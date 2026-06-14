@@ -155,8 +155,9 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update)
+        applied_update = super().update_stored_schema(only_tables, expected_update, force)
         if self.config.fail_schema_update:
             raise DestinationTransientException(
                 "Raise on schema update due to `fail_schema_update` config flag"

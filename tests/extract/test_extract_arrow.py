@@ -24,6 +24,7 @@ from dlt.extract import DltSource
 from dlt.extract.extract import Extract
 
 from tests.utils import clean_test_storage, get_test_storage_root
+from tests.extract.utils import assert_written_tables_are_computed
 
 
 @pytest.fixture
@@ -54,6 +55,12 @@ def test_arrow_mixed_case_columns_normalized(extract_step: Extract) -> None:
 
     source = DltSource(dlt.Schema("arrow_test"), "module", [mixed_case_resource])
     extract_step.extract(source, 20, 1)
+
+    arrow_extractor = extract_step._last_extractors["arrow"]
+    assert arrow_extractor.computed_tables == {"mixed_case"}
+    assert arrow_extractor.tables_with_items == {"mixed_case"}
+    assert arrow_extractor.tables_with_empty == set()
+    assert_written_tables_are_computed(arrow_extractor)
 
     schema_table = source.schema.tables["mixed_case"]
     col_names = list(schema_table["columns"].keys())
@@ -89,6 +96,11 @@ def test_arrow_columns_merge_with_resource_hints(extract_step: Extract) -> None:
 
     source = DltSource(dlt.Schema("arrow_test"), "module", [hinted_resource])
     extract_step.extract(source, 20, 1)
+
+    arrow_extractor = extract_step._last_extractors["arrow"]
+    assert arrow_extractor.computed_tables == {"with_hints"}
+    assert arrow_extractor.tables_with_items == {"with_hints"}
+    assert_written_tables_are_computed(arrow_extractor)
 
     schema_table = source.schema.tables["with_hints"]
     col_names = list(schema_table["columns"].keys())
@@ -134,6 +146,11 @@ def test_arrow_multiple_items_mixed_case(extract_step: Extract) -> None:
     source = DltSource(dlt.Schema("arrow_test"), "module", [multi_item_resource])
     extract_step.extract(source, 20, 1)
 
+    arrow_extractor = extract_step._last_extractors["arrow"]
+    assert arrow_extractor.computed_tables == {"multi_items"}
+    assert arrow_extractor.tables_with_items == {"multi_items"}
+    assert_written_tables_are_computed(arrow_extractor)
+
     schema_table = source.schema.tables["multi_items"]
     col_names = list(schema_table["columns"].keys())
     assert "numbers" in col_names
@@ -165,6 +182,11 @@ def test_arrow_columns_with_special_chars_normalized(extract_step: Extract) -> N
     source = DltSource(dlt.Schema("arrow_test"), "module", [special_chars_resource])
     extract_step.extract(source, 20, 1)
 
+    arrow_extractor = extract_step._last_extractors["arrow"]
+    assert arrow_extractor.computed_tables == {"special_chars"}
+    assert arrow_extractor.tables_with_items == {"special_chars"}
+    assert_written_tables_are_computed(arrow_extractor)
+
     schema_table = source.schema.tables["special_chars"]
     col_names = list(schema_table["columns"].keys())
     # col^New should be normalized to col_new
@@ -172,6 +194,26 @@ def test_arrow_columns_with_special_chars_normalized(extract_step: Extract) -> N
     assert "col2" in col_names
     assert "col^New" not in col_names
     assert len(col_names) == 2
+
+
+def test_arrow_empty_table_tracked_as_with_items(extract_step: Extract) -> None:
+    """An arrow table with no rows is still written (to define the schema)"""
+    empty = pa.table({"id": pa.array([], type=pa.int64()), "name": pa.array([], type=pa.string())})
+
+    @dlt.resource(name="empty_arrow")
+    def empty_arrow_resource():
+        yield empty
+
+    source = DltSource(dlt.Schema("arrow_test"), "module", [empty_arrow_resource])
+    extract_step.extract(source, 20, 1)
+
+    arrow_extractor = extract_step._last_extractors["arrow"]
+    # the empty arrow table is computed and counts as "with items" (the ArrowExtractor branch),
+    # not as an empty materialized list
+    assert arrow_extractor.computed_tables == {"empty_arrow"}
+    assert arrow_extractor.tables_with_items == {"empty_arrow"}
+    assert arrow_extractor.tables_with_empty == set()
+    assert_written_tables_are_computed(arrow_extractor)
 
 
 def test_pydantic_validator_passes_through_non_object_items() -> None:

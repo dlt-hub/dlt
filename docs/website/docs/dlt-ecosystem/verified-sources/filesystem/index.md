@@ -16,9 +16,9 @@ The filesystem source allows seamless loading of files from the following locati
 * local filesystem
 * Public CDN
 
-The filesystem source natively supports [CSV](../../file-formats/csv.md), [Parquet](../../file-formats/parquet.md), and [JSONL](../../file-formats/jsonl.md) files and allows customization for loading any type of structured file.
+The filesystem source natively supports [CSV](../../file-formats.md#csv), [Parquet](../../file-formats.md#parquet), and [JSONL](../../file-formats.md#jsonl) files and allows customization for loading any type of structured file.
 
-Filesystem source allows loading files from remote locations (AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage, SFTP server) or the local filesystem seamlessly. Filesystem source natively supports [CSV](../../file-formats/csv.md), [Parquet](../../file-formats/parquet.md), and [JSONL](../../file-formats/jsonl.md) files and allows customization for loading any type of structured files.
+Filesystem source allows loading files from remote locations (AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage, SFTP server) or the local filesystem seamlessly. Filesystem source natively supports [CSV](../../file-formats.md#csv), [Parquet](../../file-formats.md#parquet), and [JSONL](../../file-formats.md#jsonl) files and allows customization for loading any type of structured files.
 
 To load unstructured data (PDF, plain text, e-mail), please refer to the [unstructured data source](https://github.com/dlt-hub/verified-sources/tree/master/sources/unstructured_data).
 
@@ -671,7 +671,7 @@ When using a nested or recursive glob pattern, `relative_path` will include the 
 
 ## Create your own readers
 
-Although the `filesystem` resource yields the files from cloud storage or a local filesystem, you need to apply a transformer resource to retrieve the records from files. dlt natively supports three file types: [CSV](../../file-formats/csv.md), [Parquet](../../file-formats/parquet.md), and [JSONL](../../file-formats/jsonl.md) (more details in [filesystem transformer resource](#2-choose-the-right-reader)).
+Although the `filesystem` resource yields the files from cloud storage or a local filesystem, you need to apply a transformer resource to retrieve the records from files. dlt natively supports three file types: [CSV](../../file-formats.md#csv), [Parquet](../../file-formats.md#parquet), and [JSONL](../../file-formats.md#jsonl) (more details in [filesystem transformer resource](#2-choose-the-right-reader)).
 
 But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
 

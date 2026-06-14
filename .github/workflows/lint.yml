@@ -45,9 +45,7 @@ jobs:
         run: uv sync --all-extras --no-extra hub --group airflow --group providers --group pipeline --group sources --group sentry-sdk --group dbt
 
       - name: Run make lint
-        run: |
-          export PATH=$PATH:"/c/Program Files/usr/bin" # needed for Windows
-          make lint
+        run: make lint
 
       - name: Check filesizes
         uses: ppremk/lfs-warning@v3.2

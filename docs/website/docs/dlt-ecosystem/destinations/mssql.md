@@ -120,7 +120,7 @@ will activate automatically if the right driver is present in the system.
 
 ### Fast loading with parquet
 
-[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/). **mssql** driver is provided by
+[parquet](../file-formats.md#parquet) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/). **mssql** driver is provided by
 [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
 ```sh
 pip install adbc-driver-manager dbc
@@ -170,8 +170,8 @@ dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dl
 
 
 ## Supported file formats
-* [insert-values](../file-formats/insert-format.md) is used by default
-* [parquet](../file-formats/parquet.md) is used if mssql ADBC driver is installed
+* [insert-values](../file-formats.md#sql-insert) is used by default
+* [parquet](../file-formats.md#parquet) is used if mssql ADBC driver is installed
 
 ## Supported column hints
 **mssql** will create unique indexes for all columns with `unique` hints. This behavior **is disabled by default**.

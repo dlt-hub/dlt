@@ -225,7 +225,8 @@ TEST_COMMON_CORE_PATHS = \
 	tests/load/test_dummy_client.py \
 	tests/extract/test_extract.py \
 	tests/extract/test_sources.py \
-	tests/pipeline/test_pipeline_state.py
+	tests/pipeline/test_pipeline_state.py \
+	--ignore tests/normalize/test_normalize_arrow.py
 
 test-common-core:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_CORE_PATHS))
@@ -257,7 +258,7 @@ test-pipeline-min:
 install-pipeline-arrow:
 	uv sync $(UV_SYNC_ARGS) --extra duckdb --extra cli --extra parquet
 
-TEST_PIPELINE_ARROW_PATHS = tests/pipeline/test_pipeline_extra.py
+TEST_PIPELINE_ARROW_PATHS = tests/pipeline/test_pipeline_extra.py tests/normalize/test_normalize_arrow.py
 
 test-pipeline-arrow: PYTEST_TARGET_ARGS = -k arrow
 test-pipeline-arrow:
