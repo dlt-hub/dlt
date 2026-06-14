@@ -1,3 +1,4 @@
+import os
 from copy import copy
 from typing import Optional, Dict, Any, Union
 
@@ -19,6 +20,23 @@ from dlt.common.utils import without_none
 
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 _AZURE_STORAGE_SCOPE = "https://storage.azure.com/.default"
+
+
+def _object_store_will_refresh_default() -> bool:
+    """True for configurations that object store crate can refresh with current
+    dlt consumers (lance, delta).
+    * AKS workload identity or an env client-secret service principal.
+    """
+    try:
+        from azure.identity._constants import EnvironmentVariables
+    except ImportError:
+        return False
+    # reuses azure-identity's own env var groupings
+    # cert / username-password are excluded (no object_store provider); managed identity is excluded
+    # (not detectable from env without probing IMDS).
+    return all(os.environ.get(v) for v in EnvironmentVariables.WORKLOAD_IDENTITY_VARS) or all(
+        os.environ.get(v) for v in EnvironmentVariables.CLIENT_SECRET_VARS
+    )
 
 
 @configspec
