@@ -545,13 +545,6 @@ class CredentialsWithDefault:
             return self._default_credentials
         return None
 
-    def _strip_on_default(self, config: Dict[str, Any], *secret_keys: str) -> Dict[str, Any]:
-        """Removes `secret_keys` from `config` when default credentials are present."""
-        if self.has_default_credentials():
-            for k in secret_keys:
-                config.pop(k, None)
-        return config
-
 
 TInjectableContext = TypeVar("TInjectableContext", bound="ContainerInjectableContext")
 
