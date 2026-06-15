@@ -131,8 +131,8 @@ def warning(msg: str) -> None:
     click.secho("WARNING: " + msg, fg="yellow")
 
 
-def note(msg: str) -> None:
-    click.secho("NOTE: " + msg, fg="green")
+def note(msg: str, err: bool = False) -> None:
+    click.secho("NOTE: " + msg, fg="green", err=err)
 
 
 def _raise_no_default(text: str) -> None:

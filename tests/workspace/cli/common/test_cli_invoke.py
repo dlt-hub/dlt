@@ -406,7 +406,11 @@ def test_main_in_workspace_prints_dlthub_handoff_note(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """`_main()` inside a workspace tells the user to use the `dlthub` command."""
+    """`_main()` inside a workspace tells the user to use the `dlthub` command.
+
+    The handoff banner must go to stderr so it never corrupts piped stdout data
+    (e.g. `dlt local schema --format json ... > file.json`). See issue #4035.
+    """
     # short-circuit the inner dispatch so we only exercise the handoff branch
     monkeypatch.setattr("dlt._workspace.cli._dlt.main", lambda host: 0)
     monkeypatch.setattr("sys.argv", ["dlt", "--version"])
@@ -414,10 +418,12 @@ def test_main_in_workspace_prints_dlthub_handoff_note(
         _main()
     assert ei.value.code == 0
     captured = capsys.readouterr()
-    combined = captured.out + captured.err
-    assert "Please use" in combined
-    assert "dlthub" in combined
-    assert "dlthub local --help" in combined
+    # banner is on stderr, never on stdout (which carries the command's data output)
+    assert "Please use" in captured.err
+    assert "dlthub" in captured.err
+    assert "dlthub local --help" in captured.err
+    assert "Please use" not in captured.out
+    assert "NOTE:" not in captured.out
 
 
 def test_main_outside_workspace_no_handoff_note(
