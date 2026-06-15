@@ -439,8 +439,6 @@ az_credentials = AzureCredentials.from_credential(AzureCliCredential())
 az_credentials.azure_storage_account_name = "myaccount"
 ```
 
-**Enforcing dev credentials.** `fsspec` and DuckDB resolve the Azure default credential chain themselves (including `az login`), so they pick up your local identity automatically. `object_store` (delta/lance) resolves the env service principal, workload identity, and managed identity, but not local-only credentials such as the Azure CLI or VS Code token cache — pass your local credential as an external session (for example `AzureCliCredential()` or `DefaultAzureCredential()`) and `dlt` freezes a bearer token from it so they read with your exact identity. `pyarrow`/`pyiceberg` reads ADLS through adlfs but never sets adlfs's `anon` flag, so adlfs defaults to anonymous — set **`AZURE_STORAGE_ANON=false`** in the environment to let adlfs resolve and refresh the default credential chain (env service principal / workload identity / managed identity / `az login`). External (pinned) sessions are not supported for iceberg on Azure: use default credentials with `AZURE_STORAGE_ANON=false`, or a static account key / SAS / service principal.
-
 ## Working with alternatives of credentials (Union types)
 
 If your source/resource allows for many authentication methods, you can support those seamlessly for your user. The user just passes the right credentials, and `dlt` will inject the right type into your decorated function.

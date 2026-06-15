@@ -1272,10 +1272,10 @@ def test_filesystem_default_credentials_duckdb(
         with read_p.sql_client() as c:
             providers = {
                 p
-                for _, t, p in c._conn.sql(
+                for name, t, p in c._conn.sql(
                     "SELECT name, type, provider FROM duckdb_secrets()"
                 ).fetchall()
-                if t in ("s3", "azure")
+                if t in ("s3", "azure") and name.startswith(c.dataset_name)
             }
             # the secret was created via the credential_chain handover, not frozen config
             assert providers == {"credential_chain"}
