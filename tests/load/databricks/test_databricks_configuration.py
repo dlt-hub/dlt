@@ -86,6 +86,9 @@ def test_databricks_configuration() -> None:
         pytest.param("catalog.database.volume.extra", id="four-parts"),
         pytest.param("catalog..volume", id="empty-middle-part"),
         pytest.param(".database.volume", id="empty-catalog"),
+        pytest.param("catalog.database.", id="empty-volume"),
+        pytest.param("catalog. database.volume", id="leading-whitespace"),
+        pytest.param("catalog.database.volume ", id="trailing-whitespace"),
     ],
 )
 def test_databricks_invalid_staging_volume_name(staging_volume_name: str) -> None:
