@@ -1166,10 +1166,10 @@ def test_init_client_truncate_tables() -> None:
             "_dlt_loads",
             "_dlt_version",
         }
-        assert initialize_storage.call_count == 2
-        # initialize storage is called twice, we deselected all tables to truncate
+        # nothing to truncate: only the bare init call is made (no truncate init call)
+        assert initialize_storage.call_count == 1
         assert initialize_storage.call_args_list[0].args == ()
-        assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
+        assert initialize_storage.call_args_list[0].kwargs == {}
         # tables not dropped
         drop_tables.assert_not_called()
 
@@ -1194,7 +1194,7 @@ def test_init_client_truncate_tables() -> None:
         assert update_stored_schema.call_count == 2
         assert "event_user" in update_stored_schema.call_args_list[0][1]["only_tables"]
         assert "_dlt_version" in update_stored_schema.call_args_list[1][1]["only_tables"]
-        assert initialize_storage.call_count == 4
+        assert initialize_storage.call_count == 3
         assert initialize_storage.call_args_list[0].args == ()
         assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == {"event_user"}
         # dropped on staging dataset and final
@@ -1216,12 +1216,11 @@ def test_init_client_truncate_tables() -> None:
         assert {"event_user", "event_bot"} <= set(
             update_stored_schema.call_args_list[1].kwargs["only_tables"]
         )
-        assert initialize_storage.call_count == 4
+        assert initialize_storage.call_count == 3
         assert initialize_storage.call_args_list[0].args == ()
-        assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
-        assert initialize_storage.call_args_list[2].args == ()
+        assert initialize_storage.call_args_list[1].args == ()
         # all tables that will be used on staging must be truncated
-        assert initialize_storage.call_args_list[3].kwargs["truncate_tables"] == {
+        assert initialize_storage.call_args_list[2].kwargs["truncate_tables"] == {
             "event_user",
             "event_bot",
         }
@@ -1259,9 +1258,9 @@ def test_init_client_truncate_tables() -> None:
                     "event_user" not in update_stored_schema.call_args_list[1].kwargs["only_tables"]
                 )
 
-                assert initialize_storage.call_count == 4
-                assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
-                assert initialize_storage.call_args_list[3].kwargs[
+                assert initialize_storage.call_count == 3
+                assert initialize_storage.call_args_list[0].kwargs == {}
+                assert initialize_storage.call_args_list[2].kwargs[
                     "truncate_tables"
                 ] == update_stored_schema.call_args_list[1].kwargs["only_tables"] - {"_dlt_version"}
 
@@ -1276,6 +1275,41 @@ def test_init_client_truncate_tables() -> None:
                 assert len(update_stored_schema.call_args_list[0].kwargs["only_tables"]) == 4
                 # print(initialize_storage.call_args_list)
                 # print(update_stored_schema.call_args_list)
+
+
+def test_init_client_initial_truncate_tables_from_package_state() -> None:
+    """truncated_tables stored in the load package state (refresh drop_data) reach init_client and
+    force a schema migration even when the schema hash is unchanged and the table has no jobs."""
+    load = setup_loader()
+    load_id, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    # a refresh requested truncation of event_bot which has no data jobs in this package
+    packages = load.load_storage.normalized_packages
+    state = packages.get_load_package_state(load_id)
+    state["truncated_tables"] = [schema.get_table("event_bot")]
+    packages.save_load_package_state(load_id, state)
+
+    # synthetic jsonl job (the on-disk case file is insert_values which the dummy client rejects)
+    new_jobs = [ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")]
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage,
+        patch.object(
+            dummy_impl.DummyClient, "update_stored_schema", return_value={}
+        ) as update_stored_schema,
+    ):
+        load.initialize_package(load_id, schema, new_jobs)
+
+    # schema migration is forced because there are tables to truncate via refresh
+    assert update_stored_schema.call_args_list[0].kwargs["force"] is True
+    # event_user is append (not truncated); only the initial truncate table reaches the truncate
+    # init call, even though it has no jobs in this package
+    truncate_calls = [
+        c.kwargs["truncate_tables"]
+        for c in initialize_storage.call_args_list
+        if "truncate_tables" in c.kwargs
+    ]
+    assert truncate_calls == [{"event_bot"}]
 
 
 def test_init_client_staging_ddl_includes_jobless_tables() -> None:
@@ -1310,7 +1344,9 @@ def test_init_client_staging_ddl_includes_jobless_tables() -> None:
         staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
         assert staging_ddl == all_data | {"_dlt_version"}
         # staging truncation: only the table with a job
-        staging_truncate = initialize_storage.call_args_list[3].kwargs["truncate_tables"]
+        # main dataset has nothing to truncate so it makes only the bare init call (index 0),
+        # staging makes a bare init (index 1) + a truncate init (index 2)
+        staging_truncate = initialize_storage.call_args_list[2].kwargs["truncate_tables"]
         assert staging_truncate == {"event_user"}
 
 
@@ -1348,7 +1384,8 @@ def test_init_client_staging_selective_filter() -> None:
         assert staging_ddl == bot_chain | {"_dlt_version"}
         assert "event_user" not in staging_ddl
         # staging truncation: only event_bot (has job + passes filter, append skips children)
-        staging_truncate = initialize_storage.call_args_list[3].kwargs["truncate_tables"]
+        # main has no truncation (bare init at index 0); staging bare init (1) + truncate (2)
+        staging_truncate = initialize_storage.call_args_list[2].kwargs["truncate_tables"]
         assert staging_truncate == {"event_bot"}
 
 
@@ -1381,7 +1418,7 @@ def test_init_client_staging_dlt_tables_with_jobs() -> None:
         staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
         assert staging_ddl == all_data | {"_dlt_version", "_dlt_loads"}
         # staging truncation includes both tables with jobs
-        staging_truncate = initialize_storage.call_args_list[3].kwargs["truncate_tables"]
+        staging_truncate = initialize_storage.call_args_list[2].kwargs["truncate_tables"]
         assert staging_truncate == {"event_user", "_dlt_loads"}
 
 
@@ -1420,7 +1457,7 @@ def test_init_client_unseen_data_tables_excluded() -> None:
         assert staging_ddl == (all_data - bot_chain) | {"_dlt_version"}
         assert not (bot_chain & staging_ddl)
         # staging truncation: only event_user
-        staging_truncate = initialize_storage.call_args_list[3].kwargs["truncate_tables"]
+        staging_truncate = initialize_storage.call_args_list[2].kwargs["truncate_tables"]
         assert staging_truncate == {"event_user"}
 
 
@@ -1457,7 +1494,8 @@ def test_init_client_staging_destination_vs_final_destination() -> None:
         staging_ddl_1 = update_schema_1.call_args_list[1].kwargs["only_tables"]
         assert staging_ddl_1 == bot_chain | {"_dlt_version"}
         assert not (user_chain & staging_ddl_1)
-        staging_trunc_1 = init_storage_1.call_args_list[3].kwargs["truncate_tables"]
+        # main has no truncation (bare init at index 0); staging bare init (1) + truncate (2)
+        staging_trunc_1 = init_storage_1.call_args_list[2].kwargs["truncate_tables"]
         assert staging_trunc_1 == bot_chain  # merge expands full chain
 
     # call 2: staging destination with staging_dest_filter
@@ -1473,7 +1511,7 @@ def test_init_client_staging_destination_vs_final_destination() -> None:
         staging_ddl_2 = update_schema_2.call_args_list[1].kwargs["only_tables"]
         assert staging_ddl_2 == user_chain | {"_dlt_version"}
         assert not (bot_chain & staging_ddl_2)
-        staging_trunc_2 = init_storage_2.call_args_list[3].kwargs["truncate_tables"]
+        staging_trunc_2 = init_storage_2.call_args_list[2].kwargs["truncate_tables"]
         assert staging_trunc_2 == user_chain  # merge expands full chain
 
 
@@ -1514,9 +1552,9 @@ def test_init_client_staging_drop_tables_without_staging_eligible() -> None:
         # staging DDL: only _dlt_version (no staging-eligible data tables)
         staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
         assert staging_ddl == {"_dlt_version"}
-        # staging truncation: empty (no tables with jobs)
-        staging_truncate = initialize_storage.call_args_list[3].kwargs["truncate_tables"]
-        assert staging_truncate == set()
+        assert initialize_storage.call_count == 2
+        assert initialize_storage.call_args_list[0].kwargs == {}
+        assert initialize_storage.call_args_list[1].kwargs == {}
         # drop_tables called on both main and staging datasets
         assert drop_tables.call_count == 2
         assert drop_tables.call_args_list[0].args == ("event_bot",)

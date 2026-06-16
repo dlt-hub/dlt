@@ -64,6 +64,10 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
     JOIN table_unknown
     ON table_1.col_bool = table_unknown.col_unknown_2
     """
+# `table_1` qualified with the catalog/db prefix that the sqlglot schema is keyed under
+QUERY_DB_QUALIFIED_TABLE_STAR_SELECT = "SELECT * FROM db.table_1"
+# the same table qualified with a prefix that is NOT in the sqlglot schema
+QUERY_UNKNOWN_DB_QUALIFIED_TABLE_STAR_SELECT = "SELECT * FROM unknown_db.table_1"
 
 
 @pytest.mark.parametrize(
@@ -161,6 +165,28 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
                 "col_bool": {"name": "col_bool", "data_type": "bool"},
                 "col_unknown_1": {"name": "col_unknown_1"},
             },
+        ),
+        # table qualified with the known catalog/db prefix resolves exactly like the unqualified name
+        (
+            QUERY_DB_QUALIFIED_TABLE_STAR_SELECT,
+            {"allow_partial": False},
+            {
+                "col_varchar": {"name": "col_varchar", "data_type": "text"},
+                "col_bool": {"name": "col_bool", "data_type": "bool"},
+            },
+        ),
+        # same query qualified with an UNKNOWN prefix: the table no longer matches `db.table_1`, so
+        # the `*` cannot be resolved. with `allow_partial` we silently get an empty column schema
+        (
+            QUERY_UNKNOWN_DB_QUALIFIED_TABLE_STAR_SELECT,
+            {"allow_partial": True},
+            {},
+        ),
+        # ... and without it the unresolved `*` raises
+        (
+            QUERY_UNKNOWN_DB_QUALIFIED_TABLE_STAR_SELECT,
+            {"allow_partial": False},
+            LineageFailedException(),
         ),
     ],
 )

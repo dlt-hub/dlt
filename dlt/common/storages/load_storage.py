@@ -130,18 +130,7 @@ class LoadStorage(VersionedStorage):
         return self.loaded_packages.list_failed_jobs_infos(load_id)
 
     def begin_schema_update(self, load_id: str) -> Optional[TSchemaTables]:
-        """Reads the update file from load package `load_id` and returns its content.
-        Returns none if update file is already processed (deleted in commit_schema_update)
-        """
-        package_path = self.get_normalized_package_path(load_id)
-        if not self.storage.has_folder(package_path):
-            raise FileNotFoundError(package_path)
-        schema_update_file = join(package_path, PackageStorage.SCHEMA_UPDATES_FILE_NAME)
-        if self.storage.has_file(schema_update_file):
-            schema_update: TSchemaTables = json.loads(self.storage.load(schema_update_file))
-            return schema_update
-        else:
-            return None
+        return self.normalized_packages.get_schema_update_file(load_id)
 
     def commit_schema_update(self, load_id: str, applied_update: TSchemaTables) -> None:
         """Marks schema update as processed by removing schema update file and saving the applied

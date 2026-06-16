@@ -18,6 +18,8 @@ from dlt._workspace.deployment.launchers import (
     LAUNCHER_MODULE,
     LAUNCHER_STREAMLIT,
 )
+from dlt._workspace.cli.dlthub._init_command import init_dlthub_workspace
+from dlt._workspace.cli.dlthub.utils import fetch_init_plan
 from dlt._workspace.deployment.manifest import default_dashboard_job
 from dlt._workspace.deployment.requirements import (
     MAIN_GROUP,
@@ -33,6 +35,7 @@ from dlt._workspace.deployment.requirements import (
     migrate_requirements,
     python_version,
     save_requirements,
+    _collect_package_names,
 )
 from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF
 
@@ -328,22 +331,8 @@ def test_export_skips_dlt_injection_when_present_in_default_group() -> None:
 
 def test_dashboard_group_always_present() -> None:
     dashboard_specs = build_dashboard_group()
-    expected = sorted(
-        set(
-            _BASE_LAUNCHER_SPECS
-            + [
-                "botocore",
-                "ibis-framework",
-                "marimo",
-                "numpy",
-                "pandas",
-                "pyarrow",
-                "s3fs",
-                "uvicorn",
-            ]
-        )
-    )
-    assert dashboard_specs == expected
+    # dashboard runner gate (marimo, pyarrow, ibis-framework) + s3fs for artifacts
+    assert dashboard_specs == sorted(["ibis-framework", "marimo", "pyarrow", "s3fs"])
 
     # present in every export path
     with isolated_workspace("deps_none") as ctx:
@@ -434,6 +423,169 @@ def test_contains_package_name_normalization(spec: str, needle: str, expected: b
     from dlt._workspace.deployment.requirements import _contains_package
 
     assert _contains_package([spec], needle) is expected
+
+
+@pytest.mark.parametrize(
+    "spec, names, kept",
+    [
+        ("s3fs", {"s3fs"}, False),
+        ("s3fs==2024.1", {"s3fs"}, False),
+        ("ibis-framework[duckdb]", {"ibis-framework"}, False),
+        ("ibis_framework>=12", {"ibis-framework"}, False),
+        ('s3fs ; python_version > "3.8"', {"s3fs"}, False),
+        ("Pandas", {"pandas"}, False),
+        ("marimo", {"s3fs"}, True),
+        ("croniter", set(), True),
+        ("", {"s3fs"}, True),
+        ("# comment", {"s3fs"}, True),
+    ],
+    ids=[
+        "bare-name",
+        "pinned",
+        "extras",
+        "underscore-separator",
+        "marker",
+        "case-insensitive",
+        "no-match",
+        "empty-set",
+        "empty-line",
+        "comment-line",
+    ],
+)
+def test_prune_specs_normalization(spec: str, names: Set[str], kept: bool) -> None:
+    from dlt._workspace.deployment.requirements import _prune_specs
+
+    assert _prune_specs([spec], names) == ([spec] if kept else [])
+
+
+def test_export_prunes_launcher_specs_against_default_group() -> None:
+    # deps_requirements_in declares dlt + s3fs in main
+    with isolated_workspace("deps_requirements_in") as ctx:
+        with patch(_SHUTIL_WHICH, return_value=None):
+            result = export_workspace_requirements(Path(ctx.run_dir))
+    lreq = result["launcher_requirements"]
+    for launcher in (LAUNCHER_JOB, LAUNCHER_MODULE):
+        assert "s3fs" not in lreq[launcher]
+        # botocore is implied by s3fs and pruned with it
+        assert "botocore" not in lreq[launcher]
+    # dlt in main — no dlt spec injected anywhere
+    for specs in lreq.values():
+        assert not any(Requirement(s).name == "dlt" for s in specs)
+        assert specs == sorted(specs)
+    # dashboard group pruned against main too
+    dashboard = result["groups"][DASHBOARD_JOB_REF]
+    assert "s3fs" not in dashboard
+    assert "marimo" in dashboard
+    assert "pyarrow" in dashboard
+
+
+def test_export_prunes_dashboard_group_with_normalized_names() -> None:
+    with isolated_workspace("deps_none") as ctx:
+        Path(ctx.run_dir, "requirements.txt").write_text(
+            "ibis_framework>=12\nPandas\nnumpy>=1.24\n"
+        )
+        with patch(_SHUTIL_WHICH, return_value=None):
+            result = export_workspace_requirements(Path(ctx.run_dir))
+    dashboard = result["groups"][DASHBOARD_JOB_REF]
+    assert "ibis-framework" not in dashboard
+    # rest of the synthesized group survives
+    for kept in ("marimo", "pyarrow", "s3fs"):
+        assert kept in dashboard
+    # launcher lists share none of these names — untouched except dlt injection
+    dlt_spec = get_dlt_requirement_spec()
+    assert result["launcher_requirements"][LAUNCHER_JOB] == sorted(
+        set(["botocore", "s3fs", dlt_spec] + _BASE_LAUNCHER_SPECS)
+    )
+
+
+@pytest.mark.parametrize(
+    "default_groups, pyarrow_pruned",
+    [(None, False), (["main", "extras"], True)],
+    ids=["main-only", "main-and-extras"],
+)
+def test_export_prunes_only_against_default_groups(
+    default_groups: List[str], pyarrow_pruned: bool
+) -> None:
+    with isolated_workspace("deps_none") as ctx:
+        Path(ctx.run_dir, "pyproject.toml").write_text(
+            "[project]\n"
+            'name = "deps-groups"\n'
+            'version = "0.0.1"\n'
+            'dependencies = ["requests>=2.0"]\n'
+            "\n"
+            "[dependency-groups]\n"
+            'extras = ["pyarrow>=16.0.0"]\n'
+        )
+        result = export_workspace_requirements(Path(ctx.run_dir), default_groups=default_groups)
+    dashboard = result["groups"][DASHBOARD_JOB_REF]
+    assert ("pyarrow" not in dashboard) is pyarrow_pruned
+    # user groups are never modified by pruning
+    assert result["groups"]["extras"] == ["pyarrow>=16.0.0"]
+
+
+@pytest.mark.parametrize(
+    "spec, expected",
+    [
+        ("dlt>=1.0", {"dlt"}),
+        ("dlt[hub]==1.2", {"dlt", "dlt[hub]"}),
+        ("dlt[Hub , providers]>=1.0", {"dlt", "dlt[hub]", "dlt[providers]"}),
+        ("dlt[hub] @ https://example.com/dlt.zip", {"dlt", "dlt[hub]"}),
+    ],
+    ids=["no-extras", "single-extra", "multiple-extras-normalized", "extras-with-direct-ref"],
+)
+def test_collect_package_names_extras_tokens(spec: str, expected: Set[str]) -> None:
+    assert _collect_package_names([spec]) == expected
+
+
+@pytest.mark.parametrize(
+    "spec, pruned, kept, dlt_injected",
+    [
+        ("dlt[hub]>=1.0", {"dlthub", "croniter"}, set(), False),
+        ("dlthub>=0.1", {"dlthub", "croniter"}, set(), True),
+        ("dlthub-client", {"croniter"}, {"dlthub"}, True),
+        ("dlt>=1.0", set(), {"dlthub", "croniter"}, False),
+    ],
+    ids=["dlt-hub-extra", "dlthub", "dlthub-client", "plain-dlt"],
+)
+def test_export_prunes_implied_packages(
+    spec: str, pruned: Set[str], kept: Set[str], dlt_injected: bool
+) -> None:
+    """`dlt[hub]` pulls dlthub + croniter; dlthub / dlthub-client pull croniter."""
+    with isolated_workspace("deps_none") as ctx:
+        Path(ctx.run_dir, "requirements.txt").write_text(f"{spec}\n")
+        with patch(_SHUTIL_WHICH, return_value=None):
+            result = export_workspace_requirements(Path(ctx.run_dir))
+    job_specs = result["launcher_requirements"][LAUNCHER_JOB]
+    for name in pruned:
+        assert name not in job_specs
+    for name in kept:
+        assert name in job_specs
+    has_dlt = any(Requirement(s).name == "dlt" for s in job_specs)
+    assert has_dlt is dlt_injected
+
+
+def test_export_scaffolded_workspace_prunes_all_launcher_specs() -> None:
+    """A `dlthub init` workspace declares every launcher dep except streamlit."""
+    with isolated_workspace("deps_none") as ctx:
+        plan = fetch_init_plan(ctx.run_dir, dependencies="pyproject")
+        init_dlthub_workspace(plan)
+        result = export_workspace_requirements(Path(ctx.run_dir))
+    for launcher, specs in result["launcher_requirements"].items():
+        if launcher == LAUNCHER_STREAMLIT:
+            assert specs == ["streamlit"]
+        else:
+            assert specs == [], f"{launcher!r} not fully pruned: {specs}"
+    assert result["groups"][DASHBOARD_JOB_REF] == []
+
+
+def test_export_prunes_marker_guarded_specs() -> None:
+    """Marker-guarded user specs count toward the prune set — name-level only."""
+    with isolated_workspace("deps_none") as ctx:
+        Path(ctx.run_dir, "requirements.txt").write_text('s3fs ; python_version >= "3.8"\n')
+        with patch(_SHUTIL_WHICH, return_value=None):
+            result = export_workspace_requirements(Path(ctx.run_dir))
+    assert "s3fs" not in result["launcher_requirements"][LAUNCHER_JOB]
+    assert "s3fs" not in result["groups"][DASHBOARD_JOB_REF]
 
 
 def test_python_version_shape() -> None:

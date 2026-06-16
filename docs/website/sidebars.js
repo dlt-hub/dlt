@@ -544,10 +544,25 @@ const sidebars = {
         id: "examples/index",
       },
       items: [
-        "walkthroughs/dispatch-to-multiple-tables",
-        "walkthroughs/share-a-dataset",
-        "walkthroughs/create-new-destination",
-        "walkthroughs/zendesk-weaviate",
+        {
+          type: "category",
+          label: "dlt",
+          collapsible: true,
+          collapsed: true,
+          items: [
+            "walkthroughs/dispatch-to-multiple-tables",
+            "walkthroughs/share-a-dataset",
+            "walkthroughs/create-new-destination",
+            "walkthroughs/zendesk-weaviate",
+          ],
+        },
+        {
+          type: "category",
+          label: "dltHub",
+          collapsible: true,
+          collapsed: true,
+          items: ["hub/cookbook/build-streamlit-dashboard"],
+        },
       ],
     },
   ],
@@ -564,14 +579,19 @@ const sidebars = {
   ],
 };
 
-// insert examples
+// insert examples under the `dlt` subcategory of the Cookbook
+// `examples/index` is the link target of the parent Cookbook category, so skip it here —
+// otherwise navigating to the Cookbook landing page auto-expands `dlt` to highlight it.
 for (const item of sidebars.cookbookSidebar) {
+  const dltSubcategory = item.items.find((entry) => typeof entry === "object" && entry.label === "dlt");
+  if (!dltSubcategory) continue;
   for (let examplePath of walkSync("./docs_processed/examples")) {
     examplePath = examplePath.replace(/\\/g, "/");
     examplePath = examplePath.replace("docs_processed/", "");
     examplePath = examplePath.replace(".mdx", "");
     examplePath = examplePath.replace(".md", "");
-    item.items.push(examplePath);
+    if (examplePath === "examples/index") continue;
+    dltSubcategory.items.push(examplePath);
   }
 }
 

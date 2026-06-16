@@ -10,10 +10,14 @@ import pytest
 
 from dlt.common import json
 from dlt.common import pendulum
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.providers import EnvironProvider
+from dlt.common.configuration.specs import AzureServicePrincipalCredentials
+from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TFileFormat, TPartialTableSchema
 from dlt.common.storages.load_package import ParsedLoadJobFileName
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
@@ -24,13 +28,15 @@ from tests.common.utils import load_json_case
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
 from tests.load.utils import (
+    AWS_BUCKET,
+    ABFS_BUCKET,
     FILE_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
 )
 
 from tests.pipeline.utils import load_table_counts
-from tests.utils import get_test_storage_root
+from tests.utils import get_test_storage_root, inject_providers
 
 
 skip_if_not_active("filesystem")
@@ -1203,3 +1209,105 @@ def test_multi_schema_dataset_shared_table_sees_all_schemas(
     ds = p.dataset()
     ids = sorted(row[0] for row in ds.shared.fetchall())
     assert ids == [1, 2]
+
+
+def _default_chain_env(pipeline: dlt.Pipeline) -> Dict[str, str]:
+    """Resolves the loaded pipeline's credentials into env vars that a default credential chain
+    re-resolves, so a read hands over to the consumer's own chain instead of frozen config.
+
+    Azure account keys cannot drive a token chain, so a service principal is emitted instead.
+    """
+    creds = pipeline.destination_client().config.credentials
+    if isinstance(creds, AwsCredentials):
+        sess = creds.to_session_credentials()
+        env = {
+            "AWS_ACCESS_KEY_ID": sess["aws_access_key_id"],
+            "AWS_SECRET_ACCESS_KEY": sess["aws_secret_access_key"],
+            "AWS_DEFAULT_REGION": creds.region_name or "us-east-1",
+        }
+        if sess["aws_session_token"]:
+            env["AWS_SESSION_TOKEN"] = sess["aws_session_token"]
+        return env
+    sp = resolve_configuration(
+        AzureServicePrincipalCredentials(), sections=("destination", "fsazureprincipal")
+    )
+    # account name is a dlt config key (not an azure-identity env var) and is not derived from the
+    # bucket url during resolution; the AZURE_* vars below let DefaultAzureCredential resolve the SP
+    return {
+        "CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME": sp.azure_storage_account_name,
+        "AZURE_TENANT_ID": sp.azure_tenant_id,
+        "AZURE_CLIENT_ID": sp.azure_client_id,
+        "AZURE_CLIENT_SECRET": str(sp.azure_client_secret),
+        "AZURE_STORAGE_ANON": "false",  # make pyiceberg refresh/create token
+    }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        all_buckets_filesystem_configs=True, bucket_subset=(AWS_BUCKET, ABFS_BUCKET)
+    ),
+    ids=lambda x: x.name,
+)
+def test_filesystem_default_credentials_duckdb(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """End-to-end: load, then read via DuckDB using default credentials resolved from the
+    environment (all config providers removed) so the credential_chain handover is exercised."""
+    pipeline = destination_config.setup_pipeline("fs_default_creds_duckdb", dev_mode=True)
+    pipeline.run([{"id": i} for i in range(5)], table_name="items")
+    bucket_url = destination_config.bucket_url
+    dataset_name = pipeline.dataset_name
+    env = _default_chain_env(pipeline)
+
+    # read with only environment-resolved (default-chain) credentials
+    with custom_environ(env), inject_providers([EnvironProvider()]):
+        read_p = dlt.pipeline(
+            "fs_default_creds_read",
+            destination=filesystem(bucket_url=bucket_url),
+            dataset_name=dataset_name,
+        )
+        with read_p.dataset() as ds:
+            assert sorted(row[0] for row in ds.items.fetchall()) == list(range(5))
+        with read_p.sql_client() as c:
+            providers = {
+                p
+                for name, t, p in c._conn.sql(
+                    "SELECT name, type, provider FROM duckdb_secrets()"
+                ).fetchall()
+                if t in ("s3", "azure") and name.startswith(c.dataset_name)
+            }
+            # the secret was created via the credential_chain handover, not frozen config
+            assert providers == {"credential_chain"}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True, bucket_subset=(AWS_BUCKET, ABFS_BUCKET)
+    ),
+    ids=lambda x: x.name,
+)
+def test_filesystem_default_credentials_table_format(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """End-to-end: load a delta/iceberg table, then read it back via the table-format library with
+    default credentials resolved from the environment (config providers removed), exercising the
+    object_store / pyarrow credential handover."""
+
+    pipeline = destination_config.setup_pipeline("fs_default_creds_tf", dev_mode=True)
+    pipeline.run([{"id": i} for i in range(5)], table_name="items", **destination_config.run_kwargs)
+    env = _default_chain_env(pipeline)
+
+    # read back via the table-format library; credentials re-resolve from the environment so the
+    # object_store crate / pyarrow resolve and refresh them itself
+    with custom_environ(env), inject_providers([EnvironProvider()]):
+        if destination_config.table_format == "delta":
+            from dlt.common.libs.deltalake import get_delta_tables
+
+            table = get_delta_tables(pipeline, "items")["items"].to_pyarrow_table()
+        else:
+            from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+            table = get_iceberg_tables(pipeline, "items")["items"].scan().to_arrow()
+        assert sorted(row["id"] for row in table.to_pylist()) == list(range(5))

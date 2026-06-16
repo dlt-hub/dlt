@@ -12,9 +12,9 @@ class TSectionStrings(NamedTuple):
     subtitle_long: str
 
 
-_help_url = "https://dlthub.com/docs/general-usage/dataset-access/dashboard"
+_help_url = "https://dlthub.com/docs/hub/ingestion/dashboard"
 _credentials_help_url = _help_url + "#credentials"
-_sync_help_url = "https://dlthub.com/docs/reference/command-line-interface#dlt-pipeline-sync"
+_sync_help_url = "https://dlthub.com/docs/hub/command-line-interface#dlthub-local-pipeline-sync"
 
 
 _credentials_info = (
@@ -49,7 +49,7 @@ You requested to view a pipeline named `{{}}` but it does not exist in the pipel
 1. Select a different pipeline in the dropdown above.
 2. Run a pipeline with this name on this machine, then click the refresh button.
 3. Ensure you have set the correct pipelines directory (using the `pipelines_dir` CLI argument).
-4. Restore a pipeline with this name from a destination using [`dlt pipeline sync`]({_sync_help_url}).
+4. Restore a pipeline with this name from a destination using [`dlthub local pipeline sync <pipeline_name>`]({_sync_help_url}).
 
 This page will automatically refresh with your pipeline data once you have run a pipeline with this name on this machine.
 
@@ -61,7 +61,7 @@ No pipeline trace was found locally for `{{}}`. This means the pipeline has not 
 this machine, or its trace data has been removed.
 
 You can run the pipeline to generate a trace, or restore it from a destination using \
-[`dlt pipeline sync`]({_sync_help_url}).
+[`dlthub local pipeline sync <pipeline_name>`]({_sync_help_url}).
 """
 
 
@@ -94,13 +94,14 @@ If the dashboard cannot connect to the destination, you will receive a warning a
 
 ## CLI commands
 
-* `dlt pipeline <pipeline_name> show` - Start the workspace dashboard for the selected pipeline
-* `dlt pipeline <pipeline_name> show --edit` - Start a local copy of the workspace dashboard for the selected pipeline in edit mode
+* `dlthub local show` - Start the workspace dashboard
+* `dlthub local pipeline show <pipeline_name>` - Start the workspace dashboard for the selected pipeline
+* `dlthub local pipeline show <pipeline_name> --edit` - Start a local copy of the workspace dashboard for the selected pipeline in edit mode
 
 ## Learn more
 
-* [dlt dashboard docs]({_help_url}) - Dashboard docs
-* [dlt pipeline sync]({_sync_help_url}) command - Learn how to restore a pipeline locally to be able to see it in the dashboard
+* [dltHub dashboard docs]({_help_url}) - Dashboard docs
+* [`dlthub local pipeline sync`]({_sync_help_url}) command - Learn how to restore a pipeline locally to be able to see it in the dashboard
 * [Marimo docs](https://docs.marimo.io/) - Learn more about Marimo, the framework that powers the dltHub workspace dashboard
 
 <small>

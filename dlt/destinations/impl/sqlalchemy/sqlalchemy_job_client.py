@@ -195,13 +195,16 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             }
 
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
         # super().update_stored_schema(only_tables, expected_update)
-        JobClientBase.update_stored_schema(self, only_tables, expected_update)
+        JobClientBase.update_stored_schema(self, only_tables, expected_update, force)
 
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
-        if schema_info is not None:
+        if schema_info is not None and not force:
             logger.info(
                 "Schema with hash %s inserted at %s found in storage, no upgrade required",
                 self.schema.stored_version_hash,
@@ -210,7 +213,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             return {}
         else:
             logger.info(
-                "Schema with hash %s not found in storage, upgrading",
+                "Schema with hash %s not found in storage (or update enforced), upgrading",
                 self.schema.stored_version_hash,
             )
 
@@ -246,7 +249,9 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             for table_obj in tables_to_create:
                 self.sql_client.create_table(table_obj)
             self.sql_client.alter_table_add_columns(columns_to_add)
-            self._update_schema_in_storage(self.schema)
+            # do not write a duplicate version row when the hash is already stored (enforced update)
+            if schema_info is None:
+                self._update_schema_in_storage(self.schema)
 
         return schema_update
 

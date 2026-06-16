@@ -642,8 +642,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # get dropped and truncated tables that were added in the extract step if refresh was requested
         # NOTE: if naming convention was updated those names correspond to the old naming convention
         # and they must be like that in order to drop existing tables
-        dropped_tables = current_load_package()["state"].get("dropped_tables", [])
-        truncated_tables = current_load_package()["state"].get("truncated_tables", [])
+        package_state = self.load_storage.normalized_packages.get_load_package_state(load_id)
+        dropped_tables = package_state.get("dropped_tables", [])
+        truncated_tables = package_state.get("truncated_tables", [])
 
         # initialize analytical storage ie. create dataset required by passed schema
         with self.get_destination_client(schema) as job_client:

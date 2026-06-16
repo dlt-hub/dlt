@@ -24,7 +24,6 @@ from dlt.extract.incremental import Incremental
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
-from tests.load.lance_utils import module_lance_rest_server
 from tests.load.utils import (
     DestinationTestConfiguration,
     MEMORY_BUCKET,
@@ -171,7 +170,6 @@ def preserve_module_environ_per_destination_config(
 @pytest.fixture(scope="module")
 def populated_pipeline(
     destination_config: DestinationTestConfiguration,
-    module_lance_rest_server: None,
     auto_module_test_storage,
     preserve_module_environ_per_destination_config,
     auto_module_test_run_context,
@@ -1331,14 +1329,8 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
             table_name_prefix = dataset_name + "___"
             dataset_name = None
             additional_tables += ["dlt_sentinel_table"]
-
-        # filesystem uses duckdb and views to map know tables. for other ibis will list
-        # all available tables so both schemas tables are visible
-        if populated_pipeline.destination.destination_type not in [
-            "dlt.destinations.lancedb",
-        ]:
-            # from aleph schema
-            additional_tables += ["digits"]
+        # from aleph schema
+        additional_tables += ["digits"]
 
         add_table_prefix = lambda x: table_name_prefix + x
 
@@ -1681,7 +1673,6 @@ def _src_gamma():
 @pytest.fixture(scope="module")
 def overlap_pipeline(
     destination_config: DestinationTestConfiguration,
-    module_lance_rest_server: None,
     auto_module_test_storage,
     preserve_module_environ_per_destination_config,
     auto_module_test_run_context,
@@ -1788,6 +1779,7 @@ def test_multi_schema_ibis(overlap_pipeline: Pipeline) -> None:
     if overlap_pipeline.destination.destination_type not in (
         "dlt.destinations.duckdb",
         "dlt.destinations.filesystem",
+        "dlt.destinations.lance",
     ):
         pytest.skip("ibis multi-schema test only on duckdb and filesystem")
 

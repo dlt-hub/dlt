@@ -1,7 +1,7 @@
 import argparse
+import importlib.util
 import os
 import subprocess
-from importlib import import_module
 from typing import Any, Dict, List, Optional, Tuple
 
 from dlt.common import json
@@ -61,11 +61,14 @@ def get_run_args_base_path(entry_point: TRuntimeEntryPoint) -> str:
 
 
 def resolve_module_path(module_name: str) -> str:
-    """Resolve a Python module name to its file path."""
-    mod = import_module(module_name)
-    file_path: Optional[str] = getattr(mod, "__file__", None)
+    """Resolve a Python module name to its file path without importing it."""
+    spec = importlib.util.find_spec(module_name)
+    if spec is None:
+        raise ValueError(f"module {module_name!r} could not be resolved")
+
+    file_path: Optional[str] = spec.origin
     if file_path is None:
-        raise ValueError(f"module {module_name!r} has no __file__")
+        raise ValueError(f"module {module_name!r} has no origin")
     return file_path
 
 

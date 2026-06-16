@@ -49,7 +49,7 @@ adds the ducklake `Catalog` to your duckdb database
 from __future__ import annotations
 
 import os
-import pathlib
+import posixpath
 from packaging.version import Version
 from typing import Any, Iterable, List, Optional, Sequence
 
@@ -137,12 +137,10 @@ class DuckLakeCopyJob(DuckDbCopyJob):
             return m
         # TODO: read location from catalog. ducklake supports customized table layouts
         return m._replace(
-            remote_url=str(
-                pathlib.Path().joinpath(
-                    self._job_client.config.credentials.storage.bucket_url,
-                    self._job_client.sql_client.dataset_name,
-                    self.load_table_name,
-                )
+            remote_url=posixpath.join(
+                self._job_client.config.credentials.storage.bucket_url,
+                self._job_client.sql_client.dataset_name,
+                self.load_table_name,
             )
         )
 

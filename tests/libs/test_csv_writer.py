@@ -1,13 +1,20 @@
 import csv
+import gzip
+import os
 from copy import copy
 from typing import Any, Dict, Type
 from unittest.mock import Mock, patch
 import pytest
+import pyarrow as pa
 import pyarrow.parquet as pq
 
 from dlt.common import json
 from dlt.common.destination.configuration import CsvQuoting
-from dlt.common.data_writers.exceptions import InvalidDataItem
+from dlt.common.data_writers.exceptions import (
+    InvalidDataItem,
+    InvalidEncoding,
+    InvalidEncodingErrors,
+)
 from dlt.common.data_writers.writers import (
     ArrowToCsvWriter,
     CsvWriter,
@@ -24,7 +31,7 @@ from tests.cases import (
     arrow_table_all_data_types,
     table_update_and_row,
 )
-from tests.utils import TestDataItemFormat
+from tests.utils import TestDataItemFormat, get_test_storage_root
 
 
 def test_csv_arrow_writer_all_data_fields() -> None:
@@ -339,6 +346,150 @@ def test_csv_lineterminator(test_case: Dict[str, str]) -> None:
         with open(writer.closed_files[0].file_path, "rb") as f:
             content = f.read()
             assert content == expected
+
+
+@pytest.mark.parametrize("item_type", ["object", "arrow"])
+@pytest.mark.parametrize("encoding", ["latin-1", "cp1252", "utf-8-sig"])
+def test_csv_encoding(item_type: TestDataItemFormat, encoding: str) -> None:
+    schema: TTableSchemaColumns = {"name": {"name": "name", "data_type": "text"}}
+    # use characters that encode differently in utf-8 and latin-1/cp1252
+    values = ["æøå", "Ünïcödé"]
+
+    with custom_environ({"DATA_WRITER__ENCODING": encoding}):
+        if item_type == "object":
+            with get_writer(CsvWriter, disable_compression=True) as writer:
+                writer.write_data_item([{"name": value} for value in values], schema)
+        else:
+            with get_writer(ArrowToCsvWriter, disable_compression=True) as arrow_writer:
+                arrow_writer.write_data_item(pa.table({"name": values}), schema)
+            writer = arrow_writer  # type: ignore[assignment]
+
+    file_path = writer.closed_files[0].file_path
+    with open(file_path, "r", encoding=encoding, newline="") as f:
+        rows = list(csv.DictReader(f, dialect=csv.unix_dialect))
+    assert [r["name"] for r in rows] == values
+
+    with open(file_path, "rb") as f:
+        raw = f.read()
+    if encoding == "utf-8-sig":
+        # BOM must be written so Excel detects utf-8
+        assert raw.startswith(b"\xef\xbb\xbf")
+    else:
+        # single byte encodings produce sequences that are not valid utf-8
+        with pytest.raises(UnicodeDecodeError):
+            raw.decode("utf-8")
+
+
+@pytest.mark.parametrize("writer_type", [CsvWriter, ArrowToCsvWriter])
+def test_csv_encoding_with_compression(writer_type: Type[DataWriter]) -> None:
+    schema: TTableSchemaColumns = {"name": {"name": "name", "data_type": "text"}}
+    values = ["æøå", "Ünïcödé"]
+
+    with custom_environ({"DATA_WRITER__ENCODING": "latin-1"}):
+        if writer_type is CsvWriter:
+            with get_writer(CsvWriter) as writer:
+                writer.write_data_item([{"name": value} for value in values], schema)
+            file_path = writer.closed_files[0].file_path
+        else:
+            with get_writer(ArrowToCsvWriter) as arrow_writer:
+                arrow_writer.write_data_item(pa.table({"name": values}), schema)
+            file_path = arrow_writer.closed_files[0].file_path
+
+    assert file_path.endswith(".gz")
+    with gzip.open(file_path, "rt", encoding="latin-1", newline="") as f:
+        rows = list(csv.DictReader(f, dialect=csv.unix_dialect))
+    assert [r["name"] for r in rows] == values
+
+
+@pytest.mark.parametrize("writer_type", [CsvWriter, ArrowToCsvWriter])
+def test_csv_encoding_errors(writer_type: Type[DataWriter]) -> None:
+    schema: TTableSchemaColumns = {"name": {"name": "name", "data_type": "text"}}
+    # "żółw" is not representable in latin-1
+
+    # strict (default): non-encodable characters fail the writer
+    with custom_environ({"DATA_WRITER__ENCODING": "latin-1"}):
+        failed_writer = get_writer(writer_type, disable_compression=True)
+        with pytest.raises(InvalidDataItem) as inv_info:
+            with failed_writer:
+                if writer_type is CsvWriter:
+                    failed_writer.write_data_item([{"name": "żółw"}], schema)
+                else:
+                    failed_writer.write_data_item(pa.table({"name": ["żółw"]}), schema)
+    assert "latin-1" in str(inv_info.value)
+    # file handle must be released so the file can be deleted on Windows
+    assert failed_writer._file is None
+    assert failed_writer._writer is None
+
+    # replace: non-encodable characters are replaced with ?
+    with custom_environ(
+        {"DATA_WRITER__ENCODING": "latin-1", "DATA_WRITER__ENCODING_ERRORS": "replace"}
+    ):
+        if writer_type is CsvWriter:
+            with get_writer(CsvWriter, disable_compression=True) as writer:
+                writer.write_data_item([{"name": "żółw"}], schema)
+            file_path = writer.closed_files[0].file_path
+        else:
+            with get_writer(ArrowToCsvWriter, disable_compression=True) as arrow_writer:
+                arrow_writer.write_data_item(pa.table({"name": ["żółw"]}), schema)
+            file_path = arrow_writer.closed_files[0].file_path
+
+    with open(file_path, "r", encoding="latin-1", newline="") as f:
+        rows = list(csv.DictReader(f, dialect=csv.unix_dialect))
+    assert [r["name"] for r in rows] == ["?ó?w"]
+
+
+@pytest.mark.parametrize("writer_type", [CsvWriter, ArrowToCsvWriter])
+def test_csv_invalid_encoding(writer_type: Type[DataWriter]) -> None:
+    schema: TTableSchemaColumns = {"name": {"name": "name", "data_type": "text"}}
+
+    def _write_one_item(failed_writer: Any) -> None:
+        if writer_type is CsvWriter:
+            failed_writer.write_data_item([{"name": "a"}], schema)
+        else:
+            failed_writer.write_data_item(pa.table({"name": ["a"]}), schema)
+
+    with custom_environ({"DATA_WRITER__ENCODING": "no-such-encoding"}):
+        failed_writer = get_writer(writer_type, disable_compression=True)
+        with pytest.raises(InvalidEncoding) as exc_info:
+            with failed_writer:
+                _write_one_item(failed_writer)
+    assert "no-such-encoding" in str(exc_info.value)
+    # writer constructor failed: file handle must be released so the file can be deleted on Windows
+    assert failed_writer._file is None
+    assert failed_writer._writer is None
+
+    with custom_environ({"DATA_WRITER__ENCODING_ERRORS": "no-such-handler"}):
+        failed_writer = get_writer(writer_type, disable_compression=True)
+        with pytest.raises(InvalidEncodingErrors) as err_info:
+            with failed_writer:
+                _write_one_item(failed_writer)
+    assert "no-such-handler" in str(err_info.value)
+    assert failed_writer._file is None
+    assert failed_writer._writer is None
+
+
+@pytest.mark.parametrize("writer_type", [CsvWriter, ArrowToCsvWriter])
+def test_csv_writer_close_contract(writer_type: Type[DataWriter]) -> None:
+    """Writer close must not raise, be idempotent and keep the file open, also after a failed write."""
+    schema: TTableSchemaColumns = {"name": {"name": "name", "data_type": "text"}}
+    os.makedirs(get_test_storage_root(), exist_ok=True)
+    file_path = os.path.join(get_test_storage_root(), f"close_contract_{writer_type.__name__}.csv")
+    with open(file_path, "wb") as f:
+        writer = writer_type(f, encoding="latin-1")  # type: ignore[call-arg]
+        writer.write_header(schema)
+        # "żółw" is not representable in latin-1, the write fails mid file
+        with pytest.raises(InvalidDataItem):
+            if writer_type is CsvWriter:
+                writer.write_data([{"name": "żółw"}])
+            else:
+                writer.write_data([pa.table({"name": ["żółw"]})])
+        writer.close()
+        writer.close()
+        # the file is owned by the caller and must stay open
+        assert not f.closed
+        f.tell()
+    # the handle was released with the owner close, the file can be deleted on Windows
+    os.remove(file_path)
 
 
 @pytest.mark.parametrize(

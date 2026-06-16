@@ -551,6 +551,50 @@ def test_record_reinsert(destination_config: DestinationTestConfiguration) -> No
 
 @pytest.mark.parametrize(
     "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_scd2_contract_discard_all_rows_retires(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """A `discard_row` contract that drops every row writes an empty merge job; scd2 then retires
+    all open records - consistent with retiring records absent from a load (see `test_record_reinsert`).
+    """
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
+
+    @dlt.resource(
+        table_name="dim_test",
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+        columns={"nk": {"data_type": "bigint"}},
+        schema_contract={"columns": "discard_row"},
+    )
+    def r(with_new_column: bool):
+        # a new column makes `discard_row` drop the row; without it the row is loaded
+        rows = [{"nk": 1}, {"nk": 2}]
+        yield [{**row, "x": 1} for row in rows] if with_new_column else rows
+
+    # load 1: rows are loaded as two open records
+    info = p.run(r(False), **destination_config.run_kwargs)
+    assert_load_info(info)
+    ts_1 = get_load_package_created_at(p, info)
+
+    # load 2: every row is dropped by the contract -> empty merge job retires all open records
+    info = p.run(r(True), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert p.last_trace.last_normalize_info.row_counts["dim_test"] == 0
+    # the contract blocked the new column
+    assert "x" not in p.default_schema.get_table("dim_test")["columns"]
+    ts_2 = get_load_package_created_at(p, info)
+
+    # history is kept (2 rows) but nothing remains open - all retired at load 2
+    assert_records_as_set(
+        get_table(p, "dim_test", ts_columns=[FROM, TO]),
+        [{FROM: ts_1, TO: ts_2, "nk": 1}, {FROM: ts_1, TO: ts_2, "nk": 2}],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
     destinations_configs(default_sql_configs=True, subset=["duckdb"]),
     ids=lambda x: x.name,
 )

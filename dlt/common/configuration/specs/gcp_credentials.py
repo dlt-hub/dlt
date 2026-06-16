@@ -392,7 +392,9 @@ class GcpServiceAccountCredentials(
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
-            return _get_pyiceberg_fileio_config(self.default_credentials(), self.project_id)
+            # hand over to pyarrow's GcsFileSystem, which resolves and refreshes via Google ADC.
+            # freezing a token here (via _get_pyiceberg_fileio_config) would pin it and expire
+            return {"gcs.project-id": self.project_id}
         else:
             return GcpServiceAccountCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
 
@@ -408,6 +410,8 @@ class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefau
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
-            return _get_pyiceberg_fileio_config(self.default_credentials(), self.project_id)
+            # hand over to pyarrow's GcsFileSystem, which resolves and refreshes via Google ADC.
+            # freezing a token here (via _get_pyiceberg_fileio_config) would pin it and expire
+            return {"gcs.project-id": self.project_id}
         else:
             return GcpOAuthCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)

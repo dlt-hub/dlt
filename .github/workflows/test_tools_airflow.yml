@@ -44,6 +44,8 @@ jobs:
           uv sync --group airflow --group pipeline --extra duckdb --extra parquet
           if [ -n "${{ matrix.airflow-pin }}" ]; then
             uv pip install '${{ matrix.airflow-pin }}'
+            # overrife fastapi (airflow has special contstaints)
+            uv pip install 'fastapi<0.137'
           fi
 
       - name: Run unit tests

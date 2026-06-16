@@ -624,6 +624,7 @@ class JobClientBase(ABC):
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
         """Updates storage to the current schema.
 
@@ -633,6 +634,7 @@ class JobClientBase(ABC):
         Args:
             only_tables (Sequence[str], optional): Updates only listed tables. Defaults to None.
             expected_update (TSchemaTables, optional): Update that is expected to be applied to the destination
+            force (bool): force full schema migration regardless of previous updates
         Returns:
             Optional[TSchemaTables]: Returns an update that was applied at the destination.
         """
