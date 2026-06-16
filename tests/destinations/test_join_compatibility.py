@@ -329,23 +329,24 @@ PHYSICAL_DEST_CASES = [
         "",
         id="sf_no_host",
     ),
-    # BigQuery: project_id from config or credentials
+    # BigQuery: joinability is determined by location
     pytest.param(
         lambda: BigQueryClientConfiguration(
             credentials=GcpServiceAccountCredentials(project_id="cred-proj"),
             project_id="cfg-proj",
+            location="EU",
         ),
-        "cfg-proj",
-        id="bq_config_project",
+        "EU",
+        id="bq_config_location",
     ),
     pytest.param(
         lambda: BigQueryClientConfiguration(
             credentials=GcpServiceAccountCredentials(project_id="cred-proj")
         ),
-        "cred-proj",
-        id="bq_cred_project",
+        "US",
+        id="bq_default_location",
     ),
-    pytest.param(lambda: BigQueryClientConfiguration(), "", id="bq_no_project"),
+    pytest.param(lambda: BigQueryClientConfiguration(location=""), "", id="bq_no_location"),
     # MSSQL / Synapse
     pytest.param(
         lambda: MsSqlClientConfiguration(credentials=MsSqlCredentials("mssql://h")),
@@ -744,23 +745,27 @@ SNOWFLAKE_JOIN_CASES = [
 BIGQUERY_JOIN_CASES = [
     pytest.param(
         lambda: BigQueryClientConfiguration(
-            credentials=GcpServiceAccountCredentials(project_id="proj")
+            credentials=GcpServiceAccountCredentials(project_id="p1"),
+            location="EU",
         ),
         lambda: BigQueryClientConfiguration(
-            credentials=GcpServiceAccountCredentials(project_id="proj")
+            credentials=GcpServiceAccountCredentials(project_id="p2"),
+            location="EU",
         ),
         True,
-        id="bq_same_project",
+        id="bq_same_location",
     ),
     pytest.param(
         lambda: BigQueryClientConfiguration(
-            credentials=GcpServiceAccountCredentials(project_id="p1")
+            credentials=GcpServiceAccountCredentials(project_id="proj"),
+            location="US",
         ),
         lambda: BigQueryClientConfiguration(
-            credentials=GcpServiceAccountCredentials(project_id="p2")
+            credentials=GcpServiceAccountCredentials(project_id="proj"),
+            location="EU",
         ),
         False,
-        id="bq_diff_project",
+        id="bq_diff_location",
     ),
 ]
 
@@ -890,7 +895,7 @@ def test_cross_type_different_physical_locations() -> None:
     sf = SnowflakeClientConfiguration(
         credentials=SnowflakeCredentials("snowflake://u:p@a1.snowflake.com/db")
     )
-    bq = BigQueryClientConfiguration(credentials=GcpServiceAccountCredentials(project_id="p2"))
+    bq = BigQueryClientConfiguration(location="US")
     assert sf.physical_location() != bq.physical_location()
     assert_not_joinable(sf, bq)
 

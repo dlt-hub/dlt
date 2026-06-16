@@ -40,7 +40,8 @@ def test_bigquery_fingerprint_uses_credentials_project_id_not_config_project_id(
     config = BigQueryClientConfiguration(
         credentials=_credentials("credentials-project"),
         project_id="configured-project",
+        location="EU",
     )
 
-    assert config.physical_location() == "configured-project"
+    assert config.physical_location() == "EU"
     assert config.fingerprint() == digest128("credentials-project")

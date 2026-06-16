@@ -44,8 +44,5 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         return ""
 
     def physical_location(self) -> str:
-        """Returns configured project id, falling back to credentials."""
-        project_id = self.project_id
-        if not project_id and self.credentials:
-            project_id = self.credentials.project_id
-        return project_id or ""
+        """Returns configured BigQuery location."""
+        return self.location or ""
