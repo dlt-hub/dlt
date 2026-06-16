@@ -2288,8 +2288,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.27.0,<0.29" },
-    { name = "dlthub-client", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.27.7,<0.29" },
+    { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.27.0,<0.29" },
+    { name = "dlthub-client", marker = "extra == 'hub'", specifier = ">=0.27.7,<0.29" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3" },
@@ -2308,10 +2308,10 @@ requires-dist = [
     { name = "grpcio", marker = "extra == 'gcp'", specifier = ">=1.50.0" },
     { name = "huggingface-hub", marker = "extra == 'hf'", specifier = ">=1.4.1" },
     { name = "humanize", specifier = ">=4.4.0" },
-    { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'lance'", specifier = ">=12.0.0" },
-    { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'lancedb'", specifier = ">=12.0.0" },
+    { name = "ibis-framework", marker = "extra == 'lance'", specifier = ">=12.0.0" },
+    { name = "ibis-framework", marker = "extra == 'lancedb'", specifier = ">=12.0.0" },
     { name = "jsonpath-ng", specifier = ">=1.5.3,<1.8" },
-    { name = "lancedb", marker = "python_full_version >= '3.10' and extra == 'lance'", specifier = ">=0.33.0" },
+    { name = "lancedb", marker = "extra == 'lance'", specifier = ">=0.33.0" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.22.0" },
     { name = "oracledb", marker = "extra == 'oracle'", specifier = ">=3.4.1" },
     { name = "orjson", marker = "python_full_version >= '3.14'", specifier = ">=3.11.0" },
@@ -2347,7 +2347,7 @@ requires-dist = [
     { name = "pydbml", marker = "extra == 'dbml'" },
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
     { name = "pyiceberg-core", marker = "extra == 'pyiceberg'", specifier = ">=0.6.0" },
-    { name = "pylance", marker = "python_full_version >= '3.10' and extra == 'lance'", specifier = ">=6.0.1,<8" },
+    { name = "pylance", marker = "extra == 'lance'", specifier = ">=6.0.1,<8" },
     { name = "pyodbc", marker = "extra == 'fabric'", specifier = ">=4.0.39" },
     { name = "pyodbc", marker = "extra == 'mssql'", specifier = ">=4.0.39" },
     { name = "pyodbc", marker = "extra == 'synapse'", specifier = ">=4.0.39" },
@@ -2448,9 +2448,9 @@ dev = [
 ]
 ibis = [
     { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13'", specifier = ">=12.0.0" },
-    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'", specifier = ">=12.0.0" },
+    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version < '3.13'", specifier = ">=12.0.0" },
 ]
-ibis-bare = [{ name = "ibis-framework", marker = "python_full_version >= '3.10'", specifier = ">=12.0.0" }]
+ibis-bare = [{ name = "ibis-framework", specifier = ">=12.0.0" }]
 pipeline = [
     { name = "alive-progress", specifier = ">=3.1.1,<4" },
     { name = "cffi", specifier = ">=1.16" },
@@ -2470,19 +2470,18 @@ pipeline = [
 providers = [{ name = "google-api-python-client", specifier = ">=2.86.0,<3" }]
 sentry-sdk = [{ name = "sentry-sdk", specifier = ">=2.0.0,<3" }]
 sources = [
-    { name = "connectorx", marker = "python_full_version < '3.10'", specifier = "<0.4.2" },
-    { name = "connectorx", marker = "python_full_version >= '3.10'", specifier = ">=0.4.2" },
+    { name = "connectorx", specifier = ">=0.4.2" },
     { name = "mimesis", specifier = ">=7.0.0,<8" },
     { name = "openpyxl", specifier = ">=3,<4" },
     { name = "pymysql", specifier = ">=1.1.0,<2" },
     { name = "sqlalchemy", specifier = "<2" },
 ]
-streamlit = [{ name = "streamlit", marker = "python_full_version >= '3.10'", specifier = ">1.50" }]
+streamlit = [{ name = "streamlit", specifier = ">1.50" }]
 workspace-deps = [
     { name = "croniter", specifier = ">=6.0.0" },
     { name = "duckdb", specifier = ">=0.9" },
-    { name = "fastmcp", marker = "python_full_version >= '3.10'", specifier = ">=3.0.0" },
-    { name = "ibis-framework", marker = "python_full_version >= '3.10'", specifier = ">=12.0.0" },
+    { name = "fastmcp", specifier = ">=3.0.0" },
+    { name = "ibis-framework", specifier = ">=12.0.0" },
     { name = "marimo", specifier = ">=0.14.5" },
     { name = "mowidgets", marker = "python_full_version >= '3.11'", specifier = ">=0.2.1" },
     { name = "pathspec", specifier = ">=0.11.2" },

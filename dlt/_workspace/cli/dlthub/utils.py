@@ -59,10 +59,10 @@ from dlt._workspace.typing import TLocationInfo, TProviderInfo
 # (was the `workspace` extra in pyproject.toml; mirrored in `[dependency-groups] workspace-deps`)
 WORKSPACE_DEPS: List[str] = [
     "duckdb>=0.9",
-    "ibis-framework>=12.0.0 ; python_version >= '3.10'",
+    "ibis-framework>=12.0.0",
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
-    "fastmcp>=3.0.0 ; python_version >= '3.10'",
+    "fastmcp>=3.0.0",
     "mowidgets>=0.2.1 ; python_version >= '3.11'",
     "pathspec>=0.11.2",
     "pydbml>=1.2.0",
