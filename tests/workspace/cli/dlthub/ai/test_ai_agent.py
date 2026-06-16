@@ -249,7 +249,6 @@ def test_codex_install_actions_skill_caps_description() -> None:
     long_desc = "A" * 1200
     over_src = make_skill("router", long_desc)
 
-    # codex: copytree + an extra save action that rewrites SKILL.md with a capped description
     codex_actions = _CodexAgent().install_actions("skill", over_src, "router", "p", project)
     assert len(codex_actions) == 2
     assert codex_actions[0].op == "copytree"
@@ -257,17 +256,14 @@ def test_codex_install_actions_skill_caps_description() -> None:
     assert save_action.op == "save"
     assert save_action.dest_path == project / ".agents/skills/router/SKILL.md"
     assert save_action.skip_index is True
-    # the truncation notice rides on the action and is emitted by the view at write time
     assert save_action.note and "truncated" in save_action.note
     fm, _ = parse_frontmatter(save_action.content_or_path)  # type: ignore[arg-type]
     assert len(fm["description"]) <= _CodexAgent._MAX_SKILL_DESCRIPTION
     assert fm["description"].endswith("…")
 
-    # codex: a fitting description leaves a single verbatim copytree action
     fits_src = make_skill("small", "short description")
     assert len(_CodexAgent().install_actions("skill", fits_src, "small", "p", project)) == 1
 
-    # claude has no cap: even an over-long description is copied verbatim
     assert len(_ClaudeAgent().install_actions("skill", over_src, "router", "p", project)) == 1
 
 
