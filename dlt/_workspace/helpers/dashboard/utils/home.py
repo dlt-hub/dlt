@@ -10,8 +10,6 @@ from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunCont
 from dlt._workspace.cli.utils import open_local_folder
 from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard import utils
-from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
 from dlt._workspace.helpers.dashboard.utils import ui
 
 
@@ -73,33 +71,18 @@ def home_header_row(
     )
 
 
-def render_workspace_home(
+def render_no_pipelines_home(
     dlt_profile_select: mo.ui.dropdown,
-    dlt_all_pipelines: List[TPipelineListItem],
     dlt_pipeline_select: mo.ui.multiselect,
-    dlt_pipelines_dir: str,
-    dlt_config: DashboardConfiguration,
 ) -> List[mo.Html]:
-    """Render the workspace-level home view (no pipeline selected)."""
+    """Render a minimal landing shown when no pipelines are available to inspect."""
     return [
         utils.ui.section_marker(strings.app_section_name, has_content=True),
         home_header_row(dlt_profile_select, dlt_pipeline_select),
-        mo.md(strings.app_title).center(),
-        mo.md(strings.app_intro).center(),
         mo.callout(
-            mo.vstack(
-                [
-                    mo.md(
-                        strings.home_quick_start_title.format(
-                            utils.pipeline.pipeline_link_list(dlt_config, dlt_all_pipelines)
-                        )
-                    ),
-                    dlt_pipeline_select,
-                ]
-            ),
+            mo.md(strings.home_no_pipelines),
             kind="info",
         ),
-        mo.md(strings.home_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
     ]
 
 
