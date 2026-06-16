@@ -38,24 +38,23 @@ app_title_pipeline = """
 app_pipeline_not_found = f"""
 ## Pipeline not found
 
-You requested to view a pipeline named `{{}}` but it does not exist in the pipelines directory at `{{}}`. To fix this, you can do one of the following:
+No pipeline named `{{}}` was found in the pipelines directory at `{{}}`. To fix this, you can:
 
 1. Select a different pipeline in the dropdown above.
-2. Run a pipeline with this name on this machine, then click the refresh button.
-3. Ensure you have set the correct pipelines directory (using the `pipelines_dir` CLI argument).
-4. Restore a pipeline with this name from a destination using [`dlthub local pipeline sync <pipeline_name>`]({_sync_help_url}).
+2. Run a pipeline with this name, then refresh.
+3. Ensure the correct pipelines directory is configured.
+4. Restore a pipeline with this name from its destination (see the [sync docs]({_sync_help_url})).
 
-This page will automatically refresh with your pipeline data once you have run a pipeline with this name on this machine.
+The page updates with your pipeline data once a pipeline with this name has run.
 
 """
 
 
 app_pipeline_no_trace = f"""
-No pipeline trace was found locally for `{{}}`. This means the pipeline has not been run yet on \
-this machine, or its trace data has been removed.
+No trace was found for `{{}}`. The pipeline may not have run yet, or its trace data was removed.
 
-You can run the pipeline to generate a trace, or restore it from a destination using \
-[`dlthub local pipeline sync <pipeline_name>`]({_sync_help_url}).
+Run the pipeline to generate a trace, or restore it from its destination \
+(see the [sync docs]({_sync_help_url})).
 """
 
 
@@ -212,8 +211,7 @@ trace = TSectionStrings(
 
 trace_show_raw_trace_text = "Show"
 trace_no_trace_text = (
-    "No local trace available for this pipeline. This probably means that your pipeline"
-    " has never been run on this computer."
+    "No trace available for this pipeline. It may not have run yet, or its trace data was removed."
 )
 
 trace_overview_title = "Trace Overview"
