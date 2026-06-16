@@ -134,18 +134,18 @@ def test_trailing_separators(layout: str, with_gdrive_buckets_env: str) -> None:
     os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     load = setup_loader("_data")
     client: FilesystemClient = load.get_destination_client(Schema("empty"))  # type: ignore[assignment]
-    # assert separators
-    assert client.dataset_path.endswith("_data/")
-    assert client.get_table_dir("_dlt_versions").endswith("_dlt_versions/")
-    assert client.get_table_dir("_dlt_versions", remote=True).endswith("_dlt_versions/")
+    # assert paths no longer carry a trailing separator after the strip-trailing-slash fix
+    assert client.dataset_path.endswith("_data")
+    assert client.get_table_dir("_dlt_versions").endswith("_dlt_versions")
+    assert client.get_table_dir("_dlt_versions", remote=True).endswith("_dlt_versions")
     is_folder = layout.startswith("{table_name}/")
     if is_folder:
-        assert client.get_table_dir("letters").endswith("_data/letters/")
-        assert client.get_table_dir("letters", remote=True).endswith("_data/letters/")
+        assert client.get_table_dir("letters").endswith("_data/letters")
+        assert client.get_table_dir("letters", remote=True).endswith("_data/letters")
     else:
         # strip prefix
-        assert client.get_table_dir("letters").endswith("_data/")
-        assert client.get_table_dir("letters", remote=True).endswith("_data/")
+        assert client.get_table_dir("letters").endswith("_data")
+        assert client.get_table_dir("letters", remote=True).endswith("_data")
     if is_folder:
         assert client.get_table_prefix("letters").endswith("_data/letters/")
     else:
@@ -555,3 +555,35 @@ def test_hf_endpoint_env(default_buckets_env: str) -> None:
 
     with patch("huggingface_hub.metadata_update", side_effect=assert_hf_endpoint_set):
         client.update_dataset_card_metadata(load_id="test")
+
+
+def test_dataset_path_has_no_trailing_separator() -> None:
+    """`dataset_path` must not end with `/`.
+
+    OneLake (Microsoft Fabric) responds with `403 ClientAuthenticationError`
+    when `BlobClient.exists` targets a blob name ending in `/`, instead of
+    the `404 ResourceNotFoundError` that other Azure backends return. That
+    makes `FilesystemClient.initialize_storage` blow up on its first
+    `fs.isdir(self.dataset_path)` call before any data is written. Non-OneLake
+    backends observe the same latent defect as a silent `False`.
+    """
+    client = _client_factory(filesystem(bucket_url="file:///tmp/dlt-test-bucket"))
+    assert not client.dataset_path.endswith(
+        "/"
+    ), f"dataset_path must not end with '/', got {client.dataset_path!r}"
+
+
+def test_get_table_dir_has_no_trailing_separator() -> None:
+    """`get_table_dir` must not end with `/` or `\\`.
+
+    `FilesystemClient.truncate_tables` iterates `get_table_dirs(...)` and
+    calls `self.fs_client.exists(table_dir)` for each one. On OneLake that
+    produces a `403 ClientAuthenticationError` on every truncated table
+    once the `dataset_path` trailing-slash bug (see previous test) is
+    already fixed. Same root cause, one level deeper.
+    """
+    client = _client_factory(filesystem(bucket_url="file:///tmp/dlt-test-bucket"))
+    table_dir = client.get_table_dir("some_table")
+    assert not table_dir.endswith(
+        ("/", "\\")
+    ), f"get_table_dir must not end with a separator, got {table_dir!r}"

@@ -194,3 +194,90 @@ def test_fabric_credentials_authentication_method() -> None:
     # Verify ActiveDirectoryServicePrincipal is set
     dsn_dict = creds.get_odbc_dsn_dict()
     assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+
+
+def test_get_access_token_returns_raw_string_when_set() -> None:
+    """`get_access_token()` returns the raw `access_token` when it is set."""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.access_token = "abc123"
+
+    assert creds.get_access_token() == "abc123"
+
+
+def test_get_access_token_returns_none_when_no_token_configured() -> None:
+    """`get_access_token()` returns None when neither access_token nor azure_credential is set."""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+
+    assert creds.get_access_token() is None
+
+
+def test_get_access_token_calls_injected_credential_when_set() -> None:
+    """`get_access_token()` delegates to an injected TokenCredential when
+    `access_token` is not set."""
+    from unittest.mock import MagicMock
+    from azure.core.credentials import AccessToken
+
+    fake_credential = MagicMock()
+    fake_credential.get_token.return_value = AccessToken("injected-token", 1234567890)
+
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.azure_credential = fake_credential
+
+    assert creds.get_access_token() == "injected-token"
+    fake_credential.get_token.assert_called_once_with("https://database.windows.net/.default")
+
+
+def test_get_odbc_dsn_dict_omits_auth_fields_in_token_mode() -> None:
+    """When `access_token` is set, the DSN dict must not include
+    `AUTHENTICATION`/`UID`/`PWD`."""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.access_token = "abc123"
+
+    dsn_dict = creds.get_odbc_dsn_dict()
+
+    assert "AUTHENTICATION" not in dsn_dict
+    assert "UID" not in dsn_dict
+    assert "PWD" not in dsn_dict
+    assert dsn_dict["DRIVER"] == "{ODBC Driver 18 for SQL Server}"
+    assert dsn_dict["SERVER"] == "test.datawarehouse.fabric.microsoft.com,1433"
+    assert dsn_dict["DATABASE"] == "testdb"
+    assert dsn_dict["LongAsMax"] == "yes"
+
+
+def test_on_partial_skips_default_azure_credential_in_token_mode() -> None:
+    """When `access_token` is set, `on_partial` must not attempt to
+    import or instantiate `DefaultAzureCredential`."""
+    from unittest.mock import patch
+
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.access_token = "abc123"
+
+    with patch(
+        "dlt.destinations.impl.fabric.configuration.FabricCredentials._set_default_credentials",
+    ) as mock_set_default:
+        creds.on_partial()
+
+    mock_set_default.assert_not_called()
+
+
+def test_on_partial_resolves_when_access_token_and_host_set() -> None:
+    """When `access_token`, `host`, and `database` are set, `on_partial` must
+    call `self.resolve()` so the credentials are not left in a partial state."""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.access_token = "abc123"
+
+    creds.on_partial()
+
+    assert creds.is_resolved()
