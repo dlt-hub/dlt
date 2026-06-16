@@ -475,7 +475,15 @@ const sidebars = {
         "hub/getting-started/introduction",
         "hub/getting-started/oss-and-dlthub",
         "hub/getting-started/installation",
-        "hub/getting-started/platform-tutorial",
+        {
+          type: "category",
+          label: "Tutorials",
+          items: [
+            "hub/getting-started/tutorials/deploy-your-first-pipeline",
+            "hub/getting-started/tutorials/migrate-existing-pipeline",
+            "hub/getting-started/tutorials/advanced-examples",
+          ],
+        },
       ],
     },
     {
