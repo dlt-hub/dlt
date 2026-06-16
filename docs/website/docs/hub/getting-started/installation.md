@@ -6,7 +6,7 @@ keywords: [installation, dlthub, dlthub init, workspace mode, license]
 
 :::info Supported Python versions
 
-dltHub currently supports Python versions 3.10-3.13.
+dltHub currently supports Python versions 3.10-3.14.
 
 :::
 

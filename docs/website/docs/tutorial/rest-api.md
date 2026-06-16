@@ -19,7 +19,7 @@ Extracting data from an API is straightforward with dlt: provide the base URL, d
 
 ## Prerequisites
 
-- Python 3.9 or higher installed
+- Python 3.10 or higher installed
 - Virtual environment set up
 
 ## Installing dlt
@@ -330,4 +330,3 @@ Interested in learning more about dlt? Here are some suggestions:
 
 - Learn more about the REST API source configuration in the [REST API source documentation](../dlt-ecosystem/verified-sources/rest_api/)
 - Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial.
-

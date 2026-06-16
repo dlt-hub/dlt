@@ -19,7 +19,7 @@ This tutorial introduces you to foundational dlt concepts, demonstrating how to 
 
 ## Prerequisites
 
-- Python 3.9 or higher installed
+- Python 3.10 or higher installed
 - Virtual environment set up
 
 ## Installing dlt

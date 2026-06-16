@@ -15,7 +15,7 @@ dlt leverages `pyiceberg`'s `load_catalog` function to be able to work with the 
 
 ## Iceberg dependencies
 
-You need Python version 3.9 or higher and the `pyiceberg` package to use this format:
+You need Python version 3.10 or higher and the `pyiceberg` package to use this format:
 
 ```sh
 pip install "dlt[pyiceberg]"
