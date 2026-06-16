@@ -113,5 +113,8 @@ See [Triggers and scheduling](../../pipeline-operations/triggers.md) for cron, i
 
 ## Next steps
 
-- [Migrate an existing dlt pipeline](migrate-existing-pipeline.md)
-- [Transformations](../../transformations/index.md) · [Data quality](../../data-quality/index.md) · [Advanced example](advanced-examples.md)
+- [Migrate an existing dlt pipeline](migrate-existing-pipeline.md) to the platform.
+- Ask your coding agent to [build a pipeline](../../ingestion/rest-api-source.md) for your source.
+- Reshape your data with [Transformations](../../transformations/index.md).
+- Add [data quality checks](../../data-quality/index.md) to catch issues early.
+- Work through the [advanced example](../platform-tutorial.md) — a full starter pack with pipelines, transformations, and a dashboard.

@@ -481,7 +481,7 @@ const sidebars = {
           items: [
             "hub/getting-started/tutorials/deploy-your-first-pipeline",
             "hub/getting-started/tutorials/migrate-existing-pipeline",
-            "hub/getting-started/tutorials/advanced-examples",
+            "hub/getting-started/platform-tutorial",
           ],
         },
       ],

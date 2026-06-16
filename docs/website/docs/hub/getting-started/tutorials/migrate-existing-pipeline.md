@@ -186,7 +186,7 @@ uv run dlthub deploy
 See [Deployments](../../pipeline-operations/deployments.md) and
 [Triggers and scheduling](../../pipeline-operations/triggers.md).
 
-## 7. Monitor and operate
+## 5. Monitor and operate
 
 Open the dashboard to watch runs, read logs, and query your destination:
 
@@ -200,4 +200,4 @@ Or go to [app.dlthub.com](https://app.dlthub.com). See [Monitoring and debugging
 
 - Add [transformations](../../transformations/index.md) that run after a successful load.
 - Guard your pipeline with [data quality checks](../../data-quality/index.md).
-- Explore the [advanced example](advanced-examples.md) for a full multi-job workspace with a dashboard.
+- Explore the [advanced example](../platform-tutorial.md) for a full multi-job workspace with a dashboard.

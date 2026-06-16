@@ -12,13 +12,13 @@ to show pipelines, interactive notebooks, public links, scheduling, and a full s
 workspace.
 
 :::tip New to dltHub deployments?
-Start with [Deploy your first pipeline](deploy-your-first-pipeline.md) (scaffold a fresh workspace) or
-[Migrate an existing dlt pipeline](migrate-existing-pipeline.md). Come back here when you want a richer, multi-job
-example to learn from.
+Start with [Deploy your first pipeline](tutorials/deploy-your-first-pipeline.md) (scaffold a fresh workspace) or
+[Migrate an existing dlt pipeline](tutorials/migrate-existing-pipeline.md). Come back here when you want a richer,
+multi-job example to learn from.
 :::
 
 With dltHub you can not only build data ingestion pipelines and dashboards, but also **run and manage them on a fully managed cloud platform**.
-See the [Platform overview](../../pipeline-operations/overview.md) for more details. You get:
+See the [Platform overview](../pipeline-operations/overview.md) for more details. You get:
 
 - the flexibility and developer experience of dlt
 - the simplicity and reliability of managed infrastructure
@@ -45,9 +45,9 @@ This starter pack includes:
 
 1. A dlt pipeline that loads data from the jaffle shop API into a local DuckDB destination.
 2. A remote destination configured as MotherDuck. You can swap it for any other cloud destination you prefer (for example
-   [BigQuery](../../../dlt-ecosystem/destinations/bigquery.md),
-   [Snowflake](../../../dlt-ecosystem/destinations/snowflake.md),
-   [AWS S3](../../../dlt-ecosystem/destinations/filesystem.md), …).
+   [BigQuery](../../dlt-ecosystem/destinations/bigquery.md),
+   [Snowflake](../../dlt-ecosystem/destinations/snowflake.md),
+   [AWS S3](../../dlt-ecosystem/destinations/filesystem.md), …).
 3. A simple Marimo dashboard that you can use to explore and analyze the data.
 4. A set of custom transformations that are executed after the raw data is loaded.
 
@@ -73,7 +73,7 @@ source .venv/bin/activate
 ### 3. Configure your credentials
 
 Configure your destination credentials. The starter pack uses MotherDuck as the destination, but you can switch to any other destination you prefer.
-Details on configuring credentials for the dltHub Platform are available [here](../../pipeline-operations/workspace-setup.md#credentials-and-configs).
+Details on configuring credentials for the dltHub Platform are available [here](../pipeline-operations/workspace-setup.md#credentials-and-configs).
 Make sure your destination credentials are valid before running pipelines remotely. Below you can find instructions for configuring credentials for the MotherDuck destination.
 
 **`prod.config.toml`** (for batch jobs running on dltHub):
@@ -135,7 +135,7 @@ uv run dlthub workspace connect
 :::tip
 The first time you run `dlthub deploy`, `dlthub run`, or `dlthub serve`, the CLI auto-prompts both `login` and `workspace connect` if they haven't been done yet—so you can skip step 4 entirely if you don't mind doing it inline.
 
-For a full list of available commands, see the [CLI reference](../../command-line-interface.md).
+For a full list of available commands, see the [CLI reference](../command-line-interface.md).
 :::
 
 ### Local vs remote scopes
@@ -194,7 +194,7 @@ The remote command:
 
 :::note
 Interactive notebooks use the `access` profile with read-only credentials, so they are safe for data exploration and dashboarding without the risk of accidental writes.
-Read more about profiles in the [profiles documentation](../../pipeline-operations/profiles.md).
+Read more about profiles in the [profiles documentation](../pipeline-operations/profiles.md).
 :::
 
 Interactive jobs are the building block for serving notebooks, dashboards, Streamlit, or similar apps. You can share links to these interactive jobs with your colleagues for collaborative exploration.
@@ -227,7 +227,7 @@ Wire the decorated function into `__deployment__.py` and deploy with:
 uv run dlthub deploy
 ```
 
-To stop a schedule, remove the trigger from the decorator (or remove the job from `__deployment__.py`) and redeploy. See the [Deployments](../../pipeline-operations/deployments.md#jobs-and-deployments) page for the full story on jobs and deployments.
+To stop a schedule, remove the trigger from the decorator (or remove the job from `__deployment__.py`) and redeploy. See the [Deployments](../pipeline-operations/deployments.md#jobs-and-deployments) page for the full story on jobs and deployments.
 
 ## Review and manage jobs in the UI
 
@@ -275,7 +275,7 @@ Key characteristics:
 3. Operate on the destination dataset (`dlt.Dataset`).
 4. Executed on the destination compute or locally via DuckDB.
 
-You can find full details in the [Transformations](../../transformations/index.md) documentation. Below are a few core patterns to get you started.
+You can find full details in the [Transformations](../transformations/index.md) documentation. Below are a few core patterns to get you started.
 
 ### Basic example with Ibis
 
@@ -378,7 +378,7 @@ This uploads the transformation script, runs it on managed infrastructure, and s
 
 ### Incremental transformations on a schedule
 
-When a transformation runs on a dltHub Platform cron schedule, let the schedule own the cursor window. Set `allow_external_schedulers=True` on a `dlt.sources.incremental` argument and the cursor takes its `[start, end)` bounds from the scheduled interval. Re-running the same window produces the same output, so retries and missed-run backfills are idempotent. See [Incremental transformations](../../transformations/index.md#incremental-transformations) for the full model and examples.
+When a transformation runs on a dltHub Platform cron schedule, let the schedule own the cursor window. Set `allow_external_schedulers=True` on a `dlt.sources.incremental` argument and the cursor takes its `[start, end)` bounds from the scheduled interval. Re-running the same window produces the same output, so retries and missed-run backfills are idempotent. See [Incremental transformations](../transformations/index.md#incremental-transformations) for the full model and examples.
 
 ## Next steps
 
@@ -387,6 +387,6 @@ You've completed the introductory tutorial for the managed dltHub Platform: you'
 As next steps, we recommend:
 
 1. Take one of your existing dlt pipelines and schedule it on the managed platform.
-2. Add [data checks](../../data-quality/index.md) to your pipelines to monitor data quality and catch issues early.
+2. Add [data checks](../data-quality/index.md) to your pipelines to monitor data quality and catch issues early.
 
 This gives you a trusted, managed environment for both ingestion and analytics, built on dlt and powered by dltHub.
