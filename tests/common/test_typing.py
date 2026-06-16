@@ -149,7 +149,7 @@ def test_is_literal() -> None:
     assert is_literal_type(List[str]) is False
     NT1 = NewType("NT1", Optional[TTestLi])  # type: ignore[valid-newtype]
     assert is_literal_type(NT1) is True
-    assert is_literal_type(NewType("NT2", NT1)) is True
+    assert is_literal_type(NewType("NT2", NT1)) is True  # type: ignore[arg-type]
 
 
 def test_optional() -> None:
@@ -166,8 +166,8 @@ def test_optional() -> None:
     NT1 = NewType("NT1", Optional[str])  # type: ignore[valid-newtype]
     assert is_optional_type(NT1) is True
     assert is_optional_type(ClassVar[NT1]) is True  # type: ignore[arg-type]
-    assert is_optional_type(NewType("NT2", NT1)) is True
-    assert is_optional_type(NewType("NT2", Annotated[NT1, 1])) is True
+    assert is_optional_type(NewType("NT2", NT1)) is True  # type: ignore[arg-type]
+    assert is_optional_type(NewType("NT2", Annotated[NT1, 1])) is True  # type: ignore[arg-type]
     assert is_optional_type(TTestTyDi) is False
     assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]  # type: ignore[arg-type]
     assert extract_union_types(TOptionalTyDi) == [TTestTyDi, type(None)]  # type: ignore[arg-type]
@@ -204,8 +204,8 @@ def test_is_annotated() -> None:
 def test_extract_inner_type() -> None:
     assert extract_inner_type(1) == 1  # type: ignore[arg-type]
     assert extract_inner_type(str) is str
-    assert extract_inner_type(NewType("NT1", str)) is str
-    assert extract_inner_type(NewType("NT2", NewType("NT3", int))) is int
+    assert extract_inner_type(NewType("NT1", str)) is str  # type: ignore[arg-type]
+    assert extract_inner_type(NewType("NT2", NewType("NT3", int))) is int  # type: ignore[arg-type]
     assert extract_inner_type(Optional[NewType("NT3", bool)]) is bool  # type: ignore[arg-type]  # noqa: F821
     l_1 = Literal[1, 2, 3]
     assert extract_inner_type(l_1) is int  # type: ignore[arg-type]
@@ -213,7 +213,7 @@ def test_extract_inner_type() -> None:
     assert extract_inner_type(NTL2, preserve_new_types=True) is NTL2
     l_2 = Literal[NTL2(1.238), NTL2(2.343)]  # type: ignore[valid-type]
     assert extract_inner_type(l_2) is float  # type: ignore[arg-type]
-    assert extract_inner_type(NewType("NT1", Optional[str])) is str
+    assert extract_inner_type(NewType("NT1", Optional[str])) is str  # type: ignore[arg-type]
 
 
 def test_get_config_if_union() -> None:
