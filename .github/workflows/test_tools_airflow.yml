@@ -14,12 +14,12 @@ jobs:
         include:
           - airflow-version: "2"
             python-version: "3.12"
-            airflow-pin: ""
+            airflow-pin: "apache-airflow>=2.8.0,<3"
             run-unit-tests: true
             run-smoke-test: false
           - airflow-version: "3"
             python-version: "3.12"
-            airflow-pin: "apache-airflow>=3.1"
+            airflow-pin: ""
             run-unit-tests: false
             run-smoke-test: true
 
@@ -41,11 +41,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --group airflow --group pipeline --extra duckdb --extra parquet
-          if [ -n "${{ matrix.airflow-pin }}" ]; then
+          uv sync --group pipeline --extra duckdb --extra parquet
+          if [ "${{ matrix.airflow-version }}" = "3" ]; then
+            uv run python tools/install_airflow_ci.py
+          else
             uv pip install '${{ matrix.airflow-pin }}'
-            # overrife fastapi (airflow has special contstaints)
-            uv pip install 'fastapi<0.137'
           fi
 
       - name: Run unit tests
