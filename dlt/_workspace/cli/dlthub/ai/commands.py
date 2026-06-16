@@ -280,6 +280,8 @@ def _execute_install(
             )
         else:
             safe_write_text(action.dest_path, action.content_or_path)  # type: ignore[arg-type]
+        if action.note:
+            fmt.warning(action.note)
         if action.kind == "mcp":
             # source_name is ", ".join(sorted(new_servers))
             mcp_server_names.extend(s.strip() for s in action.source_name.split(",") if s.strip())

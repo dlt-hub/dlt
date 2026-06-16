@@ -6,6 +6,7 @@ from typing import Any, ClassVar, Dict, List, Literal, NamedTuple, Optional, Tup
 from dlt.common.runtime.exec_info import is_claude_code, is_codex, is_cursor
 
 from dlt._workspace.cli.dlthub.ai.utils import (
+    cap_skill_description,
     ensure_cursor_rule_frontmatter,
     home_dir,
     merge_json_mcp_servers,
@@ -37,6 +38,8 @@ class InstallAction(NamedTuple):
     conflict: bool
     source_kind: Optional[TComponentType] = None
     skip_index: bool = False
+    note: Optional[str] = None
+    """user-facing warning emitted by the view when this action is executed"""
 
 
 class _AIAgent(ABC):
@@ -57,6 +60,9 @@ class _AIAgent(ABC):
 
     _RULE_EXT: ClassVar[str] = ".md"
     """file extension for rule files"""
+
+    _MAX_SKILL_DESCRIPTION: ClassVar[Optional[int]] = None
+    """max length of a skill's frontmatter description; over this it is truncated on install"""
 
     @property
     @abstractmethod
@@ -98,16 +104,42 @@ class _AIAgent(ABC):
         if component_type == "skill":
             assert isinstance(content_or_path, Path)
             dest = self.component_dir("skill", project_root) / source_name
-            return [
+            conflict = not overwrite and dest.exists()
+            actions = [
                 InstallAction(
                     kind="skill",
                     source_name=source_name,
                     dest_path=dest,
                     op="copytree",
                     content_or_path=content_or_path,
-                    conflict=not overwrite and dest.exists(),
+                    conflict=conflict,
                 )
             ]
+            skill_md = content_or_path / "SKILL.md"
+            if self._MAX_SKILL_DESCRIPTION is not None and not conflict and skill_md.is_file():
+                capped = cap_skill_description(
+                    skill_md.read_text(encoding="utf-8"), self._MAX_SKILL_DESCRIPTION
+                )
+                if capped is not None:
+                    # overwrites the verbatim-copied SKILL.md after copytree runs
+                    actions.append(
+                        InstallAction(
+                            kind="skill",
+                            source_name=source_name,
+                            dest_path=dest / "SKILL.md",
+                            op="save",
+                            content_or_path=capped,
+                            conflict=False,
+                            skip_index=True,
+                            note=(
+                                "Skill %s description exceeds the %d-char limit for %s and was"
+                                " truncated in the installed SKILL.md (the workbench source is"
+                                " unchanged)."
+                            )
+                            % (source_name, self._MAX_SKILL_DESCRIPTION, self.name),
+                        )
+                    )
+            return actions
         if component_type == "ignore":
             assert isinstance(content_or_path, str)
             dest = self.component_dir("ignore", project_root) / self.ignore_file_name
@@ -306,6 +338,8 @@ class _CodexAgent(_AIAgent):
     }
     _GLOBAL_MARKER: ClassVar[str] = ".codex"
     _LOCAL_PROBES: ClassVar[Tuple[str, ...]] = (".agents", "AGENTS.md")
+    _MAX_SKILL_DESCRIPTION: ClassVar[Optional[int]] = 1024
+    """Codex silently drops skills whose description exceeds 1024 characters."""
 
     @property
     def name(self) -> str:
