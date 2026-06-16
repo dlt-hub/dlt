@@ -20,7 +20,7 @@ Use of the dltHub platform and toolkits is subject to a commercial [dltHub Licen
 uvx dlthub-start@latest
 ```
 
-Scaffolds a local workspace with the dltHub AI Workbench, example pipelines, and `dlt[hub]` installed. See [installation](installation.md) for prerequisites and alternative install paths.
+Scaffolds a local workspace with an example pipeline, and `dlt[hub]` installed. See [installation](installation.md) for prerequisites and alternative install paths.
 
 ## What is dltHub?
 

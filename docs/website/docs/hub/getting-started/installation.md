@@ -38,13 +38,7 @@ If you don't have `uv` yet, either [install it first](#setting-up-your-environme
 pipx run dlthub-start
 ```
 
-Either way, it prompts for a workspace name, scaffold, and which AI agents to wire up (Claude / Cursor / Codex), scaffolds a workspace with `.dlt/.workspace` already set, vendors the AI toolkits (`rest-api-pipeline`, `transformations`, `dlthub-platform`, `data-exploration`), and runs `uv sync` so `dlt[hub]` and all workspace dependencies are installed.
-
-For the recommended defaults non-interactively, pass a name explicitly:
-
-```sh
-uvx dlthub-start@latest my-workspace --yes
-```
+Either way, it prompts you to pick a coding agent (Claude, Cursor, or Codex), scaffolds a workspace with `.dlt/.workspace` already set, and runs `uv sync` so `dlt[hub]` and all workspace dependencies are installed.
 
 ## Setting up your environment
 
