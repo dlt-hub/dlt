@@ -455,14 +455,6 @@ html[data-theme='dark'] .slack-navbar::after {
   background-size: 32px 32px;
 }
 
-.navbar-cta.navbar__link {
-  background: var(--ifm-color-primary);
-  color: white;
-  border-radius: 999px;
-  padding: 0.5rem 1rem;
-  font-weight: 600;
-}
-
 /* siderbar-icons */
 
 
