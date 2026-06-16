@@ -160,7 +160,6 @@ def page_header(
         title_block = title_and_subtitle(
             section_strings.title, section_strings.subtitle_long, title_level=2
         )
-        # when there is no toggle the section is always shown, so render only the title
         header = mo.hstack(
             [title_block] if button is None else [title_block, button], align="center"
         )

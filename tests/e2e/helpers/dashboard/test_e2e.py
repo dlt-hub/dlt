@@ -39,7 +39,6 @@ def _go_home(page: Page) -> None:
 
 
 def _open_pipeline(page: Page, pipeline_name: str) -> None:
-    """Open the dashboard directly on a pipeline (the welcome page no longer exists)."""
     page.goto(f"http://localhost:2718/?pipeline={pipeline_name}")
 
 
@@ -71,13 +70,9 @@ def _close_sections(page: Page, skip_section: str = None) -> None:
 
 
 def test_page_overview(page: Page, fruit_pipeline: Any):
-    # opening a pipeline lands directly on the dataset browser, shown by default at the top
     _open_pipeline(page, "fruit_pipeline")
 
-    # check title
     expect(page).to_have_title("dlt workspace dashboard")
-
-    # the data section is visible without opening any toggle
     expect(page.get_by_text(app_strings.browse_data_query_result_title).nth(1)).to_be_visible(
         timeout=20000
     )
@@ -125,16 +120,13 @@ def test_exception_pipeline(
 def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
     _open_pipeline(page, "multi_schema_pipeline")
 
-    # the schema section renders the raw schema yaml of the selected schema
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
     expect(page.locator(".cm-line", has_text="name: fruitshop_customers").first).to_be_attached(
         timeout=15000
     )
 
-    # the always-on browse-data section lets you switch schemas and lists the matching tables.
-    # close the schema section so only the data section's schema selector is present (the same
-    # dlt_schema_select widget renders in both, and driving two copies at once is racy)
+    # close the schema section so only the data section's schema selector is present (same widget)
     _close_sections(page)
 
     schemas = ["fruitshop_customers", "fruitshop_inventory", "fruitshop_purchases"]
@@ -147,8 +139,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
     ):
         schema_selector = page.get_by_test_id("marimo-plugin-dropdown").first
         expected_row = page.get_by_role("row", name=expected).first
-        # under load marimo occasionally drops a reactive update, leaving the table list stale;
-        # re-fire the change event (via a different option) until the table reflects the schema
+        # marimo can drop a rapid reactive update under load; re-fire until the table updates
         for _attempt in range(3):
             schema_selector.select_option(schema_name)
             expect(schema_selector).to_have_value(schema_name)
@@ -160,8 +151,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
                 page.wait_for_timeout(300)
         else:
             expect(expected_row).to_be_visible(timeout=10000)
-        # assert on table-list rows so the SQL editor and dropdown options (which also contain
-        # table names) do not interfere
+        # assert on rows; the SQL editor and dropdown options also contain table names
         for table in not_expected:
             expect(page.get_by_role("row", name=table)).to_have_count(0, timeout=10000)
 

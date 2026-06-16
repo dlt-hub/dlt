@@ -687,8 +687,7 @@ def utils_discover_pipelines(
             else (
                 [mo_cli_arg_pipeline]
                 if mo_cli_arg_pipeline
-                # default to the most recently used pipeline so the dashboard opens
-                # directly on its data instead of a landing page
+                # default to the most recently used pipeline
                 else ([dlt_all_pipelines[0]["name"]] if dlt_all_pipelines else None)
             )
         ),
@@ -903,13 +902,12 @@ def ui_data_table_list(
     dlt_config: DashboardConfiguration,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_dlt_tables: mo.ui.switch,
-    dlt_schema_show_row_counts: mo.ui.switch,
+    dlt_schema_show_row_counts: mo.ui.run_button,
     dlt_selected_schema_name: str,
 ):
     """Build the table list for the always-on dataset browser.
 
-    Kept independent of the section toggles so opening other sections does not
-    re-render the data browser.
+    Independent of the section toggles so opening another section does not re-render it.
     """
     dlt_data_table_list: mo.ui.table = None
     if dlt_pipeline and dlt_selected_schema_name:
