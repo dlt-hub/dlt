@@ -465,22 +465,12 @@ def test_auto_select_most_recent_pipeline(page: Page):
 
 
 def test_no_pipelines_home(page: Page):
-    """With no pipelines, show a hint plus a refresh button and hide the empty pipeline dropdown."""
+    """With no pipelines, show a hint and hide the empty pipeline dropdown."""
     test_port = 2722
     with isolated_workspace("pipelines"):
         with start_dashboard(port=test_port):
             page.goto(f"http://localhost:{test_port}")
             # the no-pipelines hint is shown
             expect(page.get_by_text("No pipelines found yet").first).to_be_visible(timeout=20000)
-            # a refresh button lets the user re-scan after running a pipeline
-            expect(page.get_by_role("button", name=app_strings.app_refresh_button)).to_be_visible()
             # the (empty) pipeline dropdown is hidden
             expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(0)
-
-            # running a pipeline then clicking refresh re-scans and shows it without a reload
-            late = dlt.pipeline(pipeline_name="late_pipeline", destination="duckdb")
-            late.run(fruitshop_source().with_resources("customers"))
-            page.get_by_role("button", name=app_strings.app_refresh_button).click()
-            expect(
-                page.get_by_role("heading", name=re.compile(r"Pipeline\s+late_pipeline"))
-            ).to_be_visible(timeout=20000)

@@ -71,16 +71,14 @@ def home_header_row(
 
 def render_no_pipelines_home(
     dlt_profile_select: mo.ui.dropdown,
-    dlt_refresh_button: mo.ui.run_button,
 ) -> List[mo.Html]:
     """Render a minimal landing shown when no pipelines are available to inspect.
 
-    The pipeline dropdown is omitted (there is nothing to select) and a refresh button
-    is offered so a pipeline run on the same machine can be picked up without reloading.
+    The pipeline dropdown is omitted because there is nothing to select.
     """
     return [
         utils.ui.section_marker(strings.app_section_name, has_content=True),
-        home_header_row(dlt_profile_select, dlt_refresh_button),
+        home_header_row(dlt_profile_select),
         mo.callout(
             mo.md(strings.home_no_pipelines),
             kind="info",

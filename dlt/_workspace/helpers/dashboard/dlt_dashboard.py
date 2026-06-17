@@ -90,7 +90,6 @@ def home(
             dlt_config = utils.pipeline.resolve_dashboard_config(None)
             _result = utils.home.render_no_pipelines_home(
                 dlt_profile_select,
-                dlt_refresh_button,
             )
         except Exception:
             _result = [
@@ -646,7 +645,6 @@ def section_ibis_backend(
 @app.cell(hide_code=True)
 def utils_discover_pipelines(
     dlt_profile_select: mo.ui.dropdown,
-    dlt_refresh_button: mo.ui.run_button,
     mo_cli_arg_pipelines_dir: str,
     mo_cli_arg_pipeline: str,
     mo_query_var_pipeline_name: str,
@@ -655,9 +653,6 @@ def utils_discover_pipelines(
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
     from dlt._workspace.cli.utils import list_local_pipelines
-
-    # re-discover pipelines when the refresh button is clicked
-    dlt_refresh_button
 
     # sync from runtime if enabled
     _tmp_config = utils.pipeline.resolve_dashboard_config(None)
