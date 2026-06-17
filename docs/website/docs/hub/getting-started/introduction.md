@@ -22,6 +22,8 @@ uvx dlthub-start@latest
 
 Scaffolds a local workspace with the dltHub AI Workbench, example pipelines, and `dlt[hub]` installed. See [installation](installation.md) for prerequisites and alternative install paths.
 
+On the [dltHub platform](../pipeline-operations/overview.md), set `destination="playground"` for a zero-config destination that is ideal for testing and a quick first run.
+
 ## What is dltHub?
 
 dltHub is an agent-native data engineering platform for building, running, and operating production-grade data pipelines. The toolchain is designed to be driven from coding agents — Claude Code, Codex, and Cursor — through [scaffolding commands](../ingestion/init.md) and [per-source context files](../ingestion/rest-api-source.md). A developer or analyst comfortable with Python and a coding agent can build and operate ingestion, [transformations](../transformations/index.md), [quality checks](../data-quality/index.md), and data apps end-to-end without managing infrastructure.

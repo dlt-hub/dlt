@@ -1,6 +1,6 @@
 """Home page rendering helpers: workspace and pipeline home views."""
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import marimo as mo
 
@@ -10,8 +10,6 @@ from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunCont
 from dlt._workspace.cli.utils import open_local_folder
 from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard import utils
-from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
-from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
 from dlt._workspace.helpers.dashboard.utils import ui
 
 
@@ -38,9 +36,9 @@ def detect_dlt_hub() -> bool:
 
 def home_header_row(
     dlt_profile_select: mo.ui.dropdown,
-    dlt_pipeline_select: mo.ui.multiselect,
+    right_control: Any = None,
 ) -> mo.Html:
-    """Shared header row with logo, profile/workspace info and pipeline select."""
+    """Shared header row with logo, profile/workspace info and an optional right-hand control."""
     _header_controls = header_controls(dlt_profile_select)
     return mo.hstack(
         [
@@ -63,9 +61,7 @@ def home_header_row(
                 justify="center",
             ),
             mo.hstack(
-                [
-                    dlt_pipeline_select,
-                ],
+                [right_control] if right_control is not None else [],
                 justify="end",
             ),
         ],
@@ -73,33 +69,20 @@ def home_header_row(
     )
 
 
-def render_workspace_home(
+def render_no_pipelines_home(
     dlt_profile_select: mo.ui.dropdown,
-    dlt_all_pipelines: List[TPipelineListItem],
-    dlt_pipeline_select: mo.ui.multiselect,
-    dlt_pipelines_dir: str,
-    dlt_config: DashboardConfiguration,
 ) -> List[mo.Html]:
-    """Render the workspace-level home view (no pipeline selected)."""
+    """Render a minimal landing shown when no pipelines are available to inspect.
+
+    The pipeline dropdown is omitted because there is nothing to select.
+    """
     return [
         utils.ui.section_marker(strings.app_section_name, has_content=True),
-        home_header_row(dlt_profile_select, dlt_pipeline_select),
-        mo.md(strings.app_title).center(),
-        mo.md(strings.app_intro).center(),
+        home_header_row(dlt_profile_select),
         mo.callout(
-            mo.vstack(
-                [
-                    mo.md(
-                        strings.home_quick_start_title.format(
-                            utils.pipeline.pipeline_link_list(dlt_config, dlt_all_pipelines)
-                        )
-                    ),
-                    dlt_pipeline_select,
-                ]
-            ),
+            mo.md(strings.home_no_pipelines),
             kind="info",
         ),
-        mo.md(strings.home_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
     ]
 
 
@@ -144,7 +127,6 @@ def render_pipeline_home(
     dlt_profile_select: mo.ui.dropdown,
     dlt_pipeline: dlt.Pipeline,
     dlt_pipeline_select: mo.ui.multiselect,
-    dlt_pipelines_dir: str,
     dlt_refresh_button: mo.ui.run_button,
     dlt_pipeline_name: str,
 ) -> List[mo.Html]:
@@ -197,14 +179,6 @@ def render_pipeline_home(
             mo.callout(
                 mo.md(strings.app_pipeline_no_trace.format(dlt_pipeline_name)),
                 kind="info",
-            )
-        )
-
-    if not dlt_pipeline and dlt_pipeline_name:
-        _stack.append(
-            mo.callout(
-                mo.md(strings.app_pipeline_not_found.format(dlt_pipeline_name, dlt_pipelines_dir)),
-                kind="warn",
             )
         )
 

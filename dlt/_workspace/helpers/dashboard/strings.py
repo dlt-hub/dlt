@@ -27,12 +27,6 @@ _credentials_info = (
 # App general
 #
 app_section_name = "workspace_home"
-app_title = """
-# Welcome to the dltHub workspace dashboard...
-"""
-app_intro = """
-<p align="center">...the hackable data platform for `dlt` developers.</p>
-"""
 app_pipeline_select_label = "Pipeline:"
 app_schema_select_label = "Schema:"
 app_profile_select_label = "Profile:"
@@ -41,27 +35,11 @@ app_title_pipeline = """
 ## Pipeline `{}`
 """
 
-app_pipeline_not_found = f"""
-## Pipeline not found
-
-You requested to view a pipeline named `{{}}` but it does not exist in the pipelines directory at `{{}}`. To fix this, you can do one of the following:
-
-1. Select a different pipeline in the dropdown above.
-2. Run a pipeline with this name on this machine, then click the refresh button.
-3. Ensure you have set the correct pipelines directory (using the `pipelines_dir` CLI argument).
-4. Restore a pipeline with this name from a destination using [`dlthub local pipeline sync <pipeline_name>`]({_sync_help_url}).
-
-This page will automatically refresh with your pipeline data once you have run a pipeline with this name on this machine.
-
-"""
-
-
 app_pipeline_no_trace = f"""
-No pipeline trace was found locally for `{{}}`. This means the pipeline has not been run yet on \
-this machine, or its trace data has been removed.
+No trace was found for `{{}}`. The pipeline may not have run yet, or its trace data was removed.
 
-You can run the pipeline to generate a trace, or restore it from a destination using \
-[`dlthub local pipeline sync <pipeline_name>`]({_sync_help_url}).
+Run the pipeline to generate a trace, or restore it from its destination \
+(see the [sync docs]({_sync_help_url})).
 """
 
 
@@ -69,45 +47,9 @@ You can run the pipeline to generate a trace, or restore it from a destination u
 # Home section
 #
 home_section_name = "home_section"
-home_quick_start_title = """
-### Quick start: select one of your recently used pipelines:
-
-{}
-
-### Or select from all available pipelines:
-"""
-
-home_basics_text = f"""
-## dltHub workspace dashboard basics
-
-We found `{{}}` pipelines in the local directory `{{}}`. When you select a pipeline to inspect, you can:
-
-* See an overview of your pipeline
-* See the current pipeline schema and incremental state
-* Browse the data in the pipeline's dataset (requires credentials to be available to the dashboard)
-* View the pipeline state locally and on the destination
-* Browse information about past loads and traces
-
-To inspect data in the destination dataset, ensure your destination credentials are available to the dashboard. Either provide them as environment variables, or start the dashboard from the directory that contains your `.dlt` folder, where the credentials are stored.
-
-If the dashboard cannot connect to the destination, you will receive a warning and will only be able to browse the locally stored information about the pipeline.
-
-## CLI commands
-
-* `dlthub local show` - Start the workspace dashboard
-* `dlthub local pipeline show <pipeline_name>` - Start the workspace dashboard for the selected pipeline
-* `dlthub local pipeline show <pipeline_name> --edit` - Start a local copy of the workspace dashboard for the selected pipeline in edit mode
-
-## Learn more
-
-* [dltHub dashboard docs]({_help_url}) - Dashboard docs
-* [`dlthub local pipeline sync`]({_sync_help_url}) command - Learn how to restore a pipeline locally to be able to see it in the dashboard
-* [Marimo docs](https://docs.marimo.io/) - Learn more about Marimo, the framework that powers the dltHub workspace dashboard
-
-<small>
-2026 [dltHub](https://dlthub.com)
-</small>
-
+home_no_pipelines = f"""
+No pipelines found yet. A pipeline shows up here once it has run, or after you restore one \
+from its destination (see the [sync docs]({_sync_help_url})).
 """
 
 home_workspace_label = " Workspace: {}"
@@ -144,8 +86,6 @@ overview_no_trace = "No trace found"
 overview_no_state = "No state found"
 overview_credentials_error = "Could not resolve credentials."
 overview_remote_state_error = "Could not restore state from destination."
-overview_no_pipelines = "No pipelines found."
-overview_last_executed_label = " - last executed: "
 
 #
 # Schema section
@@ -256,8 +196,7 @@ trace = TSectionStrings(
 
 trace_show_raw_trace_text = "Show"
 trace_no_trace_text = (
-    "No local trace available for this pipeline. This probably means that your pipeline"
-    " has never been run on this computer."
+    "No trace available for this pipeline. It may not have run yet, or its trace data was removed."
 )
 
 trace_overview_title = "Trace Overview"

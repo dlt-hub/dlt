@@ -28,7 +28,7 @@ Features include:
 
 ## A quick example
 
-You will need Python 3.9 or higher installed, as well as pip. You can run `pip install dlt-init-openapi` to install the current version.
+You will need Python 3.10 or higher installed, as well as pip. You can run `pip install dlt-init-openapi` to install the current version.
 
 We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.co/) in our repo. You can point to any other OpenAPI Spec instead if you prefer.
 
@@ -208,4 +208,3 @@ This project started as a fork of [openapi-python-client](https://github.com/ope
 * OAuth Authentication currently is not natively supported. You can supply your own.
 * Per endpoint authentication currently is not supported by the generator. Only the first globally set securityScheme will be applied. You can add your own per endpoint if you need to.
 * Basic OpenAPI 2.0 support is implemented. We recommend updating your specs at https://editor.swagger.io before using `dlt-init-openapi`.
-

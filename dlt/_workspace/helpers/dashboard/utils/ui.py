@@ -156,11 +156,13 @@ def page_header(
     """
     if not dlt_pipeline:
         return []
-    if button.value:
+    if button is None or button.value:
         title_block = title_and_subtitle(
             section_strings.title, section_strings.subtitle_long, title_level=2
         )
-        header = mo.hstack([title_block, button], align="center")
+        header = mo.hstack(
+            [title_block] if button is None else [title_block, button], align="center"
+        )
         css_class = "section-header"
     else:
         # title left, subtitle center, switch right
@@ -197,9 +199,11 @@ def section_marker(section_name: str, has_content: bool = False) -> mo.Html:
 def section(
     section_strings: TSectionStrings,
     dlt_pipeline: dlt.Pipeline,
-    switch: mo.ui.switch,
+    switch: mo.ui.switch = None,
 ) -> Tuple[List[mo.Html], bool]:
     """Build standard section boilerplate: marker + page header.
+
+    When `switch` is None the section has no toggle and is always shown.
 
     Returns:
         Tuple of (result list, should_render_content). The list already
@@ -210,4 +214,4 @@ def section(
         section_marker(section_strings.section_name, has_content=dlt_pipeline is not None),
     ]
     result.extend(page_header(dlt_pipeline, section_strings, switch))
-    return result, bool(dlt_pipeline and switch.value)
+    return result, bool(dlt_pipeline and (switch is None or switch.value))

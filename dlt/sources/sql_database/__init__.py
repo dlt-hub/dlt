@@ -301,10 +301,12 @@ def sql_table(
     metadata = metadata or MetaData(schema=schema)
     default_engine_adapter_callback(engine, metadata)
 
-    # Table object is only created when reflecting, we don't want empty tables in metadata
-    # as it breaks foreign key resolution
-    table_obj = metadata.tables.get(table)
+    # look up by the schema-qualified key so a reused metadata is honored as a reflection cache
+    table_key = f"{metadata.schema}.{table}" if metadata.schema else table
+    table_obj = metadata.tables.get(table_key)
     if table_obj is None and not defer_table_reflect:
+        # Table object is only created when reflecting, we don't want empty tables in metadata
+        # as it breaks foreign key resolution
         table_obj = Table(table, metadata, autoload_with=engine, resolve_fks=resolve_foreign_keys)
 
     if table_obj is not None:
