@@ -7,8 +7,8 @@ import pytest
 import dlt
 from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.utils import uniq_id
+from dlt.destinations.exceptions import DatabaseException, DatabaseUndefinedRelation
 from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
-from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
 
 from tests.load.utils import (
     DestinationTestConfiguration,
@@ -40,11 +40,18 @@ FILESYSTEM_DIFFERENT_LOCATION_JOIN_COMPATIBILITY_CONFIGS = destinations_configs(
     subset=["filesystem"],
 )
 
-# Same-host/different-database compatibility needs a pre-existing second database.
-SAME_HOST_DIFFERENT_DATABASE_JOIN_COMPATIBILITY_CONFIGS = destinations_configs(
+CROSS_DATABASE_PROBE_CONFIGS = destinations_configs(
     default_sql_configs=True,
-    subset=["snowflake"],
+    subset=["clickhouse", "fabric", "snowflake", "synapse"],
 )
+
+# query referencing a non-existent database via each engine's cross-database name form
+CROSS_DATABASE_PROBE_QUERIES = {
+    "clickhouse": "SELECT 1 FROM dlt_nonexistent_db_xyz.some_table_abc LIMIT 1",
+    "snowflake": "SELECT 1 FROM dlt_nonexistent_db_xyz.public.some_table_abc LIMIT 1",
+    "synapse": "SELECT TOP 1 1 FROM [dlt_nonexistent_db_xyz].[dbo].[some_table_abc]",
+    "fabric": "SELECT TOP 1 1 FROM [dlt_nonexistent_db_xyz].[dbo].[some_table_abc]",
+}
 
 
 def _load_table(
@@ -89,31 +96,23 @@ def _make_same_database_destinations(
     return None, None
 
 
-def _make_same_host_different_database_destinations(
-    destination_config: DestinationTestConfiguration,
-) -> tuple[Optional[TDestinationReferenceArg], Optional[TDestinationReferenceArg]]:
-    if destination_config.destination_type == "snowflake":
-        second_database: Optional[str] = dlt.secrets.get(
-            "destination.snowflake.join_compatibility_database"
-        )
-        if not second_database:
-            pytest.skip("Second Snowflake database not configured")
+def _engine_supports_cross_database(pipeline: dlt.Pipeline, probe_query: str) -> bool:
+    """Returns True if the engine accepts a cross-database reference.
 
-        destination_config.setup()
-        base_credentials = dlt.secrets.get(
-            "destination.snowflake.credentials", SnowflakeCredentials
-        )
-
-        first_credentials = deepcopy(base_credentials)
-        second_credentials = deepcopy(base_credentials)
-        second_credentials.database = second_database
-
-        return (
-            dlt.destinations.snowflake(credentials=first_credentials),
-            dlt.destinations.snowflake(credentials=second_credentials),
-        )
-
-    return None, None
+    The probe targets a non-existent database. An `undefined relation` error means the engine
+    resolved the cross-database name and only failed because the object is missing (cross-database
+    queries are supported). Any other database error means the engine rejected the cross-database
+    name itself (e.g. Azure SQL Database / Synapse error 40515).
+    """
+    sql_client = pipeline.sql_client()
+    try:
+        with sql_client:
+            sql_client.execute_sql(probe_query)
+        return True
+    except DatabaseUndefinedRelation:
+        return True
+    except DatabaseException:
+        return False
 
 
 def _make_filesystem_different_location_destinations(
@@ -207,13 +206,33 @@ def test_filesystem_different_location_not_compatible(
 
 @pytest.mark.parametrize(
     "destination_config",
-    SAME_HOST_DIFFERENT_DATABASE_JOIN_COMPATIBILITY_CONFIGS,
+    CROSS_DATABASE_PROBE_CONFIGS,
     ids=lambda x: x.name,
 )
-def test_same_host_different_database_join_compatibility(
+def test_cross_database_join_capability(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    first_destination, second_destination = _make_same_host_different_database_destinations(
-        destination_config
+    # load a table so the connection and dataset are live
+    test_id = uniq_id()
+    pipeline = destination_config.setup_pipeline(
+        "join_xdb_" + test_id,
+        dataset_name="join_compat_xdb_" + test_id,
+        dev_mode=True,
     )
-    _run_two_pipeline_check(destination_config, first_destination, second_destination, True)
+    _load_table(pipeline, destination_config, "join_items", [{"id": 1, "name": "first"}])
+
+    config = pipeline.dataset().destination_client.config
+    # a sibling config that differs only by (non-existent) database name on the same host
+    sibling = deepcopy(config)
+    sibling.credentials.database = "dlt_nonexistent_db_xyz"  # type: ignore[attr-defined]
+    claims_cross_database = config.can_read_from(sibling)
+
+    probe_query = CROSS_DATABASE_PROBE_QUERIES[destination_config.destination_type]
+    engine_supports_cross_database = _engine_supports_cross_database(pipeline, probe_query)
+
+    # the config's joinability claim across databases must match what the engine actually allows
+    assert claims_cross_database == engine_supports_cross_database, (
+        f"{destination_config.destination_type}: can_read_from across databases ="
+        f" {claims_cross_database}, but engine cross-database support ="
+        f" {engine_supports_cross_database}"
+    )

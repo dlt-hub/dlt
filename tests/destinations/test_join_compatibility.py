@@ -515,13 +515,20 @@ MSSQL_JOIN_CASES = [
 
 SYNAPSE_JOIN_CASES = [
     pytest.param(
+        lambda: SynapseClientConfiguration(credentials=SynapseCredentials("mssql://u:p@h:1433/db")),
+        lambda: SynapseClientConfiguration(credentials=SynapseCredentials("mssql://u:p@h:1433/db")),
+        True,
+        id="synapse_same_host_same_db",
+    ),
+    # Synapse dedicated SQL pools do not support cross-database queries, unlike SQL Server
+    pytest.param(
         lambda: SynapseClientConfiguration(
             credentials=SynapseCredentials("mssql://u:p@h:1433/db1")
         ),
         lambda: SynapseClientConfiguration(
             credentials=SynapseCredentials("mssql://u:p@h:1433/db2")
         ),
-        True,
+        False,
         id="synapse_same_host_diff_db",
     ),
     pytest.param(
