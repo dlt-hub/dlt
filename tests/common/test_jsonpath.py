@@ -73,4 +73,49 @@ def test_set_value_at_path():
     assert test_obj == {"key": "new_value"}
 
 
-# TODO: Test all jsonpath utils
+@pytest.mark.parametrize(
+    "data,selector,matched_paths,matched_data",
+    [
+        pytest.param(
+            {"data_from_d": {"foo1": {"bar": 1}, "foo2": {"bar": 2}}},
+            "data_from_d.*.bar",
+            ["data_from_d.foo1.bar", "data_from_d.foo2.bar"],
+            [[1], [2]],
+            id="star-selector-mid-path",
+        ),
+        pytest.param(
+            {"data_from_d": {"foo1": {"bar": 1}, "foo2": {"bar": 2}}},
+            "@.data_from_d",
+            ["data_from_d"],
+            [[{"foo1": {"bar": 1}, "foo2": {"bar": 2}}]],
+            id="current-datum-selector",
+        ),
+        pytest.param(
+            {"a": {"items": [{"b": 2}, {"b": 3}]}},
+            "$.a.items[*].b",
+            ["a.items.[0].b", "a.items.[1].b"],
+            [[2], [3]],
+            id="array-wildcard-selector",
+        ),
+        pytest.param(
+            {"a.b": {"c": 1}},
+            "$['a.b'].c",
+            ["'a.b'.c"],
+            [[1]],
+            id="quoted-field-preserves-dot",
+        ),
+        pytest.param(
+            {"@odata.nextLink": "https://example.com/next"},
+            "$['@odata.nextLink']",
+            ["'@odata.nextLink'"],
+            [["https://example.com/next"]],
+            id="quoted-odata-field",
+        ),
+    ],
+)
+def test_resolve_paths_roundtrips_to_matching_paths(
+    data: dict[str, Any], selector: str, matched_paths: list[str], matched_data: list[Any]
+) -> None:
+    resolved_paths = jp.resolve_paths(selector, data)
+    assert resolved_paths == matched_paths
+    assert [jp.find_values(path, data) for path in resolved_paths] == matched_data
