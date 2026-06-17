@@ -6,7 +6,7 @@ keywords: [orchestrator, scheduling, cron, follow-up, freshness, refresh, dlthub
 
 # Orchestrate with dltHub
 
-dltHub's managed platform includes a job orchestrator built around the `@dlt.hub.run` decorators. Unlike external orchestrators (Airflow, Prefect, GitHub Actions), the schedule and the data dependencies live in your Python code — no separate DAG (directed acyclic graph) file or YAML to maintain.
+dltHub's managed platform includes a job orchestrator built around the `@dlt.hub.run` decorators. Unlike external orchestrators (Airflow, Prefect, GitHub Actions), the schedule and the data dependencies live in your Python code, with no separate DAG (directed acyclic graph) file or YAML to maintain.
 
 This page walks through three core orchestration primitives: **cron and interval triggers**, **follow-up chains**, and **freshness gates with refresh cascades**.
 
@@ -56,10 +56,10 @@ def ingest_breweries():
 | `trigger.manual()` | Job only runs when invoked by hand via `dlthub run`, `dlthub job trigger`, or the dashboard. |
 
 :::tip Adjust the schedule from the platform
-For deployed jobs, you can also change the cron schedule from the dltHub platform — open the job's detail page and click **Manage Schedule**. Pick a quick preset or type a new cron expression. This is useful for ad-hoc pauses or quick tweaks without redeploying. To make a change permanent, update the decorator and run `dlthub deploy`.
+For deployed jobs, you can also change the cron schedule from the dltHub platform: open the job's detail page and click **Manage Schedule**. Pick a quick preset or type a new cron expression. This is useful for ad-hoc pauses or quick tweaks without redeploying. To make a change permanent, update the decorator and run `dlthub deploy`.
 :::
 
-A job can have multiple triggers — pass a list:
+A job can have multiple triggers. Pass a list:
 
 ```py
 @run.pipeline(
@@ -72,7 +72,7 @@ def ingest_breweries():
 
 ## Follow-up chains
 
-Every decorated job exposes `.success`, `.fail`, and `.completed` attributes. Pass them as triggers on a downstream job and dltHub fires that job the moment the upstream finishes — no polling, no scheduler delay:
+Every decorated job exposes `.success`, `.fail`, and `.completed` attributes. Pass them as triggers on a downstream job and dltHub fires that job the moment the upstream finishes, with no polling and no scheduler delay:
 
 ```py
 from ingest_breweries import ingest_breweries
@@ -92,7 +92,7 @@ def transform_breweries():
     # ... run transformations against the dataset ...
 ```
 
-`.fail` fires only on failure; `.completed` fires on either outcome — useful for cleanup jobs that should run regardless. You can combine cron and follow-up triggers on the same job:
+`.fail` fires only on failure; `.completed` fires on either outcome, useful for cleanup jobs that should run regardless. You can combine cron and follow-up triggers on the same job:
 
 ```py
 @run.pipeline(
@@ -125,7 +125,7 @@ def transform_breweries(run_context: TJobRunContext):
 
 ## Freshness gates and refresh cascade
 
-Follow-up triggers run downstream **whenever** upstream finishes. **Freshness gates** are the opposite: they let a downstream job run on its own schedule, but skip if upstream hasn't produced a fresh result yet.
+Follow-up triggers run downstream **whenever** upstream finishes. **Freshness gates** are the opposite: they let a downstream job run on its own schedule, but skip if upstream hasn't produced a fresh result yet. See [Freshness checks](../../hub/pipeline-operations/triggers.md#freshness-checks) for the full set of freshness operators and how staleness is computed.
 
 ```py
 from ingest_breweries import ingest_breweries
@@ -154,7 +154,7 @@ Use freshness when partial data would silently break a metric (e.g. an aggregate
 
 ### Refresh cascade
 
-A job marked `refresh="always"` originates a *refresh signal* that propagates downstream through the dependency graph. Each downstream job receives `run_context["refresh"] = True` and can react — for example by passing `refresh="drop_data"` to `pipeline.run`.
+A job marked `refresh="always"` originates a *refresh signal* that propagates downstream through the dependency graph. Each downstream job receives `run_context["refresh"] = True` and can react, for example by passing `refresh="drop_data"` to `pipeline.run`. See [Refresh cascade](../../hub/pipeline-operations/triggers.md#refresh-cascade) for propagation rules across the graph.
 
 ```py
 @run.job(
@@ -223,7 +223,7 @@ See [Monitoring and debugging](../../hub/pipeline-operations/monitoring.md) for 
 
 ## See also
 
-- [Introduction to dltHub](../../hub/getting-started/introduction.md) — overview of the platform.
-- [Triggers and scheduling](../../hub/pipeline-operations/triggers.md) — full reference for triggers, intervals, freshness, and refresh.
-- [Deployments](../../hub/pipeline-operations/deployments.md) — `__deployment__.py`, manifest layout, reconciliation rules.
-- [dltHub platform tutorial](../../hub/getting-started/platform-tutorial.md) — guided end-to-end walkthrough from scaffold to deploy.
+- [Introduction to dltHub](../../hub/getting-started/introduction.md): overview of the platform.
+- [Triggers and scheduling](../../hub/pipeline-operations/triggers.md): full reference for triggers, intervals, freshness, and refresh.
+- [Deployments](../../hub/pipeline-operations/deployments.md): `__deployment__.py`, manifest layout, reconciliation rules.
+- [dltHub platform tutorial](../../hub/getting-started/platform-tutorial.md): guided end-to-end walkthrough from scaffold to deploy.
