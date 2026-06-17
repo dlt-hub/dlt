@@ -83,6 +83,7 @@ class PipelineTasksGroup(TaskGroup):
         wipe_local_data: bool = True,
         save_load_info: bool = False,
         save_trace_info: bool = False,
+        truncate_staging_destination: Optional[bool] = None,
         **kwargs: Any,
     ) -> None:
         """Creates a task group to which you can add pipeline runs
@@ -110,6 +111,11 @@ class PipelineTasksGroup(TaskGroup):
             wipe_local_data (bool, optional): Will wipe all the data created by pipeline, also in case of exception. Defaults to True.
             save_load_info (bool, optional): Will save extensive load info to the destination. Defaults to False.
             save_trace_info (bool, optional): Will save trace info to the destination. Defaults to False.
+            truncate_staging_destination (bool, optional): Controls whether the staging
+                destination is truncated before a load. When `None` (default), truncation is
+                disabled automatically for `parallel` and `parallel-isolated` runs and left
+                unchanged otherwise. `True` or `False` forces truncation on or off for every task
+                in the group. Defaults to None.
         """
 
         super().__init__(group_id=pipeline_name, **kwargs)
@@ -123,6 +129,7 @@ class PipelineTasksGroup(TaskGroup):
         self.wipe_local_data = wipe_local_data
         self.save_load_info = save_load_info
         self.save_trace_info = save_trace_info
+        self.truncate_staging_destination = truncate_staging_destination
 
         # reload providers so config.toml in dags folder is included
         dags_folder = conf.get("core", "dags_folder")
@@ -171,6 +178,19 @@ class PipelineTasksGroup(TaskGroup):
                 task_name += f"-{num + 1}"
 
         return task_name
+
+    def _resolve_truncate_staging_destination(self, decompose: str) -> Optional[bool]:
+        """Resolve the staging-destination truncation setting for a given decomposition.
+
+        Returns the forced value when `truncate_staging_destination` is set, otherwise
+        disables truncation (False) for parallel decompositions and leaves it unset (None)
+        for single or serialized runs.
+        """
+        if self.truncate_staging_destination is not None:
+            return self.truncate_staging_destination
+        if decompose in ("parallel", "parallel-isolated"):
+            return False
+        return None
 
     def run(
         self,
@@ -223,6 +243,7 @@ class PipelineTasksGroup(TaskGroup):
             schema_contract=schema_contract,
             pipeline_name=pipeline_name,
             on_before_run=on_before_run,
+            truncate_staging_destination=self._resolve_truncate_staging_destination("none"),
         )
         return PythonOperator(task_id=self._task_name(pipeline, data), python_callable=f, **kwargs)
 
@@ -236,6 +257,7 @@ class PipelineTasksGroup(TaskGroup):
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
         on_before_run: Callable[[], None] = None,
+        truncate_staging_destination: Optional[bool] = None,
     ) -> None:
         """Run the given pipeline with the given data.
 
@@ -263,6 +285,8 @@ class PipelineTasksGroup(TaskGroup):
                 derived pipeline.
             on_before_run (Callable, optional): A callable
                 to be executed right before the actual pipeline run.
+            truncate_staging_destination (bool, optional): When set, overrides whether
+                the staging destination is truncated before the load.
         """
         # activate pipeline
         pipeline.activate()
@@ -286,6 +310,15 @@ class PipelineTasksGroup(TaskGroup):
             dlt.config["load.raise_on_failed_jobs"] = self.abort_task_if_any_job_failed
             logger.info(
                 f"Set load.abort_task_if_any_job_failed to {self.abort_task_if_any_job_failed}"
+            )
+
+        if truncate_staging_destination is not None:
+            dlt.config["destination.truncate_tables_on_staging_destination_before_load"] = (
+                truncate_staging_destination
+            )
+            logger.info(
+                "Set destination.truncate_tables_on_staging_destination_before_load to"
+                f" {truncate_staging_destination}"
             )
 
         if self.log_progress_period > 0 and task_pipeline.collector == NULL_COLLECTOR:
@@ -428,6 +461,8 @@ class PipelineTasksGroup(TaskGroup):
             # use factory function to make a task, in order to parametrize it
             # passing arguments to task function (_run) is serializing
             # them and running template engine on them
+            truncate_staging_destination = self._resolve_truncate_staging_destination(decompose)
+
             def make_task(pipeline: Pipeline, data: Any, name: str = None) -> BaseOperator:
                 f = functools.partial(
                     self._run,
@@ -439,6 +474,7 @@ class PipelineTasksGroup(TaskGroup):
                     schema_contract=schema_contract,
                     pipeline_name=name,
                     on_before_run=on_before_run,
+                    truncate_staging_destination=truncate_staging_destination,
                 )
                 return PythonOperator(
                     task_id=self._task_name(pipeline, data), python_callable=f, **kwargs

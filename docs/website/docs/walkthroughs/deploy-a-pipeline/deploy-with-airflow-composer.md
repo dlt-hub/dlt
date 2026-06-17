@@ -204,6 +204,10 @@ def load_data():
 load_data()
 ```
 
+:::note
+With `decompose="parallel"` or `decompose="parallel-isolated"`, the decomposed tasks share one staging area (the staging destination and dataset name). To stop one task from deleting staging files that another task is still loading, `PipelineTasksGroup` disables staging-destination truncation automatically in these modes. Pass `truncate_staging_destination=True` or `False` to the `PipelineTasksGroup` constructor to force the behavior instead.
+:::
+
 - Customize the PipelineTaskGroup:
 
   - Change the name from “pipeline_name” to yours, for example, “pipedrive”.

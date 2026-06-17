@@ -1,7 +1,7 @@
 import os
 import pytest
 from unittest import mock
-from typing import Iterator, List
+from typing import Any, Dict, Iterator, List, Optional
 
 from dlt.common.runners.pool_runner import get_default_start_method
 from dlt.common.runtime.exec_info import is_running_in_airflow_task
@@ -251,6 +251,66 @@ def test_regular_run() -> None:
     )
     pipeline_dag_decomposed_counts = load_table_counts(pipeline_dag_decomposed)
     assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
+
+
+@pytest.mark.parametrize(
+    "group_kwargs, decompose, expected",
+    [
+        ({}, "none", None),
+        ({}, "serialize", None),
+        ({}, "parallel", False),
+        ({}, "parallel-isolated", False),
+        ({"truncate_staging_destination": True}, "parallel-isolated", True),
+        ({"truncate_staging_destination": False}, "none", False),
+        ({"truncate_staging_destination": True}, "none", True),
+    ],
+    ids=[
+        "auto-none",
+        "auto-serialize",
+        "auto-parallel",
+        "auto-parallel-isolated",
+        "forced-true-parallel-isolated",
+        "forced-false-none",
+        "forced-true-none",
+    ],
+)
+def test_truncate_staging_destination_flag(
+    group_kwargs: Dict[str, Any], decompose: str, expected: Optional[bool]
+) -> None:
+    """Staging-destination truncation is disabled automatically for parallel runs and can be
+    forced on or off with the `truncate_staging_destination` group argument."""
+    tasks_list: List[BaseOperator] = []
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_truncate() -> None:
+        nonlocal tasks_list
+        tasks = PipelineTasksGroup(
+            "pipeline_dag_truncate",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
+            **group_kwargs,
+        )
+        pipeline = dlt.pipeline(
+            pipeline_name="pipeline_dag_truncate",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+        )
+        tasks_list = tasks.add_run(
+            pipeline,
+            mock_data_source(),
+            decompose=decompose,
+            trigger_rule="all_done",
+            retries=0,
+        )
+
+    dag_truncate()
+    # every pipeline-running task in the group carries the resolved truncation setting
+    resolved = {
+        task.python_callable.keywords.get("truncate_staging_destination")
+        for task in tasks_list
+        if isinstance(task, PythonOperator)
+    }
+    assert resolved == {expected}
 
 
 def test_run() -> None:
