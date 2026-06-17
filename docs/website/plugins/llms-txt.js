@@ -90,8 +90,13 @@ function buildSlugMap(sourceDir) {
  * - Strips single-line self-closing React component tags: <Component />
  * - Strips multi-line self-closing React component tags that start with
  *   <Component on one line and end with /> on a later line
+ *
+ * When `expandCtx` is provided, `<DocCardList />` is expanded to a markdown
+ * list of the category's children instead of being stripped. The context
+ * shape is `{ docId, childrenMap, sourceDir, baseUrl, routePrefix }`. If
+ * children can't be resolved, falls through to the strip behavior.
  */
-function cleanMarkdown(content) {
+function cleanMarkdown(content, expandCtx) {
   const lines = content.split("\n");
   const result = [];
   let insideComponent = false;
@@ -112,6 +117,12 @@ function cleanMarkdown(content) {
 
     // Single-line self-closing React component: <Component ... />
     if (/^\s*<[A-Z][A-Za-z]*[\s/]/.test(line) && /\/>\s*$/.test(line)) {
+      if (expandCtx) {
+        const expansion = expandDocCardList(line, expandCtx);
+        if (expansion !== null) {
+          result.push(expansion);
+        }
+      }
       continue;
     }
 
@@ -125,6 +136,113 @@ function cleanMarkdown(content) {
   }
 
   return result.join("\n");
+}
+
+/**
+ * If the given line is a `<DocCardList />` tag, return a markdown list of
+ * the current category's children (in sidebar order). Returns null otherwise
+ * or when no children resolve, so the caller falls back to stripping.
+ *
+ * Children are read from the parent's source dir at expansion time, so a
+ * version with a different docs surface (e.g. devel vs master) lists only
+ * the docs that actually exist there.
+ */
+function expandDocCardList(line, ctx) {
+  if (!/^\s*<DocCardList[\s/]/.test(line)) return null;
+
+  const children =
+    ctx.childrenMap[ctx.docId] || ctx.childrenMap[`${ctx.docId}/index`];
+  if (!children || children.length === 0) return null;
+
+  const items = [];
+  for (const childDocId of children) {
+    // Skip self-references: the index doc that owns this DocCardList.
+    const childUrlDocId = childDocId.replace(/\/index$/, "");
+    if (childUrlDocId === ctx.docId) continue;
+
+    const childInfo = readChildFrontmatter(childDocId, ctx.sourceDir);
+    if (!childInfo) continue;
+
+    const url = `${ctx.baseUrl}${ctx.routePrefix}${childUrlDocId}.md`;
+    const desc = childInfo.description ? `: ${childInfo.description}` : "";
+    items.push(`- [${childInfo.title}](${url})${desc}`);
+  }
+
+  return items.length > 0 ? items.join("\n") : null;
+}
+
+/**
+ * Read a child doc's frontmatter (title, description). Returns null if no
+ * source file exists in the given sourceDir.
+ */
+function readChildFrontmatter(docId, sourceDir) {
+  const candidates = [
+    path.join(sourceDir, `${docId}.md`),
+    path.join(sourceDir, `${docId}.mdx`),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      const fm = readFrontmatter(fs.readFileSync(candidate, "utf8"));
+      return {
+        title: fm.title || path.basename(docId),
+        description: fm.description || "",
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Walk a Docusaurus sidebar tree and build a mapping from category anchor
+ * docIds to their children. The "anchor" is whatever doc the index page
+ * lives at — either the category's `link.id` (Cookbook pattern) or an
+ * `/index` doc inside `items[]` (Destinations pattern). Both anchors point
+ * to the same flat list of children docIds in sidebar order.
+ *
+ * Subcategories without a `link:` are skipped — they don't correspond to a
+ * single doc URL and can't be represented as one markdown link.
+ */
+function buildCategoryChildrenMap(sidebarItems) {
+  const map = {};
+
+  function flatten(items) {
+    const out = [];
+    for (const item of items) {
+      if (typeof item === "string") {
+        out.push(item);
+      } else if (item && item.type === "doc" && item.id) {
+        out.push(item.id);
+      } else if (item && item.type === "category") {
+        if (item.link && item.link.type === "doc" && item.link.id) {
+          out.push(item.link.id);
+        }
+      }
+    }
+    return out;
+  }
+
+  function walk(items) {
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      if (item.type === "category" && Array.isArray(item.items)) {
+        const children = flatten(item.items);
+        const anchors = new Set();
+        if (item.link && item.link.type === "doc" && item.link.id) {
+          anchors.add(item.link.id);
+        }
+        for (const c of children) {
+          if (c.endsWith("/index")) anchors.add(c);
+        }
+        for (const anchor of anchors) {
+          map[anchor] = children;
+        }
+        walk(item.items);
+      }
+    }
+  }
+
+  walk(sidebarItems);
+  return map;
 }
 
 /**
@@ -364,12 +482,34 @@ module.exports = function llmsTxtPlugin(_context, options) {
           sourceFile,
           sourceDir: route.sourceDir,
           isMaster: route.isMaster,
+          routePrefix: route.prefix,
         });
       }
 
       console.log(`[llms-txt] Found ${pages.length} pages with source .md files`);
 
-      // Step 3: Copy source .md files with cleanup
+      // Load sidebar definitions early so the copy step can expand DocCardList.
+      let sidebars = {};
+      const sidebarsPath = path.join(siteDir, "sidebars.js");
+      try {
+        sidebars = require(sidebarsPath);
+      } catch (e) {
+        console.warn(`[llms-txt] Could not load sidebars.js: ${e.message}`);
+      }
+
+      // Merge category-children maps across all sidebars (docsSidebar, hubSidebar, etc.)
+      // so any page that anchors a category can have its <DocCardList /> expanded.
+      const childrenMap = {};
+      for (const sidebarId of Object.keys(sidebars)) {
+        const sidebarItems = sidebars[sidebarId];
+        if (!Array.isArray(sidebarItems)) continue;
+        Object.assign(childrenMap, buildCategoryChildrenMap(sidebarItems));
+      }
+      console.log(
+        `[llms-txt] Category children map: ${Object.keys(childrenMap).length} anchor docs`,
+      );
+
+      // Step 3: Copy source .md files with cleanup (and DocCardList expansion)
       let copiedCount = 0;
       for (const page of pages) {
         const destFile = path.join(outDir, page.mdRel);
@@ -378,7 +518,19 @@ module.exports = function llmsTxtPlugin(_context, options) {
           fs.mkdirSync(destDir, { recursive: true });
         }
         const content = fs.readFileSync(page.sourceFile, "utf8");
-        const cleaned = cleanMarkdown(content);
+        // Derive docId from page.mdRel: strip the route prefix and the .md
+        // extension. Also strip a trailing /index because the URL collapses it.
+        const innerMdRel = page.routePrefix
+          ? page.mdRel.slice(page.routePrefix.length)
+          : page.mdRel;
+        const docId = innerMdRel.replace(/\.md$/, "").replace(/\/index$/, "");
+        const cleaned = cleanMarkdown(content, {
+          docId,
+          childrenMap,
+          sourceDir: page.sourceDir,
+          baseUrl,
+          routePrefix: page.routePrefix,
+        });
         fs.writeFileSync(destFile, cleaned);
         copiedCount++;
       }
@@ -386,15 +538,6 @@ module.exports = function llmsTxtPlugin(_context, options) {
 
       // Step 4: Generate llms.txt (master version only)
       const masterPages = pages.filter((p) => p.isMaster && !excludeFromIndex.some((pat) => p.mdRel.includes(pat)));
-
-      // Load sidebar definitions and build sidebar maps
-      let sidebars = {};
-      const sidebarsPath = path.join(siteDir, "sidebars.js");
-      try {
-        sidebars = require(sidebarsPath);
-      } catch (e) {
-        console.warn(`[llms-txt] Could not load sidebars.js: ${e.message}`);
-      }
 
       // Build sidebar map for main docs (docsSidebar)
       let mainSidebarMap = null;
