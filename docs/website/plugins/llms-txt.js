@@ -150,8 +150,7 @@ function cleanMarkdown(content, expandCtx) {
 function expandDocCardList(line, ctx) {
   if (!/^\s*<DocCardList[\s/]/.test(line)) return null;
 
-  const children =
-    ctx.childrenMap[ctx.docId] || ctx.childrenMap[`${ctx.docId}/index`];
+  const children = ctx.childrenMap[ctx.docId] || ctx.childrenMap[`${ctx.docId}/index`];
   if (!children || children.length === 0) return null;
 
   const items = [];
@@ -176,10 +175,7 @@ function expandDocCardList(line, ctx) {
  * source file exists in the given sourceDir.
  */
 function readChildFrontmatter(docId, sourceDir) {
-  const candidates = [
-    path.join(sourceDir, `${docId}.md`),
-    path.join(sourceDir, `${docId}.mdx`),
-  ];
+  const candidates = [path.join(sourceDir, `${docId}.md`), path.join(sourceDir, `${docId}.mdx`)];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
       const fm = readFrontmatter(fs.readFileSync(candidate, "utf8"));
@@ -505,9 +501,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
         if (!Array.isArray(sidebarItems)) continue;
         Object.assign(childrenMap, buildCategoryChildrenMap(sidebarItems));
       }
-      console.log(
-        `[llms-txt] Category children map: ${Object.keys(childrenMap).length} anchor docs`,
-      );
+      console.log(`[llms-txt] Category children map: ${Object.keys(childrenMap).length} anchor docs`);
 
       // Step 3: Copy source .md files with cleanup (and DocCardList expansion)
       let copiedCount = 0;
@@ -520,9 +514,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
         const content = fs.readFileSync(page.sourceFile, "utf8");
         // Derive docId from page.mdRel: strip the route prefix and the .md
         // extension. Also strip a trailing /index because the URL collapses it.
-        const innerMdRel = page.routePrefix
-          ? page.mdRel.slice(page.routePrefix.length)
-          : page.mdRel;
+        const innerMdRel = page.routePrefix ? page.mdRel.slice(page.routePrefix.length) : page.mdRel;
         const docId = innerMdRel.replace(/\.md$/, "").replace(/\/index$/, "");
         const cleaned = cleanMarkdown(content, {
           docId,
