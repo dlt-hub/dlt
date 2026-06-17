@@ -509,13 +509,13 @@ class QdrantClient(JobClientBase, WithStateSync):
                         self.db_client.create_payload_index(
                             collection_name=qualified_collection_name,
                             field_name=self.schema.naming.normalize_identifier("created_at"),
-                            field_schema="datetime",
+                            field_schema="datetime",  # type: ignore
                         )
                     elif table_name == self.schema.version_table_name:
                         self.db_client.create_payload_index(
                             collection_name=qualified_collection_name,
                             field_name=self.schema.naming.normalize_identifier("inserted_at"),
-                            field_schema="datetime",
+                            field_schema="datetime",  # type: ignore
                         )
 
         # skip writing the version row when the schema is already stored (enforced update)
