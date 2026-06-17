@@ -35,21 +35,6 @@ app_title_pipeline = """
 ## Pipeline `{}`
 """
 
-app_pipeline_not_found = f"""
-## Pipeline not found
-
-No pipeline named `{{}}` was found in the pipelines directory at `{{}}`. To fix this, you can:
-
-1. Select a different pipeline in the dropdown above.
-2. Run a pipeline with this name, then refresh.
-3. Ensure the correct pipelines directory is configured.
-4. Restore a pipeline with this name from its destination (see the [sync docs]({_sync_help_url})).
-
-The page updates with your pipeline data once a pipeline with this name has run.
-
-"""
-
-
 app_pipeline_no_trace = f"""
 No trace was found for `{{}}`. The pipeline may not have run yet, or its trace data was removed.
 

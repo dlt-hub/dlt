@@ -1,6 +1,6 @@
 """Home page rendering helpers: workspace and pipeline home views."""
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import marimo as mo
 
@@ -36,9 +36,9 @@ def detect_dlt_hub() -> bool:
 
 def home_header_row(
     dlt_profile_select: mo.ui.dropdown,
-    dlt_pipeline_select: mo.ui.multiselect,
+    right_control: Any = None,
 ) -> mo.Html:
-    """Shared header row with logo, profile/workspace info and pipeline select."""
+    """Shared header row with logo, profile/workspace info and an optional right-hand control."""
     _header_controls = header_controls(dlt_profile_select)
     return mo.hstack(
         [
@@ -61,9 +61,7 @@ def home_header_row(
                 justify="center",
             ),
             mo.hstack(
-                [
-                    dlt_pipeline_select,
-                ],
+                [right_control] if right_control is not None else [],
                 justify="end",
             ),
         ],
@@ -73,12 +71,16 @@ def home_header_row(
 
 def render_no_pipelines_home(
     dlt_profile_select: mo.ui.dropdown,
-    dlt_pipeline_select: mo.ui.multiselect,
+    dlt_refresh_button: mo.ui.run_button,
 ) -> List[mo.Html]:
-    """Render a minimal landing shown when no pipelines are available to inspect."""
+    """Render a minimal landing shown when no pipelines are available to inspect.
+
+    The pipeline dropdown is omitted (there is nothing to select) and a refresh button
+    is offered so a pipeline run on the same machine can be picked up without reloading.
+    """
     return [
         utils.ui.section_marker(strings.app_section_name, has_content=True),
-        home_header_row(dlt_profile_select, dlt_pipeline_select),
+        home_header_row(dlt_profile_select, dlt_refresh_button),
         mo.callout(
             mo.md(strings.home_no_pipelines),
             kind="info",
@@ -127,7 +129,6 @@ def render_pipeline_home(
     dlt_profile_select: mo.ui.dropdown,
     dlt_pipeline: dlt.Pipeline,
     dlt_pipeline_select: mo.ui.multiselect,
-    dlt_pipelines_dir: str,
     dlt_refresh_button: mo.ui.run_button,
     dlt_pipeline_name: str,
 ) -> List[mo.Html]:
@@ -180,14 +181,6 @@ def render_pipeline_home(
             mo.callout(
                 mo.md(strings.app_pipeline_no_trace.format(dlt_pipeline_name)),
                 kind="info",
-            )
-        )
-
-    if not dlt_pipeline and dlt_pipeline_name:
-        _stack.append(
-            mo.callout(
-                mo.md(strings.app_pipeline_not_found.format(dlt_pipeline_name, dlt_pipelines_dir)),
-                kind="warn",
             )
         )
 

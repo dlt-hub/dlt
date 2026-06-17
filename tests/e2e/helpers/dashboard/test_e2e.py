@@ -431,3 +431,48 @@ def test_sections_query_param_all(page: Page, fruit_pipeline: Any):
         expect(page.get_by_role("switch", name=section)).to_be_checked()
 
     _go_home(page)
+
+
+def test_dataset_browser_shown_by_default(page: Page, fruit_pipeline: Any):
+    """The dataset browser renders on open with no toggle to switch it on."""
+    _open_pipeline(page, "fruit_pipeline")
+
+    # the browse-data section is visible without any user interaction
+    expect(page.get_by_text(app_strings.browse_data.title).first).to_be_visible(timeout=20000)
+    # and there is no on/off switch for it (other sections still have one)
+    expect(page.get_by_role("switch", name="data", exact=True)).to_have_count(0)
+
+    _go_home(page)
+
+
+def test_auto_select_most_recent_pipeline(page: Page):
+    """Opening the dashboard with no pipeline in the URL selects the most recently run one."""
+    test_port = 2721
+    with isolated_workspace("pipelines"):
+        older = dlt.pipeline(pipeline_name="older_pipeline", destination="duckdb")
+        older.run(fruitshop_source().with_resources("customers"))
+        # ensure a distinct trace mtime so the ordering is deterministic
+        time.sleep(1)
+        newer = dlt.pipeline(pipeline_name="newer_pipeline", destination="duckdb")
+        newer.run(fruitshop_source().with_resources("inventory"))
+
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}")
+            # the most recently run pipeline is selected automatically, no picking required
+            expect(
+                page.get_by_role("heading", name=re.compile(r"Pipeline\s+newer_pipeline"))
+            ).to_be_visible(timeout=20000)
+
+
+def test_no_pipelines_home(page: Page):
+    """With no pipelines, show a hint plus a refresh button and hide the empty pipeline dropdown."""
+    test_port = 2722
+    with isolated_workspace("pipelines"):
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}")
+            # the no-pipelines hint is shown
+            expect(page.get_by_text("No pipelines found yet").first).to_be_visible(timeout=20000)
+            # a refresh button lets the user re-scan after running a pipeline
+            expect(page.get_by_role("button", name=app_strings.app_refresh_button)).to_be_visible()
+            # the (empty) pipeline dropdown is hidden
+            expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(0)
