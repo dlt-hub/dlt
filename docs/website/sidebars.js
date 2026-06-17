@@ -423,6 +423,11 @@ const sidebars = {
           label: "Orchestrators",
           items: [
             {
+              type: "doc",
+              id: "walkthroughs/deploy-a-pipeline/orchestrate-with-dlthub",
+              label: "dltHub",
+            },
+            {
               id: "walkthroughs/deploy-a-pipeline/deploy-with-github-actions",
               type: "doc",
               label: "GitHub Actions",
