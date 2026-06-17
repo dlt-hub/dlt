@@ -6,7 +6,7 @@ keywords: [installation, dlthub, dlthub init, workspace mode, license]
 
 :::info Supported Python versions
 
-dltHub currently supports Python versions 3.10-3.13.
+dltHub currently supports Python versions 3.10-3.14.
 
 :::
 
@@ -23,6 +23,10 @@ Every workspace contains:
 - **AI toolkit configuration** — skills, rules, and MCP wiring for Claude Code, Cursor, or Codex (added when you opt in during scaffolding).
 
 For the wider feature surface that a workspace unlocks — [profiles](../pipeline-operations/profiles.md), [data quality](../data-quality/index.md), [transformations](../transformations/index.md), the [managed platform](../pipeline-operations/overview.md), the [dashboard](../ingestion/dashboard.md) — see the [introduction](introduction.md).
+
+### Playground destination
+
+When you deploy and run pipelines on the dltHub platform, you can use `destination="playground"` without configuring credentials or storage. The platform provisions isolated storage for each workspace and loads your pipeline data as [Delta tables](../ingestion/delta.md). Use it for testing and for a faster introduction to the platform — set `destination="playground"` in your pipeline and run.
 
 ## Quickstart
 

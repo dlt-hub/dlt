@@ -333,10 +333,7 @@ def test_marimo_launcher_builds_correct_args() -> None:
         assert "--headless" in cmd
         assert "--no-token" in cmd
         assert "--asset-url" in cmd
-        assert (
-            "https://cdn.jsdelivr.net/npm/@marimo-team/frontend@{version}/dist"
-            in cmd
-        )
+        assert "https://cdn.jsdelivr.net/npm/@marimo-team/frontend@{version}/dist" in cmd
 
 
 def test_marimo_launcher_with_token() -> None:

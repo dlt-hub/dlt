@@ -66,6 +66,13 @@ class LanceSQLClient(WithTableScanners):
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
         return self.lance_client.config.always_refresh_views
 
+    def create_views_for_tables(self, tables: Dict[str, str]) -> None:
+        # lance extension caches datasets so new data is not visible
+        # automatically, we duplicate connection to clear the cache
+        if self.lance_client.config.always_refresh_views:
+            self._conn = self.memory_db.duplicate()
+        super().create_views_for_tables(tables)
+
     def create_view_select(
         self, table_schema: PreparedTableSchema, schema: Schema = None
     ) -> Optional[Tuple[str, str]]:

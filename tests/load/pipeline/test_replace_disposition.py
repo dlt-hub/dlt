@@ -525,3 +525,98 @@ def test_snowflake_atomic_swap_replace(
     info = pipeline.run(load_items_empty(), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_empty_tables(pipeline, "items", "items__sub_items")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+        subset=["duckdb", "filesystem"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_replace_chain_jobless_nested_tables(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Nested tables of a replace resource that receive no data in a run get no load job and
+    must still be emptied."""
+    pipeline = destination_config.setup_pipeline("replace_jobless", dev_mode=True)
+
+    @dlt.resource(name="items", write_disposition="replace")
+    def items(children: bool):
+        if children:
+            yield {"id": 1, "children": [{"cid": 1}, {"cid": 2}]}
+        else:
+            yield {"id": 2}
+
+    info = pipeline.run(items(True), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items", "items__children") == {
+        "items": 1,
+        "items__children": 2,
+    }
+
+    info = pipeline.run(items(False), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 1}
+    assert_empty_tables(pipeline, "items__children")
+    if destination_config.table_format == "delta":
+        from dlt.common.libs.deltalake import get_delta_tables
+
+        # delta truncation is transactional: the nested table is kept and empty
+        dt = get_delta_tables(pipeline, "items__children")["items__children"]
+        assert dt.to_pyarrow_table().num_rows == 0
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(table_format_local_configs=True, with_table_format="delta"),
+    ids=lambda x: x.name,
+)
+def test_replace_chain_truncate_consistent_with_package_jobs(
+    destination_config: DestinationTestConfiguration, mocker: MockerFixture
+) -> None:
+    """Locks the contract the truncation skip in `initialize_storage` relies on: `verify_schema`
+    receives exactly the new jobs stored in the load package, so tables with data jobs and replace
+    disposition are left to their atomic overwrite while jobless chain tables are truncated.
+    """
+    from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+
+    verify_spy = mocker.spy(FilesystemClient, "verify_schema")
+    truncate_spy = mocker.spy(FilesystemClient, "truncate_tables")
+
+    pipeline = destination_config.setup_pipeline("replace_chain_contract", dev_mode=True)
+
+    @dlt.resource(name="items", write_disposition="replace")
+    def items(children: bool):
+        if children:
+            yield {"id": 1, "children": [{"cid": 1}, {"cid": 2}]}
+        else:
+            yield {"id": 2}
+
+    info = pipeline.run(items(True), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    verify_spy.reset_mock()
+    truncate_spy.reset_mock()
+    info = pipeline.run(items(False), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # verify_schema got the very same new jobs that the load step executed from the package
+    assert verify_spy.call_count == 1
+    spied_jobs = {job.job_id() for job in verify_spy.call_args.kwargs["new_jobs"]}
+    package_jobs = {
+        job.job_file_info.job_id()
+        for jobs in pipeline.get_load_package_info(info.loads_ids[0]).jobs.values()
+        for job in jobs
+        # reference jobs are followups created while the package runs
+        if job.job_file_info.file_format != "reference"
+    }
+    assert spied_jobs == package_jobs
+
+    # the root replace table has a data job and is overwritten atomically, only the jobless
+    # nested table is truncated
+    assert truncate_spy.call_count == 1
+    assert truncate_spy.call_args.args[1] == ["items__children"]

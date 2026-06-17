@@ -30,6 +30,8 @@ from dlt.common.configuration.specs.hf_credentials import HfCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.configuration.specs import (
     AwsCredentials,
+    AzureCredentials,
+    AzureServicePrincipalCredentials,
     AzureServicePrincipalCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
@@ -311,6 +313,28 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         if "@" in scope:
             scope = scope.split("@")[0]
 
+        sql = self._build_secret_statements(
+            scope, credentials, secret_name, persistent_stmt, persist_secrets
+        )
+        if not sql:
+            # could not create secret - the filesystem client falls back to fsspec
+            return False
+        self._conn.sql(";\n".join(sql))
+        return True
+
+    @staticmethod
+    def _build_secret_statements(
+        scope: str,
+        credentials: FileSystemCredentials,
+        secret_name: str,
+        persistent_stmt: str,
+        persist_secrets: bool,
+    ) -> List[str]:
+        """Builds `CREATE SECRET` statements for `scope`/`credentials`, empty when none apply.
+
+        Default credentials hand over to DuckDB's `credential_chain` (which refreshes); static
+        and external-session credentials are frozen.
+        """
         protocol = urlparse(scope).scheme
         sql: List[str] = []
 
@@ -328,12 +352,21 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
             s3_url_style = aws_creds.s3_url_style or "path"
 
-            if isinstance(aws_creds, AwsCredentials) and aws_creds.has_default_credentials():
-                # let DuckDB resolve credentials from botocore's default chain
+            if (
+                isinstance(aws_creds, AwsCredentials)
+                and aws_creds.has_default_credentials()
+                and not aws_creds.is_external_session()
+            ):
+                # hand over to DuckDB's credential_chain (REFRESH auto re-resolves the AWS
+                # chain on expiry, added in 1.1.0); external sessions are frozen below
+                refresh_stmt = (
+                    "REFRESH auto," if Version(duckdb.__version__) >= Version("1.1.0") else ""
+                )
                 sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE S3,
                     PROVIDER credential_chain,
+                    {refresh_stmt}
                     REGION '{aws_creds.region_name}',
                     ENDPOINT '{endpoint}',
                     SCOPE '{scope}',
@@ -362,7 +395,37 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             # see duckdb docs
             sql.append("SET azure_transport_option_type = 'curl'")
 
-            if isinstance(credentials, AzureCredentialsWithoutDefaults):
+            if (
+                isinstance(credentials, (AzureCredentials, AzureServicePrincipalCredentials))
+                and credentials.has_default_credentials()
+            ):
+                if credentials.is_external_session():
+                    # DuckDB's chain cannot resolve a user-passed credential, so freeze a bearer
+                    access_token = (
+                        credentials.default_credentials()
+                        .get_token("https://storage.azure.com/.default")
+                        .token
+                    )
+                    sql.append(f"""
+                    CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                        TYPE AZURE,
+                        PROVIDER access_token,
+                        ACCESS_TOKEN '{access_token}',
+                        ACCOUNT_NAME '{credentials.azure_storage_account_name}',
+                        SCOPE '{scope}'
+                    )""")
+                else:
+                    # hand over to DuckDB's azure credential_chain (env / workload / managed
+                    # identity / az-cli), which refreshes; static branches can't express defaults
+                    sql.append(f"""
+                    CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                        TYPE AZURE,
+                        PROVIDER credential_chain,
+                        ACCOUNT_NAME '{credentials.azure_storage_account_name}',
+                        SCOPE '{scope}'
+                    )""")
+
+            elif isinstance(credentials, AzureCredentialsWithoutDefaults):
                 sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE AZURE,
@@ -397,11 +460,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 f" `{protocol}`. If you are trying to use persistent secrets"
                 " with gs/gcs, please use the s3 compatibility layer."
             )
-        else:
-            # could not create secret
-            return False
-        self._conn.sql(";\n".join(sql))
-        return True
+
+        return sql
 
     def use_dataset(self) -> None:
         """Makes duckdb schema corresponding to dataset_name the default"""

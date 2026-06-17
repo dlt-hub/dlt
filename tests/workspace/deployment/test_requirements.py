@@ -541,7 +541,7 @@ def test_collect_package_names_extras_tokens(spec: str, expected: Set[str]) -> N
     "spec, pruned, kept, dlt_injected",
     [
         ("dlt[hub]>=1.0", {"dlthub", "croniter"}, set(), False),
-        ("dlthub>=0.1", {"dlthub", "croniter"}, set(), True),
+        ("dlthub>=0.1", {"dlthub"}, {"croniter"}, True),
         ("dlthub-client", {"croniter"}, {"dlthub"}, True),
         ("dlt>=1.0", set(), {"dlthub", "croniter"}, False),
     ],

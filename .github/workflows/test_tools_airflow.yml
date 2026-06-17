@@ -15,13 +15,13 @@ jobs:
           - display_name: airflow-2
             airflow-version: "2"
             python-version: "3.12"
-            airflow-pin: ""
+            airflow-specifier: ">=2.8.0,<3"
             run-unit-tests: true
             run-smoke-test: false
           - display_name: airflow-3
             airflow-version: "3"
             python-version: "3.12"
-            airflow-pin: "apache-airflow>=3.1"
+            airflow-specifier: ">=3.1,<4"
             run-unit-tests: false
             run-smoke-test: true
 
@@ -43,10 +43,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --group airflow --group pipeline --extra duckdb --extra parquet
-          if [ -n "${{ matrix.airflow-pin }}" ]; then
-            uv pip install '${{ matrix.airflow-pin }}'
-          fi
+          uv sync --group pipeline --extra duckdb --extra parquet
+          uv run python tools/install_airflow_ci.py '${{ matrix.airflow-specifier }}'
 
       - name: Run unit tests
         if: matrix.run-unit-tests

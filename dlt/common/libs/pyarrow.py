@@ -794,6 +794,18 @@ def columns_to_arrow(
     )
 
 
+def get_local_dataset_reader(file_paths: Sequence[str]) -> pyarrow.RecordBatchReader:
+    """Streams local data files with bounded readahead to limit memory use over throughput."""
+    # NOTE: import inline, pyarrow.dataset pulls heavy dependencies
+    import pyarrow.dataset
+
+    return (
+        pyarrow.dataset.dataset(file_paths)
+        .scanner(batch_size=65536, batch_readahead=2, fragment_readahead=1)
+        .to_reader()
+    )
+
+
 def get_parquet_metadata(parquet_file: TFileOrPath) -> Tuple[int, pyarrow.Schema]:
     """Gets parquet file metadata (including row count and schema)
 

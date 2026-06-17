@@ -261,7 +261,7 @@ When developing, you generally want to avoid catching test errors only in CI, as
 
 ## Local Development
 
-Use Python 3.9 for development, as it is the lowest supported version. You can select (and download if necessary) the version with:
+Use Python 3.10 for development, as it is the lowest supported version. You can select (and download if necessary) the version with:
 
 ```sh
 uv venv --python 3.11.6
@@ -325,4 +325,3 @@ Occasionally, we may release an alpha version from a branch:
 * [uv Documentation](https://docs.astral.sh/uv/)
 
 If you have any questions or need help, don’t hesitate to reach out. We’re here to help you succeed in contributing to `dlt`. Happy coding!
-

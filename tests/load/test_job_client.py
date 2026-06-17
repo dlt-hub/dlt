@@ -8,7 +8,6 @@ import datetime  # noqa: I251
 from typing import Iterator, Tuple, List, Dict, Any
 
 from dlt.common import json, pendulum
-from dlt.common.configuration.container import Container
 from dlt.common.destination.exceptions import DestinationException
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.normalizers.naming import NamingConvention
@@ -17,7 +16,6 @@ from dlt.common.schema.typing import TLoaderReplaceStrategy, TWriteDisposition
 from dlt.common.schema.utils import new_table, new_column, pipeline_state_table
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TTableSchemaColumns
-from dlt.common.storages.load_package import LoadPackageStateInjectableContext
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
@@ -967,6 +965,7 @@ def test_initialize_storage_truncate_tables(
 ) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
+    set_always_refresh_views(client.config)
     # this mirrors what a `drop_data` refresh does: truncate the table but keep it (and its
     # stored schema) in the destination
     user_table_name = prepare_table(client)

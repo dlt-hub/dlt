@@ -6,6 +6,8 @@ from typing import (
     Dict,
     List,
     Any,
+    Sequence,
+    Set,
     Union,
     Tuple,
     Iterable,
@@ -24,6 +26,7 @@ from lance.namespace import (
     NamespaceExistsRequest,
     TableExistsRequest,
 )
+from lance_namespace import LanceNamespace
 from lancedb.table import LanceTable, _append_vector_columns
 from lancedb.embeddings import EmbeddingFunctionConfig, EmbeddingFunctionRegistry
 from lancedb.namespace import LanceNamespaceDBConnection
@@ -37,6 +40,7 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
 )
 from dlt.common.destination.client import (
+    FollowupJobRequest,
     JobClientBase,
     PreparedTableSchema,
     WithStateSync,
@@ -44,6 +48,8 @@ from dlt.common.destination.client import (
     StateInfo,
     LoadJob,
 )
+from dlt.common.storages import FileStorage
+from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
@@ -59,13 +65,19 @@ from dlt.common.schema.utils import (
 from dlt.common.storages import ParsedLoadJobFileName
 from dlt.destinations.impl.lance.configuration import (
     LanceClientConfiguration,
+    LanceNamespaceHandle,
+    LanceNamespacePool,
 )
 from dlt.destinations.impl.lance.exceptions import (
     LanceEmbeddingsConfigurationMissing,
     is_lance_undefined_entity_exception,
     raise_destination_error,
 )
-from dlt.destinations.impl.lance.jobs import LanceLoadJob
+from dlt.destinations.impl.lance.jobs import LanceCommitLoadJob, LanceLoadJob
+from dlt.destinations.job_impl import (
+    FinalizedLoadJobWithFollowupJobs,
+    ReferenceFollowupJobRequest,
+)
 from dlt.destinations.impl.lance.lance_adapter import (
     DEFAULT_REMOVE_ORPHANS,
     VECTORIZE_HINT,
@@ -94,10 +106,11 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         self.config: LanceClientConfiguration = config
         self.type_mapper = self.capabilities.get_type_mapper()
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
-        self.namespace = self.config.make_namespace()
         self.embedding_function = (
             self.config.embeddings.create_embedding_function() if self.config.embeddings else None
         )
+        self._namespace_handle: Optional[LanceNamespaceHandle] = None
+        self._tables_with_jobs: Set[str] = set()
         self._sql_client: SqlClientBase[Any] = None
 
     def __enter__(self) -> LanceClient:
@@ -106,7 +119,23 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def __exit__(
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
     ) -> None:
-        pass
+        if self._namespace_handle is not None:
+            self.config.namespace_pool.return_handle(self._namespace_handle)
+            self._namespace_handle = None
+
+    @property
+    def namespace_handle(self) -> LanceNamespaceHandle:
+        """Borrows the shared namespace handle on first access, returned in `__exit__`."""
+        if self._namespace_handle is None:
+            if self.config.namespace_pool is None:
+                # hand-built configs that skipped resolution
+                self.config.namespace_pool = LanceNamespacePool(self.config)
+            self._namespace_handle = self.config.namespace_pool.borrow()
+        return self._namespace_handle
+
+    @property
+    def namespace(self) -> LanceNamespace:
+        return self.namespace_handle.namespace
 
     @property
     def sql_client_class(self) -> Type[LanceSQLClient]:  # type: ignore[override]
@@ -160,7 +189,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             self.namespace.namespace_exists(NamespaceExistsRequest(id=self.make_namespace_id()))
             return True
         except Exception as e:
-            if is_lance_undefined_entity_exception(e):
+            if is_lance_undefined_entity_exception(e, self.config.manifest_enabled):
                 return False
             raise
 
@@ -169,9 +198,9 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         """Creates empty lance dataset from provided PyArrow schema."""
         lance.write_dataset(
             schema.empty_table(),
-            namespace=self.namespace,
+            namespace_client=self.namespace,
             table_id=self.make_table_id(table_name),
-            storage_options=self.config.storage_options,
+            storage_options=self.namespace_handle.storage_options,
         )
 
     @raise_destination_error
@@ -185,7 +214,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             self.namespace.table_exists(TableExistsRequest(id=self.make_table_id(table_name)))
             return True
         except Exception as e:
-            if is_lance_undefined_entity_exception(e):
+            if is_lance_undefined_entity_exception(e, self.config.manifest_enabled):
                 return False
             raise
 
@@ -253,9 +282,10 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             LanceDataset: The dataset checked out at the specified branch and version.
         """
         return lance.dataset(
-            namespace=self.namespace,
+            namespace_client=self.namespace,
             table_id=self.make_table_id(table_name),
-            storage_options=self.config.storage_options,
+            storage_options=self.namespace_handle.storage_options,
+            session=self.namespace_handle.session,
         ).checkout_version((branch_name, version_number))
 
     def open_lancedb_table(self, table_name: str) -> LanceTable:
@@ -263,8 +293,23 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         This provides access to LanceDB-specific features like vector search.
         """
-        db = LanceNamespaceDBConnection(self.namespace, storage_options=self.config.storage_options)
-        return db.open_table(table_name, namespace=self.make_namespace_id())
+        # NOTE: the pooled `lance.Session` cannot be shared here, lancedb requires its own
+        # session type
+        db = LanceNamespaceDBConnection(
+            self.namespace, storage_options=self.namespace_handle.storage_options
+        )
+        # storage options must be repeated per call: connection-level options are not
+        # applied when the namespace connection opens the table dataset
+        table = db.open_table(
+            table_name,
+            namespace_path=self.make_namespace_id(),
+            storage_options=self.namespace_handle.storage_options,
+        )
+        # lancedb bug: `LanceTable._dataset_uri` reads the connection `_uri` which namespace
+        # connections never set, unlike `_dataset_path` which honors the table location.
+        # seed the cached property with the real table uri
+        table.__dict__["_dataset_uri"] = self.get_table_uri(table_name)
+        return table
 
     @raise_destination_error
     def _write_records(
@@ -287,6 +332,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
                 )
             merge_builder.execute(records)
 
+    def prepare_records(
+        self, records: pa.RecordBatchReader, schema: pa.Schema
+    ) -> pa.RecordBatchReader:
+        """Adds embedding columns and casts records to the target dataset schema."""
+        records = _append_vector_columns(records, schema=schema)
+        return _cast_to_target_types(records, schema)
+
     def write_records(
         self,
         records: Union[pa.RecordBatchReader, List[Dict[str, Any]]],
@@ -302,8 +354,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         ds = self.open_lance_dataset(table_name, branch_name=branch_name)
 
         if isinstance(records, pa.RecordBatchReader):
-            records = _append_vector_columns(records, schema=ds.schema)
-            records = _cast_to_target_types(records, ds.schema)
+            records = self.prepare_records(records, ds.schema)
 
         self._write_records(
             ds,
@@ -318,6 +369,13 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             self.create_dataset_namespace()
         elif truncate_tables:
             for table_name in truncate_tables:
+                if (
+                    table_name in self._tables_with_jobs
+                    and self.prepare_load_table(table_name)["write_disposition"] == "replace"
+                ):
+                    # replaced atomically by the single Overwrite commit of the table chain.
+                    # append tables truncated via refresh still need the truncation
+                    continue
                 if not self.table_exists(table_name):
                     continue
                 self.truncate_table(table_name)
@@ -328,6 +386,8 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def verify_schema(
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
     ) -> List[PreparedTableSchema]:
+        # tables receiving data files are not truncated in `initialize_storage`
+        self._tables_with_jobs = {job.table_name for job in new_jobs or ()}
         loaded_tables = super().verify_schema(only_tables, new_jobs)
 
         for load_table in loaded_tables:
@@ -405,7 +465,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             # `open_lance_dataset` already mapped a missing table/namespace to this exception
             return False, table_schema
         except Exception as e:
-            if is_lance_undefined_entity_exception(e):
+            if is_lance_undefined_entity_exception(e, self.config.manifest_enabled):
                 return False, table_schema
             raise
 
@@ -620,4 +680,30 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
+        if ReferenceFollowupJobRequest.is_reference_job(file_path):
+            return LanceCommitLoadJob(file_path, table, restore=restore)
+        if table["write_disposition"] == "merge":
+            # all job files of the table merge in one commit in `LanceCommitLoadJob`
+            return FinalizedLoadJobWithFollowupJobs(file_path)
         return LanceLoadJob(file_path, table)
+
+    def create_table_chain_completed_followup_jobs(
+        self,
+        table_chain: Sequence[PreparedTableSchema],
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+    ) -> List[FollowupJobRequest]:
+        assert completed_table_chain_jobs is not None
+        jobs = super().create_table_chain_completed_followup_jobs(
+            table_chain, completed_table_chain_jobs
+        )
+        # one commit job per table over all its completed job files
+        for table in table_chain:
+            file_paths = [
+                job.file_path
+                for job in completed_table_chain_jobs
+                if job.job_file_info.table_name == table["name"]
+            ]
+            if file_paths:
+                file_name = FileStorage.get_file_name_from_file_path(file_paths[0])
+                jobs.append(ReferenceFollowupJobRequest(file_name, file_paths))
+        return jobs

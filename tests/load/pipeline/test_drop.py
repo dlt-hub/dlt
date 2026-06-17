@@ -175,11 +175,6 @@ def test_drop_command_resources_and_state(
 ) -> None:
     """Test the drop command with resource and state path options and
     verify correct data is deleted from destination and locally"""
-    if destination_config.destination_type == "filesystem" and destination_config.table_format:
-        pytest.skip(
-            "Cannot run this test on filesystem with open tables enabled, dlt tables are not open"
-            " tables"
-        )
     source: Any = droppable_source()
     if not in_source:
         source = list(source.selected_resources.values())

@@ -1,9 +1,16 @@
 import os
 import pytest
-from typing import Any, Iterator, List, cast
+from typing import Any, Iterator, List, Union, cast
 
 import dlt
 from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.specs import (
+    AwsCredentials,
+    AzureCredentials,
+    AzureCredentialsWithoutDefaults,
+    AzureServicePrincipalCredentials,
+    AzureServicePrincipalCredentialsWithoutDefaults,
+)
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.destination import Destination
 from dlt.common.known_env import DLT_LOCAL_DIR
@@ -670,3 +677,158 @@ def test_default_duckdb_dataset_name() -> None:
     data = ["a", "b", "c"]
     info = dlt.run(data, destination="duckdb", table_name="data")
     assert_table_column(cast(dlt.Pipeline, info.pipeline), "data", data, info=info)
+
+
+def _aws_environment_default(region: str = "us-east-1") -> AwsCredentials:
+    """AwsCredentials resolved from the environment default chain (not an external session)."""
+    creds = AwsCredentials()
+    creds.region_name = region
+    creds._set_default_credentials(object())
+    return creds
+
+
+def _aws_external_session(region: str = "us-east-1") -> AwsCredentials:
+    """AwsCredentials created from a user-passed boto session (marked external)."""
+    import botocore.session
+    from botocore.credentials import Credentials
+
+    session = botocore.session.get_session()
+    session._credentials = Credentials("AKIAEXTERNAL", "ext_secret", "ext_token")  # type: ignore[attr-defined]
+    session.set_config_variable("region", region)
+    return AwsCredentials.from_session(session)
+
+
+def _aws_explicit(region: str = "us-east-1") -> AwsCredentials:
+    """AwsCredentials with explicit static keys and no default credentials."""
+    creds = AwsCredentials()
+    creds.aws_access_key_id = "AKIAEXPLICIT"
+    creds.aws_secret_access_key = "explicit_secret"
+    creds.region_name = region
+    return creds
+
+
+def _azure_default(
+    sp: bool = False, account: str = "acc"
+) -> Union[AzureCredentials, AzureServicePrincipalCredentials]:
+    """Azure credentials backed by DefaultAzureCredential (managed identity / workload / cli)."""
+    creds = AzureServicePrincipalCredentials() if sp else AzureCredentials()
+    creds.azure_storage_account_name = account
+    creds._set_default_credentials(object())
+    return creds
+
+
+def _secret_sql(
+    scope: str, credentials: Any, persistent_stmt: str = "", persist_secrets: bool = False
+) -> str:
+    return "\n".join(
+        DuckDbSqlClient._build_secret_statements(
+            scope, credentials, "ds_secret", persistent_stmt, persist_secrets
+        )
+    )
+
+
+@pytest.mark.no_load
+@pytest.mark.parametrize(
+    "creds_factory, present, absent",
+    [
+        (_aws_environment_default, ["PROVIDER credential_chain", "REFRESH auto,"], ["KEY_ID"]),
+        (_aws_external_session, ["KEY_ID 'AKIAEXTERNAL'"], ["credential_chain"]),
+        (_aws_explicit, ["KEY_ID 'AKIAEXPLICIT'"], ["credential_chain"]),
+    ],
+    ids=["environment-default", "external-session", "explicit"],
+)
+def test_duckdb_secret_s3_handover(
+    creds_factory: Any, present: List[str], absent: List[str]
+) -> None:
+    """S3 hands over environment default creds to credential_chain; freezes external/explicit creds."""
+    sql = _secret_sql("s3://bucket/path", creds_factory())
+    for token in present:
+        assert token in sql
+    for token in absent:
+        assert token not in sql
+
+
+@pytest.mark.no_load
+@pytest.mark.parametrize(
+    "version, has_refresh", [("1.0.0", False), ("1.1.0", True), ("1.5.3", True)]
+)
+def test_duckdb_secret_s3_refresh_version_check(
+    monkeypatch: pytest.MonkeyPatch, version: str, has_refresh: bool
+) -> None:
+    """REFRESH auto is emitted only on DuckDB >= 1.1.0."""
+    import duckdb
+
+    monkeypatch.setattr(duckdb, "__version__", version)
+    sql = _secret_sql("s3://bucket", _aws_environment_default())
+    assert "PROVIDER credential_chain" in sql
+    assert ("REFRESH auto," in sql) is has_refresh
+
+
+@pytest.mark.no_load
+@pytest.mark.parametrize("scope", ["az://container", "abfss://container"], ids=["az", "abfss"])
+@pytest.mark.parametrize("sp", [False, True], ids=["default", "service-principal-default"])
+def test_duckdb_secret_azure_default_handover(scope: str, sp: bool) -> None:
+    """Azure default credentials hand over to credential_chain for az and abfss."""
+    sql = _secret_sql(scope, _azure_default(sp=sp))
+    assert "PROVIDER credential_chain" in sql
+    assert "ACCOUNT_NAME 'acc'" in sql
+    assert "CONNECTION_STRING" not in sql
+
+
+@pytest.mark.no_load
+def test_duckdb_secret_azure_connection_string_frozen() -> None:
+    """Azure account-key credentials are emitted frozen as a connection string."""
+    creds = AzureCredentialsWithoutDefaults()
+    creds.azure_storage_account_name = "acc"
+    creds.azure_storage_account_key = "key123"
+    sql = _secret_sql("az://container", creds)
+    assert "credential_chain" not in sql
+    assert "CONNECTION_STRING 'AccountName=acc;AccountKey=key123'" in sql
+
+
+@pytest.mark.no_load
+def test_duckdb_secret_azure_service_principal_frozen() -> None:
+    """Azure explicit service principal is emitted frozen."""
+    creds = AzureServicePrincipalCredentialsWithoutDefaults()
+    creds.azure_tenant_id = "t"
+    creds.azure_client_id = "ci"
+    creds.azure_client_secret = "cs"
+    creds.azure_storage_account_name = "acc"
+    sql = _secret_sql("az://container", creds)
+    assert "credential_chain" not in sql
+    assert "PROVIDER SERVICE_PRINCIPAL" in sql
+    assert "CLIENT_SECRET 'cs'" in sql
+
+
+@pytest.mark.no_load
+def test_duckdb_secret_azure_external_session() -> None:
+    """An external azure credential is frozen into a DuckDB access_token secret."""
+
+    class _Tok:
+        token = "bearer.jwt"
+
+    class _Cred:
+        def get_token(self, *args: Any, **kwargs: Any) -> Any:
+            return _Tok()
+
+    creds = AzureServicePrincipalCredentials.from_credential(_Cred())
+    creds.azure_storage_account_name = "acc"
+    sql = _secret_sql("az://container", creds)
+    assert "credential_chain" not in sql
+    assert "PROVIDER access_token" in sql
+    assert "ACCESS_TOKEN 'bearer.jwt'" in sql
+
+
+@pytest.mark.no_load
+def test_duckdb_secret_gcs_has_no_native_secret() -> None:
+    """DuckDB has no GCS credential chain; statements are empty so the client uses fsspec."""
+    assert (
+        DuckDbSqlClient._build_secret_statements(
+            "gs://bucket", _aws_explicit(), "ds_secret", "", False
+        )
+        == []
+    )
+    with pytest.raises(ValueError):
+        DuckDbSqlClient._build_secret_statements(
+            "gs://bucket", _aws_explicit(), "ds_secret", " PERSISTENT ", True
+        )

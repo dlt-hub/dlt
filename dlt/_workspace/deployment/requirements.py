@@ -532,7 +532,6 @@ def _contains_package(specs: Sequence[str], pkg_name: str) -> bool:
 
 _IMPLIED_NAMES: Dict[str, List[str]] = {
     f"{DLT_PKG_NAME}[hub]": [DLTHUB_PKG_NAME, "croniter"],
-    DLTHUB_PKG_NAME: ["croniter"],
     DLTHUB_CLIENT_PKG_NAME: ["croniter"],
     "s3fs": ["botocore"],
     "marimo": ["uvicorn"],

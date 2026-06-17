@@ -16,7 +16,7 @@ This tutorial is for you if you need to load data files like JSONL, CSV, and Par
 
 ## 0. Prerequisites
 
-- Python 3.9 or higher installed
+- Python 3.10 or higher installed
 - Virtual environment set up
 - `dlt` installed. Follow the instructions in the [installation guide](../reference/installation) to create a new virtual environment and install dlt.
 

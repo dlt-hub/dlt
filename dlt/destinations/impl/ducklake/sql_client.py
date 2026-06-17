@@ -1,6 +1,8 @@
 from typing import ClassVar, Optional, Type
 
+import duckdb
 from duckdb import DuckDBPyConnection
+from packaging.version import Version
 
 from dlt.common import logger
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
@@ -98,10 +100,13 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         persist_secrets: bool = False,
     ) -> None:
         protocol = self.credentials.storage.protocol
-        if protocol in ["az", "abfss"]:
+        # native azure support landed in DuckLake 1.0 (duckdb >= 1.5.2). on older versions fall back
+        # to fsspec which degrades performance - upgrade duckdb to use native adlfs support.
+        if protocol in ["az", "abfss"] and Version(duckdb.__version__) < Version("1.5.2"):
             logger.warning(
-                "abfss is not supported by DuckLake. "
-                "Falling back to fsspec which degrades scanning performance."
+                "abfss is not supported by DuckLake before 1.0 (duckdb < 1.5.2). Falling back to"
+                " fsspec which degrades performance. Upgrade duckdb to >= 1.5.2 to use native Azure"
+                " (adlfs) support."
             )
             self._register_filesystem(fsspec_from_config(self.credentials.storage)[0], "abfss")
         elif not super().create_secret(
