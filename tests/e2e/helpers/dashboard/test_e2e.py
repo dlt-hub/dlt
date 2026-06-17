@@ -476,3 +476,11 @@ def test_no_pipelines_home(page: Page):
             expect(page.get_by_role("button", name=app_strings.app_refresh_button)).to_be_visible()
             # the (empty) pipeline dropdown is hidden
             expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(0)
+
+            # running a pipeline then clicking refresh re-scans and shows it without a reload
+            late = dlt.pipeline(pipeline_name="late_pipeline", destination="duckdb")
+            late.run(fruitshop_source().with_resources("customers"))
+            page.get_by_role("button", name=app_strings.app_refresh_button).click()
+            expect(
+                page.get_by_role("heading", name=re.compile(r"Pipeline\s+late_pipeline"))
+            ).to_be_visible(timeout=20000)
