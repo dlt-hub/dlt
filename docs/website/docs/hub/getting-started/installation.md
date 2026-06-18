@@ -42,7 +42,7 @@ If you don't have `uv` yet, either [install it first](#setting-up-your-environme
 pipx run dlthub-start
 ```
 
-Either way, it prompts you to pick a coding agent (Claude / Cursor / Codex; defaults to Claude), then runs a guided first experience — it scaffolds the workspace, installs `dlt[hub]` and dependencies with `uv sync`, logs you in to the dltHub platform, runs a sample pipeline in a playground, and launches your agent ready to build your own source.
+Either way, it prompts you to pick a coding agent (Claude / Cursor / Codex), then runs a guided first experience — it scaffolds the workspace, installs `dlt[hub]` and dependencies with `uv sync`, logs you in to the dltHub platform, runs a sample pipeline in a playground, and launches your agent ready to build your own source.
 
 :::tip
 Run `dlthub-start` yourself with no arguments — it's interactive and guides you through each step. It scaffolds into your current folder, so the AI skills land right where your coding agent is open.
@@ -90,9 +90,9 @@ To add dltHub to an existing project, run:
 ```sh
 uvx dlthub-init@latest
 ```
-This scaffolds a workspace, installs `dlt[hub]`, and sets up the AI skills your coding agent uses:
-* `dlthub`—enables the **dlthub** command and features like AI toolkits and transformations
-* `dlthub-client`—enables access to the [managed dltHub Platform](../pipeline-operations/overview.md) (login, deploy, run, serve, etc.)
+This scaffolds a workspace, installs `dlt[hub]`, and sets up the AI skills your coding agent uses. The `dlt[hub]` extra pulls in two plugin packages:
+* `dlthub`—enables the `dlthub` command and features like AI toolkits and transformations
+* `dlthub-client`—enables access to the [managed dltHub platform](../pipeline-operations/overview.md) (login, deploy, run, serve, etc.)
 
 Workspace-level dependencies (destinations like `duckdb`, plus tools like `marimo` or `fastmcp` used by notebooks and MCP jobs) are managed in the generated `pyproject.toml`, not via `dlt` extras—extend it with `uv add <package>`.
 
