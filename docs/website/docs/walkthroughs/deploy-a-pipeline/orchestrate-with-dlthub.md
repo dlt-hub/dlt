@@ -8,9 +8,25 @@ keywords: [orchestrator, scheduling, cron, dlthub, platform, deploy]
 
 dltHub ships a managed orchestrator built around the `@dlt.hub.run` decorators. The schedule and the data dependencies live in your Python code, not in a separate DAG (directed acyclic graph) file or YAML.
 
-This page walks through three stages: running a pipeline ad-hoc, deploying it via `__deployment__.py`, and scheduling it with a trigger. For the full feature surface (follow-up chains, freshness gates, refresh cascade, tags, timezones) see [Triggers and scheduling](../../hub/pipeline-operations/triggers.md).
+This page walks through four stages: scaffolding a workspace, running a pipeline ad-hoc, deploying it via `__deployment__.py`, and scheduling it with a trigger. For the full feature surface (follow-up chains, freshness gates, refresh cascade, tags, timezones) see [Triggers and scheduling](../../hub/pipeline-operations/triggers.md).
 
-## 1. Run a pipeline ad-hoc
+## 1. Install and scaffold a workspace
+
+If you don't have `uv` yet, follow the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/). Then scaffold a workspace:
+
+```sh
+uvx dlthub-init my-workspace
+cd my-workspace
+uv sync
+```
+
+This creates the `.dlt/.workspace` marker that activates workspace mode, along with `pyproject.toml` and `.dlt/` config and secrets files. Then create a `pipeline.py` before continuing.
+
+:::tip Already have a Python project?
+See [Add dltHub to an existing project](../../hub/getting-started/installation.md#add-dlthub-to-an-existing-project) to enable workspace mode without scaffolding from scratch.
+:::
+
+## 2. Run a pipeline ad-hoc
 
 Any regular dlt pipeline can be run on the platform without a deployment file. Given a `pipeline.py` with a top-level `pipeline.run(...)` call:
 
@@ -20,7 +36,7 @@ uv run dlthub run pipeline.py
 
 This deploys the file ad-hoc, executes it on the platform, and streams logs back to your terminal. Use this for one-off runs and smoke tests. See [Quick deploy](../../hub/pipeline-operations/deployments.md#quick-deploy-ad-hoc-launch).
 
-## 2. Add `__deployment__.py`
+## 3. Add `__deployment__.py`
 
 To run the same pipeline as a managed job, decorate the entrypoint and declare it in a workspace `__deployment__.py`:
 
@@ -60,7 +76,7 @@ uv run dlthub run ingest_breweries
 
 See [Deployments](../../hub/pipeline-operations/deployments.md) for the manifest layout, reconciliation rules, and the full lifecycle.
 
-## 3. Schedule it
+## 4. Schedule it
 
 Pass a `trigger=` to the decorator to make the job cron-driven:
 
@@ -88,7 +104,7 @@ You can also change the cron from the dltHub platform's **Manage Schedule** dial
 - [Freshness checks](../../hub/pipeline-operations/triggers.md#freshness-checks): let a job skip its scheduled run if upstream data isn't fresh.
 - [Refresh cascade](../../hub/pipeline-operations/triggers.md#refresh-cascade): propagate a refresh signal downstream through the graph.
 - [Tags and bulk triggering](../../hub/pipeline-operations/triggers.md#tags-and-bulk-triggering): group jobs and trigger them by selector.
-- [Monitoring and debugging](../../hub/pipeline-operations/monitoring.md): runs, logs, and lineage from CLI or web UI.
+- [Monitoring and debugging](../../hub/pipeline-operations/monitoring.md): runs, logs, and lineage from the command line or web UI.
 
 ## See also
 
