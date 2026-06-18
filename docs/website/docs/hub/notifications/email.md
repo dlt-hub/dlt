@@ -36,6 +36,10 @@ password = "abcdefghijklmnop"     # 16 chars, no spaces, no angle brackets
 
 `sender` must be the **same Google Account** the App Password was generated on.
 
+:::tip Allowlist outbound IPs
+If your SMTP server requires IP allowlisting, enable [static egress IPs](../pipeline-operations/job-configuration.md#static-egress-ips) so the job's outbound traffic uses a known set of source IPs.
+:::
+
 ## Wire it into your pipeline
 
 ```python
