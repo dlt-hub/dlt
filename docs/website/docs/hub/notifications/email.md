@@ -12,14 +12,14 @@ The pattern below uses Python's standard `smtplib` with Gmail SMTP, but the same
 
 Generate a Gmail **App Password**, a 16-character credential that lets SMTP authenticate without your real password:
 
-1. Make sure **2-Step Verification** is enabled on the Google account.
+1. Make sure **2-Step Verification** is enabled on the Google Account.
 2. Open https://myaccount.google.com/apppasswords.
 3. Create a new password and name it, e.g. "dltHub pipeline".
 4. Copy the 16 characters. Google displays them with spaces (`abcd efgh ijkl mnop`); the spaces are decorative, so strip them.
 
 App Passwords don't affect normal sign-in: your password, 2FA, and existing sessions are unchanged. You can revoke the App Password from the same page without touching the account.
 
-If you're on a **Google Workspace** domain, an admin may have disabled App Passwords org-wide. In that case use a transactional provider (Resend, SendGrid, Mailgun). The wiring is the same; just point `smtplib` at their SMTP server and use their API key as the password.
+If you're on a **Google Workspace** domain, an administrator may have disabled App Passwords org-wide. In that case use a transactional provider (Resend, SendGrid, Mailgun). The wiring is the same; just point `smtplib` at their SMTP server and use their API key as the password.
 
 ## Store credentials in your prod profile
 
@@ -34,7 +34,7 @@ recipient = "you@example.com"
 password = "abcdefghijklmnop"     # 16 chars, no spaces, no angle brackets
 ```
 
-`sender` must be the **same Google account** the App Password was generated on.
+`sender` must be the **same Google Account** the App Password was generated on.
 
 ## Wire it into your pipeline
 
@@ -99,7 +99,7 @@ def my_job():
         raise
 ```
 
-Wrap the failure-path `send_email` in its own try/except: a broken alerting channel should not mask the underlying pipeline error.
+Wrap the failure-path `send_email` in its own try/except: a broken alerting channel shouldn't mask the underlying pipeline error.
 
 ## Deploy and trigger
 
