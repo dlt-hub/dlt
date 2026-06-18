@@ -90,7 +90,7 @@ To add dltHub to an existing project, run:
 ```sh
 uvx dlthub-init@latest
 ```
-This scaffolds a workspace, installs `dlt` plus two plugin packages pulled in by the `hub` extra, and sets up the AI skills your coding agent uses:
+This scaffolds a workspace, installs `dlt[hub]`, and sets up the AI skills your coding agent uses:
 * `dlthub`—enables the **dlthub** command and features like AI toolkits and transformations
 * `dlthub-client`—enables access to the [managed dltHub Platform](../pipeline-operations/overview.md) (login, deploy, run, serve, etc.)
 
