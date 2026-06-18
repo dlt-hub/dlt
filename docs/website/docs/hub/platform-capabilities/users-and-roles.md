@@ -1,7 +1,7 @@
 ---
 title: Users and roles
-description: How users, organizations, and workspaces relate on the dltHub platform, and what each role can do.
-keywords: [users, roles, permissions, organization, workspace, access control, RBAC, dltHub platform]
+description: How users, organizations, and workspaces relate on the dltHub platform, how to invite people, and what each role can do.
+keywords: [users, roles, permissions, organization, workspace, access control, RBAC, invite, members, dltHub platform]
 ---
 
 # Users and roles
@@ -17,29 +17,62 @@ Users authenticate against the dltHub platform in the following ways:
 - **Email signup.** Register for the Web UI ([app.dlthub.com](https://app.dlthub.com)) with an email address and password when you don't want to use a third-party identity provider.
 - **API keys.** Personal, long-lived tokens (prefixed `dlt_`) for non-interactive clients such as CI jobs or scripts. A key inherits the organization and workspace permissions of the user who created it. See [API keys](settings.md#api-keys) for creating, scoping, and revoking keys.
 
-## Organization roles
+## Inviting people to your organization and workspaces
+
+You can invite teammates by email into a whole organization or into a specific workspace, and control what each person can do with [roles](#roles).
+
+### Inviting someone
+
+1. Open the **Settings** page for the organization or workspace you want to add someone to.
+2. In the **Members** area, find the pending-invites section and enter the person's **email address**.
+3. Pick the **role** they should have (see [Roles](#roles) below).
+4. Send the invite. It appears in the pending-invites list until it's accepted.
+
+You can invite people who don't have an account yet — they'll be added automatically when they sign up and sign in with that email.
+
+### Accepting an invite
+
+There's nothing for the invited person to click. The next time they **sign in** with the email the invite was sent to, they're automatically added to the organization or workspace with the role you chose. Brand-new users skip the "create your own organization" step and land directly in the team that invited them.
+
+### Revoking an invite
+
+If you invited the wrong person or no longer want them to join, open the pending-invites list and **revoke** the invite. A revoked invite won't be accepted on sign-in. You can always send a new invite later.
+
+## Roles
+
+Roles decide what a member can see and do. Organizations and workspaces have separate roles.
+
+### Organization roles
 
 Organization membership is a prerequisite for any workspace access — a user must be added to the organization before they can be granted a role in any workspace.
 
-| Role     | Permissions                                                                                                                |
-| -------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Owner    | Manage organization settings, manage members, create and delete workspaces, and access every workspace in the organization. |
-| Member   | Create new workspaces in the organization, and access the workspaces they have been assigned to (with the role granted there). |
+| Role     | Can do |
+| -------- | ------ |
+| `owner`  | Full control: manage members and invites, change roles, manage workspaces and billing. |
+| `member` | Work within the organization and the workspaces they belong to. |
+| `guest`  | Limited access — typically someone invited to a single workspace rather than the whole org. |
 
-## Workspace roles
+### Workspace roles
 
 A workspace role is assigned per workspace and controls what a user can do inside that workspace. A user can hold different workspace roles in different workspaces.
 
-| Role     | Permissions                                                                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Owner    | Full access: manage members, edit workspace settings, start and cancel runs, manage schedules, manage public links, archive jobs, and publish interactive apps. |
-| Viewer   | Read-only access to jobs, runs, logs, pipelines, deployments, and notebooks. Viewers can also launch jobs on the [`access` profile](../pipeline-operations/profiles.md) — for example, running interactive notebooks. |
+| Role        | Can do |
+| ----------- | ------ |
+| `owner`     | Full control of the workspace: manage members, invites, settings, and content. |
+| `developer` | Create and edit work in the workspace (such as configurations, deployments, and run jobs). |
+| `viewer`    | Read-only access to jobs, runs, logs, pipelines, deployments, and notebooks. Viewers can also launch jobs on the [`access` profile](../pipeline-operations/profiles.md) — for example, running interactive notebooks. |
+
+### How invites and roles combine
+
+- Inviting someone to a **workspace** also adds them to the parent **organization** as a `guest`, so they can reach that workspace. If they're later removed from their last workspace in that organization, they're removed from the organization too.
+- If someone has more than one pending invite for the same organization or workspace, they get the **most permissive** role. Accepting an invite never lowers a role they already have.
 
 ## Permission scope
 
 Role-based restrictions apply to both the dashboard and the API, so a viewer cannot bypass restrictions by using the CLI.
 
 - **Workspace owners** can launch, cancel, and schedule any job, change workspace configuration, manage members, and publish interactive applications.
+- **Workspace developers** can create and edit work in the workspace — configurations, deployments, and run jobs — and launch and cancel jobs (including on the `prod` profile). They cannot manage members or change workspace settings.
 - **Workspace viewers** have read access to all workspace data and can launch jobs that run under the `access` profile (notebooks and other interactive read-only workloads). They cannot launch or cancel `prod` jobs, edit schedules, change workspace settings, or manage members.
 - **All roles** can view jobs, runs, logs, pipelines, deployments, and notebooks in the workspaces they have access to.
 
@@ -47,11 +80,19 @@ For details on which profiles are used for which workloads, see [Profiles in dlt
 
 ## Managing members
 
-Members are managed from the workspace **Settings** page. The same flow is used to invite new users, change roles, and remove access.
+On the **Members** table of an organization or workspace Settings page you can:
 
-- **Invite a user.** Add the user to the workspace from Settings and choose their workspace role at invitation time. The user must already belong to the organization, or be invited to it as part of the same flow.
-- **Change a role.** Update the role from Settings; the new permissions take effect immediately.
-- **Remove a user.** Removing a user from a workspace revokes their access to that workspace immediately. They remain in the organization and can be re-added to the same or other workspaces later without a new invitation.
+- **Change a member's role** with the inline role dropdown. The new permissions take effect immediately.
+- **Remove a member.** Removing a user from a workspace revokes their access to that workspace immediately.
+
+A few rules keep things safe:
+
+- You can't change **your own** role from the members table.
+- An organization or workspace can have **multiple owners**, but the **last owner can't be removed or demoted** — promote someone else to owner first.
+
+## Multiple members per role
+
+Every role can be held by any number of people — there are no single-holder roles. In particular, organizations and workspaces can have more than one **owner**, so responsibility isn't tied to a single person. Any owner can invite people, manage members, and change roles. The only limit is that the **last owner can't be removed or demoted** — promote someone else to owner first.
 
 ## See also
 
