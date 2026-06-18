@@ -42,11 +42,13 @@ pip install "dlt[hub]" pyarrow marimo ibis-framework
 
 ## Launching the dashboard
 
-You can start the dashboard with an overview of all locally found pipelines with:
+You can start the dashboard with:
 
 ```sh
 dlthub local show
 ```
+
+The dashboard opens on your most recently used pipeline and shows its dataset browser. Use the pipeline dropdown in the top-right to switch between the pipelines found on your machine.
 
 You can use the `show` [CLI command](../command-line-interface.md#dlthub-local-pipeline-show)
 with your pipeline name to directly jump to the dashboard page of this pipeline:
@@ -242,7 +244,7 @@ detections = ["iso_timestamp", "timestamp", "large_integer"]
 
 ## Understanding the dashboard
 
-The dashboard app should mostly be self-explanatory. Go to the section that corresponds to your task and click the toggle to open and use it. The dashboard app also refreshes all data when a new local pipeline run is detected for your selected pipeline. You can switch between pipelines on your machine using the pipeline dropdown in the top-right.
+The dashboard app should mostly be self-explanatory. The Dataset Browser is shown by default; open any other section by clicking its toggle. The dashboard app also refreshes all data when a new local pipeline run is detected for your selected pipeline. You can switch between pipelines on your machine using the pipeline dropdown in the top-right.
 
 The following sections are available:
 

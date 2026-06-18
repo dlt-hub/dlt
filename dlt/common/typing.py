@@ -42,7 +42,6 @@ from typing_extensions import (
     Generic,
     get_args,
     TypeVar,
-    get_origin,
     get_type_hints,
     get_origin,
     get_original_bases,
@@ -52,18 +51,9 @@ from typing_extensions import is_typeddict as _is_typeddict
 
 from typing_extensions import TypedDict  # noqa: I251
 
-try:
-    from types import UnionType  # type: ignore[attr-defined]
-except ImportError:
-    # Since new Union syntax was introduced in Python 3.10
-    # we need to substitute it here for older versions.
-    # it is defined as type(int | str) but for us having it
-    # as shown here should suffice because it is valid only
-    # in versions of Python>=3.10.
-    UnionType = Never
 
 from typing import _SpecialGenericAlias, _GenericAlias  # type: ignore[attr-defined]
-from types import GenericAlias
+from types import GenericAlias, UnionType
 
 typingGenericAlias: Tuple[Any, ...] = (_GenericAlias, _SpecialGenericAlias, GenericAlias)
 
@@ -522,7 +512,7 @@ def copy_sig_any(
     """
 
     def decorator(
-        func: Callable[..., TReturnVal]
+        func: Callable[..., TReturnVal],
     ) -> Callable[Concatenate[Any, TInputArgs], TReturnVal]:
         func.__doc__ = wrapper.__doc__
         return func

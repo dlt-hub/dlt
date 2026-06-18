@@ -35,8 +35,10 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     fetch_workbench_toolkits,
 )
 from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli.formatters import parse_frontmatter
 
 from tests.workspace.cli.dlthub.ai.utils import (
+    assert_toolkit_install,
     make_mock_toolkit,
     make_mock_toolkit_info,
     make_mock_workbench,
@@ -188,6 +190,57 @@ def test_toolkit_install_skip_existing() -> None:
     installed = _execute_install(actions)
     assert installed == 3
     assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == "custom content"
+
+
+def test_codex_install_caps_long_descriptions() -> None:
+    """Codex truncates over-long descriptions for verbatim skills and command/rule skills."""
+    toolkit_dir = make_mock_toolkit()
+    project_root = Path.cwd()
+
+    long = "A" * 1200
+    # verbatim skill (copytree): description in frontmatter
+    skill_md = toolkit_dir / "skills" / "find-source" / "SKILL.md"
+    skill_md.write_text(
+        "---\nname: find-source\ndescription: %s\n---\n# Body\nFind a source." % long,
+        encoding="utf-8",
+    )
+    # command → skill: description carried through wrap_as_skill
+    (toolkit_dir / "commands" / "bootstrap.md").write_text(
+        "---\nname: Bootstrap\ndescription: %s\n---\n# Bootstrap\nDo stuff." % long,
+        encoding="utf-8",
+    )
+    # rule → always-apply skill: prefixed then capped
+    (toolkit_dir / "rules" / "coding.md").write_text(
+        "---\ndescription: %s\n---\n# Coding Style\nFollow these." % long,
+        encoding="utf-8",
+    )
+
+    actions, _warnings = _plan_toolkit_install(
+        toolkit_dir, _CodexAgent(), project_root, "test-toolkit"
+    )
+    _execute_install(
+        actions,
+        toolkit_meta=make_mock_toolkit_info(description="mock"),
+        project_root=project_root,
+        agent_name="codex",
+    )
+
+    # every installed SKILL.md description fits the limit and is marked truncated
+    for rel in (
+        ".agents/skills/find-source/SKILL.md",
+        ".agents/skills/bootstrap/SKILL.md",
+        ".agents/skills/test-toolkit-coding/SKILL.md",
+    ):
+        fm, _ = parse_frontmatter((project_root / rel).read_text(encoding="utf-8"))
+        assert len(fm["description"]) <= _CodexAgent._MAX_SKILL_DESCRIPTION
+        assert fm["description"].endswith("…")
+
+    # workbench source is left untouched
+    src_fm, _ = parse_frontmatter(skill_md.read_text(encoding="utf-8"))
+    assert len(src_fm["description"]) == 1200
+
+    # tracked index hashes match the capped files on disk
+    assert_toolkit_install(project_root, "test-toolkit", "codex")
 
 
 @pytest.mark.parametrize(

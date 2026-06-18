@@ -44,12 +44,11 @@ dltHub is a managed cloud platform for running your dlt pipelines, transformatio
 - **Web UI** at [app.dlthub.com](https://app.dlthub.com) — sign up to deploy, schedule, monitor pipelines, manage profiles, browse datasets.
 - **Locally, from the CLI or Python** — bootstrap a new workspace in one command:
   ```sh
-  uvx dlthub-start@latest my-workspace
+  uvx dlthub-start@latest
   ```
   This creates a runnable workspace with the AI Workbench, example pipelines, and the [`dlt[hub]`](installation.md) extra installed. To add dltHub to an existing project instead, run:
   ```sh
-  pip install "dlt[hub]"
-  dlthub init
+  uvx dlthub-init@latest
   ```
   Either way, you get the dltHub workspace and dashboard, the AI development tooling (`dlthub ai`, MCP server, AI Workbench), per-source contexts, and the `dlthub` library that adds data quality, transformations, and premium sources/destinations.
 

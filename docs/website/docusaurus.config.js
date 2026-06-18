@@ -156,16 +156,15 @@ const config = {
           },
           {
             type: "docSidebar",
-            sidebarId: "docsSidebar",
-            position: "left",
-            label: "dlt",
-          },
-          {
-            type: "docSidebar",
             sidebarId: "hubSidebar",
             position: "left",
             label: "dltHub",
-            className: "navbar-cta",
+          },
+          {
+            type: "docSidebar",
+            sidebarId: "docsSidebar",
+            position: "left",
+            label: "dlt",
           },
           {
             type: "docSidebar",

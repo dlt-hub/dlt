@@ -93,13 +93,13 @@ PYTEST_XDIST_DIST  ?= worksteal
 PYTEST_TARGET_ARGS :=
 
 # Internal marker model
-PARALLEL_MARKER_EXPR = (not serial and not forked)
-SERIAL_MARKER_EXPR   = (serial or forked)
+PARALLEL_MARKER_EXPR = (not serial and not forked and not rfam)
+SERIAL_MARKER_EXPR   = (serial or forked) and not rfam
 
 ifeq ($(OS),Windows_NT)
   PYTEST_MARKERS += not forked and not rfam
   PYTEST_ARGS += -p no:forked
-  SERIAL_MARKER_EXPR = serial
+  SERIAL_MARKER_EXPR = serial and not rfam
 endif
 
 define COMBINE_MARKERS
