@@ -525,6 +525,11 @@ const sidebars = {
     },
     {
       type: "category",
+      label: "Notifications",
+      items: ["hub/notifications/slack", "hub/notifications/email"],
+    },
+    {
+      type: "category",
       label: "Platform capabilities",
       items: [
         "hub/platform-capabilities/regions",
