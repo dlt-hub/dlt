@@ -25,6 +25,9 @@ jobs:
           - display_name: linux-3.13
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.13"
+          - display_name: linux-3.14
+            os: blacksmith-8vcpu-ubuntu-2404
+            python-version: "3.14"
 
     defaults:
       run:
