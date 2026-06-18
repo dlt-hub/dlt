@@ -319,7 +319,7 @@ test-pipeline-full:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_FULL_PATHS))
 
 install-sqlalchemy2:
-	uv run pip install sqlalchemy==2.0.32
+	uv run pip install --upgrade sqlalchemy
 
 TEST_SQL_DATABASE_PATHS = tests/sources/sql_database tests/common/libs/
 
