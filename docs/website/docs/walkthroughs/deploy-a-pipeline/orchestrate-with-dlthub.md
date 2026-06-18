@@ -52,6 +52,12 @@ Deploy with:
 uv run dlthub deploy
 ```
 
+To trigger a run, invoke the job by name:
+
+```sh
+uv run dlthub run ingest_breweries
+```
+
 See [Deployments](../../hub/pipeline-operations/deployments.md) for the manifest layout, reconciliation rules, and the full lifecycle.
 
 ## 3. Schedule it
@@ -70,7 +76,7 @@ def ingest_breweries():
     ...
 ```
 
-After the next `dlthub deploy`, the scheduler runs the job on its cron. Trigger factories also include `trigger.every("5m")` (fixed interval), `trigger.once(...)` (single run), and `trigger.manual()` (run on demand only). See [Basic triggers](../../hub/pipeline-operations/triggers.md#basic-triggers).
+Run `dlthub deploy` again to push the trigger to the platform. The scheduler then runs the job on its cron. Trigger factories also include `trigger.every("5m")` (fixed interval) and `trigger.once(...)` (single run). See [Basic triggers](../../hub/pipeline-operations/triggers.md#basic-triggers).
 
 :::tip Adjust the schedule from the platform
 You can also change the cron from the dltHub platform's **Manage Schedule** dialog, useful for ad-hoc pauses or tweaks without redeploying. To make a change permanent, update the decorator and run `dlthub deploy`.
