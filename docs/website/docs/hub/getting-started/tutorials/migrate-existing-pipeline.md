@@ -12,10 +12,13 @@ A dltHub **workspace** is just your existing project plus a marker file and a li
 Starting from scratch instead? See [Deploy your first pipeline](deploy-your-first-pipeline.md).
 
 :::note `dlthub-start` vs. this guide
-[`dlthub-start`](deploy-your-first-pipeline.md) is for **exploring** the platform: it spins up a throwaway **playground**
-workspace and an **AI workbench** that can build and deploy a pipeline for a brand-new source one-shot (for example, the
-GitHub API into DuckDB). This guide is the other direction — bringing a `dlt` pipeline you already maintain onto the
-platform, with minimal code changes and no scaffolding.
+Two different starting points:
+
+- [**`dlthub-start`**](deploy-your-first-pipeline.md) — for **exploring** the platform. Spins up a throwaway
+  **playground** workspace and an **AI workbench** that builds and deploys a pipeline for a brand-new source one-shot
+  (for example, the GitHub API into DuckDB).
+- **This guide** — the other direction: bringing a `dlt` pipeline you **already maintain** onto the platform, with
+  minimal code changes and no scaffolding.
 :::
 
 ## Starting point
@@ -50,29 +53,29 @@ if __name__ == "__main__":
 
 ## 1. Install and enable workspace mode
 
-Add the `hub` extra to your project:
+From your project root, run:
 
 ```sh
-uv pip install "dlt[hub]"
+uvx dlthub-init@latest
 ```
 
-Then turn on workspace mode from your project root:
+`dlthub-init` scaffolds a workspace in place — your pipeline script is left untouched. It:
 
-```sh
-dlthub init
-```
+- installs `dlt[hub]`;
+- creates the `.dlt/.workspace` marker plus `config.toml`, `secrets.toml`, and a `pyproject.toml`;
+- sets up the AI skills your coding agent uses.
 
-`dlthub init` creates the `.dlt/.workspace` marker plus `config.toml`, `secrets.toml`, and a `pyproject.toml` — your
-pipeline script is left untouched. See [installation](../installation.md#enable-workspace-mode) for the manual marker.
+See [Add dltHub to an existing project](../installation.md#add-dlthub-to-an-existing-project) for details, or
+[Enable workspace mode](../installation.md#enable-workspace-mode) for the manual marker.
 
 ## Or let your coding agent migrate it
 
-Once `dlt[hub]` is installed, you can hand the migration to your AI assistant instead of doing
-the steps below by hand. The `dlthub ai` subcommand is the bridge between the [dltHub AI Workbench](../../ingestion/rest-api-source.md)
-and your coding assistant.
+Step 1 already set up the AI skills your coding agent uses, so you can hand the migration to your AI assistant instead
+of doing the steps below by hand. The `dlthub ai` subcommand is the bridge between the
+[dltHub AI Workbench](../../ingestion/rest-api-source.md) and your coding assistant.
 
-`dlthub ai init` installs project rules, a secrets-management skill, the appropriate ignore files, and configures the
-dlt MCP server for your agent:
+If you skipped the scaffolding above or want to re-run AI setup on its own, `dlthub ai init` installs project rules, a
+secrets-management skill, the appropriate ignore files, and configures the dlt MCP server for your agent:
 
 ```sh
 # set up AI support (auto-detects your coding assistant)
@@ -83,8 +86,10 @@ uv run dlthub ai init --agent <agent>
 ```
 
 `dlthub ai toolkit install` copies additional toolkit components (skills, rules, commands) into the right locations for
-your assistant. List the available toolkits and install the ones you need — if you're not sure, install all of them. The
-**dlthub-platform** toolkit covers deployment and scheduling:
+your assistant:
+
+- List the available toolkits and install the ones you need — if you're not sure, install all of them.
+- The **dlthub-platform** toolkit covers deployment and scheduling.
 
 ```sh
 uv run dlthub ai toolkit list
@@ -92,55 +97,60 @@ uv run dlthub ai toolkit list
 uv run dlthub ai toolkit install dlthub-platform
 ```
 
-Then prompt your agent, for example *"Migrate the dlt pipeline in `sample_shop_pipeline.py` to the dltHub platform and
-deploy it."* It performs the same steps described below — profiles, a deployable job, and the deploy.
+Then prompt your agent, for example:
+
+> *"Deploy the dlt pipeline in `sample_shop_pipeline.py` to the dltHub platform."*
+
+It performs the same steps described below — destination config, a deployable job, and the deploy.
 
 ## 2. Connect and deploy ad-hoc
 
-Log in, bind the directory to a remote workspace, and run your script in the cloud. The **ad-hoc** path uses the `prod`
-profile and your existing destination credentials:
+The **ad-hoc** path uses the `prod` profile and your existing destination credentials. Three commands:
+
+1. **Log in** to the platform.
+2. **Connect** the directory to a remote workspace.
+3. **Run** your script in the cloud.
 
 ```sh
 uv run dlthub login
-uv run dlthub workspace connect
 uv run dlthub run sample_shop_pipeline.py -f
 ```
 
+:::tip
 Run it locally first to catch issues without a remote slot: `uv run dlthub local run sample_shop_pipeline.py`.
+:::
 
 That's the migration. The steps below make it production-grade.
 
-## 3. Separate dev and prod with profiles
+## 3. Configure your destination
 
-[Profiles](../../pipeline-operations/profiles.md) let the same destination **alias** resolve to different credentials.
-Reference an alias in code instead of a hardcoded destination:
+Reference a destination **alias** in your code instead of a hardcoded destination, so the same script can resolve to
+different credentials:
 
 ```py
 import dlt
 
 pipeline = dlt.pipeline(
     pipeline_name="sample_shop_pipeline",
-    destination="warehouse",   # resolved per profile
+    destination="warehouse",   # resolved from config
     dataset_name="sample_shop",
 )
 ```
 
-Then map it — cheap locally, real in production:
+Set the destination type and credentials in `.dlt/secrets.toml` (gitignored):
 
 ```toml
-# .dlt/dev.config.toml
-[destination.warehouse]
-destination_type = "duckdb"
-```
-
-```toml
-# .dlt/prod.config.toml
 [destination.warehouse]
 destination_type = "bigquery"
+
+[destination.warehouse.credentials]
+project_id = "your_project_id"
+private_key = "your_private_key"
+client_email = "your_service_account_email"
 ```
 
-Put prod credentials in `.dlt/prod.secrets.toml` (gitignored). See
-[Workspace setup](../../pipeline-operations/workspace-setup.md#credentials-and-configs).
+To keep separate settings for local development and production, use
+[profiles](../../pipeline-operations/profiles.md).
 
 ## 4. Schedule it
 
@@ -151,15 +161,6 @@ import dlt
 from dlt.hub import run
 from dlt.hub.run import trigger
 from dlt.sources.rest_api import rest_api_source
-
-
-def sample_shop():
-    return rest_api_source(
-        {
-            "client": {"base_url": "https://jaffle-shop.dlthub.com/api/v1/", "paginator": {"type": "header_link"}},
-            "resources": [{"name": "customers"}, {"name": "orders"}, {"name": "products"}],
-        }
-    )
 
 
 @run.pipeline("sample_shop_pipeline", trigger=trigger.schedule("0 * * * *"))

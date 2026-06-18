@@ -50,46 +50,50 @@ playground/
 └── .dlt/               # config, secrets, and the .workspace marker
 ```
 
-`pipeline.py` loads a public sample API into a local DuckDB warehouse. It's already a deployable job — decorated with
-`@run.pipeline` and listed in `__deployment__.py`. See [Deployments](../../pipeline-operations/deployments.md) for how
-the manifest works.
+`pipeline.py` loads a public sample API into the **playground** destination — zero-config storage the platform
+provisions for you. It's already a deployable job:
+
+- decorated with `@run.pipeline`;
+- listed in `__deployment__.py`.
+
+See [Deployments](../../pipeline-operations/deployments.md) for how the manifest works.
 
 ## 3. Re-run and inspect
 
 ```sh
-cd playground
-
 uv run dlthub run load_sample_shop   # run on the platform
-uv run dlthub show                   # open the dashboard
+uv run dlthub show                   # open the Overview dashboard
 ```
 
+:::tip
 Rehearse locally first — `uv run dlthub local run load_sample_shop` uses the `dev` profile and spends no remote slot.
+:::
 
 ## 4. Point production at a cloud destination
 
-The scaffold writes to local DuckDB, which is ephemeral on the platform. Point the `prod` profile at a cloud destination
-([MotherDuck](../../../dlt-ecosystem/destinations/motherduck.md),
-[BigQuery](../../../dlt-ecosystem/destinations/bigquery.md),
-[Snowflake](../../../dlt-ecosystem/destinations/snowflake.md),
-[S3](../../../dlt-ecosystem/destinations/filesystem.md)). Keep the `warehouse` alias so your code doesn't change.
+The example writes to the **playground** destination — platform-provisioned storage that's ideal for testing but
+isn't meant for production data. To load real data, point the `playground` alias at a cloud destination — your pipeline
+code doesn't change. Supported destinations include:
 
-**`.dlt/prod.config.toml`**
+- [MotherDuck](../../../dlt-ecosystem/destinations/motherduck.md)
+- [BigQuery](../../../dlt-ecosystem/destinations/bigquery.md)
+- [Snowflake](../../../dlt-ecosystem/destinations/snowflake.md)
+- [S3](../../../dlt-ecosystem/destinations/filesystem.md)
+- [etc.](../../../dlt-ecosystem/destinations)
+
+Set the destination type and credentials in `.dlt/secrets.toml` (gitignored):
 
 ```toml
-[destination.warehouse]
+[destination.playground]
 destination_type = "motherduck"
-```
 
-**`.dlt/prod.secrets.toml`** (gitignored)
-
-```toml
-[destination.warehouse.credentials]
+[destination.playground.credentials]
 database = "your_database"
 password = "your-service-token"
 ```
 
-See [Workspace setup](../../pipeline-operations/workspace-setup.md#credentials-and-configs) and
-[Profiles](../../pipeline-operations/profiles.md) for the full credentials model.
+To keep separate settings for local development and production, use
+[profiles](../../pipeline-operations/profiles.md).
 
 ## 5. Schedule the pipeline
 
@@ -110,6 +114,18 @@ uv run dlthub deploy
 ```
 
 See [Triggers and scheduling](../../pipeline-operations/triggers.md) for cron, intervals, and follow-ups.
+
+## 6. Build your own pipeline with your coding agent
+
+Once the sample is running, `dlthub-start` hands off to your coding agent so you can build a pipeline for **your own**
+source. Describe what you want in plain language and the agent does the rest:
+
+- **Launches** your agent (Claude / Cursor / Codex) with the dltHub skills and MCP server wired in.
+- **Builds and deploys** the pipeline — registering the job, deploying it, and running it on the playground workspace.
+- **Opens the dashboard** so you can explore the loaded data right away.
+
+For the production-grade path — auth, incremental loading, more endpoints — see the
+[dltHub AI Workbench](../../ingestion/rest-api-source.md).
 
 ## Next steps
 
