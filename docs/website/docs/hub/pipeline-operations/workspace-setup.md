@@ -8,38 +8,19 @@ keywords: [dlthub platform, workspace, setup, login, profiles, credentials, conf
 
 A workspace ready for the dltHub platform is a regular Python project with a few additions. You can easily convert any existing dlt project into a dltHub workspace.
 
-## 1. Initialize a Python project
+## 1. Enable dltHub platform features
 
-If your project doesn't have a `pyproject.toml` yet, create one:
-
-```sh
-uv init
-```
-
-The dltHub platform uses `pyproject.toml` to install dependencies remotely.
-
-## 2. Enable dltHub platform features
-
-Install `dlt[hub]` and initialize the workspace:
+Initialize the workspace:
 
 ```sh
-uv add "dlt[hub]"
-uv run dlthub init
+uvx dlthub-init@latest
 ```
 
-`dlthub init` scaffolds:
+`uvx dlthub-init@latest` scaffolds a ready-to-run workspace—the `.dlt/.workspace` marker that turns on workspace mode, local config and secrets, a managed `pyproject.toml`, and the dltHub AI skills your coding agent uses—then installs dependencies with `uv sync`.
 
-```text
-.dlt/
-├── .workspace          # marker that enables the extended `dlthub` command surface
-├── config.toml         # workspace-wide config
-└── secrets.toml        # workspace-wide secrets (gitignored)
-.gitignore
-```
+The `.dlt/.workspace` marker activates [profile support](./profiles.md) and enables the `dlthub` CLI command (including `dlthub profile` and `dlthub local`). Run `uvx dlthub-init@latest --help` for options like `--no-sync`. If you'd rather flip the toggle by hand, see [Enable workspace mode](../getting-started/installation.md#enable-workspace-mode).
 
-The `.dlt/.workspace` marker activates [profile support](./profiles.md) and enables the `dlthub` CLI command (including `dlthub profile` and `dlthub local`). Pass `--name <workspace>` to override the default (the current directory's basename), or `--dry-run` to preview the file plan without writing. If you'd rather flip the toggle by hand, see [Enable workspace mode](../getting-started/installation.md#enable-workspace-mode).
-
-## 3. Log in to the dltHub platform
+## 2. Log in to the dltHub platform
 
 ```sh
 dlthub login
@@ -65,7 +46,7 @@ A single GitHub repository can be connected to only one remote workspace at a ti
 Connecting multiple local repositories to the same remote workspace is not yet supported.
 :::
 
-## 4. Add pipelines
+## 3. Add pipelines
 
 ```sh
 dlthub pipeline init <source> <destination>

@@ -474,7 +474,6 @@ def table_rows(
             table,
             metadata,
             autoload_with=engine,
-            extend_existing=True,
             resolve_fks=resolve_foreign_keys,
         )
         table = _execute_table_adapter(

@@ -1,9 +1,9 @@
 [project]
 name = "dlt"
-version = "1.27.2"
+version = "1.28.1"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
-requires-python = ">=3.9.2, <3.15"
+requires-python = ">=3.10, <3.15"
 readme = "README.md"
 license = "Apache-2.0"
 maintainers = [
@@ -19,11 +19,11 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Software Development :: Libraries",
     "Typing :: Typed",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",
@@ -64,8 +64,8 @@ dependencies = [
 
 [project.optional-dependencies]
 hub = [
-    "dlthub>=0.27.0, <0.28 ; python_version >= '3.10'",
-    "dlthub-client>=0.27.0, <0.28 ; python_version >= '3.10'",
+    "dlthub>=0.27.0, <0.29",
+    "dlthub-client>=0.27.7, <0.29",
 ]
 gcp = [
     "grpcio>=1.50.0",
@@ -184,14 +184,14 @@ lancedb = [
     "pyarrow>=16.0.0",
     "duckdb>=1.4.3",
     # duckdb >= 1.4.0 doesn't work with ibis < 11.0.0
-    "ibis-framework>=12.0.0 ; python_version >= '3.10'"
+    "ibis-framework>=12.0.0"
 ]
 lance = [
-    "pylance>=6.0.1,<8 ; python_version >= '3.10'",
-    "lancedb>=0.33.0 ; python_version >= '3.10'",
+    "pylance>=6.0.1,<8",
+    "lancedb>=0.33.0",
     "pyarrow>=16.0.0",
     "duckdb>=1.4.3",
-    "ibis-framework>=12.0.0 ; python_version >= '3.10'"
+    "ibis-framework>=12.0.0"
 ]
 deltalake = [
     "deltalake>=0.25.1",
@@ -278,8 +278,7 @@ dev = [
 
 # NOTE: those dependencies are used to test built in sources
 sources = [
-    "connectorx>=0.4.2 ; python_version >= '3.10'",
-    "connectorx<0.4.2 ; python_version < '3.10'",
+    "connectorx>=0.4.2",
     "pymysql>=1.1.0,<2",
     "openpyxl>=3,<4",
     "mimesis>=7.0.0,<8",
@@ -306,10 +305,10 @@ pipeline = [
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.13'"]
 ibis = [
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=12.0.0 ; python_version >= '3.10' and python_version < '3.13'",
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=12.0.0 ; python_version < '3.13'",
     "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=12.0.0 ; python_version >= '3.13'"
 ]
-ibis-bare = ["ibis-framework>=12.0.0 ; python_version >= '3.10'"]
+ibis-bare = ["ibis-framework>=12.0.0"]
 dashboard-tests = [
     "playwright>=1.58.0,<2",
     "pytest-playwright>=0.7.1,<1",
@@ -317,7 +316,7 @@ dashboard-tests = [
 # NOTE: required to use google secrets config provider
 providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
-streamlit = ["streamlit>1.50 ; python_version >= '3.10'"]
+streamlit = ["streamlit>1.50"]
 dbt = [
     "dbt-core>=1.7.0",
     "dbt-redshift>=1.7.0",
@@ -335,10 +334,10 @@ adbc = [
 
 workspace-deps = [
     "duckdb>=0.9",
-    "ibis-framework>=12.0.0 ; python_version >= '3.10'",
+    "ibis-framework>=12.0.0",
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
-    "fastmcp>=3.0.0 ; python_version >= '3.10'",
+    "fastmcp>=3.0.0",
     "mowidgets>=0.2.1 ; python_version >= '3.11'",
     "pathspec>=0.11.2",
     "pydbml>=1.2.0",
@@ -381,7 +380,7 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 src = ["dlt"]
 include = [
     "dlt/**/*.py",
@@ -432,7 +431,7 @@ src_paths = ["dlt"]
 multi_line_output = 3
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 ignore_missing_imports = false
 strict_optional = false
 warn_redundant_casts = true

@@ -19,7 +19,7 @@ Make sure you have installed the necessary dependencies:
 pip install deltalake
 ```
 
-If you don't have a dltHub workspace yet, scaffold one with `uvx dlthub-start@latest` (see the [installation guide](../getting-started/installation.md)). Then, from inside the workspace, add a Delta pipeline:
+If you don't have a dltHub workspace yet, scaffold one with `uvx dlthub-init@latest` (see the [installation guide](../getting-started/installation.md)). Then, from inside the workspace, add a Delta pipeline:
 
 ```sh
 dlthub pipeline init sql_database delta

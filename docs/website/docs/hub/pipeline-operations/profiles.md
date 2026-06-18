@@ -25,7 +25,7 @@ Before you start, make sure you have followed the [installation instructions](..
 
 [More about dlt Workspace →](../getting-started/installation.md#what-is-a-dlthub-workspace)
 
-[Scaffold](../ingestion/init.md) a workspace with `uvx dlthub-start@latest`, then add a pipeline to it from inside the workspace:
+[Scaffold](../ingestion/init.md) a workspace with `uvx dlthub-init@latest`, then add a pipeline to it from inside the workspace:
 
 ```sh
 dlthub pipeline init pokemon_api duckdb

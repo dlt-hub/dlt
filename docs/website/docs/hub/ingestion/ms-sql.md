@@ -45,7 +45,7 @@ WITH (TRACK_COLUMNS_UPDATED = ON);
 
 ### Set up dlthub and drivers
 
-* If you don't have a dltHub workspace yet, scaffold one with `uvx dlthub-start@latest` (see the [installation guide](../getting-started/installation.md) for prerequisites and alternative install paths).
+* If you don't have a dltHub workspace yet, scaffold one with `uvx dlthub-init@latest` (see the [installation guide](../getting-started/installation.md) for prerequisites and alternative install paths).
 
 * Install the Microsoft ODBC Driver for SQL Server according to the official [instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16). If you prefer, there is also a [Python library alternative](https://www.pymssql.org/).
 
