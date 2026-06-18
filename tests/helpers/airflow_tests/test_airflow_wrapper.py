@@ -1,7 +1,7 @@
 import os
 import pytest
 from unittest import mock
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Literal, Optional
 
 from dlt.common.runners.pool_runner import get_default_start_method
 from dlt.common.runtime.exec_info import is_running_in_airflow_task
@@ -275,7 +275,9 @@ def test_regular_run() -> None:
     ],
 )
 def test_truncate_staging_destination_flag(
-    group_kwargs: Dict[str, Any], decompose: str, expected: Optional[bool]
+    group_kwargs: Dict[str, Any],
+    decompose: Literal["none", "serialize", "parallel", "parallel-isolated"],
+    expected: Optional[bool],
 ) -> None:
     """Staging-destination truncation is disabled automatically for parallel runs and can be
     forced on or off with the `truncate_staging_destination` group argument."""
@@ -306,11 +308,43 @@ def test_truncate_staging_destination_flag(
     dag_truncate()
     # every pipeline-running task in the group carries the resolved truncation setting
     resolved = {
-        task.python_callable.keywords.get("truncate_staging_destination")
+        getattr(task.python_callable, "keywords", {}).get("truncate_staging_destination")
         for task in tasks_list
         if isinstance(task, PythonOperator)
     }
     assert resolved == {expected}
+
+
+def test_truncate_staging_destination_applied_at_runtime() -> None:
+    """Running a parallel-isolated group actually applies the staging-destination truncation
+    config that the loader reads (`should_truncate_table_before_load_on_staging_destination`),
+    not just binds it to the task."""
+    config_key = "destination.truncate_tables_on_staging_destination_before_load"
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_apply() -> None:
+        tasks = PipelineTasksGroup(
+            "pipeline_dag_truncate_apply",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
+        )
+        pipeline = dlt.pipeline(
+            pipeline_name="pipeline_dag_truncate_apply",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+        )
+        tasks.add_run(
+            pipeline,
+            mock_data_source(),
+            decompose="parallel-isolated",
+            trigger_rule="all_done",
+            retries=0,
+        )
+
+    dag_def = dag_apply()
+    dag_def.test()
+    # the running tasks set the config the loader consults to skip staging truncation
+    assert dlt.config[config_key] is False
 
 
 def test_run() -> None:
