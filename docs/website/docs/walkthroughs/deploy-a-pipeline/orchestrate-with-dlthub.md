@@ -15,7 +15,7 @@ This page walks through four stages: scaffolding a workspace, running a pipeline
 If you don't have `uv` yet, follow the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/). Then scaffold a workspace:
 
 ```sh
-uvx dlthub-init
+uvx dlthub-init@latest
 ```
 
 This creates the `.dlt/.workspace` marker that activates workspace mode, along with `pyproject.toml` and `.dlt/` config and secrets files. For other install options and setup paths, see [Installation](../../hub/getting-started/installation.md).
