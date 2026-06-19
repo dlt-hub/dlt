@@ -1253,7 +1253,7 @@ def cast_arrow_array_as_column_schema(
                 data = memoryview(data_b).cast("q")
 
                 def allocate_lazy_null_mask() -> None:
-                    nonlocal is_null, data, is_null_b
+                    nonlocal is_null, is_null_b
                     if is_null is None:
                         nbytes = (n + 7) // 8
                         is_null_b = pa.allocate_buffer(nbytes, resizable=False)

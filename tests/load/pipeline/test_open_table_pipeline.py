@@ -99,7 +99,6 @@ def test_table_format_core(
 
     @dlt.resource(columns=column_schemas, table_format=destination_config.table_format)
     def data_types():
-        nonlocal row
         yield [row] * 10
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)

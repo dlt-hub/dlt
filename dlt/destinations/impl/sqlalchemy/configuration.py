@@ -80,7 +80,8 @@ class ManagedEngine:
     def _dispose_engine(self) -> None:
         if self._conn_borrows > 0:
             warnings.warn(
-                f"Disposing engine {self._engine.url} with {self._conn_borrows} open conns."
+                f"Disposing engine {self._engine.url} with {self._conn_borrows} open conns.",
+                stacklevel=2,
             )
         if self._engine:
             self._engine.dispose()

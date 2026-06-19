@@ -36,7 +36,9 @@ class NullExecutor(Executor):
         fut: Future[T] = Future()
         try:
             result = fn(*args, **kwargs)
-        except BaseException as exc:
+        # mirror concurrent.futures: capture any error (incl. BaseException) onto the Future,
+        # to be re-raised by Future.result()
+        except BaseException as exc:  # noqa: B036
             fut.set_exception(exc)
         else:
             fut.set_result(result)

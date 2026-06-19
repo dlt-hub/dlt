@@ -38,7 +38,6 @@ This is used as a last-resort fallback for encoding objects.
 
 def _custom_encode(obj: Any) -> JsonSerializable:
     """Returns a JSON-serializable representation of `obj`"""
-    global _custom_encoder
     if isinstance(obj, Decimal):
         # always return decimals as string so they are not deserialized back to float
         return str(obj)
@@ -121,7 +120,6 @@ PUA_CHARACTER_MAX = len(DECODERS)
 
 
 def _custom_pua_encode(obj: Any) -> JsonSerializable:
-    global _custom_encoder
     # wei is subclass of decimal and must be checked first
     if isinstance(obj, Wei):
         return _WEI + str(obj)

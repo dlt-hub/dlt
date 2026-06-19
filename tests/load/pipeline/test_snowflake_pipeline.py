@@ -325,7 +325,6 @@ def test_snowflake_use_vectorized_scanner(
 
     @dlt.resource(table_name="data_types", write_disposition="merge", columns=columns_schema)
     def my_resource():
-        nonlocal data_types
         yield [data_types] * 10
 
     pipeline = destination_config.setup_pipeline(

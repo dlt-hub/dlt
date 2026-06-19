@@ -118,7 +118,7 @@ def pytest_configure(config):
         "https://telemetry-tracker.services4758.workers.dev"
     )
 
-    delattr(runtime_configuration.RuntimeConfiguration, "__init__")
+    del runtime_configuration.RuntimeConfiguration.__init__
     runtime_configuration.RuntimeConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         runtime_configuration.RuntimeConfiguration, init=True, repr=False
     )
@@ -126,7 +126,7 @@ def pytest_configure(config):
     storage_configuration.LoadStorageConfiguration.load_volume_path = os.path.join(
         test_storage_root, "load"
     )
-    delattr(storage_configuration.LoadStorageConfiguration, "__init__")
+    del storage_configuration.LoadStorageConfiguration.__init__
     storage_configuration.LoadStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         storage_configuration.LoadStorageConfiguration, init=True, repr=False
     )
@@ -135,7 +135,7 @@ def pytest_configure(config):
         test_storage_root, "normalize"
     )
     # delete __init__, otherwise it will not be recreated by dataclass
-    delattr(storage_configuration.NormalizeStorageConfiguration, "__init__")
+    del storage_configuration.NormalizeStorageConfiguration.__init__
     storage_configuration.NormalizeStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         storage_configuration.NormalizeStorageConfiguration, init=True, repr=False
     )
@@ -143,7 +143,7 @@ def pytest_configure(config):
     storage_configuration.SchemaStorageConfiguration.schema_volume_path = os.path.join(
         test_storage_root, "schemas"
     )
-    delattr(storage_configuration.SchemaStorageConfiguration, "__init__")
+    del storage_configuration.SchemaStorageConfiguration.__init__
     storage_configuration.SchemaStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         storage_configuration.SchemaStorageConfiguration, init=True, repr=False
     )

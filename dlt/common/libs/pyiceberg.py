@@ -461,7 +461,9 @@ def create_table(
 
     if partition_columns:
         warnings.warn(
-            "partition_columns is deprecated. Use partition_spec instead.", DeprecationWarning
+            "partition_columns is deprecated. Use partition_spec instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         with catalog.create_table_transaction(
             table_id,

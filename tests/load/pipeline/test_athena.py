@@ -145,7 +145,6 @@ def test_athena_all_datatypes_and_timestamps(
     # apply the exact columns definitions so we process json and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="append", columns=column_schemas)
     def my_resource() -> Iterator[Any]:
-        nonlocal data_types
         yield [data_types] * 10
 
     @dlt.source(max_table_nesting=0)
@@ -312,7 +311,6 @@ def test_athena_blocks_time_column(destination_config: DestinationTestConfigurat
     # apply the exact columns definitions so we process json and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="append", columns=column_schemas)
     def my_resource() -> Iterator[Any]:
-        nonlocal data_types
         yield [data_types] * 10
 
     @dlt.source(max_table_nesting=0)

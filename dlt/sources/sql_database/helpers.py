@@ -635,6 +635,7 @@ def _detect_precision_hints_deprecated(value: Optional[bool]) -> None:
     warnings.warn(
         msg,
         DeprecationWarning,
+        stacklevel=2,
     )
 
 

@@ -61,7 +61,6 @@ def test_replace_disposition(
         # will produce 3 jobs for the main table with 40 items each
         # 6 jobs for the sub_items
         # 3 jobs for the sub_sub_items
-        nonlocal offset
         for _, index in enumerate(range(offset, offset + 120), 1):
             yield {
                 "id": index,
@@ -84,7 +83,6 @@ def test_replace_disposition(
     # append resource to see if we do not drop any tables
     @dlt.resource(write_disposition="append", table_format=destination_config.table_format)
     def append_items():
-        nonlocal offset
         for _, index in enumerate(range(offset, offset + 12), 1):
             yield {
                 "id": index,

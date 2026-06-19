@@ -2304,13 +2304,11 @@ def test_progress_subclass_receives_callbacks() -> None:
         def on_start_trace(
             self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_start_trace"] = True
 
         def on_start_trace_step(
             self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_start_trace_step"] = True
 
         def on_end_trace_step(
@@ -2321,13 +2319,11 @@ def test_progress_subclass_receives_callbacks() -> None:
             step_info: Any,
             send_state: bool,
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_end_trace_step"] = True
 
         def on_end_trace(
             self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_end_trace"] = True
 
         def on_log(self) -> None:
