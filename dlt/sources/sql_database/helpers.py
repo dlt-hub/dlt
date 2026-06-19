@@ -359,7 +359,7 @@ class ConnectorXTableLoader(BaseTableLoader):
             raise MissingDependencyException("Connector X table backend", ["connectorx"])
 
         import pyarrow as pa
-        from dlt.common.libs.pyarrow import cast_date64_columns_to_timestamp
+        from dlt.common.libs.pyarrow import cast_connectorx_temporal_columns
 
         # default settings
         backend_kwargs = {
@@ -383,7 +383,7 @@ class ConnectorXTableLoader(BaseTableLoader):
             record_reader = cx.read_sql(conn, query_str, **backend_kwargs)
             for record_batch in record_reader:
                 table = pa.Table.from_batches((record_batch,), schema=record_batch.schema)
-                yield cast_date64_columns_to_timestamp(_maybe_fix_0000_timezone(table))
+                yield cast_connectorx_temporal_columns(_maybe_fix_0000_timezone(table))
         else:
             df = cx.read_sql(conn, query_str, **backend_kwargs)
             if len(df) > self.chunk_size:

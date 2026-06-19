@@ -25,7 +25,7 @@ from dlt.common.libs.pyarrow import (
     is_arrow_item,
     remove_null_columns_from_schema,
     UnsupportedArrowTypeException,
-    cast_date64_columns_to_timestamp,
+    cast_connectorx_temporal_columns,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from tests.cases import table_update_and_row
@@ -503,7 +503,7 @@ def test_cast_date64_columns_to_timestamp_rescales_ms_to_us() -> None:
     tbl = pa.table({"ts_like": date64_arr})
 
     # Rescale date64[ms] -> timestamp[us] (naive)
-    out = cast_date64_columns_to_timestamp(tbl)
+    out = cast_connectorx_temporal_columns(tbl)
 
     assert pa.types.is_timestamp(out["ts_like"].type)
     assert out["ts_like"].type == pa.timestamp("us")
@@ -519,7 +519,7 @@ def test_cast_date64_columns_to_timestamp_rescales_ms_to_us() -> None:
 def test_cast_date64_is_noop_when_absent_and_returns_same_object() -> None:
     # Table without date64 columns should be returned unchanged (same object)
     tbl = pa.table({"a": pa.array([1, 2, None]), "b": pa.array(["x", "y", "z"])})
-    out = cast_date64_columns_to_timestamp(tbl)
+    out = cast_connectorx_temporal_columns(tbl)
     assert out is tbl
 
 
@@ -530,7 +530,7 @@ def test_cast_date64_chunked_array_support() -> None:
     date64_chunked = pa.chunked_array([vals1, vals2])
     tbl = pa.table({"ts_like": date64_chunked})
 
-    out = cast_date64_columns_to_timestamp(tbl)
+    out = cast_connectorx_temporal_columns(tbl)
 
     # Should be timestamp[us] chunked array with ms -> us rescaling
     assert pa.types.is_timestamp(out["ts_like"].type)
@@ -542,3 +542,42 @@ def test_cast_date64_chunked_array_support() -> None:
         ]
     )
     assert out["ts_like"].equals(expected)
+
+
+def test_cast_ns_temporal_columns_to_us_truncates_and_keeps_tz() -> None:
+    # connectorx arrow_stream returns timestamp[ns]/time64[ns]; we truncate to us. lossless
+    # because source DBs (e.g. postgres) only have us precision, so ns == us * 1000.
+    us = 1408661138111761  # 2014-08-21 22:45:38.111761
+    time_us = 81938111761  # 22:45:38.111761
+    tbl = pa.table(
+        {
+            "ts": pa.array([0, us * 1000, None], type=pa.timestamp("ns")),
+            "ts_utc": pa.array([0, us * 1000, None], type=pa.timestamp("ns", "UTC")),
+            "t": pa.array([0, time_us * 1000, None], type=pa.time64("ns")),
+        }
+    )
+
+    out = cast_connectorx_temporal_columns(tbl)
+
+    assert out["ts"].type == pa.timestamp("us")
+    # the column's own timezone is preserved
+    assert out["ts_utc"].type == pa.timestamp("us", "UTC")
+    assert out["t"].type == pa.time64("us")
+    # microsecond values are preserved exactly (no precision lost, no spurious sub-us)
+    assert pa.compute.cast(out["ts"], pa.int64()).combine_chunks()[1].as_py() == us
+    assert pa.compute.cast(out["t"], pa.int64()).combine_chunks()[1].as_py() == time_us
+
+
+def test_cast_non_ns_columns_are_noop_and_return_same_object() -> None:
+    # only ns is truncated; us/ms/s temporal columns are left as-is (same object returned)
+    tbl = pa.table(
+        {
+            "ts_us": pa.array([1, 2, None], type=pa.timestamp("us")),
+            "ts_us_utc": pa.array([1, 2, None], type=pa.timestamp("us", "UTC")),
+            "ts_ms": pa.array([1, 2, None], type=pa.timestamp("ms")),
+            "ts_s": pa.array([1, 2, None], type=pa.timestamp("s")),
+            "t_us": pa.array([1, 2, None], type=pa.time64("us")),
+        }
+    )
+    out = cast_connectorx_temporal_columns(tbl)
+    assert out is tbl

@@ -1556,35 +1556,48 @@ def set_plus0000_timezone_to_utc(tbl: pyarrow.Table) -> pyarrow.Table:
     return pyarrow.Table.from_arrays(arrays, schema=new_schema)
 
 
-def cast_date64_columns_to_timestamp(tbl: pyarrow.Table, tz: Optional[str] = None) -> pyarrow.Table:
+def cast_connectorx_temporal_columns(tbl: pyarrow.Table, tz: Optional[str] = None) -> pyarrow.Table:
     """
-    Cast any date64 columns to timestamp with microsecond precision, preserving the
-    semantic time values. Uses pyarrow.compute.cast on the column (works for chunked arrays)
-    to cast from milliseconds (date64) to microseconds (timestamp[us]).
+    Normalize connectorx temporal columns to microsecond precision.
+
+    connectorx returns timestamps as date64 (milliseconds) on older versions and as
+    timestamp[ns] on newer ones (the `arrow_stream` return type), and times as time64[ns].
+    dlt and its destinations use microseconds and no database connectorx reads from has
+    sub-microsecond resolution, so casting to `us` is lossless. date64 is rescaled to
+    timestamp[us]; nanosecond timestamp and time64 columns are truncated to `us` with the
+    timezone preserved; other units (ms, s, us) and unrelated columns are left untouched.
 
     Args:
         tbl: Input Arrow table.
-        tz: Optional timezone to annotate the resulting timestamp with (e.g. "UTC").
-            If None (default), produces a naive timestamp.
+        tz: Optional timezone to annotate date64 columns with (date64 carries no timezone).
+            Existing timestamp columns keep their own timezone.
 
     Returns:
-        A new table with date64 columns cast to timestamp[us] (optionally tz-aware),
-        or the original table if no date64 columns were found.
+        A new table with the temporal columns cast to microsecond precision, or the original
+        table if there was nothing to cast.
     """
     arrays, fields = [], []
     changed = False
 
     for col, fld in zip(tbl.columns, tbl.schema):
-        if pyarrow.types.is_date64(fld.type):
-            changed = True
-            unit = "us"
-            new_type = pyarrow.timestamp(unit, tz)
-            # Rescale from ms (date64) to us (timestamp).
-            arrays.append(pyarrow.compute.cast(col, new_type))
-            fields.append(pyarrow.field(fld.name, new_type, fld.nullable, fld.metadata))
+        col_type = fld.type
+        if pyarrow.types.is_date64(col_type):
+            # date64 is milliseconds since epoch; rescale to us and optionally annotate tz
+            new_type = pyarrow.timestamp("us", tz)
+        elif pyarrow.types.is_timestamp(col_type) and col_type.unit == "ns":
+            # truncate ns timestamps to us, keeping the column's own timezone (other units kept)
+            new_type = pyarrow.timestamp("us", col_type.tz)
+        elif pyarrow.types.is_time64(col_type) and col_type.unit == "ns":
+            new_type = pyarrow.time64("us")
         else:
             arrays.append(col)
             fields.append(fld)
+            continue
+
+        changed = True
+        # safe=False truncates sub-us precision (lossless here: source DBs carry no nanoseconds)
+        arrays.append(pyarrow.compute.cast(col, new_type, safe=False))
+        fields.append(pyarrow.field(fld.name, new_type, fld.nullable, fld.metadata))
 
     if not changed:
         return tbl
