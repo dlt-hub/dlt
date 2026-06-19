@@ -54,9 +54,16 @@ def sync_from_vendor():
     ...
 ```
 
-Static egress routing forces job traffic through the US region. See [Regions and data residency](../platform-capabilities/regions.md) for how regional data planes relate to your organization.
+Which static egress IPs your jobs use depends on your organization's region and data residency settings. See [Regions and data residency](../platform-capabilities/regions.md) for how regional data planes relate to your organization.
 
-The static egress IPs are:
+The static egress IPs for the **EU region** are:
+- 63.181.217.92
+- 18.156.57.4
+- 63.183.227.2
+- 63.182.151.74
+- 18.197.112.47
+
+The static egress IPs for the **US region** are:
 - 34.205.113.62
 - 44.221.24.144
 - 34.193.87.36
