@@ -138,7 +138,7 @@ def test_coerce_to_numeric(dec_cls: Type[Any], data_type: TDataType) -> None:
     # mind that 1276.37 does not have binary representation as used in float
     v = coerce_value(data_type, "double", 1276.37)
     assert type(v) is dec_cls
-    assert v.quantize(Decimal("1.00")) == dec_cls("1276.37")
+    assert v == dec_cls("1276.37")
 
     # wei to decimal and reverse
     v = coerce_value(data_type, "decimal", Decimal("1276.37"))
@@ -151,6 +151,25 @@ def test_coerce_to_numeric(dec_cls: Type[Any], data_type: TDataType) -> None:
     # invalid format
     with pytest.raises(ValueError):
         coerce_value(data_type, "text", "p912.12")
+
+
+def test_coerce_double_to_decimal_no_float_expansion() -> None:
+    """Decimal(str(float)) should not exhibit IEEE 754 double-precision expansion."""
+    # 34.7 as float would expand to 34.70000000000000284... with Decimal(34.7)
+    # using Decimal(str(34.7)) preserves "34.7"
+    result = coerce_value("decimal", "double", 34.7)
+    assert result == Decimal("34.7")
+    assert str(result) == "34.7"
+
+    # same issue applies to Wei which extends Decimal
+    result = coerce_value("wei", "double", 34.7)
+    assert result == Wei("34.7")
+    assert str(result) == "34.7"
+
+    # get the "binary" float by quantizing properly and avoid casting
+    qd = Decimal.from_float(34.70000000000000284).quantize(Decimal("1." + "0" * 15))
+    # 15 digits scale, round up
+    assert qd == Decimal("34.700000000000003")
 
 
 def test_coerce_type_from_hex_text() -> None:

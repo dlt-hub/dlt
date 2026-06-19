@@ -4,15 +4,15 @@ from pydantic import Field
 from fastmcp.exceptions import ToolError
 
 from dlt.common.typing import Annotated
-from dlt._workspace.cli.ai.utils import (
+from dlt._workspace.cli.dlthub.ai.utils import (
     DEFAULT_AI_WORKBENCH_BRANCH,
     DEFAULT_AI_WORKBENCH_REPO,
     fetch_workbench_base,
     fetch_workbench_toolkit_info,
     fetch_workbench_toolkits,
 )
+from dlt._workspace.cli.dlthub.ai.typing import TToolkitInfo, TWorkbenchToolkitInfo
 from dlt._workspace.mcp.context import with_mcp_tool_telemetry
-from dlt._workspace.typing import TToolkitInfo, TWorkbenchToolkitInfo
 
 
 @with_mcp_tool_telemetry()

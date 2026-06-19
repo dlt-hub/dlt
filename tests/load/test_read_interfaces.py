@@ -21,11 +21,9 @@ from dlt.common.schema.typing import TTableFormat
 
 from dlt.common.utils import uniq_id
 from dlt.extract.incremental import Incremental
-from dlt.extract.incremental.sql import to_sqlglot_filter
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
-from tests.load.lance_utils import module_lance_rest_server
 from tests.load.utils import (
     DestinationTestConfiguration,
     MEMORY_BUCKET,
@@ -172,7 +170,6 @@ def preserve_module_environ_per_destination_config(
 @pytest.fixture(scope="module")
 def populated_pipeline(
     destination_config: DestinationTestConfiguration,
-    module_lance_rest_server: None,
     auto_module_test_storage,
     preserve_module_environ_per_destination_config,
     auto_module_test_run_context,
@@ -315,6 +312,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         "dlt.destinations.filesystem",
         "dlt.destinations.snowflake",
         "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
+        "dlt.destinations.duckdb",  # vector sizes started to vary
         "dlt.destinations.lancedb",  # default is 200
         "dlt.destinations.lance",
     ]
@@ -848,14 +846,9 @@ def test_where(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-def test_to_sqlglot_filter_on_dataset(populated_pipeline: Pipeline) -> None:
-    """End-to-end: to_sqlglot_filter(incr) applied via dataset().items.where(expr)."""
-    _run_filter_assertions(populated_pipeline)
-
-
-def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
+def test_relation_incremental_datetime_on_dataset(populated_pipeline: Pipeline) -> None:
+    """End-to-end: dataset.table('items').incremental(<datetime cursor>) on every destination."""
     items = populated_pipeline.dataset().items
-    caps = populated_pipeline.dataset().sql_client.capabilities
     total_records = _total_records(populated_pipeline.destination.destination_type)
     last_dt = ITEMS_EPOCH + timedelta(seconds=total_records - 1)
 
@@ -868,40 +861,29 @@ def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
     }
 
     def _bind(incr: Incremental[Any], instance_start_value: Any = None) -> Incremental[Any]:
-        # mirror Incremental.bind(): instance start_value is the lag-applied lower
-        # (or raw last_value when no lag), cached_state["start_value"] is the raw snapshot
         incr._cached_state = copy(cached_state)
         incr.start_value = instance_start_value if instance_start_value is not None else last_dt
         return incr
 
-    # bound, no lag: lower == upper == last_dt -> "no new data" filter, 0 rows
+    # 1. bound, no lag, no end_value — lower = last_dt, no upper, keeps the last row
     incr = _bind(dlt.sources.incremental[pendulum.DateTime]("created_at"))
-    expr = to_sqlglot_filter(incr, destination_capabilities=caps)
-    assert expr is not None
-    assert items.where(expr).fetchall() == []
+    assert len(items.incremental(incr).fetchall()) == 1
 
-    # 1. lag — 5 seconds backward; bind() would set start_value = last_dt - 5s
+    # 2. lag — start_value = last_dt - 5s; no upper bound; includes last_dt itself
     lagged_start = last_dt - timedelta(seconds=5)
     incr_lag = _bind(
         dlt.sources.incremental[pendulum.DateTime]("created_at", lag=5.0),
         instance_start_value=lagged_start,
     )
-    expr = to_sqlglot_filter(incr_lag, destination_capabilities=caps)
-    # filter: created_at >= last_dt-5s AND < last_dt -> positions total-6..total-2 = 5 rows
-    assert len(items.where(expr).fetchall()) == 5
-    # apply_lag=False reads raw cached state["start_value"] (= last_dt) -> 0 rows
-    expr_raw = to_sqlglot_filter(incr_lag, apply_lag=False, destination_capabilities=caps)
-    assert items.where(expr_raw).fetchall() == []
+    assert len(items.incremental(incr_lag).fetchall()) == 6
 
-    # 2. no upper bound — fresh, unbound, just initial_value
-    # filter: created_at >= ITEMS_EPOCH -> all rows
+    # 3. unbound, initial_value only
     incr_unbound = dlt.sources.incremental[pendulum.DateTime](
         "created_at", initial_value=ITEMS_EPOCH
     )
-    expr = to_sqlglot_filter(incr_unbound, destination_capabilities=caps)
-    assert len(items.where(expr).fetchall()) == total_records
+    assert len(items.incremental(incr_unbound).fetchall()) == total_records
 
-    # 3. open start, closed end — fresh, unbound, range modifiers on both ends
+    # 4. unbound with range modifiers and explicit end_value
     range_start_dt = ITEMS_EPOCH + timedelta(seconds=10)
     range_end_dt = ITEMS_EPOCH + timedelta(seconds=20)
     incr_range = dlt.sources.incremental[pendulum.DateTime](
@@ -911,9 +893,7 @@ def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
         range_start="open",
         range_end="closed",
     )
-    expr = to_sqlglot_filter(incr_range, destination_capabilities=caps)
-    # filter: created_at > t+10s AND created_at <= t+20s -> positions 11..20 = 10 rows
-    arrow_tbl = items.where(expr).select("created_at").order_by("created_at").arrow()
+    arrow_tbl = items.incremental(incr_range).select("created_at").order_by("created_at").arrow()
     actual_dts = arrow_tbl["created_at"].to_pylist()
     expected_dts = [ITEMS_EPOCH + timedelta(seconds=i) for i in range(11, 21)]
 
@@ -932,6 +912,15 @@ def _run_filter_assertions(populated_pipeline: Pipeline) -> None:
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
+    if populated_pipeline.destination.destination_type == "dlt.destinations.dremio":
+        # dremio 26.x answers MAX/MIN on iceberg tables from column metadata and decodes the
+        # bounds of a numeric-looking VARCHAR as a DOUBLE. MAX("_dlt_load_id") then loses
+        # precision (eg. '1780221885.501048' -> '1780221885.50105') and the `_dlt_load_id = ...`
+        # filter below matches no rows. MAX on regular (non-numeric) strings is unaffected.
+        # forcing a string expression - MAX(CONCAT(col, '')) or MAX(col || '') - returns the
+        # correct value. still broken as of 26.1.8, no known fixed version.
+        pytest.skip("dremio coerces numeric-like VARCHAR to double in MAX, see comment")
+
     items = populated_pipeline.dataset().items
     orderable_in_chain = populated_pipeline.dataset().orderable_in_chain
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -941,8 +930,6 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     assert all(row[0] < 10 for row in filtered_items_sql)
 
     load_id = items.select("_dlt_load_id").max().fetchscalar()
-    # NOTE: query below tests dremio wrong MAX behavior where strings are casted to decimals, we locked dremio container to 25.0 tag
-    # f'SELECT MAX(CONCAT(\'_\', "_dlt_load_id")) AS "_col_0" FROM "nas"."{populated_pipeline.dataset_name}"."items" AS "items"')
     all_items = items.where(f"_dlt_load_id = '{load_id}'").fetchall()
     assert len(all_items) == total_records
 
@@ -1342,14 +1329,8 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
             table_name_prefix = dataset_name + "___"
             dataset_name = None
             additional_tables += ["dlt_sentinel_table"]
-
-        # filesystem uses duckdb and views to map know tables. for other ibis will list
-        # all available tables so both schemas tables are visible
-        if populated_pipeline.destination.destination_type not in [
-            "dlt.destinations.lancedb",
-        ]:
-            # from aleph schema
-            additional_tables += ["digits"]
+        # from aleph schema
+        additional_tables += ["digits"]
 
         add_table_prefix = lambda x: table_name_prefix + x
 
@@ -1692,7 +1673,6 @@ def _src_gamma():
 @pytest.fixture(scope="module")
 def overlap_pipeline(
     destination_config: DestinationTestConfiguration,
-    module_lance_rest_server: None,
     auto_module_test_storage,
     preserve_module_environ_per_destination_config,
     auto_module_test_run_context,
@@ -1799,6 +1779,7 @@ def test_multi_schema_ibis(overlap_pipeline: Pipeline) -> None:
     if overlap_pipeline.destination.destination_type not in (
         "dlt.destinations.duckdb",
         "dlt.destinations.filesystem",
+        "dlt.destinations.lance",
     ):
         pytest.skip("ibis multi-schema test only on duckdb and filesystem")
 

@@ -118,7 +118,7 @@ def pytest_configure(config):
         "https://telemetry-tracker.services4758.workers.dev"
     )
 
-    delattr(runtime_configuration.RuntimeConfiguration, "__init__")
+    del runtime_configuration.RuntimeConfiguration.__init__
     runtime_configuration.RuntimeConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         runtime_configuration.RuntimeConfiguration, init=True, repr=False
     )
@@ -126,7 +126,7 @@ def pytest_configure(config):
     storage_configuration.LoadStorageConfiguration.load_volume_path = os.path.join(
         test_storage_root, "load"
     )
-    delattr(storage_configuration.LoadStorageConfiguration, "__init__")
+    del storage_configuration.LoadStorageConfiguration.__init__
     storage_configuration.LoadStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         storage_configuration.LoadStorageConfiguration, init=True, repr=False
     )
@@ -135,7 +135,7 @@ def pytest_configure(config):
         test_storage_root, "normalize"
     )
     # delete __init__, otherwise it will not be recreated by dataclass
-    delattr(storage_configuration.NormalizeStorageConfiguration, "__init__")
+    del storage_configuration.NormalizeStorageConfiguration.__init__
     storage_configuration.NormalizeStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         storage_configuration.NormalizeStorageConfiguration, init=True, repr=False
     )
@@ -143,7 +143,7 @@ def pytest_configure(config):
     storage_configuration.SchemaStorageConfiguration.schema_volume_path = os.path.join(
         test_storage_root, "schemas"
     )
-    delattr(storage_configuration.SchemaStorageConfiguration, "__init__")
+    del storage_configuration.SchemaStorageConfiguration.__init__
     storage_configuration.SchemaStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         storage_configuration.SchemaStorageConfiguration, init=True, repr=False
     )
@@ -203,5 +203,40 @@ def pytest_configure(config):
 # import faulthandler, atexit, sys
 
 # faulthandler.enable()  # makes sure the module is initialised
+
+
+@pytest.fixture(autouse=True)
+def _reset_cli_global_state() -> None:
+    """Resets the CLI debug flag and active host name before each test."""
+    # both are module-level globals on dlt._workspace.cli; in-process tests
+    # (script_runner inprocess, direct command calls) leak them across tests
+    try:
+        from dlt._workspace.cli import _debug as _cli_debug, echo as _cli_echo
+    except ImportError:
+        return
+    _cli_debug.disable_debug()
+    _cli_echo.set_cli_host_name("dlt")
+
+
+def pytest_sessionfinish(session: "pytest.Session", exitstatus: int) -> None:
+    # A module-level skip (e.g. `skip_if_not_active`) raised while pytest imports a conftest/package
+    # `__init__` aborts collection of the whole tree (pytest-dev/pytest#7085) and exits with
+    # NO_TESTS_COLLECTED (5), which CI masks (`make ... || [ $? -eq 5 ]`) - so the run goes green
+    # having executed nothing.
+    if exitstatus != pytest.ExitCode.NO_TESTS_COLLECTED:
+        return
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    if reporter is None:
+        return
+    skipped_reports = [report for report in reporter.stats.get("skipped", [])]
+    if any(not getattr(report, "nodeid", "") for report in skipped_reports):
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+        reporter.write_line(
+            "ERROR: test collection was aborted by a module-level skip during conftest/package"
+            " import and produced zero tests. A test module with `skip_if_not_active` in"
+            " __init__.py and conftest.py must be present.",
+            red=True,
+        )
+
 
 # atexit.register(lambda: faulthandler.dump_traceback(file=sys.stderr, all_threads=True))

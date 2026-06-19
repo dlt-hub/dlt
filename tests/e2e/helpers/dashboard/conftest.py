@@ -40,7 +40,7 @@ def simple_incremental_pipeline() -> Any:
     return po
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def fruit_pipeline() -> Any:
     pf = dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb")
     pf.run(fruitshop_source())

@@ -16,9 +16,6 @@ import dlt
 from dlt.common.libs.ibis import _DltBackend
 from dlt.common.libs.pyarrow import pyarrow as pa
 
-from tests.load.lance_utils import (
-    module_lance_rest_server,  # consumed by `populated_pipeline` fixture
-)
 from tests.load.test_read_interfaces import (
     populated_pipeline,
     preserve_module_environ_per_destination_config,

@@ -151,10 +151,10 @@ def assert_table(
 class MockEmbeddingFunc(TextEmbeddingFunction):
     def generate_embeddings(
         self,
-        texts: Union[List[str], np.ndarray],  # type: ignore[type-arg]
+        texts: Union[List[str], np.ndarray],  # type: ignore[type-arg,unused-ignore]
         *args,
         **kwargs,
-    ) -> List[np.ndarray]:  # type: ignore[type-arg]
+    ) -> List[np.ndarray]:  # type: ignore[type-arg,unused-ignore]
         return [np.array(None)]
 
     def ndims(self) -> int:

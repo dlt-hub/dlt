@@ -16,7 +16,7 @@ This tutorial is for you if you need to load data files like JSONL, CSV, and Par
 
 ## 0. Prerequisites
 
-- Python 3.9 or higher installed
+- Python 3.10 or higher installed
 - Virtual environment set up
 - `dlt` installed. Follow the instructions in the [installation guide](../reference/installation) to create a new virtual environment and install dlt.
 
@@ -363,8 +363,8 @@ Check out [other examples](../dlt-ecosystem/verified-sources/filesystem#create-y
 Congratulations on completing the tutorial! You've learned how to set up a filesystem source in dlt and run a data pipeline to load the data into DuckDB.
 
 With your pipeline code ready, we recommend the following next steps:
-- Inspect your pipeline and data in [workspace dashboard](../general-usage/dashboard.md)
-- [Access your data](../general-usage/dataset-access/) using `dataset` interface
+- Inspect your pipeline and data in [workspace dashboard](../hub/ingestion/dashboard.md)
+- [Access your data](../general-usage/dataset-access/dataset.md) using `dataset` interface
 - [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.
 
 Interested in learning more about dlt? Here are some suggestions:

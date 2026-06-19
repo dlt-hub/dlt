@@ -137,7 +137,7 @@ azure_storage_account_key = "your-storage-account-key"
 Data is loaded via INSERT statements by default. Fabric Warehouse has a limit of 1000 rows per INSERT, and this is what we use.
 
 ## Supported file formats
-* [insert-values](../file-formats/insert-format.md) is the default and currently only supported format
+* [insert-values](../file-formats.md#sql-insert) is the default and currently only supported format
 
 ## Supported column hints
 **fabric** will create unique indexes for all columns with `unique` hints. This behavior **is disabled by default**.

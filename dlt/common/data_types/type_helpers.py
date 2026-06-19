@@ -156,6 +156,15 @@ def _text_to_wei(value: str) -> Wei:
         raise ValueError(trim_value)
 
 
+def _float_to_decimal(value: float) -> Decimal:
+    """Uses `str` that produces most precise stable decimal representaion of given `value`"""
+    return Decimal(str(value))
+
+
+def _float_to_wei(value: float) -> Wei:
+    return Wei(str(value))
+
+
 def _numeric_to_bigint(value: Any) -> int:
     if value % 1 != 0:
         raise ValueError(value)
@@ -206,12 +215,12 @@ _COERCE_DISPATCH: Dict[Tuple[TDataType, TDataType], Callable[[Any], Any]] = {
     # to decimal
     ("decimal", "text"): _text_to_decimal,
     ("decimal", "bigint"): Decimal,
-    ("decimal", "double"): Decimal,
+    ("decimal", "double"): _float_to_decimal,
     ("decimal", "wei"): Decimal,
     # to wei
     ("wei", "text"): _text_to_wei,
     ("wei", "bigint"): Wei,
-    ("wei", "double"): Wei,
+    ("wei", "double"): _float_to_wei,
     ("wei", "decimal"): Wei,
     # to bool
     ("bool", "text"): str2bool,

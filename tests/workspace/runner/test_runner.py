@@ -505,12 +505,7 @@ def test_event_dispatched_job_uses_default_trigger_for_interval(
 def test_pipeline_run_with_expose_tags_dispatches_via_tag_selector(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A `pipeline_run` job whose only trigger comes from `expose["tags"]` is dispatchable via `tag:` selector.
-
-    Regression for the case where the manifest display showed `(manual only)`
-    because raw `triggers` was empty, and the user couldn't tell that the tag
-    trigger was actually wired up.
-    """
+    """A `pipeline_run` job whose only trigger comes from `expose["tags"]` is dispatchable via `tag:` selector."""
     job_def = _batch_job(
         "jobs.batch_jobs.tag_only",
         triggers=[],

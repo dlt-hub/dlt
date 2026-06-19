@@ -669,7 +669,8 @@ class PipelineContext(ContainerInjectableContext):
                 f"Runtime context changed from `{pipeline.run_context.uri}` to `{active().uri}`"
                 f" when activating pipeline `{pipeline.pipeline_name}`. Pipeline will keep its"
                 " working and local dirs. Other behaviors are undefined. Recreate pipeline"
-                " instance after run context change."
+                " instance after run context change.",
+                stacklevel=2,
             )
         # do not activate currently active pipeline
         if pipeline == self._pipeline:

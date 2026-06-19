@@ -33,6 +33,23 @@ def client_with_storage() -> Iterator[LanceClient]:
     yield from cast(Iterator[LanceClient], yield_client_with_storage("lance"))
 
 
+def test_lance_client_borrows_shared_namespace(client: LanceClient) -> None:
+    client_namespace = client.namespace
+    pool = client.config.namespace_pool
+    base_borrows = pool._borrows
+
+    other = LanceClient(client.schema, client.config, client.capabilities)
+    # namespace borrowed lazily from the shared pool
+    assert other.namespace is client_namespace
+    assert pool._borrows == base_borrows + 1
+
+    # handle returned on context exit and re-borrowed on next access
+    other.__exit__(None, None, None)
+    assert other._namespace_handle is None
+    assert pool._borrows == base_borrows
+    assert other.namespace is client_namespace
+
+
 def test_lance_client_dataset_namespace_and_table_methods(client: LanceClient) -> None:
     # create dataset namespace
     assert not client.dataset_namespace_exists()
@@ -130,7 +147,7 @@ def test_lance_client_write_records_into_branch(client_with_storage: LanceClient
 
 
 def test_lance_client_write_records_matches_lancedb_table_add(
-    client_with_storage: LanceClient, tmp_path: str
+    client_with_storage: LanceClient, tmp_path: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Asserts `write_records` produces same table as `lancedb.Table.add()`.
 
@@ -138,6 +155,8 @@ def test_lance_client_write_records_matches_lancedb_table_add(
     """
     client = client_with_storage
 
+    # the shell-provided NAME env var leaks into the `name` config field as last resort lookup
+    monkeypatch.delenv("NAME", raising=False)
     # configure embeddings on client
     embeddings_config = resolve_configuration(
         LanceEmbeddingsConfiguration(),

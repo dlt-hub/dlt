@@ -31,7 +31,7 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
 
 ## Installation
 
-dlt supports Python 3.9 through Python 3.14. Note that some optional extras are not yet available for Python 3.14, so support for this version is considered experimental.
+dlt supports Python 3.10 through Python 3.14. Note that some optional extras are not yet available for Python 3.14, so support for this version is considered experimental.
 
 ```sh
 pip install dlt
@@ -115,6 +115,16 @@ Please read [CONTRIBUTING](CONTRIBUTING.md) before you make a PR.
 - 📣 **New destinations are unlikely to be merged** due to high maintenance cost (but we are happy to improve SQLAlchemy destination to handle more dialects)
 - Significant changes require tests and docs and in many cases writing tests will be more laborious than writing code
 - Bugfixes and improvements are welcome! You'll get help with writing tests and docs + a decent review.
+
+## Sponsors
+
+<p>
+  <a href="https://blacksmith.sh/?utm_source=dlt&utm_medium=readme&utm_campaign=sponsorship" target="_blank">
+    <img src=".github/assets/blacksmith-logo.svg" alt="Blacksmith" width="240" />
+  </a>
+</p>
+
+[Blacksmith](https://blacksmith.sh/?utm_source=dlt&utm_medium=readme&utm_campaign=sponsorship) is a drop-in replacement for GitHub-hosted runners that speed up our CI/CD pipelines by 2x and up to 75% cheaper. We're grateful to Blacksmith for sponsoring us with free CI/CD minutes--which helps us keep builds fast and our costs lower.
 
 ## License
 

@@ -137,7 +137,7 @@ START_DATE_STRING: str = ""
 API_KEY: str = ""
 ITEMS_PER_PAGE: int = 100
 CHUNK_SIZE: int = 500
-ENDPOINTS: List[str] = []
+ENDPOINTS: Tuple[str, ...] = ()
 RESOURCE_URL: str = ""
 BASE_URL: str = ""
 

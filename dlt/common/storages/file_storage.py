@@ -345,8 +345,12 @@ class FileStorage:
 
     @staticmethod
     def rmtree_del_ro(action: AnyFun, name: str, exc: Any) -> Any:
+        # in rare cases file may be deleted between scandir and rm
+        if isinstance(exc[1], FileNotFoundError):
+            return
         if action in (os.unlink, os.remove, os.rmdir):
-            os.chmod(name, stat.S_IWRITE)
+            # add +w with a mask
+            os.chmod(name, os.stat(name).st_mode | stat.S_IWRITE)
             action(name)
 
     @staticmethod
@@ -359,8 +363,9 @@ class FileStorage:
             if encoding is not None and mode == "r":
                 mode += "t"  # gzip requires text mode explicitly to use encoding
             f = gzip.open(path, mode, encoding=encoding, **kwargs)
-            # Force gzip to read the first few bytes and check the magic number
-            f.read(2), f.seek(0)
+            # force gzip to read the first few bytes and check the magic number
+            f.read(2)
+            f.seek(0)
             return cast(IO[Any], f)
         except (gzip.BadGzipFile, OSError):
             return open(path, origmode, encoding=encoding, **kwargs)

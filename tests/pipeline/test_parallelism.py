@@ -39,7 +39,7 @@ def run_pipeline(
         loader_parallelism_strategy=loader_parallelism_strategy,
     )
     def test_sink(items: TDataItems, table: TTableSchema) -> None:
-        nonlocal current_executing, max_current_executing, current_executing_per_table, max_current_executing_per_table
+        nonlocal current_executing, max_current_executing
         table_name = table["name"]
         # remember the amount of concurrent executions
         current_executing += 1
@@ -57,7 +57,6 @@ def run_pipeline(
         current_executing_per_table[table_name] -= 1
 
     def t() -> TDataItems:
-        nonlocal items_per_table
         for i in range(items_per_table):
             yield {"num": i}
 

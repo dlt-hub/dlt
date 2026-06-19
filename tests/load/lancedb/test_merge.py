@@ -120,10 +120,14 @@ def test_lancedb_remove_nested_orphaned_records(
         child_tbl = open_lance_table(client, "parent__child")
         grandchild_tbl = open_lance_table(client, "parent__child__grandchild")
 
-        actual_parent_df = parent_tbl.to_pandas().sort_values(by="id").reset_index(drop=True)
-        actual_child_df = child_tbl.to_pandas().sort_values(by="bar").reset_index(drop=True)
+        actual_parent_df = (
+            parent_tbl.to_arrow().to_pandas().sort_values(by="id").reset_index(drop=True)
+        )
+        actual_child_df = (
+            child_tbl.to_arrow().to_pandas().sort_values(by="bar").reset_index(drop=True)
+        )
         actual_grandchild_df = (
-            grandchild_tbl.to_pandas().sort_values(by="baz").reset_index(drop=True)
+            grandchild_tbl.to_arrow().to_pandas().sort_values(by="baz").reset_index(drop=True)
         )
 
         expected_parent_data = expected_parent_data.sort_values(by="id").reset_index(drop=True)
@@ -200,7 +204,10 @@ def test_lancedb_remove_orphaned_records_root_table(
         tbl = open_lance_table(client, "root")
 
         actual_root_df: DataFrame = (
-            tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash"]).reset_index(drop=True)
+            tbl.to_arrow()
+            .to_pandas()
+            .sort_values(by=["doc_id", "chunk_hash"])
+            .reset_index(drop=True)
         )[["doc_id", "chunk_hash"]]
 
         assert_frame_equal(actual_root_df, expected_root_table_df)
@@ -269,7 +276,10 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id(
         tbl = open_lance_table(client, "root")
 
         actual_root_df: DataFrame = (
-            tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash"]).reset_index(drop=True)
+            tbl.to_arrow()
+            .to_pandas()
+            .sort_values(by=["doc_id", "chunk_hash"])
+            .reset_index(drop=True)
         )[["doc_id", "chunk_hash"]]
 
         assert_frame_equal(actual_root_df, expected_root_table_df)
@@ -351,7 +361,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
     with pipeline.destination_client() as client:
         client = cast(TLanceDestinationClient, client)
         tbl = open_lance_table(client, "document")
-        df = tbl.to_pandas()
+        df = tbl.to_arrow().to_pandas()
 
         # Check (non-empty) embeddings as present, and that orphaned embeddings have been discarded.
         assert len(df) == 21
@@ -418,7 +428,10 @@ def test_lancedb_compound_merge_key_root_table(
         tbl = open_lance_table(client, "root")
 
         actual_root_df: DataFrame = (
-            tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash", "foo"]).reset_index(drop=True)
+            tbl.to_arrow()
+            .to_pandas()
+            .sort_values(by=["doc_id", "chunk_hash", "foo"])
+            .reset_index(drop=True)
         )[["doc_id", "chunk_hash", "foo"]]
 
         assert_frame_equal(actual_root_df, expected_root_table_df)
@@ -430,9 +443,9 @@ def test_lancedb_compound_merge_key_root_table(
         )
 
         child_tbl = open_lance_table(client, "root__child")
-        actual_child_df = (child_tbl.to_pandas().sort_values(by="val").reset_index(drop=True))[
-            ["val"]
-        ]
+        actual_child_df = (
+            child_tbl.to_arrow().to_pandas().sort_values(by="val").reset_index(drop=True)
+        )[["val"]]
 
         assert_frame_equal(actual_child_df, expected_child_df)
 

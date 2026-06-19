@@ -6,7 +6,7 @@ keywords: [tutorial, schema]
 
 # Manually edit a schema
 
-When you [create](create-a-pipeline.md) and then [run](run-a-pipeline.md) a pipeline, you may want
+When you [create](../tutorial/load-data-from-an-api.md) and then [run](run-a-pipeline.md) a pipeline, you may want
 to manually inspect and change the [schema](../general-usage/schema.md) that `dlt` generated for
 you. Here's how you do it.
 
@@ -125,7 +125,7 @@ players_games:
 ```
 
 Run the pipeline script again and make sure that the change is visible in the export schema. Then,
-[launch the dashboard app](../general-usage/dashboard) to see the changed data.
+[launch the dashboard app](../hub/ingestion/dashboard.md) to see the changed data.
 
 :::note
 Do not rename the tables or columns in the YAML file. `dlt` infers those from the data, so the schema will be recreated.

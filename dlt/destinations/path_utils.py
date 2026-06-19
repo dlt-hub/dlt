@@ -65,7 +65,6 @@ STANDARD_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
         "ext",
         "curr_date",
         "timestamp",
-        "timestamp",
         "timestamp_ms",
         "load_package_timestamp",
         "load_package_timestamp_ms",

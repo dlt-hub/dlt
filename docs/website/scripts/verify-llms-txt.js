@@ -9,23 +9,23 @@
  *
  * Exits with code 1 if any errors are found. Warnings are informational.
  */
-const fs = require('fs');
-const path = require('path');
+const fs = require("node:fs");
+const path = require("node:path");
 
 // ---------------------------------------------------------------------------
 // Config — must match docusaurus.config.js plugin options
 // ---------------------------------------------------------------------------
-const BUILD_DIR = path.resolve(__dirname, '..', 'build', 'docs');
-const SITE_DIR = path.resolve(__dirname, '..');
-const SIDEBARS_PATH = path.join(SITE_DIR, 'sidebars.js');
-const EXCLUDE_FROM_MD = ['api_reference/'];
-const EXCLUDE_FROM_INDEX = ['devel/'];
-const SEPARATE_INDEX_PREFIXES = ['hub/'];
-const HIDE_MD_PATTERNS = ['/api_reference/'];
+const BUILD_DIR = path.resolve(__dirname, "..", "build", "docs");
+const SITE_DIR = path.resolve(__dirname, "..");
+const SIDEBARS_PATH = path.join(SITE_DIR, "sidebars.js");
+const EXCLUDE_FROM_MD = ["api_reference/"];
+const EXCLUDE_FROM_INDEX = ["devel/"];
+const SEPARATE_INDEX_PREFIXES = ["hub/"];
+const HIDE_MD_PATTERNS = ["/api_reference/"];
 
 const LLMS_TXT_FILES = [
-  {path: 'llms.txt', sidebar: 'docsSidebar', label: 'main'},
-  {path: 'hub/llms.txt', sidebar: 'hubSidebar', label: 'hub'},
+  { path: "llms.txt", sidebar: "docsSidebar", label: "main" },
+  { path: "hub/llms.txt", sidebar: "hubSidebar", label: "hub" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -50,7 +50,7 @@ function ok(msg) {
 
 function walkFiles(dir, predicate, results = []) {
   if (!fs.existsSync(dir)) return results;
-  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       walkFiles(full, predicate, results);
@@ -64,15 +64,15 @@ function walkFiles(dir, predicate, results = []) {
 /** Extract all doc IDs from a Docusaurus sidebar tree (recursive). */
 function collectSidebarDocIds(items, ids = new Set()) {
   for (const item of items) {
-    if (typeof item === 'string') {
+    if (typeof item === "string") {
       ids.add(item);
       continue;
     }
-    if (!item || typeof item !== 'object') continue;
-    if (item.type === 'doc') {
+    if (!item || typeof item !== "object") continue;
+    if (item.type === "doc") {
       ids.add(item.id);
-    } else if (item.type === 'category') {
-      if (item.link && item.link.type === 'doc' && item.link.id) {
+    } else if (item.type === "category") {
+      if (item.link && item.link.type === "doc" && item.link.id) {
         ids.add(item.link.id);
       }
       if (item.items) collectSidebarDocIds(item.items, ids);
@@ -89,7 +89,7 @@ function collectSidebarDocIds(items, ids = new Set()) {
 function parseLlmsTxt(content) {
   const entries = [];
   const groups = [];
-  for (const line of content.split('\n')) {
+  for (const line of content.split("\n")) {
     const groupMatch = line.match(/^## (.+)/);
     if (groupMatch) {
       groups.push(groupMatch[1]);
@@ -97,10 +97,10 @@ function parseLlmsTxt(content) {
     }
     const entryMatch = line.match(/^- \[(.+?)\]\((.+?)\)/);
     if (entryMatch) {
-      entries.push({title: entryMatch[1], url: entryMatch[2]});
+      entries.push({ title: entryMatch[1], url: entryMatch[2] });
     }
   }
-  return {entries, groups};
+  return { entries, groups };
 }
 
 // ---------------------------------------------------------------------------
@@ -120,8 +120,8 @@ function checkLlmsTxtFile(llmsConfig, sidebars) {
   }
   ok(`${llmsConfig.path} exists`);
 
-  const content = fs.readFileSync(llmsPath, 'utf8');
-  const {entries, groups} = parseLlmsTxt(content);
+  const content = fs.readFileSync(llmsPath, "utf8");
+  const { entries, groups } = parseLlmsTxt(content);
 
   // 2. Non-empty
   if (entries.length === 0) {
@@ -134,25 +134,25 @@ function checkLlmsTxtFile(llmsConfig, sidebars) {
   let missingMd = 0;
   for (const entry of entries) {
     // URL is like /docs/general-usage/schema.md — strip leading /docs/ to get build-relative path
-    const relPath = entry.url.replace(/^\/docs\//, '');
+    const relPath = entry.url.replace(/^\/docs\//, "");
     const fullPath = path.join(BUILD_DIR, relPath);
     if (!fs.existsSync(fullPath)) {
       error(`linked .md not found: ${entry.url} (expected ${fullPath})`);
       missingMd++;
     }
   }
-  if (missingMd === 0) ok('all linked .md files exist');
+  if (missingMd === 0) ok("all linked .md files exist");
 
   // 3b. No excluded paths leaked into the index
   let excludedLeaks = 0;
   for (const entry of entries) {
-    const relPath = entry.url.replace(/^\/docs\//, '');
+    const relPath = entry.url.replace(/^\/docs\//, "");
     if (EXCLUDE_FROM_MD.some((pat) => relPath.includes(pat))) {
       error(`excluded path in index: ${entry.url} (matches excludeFromMd)`);
       excludedLeaks++;
     }
   }
-  if (excludedLeaks === 0) ok('no excluded paths in index');
+  if (excludedLeaks === 0) ok("no excluded paths in index");
 
   // 4. No duplicate entries
   const urls = entries.map((e) => e.url);
@@ -160,7 +160,7 @@ function checkLlmsTxtFile(llmsConfig, sidebars) {
   if (dupes.length > 0) {
     for (const d of [...new Set(dupes)]) error(`duplicate entry: ${d}`);
   } else {
-    ok('no duplicate entries');
+    ok("no duplicate entries");
   }
 
   // 5. Every entry has a non-empty title (not just a filename fallback)
@@ -168,7 +168,7 @@ function checkLlmsTxtFile(llmsConfig, sidebars) {
   if (untitled.length > 0) {
     for (const e of untitled) warn(`possible missing title (filename-like): "${e.title}" at ${e.url}`);
   } else {
-    ok('all entries have proper titles');
+    ok("all entries have proper titles");
   }
 
   // 6. No orphan/fallback groups — every group should be a sidebar group
@@ -181,7 +181,7 @@ function checkLlmsTxtFile(llmsConfig, sidebars) {
     if (orphanGroups.length > 0) {
       for (const g of orphanGroups) error(`orphan group not in sidebar: "${g}"`);
     } else {
-      ok('all groups match sidebar categories');
+      ok("all groups match sidebar categories");
     }
   }
 
@@ -194,21 +194,21 @@ function checkLlmsTxtFile(llmsConfig, sidebars) {
 /** Collect sidebar group names (matching buildSidebarMap logic). */
 function collectSidebarGroupNames(items, breadcrumb, groupDepth, names) {
   for (const item of items) {
-    if (typeof item === 'string') {
-      const group = breadcrumb.slice(0, groupDepth).join(' > ');
+    if (typeof item === "string") {
+      const group = breadcrumb.slice(0, groupDepth).join(" > ");
       if (group) names.add(group);
       continue;
     }
-    if (!item || typeof item !== 'object') continue;
-    if (item.type === 'doc') {
-      const group = breadcrumb.slice(0, groupDepth).join(' > ');
+    if (!item || typeof item !== "object") continue;
+    if (item.type === "doc") {
+      const group = breadcrumb.slice(0, groupDepth).join(" > ");
       if (group) names.add(group);
       continue;
     }
-    if (item.type === 'category') {
+    if (item.type === "category") {
       const newBreadcrumb = [...breadcrumb, item.label];
-      if (item.link && item.link.type === 'doc' && item.link.id) {
-        const group = newBreadcrumb.slice(0, groupDepth).join(' > ');
+      if (item.link && item.link.type === "doc" && item.link.id) {
+        const group = newBreadcrumb.slice(0, groupDepth).join(" > ");
         if (group) names.add(group);
       }
       if (item.items) {
@@ -229,26 +229,21 @@ function checkSidebarCoverage(llmsConfig, sidebars, indexedUrls) {
 
   // Determine the source dir for checking if a .md exists
   // For main sidebar → versioned_docs/version-master, for hub → same
-  const versionedDir = path.join(SITE_DIR, 'versioned_docs', 'version-master');
-  const sourceDir = fs.existsSync(versionedDir)
-    ? versionedDir
-    : path.join(SITE_DIR, 'docs_processed');
+  const versionedDir = path.join(SITE_DIR, "versioned_docs", "version-master");
+  const sourceDir = fs.existsSync(versionedDir) ? versionedDir : path.join(SITE_DIR, "docs_processed");
 
   // Build a slug map so we can resolve slug overrides to their actual URL
   const slugToDocId = {}; // { "dir/slug": "dir/original-name" }
   for (const docId of sidebarDocIds) {
-    const candidates = [
-      path.join(sourceDir, docId + '.md'),
-      path.join(sourceDir, docId + '.mdx'),
-    ];
+    const candidates = [path.join(sourceDir, `${docId}.md`), path.join(sourceDir, `${docId}.mdx`)];
     for (const c of candidates) {
       if (fs.existsSync(c)) {
-        const content = fs.readFileSync(c, 'utf8');
+        const content = fs.readFileSync(c, "utf8");
         const slugMatch = content.match(/^---\r?\n[\s\S]*?^slug\s*:\s*(.+)/m);
         if (slugMatch) {
-          const slug = slugMatch[1].replace(/^['"]|['"]$/g, '').trim();
+          const slug = slugMatch[1].replace(/^['"]|['"]$/g, "").trim();
           const dir = path.dirname(docId);
-          const slugPath = dir === '.' ? slug : `${dir}/${slug}`;
+          const slugPath = dir === "." ? slug : `${dir}/${slug}`;
           slugToDocId[docId] = slugPath;
         }
         break;
@@ -256,7 +251,7 @@ function checkSidebarCoverage(llmsConfig, sidebars, indexedUrls) {
     }
   }
 
-  const urlPrefix = '/docs/';
+  const urlPrefix = "/docs/";
 
   let missing = 0;
   for (const docId of sidebarDocIds) {
@@ -267,12 +262,12 @@ function checkSidebarCoverage(llmsConfig, sidebars, indexedUrls) {
     // Check if source .md exists
     const lastSegment = path.basename(docId);
     const candidates = [
-      path.join(sourceDir, docId + '.md'),
-      path.join(sourceDir, docId + '.mdx'),
-      path.join(sourceDir, docId, 'index.md'),
-      path.join(sourceDir, docId, 'index.mdx'),
-      path.join(sourceDir, docId, lastSegment + '.md'),
-      path.join(sourceDir, docId, lastSegment + '.mdx'),
+      path.join(sourceDir, `${docId}.md`),
+      path.join(sourceDir, `${docId}.mdx`),
+      path.join(sourceDir, docId, "index.md"),
+      path.join(sourceDir, docId, "index.mdx"),
+      path.join(sourceDir, docId, `${lastSegment}.md`),
+      path.join(sourceDir, docId, `${lastSegment}.mdx`),
     ];
     const hasSource = candidates.some((c) => fs.existsSync(c));
     if (!hasSource) continue; // no source file — generated-index or similar, OK to skip
@@ -286,12 +281,12 @@ function checkSidebarCoverage(llmsConfig, sidebars, indexedUrls) {
     if (slugToDocId[docId]) {
       urlPath = slugToDocId[docId];
     } else {
-      urlPath = docId.replace(/\/index$/, '');
+      urlPath = docId.replace(/\/index$/, "");
       // Dir-collapsed: foo/foo → foo
-      const parts = urlPath.split('/');
+      const parts = urlPath.split("/");
       if (parts.length >= 2 && parts[parts.length - 1] === parts[parts.length - 2]) {
         parts.pop();
-        urlPath = parts.join('/');
+        urlPath = parts.join("/");
       }
     }
     const expectedUrl = `${urlPrefix}${urlPath}.md`;
@@ -309,9 +304,9 @@ function checkSidebarCoverage(llmsConfig, sidebars, indexedUrls) {
 }
 
 function checkMdFileQuality() {
-  console.log('\n--- .md file quality ---');
+  console.log("\n--- .md file quality ---");
 
-  const mdFiles = walkFiles(BUILD_DIR, (name) => name.endsWith('.md'));
+  const mdFiles = walkFiles(BUILD_DIR, (name) => name.endsWith(".md"));
   ok(`${mdFiles.length} .md files in build output`);
 
   let emptyCount = 0;
@@ -319,18 +314,18 @@ function checkMdFileQuality() {
   let componentLeaks = 0;
 
   for (const mdFile of mdFiles) {
-    const content = fs.readFileSync(mdFile, 'utf8');
+    const content = fs.readFileSync(mdFile, "utf8");
     const rel = path.relative(BUILD_DIR, mdFile);
 
     // Empty or frontmatter-only
-    const stripped = content.replace(/^---\r?\n[\s\S]*?\r?\n---\s*/, '').trim();
+    const stripped = content.replace(/^---\r?\n[\s\S]*?\r?\n---\s*/, "").trim();
     if (stripped.length === 0) {
       warn(`empty content (frontmatter-only): ${rel}`);
       emptyCount++;
     }
 
     // Leaked MDX imports
-    const lines = content.split('\n');
+    const lines = content.split("\n");
     for (let i = 0; i < lines.length; i++) {
       if (/^import\s+.+\s+from\s+['"]/.test(lines[i])) {
         error(`MDX import leaked: ${rel}:${i + 1}: ${lines[i].trim()}`);
@@ -347,17 +342,17 @@ function checkMdFileQuality() {
     }
   }
 
-  if (emptyCount === 0) ok('no empty .md files');
-  if (importLeaks === 0) ok('no MDX import leaks');
-  if (componentLeaks === 0) ok('no React component leaks');
+  if (emptyCount === 0) ok("no empty .md files");
+  if (importLeaks === 0) ok("no MDX import leaks");
+  if (componentLeaks === 0) ok("no React component leaks");
 }
 
 function checkExcludeConsistency() {
-  console.log('\n--- exclude pattern consistency ---');
+  console.log("\n--- exclude pattern consistency ---");
 
   // Check that HIDE_MD_PATTERNS (badge component) covers excludeFromMd (plugin)
   for (const pat of EXCLUDE_FROM_MD) {
-    const normalized = pat.startsWith('/') ? pat : '/' + pat;
+    const normalized = pat.startsWith("/") ? pat : `/${pat}`;
     if (!HIDE_MD_PATTERNS.some((h) => normalized.includes(h) || h.includes(normalized))) {
       error(`excludeFromMd pattern "${pat}" not covered by HIDE_MD_PATTERNS in DocMarkdownLink`);
     }
@@ -365,7 +360,7 @@ function checkExcludeConsistency() {
 
   // Check no .md files were generated for excluded paths
   for (const pat of EXCLUDE_FROM_MD) {
-    const mdFiles = walkFiles(BUILD_DIR, (name) => name.endsWith('.md'));
+    const mdFiles = walkFiles(BUILD_DIR, (name) => name.endsWith(".md"));
     const violations = mdFiles.filter((f) => {
       const rel = path.relative(BUILD_DIR, f);
       return rel.includes(pat);
@@ -375,35 +370,30 @@ function checkExcludeConsistency() {
     }
   }
 
-  ok('exclude patterns consistent');
+  ok("exclude patterns consistent");
 }
 
 function checkHtmlMdParity() {
-  console.log('\n--- HTML/MD parity (badge 404 check) ---');
+  console.log("\n--- HTML/MD parity (badge 404 check) ---");
 
-  const htmlFiles = walkFiles(BUILD_DIR, (name) => name.endsWith('.html'));
+  const htmlFiles = walkFiles(BUILD_DIR, (name) => name.endsWith(".html"));
   let badge404 = 0;
 
   for (const htmlFile of htmlFiles) {
-    const rel = path.relative(BUILD_DIR, htmlFile).split(path.sep).join('/');
+    const rel = path.relative(BUILD_DIR, htmlFile).split(path.sep).join("/");
     const basename = path.basename(rel);
 
     // Skip non-doc pages
-    if (
-      rel === '404.html' ||
-      rel === 'search.html' ||
-      rel.startsWith('assets/') ||
-      rel.startsWith('search/')
-    ) {
+    if (rel === "404.html" || rel === "search.html" || rel.startsWith("assets/") || rel.startsWith("search/")) {
       continue;
     }
 
     // Skip underscore-prefixed partials (MDX fragments) — they use a different
     // layout and don't render the badge
-    if (basename.startsWith('_')) continue;
+    if (basename.startsWith("_")) continue;
 
     // Skip excluded patterns — badge is hidden for these
-    if (HIDE_MD_PATTERNS.some((p) => ('/' + rel).includes(p))) continue;
+    if (HIDE_MD_PATTERNS.some((p) => `/${rel}`.includes(p))) continue;
 
     // Skip paths excluded from index and separate index prefixes — these are
     // either non-master versions or have their own llms.txt checked separately
@@ -411,7 +401,7 @@ function checkHtmlMdParity() {
     if (skipPrefixes.some((p) => rel.startsWith(p))) continue;
 
     // The badge constructs the URL as pathname + '.md', which maps to stem.md
-    const mdPath = path.join(BUILD_DIR, rel.replace(/\.html$/, '.md'));
+    const mdPath = path.join(BUILD_DIR, rel.replace(/\.html$/, ".md"));
     if (!fs.existsSync(mdPath)) {
       // These are generated-index pages (sidebar categories with auto-generated
       // listing pages, no source .md). The DocMarkdownLink badge still renders
@@ -422,7 +412,7 @@ function checkHtmlMdParity() {
   }
 
   if (badge404 === 0) {
-    ok('every HTML page with badge has a .md file');
+    ok("every HTML page with badge has a .md file");
   } else {
     warn(`${badge404} HTML pages would show badge with 404 .md link`);
   }

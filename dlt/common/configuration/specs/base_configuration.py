@@ -210,7 +210,8 @@ def configspec(
             if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_")):
                 warnings.warn(
                     f"Missing default value for field {ann} on {cls.__name__}. None assumed. All"
-                    " fields in configspec must have defaults."
+                    " fields in configspec must have defaults.",
+                    stacklevel=2,
                 )
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
@@ -246,12 +247,14 @@ def configspec(
                     if is_secret_hint(att_value.default_type) and not is_secret_hint(hint):
                         warnings.warn(
                             f"You indicated {att_name} to be {att_value.default_literal} but type"
-                            " hint is not a secret"
+                            " hint is not a secret",
+                            stacklevel=2,
                         )
                     if not is_secret_hint(att_value.default_type) and is_secret_hint(hint):
                         warnings.warn(
                             f"You typed {att_name} to be a secret but"
-                            f" {att_value.default_literal} indicates it is not"
+                            f" {att_value.default_literal} indicates it is not",
+                            stacklevel=2,
                         )
                     setattr(cls, att_name, None)
 
@@ -280,7 +283,8 @@ def configspec(
             warnings.warn(
                 f"__init__ method will not be generated on {cls.__name__} because base class didn't"
                 " synthesize __init__. Please correct `init` flag in configspec decorator. You are"
-                " probably receiving incorrect __init__ signature for type checking"
+                " probably receiving incorrect __init__ signature for type checking",
+                stacklevel=2,
             )
         # mark exactly this class as processed by configspec so we can warn the user if it is not done
         # this is not visible in derived classes that must be always decorated with configspec

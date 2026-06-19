@@ -24,6 +24,7 @@ from dlt.common.typing import (
     TColumnNames,
     TypedDict,
     get_args,
+    NotRequired,
 )
 
 if TYPE_CHECKING:
@@ -367,6 +368,7 @@ class _TTableSchemaBase(TTableProcessingHints, total=False):
     resource: Optional[str]
     table_format: Optional[TTableFormat]
     file_format: Optional[TFileFormat]
+    variant_name: NotRequired[str]
 
 
 class TTableSchema(_TTableSchemaBase, total=False):

@@ -19,6 +19,9 @@ from dlt.common.warnings import deprecated
 PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
 DAY_DURATION_SEC: float = 24 * 60 * 60.0
+UNIX_EPOCH_DATE = datetime.date(1970, 1, 1)
+
+DEFAULT_TIMESTAMP_PRECISION = 6
 
 precise_time: Callable[[], float] = None
 """A precise timer using win_precise_time library on windows and time.time on other systems"""
@@ -284,6 +287,11 @@ def datetime_obj_to_str(
     return datatime.strftime(datetime_format)
 
 
+def date_to_epoch_days(value: datetime.date) -> int:
+    """Converts date value to number of days since Unix epoch."""
+    return value.toordinal() - UNIX_EPOCH_DATE.toordinal()
+
+
 def ensure_pendulum_time(value: Union[str, int, float, datetime.time, timedelta]) -> pendulum.Time:
     """Coerce a time-like value to a `pendulum.Time` object using timezone=False semantics.
 
@@ -375,9 +383,9 @@ def detect_datetime_format(value: str) -> Optional[str]:
         re.compile(r"^\d{4}-\d{2}-\d{2}$"): "%Y-%m-%d",  # Date only
         re.compile(r"^\d{4}-\d{2}$"): "%Y-%m",  # Year and month
         re.compile(r"^\d{4}$"): "%Y",  # Year only
-        # Week-based date formats
-        re.compile(r"^\d{4}-W\d{2}$"): "%Y-W%W",  # Week-based date
-        re.compile(r"^\d{4}-W\d{2}-\d{1}$"): "%Y-W%W-%u",  # Week-based date with day
+        # Week-based date formats (ISO 8601: week-numbering year %G + ISO week %V)
+        re.compile(r"^\d{4}-W\d{2}$"): "%G-W%V",  # Week-based date
+        re.compile(r"^\d{4}-W\d{2}-\d{1}$"): "%G-W%V-%u",  # Week-based date with day
         # Ordinal date formats (day of year)
         re.compile(r"^\d{4}-\d{3}$"): "%Y-%j",  # Ordinal date
         # Compact formats (no dashes)
@@ -437,6 +445,10 @@ def datetime_to_timestamp(moment: Union[datetime.datetime, pendulum.DateTime]) -
 
 def datetime_to_timestamp_ms(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
     return int(moment.timestamp() * 1000)
+
+
+def datetime_to_timestamp_us(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
+    return datetime_to_timestamp(moment) * 1_000_000 + moment.microsecond
 
 
 def _datetime_from_ts_or_iso(

@@ -1,4 +1,4 @@
-name: tools | docker images
+name: build images
 
 on:
   workflow_call:
@@ -6,8 +6,8 @@ on:
 
 jobs:
   run_airflow:
-    name: tools | docker images build
-    runs-on: ubuntu-latest
+    name: build
+    runs-on: blacksmith-8vcpu-ubuntu-2404
 
     steps:
       - name: Check out

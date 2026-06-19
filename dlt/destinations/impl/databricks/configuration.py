@@ -1,15 +1,31 @@
+from __future__ import annotations
+
 import dataclasses
-from typing import ClassVar, Final, Optional, Any, Dict, List, List, Dict, cast, Callable
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Final, List, Optional, Union, cast
 from urllib.parse import urlparse
 
 from dlt.common import logger
+from dlt.common.configuration.specs.base_configuration import (
+    BaseConfiguration,
+    CredentialsConfiguration,
+    configspec,
+)
 from dlt.common.typing import TSecretStrValue
-from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import digest128
+from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
+
+if TYPE_CHECKING:
+    from zerobus import ArrowStreamConfigurationOptions, IPCCompression
+
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
+DEFAULT_DATABRICKS_INSERT_API: TDatabricksInsertApi = "copy_into"
+# ZSTD was fastest in my benchmarks out of the three `ipc_compression` options
+# currently available (NONE, LZ4_FRAME, ZSTD) — NONE (no compression) was slowest
+DEFAULT_DATABRICKS_ZEROBUS_IPC_COMPRESSION = "ZSTD"
 
 
 @configspec
@@ -149,8 +165,8 @@ class DatabricksCredentials(CredentialsConfiguration):
         )
 
         if self.user_agent_entry:
-            conn_params["_user_agent_entry"] = (
-                conn_params.get("_user_agent_entry") or self.user_agent_entry
+            conn_params["user_agent_entry"] = (
+                conn_params.get("user_agent_entry") or self.user_agent_entry
             )
 
         if self.client_id and self.client_secret:
@@ -163,8 +179,60 @@ class DatabricksCredentials(CredentialsConfiguration):
             conn_params["access_token"] = self.access_token
         return conn_params
 
+    def to_workspace_url(self) -> str:
+        if not self.server_hostname:
+            raise ConfigurationValueError(
+                "Cannot construct workspace URL: `server_hostname` is not set."
+            )
+        return f"https://{self.server_hostname}"
+
     def __str__(self) -> str:
         return f"databricks://{self.server_hostname}{self.http_path}/{self.catalog}"
+
+
+@configspec
+class DatabricksZerobusCredentials(CredentialsConfiguration):
+    client_id: str = None
+    client_secret: TSecretStrValue = None
+
+
+@configspec
+class DatabricksZerobusConfiguration(BaseConfiguration):
+    endpoint_url: str = None
+    """URL of the Zerobus server endpoint."""
+    credentials: DatabricksZerobusCredentials = None
+    """Credentials to authenticate to the Zerobus server."""
+    batch_size: int = 25_000
+    """Number of records per batch to ingest into Zerobus."""
+    stream_options: Optional[dict[str, Any]] = None
+    """Stream configuration options forwarded to `options` argument of `ZerobusSdk.create_arrow_stream()`."""
+
+    def on_partial(self) -> None:
+        if not self.endpoint_url:
+            return
+
+        if self.credentials is None:
+            # we'll attempt to resolve credentials later in `DatabricksClientConfiguration.on_resolved()`
+            self.credentials = DatabricksZerobusCredentials()
+
+        self.resolve()
+
+    def to_arrow_stream_configuration_options(self) -> ArrowStreamConfigurationOptions:
+        from zerobus import ArrowStreamConfigurationOptions
+
+        options = deepcopy(self.stream_options) if self.stream_options else dict()
+        if "ipc_compression" not in options:
+            options["ipc_compression"] = DEFAULT_DATABRICKS_ZEROBUS_IPC_COMPRESSION
+        options["ipc_compression"] = self._coerce_ipc_compression(options["ipc_compression"])
+        return ArrowStreamConfigurationOptions(**options)
+
+    @staticmethod
+    def _coerce_ipc_compression(ipc_compression: Union[str, IPCCompression]) -> IPCCompression:
+        from zerobus import IPCCompression
+
+        if isinstance(ipc_compression, str):
+            return getattr(IPCCompression, ipc_compression)
+        return ipc_compression
 
 
 @configspec
@@ -179,9 +247,12 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """Name of the Databricks managed volume for temporary storage, e.g., <catalog_name>.<database_name>.<volume_name>. Defaults to '_dlt_temp_load_volume' if not set."""
     keep_staged_files: Optional[bool] = True
     """Tells if to keep the files in internal (volume) stage"""
-
-    """Whether PRIMARY KEY or FOREIGN KEY constrains should be created"""
     create_indexes: bool = False
+    """Whether PRIMARY KEY or FOREIGN KEY constrains should be created"""
+    insert_api: TDatabricksInsertApi = DEFAULT_DATABRICKS_INSERT_API
+    """Ingestion backend for `append` write disposition. Can be overridden per resource via `databricks_adapter`."""
+    zerobus: Optional[DatabricksZerobusConfiguration] = None
+    """Databricks Zerobus Configuration including endpoint and credentials. Required when using the `zerobus` insert API."""
 
     def __str__(self) -> str:
         """Return displayable destination location"""
@@ -189,6 +260,31 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
             return str(self.credentials)
         else:
             return ""
+
+    def on_resolved(self) -> None:
+        if self.zerobus is None:
+            return
+
+        if self.zerobus.credentials.client_id and self.zerobus.credentials.client_secret:
+            return
+
+        # fall back to main credentials if Zerobus credentials are not fully provided
+        if self.credentials.client_id and self.credentials.client_secret:
+            self.zerobus.credentials = DatabricksZerobusCredentials(
+                client_id=self.credentials.client_id,
+                client_secret=self.credentials.client_secret,
+            )
+            self.zerobus.credentials.resolve()
+
+        if not self.zerobus.credentials.is_resolved():
+            raise ConfigurationValueError(
+                "`client_id` and `client_secret` are required when"
+                " `destination.databricks.zerobus` is configured. Set either"
+                " `destination.databricks.zerobus.credentials.client_id` and"
+                " `destination.databricks.zerobus.credentials.client_secret`, or"
+                " `destination.databricks.credentials.client_id` and"
+                " `destination.databricks.credentials.client_secret`."
+            )
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""

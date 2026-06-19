@@ -428,7 +428,12 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
             print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_normalize.py"))
         # switch to current version and make sure the load package loads and schema migrates
         venv = Venv.restore_current()
-        print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_load.py"))
+        try:
+            print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_load.py"))
+        except CalledProcessError as cpe:
+            print("STDERR", cpe.stderr)
+            print("STDOUT", cpe.stdout)
+            raise
         duckdb_cfg = resolve_configuration(
             DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
             sections=("destination", "duckdb"),

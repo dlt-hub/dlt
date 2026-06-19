@@ -2,6 +2,8 @@ import re
 import sys
 from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional, cast
 
+import sqlglot.expressions as sge
+
 from dlt.common import logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.data_writers.escape import (
@@ -159,6 +161,21 @@ class ClickHouseTypeMapper(TypeMapperImpl):
         )
 
 
+def _clickhouse_null_safe_aggregate(agg: sge.AggFunc) -> sge.Expression:
+    """Rewrite `MAX`/`MIN` to the `*OrNull` combinator.
+
+    ClickHouse aggregates over an empty set return the column type's default
+    sentinel (epoch for non-`Nullable(DateTime)`, `0` for non-`Nullable`
+    integers), not `NULL`. The `*OrNull` combinator widens the result to
+    `Nullable(T)` so the empty case yields `NULL`, matching standard SQL.
+    """
+    if isinstance(agg, sge.Max):
+        return sge.func("maxOrNull", agg.this)
+    if isinstance(agg, sge.Min):
+        return sge.func("minOrNull", agg.this)
+    return agg
+
+
 class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"]):
     spec = ClickHouseClientConfiguration
 
@@ -173,6 +190,7 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         caps.format_datetime_literal = format_clickhouse_datetime_literal
         caps.escape_identifier = escape_clickhouse_identifier
         caps.escape_literal = escape_clickhouse_literal
+        caps.null_safe_aggregate = _clickhouse_null_safe_aggregate
         # docs are very unclear https://clickhouse.com/docs/en/sql-reference/syntax
         # taking into account other sources: identifiers are case sensitive
         caps.has_case_sensitive_identifiers = True

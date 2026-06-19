@@ -47,11 +47,21 @@ from dlt.common.utils import set_working_dir
 
 DLT_TEST_STORAGE_ROOT = "DLT_TEST_STORAGE_ROOT"
 PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
-STORAGE_ROOT_PREFIX = "_storage"
+STORAGE_ROOT_PREFIX = os.path.abspath("_storage")
 
 
 def get_test_worker_id() -> str:
-    return os.environ.get(PYTEST_XDIST_WORKER, "gw0")
+    wid = os.environ.get(PYTEST_XDIST_WORKER)
+    # under xdist `PYTEST_XDIST_TESTRUNUID` is set in every process (controller + workers);
+    # the per-worker `PYTEST_XDIST_WORKER` is only set in workers. if we fall through to
+    # the "gw0" default while xdist is active, workers will share `_storage_gw0` and rmtree
+    # each other's state — fail loudly instead.
+    if wid is None and "PYTEST_XDIST_TESTRUNUID" in os.environ:
+        raise RuntimeError(
+            "running under xdist but PYTEST_XDIST_WORKER is not set — test storage would"
+            " collide across workers"
+        )
+    return wid or "gw0"
 
 
 def get_test_worker_idx() -> int:
@@ -319,14 +329,28 @@ def _preserve_environ() -> Iterator[None]:
                 environ[key_] = value_
 
 
-@pytest.fixture(autouse=True)
-def preserve_run_context() -> Iterator[None]:
-    """Restores initial run context when test completes"""
-    ctx_plug = Container()[PluggableRunContext]
-    cookie = ctx_plug.push_context()
+@contextlib.contextmanager
+def preserve_container() -> Iterator[None]:
+    """Saves and restores the whole Container singleton (instance and main thread id)."""
+    saved_instance = Container._INSTANCE
+    saved_main_thread_id = Container._MAIN_THREAD_ID
     try:
         yield
     finally:
+        Container._INSTANCE = saved_instance
+        Container._MAIN_THREAD_ID = saved_main_thread_id
+
+
+@pytest.fixture(autouse=True)
+def preserve_run_context() -> Iterator[None]:
+    """Restores run context and container singleton when a test completes."""
+    ctx_plug = Container()[PluggableRunContext]
+    cookie = ctx_plug.push_context()
+    try:
+        with preserve_container():
+            yield
+    finally:
+        # preserve_container has restored the singleton; the original run context must be back
         assert ctx_plug is Container()[PluggableRunContext], "PluggableRunContext was replaced"
         ctx_plug.pop_context(cookie)
 
@@ -441,6 +465,21 @@ def setup_secret_providers_to_current_module(request):
             yield
         finally:
             sys.path.pop(0)
+
+
+def unload_modules_at_path(path: str) -> None:
+    abs_dir = os.path.realpath(path)
+    for name in list(sys.modules.keys()):
+        mod = sys.modules.get(name)
+        mod_file = getattr(mod, "__file__", None) if mod else None
+        if not mod_file:
+            continue
+        try:
+            mod_abs = os.path.realpath(mod_file)
+        except (OSError, ValueError):
+            continue
+        if mod_abs.startswith(abs_dir):
+            del sys.modules[name]
 
 
 def data_to_item_format(

@@ -15,7 +15,7 @@ def test_storage_init(test_storage: FileStorage) -> None:
     # must be absolute path
     assert os.path.isabs(test_storage.storage_path)
     # may not contain file name (ends with / or \)
-    assert os.path.basename(test_storage.storage_path) == get_test_storage_root()
+    assert os.path.basename(test_storage.storage_path) == os.path.basename(get_test_storage_root())
 
     # TODO: write more cases
 
@@ -40,13 +40,14 @@ def test_make_full_path(test_storage: FileStorage) -> None:
     # fully within storage
     relative_path = os.path.join("dir", "to", "file")
     path = test_storage.make_full_path_safe(relative_path)
-    assert path.endswith(os.path.join(get_test_storage_root(), relative_path))
+    base_storage = os.path.basename(get_test_storage_root())
+    assert path.endswith(os.path.join(base_storage, relative_path))
     # overlapped with storage
-    root_path = os.path.join(get_test_storage_root(), relative_path)
+    root_path = os.path.join(base_storage, relative_path)
     path = test_storage.make_full_path_safe(root_path)
     assert path.endswith(root_path)
-    assert path.count(get_test_storage_root()) == 2
-    # absolute path with different root than get_test_storage_root() does not lead into storage so calculating full path impossible
+    assert path.count(base_storage) == 2
+    # absolute path with different root than base_storage does not lead into storage so calculating full path impossible
     with pytest.raises(ValueError):
         test_storage.make_full_path_safe(os.path.join("/", root_path))
     # relative path out of the root
@@ -61,8 +62,9 @@ def test_make_full_path(test_storage: FileStorage) -> None:
 
 def test_in_storage(test_storage: FileStorage) -> None:
     # always relative to storage root
+    base_storage = os.path.basename(get_test_storage_root())
     assert test_storage.is_path_in_storage("a/b/c") is True
-    assert test_storage.is_path_in_storage(f"../{get_test_storage_root()}/b/c") is True
+    assert test_storage.is_path_in_storage(f"../{base_storage}/b/c") is True
     assert test_storage.is_path_in_storage("../a/b/c") is False
     assert test_storage.is_path_in_storage("../../../a/b/c") is False
     assert test_storage.is_path_in_storage("/a") is False
@@ -70,9 +72,7 @@ def test_in_storage(test_storage: FileStorage) -> None:
     assert test_storage.is_path_in_storage(os.curdir) is True
     assert test_storage.is_path_in_storage(os.path.realpath(os.curdir)) is False
     assert (
-        test_storage.is_path_in_storage(
-            os.path.join(os.path.realpath(os.curdir), get_test_storage_root())
-        )
+        test_storage.is_path_in_storage(os.path.join(os.path.realpath(os.curdir), base_storage))
         is True
     )
     # CWE-22: sibling directory with prefix-matching name must not pass

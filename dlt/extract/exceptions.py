@@ -296,13 +296,13 @@ class InconsistentTableTemplate(DltSourceException):
 
 
 class DataItemRequiredForDynamicTableHints(DltResourceException):
-    def __init__(self, resource_name: str) -> None:
+    def __init__(self, resource_name: str, hint_name: str) -> None:
         super().__init__(
             resource_name,
-            "Resource `{resource_name}` contains a dynamic hint (i.e., a value in the"
-            " `@dlt.resource` decorator is set by a function), but the data to generate the hint is"
-            " missing. Make sure that each data item contains the necessary field to compute the"
-            " dynamic hint value.",
+            f"Resource `{resource_name}` contains a dynamic hint `{hint_name}` (i.e., a value in"
+            " the `@dlt.resource` decorator is set by a function), but the data to generate the"
+            " hint is missing. Make sure that each data item contains the necessary field to"
+            " compute the dynamic hint value.",
         )
 
 

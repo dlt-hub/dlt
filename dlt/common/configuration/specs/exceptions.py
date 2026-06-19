@@ -70,6 +70,15 @@ class InvalidBoto3Session(NativeValueError):
         super().__init__(spec, native_value, msg)
 
 
+class InvalidAzureCredential(NativeValueError):
+    def __init__(self, spec: Type[Any], native_value: Any):
+        msg = (
+            f"The expected native representation for `{spec.__name__}` is an azure-identity"
+            " credential exposing a `get_token` method, for example `DefaultAzureCredential`."
+        )
+        super().__init__(spec, native_value, msg)
+
+
 class ObjectStoreRsCredentialsException(ConfigurationException):
     pass
 

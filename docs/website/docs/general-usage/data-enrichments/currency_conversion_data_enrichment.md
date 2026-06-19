@@ -121,7 +121,12 @@ API token.
 1. Create the `converted_amount` function as follows:
 
    ```py
-   # @transformer(data_from=enriched_data_part_two)
+   import datetime
+
+   import dlt
+   import requests
+
+   # @dlt.transformer(data_from=enriched_data_part_two)
    def converted_amount(record):
         """
         Converts an amount from base currency to target currency using the latest exchange rate.
@@ -131,7 +136,7 @@ API token.
         if the current rate is over 12 hours old.
 
         Args:
-            record (dict): A dictionary containing the 'amount' key with the value to be converted.
+            record (dict): A dictionary containing the 'device_price_usd' key with the value to be converted.
 
         Yields:
             dict: A dictionary containing the original amount in USD, converted amount in EUR,
@@ -159,21 +164,21 @@ API token.
 
         # Update the exchange rate if it's older than 12 hours
         if (currency_pair_state.get("rate") is None or
-            (datetime.datetime.utcnow() - currency_pair_state["last_update"] >= datetime.timedelta(hours=12))):
+            (datetime.datetime.now(datetime.timezone.utc) - currency_pair_state["last_update"] >= datetime.timedelta(hours=12))):
             url = f"https://v6.exchangerate-api.com/v6/{api_key}/pair/{base_currency}/{target_currency}"
             response = requests.get(url)
             if response.status_code == 200:
                 data = response.json()
                 currency_pair_state.update({
                     "rate": data.get("conversion_rate"),
-                    "last_update": datetime.datetime.fromtimestamp(data.get("time_last_update_unix"))
+                    "last_update": datetime.datetime.fromtimestamp(data.get("time_last_update_unix"), tz=datetime.timezone.utc)
                 })
                 print(f"The latest rate of {data.get('conversion_rate')} for the currency pair {currency_pair_key} is fetched and updated.")
             else:
                 raise Exception(f"Error fetching the exchange rate: HTTP {response.status_code}")
 
         # Convert the amount using the retrieved or stored exchange rate
-        amount = record['device_price_usd']  # Assuming the key is 'amount' as per the function documentation
+        amount = record['device_price_usd']
         rate = currency_pair_state["rate"]
         yield {
             "actual_amount": amount,
@@ -208,7 +213,7 @@ API token.
    can be found under [Customize resources](../../general-usage/resource.md#customize-resources) in the
    documentation.
 
-1. Here, we create the pipeline and use the `add_map` functionality:
+1. Here, we create the pipeline and use the `add_yield_map` functionality (since `converted_amount` is a generator function that yields items, we use `add_yield_map` instead of `add_map`):
 
    ```py
    # Create the pipeline
@@ -219,7 +224,7 @@ API token.
    )
 
    # Run the pipeline with the transformed source
-   load_info = pipeline.run(enriched_data_part_two.add_map(converted_amount))
+   load_info = pipeline.run(enriched_data_part_two.add_yield_map(converted_amount))
 
    print(load_info)
    ```
@@ -230,7 +235,7 @@ API token.
    For `pipeline.run`, you can use the following code:
 
    ```py
-   # using fetch_average_price as a transformer function
+   # using converted_amount as a transformer function
    load_info = pipeline.run(
        enriched_data_part_two | converted_amount,
        table_name="data_enrichment_part_two"

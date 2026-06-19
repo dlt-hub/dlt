@@ -249,7 +249,6 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                     self.config,  # type: ignore
                     destination_state(),
                     _streaming_load,  # type: ignore
-                    [],
                     callable_requires_job_client_args=True,
                 )
             else:
@@ -617,5 +616,6 @@ def _streaming_load(
     bq_client.insert_rows_json(
         full_name,
         items,
-        retry=retry.Retry(predicate=_should_retry, deadline=600),  # with 10 mins deadline
+        # with 10 mins deadline
+        retry=retry.Retry(predicate=_should_retry, deadline=600),  # type: ignore[arg-type,unused-ignore]
     )

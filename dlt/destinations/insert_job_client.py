@@ -65,7 +65,12 @@ class InsertValuesLoadJob(RunnableLoadJob, HasFollowupJobs):
                     until_nl = until_nl[: -len(sep)] + ";"  # replace the separator with ";"
                 if max_rows is not None:
                     # mssql has a limit of 1000 rows per INSERT, so we need to split into separate statements
-                    values_rows = content.splitlines(keepends=True)
+                    # split on the newline row separator only; str.splitlines() also breaks on
+                    # \v \f \x1c-\x1e \x85   which may appear unescaped inside string values
+                    parts = content.split("\n")
+                    values_rows = [row + "\n" for row in parts[:-1]]
+                    if parts[-1]:
+                        values_rows.append(parts[-1])
                     len_rows = len(values_rows)
                     processed = 0
                     # Chunk by max_rows - 1 for simplicity because one more row may be added

@@ -77,7 +77,7 @@ To handle large datasets efficiently, you can process data in smaller chunks.
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::iterating_fetch_chunks-->
 
-The methods available on the Relation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
+The methods available on the Relation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](../../dlt-ecosystem/transformations/sql.md#supported-methods-on-the-cursor) guide for more information.
 
 ## Connection Handling
 
@@ -118,6 +118,60 @@ You can refine your data retrieval by limiting the number of records, selecting 
 ### Aggregate data
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::aggregate-->
+
+### Filter to an incremental cursor
+
+`Relation.incremental(incremental)` adds a `WHERE` clause derived from a `dlt.sources.incremental` cursor so a relation only sees rows in the cursor window.
+
+```py
+import dlt
+from dlt.common.pendulum import pendulum
+
+dataset = pipeline.dataset()
+
+# bounded read: all rows in [2026-01-01, 2026-02-01)
+cursor = dlt.sources.incremental(
+    "created_at",
+    initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
+    end_value=pendulum.datetime(2026, 2, 1, tz="UTC"),
+)
+rows = dataset.table("events").incremental(cursor).fetchall()
+```
+
+Or pass it directly on `dataset.table(..., incremental=...)`:
+
+```py
+rows = dataset.table("events", incremental=cursor).fetchall()
+```
+
+`Relation.incremental()` accepts cursor paths in two forms:
+
+- `column` — filters on a column of the relation's base table.
+- `table.column` — automatically joins `table` via the dataset schema and filters on the joined column. The joined table's columns are not added to the projection. If the same table is already joined, the existing join is reused.
+
+#### Cursor on an auto-joined column
+
+A dotted `cursor_path` of the form `table.column` auto-joins `table` and filters on the joined column. This uses the same schema-reference resolution as [`Relation.join()`](#join-related-tables) — `table` must be reachable from the current relation's base table via dlt's parent/child references. The joined columns are not added to the projection, and an existing JOIN to the same table is reused.
+
+A common case is filtering any user table by dlt load time via `_dlt_loads`:
+
+```py
+# only rows from loads that happened after 2026-01-01
+cursor = dlt.sources.incremental(
+    "_dlt_loads.inserted_at",
+    initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
+)
+events = dataset.table("events", incremental=cursor)
+```
+
+The translation from `Incremental` to SQL follows these rules:
+
+- `last_value_func` must be `max` or `min`. Custom callables can't be pushed down to SQL.
+- `range_start` / `range_end` decide endpoint inclusivity (`"closed"` -> `>=`/`<=`, `"open"` -> `>`/`<`); operator direction follows `last_value_func`.
+- `on_cursor_value_missing="include"` translates to `... OR cursor IS NULL`; `"exclude"` to `... AND cursor IS NOT NULL`. `"raise"` cannot raise mid-query in SQL pushdown, so it falls back to `IS NOT NULL` and emits a warning when the cursor column is nullable.
+- `lag` is applied to the lower bound exactly as it would be during a resource extraction.
+
+See [Incremental transformations](../../hub/transformations/index.md#incremental-transformations) for using this in `@dlt.hub.transformation`, including stateful cursors, scheduler-owned windows, and `_dlt_loads.inserted_at` load-time cursors.
 
 ### Join related tables
 
@@ -225,11 +279,11 @@ df = joined_relation.df()
 All SQL and filesystem destinations supported by `dlt` can utilize this data access interface.
 
 ### Reading data from filesystem
-For filesystem destinations, `dlt` [uses **DuckDB** under the hood](./sql-client.md#the-filesystem-sql-client) to create views on iceberg and delta tables or from Parquet, JSONL and csv files. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data into delta or iceberg tables, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
+For filesystem destinations, `dlt` [uses **DuckDB** under the hood](../../dlt-ecosystem/transformations/sql.md#the-filesystem-sql-client) to create views on iceberg and delta tables or from Parquet, JSONL and csv files. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data into delta or iceberg tables, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
 
 :::tip
 By default `dlt` will not autorefresh views created on iceberg tables and files when new data is loaded. This prevents wasting resources on
-file globbing and reloading iceberg metadata for every query. You can [change this behavior](sql-client.md#control-data-freshness) with `always_refresh_views` flag.
+file globbing and reloading iceberg metadata for every query. You can [change this behavior](../../dlt-ecosystem/transformations/sql.md#control-data-freshness) with `always_refresh_views` flag.
 
 Note: `delta` tables are by default on autorefresh which is implemented by delta core and seems to be pretty efficient.
 :::
@@ -392,7 +446,7 @@ This table stores the internal state of the pipeline for each run. This state en
 | `version_hash`    | STRING           | Hash to detect changes in the state                 |
 | `_dlt_load_id`    | STRING           | Reference to related load in `_dlt_loads`           |
 | `_dlt_id`         | STRING           | Unique identifier for the pipeline state row        |
- 
+
 
 The state column contains a serialized Python dictionary that includes:
 
@@ -431,7 +485,7 @@ Ibis is a powerful portable Python dataframe library. Learn more about what it i
 `dlt` provides an easy way to hand over your loaded dataset to an Ibis backend connection.
 
 :::tip
-Not all destinations supported by `dlt` have an equivalent Ibis backend. Natively supported destinations include DuckDB (including Motherduck), Postgres (Redshift is supported via the Postgres backend for Ibis versions lower than 10.4.0), Snowflake, Clickhouse, MSSQL (including Synapse), and BigQuery. The filesystem destination is supported via the [Filesystem SQL client](./sql-client#the-filesystem-sql-client); please install the DuckDB backend for Ibis to use it. Mutating data with Ibis on the filesystem will not result in any actual changes to the persisted files.
+Not all destinations supported by `dlt` have an equivalent Ibis backend. Natively supported destinations include DuckDB (including Motherduck), Postgres (Redshift is supported via the Postgres backend for Ibis versions lower than 10.4.0), Snowflake, Clickhouse, MSSQL (including Synapse), and BigQuery. The filesystem destination is supported via the [Filesystem SQL client](../../dlt-ecosystem/transformations/sql.md#the-filesystem-sql-client); please install the DuckDB backend for Ibis to use it. Mutating data with Ibis on the filesystem will not result in any actual changes to the persisted files.
 :::
 
 ### Prerequisites
@@ -475,7 +529,7 @@ print(table.limit(10).execute())
 
 [marimo](https://github.com/marimo-team/marimo) is a reactive Python notebook. It completely revamps the Jupyter notebook experience. Whenever code is executed or you interact with a UI element, dependent cells are re-executed ensuring consistency between code and displayed outputs.
 
-This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich environment to explore loaded data, write data transformations, and create data applications.
+This page shows how dlt + marimo + [ibis](../../dlt-ecosystem/transformations/python.md#using-ibis) provide a rich environment to explore loaded data, write data transformations, and create data applications.
 
 ### Prerequisites
 
@@ -493,7 +547,7 @@ Use this command to launch marimo (replace `my_notebook.py` with desired name). 
 marimo edit my_notebook.py
 
 > Edit my_notebook.py in your browser 📝
->   ➜  URL: http://localhost:2718?access_token=Qfo_Hj2RbXqiqM4VT3XOwA 
+>   ➜  URL: http://localhost:2718?access_token=Qfo_Hj2RbXqiqM4VT3XOwA
 ```
 
 Here's a screenshot of the interface you should see:

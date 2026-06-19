@@ -63,7 +63,7 @@ def sync_from_runtime() -> None:
     # TODO: there's no good way to get this value on sync.
     data_dir_root = os.path.join(
         context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER
-    )  # the local .var folder
+    )  # the local state folder
 
     # Just sync the whole base folder into the local pipelines dir
     sync_dir(fs, config.bucket_url, data_dir_root)

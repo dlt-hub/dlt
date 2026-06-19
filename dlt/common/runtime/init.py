@@ -57,7 +57,8 @@ def restore_run_context(
     # make sure runtime configuration is attached
     assert run_context.runtime_config is not None
 
-    container = Container()
+    # start from a clean injection container
+    container = Container.reset_main_thread()
     container[PluggableRunContext] = PluggableRunContext(run_context)
 
     if worker_contexts:

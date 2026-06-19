@@ -35,10 +35,12 @@ class RunContext(RunContextBase):
     def __init__(self, run_dir: Optional[str]):
         self._init_run_dir = run_dir or "."
         self._runtime_config: RuntimeConfiguration = None
+        # allow to set global dir on an instance
+        self._global_dir: str = None
 
     @property
     def global_dir(self) -> str:
-        return global_dir()
+        return self._global_dir or global_dir()
 
     @property
     def uri(self) -> str:
@@ -63,7 +65,7 @@ class RunContext(RunContextBase):
 
     @property
     def data_dir(self) -> str:
-        return os.environ.get(known_env.DLT_DATA_DIR, global_dir())
+        return os.environ.get(known_env.DLT_DATA_DIR, self.global_dir)
 
     def initial_providers(self) -> List[ConfigProvider]:
         providers = [
@@ -200,7 +202,8 @@ def global_dir() -> str:
             else:
                 warnings.warn(
                     f"XDG_DATA_HOME is set to {os.environ['XDG_DATA_HOME']} but ~/.dlt already"
-                    " exists. Using ~/.dlt"
+                    " exists. Using ~/.dlt",
+                    stacklevel=2,
                 )
 
         # else default to ~/.dlt
