@@ -324,7 +324,7 @@ sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
 streamlit = ["streamlit>1.50"]
 dbt = [
     "dbt-core>=1.7.0",
-    "dbt-redshift>=1.7.0",
+    "dbt-redshift>=1.7.0; python_version < '3.14'",
     "dbt-bigquery>=1.7.0",
     "dbt-duckdb>=1.7.0",
     "dbt-snowflake>=1.7.0",

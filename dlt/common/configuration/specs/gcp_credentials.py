@@ -351,7 +351,7 @@ class GcpDefaultCredentials(CredentialsWithDefault, GcpCredentials):
         from google.auth.exceptions import DefaultCredentialsError
 
         try:
-            return default_credentials()
+            return default_credentials()  # type: ignore[no-any-return,unused-ignore]
         except DefaultCredentialsError:
             # prevent exception
             GcpDefaultCredentials._LAST_FAILED_DEFAULT = now
