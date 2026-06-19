@@ -28,7 +28,7 @@ from tests.common.runners.utils import (
     ALL_METHODS,
     mp_method_auto,
 )
-from tests.utils import init_test_logging
+from tests.utils import init_test_logging, preserve_container
 
 
 @configspec
@@ -151,13 +151,12 @@ def default_args() -> Iterator[None]:
     signals._received_signal = 0
     global _counter
     _counter = 0
-    saved = Container._INSTANCE
-    Container._INSTANCE = None
-    try:
-        yield
-    finally:
-        signals._received_signal = 0
-        Container._INSTANCE = saved
+    with preserve_container():
+        Container._INSTANCE = None
+        try:
+            yield
+        finally:
+            signals._received_signal = 0
 
 
 # test runner functions
