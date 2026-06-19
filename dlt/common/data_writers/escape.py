@@ -8,7 +8,9 @@ from dlt.common.pendulum import pendulum
 from dlt.common.time import reduce_pendulum_datetime_precision
 
 # use regex to escape characters in single pass
-SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
+# NUL (\x00) is stripped: postgres/redshift cannot store it in text and duckdb cannot parse it
+# inside an inline string literal (the query is a NUL-terminated string)
+SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\x00": ""}
 
 
 def _make_sql_escape_re(escape_dict: Dict[str, str]) -> re.Pattern:  # type: ignore[type-arg]
