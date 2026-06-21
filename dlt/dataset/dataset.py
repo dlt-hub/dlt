@@ -161,10 +161,15 @@ class Dataset:
         return self.tables
 
     def _is_same_dataset(self, other: dlt.Dataset) -> bool:
-        """Whether `other` represents the same logical dataset."""
-        # TODO currently only compares dataset name,
-        # once hardened, consider implementing __eq__ based on this method
-        return self.dataset_name == other.dataset_name
+        """Whether `other` is the same dataset: same physical location and dataset name."""
+        # TODO: once hardened, consider implementing __eq__ based on this method
+        return (
+            self.destination_client.config.physical_location(),
+            self.dataset_name,
+        ) == (
+            other.destination_client.config.physical_location(),
+            other.dataset_name,
+        )
 
     @property
     def sqlglot_schema(self) -> SQLGlotSchema:

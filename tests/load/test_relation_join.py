@@ -41,7 +41,6 @@ def _skip_unsupported(destination_config: DestinationTestConfiguration) -> None:
 @pytest.fixture(scope="module")
 def relational_pipeline(
     destination_config: DestinationTestConfiguration,
-    module_lance_rest_server: None,
     auto_module_test_storage: Any,
     preserve_module_environ_per_destination_config: Any,
     auto_module_test_run_context: Any,
@@ -60,7 +59,6 @@ def relational_pipeline(
 @pytest.fixture(scope="module")
 def crm_pipeline(
     destination_config: DestinationTestConfiguration,
-    module_lance_rest_server: None,
     auto_module_test_storage: Any,
     preserve_module_environ_per_destination_config: Any,
     auto_module_test_run_context: Any,
@@ -82,7 +80,6 @@ def crm_pipeline(
 @pytest.fixture(scope="module")
 def cross_dataset_pipelines(
     destination_config: DestinationTestConfiguration,
-    module_lance_rest_server: None,
     auto_module_test_storage: Any,
     preserve_module_environ_per_destination_config: Any,
     auto_module_test_run_context: Any,
