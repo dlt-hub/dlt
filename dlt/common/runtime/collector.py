@@ -254,7 +254,8 @@ class LogCollector(Collector):
         self.counters = defaultdict(int)
         self.counter_info = {}
         self.messages = {}
-        self.last_log_time = self._clock()
+        # log immediately on the first update
+        self.last_log_time = None
 
     def _stop(self) -> None:
         self.on_log()
