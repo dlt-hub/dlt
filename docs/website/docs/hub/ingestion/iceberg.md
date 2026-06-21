@@ -28,7 +28,7 @@ The Iceberg destination in dlt allows you to load data into Iceberg tables using
 If you don't have a dltHub workspace yet, scaffold one with:
 
 ```sh
-uvx dlthub-start@latest
+uvx dlthub-init@latest
 ```
 
 This installs `dlt[hub]` and sets up the workspace. Alternatively, install the required extras into an existing project:

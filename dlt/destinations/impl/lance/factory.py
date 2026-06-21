@@ -49,6 +49,7 @@ class lance(Destination[LanceClientConfiguration, "LanceClient"]):
         caps.supports_ddl_transactions = False
 
         caps.decimal_precision = (38, 18)
+        caps.wei_precision = (38, 0)
         caps.timestamp_precision = 6
         caps.supported_replace_strategies = ["truncate-and-insert"]
 

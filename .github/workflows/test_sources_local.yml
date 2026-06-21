@@ -1,6 +1,6 @@
 # Tests sources against a couple of local destinations
 
-name: src | rest_api, sql_database, filesystem
+name: src local
 
 on:
   workflow_call:
@@ -16,26 +16,37 @@ env:
 
 jobs:
   run_loader:
-    name: src | rest_api, sql_database, filesystem
+    name: ${{ matrix.display_name }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: postgres etc.
+          - display_name: postgres-sources-load
             dbms_extras: "--extra postgres --extra postgis"
             needs_postgres: true
             pytest_mark: "not mssql and not oracle"
-            allows_sqlalchemy_1_4: true
-          - name: mssql
+            suite: sources-load
+          - display_name: postgres-sql-database
+            dbms_extras: "--extra postgres --extra postgis"
+            needs_postgres: true
+            pytest_mark: "not mssql and not oracle"
+            suite: sql-database
+          - display_name: mssql-sources-load
             dbms_extras: "--extra mssql"
             needs_mssql: true
             pytest_mark: "mssql"
-            allows_sqlalchemy_1_4: true
-          - name: oracle
+            suite: sources-load
+          - display_name: mssql-sql-database
+            dbms_extras: "--extra mssql"
+            needs_mssql: true
+            pytest_mark: "mssql"
+            suite: sql-database
+          # Oracle: sqlalchemy 2 / sql_database only (no sources-load leg on SA 1.4)
+          - display_name: oracle-sql-database
             dbms_extras: "--extra oracle"
             needs_oracle: true
             pytest_mark: "oracle"
-            allows_sqlalchemy_1_4: false
+            suite: sql-database
     defaults:
       run:
         shell: bash
@@ -79,23 +90,23 @@ jobs:
         run: |
           cp tests/.dlt/dev.secrets.toml tests/.dlt/secrets.toml
 
-      # run sources tests in load against configured destinations
-      - name: Run tests linux
+      - name: Run sources load tests (sqlalchemy 1.4)
         run: make test-sources-load
         env:
           PYTEST_XDIST_N: auto
           PYTEST_MARKERS: ${{ matrix.pytest_mark }}
-        if: ${{ matrix.allows_sqlalchemy_1_4 }}
+        if: matrix.suite == 'sources-load'
 
-      # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
         run: make install-sqlalchemy2
+        if: matrix.suite == 'sql-database'
 
-      - name: Run tests Linux
+      - name: Run sql_database source tests (sqlalchemy 2)
         run: make test-sources-sql-database
         env:
           PYTEST_XDIST_N: auto
           PYTEST_MARKERS: ${{ matrix.pytest_mark }}
+        if: matrix.suite == 'sql-database'
 
       - name: Stop databases
         run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" down -v

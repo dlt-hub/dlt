@@ -15,7 +15,6 @@ from tests.dataset.utils import (
     inventory,
     relational_tables,
 )
-from tests.load.lance_utils import module_lance_rest_server
 from tests.load.read_dataset_fixtures import (
     destination_config,
     preserve_module_environ_per_destination_config,

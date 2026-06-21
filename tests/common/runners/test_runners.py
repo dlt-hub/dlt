@@ -28,7 +28,7 @@ from tests.common.runners.utils import (
     ALL_METHODS,
     mp_method_auto,
 )
-from tests.utils import init_test_logging
+from tests.utils import init_test_logging, preserve_container
 
 
 @configspec
@@ -151,13 +151,12 @@ def default_args() -> Iterator[None]:
     signals._received_signal = 0
     global _counter
     _counter = 0
-    saved = Container._INSTANCE
-    Container._INSTANCE = None
-    try:
-        yield
-    finally:
-        signals._received_signal = 0
-        Container._INSTANCE = saved
+    with preserve_container():
+        Container._INSTANCE = None
+        try:
+            yield
+        finally:
+            signals._received_signal = 0
 
 
 # test runner functions
@@ -271,6 +270,15 @@ def test_pool_runner_process_methods_configured(method) -> None:
     runs_count = runner.run_pool(ProcessPoolConfiguration(start_method=method), r)
     assert runs_count == 1
     assert [v[0] for v in r.rv] == list(range(4))
+
+
+def test_get_default_start_method_forkserver_normalized_to_fork() -> None:
+    """`forkserver` (the Python 3.14 Linux default) is treated exactly like `fork`."""
+    # forkserver and fork run through the same normalization, so they always agree
+    # (both stay `fork` or both get promoted to `spawn` under an orchestrator / non-main thread)
+    assert runner.get_default_start_method("forkserver") == runner.get_default_start_method("fork")
+    # spawn is never rewritten
+    assert runner.get_default_start_method("spawn") == "spawn"
 
 
 def test_spawn_pool_with_non_importable_main(
@@ -491,6 +499,36 @@ def test_config_section_context_restored_in_worker(
             f"Expected 'non_sectioned_value' but got '{result_value}'. "
             "Config resolution should use non-sectioned value when no ConfigSectionContext is set."
         )
+
+
+@pytest.mark.forked
+@pytest.mark.skipif(
+    "forkserver" not in multiprocessing.get_all_start_methods(),
+    reason="forkserver start method not available on this platform",
+)
+def test_config_section_context_restored_in_forkserver_worker() -> None:
+    """Explicit `forkserver` pools resolve config correctly in workers.
+
+    Marked `forked`
+    so the fork server lives and dies in this test's own process and never hangs the xdist suite.
+    """
+    os.environ["MY_SECTION__TEST_SECTION__TEST_VALUE"] = "sectioned_value"
+    os.environ["TEST_SECTION__TEST_VALUE"] = "non_sectioned_value"
+
+    container = Container()
+    container[ConfigSectionContext] = ConfigSectionContext(
+        pipeline_name=None, sections=("my_section",)
+    )
+    initialize_runtime("dlt", resolve_configuration(RuntimeConfiguration()))
+
+    config = PoolRunnerConfiguration(pool_type="process", workers=4, start_method="forkserver")
+    with runner.create_pool(config) as pool:
+        results = [pool.submit(_worker_resolve_config).result() for _ in range(4)]
+
+    # every worker must resolve the sectioned value via the restored ConfigSectionContext
+    for result_value, result_sections in results:
+        assert result_sections == ("my_section",)
+        assert result_value == "sectioned_value"
 
 
 def test_worker_contexts_thread_to_process() -> None:

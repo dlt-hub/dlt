@@ -63,10 +63,13 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
     assert c.is_resolved()
     assert not c.is_partial()
     assert c.has_default_credentials()
+    # a session passed by the user counts as external
+    assert c.is_external_session()
     # fields are not populated from default credentials
     assert c.aws_access_key_id is None
 
-    # s3fs credentials should include frozen values from the stored session
+    # external session: keys are frozen (not omitted) since s3fs cannot reproduce a session
+    # built in the user's process. non-credential kwargs are preserved
     s3_cred = c.to_s3fs_credentials()
     assert s3_cred == {
         "key": "fake_access_key",
@@ -77,7 +80,7 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
         "client_kwargs": {"region_name": region_name},
     }
 
-    # frozen session credentials should match the original values
+    # to_session_credentials still freezes (used by the STS / object_store fallback paths)
     sess_creds = c.to_session_credentials()
     assert sess_creds["aws_access_key_id"] == "fake_access_key"
     assert sess_creds["aws_secret_access_key"] == "fake_secret_key"
@@ -154,11 +157,118 @@ def test_aws_credentials_with_endpoint_url(environment: Dict[str, str]) -> None:
     assert config.has_default_credentials()
 
     s3fs_creds = config.to_s3fs_credentials()
-    assert s3fs_creds["key"] == "fake_access_key"
-    assert s3fs_creds["secret"] == "fake_secret_key"
+    # default credentials: key/secret omitted so s3fs uses its own refreshing chain
+    assert "key" not in s3fs_creds
+    assert "secret" not in s3fs_creds
     assert s3fs_creds["endpoint_url"] == "https://123.r2.cloudflarestorage.com"
     assert s3fs_creds["client_kwargs"] == {"region_name": "eu-central-1"}
     assert "config_kwargs" in s3fs_creds
+
+
+def _refreshable_credentials(deferred: bool = False) -> Any:
+    """Build a botocore (Deferred)RefreshableCredentials for default-credential tests."""
+    from botocore.credentials import RefreshableCredentials, DeferredRefreshableCredentials
+
+    def _refresh() -> Dict[str, str]:
+        return {
+            "access_key": "refreshable_access_key",
+            "secret_key": "refreshable_secret_key",
+            "token": "refreshable_session_token",
+            "expiry_time": "2099-01-01T00:00:00Z",
+        }
+
+    if deferred:
+        return DeferredRefreshableCredentials(refresh_using=_refresh, method="custom")
+    return RefreshableCredentials.create_from_metadata(
+        metadata=_refresh(), refresh_using=_refresh, method="custom"
+    )
+
+
+def _aws_credentials_with_default(
+    creds_obj: Any, region: str = "eu-central-1", external: bool = False
+) -> AwsCredentials:
+    """Builds AwsCredentials holding `creds_obj` as default credentials."""
+    import botocore.session
+
+    session = botocore.session.get_session()
+    session._credentials = creds_obj  # type: ignore[attr-defined]
+    session.set_config_variable("region", region)
+    if external:
+        c = AwsCredentials.from_session(session)
+    else:
+        c = AwsCredentials()
+        c._from_session(session)
+        c._set_default_credentials(session)
+    assert c.has_default_credentials()
+    assert c.is_external_session() is external
+    return c
+
+
+def test_aws_credentials_to_s3fs_omits_refreshable_token() -> None:
+    """RefreshableCredentials must not freeze into s3fs static kwargs (#4003)."""
+    c = _aws_credentials_with_default(_refreshable_credentials())
+    s3fs_creds = c.to_s3fs_credentials()
+    # static key/secret/token must NOT be present so s3fs uses its own refreshable default chain
+    assert "key" not in s3fs_creds
+    assert "secret" not in s3fs_creds
+    assert "token" not in s3fs_creds
+    # non-credential kwargs are preserved
+    assert s3fs_creds["client_kwargs"] == {"region_name": "eu-central-1"}
+
+
+def test_aws_object_store_hands_over_imds_ecs_creds() -> None:
+    """Plain RefreshableCredentials (EC2 IMDS / ECS) are handed over so object_store refreshes."""
+    c = _aws_credentials_with_default(_refreshable_credentials())
+    creds = c.to_object_store_rs_credentials()
+    assert "aws_access_key_id" not in creds
+    assert "aws_secret_access_key" not in creds
+    assert "aws_session_token" not in creds
+    assert creds["region"] == "eu-central-1"
+
+
+def test_aws_object_store_freezes_deferred_creds() -> None:
+    """Deferred refreshable creds (IRSA/SSO/assume-role) cannot be resolved by object_store and
+    are passed frozen."""
+    c = _aws_credentials_with_default(_refreshable_credentials(deferred=True))
+    creds = c.to_object_store_rs_credentials()
+    assert creds["aws_access_key_id"] == "refreshable_access_key"
+    assert creds["aws_secret_access_key"] == "refreshable_secret_key"
+    assert creds["aws_session_token"] == "refreshable_session_token"
+    assert creds["region"] == "eu-central-1"
+
+
+def test_aws_pyiceberg_omits_default_token() -> None:
+    """Default credentials are handed over to pyarrow's S3FileSystem, which refreshes."""
+    c = _aws_credentials_with_default(_refreshable_credentials())
+    config = c.to_pyiceberg_fileio_config()
+    assert "s3.access-key-id" not in config
+    assert "s3.secret-access-key" not in config
+    assert "s3.session-token" not in config
+    assert config["s3.region"] == "eu-central-1"
+
+
+def test_aws_external_session_always_frozen() -> None:
+    """A user-supplied session (from_session / native boto3 session) must always be frozen."""
+    c = _aws_credentials_with_default(_refreshable_credentials(), external=True)
+    assert c.is_external_session()
+
+    # s3fs: frozen static key/secret/token are kept
+    s3fs_creds = c.to_s3fs_credentials()
+    assert s3fs_creds["key"] == "refreshable_access_key"
+    assert s3fs_creds["secret"] == "refreshable_secret_key"
+    assert s3fs_creds["token"] == "refreshable_session_token"
+
+    # object_store: frozen even though the underlying creds are plain refreshable
+    os_creds = c.to_object_store_rs_credentials()
+    assert os_creds["aws_access_key_id"] == "refreshable_access_key"
+    assert os_creds["aws_secret_access_key"] == "refreshable_secret_key"
+    assert os_creds["aws_session_token"] == "refreshable_session_token"
+
+    # pyiceberg: frozen s3 keys are kept
+    config = c.to_pyiceberg_fileio_config()
+    assert config["s3.access-key-id"] == "refreshable_access_key"
+    assert config["s3.secret-access-key"] == "refreshable_secret_key"
+    assert config["s3.session-token"] == "refreshable_session_token"
 
 
 def test_explicit_filesystem_credentials() -> None:
@@ -279,17 +389,26 @@ def test_aws_default_credentials_s3_connectivity(fs_creds: Dict[str, Any], mode:
 
         assert creds.has_default_credentials()
         assert creds.is_resolved()
+        # only dlt's own resolution (on_partial) hands credentials over to s3fs; a user-supplied
+        # session is treated as external and frozen
+        assert creds.is_external_session() is (mode == "from_session")
         # credential fields are not populated — stored in botocore session
         assert creds.aws_access_key_id is None
         # region is extracted from the session
         assert creds.region_name == fs_creds.get("region_name", "us-east-1")
 
-        # s3fs credentials should include frozen values from default session
         s3fs_creds = creds.to_s3fs_credentials()
-        assert s3fs_creds["key"] == fs_creds["aws_access_key_id"]
-        assert s3fs_creds["secret"] == fs_creds["aws_secret_access_key"]
+        if mode == "from_session":
+            # external session: frozen keys are kept so s3fs uses them directly
+            assert s3fs_creds["key"] == fs_creds["aws_access_key_id"]
+            assert s3fs_creds["secret"] == fs_creds["aws_secret_access_key"]
+        else:
+            # default credentials: key/secret omitted so s3fs resolves via its own chain (the
+            # AWS_* env vars set above), which keeps refreshing for temporary credentials
+            assert "key" not in s3fs_creds
+            assert "secret" not in s3fs_creds
 
-        # actual S3 connectivity via s3fs
+        # actual S3 connectivity via s3fs, resolving credentials from the environment
         fs = s3fs.S3FileSystem(**s3fs_creds)
         bucket = AWS_BUCKET.replace("s3://", "").rstrip("/")
         with pytest.raises(FileNotFoundError):

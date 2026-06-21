@@ -6,6 +6,7 @@ from typing import Any, ClassVar, Dict, List, Literal, NamedTuple, Optional, Tup
 from dlt.common.runtime.exec_info import is_claude_code, is_codex, is_cursor
 
 from dlt._workspace.cli.dlthub.ai.utils import (
+    cap_skill_description,
     ensure_cursor_rule_frontmatter,
     home_dir,
     merge_json_mcp_servers,
@@ -97,17 +98,7 @@ class _AIAgent(ABC):
         """
         if component_type == "skill":
             assert isinstance(content_or_path, Path)
-            dest = self.component_dir("skill", project_root) / source_name
-            return [
-                InstallAction(
-                    kind="skill",
-                    source_name=source_name,
-                    dest_path=dest,
-                    op="copytree",
-                    content_or_path=content_or_path,
-                    conflict=not overwrite and dest.exists(),
-                )
-            ]
+            return self._install_skill(content_or_path, source_name, project_root, overwrite)
         if component_type == "ignore":
             assert isinstance(content_or_path, str)
             dest = self.component_dir("ignore", project_root) / self.ignore_file_name
@@ -125,6 +116,26 @@ class _AIAgent(ABC):
         return self._install_command_or_rule(
             component_type, content_or_path, source_name, toolkit_name, project_root, overwrite
         )
+
+    def _install_skill(
+        self,
+        content_or_path: Path,
+        source_name: str,
+        project_root: Path,
+        overwrite: bool,
+    ) -> List["InstallAction"]:
+        """Install actions for a skill directory, copied verbatim."""
+        dest = self.component_dir("skill", project_root) / source_name
+        return [
+            InstallAction(
+                kind="skill",
+                source_name=source_name,
+                dest_path=dest,
+                op="copytree",
+                content_or_path=content_or_path,
+                conflict=not overwrite and dest.exists(),
+            )
+        ]
 
     def _transform_rule(self, content: str) -> str:
         """Transform rule content before writing. Override for agent-specific formatting."""
@@ -306,6 +317,8 @@ class _CodexAgent(_AIAgent):
     }
     _GLOBAL_MARKER: ClassVar[str] = ".codex"
     _LOCAL_PROBES: ClassVar[Tuple[str, ...]] = (".agents", "AGENTS.md")
+    _MAX_SKILL_DESCRIPTION: ClassVar[Optional[int]] = 1024
+    """Codex silently drops skills whose description exceeds 1024 characters."""
 
     @property
     def name(self) -> str:
@@ -323,6 +336,37 @@ class _CodexAgent(_AIAgent):
         """Path to the AGENTS.md file for skill registration."""
         return project_root / "AGENTS.md"
 
+    def _install_skill(
+        self,
+        content_or_path: Path,
+        source_name: str,
+        project_root: Path,
+        overwrite: bool,
+    ) -> List["InstallAction"]:
+        actions = super()._install_skill(content_or_path, source_name, project_root, overwrite)
+        # Codex drops skills whose description exceeds the limit; copytree installs the
+        # SKILL.md verbatim, so cap it with a follow-up save
+        skill_action = actions[0]
+        skill_md = content_or_path / "SKILL.md"
+        if not skill_action.conflict and skill_md.is_file():
+            capped = cap_skill_description(
+                skill_md.read_text(encoding="utf-8"), self._MAX_SKILL_DESCRIPTION
+            )
+            if capped is not None:
+                # overwrites the verbatim-copied SKILL.md after copytree runs
+                actions.append(
+                    InstallAction(
+                        kind="skill",
+                        source_name=source_name,
+                        dest_path=skill_action.dest_path / "SKILL.md",
+                        op="save",
+                        content_or_path=capped,
+                        conflict=False,
+                        skip_index=True,
+                    )
+                )
+        return actions
+
     def _install_command_or_rule(
         self,
         component_type: TComponentType,
@@ -334,6 +378,7 @@ class _CodexAgent(_AIAgent):
     ) -> List["InstallAction"]:
         if component_type == "command":
             wrapped = wrap_as_skill(content, source_name)
+            wrapped = cap_skill_description(wrapped, self._MAX_SKILL_DESCRIPTION) or wrapped
             dest = self.component_dir("skill", project_root) / source_name / "SKILL.md"
             return [
                 InstallAction(
@@ -349,6 +394,7 @@ class _CodexAgent(_AIAgent):
         # rule → always-apply skill (AGENTS.md is handled by finalize_actions)
         skill_name = toolkit_name + "-" + source_name
         wrapped = wrap_as_skill(content, skill_name, always_apply=True)
+        wrapped = cap_skill_description(wrapped, self._MAX_SKILL_DESCRIPTION) or wrapped
         skill_dest = self.component_dir("skill", project_root) / skill_name / "SKILL.md"
         return [
             InstallAction(

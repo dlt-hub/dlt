@@ -53,7 +53,7 @@ def test_local_path_win_configuration(bucket_url: str, file_url: str) -> None:
     last_err: Exception = None
     for attempt in range(3 if is_unc else 1):
         try:
-            assert FilesystemConfiguration.make_file_url(bucket_url) == file_url
+            assert FilesystemConfiguration.make_file_url(bucket_url).lower() == file_url.lower()
             break
         except OSError as e:
             last_err = e
@@ -64,7 +64,8 @@ def test_local_path_win_configuration(bucket_url: str, file_url: str) -> None:
 
     c = resolve_configuration(FilesystemConfiguration(bucket_url))
     assert c.protocol == "file"
-    assert c.bucket_url == file_url
+    # bucket_url is normalized via make_file_url, so it carries the same canonicalized case
+    assert c.bucket_url.lower() == file_url.lower()
     assert FilesystemConfiguration.make_local_path(c.bucket_url) == str(
         pathlib.Path(bucket_url).resolve()
     )

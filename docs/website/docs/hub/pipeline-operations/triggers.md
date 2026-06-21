@@ -86,10 +86,19 @@ def daily_ingest(run_context: TJobRunContext):
 
 Behaviour:
 
-- Each run gets the cron tick that just elapsed
-- Missed ticks are backfilled automatically — windows extend back continuously
+- Each run gets the interval that just elapsed
+- Missed runs are backfilled automatically — windows extend back continuously
 - On refresh, the dltHub platform resets the interval pointer to `interval.start`
 - Source code stays stateless — no cursor persistence, no state lookups
+
+### Schedule/cron and every intervals
+
+A `schedule` trigger is defined with a cron expression and produces intervals that start and end at absolute points in time — the cron ticks. The scheduler starts a job when an interval **closes**, handing it the window that just elapsed. Take a daily schedule firing at 3am, `trigger.schedule("0 3 * * *")`: the run started on May 26th at 3:00 receives the interval from May 25th 3:00 to May 26th 3:00. The same rule applies to a newly deployed job — it does not run on deployment but starts for the first time when the current interval elapses: deploy the 3am job at noon on May 25th and the first run happens on May 26th at 3:00, covering the May 25th–26th window.
+
+When such a job is started manually (e.g., `dlthub job trigger` or `dlthub run`), it receives the *current* interval: from the end of the last completed interval up to the most recent elapsed cron tick. In most cases these coincide — the scheduled run already covered everything up to the last tick, and the window currently in progress belongs to the next tick — so the interval is **empty** (`interval_start == interval_end`). An empty interval means there is no new window to process, and incremental jobs should treat it as a no-op. The exception is a missed or failed scheduled tick: a manual run then backfills the uncovered gap. To force already-loaded windows to be reprocessed, use a [refresh](#refresh-cascade) instead.
+
+An `every` trigger generates relative intervals of a fixed period, starting from now rather than at absolute tick times. A newly deployed job runs for the first time once the period has elapsed: deploy `trigger.every("1h")` at 14:20 and the first run starts at 15:20 with the interval 14:20 to 15:20. When run manually, the interval spans from the previous run start to now — so unlike cron jobs, manual runs of `every` jobs always receive a non-empty interval.
+
 
 ## Freshness checks
 
@@ -106,6 +115,14 @@ def build_report(run_context: TJobRunContext):
 ```
 
 Unlike a trigger, the job still runs on its own schedule — it just skips while upstream is mid-load. Use for transforms that must not observe partial data.
+
+:::note
+Invalidation and replacement of a single interval is not yet supported. Once done you'll be able to do:
+
+* **Parallel backfills** — splitting a historical range into many intervals processed concurrently.
+* **Partial refresh** — invalidating specific intervals so only the affected windows are reloaded.
+* **Interval-based freshness** — today freshness is a single watermark: a downstream job is gated only on the upstream's most recent completed interval. With interval-based freshness, every upstream interval that arrives (including late or replayed ones) would mark the matching downstream window stale, so the downstream job is re-run exactly for the affected windows instead of relying on a full refresh cascade.
+:::
 
 ## Refresh cascade
 
@@ -131,6 +148,22 @@ Then trigger it from the CLI:
 dlthub job trigger "tag:backfill"
 dlthub run backfill --refresh    # explicit refresh on a single job
 ```
+
+Note that the refresh signal will not drop your data automatically, you should use one of the [refresh](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) options available.
+```py
+@run.pipeline(
+    "report_pipeline",
+    trigger=trigger.schedule("0 * * * *"),
+    freshness=[ingest_job.is_fresh],
+)
+def build_report(run_context: TJobRunContext):
+    ...
+    report_pipeline.run(
+        data_source(),
+        refresh="drop_data" if run_context["refresh"] else None
+    )
+```
+Above we tell `dlt` to truncate all tables belonging to resources in `data_source()` if the refresh signal got passed in the `refresh` flag.
 
 ## Tags and bulk triggering
 

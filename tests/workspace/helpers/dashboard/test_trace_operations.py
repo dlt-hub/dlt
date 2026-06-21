@@ -2,6 +2,7 @@ import pytest
 import dlt
 import marimo as mo
 
+from dlt._workspace.helpers.dashboard import strings
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.trace import (
     trace_overview,
@@ -135,4 +136,4 @@ def test_build_trace_section_no_trace(never_ran_pipline: dlt.Pipeline):
     assert len(result) >= 1
     # should contain the no-trace warning
     rendered = mo.vstack(result).text
-    assert "No local trace" in rendered
+    assert strings.trace_no_trace_text[:20] in rendered

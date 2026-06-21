@@ -279,15 +279,15 @@ Without this, values with more than 28 significant digits are silently rounded a
 - **Python decimal context**: Always set `decimal.getcontext().prec` (or use `decimal.localcontext()`) to at least 38 before fetching DECFLOAT data with more than 28 significant digits.
 
 ## Supported file formats
-* [insert-values](../file-formats/insert-format.md) is used by default.
-* [Parquet](../file-formats/parquet.md) is supported.
-* [JSONL](../file-formats/jsonl.md) is supported.
-* [CSV](../file-formats/csv.md) is supported.
+* [insert-values](../file-formats.md#sql-insert) is used by default.
+* [Parquet](../file-formats.md#parquet) is supported.
+* [JSONL](../file-formats.md#jsonl) is supported.
+* [CSV](../file-formats.md#csv) is supported.
 
 When staging is enabled:
-* [JSONL](../file-formats/jsonl.md) is used by default.
-* [Parquet](../file-formats/parquet.md) is supported.
-* [CSV](../file-formats/csv.md) is supported.
+* [JSONL](../file-formats.md#jsonl) is used by default.
+* [Parquet](../file-formats.md#parquet) is supported.
+* [CSV](../file-formats.md#csv) is supported.
 
 :::warning
 When loading from Parquet, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the JSONL format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
@@ -305,7 +305,7 @@ The  **vectorized scanner** explicitly displays `NULL` values in the output and 
 :::
 
 ### Custom CSV formats
-By default, we support the CSV format [produced by our writers](../file-formats/csv.md#default-settings), which is comma-delimited, with a header, and optionally quoted.
+By default, we support the CSV format [produced by our writers](../file-formats.md#settings), which is comma-delimited, with a header, and optionally quoted.
 
 You can configure your own formatting, i.e., when [importing](../../general-usage/resource.md#import-external-files) external `csv` files.
 ```toml
@@ -482,7 +482,7 @@ use_vectorized_scanner=true
 
 ### Setting up CSV format
 
-You can provide [non-default](../file-formats/csv.md#default-settings) csv settings via configuration file or explicitly.
+You can provide [non-default](../file-formats.md#settings) csv settings via configuration file or explicitly.
 
 ```toml
 [destination.snowflake.csv_format]

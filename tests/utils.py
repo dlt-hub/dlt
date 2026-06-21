@@ -329,14 +329,28 @@ def _preserve_environ() -> Iterator[None]:
                 environ[key_] = value_
 
 
-@pytest.fixture(autouse=True)
-def preserve_run_context() -> Iterator[None]:
-    """Restores initial run context when test completes"""
-    ctx_plug = Container()[PluggableRunContext]
-    cookie = ctx_plug.push_context()
+@contextlib.contextmanager
+def preserve_container() -> Iterator[None]:
+    """Saves and restores the whole Container singleton (instance and main thread id)."""
+    saved_instance = Container._INSTANCE
+    saved_main_thread_id = Container._MAIN_THREAD_ID
     try:
         yield
     finally:
+        Container._INSTANCE = saved_instance
+        Container._MAIN_THREAD_ID = saved_main_thread_id
+
+
+@pytest.fixture(autouse=True)
+def preserve_run_context() -> Iterator[None]:
+    """Restores run context and container singleton when a test completes."""
+    ctx_plug = Container()[PluggableRunContext]
+    cookie = ctx_plug.push_context()
+    try:
+        with preserve_container():
+            yield
+    finally:
+        # preserve_container has restored the singleton; the original run context must be back
         assert ctx_plug is Container()[PluggableRunContext], "PluggableRunContext was replaced"
         ctx_plug.pop_context(cookie)
 

@@ -116,7 +116,7 @@ Monitoring the reliability of the delivery mechanism itself. Even perfectly vali
 | Audit Schema Drift | **Schema History:** Even in permissive modes, `dlt` tracks every schema change. Use the audit trail to see exactly when a new column was introduced. | [Schema Evolution](schema-evolution.md) | dlt |
 | Alert on schema changes | **Schema Update Alerts:** Inspect `load_info.load_packages[].schema_update` after each run to detect new tables/columns and trigger alerts (for example, Slack notification when schema drifts). | [Running in Production](../running-in-production/running.md#inspect-save-and-alert-on-schema-changes) | dlt |
 | Trace Lineage | **Load IDs:** Every row in your destination is tagged with `_dlt_load_id`. You can trace any specific record back to the exact pipeline run that produced it. | [Destination Tables](destination-tables.md#data-lineage) | dlt |
-| Alert on failures | **Slack Integration:** Send pipeline success/failure notifications via Slack incoming webhooks configured in `dlt.secrets`. | [Alerting](../running-in-production/alerting.md) | dlt |
+| Alert on failures | **Slack Integration:** Send pipeline success/failure notifications via Slack incoming webhooks configured in `dlt.secrets`. | [Alerting](../running-in-production/running.md#using-slack-to-send-messages) | dlt |
 
 
 

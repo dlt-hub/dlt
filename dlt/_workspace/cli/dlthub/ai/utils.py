@@ -142,6 +142,22 @@ def wrap_as_skill(content: str, skill_name: str, always_apply: bool = False) -> 
     return render_frontmatter(skill_fm, body)
 
 
+def cap_skill_description(content: str, max_len: int) -> Optional[str]:
+    """Truncate a SKILL.md frontmatter `description` to `max_len` characters.
+
+    Some agents (e.g. Codex) silently drop a skill whose description exceeds a
+    hard limit. Returns the rewritten content when truncation was applied, or
+    None when the description already fits (or there is none).
+    """
+    fm, body = parse_frontmatter(content)
+    desc = fm.get("description")
+    if not isinstance(desc, str) or len(desc) <= max_len:
+        return None
+    ellipsis = "…"
+    fm["description"] = desc[: max_len - len(ellipsis)].rstrip() + ellipsis
+    return render_frontmatter(fm, body)
+
+
 def safe_write_text(dest: Path, content: str) -> None:
     """Write content to dest atomically via write-then-move.
 

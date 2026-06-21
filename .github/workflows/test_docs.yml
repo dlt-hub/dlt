@@ -25,8 +25,8 @@ env:
 jobs:
 
   run_lint:
-    name: docs | snippets
-    runs-on: ubuntu-latest
+    name: snippets
+    runs-on: blacksmith-8vcpu-ubuntu-2404
 
     # Service containers to run with `container-job`
     services:

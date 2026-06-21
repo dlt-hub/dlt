@@ -103,7 +103,8 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         self._current_connection: Optional[Connection] = None
         self._current_transaction: Optional[SqlaTransactionWrapper] = None
         self.metadata = sa.MetaData()
-        # Keep a list of datasets already attached on the current connection
+        self._main_dataset_name = dataset_name
+        # keep a list of datasets already attached on the current connection
         self._sqlite_attached_datasets: Set[str] = set()
 
     @property
@@ -122,7 +123,11 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         if self._current_connection is None:
             self._current_connection = self.credentials.managed_engine.borrow_conn()
             if self.dialect_name == "sqlite":
-                self._sqlite_reattach_dataset_if_exists(self.dataset_name)
+                # attach the main dataset: `dataset_name` may be swapped to a staging/alternative
+                # dataset, but queries (eg. merge) still reference the main one
+                self._sqlite_reattach_dataset_if_exists(self._main_dataset_name)
+                if self.dataset_name != self._main_dataset_name:
+                    self._sqlite_reattach_dataset_if_exists(self.dataset_name)
         return self._current_connection
 
     def close_connection(self) -> None:
@@ -217,7 +222,8 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     def _sqlite_reattach_dataset_if_exists(self, dataset_name: str) -> None:
         """Re-attach previously created databases for a new sqlite connection"""
-        if self._sqlite_is_memory_db():
+        # `main` (the default sqlite database) and empty dataset live in the base db file, never attached
+        if dataset_name in ("main", "") or self._sqlite_is_memory_db():
             return
         new_db_fn = self._sqlite_dataset_filename(dataset_name)
         if Path(new_db_fn).exists():
@@ -264,13 +270,14 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         self, dataset_name: str
     ) -> Iterator[SqlClientBase[Connection]]:
         with super().with_alternative_dataset_name(dataset_name):
-            if self.dialect_name == "sqlite" and dataset_name not in self._sqlite_attached_datasets:
-                if not self.native_connection:
-                    # opening connection attaches dataset
-                    with self:
-                        pass
-                else:
-                    self._sqlite_reattach_dataset_if_exists(dataset_name)
+            # attach the alternative dataset to an already open connection. when no connection
+            # is open, the next open_connection attaches it together with the main dataset
+            if (
+                self.dialect_name == "sqlite"
+                and self.native_connection
+                and dataset_name not in self._sqlite_attached_datasets
+            ):
+                self._sqlite_reattach_dataset_if_exists(dataset_name)
             yield self
 
     def create_dataset(self) -> None:

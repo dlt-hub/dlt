@@ -9,12 +9,14 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     NotResolved,
 )
-from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+)
 from dlt.common.pendulum import timedelta
 from dlt.common.storages.configuration import FilesystemConfiguration, WithLocalFiles
 from dlt.common.typing import TSecretStrValue, Annotated
 from dlt.common.utils import digest128
-
 from dlt.destinations.impl.lancedb.warnings import uri_on_credentials_deprecated
 
 if TYPE_CHECKING:
@@ -129,6 +131,8 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
     dataset_name: Final[Optional[str]] = dataclasses.field(  # type: ignore
         default=None, init=False, repr=False, compare=False
     )
+    always_refresh_views: bool = False
+    """Recreates view before each query to it"""
 
     options: Optional[LanceDBClientOptions] = None
     """LanceDB client options."""
@@ -191,8 +195,41 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
         self.credentials.uri = self.lance_uri
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of a connection string."""
-
+        """Returns a fingerprint of the LanceDB URI."""
         if self.lance_uri:
             return digest128(self.lance_uri)
         return ""
+
+    def physical_location(self) -> str:
+        """Returns the resolved LanceDB URI, or "" for external native clients."""
+        if not self.lance_uri or self.lance_uri == ":external:":
+            return ""
+
+        if self.lance_uri.startswith("db://"):
+            region = self.credentials.region if self.credentials else None
+            host_override = self.credentials.host_override if self.credentials else None
+            endpoint_parts = [self.lance_uri]
+            if region:
+                endpoint_parts.append(region)
+            if host_override:
+                endpoint_parts.append(host_override)
+            return "|".join(endpoint_parts)
+
+        return self.lance_uri
+
+    def can_write_from(self, other: DestinationClientConfiguration) -> bool:
+        """LanceDB does not have an engine that can write. `dlt` is that engine,
+        and returning False here enforces its usage.
+        """
+        return False
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True for the same LanceDB URI."""
+        if not isinstance(other, LanceDBClientConfiguration):
+            return False
+
+        # any table at the same location can be read via the same ATTACH (lance extension),
+        # `dataset_separator` only affects table naming and does not limit readability
+        self_loc = self.physical_location()
+        other_loc = other.physical_location()
+        return bool(self_loc and other_loc and self_loc == other_loc)

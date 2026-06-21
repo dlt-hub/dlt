@@ -108,7 +108,7 @@ pipeline.run(events())
 
 ### Fast loading with Arrow tables and CSV
 
-You can use [Arrow tables](../verified-sources/arrow-pandas.md) and [CSV](../file-formats/csv.md) to quickly load tabular data. Pick the CSV loader file format like below:
+You can use [Arrow tables](../verified-sources/arrow-pandas.md) and [CSV](../file-formats.md#csv) to quickly load tabular data. Pick the CSV loader file format like below:
 ```py
 info = pipeline.run(arrow_table, loader_file_format="csv")
 ```
@@ -116,7 +116,7 @@ In the example above, `arrow_table` will be converted to CSV with **pyarrow** an
 
 ### Fast loading with Arrow tables and parquet
 
-[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/current/driver/postgresql.html).
+[parquet](../file-formats.md#parquet) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/current/driver/postgresql.html).
 To install it you'll need `dbc` which is a tool to manage ADBC drivers:
 ```sh
 pip install adbc-driver-manager dbc
@@ -137,9 +137,9 @@ Not all `postgres` types are supported, see driver docs for more details:
 We copy parquet files with batches of size of 1 row group. Each file is copied in a single transaction.
 
 ## Supported file formats
-* [insert-values](../file-formats/insert-format.md) is used by default.
-* [CSV](../file-formats/csv.md) is supported.
-* [parquet](../file-formats/parquet.md) is supported via [ADBC](https://arrow.apache.org/adbc/current/driver/postgresql.html)
+* [insert-values](../file-formats.md#sql-insert) is used by default.
+* [CSV](../file-formats.md#csv) is supported.
+* [parquet](../file-formats.md#parquet) is supported via [ADBC](https://arrow.apache.org/adbc/current/driver/postgresql.html)
 
 ## Supported column hints
 `postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
@@ -205,7 +205,7 @@ create_indexes=false
 ```
 
 ### Setting up CSV format
-You can provide [non-default](../file-formats/csv.md#default-settings) CSV settings via a configuration file or explicitly.
+You can provide [non-default](../file-formats.md#settings) CSV settings via a configuration file or explicitly.
 
 ```toml
 [destination.postgres.csv_format]

@@ -112,6 +112,8 @@ select_sequential_consistency = 1                       # Ensures read-after-wri
 
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
 
+If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be atomically swapped with the staging tables via [`EXCHANGE TABLES`](https://clickhouse.com/docs/en/sql-reference/statements/exchange) (requires `Atomic` or `Shared` database engine).
+
 ## Data loading
 
 Data is loaded into ClickHouse using the most efficient method depending on the data source:
@@ -154,8 +156,8 @@ tables will still be prefixed with `_staging` (or other name that you configure)
 
 ## Supported file formats
 
-- [JSONL](../file-formats/jsonl.md) is the preferred format for both direct loading and staging.
-- [Parquet](../file-formats/parquet.md) is supported for both direct loading and staging.
+- [JSONL](../file-formats.md#jsonl) is the preferred format for both direct loading and staging.
+- [Parquet](../file-formats.md#parquet) is supported for both direct loading and staging.
 
 The `clickhouse` destination has a few specific deviations from the default SQL destinations:
 

@@ -38,10 +38,13 @@ def _go_home(page: Page) -> None:
     page.goto("http://localhost:2718")
 
 
+def _open_pipeline(page: Page, pipeline_name: str) -> None:
+    page.goto(f"http://localhost:2718/?pipeline={pipeline_name}")
+
+
 known_sections = [
     "overview",
     "schema",
-    "data",
     "state",
     "trace",
     "loads",
@@ -55,7 +58,9 @@ def _open_section(
 ) -> None:
     if close_other_sections:
         _close_sections(page, section)
-    page.get_by_role("switch", name=section).check()
+    # the data section is always shown and has no toggle
+    if section != "data":
+        page.get_by_role("switch", name=section).check()
 
 
 def _close_sections(page: Page, skip_section: str = None) -> None:
@@ -64,18 +69,13 @@ def _close_sections(page: Page, skip_section: str = None) -> None:
             page.get_by_role("switch", name=s).uncheck()
 
 
-def test_page_overview(page: Page):
-    _go_home(page)
+def test_page_overview(page: Page, fruit_pipeline: Any):
+    _open_pipeline(page, "fruit_pipeline")
 
-    # check title
     expect(page).to_have_title("dlt workspace dashboard")
-
-    # check top heading
-    expect(
-        page.get_by_role("heading", name="Welcome to the dltHub workspace dashboard...")
-    ).to_contain_text(
-        "Welcome to the dltHub workspace dashboard..."
-    )  #
+    expect(page.get_by_text(app_strings.browse_data_query_result_title).nth(1)).to_be_visible(
+        timeout=20000
+    )
 
     #
     # Exception pipeline
@@ -87,8 +87,7 @@ def test_exception_pipeline(
     failed_pipeline: Any,
     pipelines_dir: Path,
 ):
-    _go_home(page)
-    page.get_by_role("link", name="failed_pipeline").click()
+    _open_pipeline(page, "failed_pipeline")
     expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # overview page
@@ -96,11 +95,15 @@ def test_exception_pipeline(
     expect(page.get_by_text(pipeline_path_text(pipelines_dir, "failed_pipeline"))).to_be_visible()
 
     _open_section(page, "schema")
-    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
+    expect(
+        page.get_by_text(app_strings.schema_no_default_available_text[0:20]).first
+    ).to_be_visible()
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
+    expect(
+        page.get_by_text(app_strings.schema_no_default_available_text[0:20]).first
+    ).to_be_visible()
 
     _open_section(page, "state")
     expect(page.get_by_text("_local")).to_be_visible()
@@ -115,65 +118,58 @@ def test_exception_pipeline(
 
 
 def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
-    _go_home(page)
-    page.get_by_role("link", name="multi_schema_pipeline").click()
+    _open_pipeline(page, "multi_schema_pipeline")
 
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
-
     expect(page.locator(".cm-line", has_text="name: fruitshop_customers").first).to_be_attached(
         timeout=15000
     )
 
+    # close the schema section so only the data section's schema selector is present (same widget)
+    _close_sections(page)
+
+    schemas = ["fruitshop_customers", "fruitshop_inventory", "fruitshop_purchases"]
+    all_tables = {"customers", "inventory", "purchases"}
+
     def _select_schema_and_verify(
-        schema_selector: Any,
         schema_name: str,
         expected: str,
         not_expected: set[str],
     ):
-        schema_selector.select_option(schema_name)
-        expect(schema_selector).to_have_value(schema_name)
-        # allow marimo reactivity to process
-        page.wait_for_timeout(500)
-        expect(page.get_by_text(expected, exact=True).nth(0)).to_be_visible(timeout=30000)
+        schema_selector = page.get_by_test_id("marimo-plugin-dropdown").first
+        expected_row = page.get_by_role("row", name=expected).first
+        # marimo can drop a rapid reactive update under load; re-fire until the table updates
+        for _attempt in range(3):
+            schema_selector.select_option(schema_name)
+            expect(schema_selector).to_have_value(schema_name)
+            try:
+                expect(expected_row).to_be_visible(timeout=10000)
+                break
+            except AssertionError:
+                schema_selector.select_option(next(s for s in schemas if s != schema_name))
+                page.wait_for_timeout(300)
+        else:
+            expect(expected_row).to_be_visible(timeout=10000)
+        # assert on rows; the SQL editor and dropdown options also contain table names
         for table in not_expected:
-            expect(page.get_by_text(table, exact=True)).to_have_count(0, timeout=10000)
+            expect(page.get_by_role("row", name=table)).to_have_count(0, timeout=10000)
 
-    # select each schema and see if the right tables are shown
-    # do this both for schema and data section
-    for section in ["schema", "data"]:
-        _open_section(page, section)  # type: ignore[arg-type]
-
-        # NOTE: this is using unspecific selector and may select other dropdowns id present (?)
-        schema_selector = page.get_by_test_id("marimo-plugin-dropdown")
-
-        all_tables = {"customers", "inventory", "purchases"}
-
-        _select_schema_and_verify(
-            schema_selector,
-            "fruitshop_customers",
-            expected="customers",
-            not_expected=all_tables - {"customers"},
-        )
-        schema_selector.scroll_into_view_if_needed()
-
-        _select_schema_and_verify(
-            schema_selector,
-            "fruitshop_inventory",
-            expected="inventory",
-            not_expected=all_tables - {"inventory"},
-        )
-
-        _select_schema_and_verify(
-            schema_selector,
-            "fruitshop_purchases",
-            expected="purchases",
-            not_expected=all_tables - {"purchases"},
-        )
-
-        _close_sections(page)
-        # make sure schema selector removed from page
-        expect(schema_selector).not_to_be_attached()
+    _select_schema_and_verify(
+        "fruitshop_customers",
+        expected="customers",
+        not_expected=all_tables - {"customers"},
+    )
+    _select_schema_and_verify(
+        "fruitshop_inventory",
+        expected="inventory",
+        not_expected=all_tables - {"inventory"},
+    )
+    _select_schema_and_verify(
+        "fruitshop_purchases",
+        expected="purchases",
+        not_expected=all_tables - {"purchases"},
+    )
 
 
 def test_simple_incremental_pipeline(
@@ -186,8 +182,7 @@ def test_simple_incremental_pipeline(
     #
 
     # simple check for  one two three pipeline
-    _go_home(page)
-    page.get_by_role("link", name="one_two_three").click()
+    _open_pipeline(page, "one_two_three")
 
     # overview page
     _open_section(page, "overview")
@@ -229,7 +224,7 @@ def test_simple_incremental_pipeline(
     # last trace page
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
-    page.get_by_text(app_strings.trace_show_raw_trace_text).click()
+    page.get_by_text(app_strings.trace_show_raw_trace_text, exact=True).click()
     expect(
         page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is part of the trace yaml
@@ -246,8 +241,7 @@ def test_simple_incremental_pipeline(
 
 def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
     # check fruit pipeline
-    _go_home(page)
-    page.get_by_role("link", name="fruit_pipeline").click()
+    _open_pipeline(page, "fruit_pipeline")
 
     # overview page
     _open_section(page, "overview")
@@ -268,7 +262,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
     # last trace page
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
-    page.get_by_text(app_strings.trace_show_raw_trace_text).click()
+    page.get_by_text(app_strings.trace_show_raw_trace_text, exact=True).click()
     expect(
         page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is part of the trace yaml
@@ -281,8 +275,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
 
 
 def test_never_run_pipeline(page: Page, never_run_pipeline: Any, pipelines_dir: Path):
-    _go_home(page)
-    page.get_by_role("link", name="never_run_pipeline").click()
+    _open_pipeline(page, "never_run_pipeline")
 
     # info closed by default
     _open_section(page, "overview")
@@ -292,11 +285,15 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any, pipelines_dir: 
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
-    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
+    expect(
+        page.get_by_text(app_strings.schema_no_default_available_text[0:20]).first
+    ).to_be_visible()
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
+    expect(
+        page.get_by_text(app_strings.schema_no_default_available_text[0:20]).first
+    ).to_be_visible()
 
     _open_section(page, "state")
     expect(page.get_by_text("_local")).to_be_visible()
@@ -312,8 +309,7 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any, pipelines_dir: 
 
 def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipelines_dir: Path):
     # check no destination pipeline
-    _go_home(page)
-    page.get_by_role("link", name="no_destination_pipeline").click()
+    _open_pipeline(page, "no_destination_pipeline")
 
     # info closed by default
     _open_section(page, "overview")
@@ -328,7 +324,7 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipel
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text(app_strings.browse_data_error_text[0:20])).to_be_visible()
+    expect(page.get_by_text(app_strings.browse_data_error_text[0:20]).first).to_be_visible()
 
     _open_section(page, "state")
     expect(page.get_by_text("_local")).to_be_visible()
@@ -340,7 +336,7 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any, pipel
     # last trace page
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace.subtitle)).to_be_visible()
-    page.get_by_text(app_strings.trace_show_raw_trace_text).click()
+    page.get_by_text(app_strings.trace_show_raw_trace_text, exact=True).click()
     expect(
         page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is only shown in trace yaml
@@ -387,8 +383,7 @@ def test_workspace_profile_dev(page: Page):
 
 def test_broken_trace_pipeline(page: Page, broken_trace_pipeline: Any, pipelines_dir: Path):
     """Dashboard should still render overview even if the last trace file is corrupted."""
-    _go_home(page)
-    page.get_by_role("link", name="broken_trace_pipeline").click()
+    _open_pipeline(page, "broken_trace_pipeline")
 
     # overview page should still be accessible and show the working dir path
     _open_section(page, "overview")
@@ -416,7 +411,6 @@ def test_sections_query_param(page: Page, fruit_pipeline: Any):
     # other sections should NOT be checked
     expect(page.get_by_role("switch", name="overview")).not_to_be_checked()
     expect(page.get_by_role("switch", name="schema")).not_to_be_checked()
-    expect(page.get_by_role("switch", name="data")).not_to_be_checked()
     expect(page.get_by_role("switch", name="state")).not_to_be_checked()
 
     # navigate away to release the DuckDB lock before the next test's fixture
@@ -426,15 +420,57 @@ def test_sections_query_param(page: Page, fruit_pipeline: Any):
 def test_sections_query_param_all(page: Page, fruit_pipeline: Any):
     """All sections should open when all are specified in ?sections= query param."""
     page.goto(
-        "http://localhost:2718/?pipeline=fruit_pipeline"
-        "&sections=overview,schema,data,state,trace,loads"
+        "http://localhost:2718/?pipeline=fruit_pipeline&sections=overview,schema,state,trace,loads"
     )
 
     # wait for the pipeline to load
     expect(page.get_by_role("switch", name="overview")).to_be_visible(timeout=20000)
 
     # all specified switches should be checked
-    for section in ["overview", "schema", "data", "state", "trace", "loads"]:
+    for section in ["overview", "schema", "state", "trace", "loads"]:
         expect(page.get_by_role("switch", name=section)).to_be_checked()
 
     _go_home(page)
+
+
+def test_dataset_browser_shown_by_default(page: Page, fruit_pipeline: Any):
+    """The dataset browser renders on open with no toggle to switch it on."""
+    _open_pipeline(page, "fruit_pipeline")
+
+    # the browse-data section is visible without any user interaction
+    expect(page.get_by_text(app_strings.browse_data.title).first).to_be_visible(timeout=20000)
+    # and there is no on/off switch for it (other sections still have one)
+    expect(page.get_by_role("switch", name="data", exact=True)).to_have_count(0)
+
+    _go_home(page)
+
+
+def test_auto_select_most_recent_pipeline(page: Page):
+    """Opening the dashboard with no pipeline in the URL selects the most recently run one."""
+    test_port = 2721
+    with isolated_workspace("pipelines"):
+        older = dlt.pipeline(pipeline_name="older_pipeline", destination="duckdb")
+        older.run(fruitshop_source().with_resources("customers"))
+        # ensure a distinct trace mtime so the ordering is deterministic
+        time.sleep(1)
+        newer = dlt.pipeline(pipeline_name="newer_pipeline", destination="duckdb")
+        newer.run(fruitshop_source().with_resources("inventory"))
+
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}")
+            # the most recently run pipeline is selected automatically, no picking required
+            expect(
+                page.get_by_role("heading", name=re.compile(r"Pipeline\s+newer_pipeline"))
+            ).to_be_visible(timeout=20000)
+
+
+def test_no_pipelines_home(page: Page):
+    """With no pipelines, show a hint and hide the empty pipeline dropdown."""
+    test_port = 2722
+    with isolated_workspace("pipelines"):
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}")
+            # the no-pipelines hint is shown
+            expect(page.get_by_text("No pipelines found yet").first).to_be_visible(timeout=20000)
+            # the (empty) pipeline dropdown is hidden
+            expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(0)

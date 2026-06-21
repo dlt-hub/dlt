@@ -1,4 +1,4 @@
-name: common | common
+name: common
 
 on:
   workflow_call:
@@ -14,59 +14,74 @@ env:
 
 jobs:
   run_common:
-    name: test
+    name: ${{ matrix.platform.label }}-${{ matrix.suite }}
     strategy:
       fail-fast: false
+      # the matrix is the cross product of `suite` x `platform`; the platform list is
+      # declared once instead of being repeated per suite. 3.14 runs the full set of
+      # suites on linux, like the other linux python versions.
       matrix:
-        include:
-
+        suite:
+          - common/pipeline-mindeps-workspace
+          - pipeline-full
+          - sqlalchemy-2
+        platform:
           # macos tests
-          - os: blacksmith-12vcpu-macos-latest
+          - label: macos-3.11
+            os: blacksmith-12vcpu-macos-latest
             python-version: "3.11"
             shell: bash
 
           # linux tests
-          - os: blacksmith-8vcpu-ubuntu-2404
+          - label: linux-3.10
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.10"
             shell: bash
-          - os: blacksmith-8vcpu-ubuntu-2404
+          - label: linux-3.11
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
-          - os: blacksmith-8vcpu-ubuntu-2404
+          - label: linux-3.12
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.12"
             shell: bash
-          - os: blacksmith-8vcpu-ubuntu-2404
+          - label: linux-3.13
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.13"
             shell: bash
-
-          - os: blacksmith-12vcpu-macos-latest
+          - label: linux-3.14
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.14"
             shell: bash
 
           # linux test with minimal dependencies
-          - os: blacksmith-8vcpu-ubuntu-2404
+          - label: linux-lowest-direct-3.11
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
 
           # linux test with newest available allowed packages (will update lockfile, should not be committed if run locally)
-          - os: blacksmith-8vcpu-ubuntu-2404
+          - label: linux-upgrade-3.11
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--upgrade' # could also be 'direct'
 
           # windows tests
-          - os: blacksmith-8vcpu-windows-2025
+          - label: windows-3.11
+            os: blacksmith-8vcpu-windows-2025
             python-version: "3.11"
             shell: cmd
-          - os: blacksmith-8vcpu-windows-2025
+          - label: windows-3.13
+            os: blacksmith-8vcpu-windows-2025
             python-version: "3.13"
             shell: cmd
 
     defaults:
       run:
-        shell: ${{ matrix.shell }}
-    runs-on: ${{ matrix.os }}
+        shell: ${{ matrix.platform.shell }}
+    runs-on: ${{ matrix.platform.os }}
 
     steps:
       - name: Check out
@@ -75,7 +90,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.platform.python-version }}
 
       - name: Install tzdata on windows
         run: |
@@ -91,86 +106,92 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.platform.python-version }}
           activate-environment: true
           enable-cache: true
 
       - name: Install dependencies
         run: make install-common-core
         env:
-          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+          UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run common tests with minimum dependencies
         run: make test-common-core
         env:
           PYTEST_XDIST_N: auto
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run tools tests
         run: make test-tools
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Install min dependencies to import core source
         run: make install-common-source
         env:
-          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+          UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run min dependencies source tests
         run: make test-common-source
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Install duckdb dependencies
         run: make install-pipeline-min
         env:
-          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+          UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run pipeline tests with minimum deps
         run: make test-pipeline-min
         env:
           PYTEST_XDIST_N: auto
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Install pyarrow
         run: make install-pipeline-arrow
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run pipeline tests with pyarrow but no pandas installed
         run: make test-pipeline-arrow
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Install workspace dependencies
         run: make install-workspace
         env:
-          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
-        if: matrix.python-version != '3.14'
+          UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run workspace tests
         run: make test-workspace
         env:
           PYTEST_XDIST_N: auto
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Install pipeline and sources dependencies
         run: make install-pipeline-full
         env:
-          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
-        if: matrix.python-version != '3.14'
+          UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
+        if: matrix.suite == 'pipeline-full' || matrix.suite == 'sqlalchemy-2'
 
       - name: Run extract and pipeline tests
         run: make test-pipeline-full
         env:
           PYTEST_XDIST_N: auto
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'pipeline-full'
 
-      # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
         run: make install-sqlalchemy2
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'sqlalchemy-2'
 
       - name: Run sql database tests and others that require sqlalchemy 2.0
         run: make test-with-sqlalchemy-2
         env:
           PYTEST_XDIST_N: auto
-        if: matrix.python-version != '3.14'
+        if: matrix.suite == 'sqlalchemy-2'
 
   matrix_job_required_check:
-    name: common | common tests
+    name: common-check
     needs: run_common
     runs-on: ubuntu-latest
     if: always()

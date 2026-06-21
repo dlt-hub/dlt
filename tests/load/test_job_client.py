@@ -8,7 +8,6 @@ import datetime  # noqa: I251
 from typing import Iterator, Tuple, List, Dict, Any
 
 from dlt.common import json, pendulum
-from dlt.common.configuration.container import Container
 from dlt.common.destination.exceptions import DestinationException
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.normalizers.naming import NamingConvention
@@ -17,7 +16,6 @@ from dlt.common.schema.typing import TLoaderReplaceStrategy, TWriteDisposition
 from dlt.common.schema.utils import new_table, new_column, pipeline_state_table
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TTableSchemaColumns
-from dlt.common.storages.load_package import LoadPackageStateInjectableContext
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
@@ -61,18 +59,35 @@ TEST_NAMING_CONVENTIONS = (
     "tests.common.cases.normalizers.title_case",
 )
 
+# parametrize for tests that run on sql destinations only
+sql_client_configs = pytest.mark.parametrize(
+    "client",
+    destinations_configs(default_sql_configs=True),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+
+# parametrize for tests that also run on destinations read through duckdb table scanners:
+# filesystem table formats and lance/lancedb vector dbs (weaviate/qdrant have no such sql client)
+fs_vector_client_configs = pytest.mark.parametrize(
+    "client",
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
+    ),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+
 
 @pytest.fixture
 def file_storage() -> FileStorage:
     return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_initialize_storage(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     assert client.is_storage_initialized()
 
@@ -82,6 +97,8 @@ def test_initialize_storage(client: SqlJobClientBaseWithDestinationTestConfigura
     destinations_configs_with_naming_convention(
         default_sql_configs=True,
         table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
         naming_conventions=TEST_NAMING_CONVENTIONS,
     ),
     indirect=True,
@@ -105,12 +122,7 @@ def test_get_schema_on_empty_storage(
     assert [("no_table_1", {}), ("no_table_2", {})] == storage_tables
 
 
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_get_update_basic_schema(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     schema = client.schema
     schema_update = client.update_stored_schema()
@@ -146,6 +158,32 @@ def test_get_update_basic_schema(client: SqlJobClientBaseWithDestinationTestConf
     # also the content must be the same
     assert this_schema.schema == json.dumps(schema.to_dict())
     first_version_schema = this_schema.schema
+
+    # enforcing an update on an unchanged schema (as a truncate refresh does) re-applies DDL but
+    # must NOT write a duplicate version row
+    if client.config.destination_type not in ["filesystem"]:
+        versions_table = client.sql_client.make_qualified_table_name(version_table_name)
+        version_hash_column = client.sql_client.escape_column_name(
+            schema.naming.normalize_identifier("version_hash")
+        )
+
+        def _version_row_count() -> int:
+            return len(
+                list(
+                    client.sql_client.execute_sql(
+                        f"SELECT * FROM {versions_table} WHERE {version_hash_column} = %s",
+                        schema.stored_version_hash,
+                    )
+                )
+            )
+
+        rows_before = _version_row_count()
+        client.update_stored_schema(force=True)
+        assert _version_row_count() == rows_before
+    else:
+        client.update_stored_schema(force=True)
+    # the stored schema is still resolvable by hash
+    assert client.get_stored_schema_by_hash(schema.version_hash) is not None
 
     # modify schema
     schema.tables["event_slot"]["write_disposition"] = "replace"
@@ -201,6 +239,8 @@ def test_get_update_basic_schema(client: SqlJobClientBaseWithDestinationTestConf
         naming_conventions=TEST_NAMING_CONVENTIONS,
         default_sql_configs=True,
         table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
     ),
     indirect=True,
     ids=lambda x: x.name,
@@ -276,6 +316,36 @@ def test_schema_update_create_table(
     _, storage_columns = list(client.get_storage_tables([table_name]))[0]
     assert len(storage_columns) > 0
 
+    # a refresh that truncates/drops tables enforces the schema update so a table that is missing
+    # in the destination gets re-created even when the schema hash is already stored
+    versions_table = client.sql_client.make_qualified_table_name(schema.version_table_name)
+    version_hash_column = client.sql_client.escape_column_name(
+        schema.naming.normalize_identifier("version_hash")
+    )
+
+    def _version_row_count() -> int:
+        return len(
+            list(
+                client.sql_client.execute_sql(
+                    f"SELECT * FROM {versions_table} WHERE {version_hash_column} = %s",
+                    schema.stored_version_hash,
+                )
+            )
+        )
+
+    rows_before = _version_row_count()
+    # drop the table directly in the destination, schema (and its hash) stays stored
+    client.sql_client.drop_tables(table_name)
+    assert len(list(client.get_storage_tables([table_name]))[0][1]) == 0
+    # a plain update skips on a hash match: the table is NOT re-created
+    client.update_stored_schema()
+    assert len(list(client.get_storage_tables([table_name]))[0][1]) == 0
+    # a forced update re-runs the DDL and re-creates the table
+    client.update_stored_schema(force=True)
+    assert len(list(client.get_storage_tables([table_name]))[0][1]) > 0
+    # ... without writing a duplicate version row
+    assert _version_row_count() == rows_before
+
 
 @pytest.mark.parametrize(
     "client",
@@ -317,9 +387,7 @@ def test_schema_update_create_table_bigquery_hidden_dataset(
     assert storage_columns.keys() == client.schema.tables["_dlt_version"]["columns"].keys()
 
 
-@pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
-)
+@sql_client_configs
 def test_schema_update_alter_table(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
 ) -> None:
@@ -361,12 +429,7 @@ def test_schema_update_alter_table(
         assert storage_table_cols["col4"]["data_type"] == "timestamp"
 
 
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_drop_tables(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     schema = client.schema
     # Add columns in all tables
@@ -432,9 +495,7 @@ def test_drop_tables(client: SqlJobClientBaseWithDestinationTestConfiguration) -
     assert len(rows) == 2
 
 
-@pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
-)
+@sql_client_configs
 def test_get_storage_table_with_all_types(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
 ) -> None:
@@ -535,6 +596,8 @@ def test_preserve_sql_column_order(
         naming_conventions=TEST_NAMING_CONVENTIONS,
         default_sql_configs=True,
         table_format_local_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
     ),
     indirect=True,
     ids=lambda x: x.name,
@@ -581,9 +644,7 @@ def test_data_writer_load(
     assert db_row[5] is None
 
 
-@pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
-)
+@sql_client_configs
 def test_data_writer_string_escape(
     client: SqlJobClientBaseWithDestinationTestConfiguration, file_storage: FileStorage
 ) -> None:
@@ -611,12 +672,7 @@ def test_data_writer_string_escape(
     assert list(db_row) == list(row.values())
 
 
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_data_writer_string_escape_edge(
     client: SqlJobClientBaseWithDestinationTestConfiguration, file_storage: FileStorage
 ) -> None:
@@ -647,6 +703,8 @@ def test_data_writer_string_escape_edge(
         naming_conventions=TEST_NAMING_CONVENTIONS,
         default_sql_configs=True,
         table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
     ),
     indirect=True,
     ids=lambda x: x.name,
@@ -734,12 +792,7 @@ def test_load_with_all_types(
         ("replace", "staging-optimized"),
     ],
 )
-@pytest.mark.parametrize(
-    "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
-    indirect=True,
-    ids=lambda x: x.name,
-)
+@fs_vector_client_configs
 def test_write_dispositions(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
     write_disposition: TWriteDisposition,
@@ -753,6 +806,9 @@ def test_write_dispositions(
 
     table_name = "event_test_table" + uniq_id()
     column_schemas, data_row = get_columns_and_row_all_types(client.config)
+    # add _dlt_load_id that some destinations (ie. lancedb) require for merge
+    column_schemas["_dlt_load_id"] = new_column("_dlt_load_id", "text", nullable=False)
+    data_row["_dlt_load_id"] = uniq_id()
     root_table = new_table(
         table_name, write_disposition=write_disposition, columns=column_schemas.values()
     )
@@ -862,9 +918,7 @@ def test_write_dispositions(
             assert db_rows[-1][0] == pk_value
 
 
-@pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
-)
+@sql_client_configs
 def test_get_resumed_job(
     client: SqlJobClientBaseWithDestinationTestConfiguration, file_storage: FileStorage
 ) -> None:
@@ -905,10 +959,65 @@ def test_get_resumed_job(
     assert r_job.state() == "ready"
 
 
+@fs_vector_client_configs
+def test_initialize_storage_truncate_tables(
+    client: SqlJobClientBaseWithDestinationTestConfiguration, file_storage: FileStorage
+) -> None:
+    if not client.capabilities.preferred_loader_file_format:
+        pytest.skip("preferred loader file format not set, destination will only work with staging")
+    set_always_refresh_views(client.config)
+    # this mirrors what a `drop_data` refresh does: truncate the table but keep it (and its
+    # stored schema) in the destination
+    user_table_name = prepare_table(client)
+    load_json = {
+        "_dlt_id": uniq_id(),
+        "_dlt_root_id": uniq_id(),
+        "sender_id": "90238094809sajlkjxoiewjhduuiuehd",
+        "timestamp": pendulum.now(),
+    }
+    with io.BytesIO() as f:
+        write_dataset(
+            client,
+            f,
+            [load_json],
+            client.schema.get_table(user_table_name),
+            file_format=client.destination_config.file_format,
+        )
+        dataset = f.getvalue()
+    expect_load_file(
+        client,
+        file_storage,
+        dataset,
+        user_table_name,
+        file_format=client.destination_config.file_format,
+    )
+    qualified_table = client.sql_client.make_qualified_table_name(user_table_name)
+    assert len(list(client.sql_client.execute_sql(f"SELECT * FROM {qualified_table}"))) == 1
+    stored_before = client.get_stored_schema_by_hash(client.schema.stored_version_hash)
+    assert stored_before is not None
+
+    # truncate the table - the data is removed but the stored schema is untouched
+    client.initialize_storage(truncate_tables=[user_table_name])
+    if client.config.destination_type == "filesystem":
+        # filesystem table formats cannot distinguish truncate from drop - the whole table is
+        # removed (no columns reported), so we cannot query it
+        assert len(list(client.get_storage_tables([user_table_name]))[0][1]) == 0
+    else:
+        # sql destinations keep the (now empty) table
+        assert len(list(client.sql_client.execute_sql(f"SELECT * FROM {qualified_table}"))) == 0
+        assert len(list(client.get_storage_tables([user_table_name]))[0][1]) > 0
+    stored_after = client.get_stored_schema_by_hash(client.schema.stored_version_hash)
+    assert stored_after is not None
+    assert stored_after.version_hash == stored_before.version_hash
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, table_format_filesystem_configs=True, exclude=["dremio"]
+        default_sql_configs=True,
+        table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["dremio", "weaviate", "qdrant"],
     ),
     ids=lambda x: x.name,
 )
@@ -1127,6 +1236,7 @@ def test_many_schemas_single_dataset(
                 or "NOT NULL" in str(py_ex.value)
                 or "Adding columns with constraints not yet supported" in str(py_ex.value)
                 or "Only nullable columns can be added" in str(py_ex.value)  # Fabric Warehouse
+                or "must be nullable" in str(py_ex.value).lower()  # lance / lancedb
             )
 
 

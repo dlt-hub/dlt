@@ -1,12 +1,12 @@
 import os
-from typing import Iterator
+from typing import Iterator, Optional
 
 import pytest
 
 import dlt
 from dlt.common.configuration import resolve_configuration
 from dlt.common.known_env import DLT_LOCAL_DIR
-from dlt.common.utils import uniq_id
+from dlt.common.utils import digest128, uniq_id
 
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
@@ -30,6 +30,21 @@ def test_lancedb_configuration() -> None:
     )
     assert config.embedding_model_provider == "colbert"
     assert config.embedding_model == "text-embedding-3-small"
+
+
+@pytest.mark.parametrize(
+    "lance_uri,expected_fingerprint",
+    [
+        pytest.param(None, "", id="empty"),
+        pytest.param("local.db", digest128("local.db"), id="raw_local_uri"),
+        pytest.param("db://host/unknown", digest128("db://host/unknown"), id="raw_cloud_uri"),
+        pytest.param(":external:", digest128(":external:"), id="external_native_client"),
+    ],
+)
+def test_lancedb_fingerprint(lance_uri: Optional[str], expected_fingerprint: str) -> None:
+    config = LanceDBClientConfiguration(lance_uri=lance_uri)
+
+    assert config.fingerprint() == expected_fingerprint
 
 
 def test_lancedb_follows_local_dir() -> None:

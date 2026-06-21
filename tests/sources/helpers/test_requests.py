@@ -198,6 +198,49 @@ def test_wait_retry_after_int(mock_sleep: mock.MagicMock) -> None:
     assert 4 <= mock_sleep.call_args[0][0] <= 5  # Adds jitter up to 1s
 
 
+@pytest.mark.parametrize(
+    "retry_after_value",
+    ["0", "Tue, 10 Jun 2025 00:00:00 GMT", "  0  "],
+)
+def test_wait_retry_after_zero_falls_through_to_backoff(
+    mock_sleep: mock.MagicMock, retry_after_value: str
+) -> None:
+    """Retry-After: 0 (or negative) must fall through to exponential backoff, not retry instantly."""
+    session = Client(request_backoff_factor=1, request_max_attempts=3).session
+    url = "https://example.com/data"
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
+    responses: List[Dict[str, Any]] = [
+        dict(text="error", headers={"retry-after": retry_after_value}, status_code=429),
+        dict(text="success"),
+    ]
+    m.register_uri("GET", url, responses)
+    session.get(url)
+
+    # exponential backoff must have fired — sleep called with a positive value
+    mock_sleep.assert_called_once()
+    assert mock_sleep.call_args[0][0] > 0
+
+
+def test_wait_retry_after_zero_then_nonzero_uses_header(mock_sleep: mock.MagicMock) -> None:
+    """After falling back to backoff on Retry-After: 0, a subsequent non-zero header is respected."""
+    session = Client(request_backoff_factor=0, request_max_attempts=4).session
+    url = "https://example.com/data"
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
+    responses: List[Dict[str, Any]] = [
+        dict(text="error", headers={"retry-after": "0"}, status_code=429),
+        dict(text="error", headers={"retry-after": "10"}, status_code=429),
+        dict(text="success"),
+    ]
+    m.register_uri("GET", url, responses)
+    session.get(url)
+
+    assert mock_sleep.call_count == 2
+    assert mock_sleep.call_args_list[0][0][0] == 0  # Retry-After: 0 → backoff, but backoff_factor=0
+    assert 10 <= mock_sleep.call_args_list[1][0][0] <= 11  # Retry-After: 10 → wait for 10
+
+
 def test_init_default_client() -> None:
     """Test that the default client config is updated from runtime configuration.
     Run twice. 1. Clean start with no existing session attached.

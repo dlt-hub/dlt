@@ -28,7 +28,6 @@ def data_with_subtables(offset: int) -> Any:
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
-@pytest.mark.essential
 def test_switch_from_merge(destination_config: DestinationTestConfiguration):
     pipeline = destination_config.setup_pipeline(
         pipeline_name="test_switch_from_merge", dev_mode=True
@@ -105,7 +104,6 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("with_root_key", [True, False, None])
-@pytest.mark.essential
 def test_switch_to_merge(
     destination_config: DestinationTestConfiguration, with_root_key: bool, mocker: MockerFixture
 ):
@@ -204,3 +202,79 @@ def test_switch_to_merge(
     else:
         # still no propagation setup
         assert "propagation" not in norm_config["config"]
+
+
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+)
+@pytest.mark.essential
+def test_incremental_merge_full_refresh_with_replace(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    # non-normalized table and column names so identifiers are exercised through normalization
+    @dlt.source(name="items_source")
+    def items_source(records: Any) -> Any:
+        @dlt.resource(
+            name="items", table_name="MyItems", write_disposition="merge", primary_key="Id"
+        )
+        def items(updated_at: Any = dlt.sources.incremental("UpdatedAt")) -> Any:
+            yield from records
+
+        return items
+
+    def source(records: Any) -> Any:
+        s = items_source(records)
+        # propagations not needed up to 2 nesting levels
+        s.root_key = False
+        return s
+
+    seed = [
+        {"Id": 1, "UpdatedAt": "2026-05-28", "SubItems": [{"Id": 101}]},
+        {"Id": 2, "UpdatedAt": "2020-05-29", "SubItems": [{"Id": 201}]},
+    ]
+
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_incremental_merge_after_replace", dev_mode=True
+    )
+
+    # full refresh seeds the root and nested tables and advances the incremental cursor
+    info = pipeline.run(source(seed), write_disposition="replace", **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert_table_counts(pipeline, {"my_items": 2, "my_items__sub_items": 2})
+
+    # incremental merge run with no new rows (all filtered by the cursor) produces no load package
+    # and must keep root and nested data (the #3998 regression truncated them here)
+    info = pipeline.run(source(seed), **destination_config.run_kwargs)
+    assert_load_info(info, expected_load_packages=0)
+    assert_table_counts(pipeline, {"my_items": 2, "my_items__sub_items": 2})
+
+    # a later merge run with new data still loads to root and nested tables
+    info = pipeline.run(
+        source([{"Id": 3, "UpdatedAt": "2026-05-30", "SubItems": [{"Id": 301}]}]),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    assert_table_counts(pipeline, {"my_items": 3, "my_items__sub_items": 3})
+
+    # an explicit replace still resets the destination: prior rows are dropped, only new data remains
+    info = pipeline.run(
+        source([{"Id": 4, "UpdatedAt": "2026-06-01", "SubItems": [{"Id": 401}]}]),
+        write_disposition="replace",
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    assert_table_counts(pipeline, {"my_items": 1, "my_items__sub_items": 1})
+
+    # and merging continues to load on top of the reset data
+    info = pipeline.run(
+        source([{"Id": 5, "UpdatedAt": "2026-06-02", "SubItems": [{"Id": 501}]}]),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    assert_table_counts(pipeline, {"my_items": 2, "my_items__sub_items": 2})
+
+    # a replace run with no data truncates the (non-normalized) root and nested tables to empty: the
+    # empty-table handling matches the normalized table name, so a replace resource truncates
+    # correctly when it has none (and the runs above show it does not drop data when data is present)
+    pipeline.run(source([]), write_disposition="replace", **destination_config.run_kwargs)
+    assert_table_counts(pipeline, {"my_items": 0, "my_items__sub_items": 0})

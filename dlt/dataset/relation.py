@@ -522,15 +522,30 @@ class Relation(WithSqlClient):
     ) -> _JoinTarget:
         """Resolve the right-hand side of a join into a `_JoinTarget`."""
         if isinstance(other, dlt.Relation):
+            this_dataset = self._dataset
             target_dataset = other._dataset
-
-            if not self._dataset.is_same_physical_destination(target_dataset):
+            if not (
+                this_dataset.destination_client.config.can_read_from(
+                    target_dataset.destination_client.config
+                )
+            ):
                 raise ValueError(
                     "Cannot join relations from different physical destinations: dataset"
-                    f" '{self._dataset.dataset_name}' on"
-                    f" '{self._dataset.destination_client.config}' vs dataset"
+                    f" '{this_dataset.dataset_name}' on"
+                    f" '{this_dataset.destination_client.config}' vs dataset"
                     f" '{target_dataset.dataset_name}' on"
                     f" '{target_dataset.destination_client.config}'"
+                )
+
+            dataset_same_name = this_dataset.dataset_name == target_dataset.dataset_name
+            # at this moment we cannot join datasets with the same name on two different locations
+            if (
+                this_dataset.destination_client.config.physical_location()
+                != other._dataset.destination_client.config.physical_location()
+                and dataset_same_name
+            ):
+                raise ValueError(
+                    "Cannot join datasets with the same name located on two different destinations"
                 )
 
             is_foreign = not self._dataset._is_same_dataset(target_dataset)

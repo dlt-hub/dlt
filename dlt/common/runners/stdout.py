@@ -96,7 +96,6 @@ def iter_stdout(venv: Venv, command: str, *script_args: Any) -> Iterator[str]:
         stderr: List[str] = []
 
         def _r_stderr() -> None:
-            nonlocal stderr
             for line in iter(process.stderr.readline, ""):
                 stderr.append(line)
 

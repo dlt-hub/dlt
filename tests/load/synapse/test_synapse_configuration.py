@@ -1,10 +1,11 @@
 import os
+
 import pytest
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.schema import Schema
-
+from dlt.common.utils import digest128
 from dlt.destinations import synapse
 from dlt.destinations.impl.synapse.configuration import (
     SynapseClientConfiguration,
@@ -21,6 +22,32 @@ def test_synapse_configuration() -> None:
     assert c.create_indexes is False
     assert c.has_case_sensitive_identifiers is False
     assert c.staging_use_msi is False
+
+
+@pytest.mark.parametrize(
+    "connection_string,expected_fingerprint",
+    [
+        pytest.param("", "", id="empty"),
+        pytest.param(
+            "synapse://user1:pass1@host1:1433/db1",
+            digest128("host1"),
+            id="legacy_host_only_default_port",
+        ),
+        pytest.param(
+            "synapse://user1:pass1@host1:1434/db1",
+            digest128("host1"),
+            id="legacy_host_only_custom_port",
+        ),
+    ],
+)
+def test_synapse_fingerprint(connection_string: str, expected_fingerprint: str) -> None:
+    if connection_string:
+        credentials = SynapseCredentials(connection_string)
+        config = SynapseClientConfiguration(credentials=credentials)
+    else:
+        config = SynapseClientConfiguration()
+
+    assert config.fingerprint() == expected_fingerprint
 
 
 def test_synapse_factory() -> None:

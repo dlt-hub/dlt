@@ -20,13 +20,18 @@ class MigratedStorage(VersionedStorage):
 
 
 def test_new_versioned_storage(test_storage: FileStorage) -> None:
-    v = VersionedStorage("1.0.1", True, test_storage)
+    v = VersionedStorage(test_storage)
+    # versioned storage created by fixture
+    assert v.is_storage_ready()
+
+    v.ensure_migration("1.0.1", True)
     assert v.version == "1.0.1"
 
 
 def test_new_versioned_storage_non_owner(test_storage: FileStorage) -> None:
+    v = VersionedStorage(test_storage)
     with pytest.raises(WrongStorageVersionException) as wsve:
-        VersionedStorage("1.0.1", False, test_storage)
+        v.ensure_migration("1.0.1", False)
     assert wsve.value.storage_path == test_storage.storage_path
     assert wsve.value.target_version == "1.0.1"
     assert wsve.value.initial_version == "0.0.0"
@@ -34,26 +39,36 @@ def test_new_versioned_storage_non_owner(test_storage: FileStorage) -> None:
 
 def test_migration(test_storage: FileStorage) -> None:
     write_version(test_storage, "1.0.0")
-    v = MigratedStorage("1.2.0", True, test_storage)
+    v = MigratedStorage(test_storage)
+    v.ensure_migration("1.2.0", True)
     assert v.version == "1.2.0"
 
 
 def test_unknown_migration_path(test_storage: FileStorage) -> None:
     write_version(test_storage, "1.0.0")
+    v = MigratedStorage(test_storage)
     with pytest.raises(NoMigrationPathException) as wmpe:
-        MigratedStorage("1.3.0", True, test_storage)
+        v.ensure_migration("1.3.0", True)
     assert wmpe.value.migrated_version == "1.2.0"
 
 
 def test_only_owner_migrates(test_storage: FileStorage) -> None:
     write_version(test_storage, "1.0.0")
+    v = MigratedStorage(test_storage)
     with pytest.raises(WrongStorageVersionException) as wmpe:
-        MigratedStorage("1.2.0", False, test_storage)
+        v.ensure_migration("1.2.0", False)
     assert wmpe.value.initial_version == "1.0.0"
 
 
 def test_downgrade_not_possible(test_storage: FileStorage) -> None:
     write_version(test_storage, "1.2.0")
+    v = MigratedStorage(test_storage)
     with pytest.raises(NoMigrationPathException) as wmpe:
-        MigratedStorage("1.1.0", True, test_storage)
+        v.ensure_migration("1.1.0", True)
     assert wmpe.value.migrated_version == "1.2.0"
+
+
+def test_versioned_storage_not_ready(test_storage: FileStorage) -> None:
+    storage = FileStorage(test_storage.make_full_path_safe("versioned"))
+    v = MigratedStorage(storage)
+    assert v.is_storage_ready() is False

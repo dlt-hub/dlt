@@ -24,7 +24,6 @@ from dlt.common.normalizers.json.relational import DataItemNormalizer as Relatio
 from dlt.common.normalizers.json.typing import RelationalNormalizerConfig
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract
-from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.typing import StrAny, TDataItem
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import (
@@ -496,13 +495,8 @@ class DltSource(Iterable[TDataItem]):
         for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                root_table_schema = r.compute_table_schema(item, meta)
-                nested_tables_schema = r.compute_nested_table_schemas(
-                    root_table_schema["name"], schema.naming, item, meta
-                )
                 # NOTE must ensure that `schema.update_table()` is called in an order that respect parent-child relationships
-                for table_schema in (root_table_schema, *nested_tables_schema):
-                    partial_table = normalize_table_identifiers(table_schema, self._schema.naming)
+                for partial_table in r.compute_tables(schema.naming, item, meta):
                     schema.update_table(partial_table)
         return schema
 

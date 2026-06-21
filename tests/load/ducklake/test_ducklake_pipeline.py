@@ -1,3 +1,5 @@
+from typing import List
+
 import pytest
 import pathlib
 
@@ -14,6 +16,7 @@ from dlt.destinations import ducklake
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.utils import (
     ABFS_BUCKET,
+    ACTIVE_DESTINATIONS,
     AWS_BUCKET,
     GCS_BUCKET,
     DestinationTestConfiguration,
@@ -78,22 +81,64 @@ def test_all_catalogs(catalog: str) -> None:
     # test catalog location if applicable
     catalog_location = pipeline.destination_client().config.credentials.catalog.database  # type: ignore
     if "." in catalog_location:
-        # it is a file
-        assert pathlib.Path(get_test_storage_root(), catalog_location).exists()
+        catalog_file = pathlib.Path(get_test_storage_root(), catalog_location)
+        assert catalog_file.exists()
+        # verify the catalog file has the expected on-disk backend format. regression for #3870
+        # where a `duckdb:///` URI silently produced a SQLite-format file at `catalog.duckdb`.
+        header = catalog_file.read_bytes()[:16]
+        if catalog_location.endswith(".duckdb"):
+            assert b"DUCK" in header, f"expected DuckDB-format catalog, got: {header!r}"
+        elif catalog_location.endswith(".sqlite"):
+            assert header.startswith(
+                b"SQLite format"
+            ), f"expected SQLite-format catalog, got: {header!r}"
+
+
+def _all_bucket_configs() -> List[DestinationTestConfiguration]:
+    # enable filesystem to be able to collect bucket cases, won't be enabled on
+    # ci for ducklake tests
+    restore_filesystem = "filesystem" not in ACTIVE_DESTINATIONS
+    ACTIVE_DESTINATIONS.add("filesystem")
+    try:
+        configs = list(
+            destinations_configs(
+                all_buckets_filesystem_configs=True,
+                bucket_subset=(GCS_BUCKET, ABFS_BUCKET, AWS_BUCKET),
+            )
+        )
+    finally:
+        if restore_filesystem:
+            ACTIVE_DESTINATIONS.discard("filesystem")
+    # gs:// authenticates only via service account which duckdb cannot use, so it falls back to
+    # fsspec (an order of magnitude slower). access the same bucket through the s3 compatibility
+    # layer (s3:// + interop keys) so duckdb reads/writes natively.
+    if configs and GCS_BUCKET:
+        configs.append(
+            DestinationTestConfiguration(
+                destination_type="filesystem",
+                bucket_url=GCS_BUCKET.replace("gs://", "s3://"),
+                destination_name="filesystem_s3_gcs_comp",
+                extra_info="gcs-via-s3",
+                file_format="jsonl",
+                supports_merge=False,
+            )
+        )
+    return configs
 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        all_buckets_filesystem_configs=True, bucket_subset=(GCS_BUCKET, ABFS_BUCKET, AWS_BUCKET)
-    ),
+    _all_bucket_configs(),
     ids=lambda x: x.name,
 )
 def test_all_buckets(destination_config: DestinationTestConfiguration) -> None:
     filesystem = destination_config.setup_pipeline("filesystem_config")
     destination = ducklake(
         credentials=DuckLakeCredentials(
-            "bucket_cat", storage=filesystem.destination_client().config  # type: ignore
+            "bucket_cat",
+            # each test has separate DATA PATH so we isolate catalogs
+            metadata_schema="bucket_cat_" + uniq_id(4),
+            storage=filesystem.destination_client().config,  # type: ignore
         )
     )
 

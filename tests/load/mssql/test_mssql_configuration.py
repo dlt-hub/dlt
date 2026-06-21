@@ -1,13 +1,14 @@
 import os
+
 import pyodbc
 import pytest
 
-from dlt.common.configuration import resolve_configuration, ConfigFieldMissingException
+from dlt.common.configuration import ConfigFieldMissingException, resolve_configuration
 from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.schema import Schema
-
+from dlt.common.utils import digest128
 from dlt.destinations import mssql
-from dlt.destinations.impl.mssql.configuration import MsSqlCredentials, MsSqlClientConfiguration
+from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, MsSqlCredentials
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -53,6 +54,32 @@ def test_mssql_credentials_defaults() -> None:
     # port should be optional
     resolve_configuration(creds, explicit_value="mssql://loader:loader@localhost/dlt_data")
     assert creds.port == 1433
+
+
+@pytest.mark.parametrize(
+    "connection_string,expected_fingerprint",
+    [
+        pytest.param("", "", id="empty"),
+        pytest.param(
+            "mssql://user1:pass1@host1:1433/db1",
+            digest128("host1"),
+            id="legacy_host_only_default_port",
+        ),
+        pytest.param(
+            "mssql://user1:pass1@host1:1434/db1",
+            digest128("host1"),
+            id="legacy_host_only_custom_port",
+        ),
+    ],
+)
+def test_mssql_fingerprint(connection_string: str, expected_fingerprint: str) -> None:
+    if connection_string:
+        credentials = MsSqlCredentials(connection_string)
+        config = MsSqlClientConfiguration(credentials=credentials)
+    else:
+        config = MsSqlClientConfiguration()
+
+    assert config.fingerprint() == expected_fingerprint
 
 
 def test_parse_native_representation() -> None:

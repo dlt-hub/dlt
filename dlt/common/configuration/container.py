@@ -49,6 +49,14 @@ class Container:
     def __init__(self) -> None:
         pass
 
+    @classmethod
+    def reset_main_thread(cls) -> "Container":
+        """Discards the singleton and re-captures the main thread id, returning a clean container."""
+        with cls._LOCK:
+            cls._INSTANCE = None
+            cls._MAIN_THREAD_ID = threading.get_ident()
+            return cls()
+
     def __getitem__(self, spec: Type[TInjectableContext]) -> TInjectableContext:
         # return existing config object or create it from spec
         if not is_subclass(spec, ContainerInjectableContext):

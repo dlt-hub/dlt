@@ -6,7 +6,7 @@ on:
 
 jobs:
   build_docs:
-    name: docs | build docs
+    name: build
     runs-on: blacksmith-8vcpu-ubuntu-2404
 
     steps:

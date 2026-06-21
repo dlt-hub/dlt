@@ -2,25 +2,45 @@ from __future__ import annotations
 
 import dataclasses
 import os
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Final, ClassVar, List, Type, Union
+import threading
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Literal,
+    NamedTuple,
+    Optional,
+    Final,
+    ClassVar,
+    List,
+    Type,
+    Union,
+)
 
 from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
+    CredentialsWithDefault,
+    NotResolved,
     resolve_type,
 )
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
-from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+)
 from dlt.common.storages.configuration import (
     FileSystemCredentials,
     FilesystemConfiguration,
     FilesystemConfigurationWithLocalFiles,
     WithLocalFiles,
 )
+from dlt.common.typing import Annotated
 
 if TYPE_CHECKING:
+    from lance import Session
     from lance_namespace import LanceNamespace
     from lancedb.embeddings import EmbeddingFunction, EmbeddingFunctionRegistry
 
@@ -266,10 +286,53 @@ class LanceEmbeddingsConfiguration(BaseConfiguration):
             )
 
 
+class LanceNamespaceHandle(NamedTuple):
+    namespace: "LanceNamespace"
+    session: "Session"
+    storage_options: Optional[Dict[str, str]]
+
+
+class LanceNamespacePool:
+    """Dispenses a shared namespace, session and storage options to job clients."""
+
+    def __init__(self, config: "LanceClientConfiguration") -> None:
+        self.config = config
+        self._lock = threading.RLock()
+        self._borrows = 0
+        self._handle: Optional[LanceNamespaceHandle] = None
+        self._handle_creds: Optional[Dict[str, str]] = None
+
+    def borrow(self) -> LanceNamespaceHandle:
+        import lance
+
+        with self._lock:
+            # refreshes default credentials on each borrow
+            # TODO: offload default credential chain to rust crate and remove this
+            fresh_creds = self.config._fresh_storage_creds()
+            if self._handle is None or fresh_creds != self._handle_creds:
+                storage_options = dict(self.config.storage_options or {}) | (fresh_creds or {})
+                self._handle = LanceNamespaceHandle(
+                    namespace=self.config.make_namespace(fresh_creds),
+                    session=lance.Session(),
+                    storage_options=storage_options or None,
+                )
+                self._handle_creds = fresh_creds
+            self._borrows += 1
+            return self._handle
+
+    def return_handle(self, handle: LanceNamespaceHandle) -> None:
+        with self._lock:
+            self._borrows = max(0, self._borrows - 1)
+
+
 @configspec
 class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lance", init=False, repr=False, compare=False
+    )
+    # dataset_name is optional: when not set tables are created in the root namespace
+    dataset_name: Final[Optional[str]] = dataclasses.field(  # type: ignore
+        default=None, init=False, repr=False, compare=False
     )
     catalog_type: LanceCatalogType = "dir"
 
@@ -293,10 +356,38 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
     """Name of branch to use for read/write table operations. Uses `main` branch if not set."""
     embeddings: Optional[LanceEmbeddingsConfiguration] = None
     """Optional embeddings configuration to add a vector embedding column."""
+    always_refresh_views: bool = False
+    """Recreates views to get fresh data and schema of the tables for each query"""
+    namespace_pool: Annotated[Optional[LanceNamespacePool], NotResolved()] = None
 
     @property
     def storage_options(self) -> Optional[Dict[str, str]]:
         return self.storage.options if self.storage else None
+
+    def _fresh_storage_creds(self) -> Optional[Dict[str, str]]:
+        """Refreshed object-store credentials when backed by a default provider chain,
+        `None` for static credentials."""
+        creds = self.storage.credentials if self.storage else None
+        if (
+            isinstance(creds, CredentialsWithDefault)
+            and creds.has_default_credentials()
+            and isinstance(creds, WithObjectStoreRsCredentials)
+        ):
+            return creds.to_object_store_rs_credentials()
+        return None
+
+    def copy(self) -> "LanceClientConfiguration":
+        new_obj = super().copy()
+        # the pool holds threading state that must not be shared across copies
+        new_obj.namespace_pool = LanceNamespacePool(new_obj) if self.namespace_pool else None
+        return new_obj
+
+    @property
+    def manifest_enabled(self) -> Optional[bool]:
+        """Manifest mode setting of the catalog, `None` when the catalog has no such setting."""
+        if isinstance(self.capabilities, DirectoryCatalogCapabilities):
+            return self.capabilities.manifest_enabled
+        return None
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -337,7 +428,9 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
                 # explicit catalog location may be relative — re-run normalization under local_dir
                 self.credentials.normalize_bucket_url()
 
-    def make_namespace(self) -> "LanceNamespace":
+        self.namespace_pool = LanceNamespacePool(self)
+
+    def make_namespace(self, fresh_creds: Optional[Dict[str, str]] = None) -> "LanceNamespace":
         from lance_namespace import connect
 
         props: Dict[str, str] = {}
@@ -346,7 +439,9 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
             assert isinstance(self.capabilities, DirectoryCatalogCapabilities)
             props["manifest_enabled"] = str(self.capabilities.manifest_enabled).lower()
             props["dir_listing_enabled"] = str(self.capabilities.dir_listing_enabled).lower()
-            for k, v in (self.credentials.options or {}).items():
+            # fresh credentials replace the options baked in at resolve time
+            options = dict(self.credentials.options or {}) | (fresh_creds or {})
+            for k, v in options.items():
                 if v is not None:
                     props[f"storage.{k}"] = str(v)
         elif isinstance(self.credentials, RestCatalogCredentials):
@@ -354,4 +449,47 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
         return connect(self.catalog_type, props)
 
     def fingerprint(self) -> str:
+        """Returns a fingerprint of the configured storage."""
         return self.storage.fingerprint() if self.storage else ""
+
+    def physical_location(self) -> str:
+        """Returns the Lance catalog root which identifies the namespace."""
+        # for `rest` catalogs the location is the namespace server uri
+        if self.catalog_type == "rest":
+            if isinstance(self.credentials, RestCatalogCredentials) and self.credentials.uri:
+                return f"rest:{self.credentials.uri.rstrip('/')}"
+            return ""
+
+        # for `dir` catalogs the explicit manifest root takes precedence
+        catalog_root: Optional[str] = None
+        if (
+            isinstance(self.credentials, DirectoryCatalogCredentials)
+            and self.credentials.bucket_url
+        ):
+            catalog_root = self.credentials.bucket_url
+        elif self.storage and self.storage.bucket_url:
+            # same fallback as on_resolved: catalog colocates with data storage
+            catalog_root = self.storage.namespace_uri
+        if catalog_root:
+            return f"{self.catalog_type}:{catalog_root.rstrip('/')}"
+        return ""
+
+    def can_write_from(self, other: DestinationClientConfiguration) -> bool:
+        """Lance does not have an engine that can write. `dlt` is that engine,
+        and returning False here enforces its usage.
+        """
+        return False
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True for the same Lance catalog and bound dlt dataset."""
+        if not isinstance(other, LanceClientConfiguration):
+            return False
+
+        self_loc = self.physical_location()
+        other_loc = other.physical_location()
+        if not self_loc or not other_loc or self_loc != other_loc:
+            return False
+
+        # TODO: remove the dataset check when cross dataset joins are implemented. any
+        # dataset (namespace) under the same catalog root is readable via the same ATTACH
+        return self.dataset_name == other.dataset_name

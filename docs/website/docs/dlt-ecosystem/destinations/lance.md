@@ -30,6 +30,8 @@ The `lancedb` destination will be phased out in favor of `lance`.
 pip install "dlt[lance]"
 ```
 
+The `lance` extra requires Python 3.10+ and installs `pylance>=6.0.1`.
+
 ### Quick start
 
 ```py
@@ -152,8 +154,12 @@ bucket_url/
 ```
 
 - **Root namespace** — a physical directory at `bucket_url/namespace_name`. The `namespace_name` defaults to `"dlt_lance_root"` and can be set to `""` to use `bucket_url` directly.
-- **Dataset namespace** — a logical child namespace named after `dataset_name`, tracked in the `__manifest/` catalog. Created automatically when the pipeline runs. All tables for the dataset are registered inside it.
+- **Dataset namespace** — when `dataset_name` is set, a logical child namespace named after it is created automatically (tracked in the `__manifest/` catalog) and all tables for the dataset are registered inside it. `dataset_name` is **optional**: when omitted, tables are created directly in the root namespace (single-level table ids) and no per-dataset child namespace is used.
 - **Tables** — stored as hash-prefixed directories at the root namespace level, not nested under a dataset subdirectory.
+
+:::note
+`dataset_name` is optional for `lance`. If you do not pass one, dlt does **not** auto-generate a dataset name and writes tables to the **root namespace**. Pass a `dataset_name` to isolate a pipeline's tables.
+:::
 
 ```toml
 [destination.lance.storage]
@@ -175,6 +181,10 @@ dir_listing_enabled = true
 - **`dir_listing_enabled`** (default `true`) — enables the V1 fallback that discovers tables by scanning directories for `.lance` suffixes. Safe to leave on.
 
 **When to disable `manifest_enabled`**: if many writers hit the same catalog root concurrently (for example, multiple pipelines or parallel jobs sharing one `bucket_url`/`namespace_name`), conflicting commits to the shared `__manifest` table on S3/GCS can cause contention and retries. Disabling the manifest eliminates the shared write point at the cost of slower listing and no nested-namespace support. If you disable it, give each pipeline run its own `namespace_name` to isolate datasets.
+
+:::note
+You can disable `manifest_enabled` only when the pipeline does not use a `dataset_name`: dlt creates the dataset as a child namespace, which requires manifest mode (loads fail with `Child namespaces are only supported when manifest mode is enabled`). Without a `dataset_name`, tables live in the root namespace and the catalog works with plain directory listing — no `__manifest` commits on table creation and no manifest reads when opening tables, which also makes loads noticeably faster on object stores.
+:::
 
 ### REST Namespace (experimental)
 
@@ -244,17 +254,26 @@ Any field left empty under `credentials` falls back to the corresponding `storag
 
 All [write dispositions](../../general-usage/incremental-loading.md#choosing-a-write-disposition) are supported.
 
+Each table receives a single lance commit per load, regardless of how many job files the
+load produces: load jobs write data fragments in parallel without committing and a followup
+job commits them in one atomic version. Readers never observe a partially loaded table and
+parallel jobs do not contend on dataset versions.
+
 ### Append
 
 The default. Inserts all records without updating or deleting existing data.
 
 ### Replace
 
-Replaces all data in the table using a truncate-and-insert strategy:
+Replaces all data in the table with a single overwrite commit:
 
 ```py
 info = pipeline.run(movies, table_name="movies", write_disposition="replace")
 ```
+
+Tables of a replaced resource that receive no data in a load (e.g. a nested table absent
+from the current run) are truncated before loading; tables receiving data are replaced
+atomically by their overwrite commit, without an intermediate truncation.
 
 ### Merge (upsert)
 
@@ -323,6 +342,15 @@ You can query loaded data using dlt's [dataset access](../../general-usage/datas
 dataset = pipeline.dataset()
 df = dataset["movies"].df()
 ```
+
+Reads go through an in-memory DuckDB instance that scans the Lance datasets via views. The DuckDB lance extension caches each dataset per connection at the version it was first opened, so a table read on an **already-open** connection does not pick up data written afterwards — **neither new rows nor schema changes (new columns) are visible** until the connection is refreshed. Enable `always_refresh_views` to refresh on every read; dlt then reopens the DuckDB connection (dropping the cached dataset) and recreates the scanner views, so reads observe the latest dataset version:
+
+```toml
+[destination.lance]
+always_refresh_views = true
+```
+
+This adds a small overhead per read, so leave it disabled unless you read tables back after writing them through a long-lived dataset connection (or read evolving schemas).
 
 ### Low-level Lance access
 

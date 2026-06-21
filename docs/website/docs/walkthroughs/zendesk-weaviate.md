@@ -49,13 +49,13 @@ The last command [dlt init](../reference/command-line-interface#dlt-init) initia
 
 Before we configure the source and destination, you need to make sure you have access to the API in both Zendesk and Weaviate.
 
-Head to the [Zendesk](../dlt-ecosystem/verified-sources/zendesk.md) docs to see how to fetch credentials for the Zendesk API. In this guide, we're using the email address and password authentication method. Once you have fetched the credentials, you can configure the source. Add the following lines to the dlt secrets file `~/.dlt/secrets.toml`:
+Head to the [Zendesk](../dlt-ecosystem/verified-sources/zendesk.md) docs to see how to fetch credentials for the Zendesk API. In this guide, we're using the API token authentication method: generate a token in Zendesk Admin Center under **Apps and integrations > APIs > Zendesk API**. Once you have the token, you can configure the source. Add the following lines to the dlt secrets file `~/.dlt/secrets.toml`:
 
 ```toml
-[sources.zendesk.zendesk_support.credentials]
-password = "..."
+[sources.zendesk.credentials]
 subdomain = "..."
 email = "..."
+token = "..."
 ```
 
 ### Destination

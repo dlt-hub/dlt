@@ -38,14 +38,13 @@ with app.setup:
 @app.cell(hide_code=True)
 def home(
     dlt_profile_select: mo.ui.dropdown,
-    dlt_all_pipelines: List[TPipelineListItem],
     dlt_pipeline_select: mo.ui.multiselect,
     dlt_pipelines_dir: str,
     dlt_refresh_button: mo.ui.run_button,
     dlt_pipeline_name: str,
     dlt_file_watcher: Any,  # marimo internal watcher type
 ):
-    """Displays the welcome page or pipeline dashboard depending on selection."""
+    """Displays the selected pipeline dashboard, or a hint when no pipelines exist."""
 
     # NOTE: keep these two lines for refreshing
     dlt_refresh_button
@@ -76,7 +75,6 @@ def home(
                     dlt_profile_select,
                     dlt_pipeline,
                     dlt_pipeline_select,
-                    dlt_pipelines_dir,
                     dlt_refresh_button,
                     dlt_pipeline_name,
                 )
@@ -90,12 +88,8 @@ def home(
     else:
         try:
             dlt_config = utils.pipeline.resolve_dashboard_config(None)
-            _result = utils.home.render_workspace_home(
+            _result = utils.home.render_no_pipelines_home(
                 dlt_profile_select,
-                dlt_all_pipelines,
-                dlt_pipeline_select,
-                dlt_pipelines_dir,
-                dlt_config,
             )
         except Exception:
             _result = [
@@ -105,6 +99,202 @@ def home(
             ]
     mo.vstack(_result) if _result else None
     return (dlt_pipeline, dlt_config)
+
+
+@app.cell(hide_code=True)
+def section_browse_data_table_list(
+    dlt_clear_result_cache: mo.ui.run_button,
+    dlt_data_table_list: mo.ui.table,
+    dlt_pipeline: dlt.Pipeline,
+    dlt_restrict_to_last_1000: mo.ui.switch,
+    dlt_schema_show_child_tables: mo.ui.switch,
+    dlt_schema_show_dlt_tables: mo.ui.switch,
+    dlt_schema_show_row_counts: mo.ui.run_button,
+    dlt_schema_select: mo.ui.multiselect,
+    dlt_selected_schema_name: str,
+):
+    """
+    Show data of the currently selected pipeline
+    """
+
+    _result, _show = utils.ui.section(strings.browse_data, dlt_pipeline)
+
+    dlt_query_editor: mo.ui.code_editor = None
+    dlt_run_query_button: mo.ui.run_button = None
+    if _show and dlt_data_table_list is not None:
+        _result.append(
+            mo.hstack(
+                [
+                    dlt_schema_select,
+                    dlt_schema_show_row_counts,
+                    dlt_schema_show_dlt_tables,
+                    dlt_schema_show_child_tables,
+                ],
+                justify="start",
+            ),
+        )
+        _result.append(dlt_data_table_list)
+
+        _sql_query = ""
+        if dlt_data_table_list.value:
+            _selected_table = cast(List[TTableListItem], dlt_data_table_list.value)[0]
+            _table_name = _selected_table["name"]
+
+            if _state_widget := utils.schema.build_resource_state_widget(
+                dlt_pipeline, dlt_selected_schema_name, _table_name
+            ):
+                _result.append(_state_widget)
+
+            _sql_query, _error_message, _traceback_string = (
+                utils.queries.get_default_query_for_table(
+                    dlt_pipeline,
+                    dlt_selected_schema_name,
+                    _table_name,
+                    dlt_restrict_to_last_1000.value,
+                )
+            )
+        _placeholder, _error_message, _traceback_string = (
+            utils.queries.get_example_query_for_dataset(
+                dlt_pipeline,
+                dlt_selected_schema_name,
+            )
+        )
+
+        if _error_message:
+            _result.append(
+                utils.ui.error_callout(
+                    strings.browse_data_error_text + _error_message,
+                    traceback_string=_traceback_string,
+                )
+            )
+        else:
+            dlt_query_editor = mo.ui.code_editor(
+                language="sql",
+                placeholder=_placeholder,
+                value=_sql_query,
+                debounce=True,
+            )
+
+            dlt_run_query_button = mo.ui.run_button(
+                label=utils.ui.small(strings.browse_data_run_query_button),
+                tooltip=strings.browse_data_run_query_tooltip,
+            )
+
+            _result += [
+                mo.md(utils.ui.small(strings.browse_data_explorer_title)),
+                mo.hstack(
+                    [dlt_restrict_to_last_1000],
+                    justify="start",
+                ),
+                dlt_query_editor,
+            ]
+
+            _result.append(
+                mo.hstack([dlt_run_query_button, dlt_clear_result_cache], justify="start")
+            )
+    elif _show:
+        # here we also use the no schemas text, as it is appropriate for the case where we have no table information.
+        _result.append(utils.ui.error_callout(strings.schema_no_default_available_text))
+    mo.vstack(_result) if _result else None
+    return dlt_query_editor, dlt_run_query_button
+
+
+@app.cell(hide_code=True)
+def section_browse_data_query_result(
+    dlt_data_table_list: mo.ui.table,
+    dlt_pipeline: dlt.Pipeline,
+    dlt_query_editor: mo.ui.code_editor,
+    dlt_run_query_button: mo.ui.run_button,
+    dlt_clear_result_cache: mo.ui.run_button,
+    dlt_get_last_query_result,
+    dlt_set_last_query_result,
+    dlt_set_query_history,
+    dlt_get_query_history,
+):
+    """
+    Execute the query in the editor
+    """
+
+    _result = []
+
+    dlt_query_history_table: mo.ui.table = None
+    dlt_query: str = None
+
+    if dlt_pipeline and dlt_data_table_list is not None and dlt_query_editor is not None:
+        _result.append(utils.ui.title_and_subtitle(strings.browse_data_query_result_title))
+        _error_message: str = None
+        with mo.status.spinner(title=strings.browse_data_loading_spinner_text):
+            if dlt_query_editor.value and (dlt_run_query_button.value):
+                if dlt_clear_result_cache.value:
+                    utils.queries.clear_query_cache()
+                dlt_query = dlt_query_editor.value
+                _query_result, _error_message, _traceback_string = utils.queries.get_query_result(
+                    dlt_pipeline, dlt_query
+                )
+                dlt_set_last_query_result(_query_result)
+
+            # display error message if encountered
+            if _error_message:
+                _result.append(
+                    utils.ui.error_callout(
+                        strings.browse_data_query_error + _error_message,
+                        traceback_string=_traceback_string,
+                    )
+                )
+
+        # always display result table
+        _last_result = dlt_get_last_query_result()
+        if _last_result is not None:
+            _result.append(utils.ui.dlt_table(_last_result, freeze_column=None))
+
+        # update query history if there was no error
+        if _last_result is not None and not _error_message:
+            if dlt_query:
+                dlt_set_query_history(
+                    utils.queries.update_query_history(
+                        dlt_get_query_history(), dlt_query, _last_result.shape[0]
+                    )
+                )
+
+    # provide query history table
+    if _query_history := dlt_get_query_history():
+        dlt_query_history_table = utils.ui.dlt_table(
+            [{"query": q, "row_count": _query_history[q]} for q in _query_history],
+            selection="multi",
+            freeze_column=None,
+        )
+    mo.vstack(_result) if _result else None
+    return dlt_query_history_table
+
+
+@app.cell(hide_code=True)
+def section_browse_data_query_history(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_query_history_table: mo.ui.table,
+):
+    """
+    Show the query history
+    """
+
+    _result: List[mo.Html] = []
+    if dlt_pipeline and dlt_query_history_table is not None:
+        _result.append(
+            utils.ui.title_and_subtitle(
+                strings.browse_data_query_history_title, strings.browse_data_query_history_subtitle
+            )
+        )
+        _result.append(dlt_query_history_table)
+
+        for _r in cast(List[TQueryHistoryItem], dlt_query_history_table.value):
+            _query = _r["query"]
+            _q_result, _q_error, _q_traceback = utils.queries.get_query_result(dlt_pipeline, _query)
+            _result.append(mo.md(utils.ui.small(f"```{_query}```")))
+            if _q_error:
+                _result.append(utils.ui.error_callout(_q_error, traceback_string=_q_traceback))
+            else:
+                _result.append(utils.ui.dlt_table(_q_result, freeze_column=None))
+    mo.vstack(_result) if _result else None
+    return
 
 
 @app.cell(hide_code=True)
@@ -254,216 +444,6 @@ def ui_data_quality_controls(
         dlt_data_quality_rate_filter,
         dlt_data_quality_checks_arrow,
     )
-
-
-@app.cell(hide_code=True)
-def section_browse_data_table_list(
-    dlt_clear_result_cache: mo.ui.run_button,
-    dlt_data_table_list: mo.ui.table,
-    dlt_pipeline: dlt.Pipeline,
-    dlt_restrict_to_last_1000: mo.ui.switch,
-    dlt_schema_show_child_tables: mo.ui.switch,
-    dlt_schema_show_dlt_tables: mo.ui.switch,
-    dlt_schema_show_row_counts: mo.ui.run_button,
-    dlt_section_browse_data_switch: mo.ui.switch,
-    dlt_schema_select: mo.ui.multiselect,
-    dlt_selected_schema_name: str,
-):
-    """
-    Show data of the currently selected pipeline
-    """
-
-    _result, _show = utils.ui.section(
-        strings.browse_data, dlt_pipeline, dlt_section_browse_data_switch
-    )
-
-    dlt_query_editor: mo.ui.code_editor = None
-    dlt_run_query_button: mo.ui.run_button = None
-    if _show and dlt_data_table_list is not None:
-        _result.append(
-            mo.hstack(
-                [
-                    dlt_schema_select,
-                    dlt_schema_show_row_counts,
-                    dlt_schema_show_dlt_tables,
-                    dlt_schema_show_child_tables,
-                ],
-                justify="start",
-            ),
-        )
-        _result.append(dlt_data_table_list)
-
-        _sql_query = ""
-        if dlt_data_table_list.value:
-            _selected_table = cast(List[TTableListItem], dlt_data_table_list.value)[0]
-            _table_name = _selected_table["name"]
-
-            if _state_widget := utils.schema.build_resource_state_widget(
-                dlt_pipeline, dlt_selected_schema_name, _table_name
-            ):
-                _result.append(_state_widget)
-
-            _sql_query, _error_message, _traceback_string = (
-                utils.queries.get_default_query_for_table(
-                    dlt_pipeline,
-                    dlt_selected_schema_name,
-                    _table_name,
-                    dlt_restrict_to_last_1000.value,
-                )
-            )
-        _placeholder, _error_message, _traceback_string = (
-            utils.queries.get_example_query_for_dataset(
-                dlt_pipeline,
-                dlt_selected_schema_name,
-            )
-        )
-
-        if _error_message:
-            _result.append(
-                utils.ui.error_callout(
-                    strings.browse_data_error_text + _error_message,
-                    traceback_string=_traceback_string,
-                )
-            )
-        else:
-            dlt_query_editor = mo.ui.code_editor(
-                language="sql",
-                placeholder=_placeholder,
-                value=_sql_query,
-                debounce=True,
-            )
-
-            dlt_run_query_button = mo.ui.run_button(
-                label=utils.ui.small(strings.browse_data_run_query_button),
-                tooltip=strings.browse_data_run_query_tooltip,
-            )
-
-            _result += [
-                mo.md(utils.ui.small(strings.browse_data_explorer_title)),
-                mo.hstack(
-                    [dlt_restrict_to_last_1000],
-                    justify="start",
-                ),
-                dlt_query_editor,
-            ]
-
-            _result.append(
-                mo.hstack([dlt_run_query_button, dlt_clear_result_cache], justify="start")
-            )
-    elif _show:
-        # here we also use the no schemas text, as it is appropriate for the case where we have no table information.
-        _result.append(utils.ui.error_callout(strings.schema_no_default_available_text))
-    mo.vstack(_result) if _result else None
-    return dlt_query_editor, dlt_run_query_button
-
-
-@app.cell(hide_code=True)
-def section_browse_data_query_result(
-    dlt_data_table_list: mo.ui.table,
-    dlt_pipeline: dlt.Pipeline,
-    dlt_query_editor: mo.ui.code_editor,
-    dlt_run_query_button: mo.ui.run_button,
-    dlt_section_browse_data_switch: mo.ui.switch,
-    dlt_clear_result_cache: mo.ui.run_button,
-    dlt_get_last_query_result,
-    dlt_set_last_query_result,
-    dlt_set_query_history,
-    dlt_get_query_history,
-):
-    """
-    Execute the query in the editor
-    """
-
-    _result = []
-
-    dlt_query_history_table: mo.ui.table = None
-    dlt_query: str = None
-
-    if (
-        dlt_pipeline
-        and dlt_section_browse_data_switch.value
-        and dlt_data_table_list is not None
-        and dlt_query_editor is not None
-    ):
-        _result.append(utils.ui.title_and_subtitle(strings.browse_data_query_result_title))
-        _error_message: str = None
-        with mo.status.spinner(title=strings.browse_data_loading_spinner_text):
-            if dlt_query_editor.value and (dlt_run_query_button.value):
-                if dlt_clear_result_cache.value:
-                    utils.queries.clear_query_cache()
-                dlt_query = dlt_query_editor.value
-                _query_result, _error_message, _traceback_string = utils.queries.get_query_result(
-                    dlt_pipeline, dlt_query
-                )
-                dlt_set_last_query_result(_query_result)
-
-            # display error message if encountered
-            if _error_message:
-                _result.append(
-                    utils.ui.error_callout(
-                        strings.browse_data_query_error + _error_message,
-                        traceback_string=_traceback_string,
-                    )
-                )
-
-        # always display result table
-        _last_result = dlt_get_last_query_result()
-        if _last_result is not None:
-            _result.append(utils.ui.dlt_table(_last_result, freeze_column=None))
-
-        # update query history if there was no error
-        if _last_result is not None and not _error_message:
-            if dlt_query:
-                dlt_set_query_history(
-                    utils.queries.update_query_history(
-                        dlt_get_query_history(), dlt_query, _last_result.shape[0]
-                    )
-                )
-
-    # provide query history table
-    if _query_history := dlt_get_query_history():
-        dlt_query_history_table = utils.ui.dlt_table(
-            [{"query": q, "row_count": _query_history[q]} for q in _query_history],
-            selection="multi",
-            freeze_column=None,
-        )
-    mo.vstack(_result) if _result else None
-    return dlt_query_history_table
-
-
-@app.cell(hide_code=True)
-def section_browse_data_query_history(
-    dlt_pipeline: dlt.Pipeline,
-    dlt_query_history_table: mo.ui.table,
-    dlt_section_browse_data_switch: mo.ui.switch,
-):
-    """
-    Show the query history
-    """
-
-    _result: List[mo.Html] = []
-    if (
-        dlt_pipeline
-        and dlt_section_browse_data_switch.value
-        and dlt_query_history_table is not None
-    ):
-        _result.append(
-            utils.ui.title_and_subtitle(
-                strings.browse_data_query_history_title, strings.browse_data_query_history_subtitle
-            )
-        )
-        _result.append(dlt_query_history_table)
-
-        for _r in cast(List[TQueryHistoryItem], dlt_query_history_table.value):
-            _query = _r["query"]
-            _q_result, _q_error, _q_traceback = utils.queries.get_query_result(dlt_pipeline, _query)
-            _result.append(mo.md(utils.ui.small(f"```{_query}```")))
-            if _q_error:
-                _result.append(utils.ui.error_callout(_q_error, traceback_string=_q_traceback))
-            else:
-                _result.append(utils.ui.dlt_table(_q_result, freeze_column=None))
-    mo.vstack(_result) if _result else None
-    return
 
 
 @app.cell(hide_code=True)
@@ -702,7 +682,12 @@ def utils_discover_pipelines(
         value=(
             [mo_query_var_pipeline_name]
             if mo_query_var_pipeline_name
-            else ([mo_cli_arg_pipeline] if mo_cli_arg_pipeline else None)
+            else (
+                [mo_cli_arg_pipeline]
+                if mo_cli_arg_pipeline
+                # default to the most recently used pipeline
+                else ([dlt_all_pipelines[0]["name"]] if dlt_all_pipelines else None)
+            )
         ),
         max_selections=1,
         label=strings.app_pipeline_select_label,
@@ -810,10 +795,6 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         value="schema" in _open_sections,
         label="schema" if mo_cli_arg_with_test_identifiers else "",
     )
-    dlt_section_browse_data_switch: mo.ui.switch = mo.ui.switch(
-        value="data" in _open_sections,
-        label="data" if mo_cli_arg_with_test_identifiers else "",
-    )
     dlt_section_state_switch: mo.ui.switch = mo.ui.switch(
         value="state" in _open_sections,
         label="state" if mo_cli_arg_with_test_identifiers else "",
@@ -873,7 +854,6 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         dlt_schema_show_other_hints,
         dlt_schema_show_row_counts,
         dlt_schema_show_type_hints,
-        dlt_section_browse_data_switch,
         dlt_section_data_quality_switch,
         dlt_section_ibis_browser_switch,
         dlt_section_loads_switch,
@@ -906,24 +886,58 @@ def watch_changes(
 
 
 @app.cell(hide_code=True)
+def ui_selected_schema(dlt_schema_select: mo.ui.multiselect):
+    """Resolve the currently selected schema name from the schema dropdown."""
+    dlt_selected_schema_name = (
+        cast(str, dlt_schema_select.value) if dlt_schema_select.value else None
+    )
+    return (dlt_selected_schema_name,)
+
+
+@app.cell(hide_code=True)
+def ui_data_table_list(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_config: DashboardConfiguration,
+    dlt_schema_show_child_tables: mo.ui.switch,
+    dlt_schema_show_dlt_tables: mo.ui.switch,
+    dlt_schema_show_row_counts: mo.ui.run_button,
+    dlt_selected_schema_name: str,
+):
+    """Build the table list for the always-on dataset browser.
+
+    Independent of the section toggles so opening another section does not re-render it.
+    """
+    dlt_data_table_list: mo.ui.table = None
+    if dlt_pipeline and dlt_selected_schema_name:
+        _table_list = utils.schema.create_table_list(
+            dlt_config,
+            dlt_pipeline,
+            dlt_selected_schema_name,
+            show_internals=dlt_schema_show_dlt_tables.value,
+            show_child_tables=dlt_schema_show_child_tables.value,
+            show_row_counts=dlt_schema_show_row_counts.value,
+        )
+        dlt_data_table_list = utils.ui.dlt_table(
+            _table_list,
+            selection="single",
+            initial_selection=[0],
+        )
+    return (dlt_data_table_list,)
+
+
+@app.cell(hide_code=True)
 def ui_primary_controls(
     dlt_pipeline: dlt.Pipeline,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_dlt_tables: mo.ui.switch,
-    dlt_schema_show_row_counts: mo.ui.switch,
-    dlt_section_browse_data_switch: mo.ui.switch,
     dlt_section_schema_switch: mo.ui.switch,
     dlt_section_trace_switch: mo.ui.switch,
     dlt_config: DashboardConfiguration,
-    dlt_schema_select: mo.ui.multiselect,
+    dlt_selected_schema_name: str,
 ):
     """
     Helper cell for creating certain controls based on selected sections
     """
-
-    dlt_selected_schema_name = (
-        cast(str, dlt_schema_select.value) if dlt_schema_select.value else None
-    )
 
     #
     # Schema controls
@@ -944,25 +958,6 @@ def ui_primary_controls(
         )
 
     #
-    # Browse data controls
-    #
-    dlt_data_table_list: mo.ui.table = None
-    if dlt_section_browse_data_switch.value and dlt_pipeline and dlt_selected_schema_name:
-        table_list = utils.schema.create_table_list(
-            dlt_config,
-            dlt_pipeline,
-            dlt_selected_schema_name,
-            show_internals=dlt_schema_show_dlt_tables.value,
-            show_child_tables=dlt_schema_show_child_tables.value,
-            show_row_counts=dlt_schema_show_row_counts.value,
-        )
-        dlt_data_table_list = utils.ui.dlt_table(
-            table_list,
-            selection="single",
-            initial_selection=[0],
-        )
-
-    #
     # Trace steps table
     #
     dlt_trace_steps_table: mo.ui.table = None
@@ -976,10 +971,8 @@ def ui_primary_controls(
     except Exception as exc:
         logger.error(f"Error while building trace steps table: {exc}")
     return (
-        dlt_data_table_list,
         dlt_schema_table_list,
         dlt_trace_steps_table,
-        dlt_selected_schema_name,
     )
 
 

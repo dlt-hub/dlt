@@ -849,7 +849,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
         # add foreign key constraints
         references = table.get("references")
-        if references:
+        if references and self.config.create_indexes:
             logger.info(f"Creating FOREIGN KEY constraint for table {table_name}")
             for reference in references:
                 quoted_fk_cols = ", ".join(

@@ -50,7 +50,6 @@ def _run_through_sink(
 
     @dlt.destination(loader_file_format=loader_file_format, batch_size=batch_size)
     def test_sink(items: TDataItems, table: TTableSchema) -> None:
-        nonlocal calls
         # convert pyarrow table to dict list here to make tests more simple downstream
         if loader_file_format == "parquet":
             items = items.to_pylist()  # type: ignore
@@ -58,7 +57,6 @@ def _run_through_sink(
 
     @dlt.resource(columns=columns, table_name="items")
     def items_resource() -> TDataItems:
-        nonlocal items
         yield items
 
     p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)
@@ -129,7 +127,6 @@ global_calls: List[Tuple[TDataItems, TTableSchema]] = []
 
 
 def global_sink_func(items: TDataItems, table: TTableSchema) -> None:
-    global global_calls
     global_calls.append((items, table))
 
 
@@ -167,7 +164,6 @@ def test_instantiation() -> None:
 
     # NOTE: we also test injection of config vars here
     def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value, /) -> None:
-        nonlocal calls
         assert my_val == "something"
         calls.append((items, table))
 
@@ -307,7 +303,6 @@ def test_instantiation() -> None:
 
     @dlt.destination
     def simple_decorator_sink(items, table, my_val=dlt.config.value):
-        nonlocal calls
         assert my_val == "something"
         calls.append((items, table))
 
@@ -399,7 +394,6 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
         skip_dlt_columns_and_tables=False,
     )
     def test_sink(items: TDataItems, table: TTableSchema) -> None:
-        nonlocal calls
         table_name = table["name"]
         if table_name.startswith("_dlt"):
             return
@@ -743,7 +737,6 @@ def test_max_table_nesting(nesting: int) -> None:
 
     @dlt.destination(loader_file_format="typed-jsonl", max_table_nesting=nesting)
     def nesting_sink(items, table):
-        nonlocal found_tables
         found_tables.add(table["name"])
 
     @dlt.source(max_table_nesting=2)

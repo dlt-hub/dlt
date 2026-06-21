@@ -204,6 +204,8 @@ class ClickHouseSqlClient(
     def insert_file(
         self, file_path: str, table_name: str, file_format: str, compression: str
     ) -> QuerySummary:
+        # driver expects unqualified names
+        database_name, table_name = self.make_qualified_table_name_path(table_name, quote=False)
         with clickhouse_connect.create_client(
             host=self.credentials.host,
             port=self.credentials.http_port,
@@ -214,9 +216,10 @@ class ClickHouseSqlClient(
         ) as clickhouse_connect_client:
             return clk_insert_file(
                 clickhouse_connect_client,
-                self.make_qualified_table_name(table_name),
+                table_name,
                 file_path,
                 fmt=file_format,
+                database=database_name,
                 settings={
                     "allow_experimental_lightweight_delete": 1,
                     "enable_http_compression": 1,

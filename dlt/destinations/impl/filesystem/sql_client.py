@@ -82,10 +82,12 @@ class FilesystemSqlClient(WithTableScanners):
                     " possible (not supported when using `iceberg` table format). Falling back to"
                     " fsspec."
                 )
-                self._conn.register_filesystem(self.remote_client.fs_client)
+                # `_register_filesystem` unregisters first: duckdb >= 1.5 errors on re-registering an
+                # already-registered filesystem, and our setup re-runs on every borrow/return cycle
+                self._register_filesystem(self.remote_client.fs_client, protocol)
             # for memory we also need to register filesystem
             elif protocol == "memory":
-                self._conn.register_filesystem(self.remote_client.fs_client)
+                self._register_filesystem(self.remote_client.fs_client, protocol)
             elif protocol == "file":
                 # authentication for local filesystem not needed
                 pass

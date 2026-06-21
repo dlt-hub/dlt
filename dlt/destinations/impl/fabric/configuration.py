@@ -5,6 +5,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.utils import digest128
 from dlt import version
 
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
@@ -164,6 +165,20 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     Both have UTF-8 encoding. LongAsMax=yes is automatically configured.
     """
+
+    def physical_location(self) -> str:
+        """Returns host:port."""
+        if self.credentials and self.credentials.host:
+            port = self.credentials.port or 1433
+            return f"{self.credentials.host}:{port}"
+        return ""
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the physical Fabric location."""
+        physical_location = self.physical_location()
+        if physical_location:
+            return digest128(physical_location)
+        return ""
 
 
 __all__ = ["FabricCredentials", "FabricClientConfiguration"]

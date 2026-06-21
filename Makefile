@@ -93,13 +93,13 @@ PYTEST_XDIST_DIST  ?= worksteal
 PYTEST_TARGET_ARGS :=
 
 # Internal marker model
-PARALLEL_MARKER_EXPR = (not serial and not forked)
-SERIAL_MARKER_EXPR   = (serial or forked)
+PARALLEL_MARKER_EXPR = (not serial and not forked and not rfam)
+SERIAL_MARKER_EXPR   = (serial or forked) and not rfam
 
 ifeq ($(OS),Windows_NT)
   PYTEST_MARKERS += not forked and not rfam
   PYTEST_ARGS += -p no:forked
-  SERIAL_MARKER_EXPR = serial
+  SERIAL_MARKER_EXPR = serial and not rfam
 endif
 
 define COMBINE_MARKERS
@@ -225,7 +225,8 @@ TEST_COMMON_CORE_PATHS = \
 	tests/load/test_dummy_client.py \
 	tests/extract/test_extract.py \
 	tests/extract/test_sources.py \
-	tests/pipeline/test_pipeline_state.py
+	tests/pipeline/test_pipeline_state.py \
+	--ignore tests/normalize/test_normalize_arrow.py
 
 test-common-core:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_CORE_PATHS))
@@ -257,7 +258,7 @@ test-pipeline-min:
 install-pipeline-arrow:
 	uv sync $(UV_SYNC_ARGS) --extra duckdb --extra cli --extra parquet
 
-TEST_PIPELINE_ARROW_PATHS = tests/pipeline/test_pipeline_extra.py
+TEST_PIPELINE_ARROW_PATHS = tests/pipeline/test_pipeline_extra.py tests/normalize/test_normalize_arrow.py
 
 test-pipeline-arrow: PYTEST_TARGET_ARGS = -k arrow
 test-pipeline-arrow:
@@ -318,7 +319,7 @@ test-pipeline-full:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_FULL_PATHS))
 
 install-sqlalchemy2:
-	uv run pip install sqlalchemy==2.0.32
+	uv run pip install --upgrade sqlalchemy
 
 TEST_SQL_DATABASE_PATHS = tests/sources/sql_database tests/common/libs/
 
