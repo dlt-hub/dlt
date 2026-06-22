@@ -563,3 +563,24 @@ def test_empty_workspace_bad_url_deselect_shows_no_pipelines(page: Page):
             expect(page.get_by_text("No pipelines found yet").first).to_be_visible(timeout=15000)
             expect(page.get_by_text("No pipeline selected")).to_have_count(0)
             expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(0)
+
+
+def test_bad_pipeline_url_keeps_selector(page: Page):
+    """An unknown ?pipeline= shows an attach error but keeps the dropdown so the user recovers."""
+    test_port = 2725
+    with isolated_workspace("pipelines"):
+        beta = dlt.pipeline(pipeline_name="beta", destination="duckdb")
+        beta.run(fruitshop_source().with_resources("inventory"))
+
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}/?pipeline=ghost")
+            expect(
+                page.get_by_text(app_strings.home_error_attach_pipeline.format("ghost")).first
+            ).to_be_visible(timeout=20000)
+            expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(1)
+            expect(page.get_by_role("button", name=app_strings.app_refresh_button)).to_have_count(0)
+
+            _toggle_pipeline(page, "beta")
+            expect(page.get_by_role("heading", name=re.compile(r"Pipeline\s+beta"))).to_be_visible(
+                timeout=15000
+            )

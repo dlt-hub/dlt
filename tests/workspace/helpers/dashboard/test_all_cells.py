@@ -133,6 +133,14 @@ def test_home_pipeline_selected(success_pipeline_duckdb: dlt.Pipeline):
     assert strings.app_refresh_button in html
 
 
+def test_home_attach_error_keeps_selector_without_refresh():
+    """A pipeline that cannot be attached shows the error and keeps the selector, no refresh."""
+    html = _run_home(dlt_pipeline_name="ghost", dlt_all_pipelines=[{"name": "ghost"}])
+    assert strings.home_error_attach_pipeline.format("ghost") in html
+    assert strings.app_pipeline_select_label in html
+    assert strings.app_refresh_button not in html
+
+
 _SECTION_SWITCH_DEFAULTS = {
     "dlt_section_info_switch": mo.ui.switch(value=True),
     "dlt_section_schema_switch": mo.ui.switch(value=True),

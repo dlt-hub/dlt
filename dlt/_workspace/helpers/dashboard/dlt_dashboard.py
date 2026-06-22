@@ -62,7 +62,7 @@ def home(
             dlt_config = utils.pipeline.resolve_dashboard_config(dlt_pipeline)
         except Exception:
             _result = utils.home.render_pipeline_header_row(
-                dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, [dlt_refresh_button]
+                dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, []
             )
             _result.append(
                 utils.ui.error_callout(
