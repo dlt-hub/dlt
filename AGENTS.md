@@ -7,3 +7,4 @@
 # dlt repo
 - we use `uv` and `uv run`. look in @Makefile
 - we branch from `devel` for feature branches
+- git & commit conventions: @.claude/rules/git-github.md (also injected on git/gh commands)
