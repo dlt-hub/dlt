@@ -37,6 +37,7 @@ with app.setup:
 
 @app.cell(hide_code=True)
 def home(
+    dlt_all_pipelines: List[TPipelineListItem],
     dlt_profile_select: mo.ui.dropdown,
     dlt_pipeline_select: mo.ui.multiselect,
     dlt_pipelines_dir: str,
@@ -88,9 +89,15 @@ def home(
     else:
         try:
             dlt_config = utils.pipeline.resolve_dashboard_config(None)
-            _result = utils.home.render_no_pipelines_home(
-                dlt_profile_select,
-            )
+            if dlt_all_pipelines:
+                _result = utils.home.render_no_pipeline_selected_home(
+                    dlt_profile_select,
+                    dlt_pipeline_select,
+                )
+            else:
+                _result = utils.home.render_no_pipelines_home(
+                    dlt_profile_select,
+                )
         except Exception:
             _result = [
                 utils.ui.error_callout(
