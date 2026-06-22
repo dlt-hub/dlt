@@ -89,7 +89,7 @@ def home(
     else:
         try:
             dlt_config = utils.pipeline.resolve_dashboard_config(None)
-            if dlt_all_pipelines:
+            if utils.pipeline.has_local_pipelines(dlt_all_pipelines, dlt_pipelines_dir):
                 _result = utils.home.render_no_pipeline_selected_home(
                     dlt_profile_select,
                     dlt_pipeline_select,

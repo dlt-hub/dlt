@@ -114,6 +114,13 @@ def test_home_no_pipelines_at_all():
     assert strings.home_no_pipeline_selected not in html
 
 
+def test_home_phantom_pipeline_shows_empty_landing():
+    """A ?pipeline= name with no directory on disk is not treated as an existing pipeline."""
+    html = _run_home(dlt_pipeline_name=None, dlt_all_pipelines=[{"name": "ghost"}])
+    assert NO_PIPELINES_TEXT in html
+    assert strings.home_no_pipeline_selected not in html
+
+
 def test_home_pipeline_selected(success_pipeline_duckdb: dlt.Pipeline):
     """A pipeline is selected: render its home view, neither landing hint present."""
     html = _run_home(

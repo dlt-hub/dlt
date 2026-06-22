@@ -1,11 +1,14 @@
+import os
+from typing import Set
+
 import pytest
 import marimo as mo
 import dlt
-from typing import Set
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.pipeline import (
     get_pipeline,
+    has_local_pipelines,
     pipeline_details,
     exception_section,
     get_local_data_path,
@@ -67,6 +70,17 @@ def test_get_source_and_resource_state_for_table(pipeline: dlt.Pipeline):
     # check it can be rendered with marimo
     assert mo.json(resource_state).text
     assert mo.json(source_state).text
+
+
+def test_has_local_pipelines(success_pipeline_duckdb: dlt.Pipeline):
+    """Only real pipeline directories count; injected URL/CLI names do not."""
+    p = success_pipeline_duckdb
+    assert has_local_pipelines([{"name": p.pipeline_name, "timestamp": 0}], p.pipelines_dir)
+    assert not has_local_pipelines([{"name": "ghost", "timestamp": 0}], p.pipelines_dir)
+    assert not has_local_pipelines([], p.pipelines_dir)
+    for escaping in ("..", ".", "/etc", "../" + os.path.basename(p.pipelines_dir)):
+        assert not has_local_pipelines([{"name": escaping, "timestamp": 0}], p.pipelines_dir)
+    assert not has_local_pipelines([{"name": "x", "timestamp": 0}], "/no/such/dir")
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)

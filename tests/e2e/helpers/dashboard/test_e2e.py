@@ -546,3 +546,20 @@ def test_switch_pipeline_no_error_flash(page: Page):
                 page.get_by_text(app_strings.home_error_attach_pipeline.format("alpha"))
             ).to_have_count(0)
             expect(page.get_by_text("No pipeline selected")).to_have_count(0)
+
+
+def test_empty_workspace_bad_url_deselect_shows_no_pipelines(page: Page):
+    """An empty workspace opened with a bad ?pipeline= must show the no-pipelines landing once cleared."""
+    test_port = 2726
+    with isolated_workspace("pipelines"):
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}/?pipeline=ghost")
+            expect(
+                page.get_by_text(app_strings.home_error_attach_pipeline.format("ghost")).first
+            ).to_be_visible(timeout=20000)
+
+            _toggle_pipeline(page, "ghost")
+
+            expect(page.get_by_text("No pipelines found yet").first).to_be_visible(timeout=15000)
+            expect(page.get_by_text("No pipeline selected")).to_have_count(0)
+            expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(0)
