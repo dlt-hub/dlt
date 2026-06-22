@@ -7,4 +7,10 @@
 # dlt repo
 - we use `uv` and `uv run`. look in @Makefile
 - we branch from `devel` for feature branches
-- git & commit conventions: @.claude/rules/git-github.md (also injected on git/gh commands)
+
+# Commit messages (all agents)
+- [Conventional Commits](https://www.conventionalcommits.org/): `type:` or `type(scope):`, lowercase imperative subject, no trailing period.
+- Subject line only for the vast majority of commits; add a body line only for a non-obvious *why* (max ~3 lines total).
+- No footers — no `Co-Authored-By`, no "Generated with ...". No emojis.
+- When squash-merging, clean the squash message down to a single subject line.
+- Full rules + Claude Code enforcement (git/gh hook + `/commit` skill): @.claude/rules/git-github.md
