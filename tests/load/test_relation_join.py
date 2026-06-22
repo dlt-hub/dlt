@@ -261,8 +261,11 @@ def test_cross_dataset_explicit_join(
     joined = ds_a.table("users").join(ds_b.table("purchases"), on="users.id = purchases.user_id")
 
     sql = joined.to_sql()
-    assert ds_a.dataset_name in sql, sql
-    assert ds_b.dataset_name in sql, sql
+    # the binder emits the physical (normalized) dataset name, casefolded per the
+    # destination (e.g. Snowflake uppercases), not the logical `dataset_name`
+    casefold = ds_a.sql_client.capabilities.casefold_identifier
+    assert casefold(ds_a.sql_client.dataset_name) in sql, sql
+    assert casefold(ds_b.sql_client.dataset_name) in sql, sql
 
     df = joined.order_by("purchases__purchase_id").df()
     assert df is not None
