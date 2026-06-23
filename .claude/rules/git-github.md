@@ -70,7 +70,7 @@ feat/4922-add-avro-support
 
 ## Pull requests
 
-- PRs **target `devel`** (out-of-schedule hotfixes target `master` — ask first).
+- PRs **target `devel`**. Agents may **NEVER** merge to `master`.
 - **Link the PR to its ticket**, or describe the change clearly enough for someone without prior context.
 - **Creating a PR requires the branch to be pushed already.** If `gh pr create` would need a push, stop and ask the user to push.
 - Confirm the title and body with the user before running `gh pr create`.
