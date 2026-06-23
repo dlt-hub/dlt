@@ -84,6 +84,15 @@ We encourage attaching your branches to a ticket. If none exists, create one and
 * For `exp` and `test` branches, tickets are **encouraged**.
 * For `docs` branches, tickets are **optional**.
 
+### Commit Message Rules
+
+We use [Conventional Commits](https://www.conventionalcommits.org/). Keep messages clean — this matters most when squash-merging a PR, since GitHub hides everything after the first line in the commit list:
+
+* `{type}:` or `{type}({scope}):`, lowercase imperative subject, no trailing period (types match the branch categories above).
+* Subject line only for most commits; add a short body only for a non-obvious *why*.
+* No footers (e.g. `Co-Authored-By`, "Generated with …") and no emojis.
+* When squash-merging, clean the squash message down to a single subject line.
+
 ### Submitting a Hotfix
 
 We occasionally fix critical bugs and release `dlt` outside of schedule. Follow the regular procedure but open your PR against the **master** branch. Please ping us on Slack if you do this.
