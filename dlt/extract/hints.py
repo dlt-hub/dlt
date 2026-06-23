@@ -539,8 +539,14 @@ class DltResourceHints:
                     # set to empty columns
                     t["columns"] = ensure_table_schema_columns(columns)
             if primary_key is not None:
+                if not primary_key:
+                    DltResourceHints._clear_key_hint_in_template(
+                        "primary_key", t.get("primary_key"), t
+                    )
                 t["primary_key"] = primary_key
             if merge_key is not None:
+                if not merge_key:
+                    DltResourceHints._clear_key_hint_in_template("merge_key", t.get("merge_key"), t)
                 t["merge_key"] = merge_key
             if schema_contract is not None:
                 if schema_contract:
@@ -677,9 +683,12 @@ class DltResourceHints:
 
     @staticmethod
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
-        remove_compound_props(partial["columns"], {hint})
         if not keys:
+            for column in partial["columns"].values():
+                if column.get(hint):
+                    column[hint] = False
             return
+        remove_compound_props(partial["columns"], {hint})
         if isinstance(keys, str):
             keys = [keys]
         for key in keys:
@@ -690,6 +699,27 @@ class DltResourceHints:
             else:
                 partial["columns"][key] = new_column(key, nullable=False)
                 partial["columns"][key][hint] = True
+
+    @staticmethod
+    def _clear_key_hint_in_template(
+        hint: TColumnProp,
+        keys: Optional[TTableHintTemplate[TColumnNames]],
+        template: TResourceHints,
+    ) -> None:
+        if callable(keys) or not keys:
+            return
+        if isinstance(keys, str):
+            keys = [keys]
+        columns_hint = template.get("columns")
+        if callable(columns_hint) or columns_hint is None:
+            columns: TTableSchemaColumns = {}
+            template["columns"] = columns
+        else:
+            columns = cast(TTableSchemaColumns, columns_hint)
+        for key in keys:
+            column = columns.get(key) or new_column(key)
+            column[hint] = False
+            columns[key] = column
 
     @staticmethod
     def _merge_keys(dict_: TResourceHints) -> None:
