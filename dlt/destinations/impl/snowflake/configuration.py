@@ -165,7 +165,7 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     """Optional csv format configuration"""
 
     query_tag: Optional[str] = None
-    """A tag with placeholders to tag sessions executing jobs"""
+    """A template with placeholders used to tag Snowflake sessions for dlt operations."""
 
     create_indexes: bool = False
     """Whether UNIQUE or PRIMARY KEY constrains should be created"""
@@ -180,7 +180,13 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     """Whether to use DECFLOAT type for unbound decimals instead of DECIMAL"""
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+        """Returns a fingerprint of the account host."""
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
+        return ""
+
+    def physical_location(self) -> str:
+        """Returns the account host."""
+        if self.credentials and self.credentials.host:
+            return self.credentials.host
         return ""

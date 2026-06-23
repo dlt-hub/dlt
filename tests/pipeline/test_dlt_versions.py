@@ -164,13 +164,14 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
             )
             assert "_version_hash" not in state_dict
             # also we expect correctly decoded pendulum here
-            created_at_value = custom_pua_decode(
-                state_dict["sources"]["github"]["resources"]["load_issues"]["incremental"][
-                    "created_at"
-                ]["last_value"]
-            )
+            legacy_incremental = state_dict["sources"]["github"]["resources"]["load_issues"][
+                "incremental"
+            ]["created_at"]
+            created_at_value = custom_pua_decode(legacy_incremental["last_value"])
             assert isinstance(created_at_value, pendulum.DateTime)
             assert created_at_value == pendulum.parse("2021-04-16T04:34:05Z")
+            # legacy state predates start_value field
+            assert "start_value" not in legacy_incremental
 
         # execute in current version
         venv = Venv.restore_current()
@@ -381,11 +382,17 @@ def assert_github_pipeline_end_state(
     assert dlt_counts == {"_dlt_version": schema_updates, "_dlt_loads": 2, "_dlt_pipeline_state": 2}
 
     # check state
-    created_at_value = pipeline.state["sources"]["github"]["resources"]["load_issues"][
+    incremental_state = pipeline.state["sources"]["github"]["resources"]["load_issues"][
         "incremental"
-    ]["created_at"]["last_value"]
+    ]["created_at"]
+    created_at_value = incremental_state["last_value"]
     assert isinstance(created_at_value, pendulum.DateTime)
     assert created_at_value == pendulum.parse("2023-02-17T09:52:12Z")
+    # start_value snapshots the previous (legacy) run's last_value, so the covered range
+    # for this current-version run is [legacy_last_value, new_last_value)
+    start_value = incremental_state["start_value"]
+    assert isinstance(start_value, pendulum.DateTime)
+    assert start_value == pendulum.parse("2021-04-16T04:34:05Z")
     pipeline = pipeline.drop()
     # print(pipeline.working_dir)
     assert pipeline.dataset_name == GITHUB_DATASET
@@ -421,7 +428,12 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
             print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_normalize.py"))
         # switch to current version and make sure the load package loads and schema migrates
         venv = Venv.restore_current()
-        print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_load.py"))
+        try:
+            print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_load.py"))
+        except CalledProcessError as cpe:
+            print("STDERR", cpe.stderr)
+            print("STDOUT", cpe.stdout)
+            raise
         duckdb_cfg = resolve_configuration(
             DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
             sections=("destination", "duckdb"),

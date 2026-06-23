@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.known_env import DLT_LOCAL_DIR
-from dlt.common.utils import uniq_id
+from dlt.common.utils import digest128, uniq_id
 from dlt.destinations import sqlalchemy as dlt_sqlalchemy
 from dlt.destinations.impl.sqlalchemy.configuration import (
     SqlalchemyClientConfiguration,
@@ -17,6 +17,41 @@ from dlt.destinations.impl.sqlalchemy.configuration import (
 )
 
 from tests.utils import get_test_storage_root
+
+
+@pytest.mark.parametrize(
+    "credentials,expected_fingerprint",
+    [
+        pytest.param(None, "", id="empty"),
+        # in-memory databases have no identity
+        pytest.param(
+            SqlalchemyCredentials("sqlite:///:memory:"),
+            "",
+            id="sqlite_memory",
+        ),
+        pytest.param(
+            SqlalchemyCredentials("sqlite:////data/db.sqlite"),
+            digest128("/data/db.sqlite"),
+            id="sqlite_file",
+        ),
+        pytest.param(
+            SqlalchemyCredentials("postgresql://user1:pass1@host1:5432/db1"),
+            digest128("host1:5432"),
+            id="postgres_host_port",
+        ),
+        pytest.param(
+            SqlalchemyCredentials("mysql+pymysql://user1:pass1@host1:3306/db1"),
+            digest128("host1:3306"),
+            id="mysql_dbapi_host_port",
+        ),
+    ],
+)
+def test_sqlalchemy_fingerprint(
+    credentials: Optional[SqlalchemyCredentials], expected_fingerprint: str
+) -> None:
+    config = SqlalchemyClientConfiguration(credentials=credentials)
+
+    assert config.fingerprint() == expected_fingerprint
 
 
 @pytest.mark.parametrize(

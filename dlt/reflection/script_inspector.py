@@ -1,8 +1,9 @@
+import contextlib
 import os
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Tuple
+from typing import Any, Iterator, Tuple
 from unittest.mock import patch
 from importlib import import_module
 
@@ -17,6 +18,16 @@ from dlt.extract.pipe_iterator import ManagedPipeIterator
 
 def patch__init__(self: Any, *args: Any, **kwargs: Any) -> None:
     raise PipelineIsRunning(self, args, kwargs)
+
+
+@contextlib.contextmanager
+def no_pipeline_execution() -> Iterator[None]:
+    """Prevent pipelines from running by patching DltSource and ManagedPipeIterator."""
+    with (
+        patch.object(DltSource, "__init__", patch__init__),
+        patch.object(ManagedPipeIterator, "__init__", patch__init__),
+    ):
+        yield
 
 
 def import_script_module(
@@ -53,11 +64,7 @@ def import_script_module(
 def import_pipeline_script(
     module_path: str, script_relative_path: str, ignore_missing_imports: bool = False
 ) -> ModuleType:
-    # patch entry points to pipeline, sources and resources to prevent pipeline from running
-    with (
-        patch.object(DltSource, "__init__", patch__init__),
-        patch.object(ManagedPipeIterator, "__init__", patch__init__),
-    ):
+    with no_pipeline_execution():
         return import_script_module(
             module_path, script_relative_path, ignore_missing_imports=ignore_missing_imports
         )

@@ -24,7 +24,9 @@ from tests.load.utils import (
 from dlt.destinations import filesystem
 from tests.utils import get_test_storage_root
 from tests.cases import arrow_table_all_data_types
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
+import duckdb
+
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseUndefinedRelation
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -456,3 +458,53 @@ def test_evolving_filesystem(
     # check df and arrow access
     assert len(pipeline.dataset().items.df().index) == 50
     assert pipeline.dataset().items.arrow().num_rows == 50
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(local_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_auto_views_not_created_for_other_dataset_qualified_table(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """The scanner only creates views for tables that belong to its own dataset. A query that
+    references a same-named table qualified with a different schema (i.e. another dataset) must read
+    that table directly and must NOT trigger creation of a scanner view for the dataset's table."""
+    if destination_config.file_format not in ["parquet", "jsonl"]:
+        pytest.skip(
+            f"Test only works for jsonl and parquet, given: {destination_config.file_format}"
+        )
+
+    pipeline = destination_config.setup_pipeline(
+        "read_pipeline",
+        dataset_name="test_other_dataset_no_view",
+        dev_mode=True,
+    )
+
+    # the dataset has its own `items` table - a view would be created for it on a matching query
+    @dlt.resource(name="items")
+    def items():
+        yield [{"id": 1, "value": "hello"}]
+
+    pipeline.run(items(), **destination_config.run_kwargs)
+
+    dataset = pipeline.dataset()
+    with dataset:
+        conn: duckdb.DuckDBPyConnection = dataset.sql_client.native_connection
+        # a real table named `items` living in another schema, i.e. a different dataset
+        conn.execute("CREATE SCHEMA manual_schema")
+        conn.execute("CREATE TABLE manual_schema.items(id INTEGER)")
+        conn.execute("INSERT INTO manual_schema.items VALUES (42)")
+
+        # querying the table qualified with the other schema reads it directly
+        rows = dataset.query(
+            "SELECT * FROM manual_schema.items ORDER BY id", _execute_raw_query=True
+        ).fetchall()
+        assert rows == [(42,)]
+
+        # the scanner must not have created a view for `items`: the reference was qualified with a
+        # schema that is not the dataset name, so the dataset's own `items` table is left untouched
+        views = conn.execute("SELECT view_name FROM duckdb_views()").fetchall()
+        assert "items" not in [v[0] for v in views]

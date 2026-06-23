@@ -1,10 +1,10 @@
 ---
-title: Cloud storage and filesystem
-description: Store data in remote file systems and cloud storage services like AWS S3, Google Cloud Storage, or Azure Blob Storage
-keywords: [filesystem, s3, gcs, azure, cloud storage, data lake, staging]
+title: Object store & filesystem
+description: Store data in remote file systems and object store services like AWS S3, Google Cloud Storage, or Azure Blob Storage
+keywords: [filesystem, s3, gcs, azure, blob storage, sftp, cloud storage, data lake, staging]
 ---
 
-# Cloud storage and filesystem
+# Object store & filesystem
 The filesystem destination stores data in remote file systems and cloud storage services like **AWS S3**, **Google Cloud Storage**, or **Azure Blob Storage**. Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging area for other destinations, but you can also quickly build a data lake with it.
 
 ## Install dlt with filesystem
@@ -659,9 +659,9 @@ Adopting this layout offers several advantages:
 ## Supported file formats
 
 You can choose the following file formats:
-* [JSONL](../file-formats/jsonl) is used by default
-* [Parquet](../file-formats/parquet) is supported
-* [CSV](../file-formats/csv) is supported
+* [JSONL](../file-formats.md#jsonl) is used by default
+* [Parquet](../file-formats.md#parquet) is supported
+* [CSV](../file-formats.md#csv) is supported
 
 ## Supported table formats
 
@@ -679,7 +679,7 @@ When a load generates a new state, for example when using incremental loads, a n
 :::
 
 ## Data access
-`filesystem` implements [`sql_client`](../../general-usage/dataset-access/sql-client#the-filesystem-sql-client) which provides read only
+`filesystem` implements [`sql_client`](../transformations/sql.md#the-filesystem-sql-client) which provides read only
 SQL access to files and iceberg/delta tables with duckdb dialect. This also enables [`pipeline.dataset()`](../../general-usage/dataset-access/dataset), giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
 
 By default views that are created are "frozen" to minimize reading from bucket.

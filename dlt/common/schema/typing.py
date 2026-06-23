@@ -11,9 +11,9 @@ from typing import (
     Tuple,
     Type,
     NewType,
+    TYPE_CHECKING,
     Union,
 )
-from typing_extensions import Never, NotRequired, Required
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
@@ -24,12 +24,13 @@ from dlt.common.typing import (
     TColumnNames,
     TypedDict,
     get_args,
+    NotRequired,
 )
 
-try:
+if TYPE_CHECKING:
     from pydantic import BaseModel as _PydanticBaseModel
-except ImportError:
-    _PydanticBaseModel = Never  # type: ignore[assignment, misc]
+else:
+    _PydanticBaseModel = Any
 
 
 # current version of schema engine
@@ -367,6 +368,7 @@ class _TTableSchemaBase(TTableProcessingHints, total=False):
     resource: Optional[str]
     table_format: Optional[TTableFormat]
     file_format: Optional[TFileFormat]
+    variant_name: NotRequired[str]
 
 
 class TTableSchema(_TTableSchemaBase, total=False):

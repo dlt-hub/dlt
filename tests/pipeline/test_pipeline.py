@@ -4,6 +4,7 @@ import io
 from multiprocessing.dummy import DummyProcess
 import pathlib
 import pickle
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
@@ -21,8 +22,9 @@ import dlt
 from dlt.common import json, pendulum, Decimal
 from dlt.common.configuration import resolve
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
-from dlt.common.known_env import DLT_LOCAL_DIR
-from dlt.common.storages import FileStorage
+from dlt.common.known_env import DLT_DATA_DIR, DLT_LOCAL_DIR
+from dlt.common.storages import FileStorage, SchemaStorage
+from dlt.common.storages.exceptions import LoadPackageNotFound
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
@@ -38,12 +40,18 @@ from dlt.common.destination.exceptions import (
     UnknownDestinationModule,
 )
 from dlt.common.exceptions import PipelineStateNotAvailable, SignalReceivedException
+from dlt.common.normalizers.typing import TNormalizersConfig
 from dlt.common.pipeline import ExtractInfo, LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import DictCollector, LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
-from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
+from dlt.common.schema.utils import (
+    get_first_column_name_with_prop,
+    is_nested_table,
+    new_column,
+    new_table,
+)
 from dlt.common.typing import DictStrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.common.warnings import DltDeprecationWarning
@@ -78,6 +86,7 @@ from tests.common.utils import TEST_SENTRY_DSN
 from tests.utils import capture_dlt_logger, get_test_storage_root, skipifwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
+    PIPELINE_TEST_CASES_PATH,
     assert_table_counts,
     assert_load_info,
     airtable_emojis,
@@ -85,6 +94,7 @@ from tests.pipeline.utils import (
     load_table_counts,
     load_tables_to_dicts,
     many_delayed,
+    table_exists,
 )
 
 from dlt.destinations.dataset import get_destination_client_initial_config
@@ -959,6 +969,37 @@ def test_extract_multiple_sources() -> None:
     assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
 
 
+def test_state_schema_names_update_live_schemas() -> None:
+    """Live schemas created outside of pipeline do not impact default schema name
+    but are correctly incorporated into schema list
+    """
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
+    p.config.restore_from_destination = False
+
+    # schema written before any default schema exists is not pulled into the persisted state
+    p._schema_storage.set_live_schema(Schema("out_of_band_early"))
+    assert p.load() is None
+    assert p.default_schema_name is None
+    assert p.schema_names == []
+    assert "out_of_band_early" not in dlt.attach(pipeline_name=pipeline_name).state.get(
+        "schema_names", []
+    )
+
+    # establish a default schema, the run lists schemas from storage so the early one is now in
+    p.run([1, 2, 3], table_name="digits", schema=Schema("default"))
+    assert p.default_schema_name == "default"
+    assert p.schema_names == ["default", "out_of_band_early"]
+
+    # another schema appears on storage out of band, the next run absorbs all storage schemas
+    p._schema_storage.set_live_schema(Schema("out_of_band_late"))
+    p.run([4, 5, 6], table_name="digits")
+    expected = {"default", "out_of_band_early", "out_of_band_late"}
+    assert set(p.state["schema_names"]) == expected
+    # and it is persisted - a freshly attached pipeline reads the same list
+    assert set(dlt.attach(pipeline_name=pipeline_name).state["schema_names"]) == expected
+
+
 # Helper functions for state extraction tests
 def _get_state_files_count(storage: ExtractStorage, schema_name: Optional[str] = None) -> int:
     """Get count of state files from extract storage, optionally filtered by schema."""
@@ -1079,15 +1120,6 @@ def test_state_extracted_once_for_same_schema_multiple_sources(use_single_datase
     p.normalize()
 
     # Second extraction: state not extracted (unchanged hash)
-    p.extract([s1, s2])
-    storage = ExtractStorage(p._normalize_storage_config())
-    _assert_extracted_file_exists(
-        storage, "shared_schema", schema.state_table_name, should_exist=False
-    )
-
-    p.normalize()
-
-    # Third extraction: state extracted (incremental data changed)
     new_s2 = _create_simple_source(
         schema, "resource_2", [{"id": 7}, {"id": 8}, {"id": 9}], use_incremental=True
     )
@@ -1239,7 +1271,7 @@ def test_state_extraction_mixed_schemas(use_single_dataset: bool) -> None:
 
     p.normalize()
 
-    # Second extraction: no state change, no extraction
+    # Second extraction: incremental emits a final status change (caught up, no new data)
     p.extract([s1, s2, s3])
     storage = ExtractStorage(p._normalize_storage_config())
     for s in [shared, unique]:
@@ -1247,7 +1279,7 @@ def test_state_extraction_mixed_schemas(use_single_dataset: bool) -> None:
 
     p.normalize()
 
-    # Third extraction: incremental data changed in shared schema
+    # third extraction: incremental data changed in shared schema
     new_s1 = _create_simple_source(
         shared, "resource_1", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
     )
@@ -2272,13 +2304,11 @@ def test_progress_subclass_receives_callbacks() -> None:
         def on_start_trace(
             self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_start_trace"] = True
 
         def on_start_trace_step(
             self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_start_trace_step"] = True
 
         def on_end_trace_step(
@@ -2289,13 +2319,11 @@ def test_progress_subclass_receives_callbacks() -> None:
             step_info: Any,
             send_state: bool,
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_end_trace_step"] = True
 
         def on_end_trace(
             self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_end_trace"] = True
 
         def on_log(self) -> None:
@@ -3495,6 +3523,22 @@ def test_load_info_dataset_name_per_load_id(use_single_dataset: bool) -> None:
     step_dict = load_step.asdict()
     assert "dataset_name" in step_dict["load_info"]
 
+    # verify dataset_name is propagated into serialized job_metrics
+    asdict_job_metrics = load_info.asdict()["job_metrics"]
+    assert all("dataset_name" in jm for jm in asdict_job_metrics)
+    # each job's dataset_name must match the per-load-id value from LoadMetrics
+    for jm in asdict_job_metrics:
+        assert jm["dataset_name"] == ds_names[jm["load_id"]]
+
+    # same for the trace step dict
+    trace_job_metrics = step_dict["load_info"]["job_metrics"]
+    assert all("dataset_name" in jm for jm in trace_job_metrics)
+    trace_ds_names = {jm["dataset_name"] for jm in trace_job_metrics}
+    if use_single_dataset:
+        assert trace_ds_names == {"test_data"}
+    else:
+        assert trace_ds_names == {"test_data", "test_data_schema_b"}
+
 
 def test_load_info_dataset_name_none_for_non_dwh_destination() -> None:
     """Destinations without DestinationClientDwhConfiguration (e.g. dummy, custom)
@@ -3563,6 +3607,269 @@ def test_yielding_empty_list_creates_table() -> None:
             rows = list(cur.fetchall())
             assert len(rows) == 1
             assert rows[0] == (1, None)
+
+
+@pytest.mark.parametrize(
+    "yield_one,yield_two",
+    [(True, False), (False, True), (False, False), (True, True)],
+    ids=["only_first", "only_second", "neither", "both"],
+)
+def test_materialize_table_schema_multi_table_duckdb(yield_one: bool, yield_two: bool) -> None:
+    """End-to-end check that a multi-table resource materializes both tables in duckdb,
+    whether they receive data or not. Dispatch happens via `with_table_name` and table
+    variants are pre-declared with `materialize_table_schema()`.
+    """
+
+    # non-normalized table names so the empty-table handling is exercised with normalized identifiers
+    @dlt.resource
+    def multi_table():
+        yield dlt.mark.with_hints(
+            dlt.mark.materialize_table_schema(),
+            dlt.mark.make_hints(
+                table_name="TableOne",
+                write_disposition="replace",
+                columns={"col_one": {"data_type": "text"}},
+            ),
+            create_table_variant=True,
+        )
+        yield dlt.mark.with_hints(
+            dlt.mark.materialize_table_schema(),
+            dlt.mark.make_hints(
+                table_name="TableTwo",
+                write_disposition="replace",
+                columns={"col_two": {"data_type": "bigint"}},
+            ),
+            create_table_variant=True,
+        )
+        if yield_one:
+            yield dlt.mark.with_table_name({"col_one": "val"}, table_name="TableOne")
+        if yield_two:
+            yield dlt.mark.with_table_name({"col_two": 5}, table_name="TableTwo")
+
+    pipeline = dlt.pipeline(
+        pipeline_name="materialize_multi_e2e_" + uniq_id(),
+        destination="duckdb",
+        dev_mode=True,
+    )
+    load_info = pipeline.run(multi_table())
+    assert_load_info(load_info)
+
+    # tables are materialized under their normalized names
+    expected = {
+        "table_one": 1 if yield_one else 0,
+        "table_two": 1 if yield_two else 0,
+    }
+    assert_table_counts(pipeline, expected)
+
+    schema_tables = pipeline.default_schema.tables
+    assert "col_one" in schema_tables["table_one"]["columns"]
+    assert "col_two" in schema_tables["table_two"]["columns"]
+
+
+def test_materialize_table_schema_with_nested_hints_duckdb() -> None:
+    """Nested tables cannot be materialized in advance"""
+
+    # non-normalized table, column and nested-table names exercised through normalization
+    @dlt.resource(
+        name="Users",
+        write_disposition="replace",
+        columns=[
+            {"name": "Id", "data_type": "bigint", "nullable": False},
+            {"name": "Name", "data_type": "text"},
+        ],
+        nested_hints={
+            "Purchases": dlt.mark.make_nested_hints(
+                columns=[{"name": "Price", "data_type": "decimal"}],
+            ),
+        },
+    )
+    def users_with_nested():
+        yield dlt.mark.materialize_table_schema()
+
+    pipeline = dlt.pipeline(
+        pipeline_name="materialize_nested_e2e_" + uniq_id(),
+        destination="duckdb",
+        dev_mode=True,
+    )
+    load_info = pipeline.run(users_with_nested())
+    assert_load_info(load_info)
+
+    # root table is materialized empty in duckdb with declared columns
+    assert table_exists(pipeline, "users")
+    assert load_table_counts(pipeline, "users") == {"users": 0}
+    users_columns = pipeline.default_schema.tables["users"]["columns"]
+    assert {"id", "name", "_dlt_load_id", "_dlt_id"}.issubset(users_columns.keys())
+
+    # nested table is computed into the schema from `nested_hints`
+    assert "users__purchases" in pipeline.default_schema.tables
+    nested_columns = pipeline.default_schema.tables["users__purchases"]["columns"]
+    assert "price" in nested_columns
+
+    # but it is NOT created at the destination — no MaterializedEmptyList ever flows
+    # through `_write_item` for the nested name, and parent linkage columns are produced
+    # by the normalizer only on real nested rows
+    assert not table_exists(pipeline, "users__purchases")
+
+
+def test_replace_empty_resource_truncates_variant_tables() -> None:
+    """When a replace resource yields no data, everything belonging to it is truncated - the root
+    table and its table variants alike (the tables are emptied, not dropped)."""
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    def items_resource(emit: bool) -> DltResource:
+        @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+        def items() -> Any:
+            if emit:
+                yield {"id": 1, "name": "root"}
+                # a table variant with its own data
+                yield dlt.mark.with_hints(
+                    {"id": 2, "name": "variant"},
+                    dlt.mark.make_hints(table_name="other_items"),
+                    create_table_variant=True,
+                )
+
+        return items
+
+    pipeline = dlt.pipeline(
+        pipeline_name="replace_truncate_variant_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    pipeline.run(items_resource(True))
+    assert load_table_counts(pipeline, "items", "other_items") == {"items": 1, "other_items": 1}
+
+    # the resource yields no data: the root and the variant are both truncated
+    pipeline.run(items_resource(False))
+    assert load_table_counts(pipeline, "items", "other_items") == {"items": 0, "other_items": 0}
+
+
+def test_replace_empty_resource_keeps_append_pseudo_root() -> None:
+    """When a replace resource yields no data, its root (and variant root) are truncated, but a
+    pseudo-root (nested table broken out by a primary key) whose own write disposition differs from
+    the root is NOT truncated"""
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    def items_resource(emit: bool) -> DltResource:
+        @dlt.resource(
+            name="items",
+            write_disposition="replace",
+            primary_key="id",
+            nested_hints={
+                "sub_items": dlt.mark.make_nested_hints(
+                    primary_key="id", write_disposition="append"
+                )
+            },
+        )
+        def items() -> Any:
+            variant_data: Any
+            if emit:
+                yield {"id": 1, "sub_items": [{"id": 101}]}
+                variant_data = {"id": 2, "sub_items": [{"id": 201}]}
+            else:
+                variant_data = []
+            # a variant inherits the nesting-breaking nested hints
+            yield dlt.mark.with_hints(
+                variant_data,
+                dlt.mark.make_hints(table_name="other_items"),
+                create_table_variant=True,
+            )
+
+        return items
+
+    pipeline = dlt.pipeline(
+        pipeline_name="replace_truncate_pseudo_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    pipeline.run(items_resource(True))
+    # the nested tables are broken out into pseudo-roots
+    assert is_nested_table(pipeline.default_schema.tables["items__sub_items"]) is False
+    assert is_nested_table(pipeline.default_schema.tables["other_items__sub_items"]) is False
+    assert load_table_counts(
+        pipeline, "items", "items__sub_items", "other_items", "other_items__sub_items"
+    ) == {"items": 1, "items__sub_items": 1, "other_items": 1, "other_items__sub_items": 1}
+
+    # empty run: the replace roots (default and variant) are emptied, but their append pseudo-roots
+    # are kept - we cannot re-derive a pseudo-root's effective disposition, so it is not truncated
+    pipeline.run(items_resource(False))
+    assert load_table_counts(
+        pipeline, "items", "items__sub_items", "other_items", "other_items__sub_items"
+    ) == {"items": 0, "items__sub_items": 1, "other_items": 0, "other_items__sub_items": 1}
+
+
+def test_replace_keeps_pseudo_root_when_root_has_data() -> None:
+    """A pseudo-root must not be force-truncated when its real root received data this run."""
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    def items_resource(with_sub: bool) -> DltResource:
+        @dlt.resource(
+            name="items",
+            write_disposition="replace",
+            primary_key="id",
+            nested_hints={
+                "sub_items": dlt.mark.make_nested_hints(
+                    primary_key="id", write_disposition="append"
+                )
+            },
+        )
+        def items() -> Any:
+            if with_sub:
+                yield {"id": 1, "sub_items": [{"id": 101}, {"id": 102}]}
+            else:
+                # the root receives data but the pseudo-root receives none
+                yield {"id": 1, "sub_items": []}
+
+        return items
+
+    pipeline = dlt.pipeline(
+        pipeline_name="replace_pseudo_root_kept_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    pipeline.run(items_resource(True))
+    assert load_table_counts(pipeline, "items", "items__sub_items") == {
+        "items": 1,
+        "items__sub_items": 2,
+    }
+
+    # the root received data, so the pseudo-root must not be force-truncated via an empty file
+    pipeline.run(items_resource(False))
+    assert load_table_counts(pipeline, "items", "items__sub_items") == {
+        "items": 1,
+        "items__sub_items": 2,
+    }
+
+
+@pytest.mark.parametrize("dispatch", ["dynamic", "marked"])
+def test_replace_event_dispatch_truncates_missing_table(dispatch: str) -> None:
+    """All dispatched tables will be truncated on write disposition replace
+    including those that didn't get data on replace
+    """
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    if dispatch == "dynamic":
+
+        @dlt.resource(name="events", table_name=lambda e: e["type"], primary_key="id")
+        def events(types: Any) -> Any:
+            for idx, type_ in enumerate(types):
+                yield {"id": idx, "type": type_}
+
+    else:
+
+        @dlt.resource(name="events", primary_key="id")
+        def events(types: Any) -> Any:
+            for idx, type_ in enumerate(types):
+                yield dlt.mark.with_table_name({"id": idx, "type": type_}, type_)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="event_dispatch_replace_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    # 1. start with merge, creating two tables
+    pipeline.run(events(["a", "b"]), write_disposition="merge")
+    assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 1}
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "merge"
+
+    # 2. switch to replace, with data only for table "a"
+    pipeline.run(events(["a"]), write_disposition="replace")
+    # "a" received data and is replaced with the new row
+    assert load_tables_to_dicts(pipeline, "a")["a"][0]["id"] == 0
+    # missing "b" is refreshed to replace and truncated even though it received no data
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "replace"
+    assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 0}
 
 
 @pytest.mark.parametrize(
@@ -4936,6 +5243,8 @@ def test_ignore_signals_in_load() -> None:
     p.start()
 
     # should raise on KeyboardInterrupt - delayed signals disabled
+    # NOTE: any failing assert below locks the pytest. remove
+    # @pytest.mark.forked to debug
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(dlt.resource([1, 2, 3], name="digits"))
     assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
@@ -5043,6 +5352,8 @@ def test_signal_force_load_step_shutdown(sig: int) -> None:
     p.start()
 
     # should raise regular pipeline exception
+    # NOTE: any failing assert below locks the pytest. remove
+    # @pytest.mark.forked to debug
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run([1, 2, 3], table_name="digits")
     assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
@@ -5240,6 +5551,136 @@ def test_pending_package_exception_warning() -> None:
     # assert pip_ex.value.has_pending_data is False
 
 
+def test_load_not_yet_existing_package() -> None:
+    """Simulates loading step waiting for normalize step producing packages async"""
+    pipeline = dlt.pipeline(
+        pipeline_name="test_load_not_yet_existing_package",
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    # inject schema - simulates pipeline synced from destination
+    pipeline._inject_schema(Schema("default"))
+
+    # polling normalize/load on an empty folder must not rewrite state.json - concurrent processes
+    # share the working dir and a write back here would clobber a concurrent extract's state
+    state_path = pipeline._pipeline_storage.make_full_path(pipeline.STATE_FILE)
+    state_mtime = os.stat(state_path).st_mtime_ns
+
+    # skipped
+    assert pipeline.normalize() is None
+    # normalize storage must not be created
+    assert pipeline._get_normalize_storage().is_storage_ready() is False
+
+    # same for load
+    assert pipeline.load() is None
+    assert pipeline._get_load_storage().is_storage_ready() is False
+
+    # nothing changed, so state was not persisted again
+    assert os.stat(state_path).st_mtime_ns == state_mtime
+
+
+def test_package_accessors_on_fresh_pipeline() -> None:
+    """Utility methods that read normalize/load storages must not create storage folders
+    when called on a freshly created pipeline that has not run extract/normalize/load yet."""
+    pipeline = dlt.pipeline(
+        pipeline_name="test_package_accessors_fresh",
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    # listing methods return empty without creating storage
+    assert pipeline.list_extracted_resources() == []
+    assert pipeline.list_extracted_load_packages() == []
+    assert pipeline.list_normalized_load_packages() == []
+    assert pipeline.list_completed_load_packages() == []
+
+    # package-specific lookups raise LoadPackageNotFound
+    missing_id = "1700000000.1234567"
+    with pytest.raises(LoadPackageNotFound):
+        pipeline.get_load_package_info(missing_id)
+    with pytest.raises(LoadPackageNotFound):
+        pipeline.get_load_package_state(missing_id)
+    with pytest.raises(LoadPackageNotFound):
+        pipeline.list_failed_jobs_in_package(missing_id)
+
+    # drop_pending_packages is a no-op on a fresh pipeline
+    pipeline.drop_pending_packages()
+    pipeline.drop_pending_packages(with_partial_loads=False)
+
+    # storages were never created by any of the calls above
+    assert pipeline._get_normalize_storage().is_storage_ready() is False
+    assert pipeline._get_load_storage().is_storage_ready() is False
+
+
+@pytest.mark.serial
+def test_pipeline_steps_in_separate_processes() -> None:
+    """End-to-end: extract/normalize/load for the same pipeline run in parallel.
+
+    This test simulates pipeline steps handing over load packages and synchronizing
+    on the filesystem.
+    """
+    # propagate the test run context's data_dir so subprocesses use the same test storage
+    # inherit the parent environment - replacing it breaks Winsock init on Windows (WinError 10106)
+    subprocess_env = {
+        **os.environ,
+        DLT_DATA_DIR: dlt.current.run_context().data_dir,
+        DLT_LOCAL_DIR: dlt.current.run_context().local_dir,
+    }
+    pipeline_name = "separate_steps_" + uniq_id()
+    script_path = f"{PIPELINE_TEST_CASES_PATH}separate_steps/pipeline_step_loop.py"
+
+    def _spawn(step: str) -> subprocess.Popen[str]:
+        return subprocess.Popen(
+            [sys.executable, script_path, pipeline_name, step, "60"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=subprocess_env,
+        )
+
+    load_proc = _spawn("load")
+    normalize_proc: Optional[subprocess.Popen[str]] = None
+    try:
+        # start load first - no load storage yet, will loop
+        sleep(1.5)
+
+        # start normalize next - no normalize storage yet, will loop
+        normalize_proc = _spawn("normalize")
+        sleep(1.5)
+
+        # run extract in main process - this creates normalize storage with package files
+        pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+        data = [{"id": i, "name": f"item_{i}"} for i in range(10)]
+        pipeline.extract(dlt.resource(data, name="items"))
+
+        normalize_stdout, normalize_stderr = normalize_proc.communicate(timeout=60)
+        load_stdout, load_stderr = load_proc.communicate(timeout=60)
+    finally:
+        for proc in (normalize_proc, load_proc):
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+
+    assert normalize_proc.returncode == 0, f"normalize subprocess failed: {normalize_stderr}"
+    assert load_proc.returncode == 0, f"load subprocess failed: {load_stderr}"
+    assert (
+        normalize_stdout != "timeout"
+    ), f"normalize did not pick up extract package, stderr: {normalize_stderr}"
+    assert (
+        load_stdout != "timeout"
+    ), f"load did not pick up normalized package, stderr: {load_stderr}"
+
+    # verify the data landed in duckdb
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT id, name FROM items ORDER BY id")
+        assert [(r[0], r[1]) for r in rows] == [(i, f"item_{i}") for i in range(10)]
+
+
 def test_staging_tables_created_after_schema_change_without_data() -> None:
     """Regression test for #2862: staging tables created for all eligible tables.
 
@@ -5423,6 +5864,57 @@ def test_merge_no_child_duplicates_on_duplicate_staging_data(skip_dedup: bool) -
     else:
         # dedup enabled: nested table deduplicated by _dlt_id
         assert_table_counts(p, {"items": 2, "items__nested": 2})
+
+
+def test_no_coercion_normalizer_creates_variant_columns() -> None:
+    """relational_no_coercion normalizer produces variant columns on type mismatch instead of coercing values."""
+    no_coercion: TNormalizersConfig = {
+        "names": "snake_case",
+        "json": {"module": "relational_no_coercion"},
+    }
+    schema = Schema("no_coercion", no_coercion)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_no_coercion_variants",
+        destination="duckdb",
+    )
+    # first batch establishes column types: double and text
+    pipeline.run(
+        [{"id": 1, "score": 3.14, "value": 100}],
+        table_name="items",
+        schema=schema,
+        schema_contract={"data_type": "evolve"},
+    )
+    # second batch: int into double column (relational would coerce), text into bigint column
+    pipeline.run(
+        [{"id": 2, "score": 42, "value": "not_a_number"}],
+        table_name="items",
+    )
+
+    columns = pipeline.default_schema.tables["items"]["columns"]
+    # int into double creates variant (relational normalizer would coerce this)
+    assert "score__v_bigint" in columns
+    assert columns["score__v_bigint"]["data_type"] == "bigint"
+    assert columns["score__v_bigint"]["variant"] is True
+    # text into bigint creates variant
+    assert "value__v_text" in columns
+    assert columns["value__v_text"]["data_type"] == "text"
+    assert columns["value__v_text"]["variant"] is True
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(
+            "SELECT id, score, score__v_bigint, value, value__v_text FROM items ORDER BY id"
+        )
+    # row 1: original columns populated, variants NULL
+    assert rows[0][1] == 3.14
+    assert rows[0][2] is None
+    assert rows[0][3] == 100
+    assert rows[0][4] is None
+    # row 2: originals NULL, values in variant columns
+    assert rows[1][1] is None
+    assert rows[1][2] == 42
+    assert rows[1][3] is None
+    assert rows[1][4] == "not_a_number"
 
 
 def test_cleanup() -> None:

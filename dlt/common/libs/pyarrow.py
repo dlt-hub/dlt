@@ -1,7 +1,7 @@
 import base64
 import gzip
-from datetime import datetime, date, time  # noqa: I251
-from pendulum.tz import UTC
+import uuid
+from datetime import time  # noqa: I251
 from typing import (
     Any,
     Dict,
@@ -33,7 +33,6 @@ try:
     import pyarrow
     import pyarrow.parquet
     import pyarrow.compute
-    import pyarrow.dataset
     from pyarrow.parquet import ParquetFile
     from pyarrow import Table
 except ModuleNotFoundError:
@@ -49,6 +48,7 @@ import ctypes
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 ARROW_DECIMAL_MAX_PRECISION = 76
+ARROW_UUID_EXTENSION_NAME = "arrow.uuid"
 
 
 class UnsupportedArrowTypeException(DltException):
@@ -794,6 +794,18 @@ def columns_to_arrow(
     )
 
 
+def get_local_dataset_reader(file_paths: Sequence[str]) -> pyarrow.RecordBatchReader:
+    """Streams local data files with bounded readahead to limit memory use over throughput."""
+    # NOTE: import inline, pyarrow.dataset pulls heavy dependencies
+    import pyarrow.dataset
+
+    return (
+        pyarrow.dataset.dataset(file_paths)
+        .scanner(batch_size=65536, batch_readahead=2, fragment_readahead=1)
+        .to_reader()
+    )
+
+
 def get_parquet_metadata(parquet_file: TFileOrPath) -> Tuple[int, pyarrow.Schema]:
     """Gets parquet file metadata (including row count and schema)
 
@@ -1014,50 +1026,89 @@ def concat_and_group_in_compatible_schemas(
 
 def transpose_rows_to_columns(
     rows: TDataItems, column_names: Iterable[str]
-) -> dict[str, Any]:  # dict[str, np.ndarray]
-    """Transpose rows (data items) into columns (numpy arrays). Returns a dictionary of {column_name: column_data}
+) -> dict[str, Any]:  # dict[str, Sequence[Any]]
+    """Transpose rows (data items) into columns. Returns a dictionary of {column_name: column_data}"""
+    if not rows:
+        return {column_name: () for column_name in column_names}
+    # plain zip benchmarked faster than numpy/pandas object-array pivoting
+    return dict(zip(column_names, zip(*rows)))
 
-    Uses pandas if available. Otherwise, use numpy, which is slower
+
+def uuid_to_string(arr: Any) -> Any:  # pyarrow.Array -> pyarrow.Array
+    """Convert an array of UUIDs to canonical hyphenated lowercase string array.
+
+    Accepts a `pa.uuid()` extension array or a `fixed_size_binary[16]`. Nulls
+    are preserved. Sliced inputs (`storage.offset != 0`) are supported. Falls
+    back to pure Python if numpy is missing or the input is sliced.
     """
+    pa = pyarrow
+
+    # accept extension arrays (pa.uuid()) and plain fixed_size_binary[16]
+    storage = arr.storage if hasattr(arr, "storage") else arr
+    n = len(storage)
+
     try:
         from dlt.common.libs.numpy import numpy as np
     except MissingDependencyException:
-        raise MissingDependencyException(
-            "dlt pyarrow helpers", ["numpy"], "Numpy is required for this pyarrow operation"
+        np = None
+
+    # the numpy fast path reads `buffers()[1]` from byte 0 and reuses
+    # `buffers()[0]` (bit-packed validity) as-is — both wrong when the input is
+    # sliced. iterating `for scalar in storage` honors `storage.offset`, so the
+    # pure-python path is correct for sliced inputs as well.
+    if np is None or storage.offset != 0:
+        # `str(UUID)` is canonical lowercase hyphenated per RFC 4122,
+        # byte-identical to the numpy path's output.
+        return pa.array(
+            [
+                None if scalar.as_py() is None else str(uuid.UUID(bytes=scalar.as_py()))
+                for scalar in storage
+            ],
+            type=pa.string(),
         )
 
-    try:
-        from pandas._libs import lib
+    if n == 0:
+        return pa.array([], type=pa.string())
 
-        # NOTE: this is part of public interface now via DataFrame.from_records()
-        pivoted_rows = lib.to_object_array_tuples(rows).T
-    except ImportError:
-        logger.info(
-            "Pandas not installed, reverting to numpy.asarray to create a table which is slower"
-        )
-        pivoted_rows = np.asarray(rows, dtype="object", order="K").T
-    return {
-        column_name: data.ravel()
-        for column_name, data in zip(column_names, np.vsplit(pivoted_rows, len(pivoted_rows)))
-    }
+    # `bytes.hex()` is lowercase per the Python spec; the slice positions and
+    # hyphen placements below match `str(UUID)` exactly so both paths produce
+    # identical output.
+    raw = storage.buffers()[1].to_pybytes()  # 16*n contiguous bytes
+    hexbuf = np.frombuffer(raw.hex().encode("ascii"), dtype=np.uint8).reshape(n, 32)
+    out = np.full((n, 36), ord("-"), dtype=np.uint8)
+    out[:, 0:8] = hexbuf[:, 0:8]
+    out[:, 9:13] = hexbuf[:, 8:12]
+    out[:, 14:18] = hexbuf[:, 12:16]
+    out[:, 19:23] = hexbuf[:, 16:20]
+    out[:, 24:36] = hexbuf[:, 20:32]
+
+    # reuse storage's validity buffer (None if all valid). Output bytes are
+    # pure ASCII so the cast to string can never fail, even if null slots in
+    # the source data buffer contain garbage.
+    fsb36 = pa.FixedSizeBinaryArray.from_buffers(
+        pa.binary(36), n, [storage.buffers()[0], pa.py_buffer(out.tobytes())]
+    )
+    return fsb36.cast(pa.string())
 
 
-def convert_numpy_to_arrow(
-    column_data: Any,  # 1-dimensional np.ndarray
+def convert_array_to_arrow(
+    column_data: Any,  # 1-dimensional sequence of column values
     caps: DestinationCapabilitiesContext,
     column_schema: TColumnSchema,
     tz: str,
     safe_arrow_conversion: bool,
+    arrow_type: Optional[Any] = None,
 ) -> Any:  # pyarrow.Array
-    """Convert a numpy array to a pyarrow array.
+    """Convert a sequence of column values to a pyarrow array.
 
     Args:
-        rows: data items
+        column_data: column values
         caps: capabilities of the storage backend
-        columns: dlt hints about the table columns (e.g., data type, nullabe)
+        column_schema: dlt hints about the column (e.g., data type, nullable)
         tz: time zone identifier
         safe_arrow_conversion: if False, truncation and loss of precision is allowed
             ref: https://arrow.apache.org/docs/python/generated/pyarrow.compute.CastOptions.html#pyarrow.compute.CastOptions
+        arrow_type: precomputed target arrow type, derived from `column_schema` when None
 
     Returns:
         an arrow Array
@@ -1066,7 +1117,9 @@ def convert_numpy_to_arrow(
 
     dlt_data_type = column_schema.get("data_type")
     inferred_arrow_type = (
-        get_py_arrow_datatype(column_schema, caps, tz) if dlt_data_type is not None else None
+        arrow_type
+        if arrow_type is not None
+        else (get_py_arrow_datatype(column_schema, caps, tz) if dlt_data_type is not None else None)
     )
     inferred_array = None
 
@@ -1074,6 +1127,10 @@ def convert_numpy_to_arrow(
     try:
         # type=None lets pyarrow infer the type from the data
         inferred_array = pa.array(column_data, type=inferred_arrow_type)
+        # pyarrow >=24 infers UUIDs as the `arrow.uuid` extension; coerce to string
+        # so destinations see canonical hyphenated text, matching pyarrow <24 behavior
+        if inferred_array is not None and _is_arrow_uuid_extension(inferred_array.type):
+            inferred_array = uuid_to_string(inferred_array)
     # detailed error handling should happen in fallback cases
     except (pa.ArrowInvalid, pyarrow.ArrowTypeError):
         logger.warning(
@@ -1149,34 +1206,44 @@ def convert_numpy_to_arrow(
         try:
             inferred_array = pa.array(column_data)
         except (pa.ArrowInvalid, pyarrow.ArrowTypeError) as e:
-            logger.warning(
-                f"Type can't be inferred by `pyarrow` {e.args[0]}. Values will be encoded as in a"
-                " loop, slowing extraction."
-            )
-            encoded_values: list[Union[None, Mapping[Any, Any], Sequence[Any], str]] = []
-            for value in column_data:
-                if value is None:
-                    encoded_values.append(None)
-                    continue
-                try:
-                    # the 3 types match those supported by `map_nested_in_place()`
-                    if isinstance(value, (tuple, dict, list)):
-                        encoded_value = map_nested_values_in_place(custom_encode, value)
-                    # convert set to list
-                    elif isinstance(value, set):
-                        encoded_value = map_nested_values_in_place(custom_encode, list(value))
-                    # no nesting
-                    else:
-                        encoded_value = custom_encode(value)  # type: ignore[assignment]
-                    encoded_values.append(encoded_value)
-                except TypeError as e:
-                    raise PyToArrowConversionException(
-                        data_type=dlt_data_type,
-                        inferred_arrow_type=inferred_arrow_type,
-                        details="dlt failed to encode values to an Arrow-compatible type.",
-                    ) from e
+            # UUID fast path — pyarrow <24 doesn't recognize `uuid.UUID` at
+            # inference; build fixed_size_binary[16] from `.bytes` and use the
+            # vectorized formatter instead of the slower per-row loop below.
+            if _first_non_none((uuid.UUID,)):
+                fsb = pa.array(
+                    [u.bytes if u is not None else None for u in column_data],
+                    type=pa.binary(16),
+                )
+                inferred_array = uuid_to_string(fsb)
+            else:
+                logger.warning(
+                    f"Type can't be inferred by `pyarrow` {e.args[0]}. Values will be encoded as"
+                    " in a loop, slowing extraction."
+                )
+                encoded_values: list[Union[None, Mapping[Any, Any], Sequence[Any], str]] = []
+                for value in column_data:
+                    if value is None:
+                        encoded_values.append(None)
+                        continue
+                    try:
+                        # the 3 types match those supported by `map_nested_in_place()`
+                        if isinstance(value, (tuple, dict, list)):
+                            encoded_value = map_nested_values_in_place(custom_encode, value)
+                        # convert set to list
+                        elif isinstance(value, set):
+                            encoded_value = map_nested_values_in_place(custom_encode, list(value))
+                        # no nesting
+                        else:
+                            encoded_value = custom_encode(value)  # type: ignore[assignment]
+                        encoded_values.append(encoded_value)
+                    except TypeError as e:
+                        raise PyToArrowConversionException(
+                            data_type=dlt_data_type,
+                            inferred_arrow_type=inferred_arrow_type,
+                            details="dlt failed to encode values to an Arrow-compatible type.",
+                        ) from e
 
-            inferred_array = pa.array(encoded_values)
+                inferred_array = pa.array(encoded_values)
 
     return inferred_array
 
@@ -1246,7 +1313,7 @@ def cast_arrow_array_as_column_schema(
                 data = memoryview(data_b).cast("q")
 
                 def allocate_lazy_null_mask() -> None:
-                    nonlocal is_null, data, is_null_b
+                    nonlocal is_null, is_null_b
                     if is_null is None:
                         nbytes = (n + 7) // 8
                         is_null_b = pa.allocate_buffer(nbytes, resizable=False)
@@ -1391,6 +1458,36 @@ def cast_arrow_as_columns_schema(
     return item.__class__.from_arrays(arrays_out, schema=new_schema)
 
 
+def _row_tuples_to_arrow_struct(
+    rows: TDataItems,
+    columns: TTableSchemaColumns,
+    arrow_types: Dict[str, Optional[Any]],
+) -> Optional[Any]:  # Optional[pyarrow.Table]
+    """Converts row tuples to an arrow table in a single pass via a `StructArray`."""
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    # json values typically need serialization fallbacks which fail the whole struct
+    if any(
+        arrow_types[name] is None or column.get("data_type") == "json"
+        for name, column in columns.items()
+    ):
+        return None
+    try:
+        struct_fields = [pa.field(name, arrow_types[name]) for name in columns]
+        arrays = pa.array(rows, type=pa.struct(struct_fields)).flatten()
+    except Exception as e:
+        logger.debug(
+            "Single-pass arrow conversion not possible, using per-column fallbacks:"
+            f" {type(e).__name__}: {e}"
+        )
+        return None
+    schema = pa.schema(
+        pa.field(field.name, field.type, nullable=columns[field.name].get("nullable", True))
+        for field in struct_fields
+    )
+    return pa.Table.from_arrays(arrays, schema=schema)
+
+
 def row_tuples_to_arrow(
     rows: TDataItems,
     caps: DestinationCapabilitiesContext,
@@ -1417,16 +1514,35 @@ def row_tuples_to_arrow(
     """
     from dlt.common.libs.pyarrow import pyarrow as pa
 
-    columnar = transpose_rows_to_columns(rows, column_names=columns.keys())
+    # pyarrow struct conversion accepts only tuples and dicts, and tuple iteration is
+    # ~3x faster than driver row objects (e.g. sqlalchemy Row) in the transpose below
+    if rows and not isinstance(rows[0], (tuple, dict)):
+        rows = [tuple(row) for row in rows]
+
+    # compute target arrow types once; None when the type must be inferred from data
+    arrow_types: Dict[str, Optional[Any]] = {
+        name: get_py_arrow_datatype(column, caps, tz) if column.get("data_type") else None
+        for name, column in columns.items()
+    }
+
+    if (arrow_table := _row_tuples_to_arrow_struct(rows, columns, arrow_types)) is not None:
+        return arrow_table
+
+    transposed_rows = transpose_rows_to_columns(rows, column_names=columns.keys())
 
     arrow_arrays = []
     arrow_fields = []
-    for column_name, column_data in columnar.items():
+    for column_name, column_data in transposed_rows.items():
         column_schema = columns[column_name]
 
         try:
-            arrow_array = convert_numpy_to_arrow(
-                column_data, caps, column_schema, tz, safe_arrow_conversion
+            arrow_array = convert_array_to_arrow(
+                column_data,
+                caps,
+                column_schema,
+                tz,
+                safe_arrow_conversion,
+                arrow_types[column_name],
             )
         # TODO if converting to arrow fail, should we raise or skip column?
         except PyToArrowConversionException as e:
@@ -1500,38 +1616,58 @@ def set_plus0000_timezone_to_utc(tbl: pyarrow.Table) -> pyarrow.Table:
     return pyarrow.Table.from_arrays(arrays, schema=new_schema)
 
 
-def cast_date64_columns_to_timestamp(tbl: pyarrow.Table, tz: Optional[str] = None) -> pyarrow.Table:
+def cast_connectorx_temporal_columns(tbl: pyarrow.Table, tz: Optional[str] = None) -> pyarrow.Table:
     """
-    Cast any date64 columns to timestamp with microsecond precision, preserving the
-    semantic time values. Uses pyarrow.compute.cast on the column (works for chunked arrays)
-    to cast from milliseconds (date64) to microseconds (timestamp[us]).
+    Normalize connectorx temporal columns to microsecond precision.
+
+    connectorx returns timestamps as date64 (milliseconds) on older versions and as
+    timestamp[ns] on newer ones (the `arrow_stream` return type), and times as time64[ns].
+    dlt and its destinations use microseconds and no database connectorx reads from has
+    sub-microsecond resolution, so casting to `us` is lossless. date64 is rescaled to
+    timestamp[us]; nanosecond timestamp and time64 columns are truncated to `us` with the
+    timezone preserved; other units (ms, s, us) and unrelated columns are left untouched.
 
     Args:
         tbl: Input Arrow table.
-        tz: Optional timezone to annotate the resulting timestamp with (e.g. "UTC").
-            If None (default), produces a naive timestamp.
+        tz: Optional timezone to annotate date64 columns with (date64 carries no timezone).
+            Existing timestamp columns keep their own timezone.
 
     Returns:
-        A new table with date64 columns cast to timestamp[us] (optionally tz-aware),
-        or the original table if no date64 columns were found.
+        A new table with the temporal columns cast to microsecond precision, or the original
+        table if there was nothing to cast.
     """
     arrays, fields = [], []
     changed = False
 
     for col, fld in zip(tbl.columns, tbl.schema):
-        if pyarrow.types.is_date64(fld.type):
-            changed = True
-            unit = "us"
-            new_type = pyarrow.timestamp(unit, tz)
-            # Rescale from ms (date64) to us (timestamp).
-            arrays.append(pyarrow.compute.cast(col, new_type))
-            fields.append(pyarrow.field(fld.name, new_type, fld.nullable, fld.metadata))
+        col_type = fld.type
+        if pyarrow.types.is_date64(col_type):
+            # date64 is milliseconds since epoch; rescale to us and optionally annotate tz
+            new_type = pyarrow.timestamp("us", tz)
+        elif pyarrow.types.is_timestamp(col_type) and col_type.unit == "ns":
+            # truncate ns timestamps to us, keeping the column's own timezone (other units kept)
+            new_type = pyarrow.timestamp("us", col_type.tz)
+        elif pyarrow.types.is_time64(col_type) and col_type.unit == "ns":
+            new_type = pyarrow.time64("us")
         else:
             arrays.append(col)
             fields.append(fld)
+            continue
+
+        changed = True
+        # safe=False truncates sub-us precision (lossless here: source DBs carry no nanoseconds)
+        arrays.append(pyarrow.compute.cast(col, new_type, safe=False))
+        fields.append(pyarrow.field(fld.name, new_type, fld.nullable, fld.metadata))
 
     if not changed:
         return tbl
 
     new_schema = pyarrow.schema(fields, metadata=tbl.schema.metadata)
     return pyarrow.Table.from_arrays(arrays, schema=new_schema)
+
+
+def _is_arrow_uuid_extension(arrow_type: Any) -> bool:
+    return (
+        isinstance(arrow_type, pyarrow.BaseExtensionType)
+        and arrow_type.extension_name == ARROW_UUID_EXTENSION_NAME
+    )

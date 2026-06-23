@@ -16,19 +16,19 @@ jobs:
     name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
 
-  # if the PR is from a fork, we need to authorize the secrets access and remote destinations run with a lable
-  authorize_run_from_fork:
-    name: check if fork and if so wether secrets are available
-    # run when label is assigned OR when we are not a fork
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'ci from fork') || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
-    runs-on: ubuntu-latest
+  # check for secret-requiring jobs: secrets are only available for internal (same-repo) PRs under pull_request.
+  # fork PRs with the `ci from fork` label are handled separately by fork_tests_with_secrets.yml (pull_request_target).
+  authorize_secrets:
+    name: secrets (internal PRs)
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize') }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - run: true
 
   # testing and linting of docs snippets is always run to catch problems in the docs
   # NOTE: we could splint linting and testing of docs so linter can also always run for fork PRs
   test_docs:
-    name: lint and test snippets, examples and notebooks in docs, lints tools
+    name: docs
     uses: ./.github/workflows/test_docs.yml
     secrets: inherit
 
@@ -38,18 +38,18 @@ jobs:
     uses: ./.github/workflows/build_docs.yml
   
   lint:
-    name: lint on all python versions
+    name: lint
     needs: get_docs_changes
     uses: ./.github/workflows/lint.yml
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
 
   test_common:
-    name: run common tests on all python versions and OSes
+    name: common
     needs: [lint]
     uses: ./.github/workflows/test_common.yml
 
   test_dashboard:
-    name: run dashboard tests
+    name: dashboard
     needs: [lint]
     uses: ./.github/workflows/test_tools_dashboard.yml
 
@@ -58,54 +58,53 @@ jobs:
   # Other tests that do not require remote connections
   #
   test_destinations_local:
-    name: run local destination tests without secrets
+    name: local
     needs: test_common
     uses: ./.github/workflows/test_destinations_local.yml
 
   test_sources_local:
-    name: run local source tests without secrets
+    name: src local
     needs: test_common
     uses: ./.github/workflows/test_sources_local.yml
 
   test_hub:
-    name: test dlthub features
+    name: hub
     needs: lint
     uses: ./.github/workflows/test_hub.yml
 
   test_tools_airflow:
-    name: test airflow helpers
+    name: airflow
     needs: lint
     uses: ./.github/workflows/test_tools_airflow.yml
 
   test_tools_build_images:
-    name: test build images
+    name: build images
     needs: lint
     uses: ./.github/workflows/test_tools_build_images.yml
 
   #
-  # Remote destination tests and docs examples, needs secrets, 
+  # Remote destination tests and docs examples, needs secrets,
   # so we depend on authorize and forward secrets
   #
-
   test_destinations_remote:
-    name: test remote destinations with secrets
-    needs: [authorize_run_from_fork, test_common]
+    name: remote
+    needs: [authorize_secrets, test_common]
     uses: ./.github/workflows/test_destinations_remote.yml
     secrets: inherit
     with:
-      run_full_test_suite: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
+      run_full_test_suite: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule' }}
 
   #
   # Other tools and tests that require secrets
   #
   test_tools_dbt_runner:
-    name: test dbt runner
-    needs: [test_common, authorize_run_from_fork]
+    name: dbt
+    needs: [test_common, authorize_secrets]
     uses: ./.github/workflows/test_tools_dbt_runner.yml
     secrets: inherit
   
   # dbt cloud tests currently are disabled, TODO: explain why
   # test_tools_dbt_cloud:
-  #   needs: [test_common, authorize_run_from_fork]
+  #   needs: [test_common, authorize_secrets]
   #   uses: ./.github/workflows/test_tools_dbt_cloud.yml
   #   secrets: inherit

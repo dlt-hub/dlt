@@ -3,8 +3,6 @@ title: Configure credentials and pipelines
 description: How to configure dlt pipelines and set up credentials
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables]
 ---
-import DocCardList from '@theme/DocCardList';
-
 The configuration mechanism in `dlt` provides a flexible, secure way to define credentials to external systems and other settings separately from your code.
 
 ## Key features
@@ -17,4 +15,7 @@ The configuration mechanism in `dlt` provides a flexible, secure way to define c
 
 4. **Comprehensive configurability** - Nearly all aspects of `dlt` are configurable, including pipelines, normalizers, loaders, and logging, allowing you to change behavior without modifying code. This capability enables performance optimization and other adjustments at runtime.
 
-<DocCardList />
+- [Setup](./setup.md)
+- [Advanced](./advanced.md)
+- [Vaults](./vaults.md)
+- [Complex types](./complex_types.md)

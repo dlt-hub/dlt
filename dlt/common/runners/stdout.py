@@ -51,10 +51,15 @@ def iter_std(
 
         def _r_q(std_: OutputStdStreamNo) -> None:
             stream_ = process.stderr if std_ == 2 else process.stdout
-            for line in iter(stream_.readline, ""):
-                q_.put((std_, line.rstrip("\n")))
-            # close queue
-            q_.put(None)
+            try:
+                for line in iter(stream_.readline, ""):
+                    q_.put((std_, line.rstrip("\n")))
+            except (ValueError, OSError):
+                # broken pipe
+                pass
+            finally:
+                # close queue
+                q_.put(None)
 
         # read stderr with a thread, selectors do not work on windows
         t_out = Thread(target=_r_q, args=(1,), daemon=True)
@@ -91,7 +96,6 @@ def iter_stdout(venv: Venv, command: str, *script_args: Any) -> Iterator[str]:
         stderr: List[str] = []
 
         def _r_stderr() -> None:
-            nonlocal stderr
             for line in iter(process.stderr.readline, ""):
                 stderr.append(line)
 

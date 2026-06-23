@@ -26,11 +26,12 @@ class NormalizeStorage(VersionedStorage):
         self, is_owner: bool, config: NormalizeStorageConfiguration = config.value
     ) -> None:
         super().__init__(
-            NormalizeStorage.STORAGE_VERSION,
-            is_owner,
             FileStorage(config.normalize_volume_path, "t", makedirs=is_owner),
         )
         self.config = config
+        if is_owner or self.is_storage_ready():
+            # allow migrations for non-owner when storage is already created
+            self.ensure_migration(NormalizeStorage.STORAGE_VERSION, True)
         if is_owner:
             self.initialize_storage()
         self.extracted_packages = PackageStorage(
@@ -40,6 +41,9 @@ class NormalizeStorage(VersionedStorage):
 
     def initialize_storage(self) -> None:
         self.storage.create_folder(NormalizeStorage.EXTRACTED_FOLDER, exists_ok=True)
+
+    def is_storage_ready(self) -> bool:
+        return self.storage.has_folder(NormalizeStorage.EXTRACTED_FOLDER)
 
     def list_files_to_normalize_sorted(self) -> Sequence[str]:
         """Gets all data files in extracted packages storage. This method is compatible with current and all past storages"""

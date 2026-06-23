@@ -28,4 +28,8 @@ yarn-error.log*
 versions.json
 versioned_docs
 versioned_sidebars
+versioned_redirects
 .dlt-repo
+
+# compiled redirects (built from redirects.js + versioned_redirects/*.js)
+redirects.compiled.js

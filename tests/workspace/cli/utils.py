@@ -1,4 +1,5 @@
 import os
+import sys
 import pytest
 import shutil
 from typing import Iterator
@@ -12,7 +13,7 @@ from dlt.sources import SourceReference
 from dlt._workspace.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO
 
 from tests.utils import get_test_storage_root
-from tests.workspace.utils import EMPTY_WORKSPACE_DIR
+from tests.workspace.utils import empty_workspace_dir
 
 INIT_REPO_LOCATION = DEFAULT_VERIFIED_SOURCES_REPO
 INIT_REPO_BRANCH = "master"
@@ -20,13 +21,9 @@ WORKSPACE_CLI_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cl
 
 
 @pytest.fixture(autouse=True)
-def auto_echo_default_choice() -> Iterator[None]:
-    """Always answer default in CLI interactions"""
-    echo.ALWAYS_CHOOSE_DEFAULT = True
-    try:
-        yield
-    finally:
-        echo.ALWAYS_CHOOSE_DEFAULT = False
+def auto_echo_default_choice(reset_echo_state: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force `ALWAYS_CHOOSE_DEFAULT=True` for tests that import this fixture, on top of the conftest reset."""
+    monkeypatch.setattr(echo, "ALWAYS_CHOOSE_DEFAULT", True)
 
 
 @pytest.fixture(scope="session")
@@ -50,8 +47,24 @@ def cloned_init_repo(_cached_init_repo: FileStorage) -> FileStorage:
 
 
 @pytest.fixture
-def repo_dir(cloned_init_repo: FileStorage) -> str:
-    return get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
+def repo_dir(cloned_init_repo: FileStorage) -> Iterator[str]:
+    dir_ = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
+
+    prev_modules = set(sys.modules.keys())
+    try:
+        yield dir_
+    finally:
+        print(
+            "NEWE MODULES",
+            [
+                getattr(sys.modules[mod], "__file__", None)
+                for mod in set(sys.modules.keys()).difference(prev_modules)
+            ],
+        )
+        # drop sys.modules entries loaded from this repo dir so the next test
+        # re-executes their @dlt.source/@dlt.resource decorators and re-registers
+        # sources in `SourceReference.SOURCES` after `workspace_files` clears it
+        # _remove_modules(get_test_storage_root())
 
 
 @pytest.fixture
@@ -79,4 +92,4 @@ def get_workspace_files(clear_all_sources: bool = True) -> FileStorage:
         SourceReference.SOURCES.clear()
 
     # project dir - use current working directory
-    return FileStorage(EMPTY_WORKSPACE_DIR, makedirs=False)
+    return FileStorage(empty_workspace_dir(), makedirs=False)

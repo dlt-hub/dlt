@@ -6,16 +6,20 @@ keywords: [data, dataset, sql, ibis, marimo]
 
 # Explore your data with marimo
 
+:::tip
+For an agent-driven workflow, see the [dltHub AI workbench data exploration toolkit](https://github.com/dlt-hub/dlthub-ai-workbench/tree/master/workbench/data-exploration) — a set of context files and prompts for generating marimo notebooks from your dlt datasets with a coding agent.
+:::
+
 [marimo](https://github.com/marimo-team/marimo) is a reactive Python notebook. It completely revamps the Jupyter notebook experience. Whenever code is executed or you interact with a UI element, dependent cells are re-executed ensuring consistency between code and displayed outputs.
 
-This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich environment to explore loaded data, write data transformations, and create data applications.
+This page shows how dlt + marimo + [ibis](../../dlt-ecosystem/transformations/python.md#using-ibis) provide a rich environment to explore loaded data, write data transformations, and create data applications.
 
 ## Prerequisites
 
-To install marimo and ibis with the duckdb extras, run the following command: 
+Install the required dependencies:
 
 ```sh
-pip install marimo "ibis-framework[duckdb]"
+pip install marimo ibis-framework mowidgets duckdb
 ```
 
 ## Launch marimo
@@ -33,6 +37,10 @@ Here's a screenshot of the interface you should see:
 
 ![](./static/marimo_notebook.png)
 
+To run an existing local marimo notebook:
+```sh
+marimo run my_notebook.py
+```
 
 ## Features
 
@@ -60,7 +68,7 @@ Available widgets: `pipeline_selector`, `load_package_viewer`, `schema_viewer`.
 
 ### View dataset tables and columns
 
-After loading data with dlt, you can access it via the [dataset interface](./dataset.md), including a [native ibis connection](./ibis-backend.md).
+After loading data with dlt, you can access it via the [dataset interface](./dataset.md), including a [native ibis connection](../../dlt-ecosystem/transformations/python.md#using-ibis).
 
 In marimo, the **Datasources** panel provides a GUI to explore data tables and columns. When a cell contains a variable that's an ibis connection, it is automatically registered.
 
@@ -91,7 +99,7 @@ The **Datasources** displays a limited range of data types.
 
 ### Create a dashboard and data apps
 
-marimo notebooks can be [deployed as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/) and the code hidden. Try adding [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), rich markdown, and charts (matplotlib, plotly, altair, etc.). Combined, dlt + marimo + ibis make it easy to build a simple dashboard on top of fresh data.
+Marimo notebooks can also be [deployed as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/) and the code hidden. Try adding [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), rich markdown, and charts (matplotlib, plotly, altair, etc.). Combined, dlt + marimo + ibis make it easy to build a simple dashboard on top of fresh data.
 
 
 ## Further reading

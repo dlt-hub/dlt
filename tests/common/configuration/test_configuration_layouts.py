@@ -180,6 +180,25 @@ def test_compact_sources_layout(
     assert _build_section_lookup_paths(explicit, embedded, config_section, True) == expected
 
 
+def test_compact_layout_configurable() -> None:
+    """Compact layout works for any section registered in COMPACT_LAYOUT_SECTIONS."""
+    from dlt.common.configuration.resolve import COMPACT_LAYOUT_SECTIONS
+
+    COMPACT_LAYOUT_SECTIONS.add("jobs")
+    try:
+        # jobs.section.name — compact jobs.name inserted
+        result = _build_section_lookup_paths(("jobs", "batch_jobs", "backfill"), (), None, True)
+        assert ("jobs", "backfill") in result
+        assert result.index(("jobs", "backfill")) > result.index(("jobs", "batch_jobs"))
+
+        # unregistered section does NOT get compact path
+        COMPACT_LAYOUT_SECTIONS.discard("custom")
+        result = _build_section_lookup_paths(("custom", "mod", "fn"), (), None, True)
+        assert ("custom", "fn") not in result
+    finally:
+        COMPACT_LAYOUT_SECTIONS.discard("jobs")
+
+
 def test_non_section_provider_paths() -> None:
     """Non-section providers always get a single empty-tuple path."""
     assert _build_section_lookup_paths(("a", "b"), (), None, False) == [()]

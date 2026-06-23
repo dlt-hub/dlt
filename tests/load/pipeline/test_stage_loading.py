@@ -305,7 +305,6 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     # apply the exact columns definitions so we process nested and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
     def my_resource():
-        nonlocal data_types
         yield [data_types] * 10
 
     @dlt.source(max_table_nesting=0)

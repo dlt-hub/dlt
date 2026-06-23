@@ -211,6 +211,13 @@ def test_apply_lag_to_pendulum_date(
         # String date - YYYYMMDD format
         (1, "20230115", max, "20230114"),
         (1, "20230115", min, "20230116"),
+        # ISO week dates crossing a year boundary where the week-numbering year
+        # differs from the calendar year (regression guard for %V vs %W detection)
+        (604800, "2026-W01", max, "2025-W52"),
+        (604800, "2026-W01", min, "2026-W02"),
+        (86400, "2026-W01-1", min, "2026-W01-2"),
+        (604800, "2020-W53", min, "2021-W01"),
+        (604800, "2021-W01", max, "2020-W53"),
     ],
     ids=[
         "string_datetime_utc_max_1hour",
@@ -225,6 +232,11 @@ def test_apply_lag_to_pendulum_date(
         "string_date_iso_min_7days",
         "string_date_compact_max_1day",
         "string_date_compact_min_1day",
+        "string_week_iso_max_boundary",
+        "string_week_iso_min_boundary",
+        "string_week_iso_day_min",
+        "string_week_iso_53_min",
+        "string_week_iso_max_to_53",
     ],
 )
 def test_apply_lag_to_str_value(

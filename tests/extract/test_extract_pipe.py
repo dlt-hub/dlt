@@ -71,9 +71,6 @@ def test_next_item_mode() -> None:
 
 
 def test_rotation_on_none() -> None:
-    global gen_1_started
-    global gen_2_started
-    global gen_3_started
     started = time.time()
 
     def source_gen1():

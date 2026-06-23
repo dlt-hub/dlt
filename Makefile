@@ -29,13 +29,13 @@ has-uv:
 	uv --version
 
 dev: has-uv ## Prepares development environment
-	uv sync --all-extras --no-extra hub --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --no-extra hub --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 dev-airflow: has-uv ## Prepares development environment with airflow support
-	uv sync --all-extras --no-extra hub --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
+	uv sync --all-extras --no-extra hub --group workspace-deps --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 
 dev-hub: has-uv ## Prepares development environment with hub support
-	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 lint: lint-core lint-security lint-docstrings lint-lock lint-deps ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile, deps)
 
@@ -43,7 +43,7 @@ lint-lock: ## Checks uv lockfile is in sync
 	uv lock --check
 
 lint-deps: ## Checks dependencies, hub extras, and API breaking changes (informational)
-	uv run python tools/check_hub_extras.py
+	-uv run python tools/check_hub_extras.py
 	-uv run python -m tools.check_dependency_changes
 	-uv run python -m tools.check_api_breaking check
 
@@ -52,7 +52,7 @@ lint-core: ## Runs core linting (mypy, ruff, flake8)
 	uv run ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt tools
-	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
+	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/,tests/plugins/dlt_example_plugin/.venv,tests/plugins/dlt_example_plugin/build
 
 format: ## Formats code with black
 	uv run black dlt tests tools --extend-exclude='.*syntax_error.py|^_storage[^/]*/'
@@ -93,13 +93,13 @@ PYTEST_XDIST_DIST  ?= worksteal
 PYTEST_TARGET_ARGS :=
 
 # Internal marker model
-PARALLEL_MARKER_EXPR = (not serial and not forked)
-SERIAL_MARKER_EXPR   = (serial or forked)
+PARALLEL_MARKER_EXPR = (not serial and not forked and not rfam)
+SERIAL_MARKER_EXPR   = (serial or forked) and not rfam
 
 ifeq ($(OS),Windows_NT)
   PYTEST_MARKERS += not forked and not rfam
   PYTEST_ARGS += -p no:forked
-  SERIAL_MARKER_EXPR = serial
+  SERIAL_MARKER_EXPR = serial and not rfam
 endif
 
 define COMBINE_MARKERS
@@ -225,7 +225,8 @@ TEST_COMMON_CORE_PATHS = \
 	tests/load/test_dummy_client.py \
 	tests/extract/test_extract.py \
 	tests/extract/test_sources.py \
-	tests/pipeline/test_pipeline_state.py
+	tests/pipeline/test_pipeline_state.py \
+	--ignore tests/normalize/test_normalize_arrow.py
 
 test-common-core:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_CORE_PATHS))
@@ -257,7 +258,7 @@ test-pipeline-min:
 install-pipeline-arrow:
 	uv sync $(UV_SYNC_ARGS) --extra duckdb --extra cli --extra parquet
 
-TEST_PIPELINE_ARROW_PATHS = tests/pipeline/test_pipeline_extra.py
+TEST_PIPELINE_ARROW_PATHS = tests/pipeline/test_pipeline_extra.py tests/normalize/test_normalize_arrow.py
 
 test-pipeline-arrow: PYTEST_TARGET_ARGS = -k arrow
 test-pipeline-arrow:
@@ -268,7 +269,7 @@ test-pipeline-arrow:
 # ----------------------------------------------------------------------
 
 install-workspace:
-	uv sync $(UV_SYNC_ARGS) --extra workspace --extra cli
+	uv sync $(UV_SYNC_ARGS) --group workspace-deps --extra cli --group streamlit
 
 TEST_WORKSPACE_PATHS = tests/workspace
 
@@ -318,7 +319,7 @@ test-pipeline-full:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_FULL_PATHS))
 
 install-sqlalchemy2:
-	uv run pip install sqlalchemy==2.0.32
+	uv run pip install --upgrade sqlalchemy
 
 TEST_SQL_DATABASE_PATHS = tests/sources/sql_database tests/common/libs/
 

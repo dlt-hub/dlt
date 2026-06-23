@@ -8,8 +8,6 @@ import dlt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
-from dlt.common.utils import digest128
-from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeCredentials,
     DuckLakeClientConfiguration,
@@ -102,8 +100,8 @@ def test_ducklake_configuration_default() -> None:
     assert credentials.storage_url == str(local_dir / "ducklake.files")
     # file url
     assert credentials.storage.bucket_url.startswith("file://")
-    # fingerprint is local
-    assert configuration.fingerprint() == digest128("file://")
+    expected_loc = f"sqlite://{local_dir / 'ducklake.sqlite'}"
+    assert configuration.physical_location() == expected_loc
 
 
 def test_ducklake_configuration_duckdb_catalog() -> None:
@@ -121,7 +119,8 @@ def test_ducklake_configuration_duckdb_catalog() -> None:
     assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.duckdb"))
-    assert configuration.fingerprint() == digest128("file://")
+    expected_loc = f"duckdb://{local_dir / 'ducklake.duckdb'}"
+    assert configuration.physical_location() == expected_loc
 
 
 def test_ducklake_configuration_ducklake_name() -> None:
@@ -138,8 +137,8 @@ def test_ducklake_configuration_ducklake_name() -> None:
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "my_ducklake.sqlite"))
     assert credentials.storage_url == str(local_dir / "my_ducklake.files")
-    # fingerprint is local
-    assert configuration.fingerprint() == digest128("file://")
+    expected_loc = f"sqlite://{local_dir / 'my_ducklake.sqlite'}"
+    assert configuration.physical_location() == expected_loc
 
 
 def test_ducklake_configuration_destination_name() -> None:
@@ -156,8 +155,8 @@ def test_ducklake_configuration_destination_name() -> None:
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
     assert credentials.storage_url == str(local_dir / "ducklake.files")
-    # fingerprint is local
-    assert configuration.fingerprint() == digest128("file://")
+    expected_loc = f"sqlite://{local_dir / 'ducklake.sqlite'}"
+    assert configuration.physical_location() == expected_loc
 
 
 def test_ducklake_configuration_pipeline_name() -> None:
@@ -202,8 +201,7 @@ def test_ducklake_configuration_storage_credentials() -> None:
     )
     # NOTE: dataset folders will be created in /lake/
     assert credentials.storage_url == "s3://dlt-ci-test-bucket/lake"
-    # fingerprint is NOT local
-    assert configuration.fingerprint() == digest128("s3://dlt-ci-test-bucket")
+    assert configuration.physical_location() == "postgres://localhost:5432/dlt_data#my_ducklake"
 
 
 def test_ducklake_configuration_catalog_credentials() -> None:
@@ -289,6 +287,48 @@ def test_ducklake_attach_statement_with_override_data_path() -> None:
         override_data_path=True,
     )
     assert expected_attach_statement == attach_statement
+
+
+def test_ducklake_attach_statement_with_automatic_migration() -> None:
+    # we only assert the option is rendered into the ATTACH statement. the actual catalog
+    # migration triggered by `AUTOMATIC_MIGRATION true` is behavior of the ducklake extension
+    # and is tested upstream in the ducklake repo, not here.
+    expected_attach_statement = (
+        "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data'"
+        " AS foo (DATA_PATH '/path/to/storage', METADATA_SCHEMA 'foo',"
+        " AUTOMATIC_MIGRATION true)"
+    )
+    attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data"),
+        ducklake_name="foo",
+        storage_url="/path/to/storage",
+        automatic_migration=True,
+    )
+    assert expected_attach_statement == attach_statement
+    # sqlite/duckdb catalog branch also carries the option
+    sqlite_attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("sqlite:///catalog.sqlite"),
+        ducklake_name="foo",
+        storage_url="/path/to/storage",
+        automatic_migration=True,
+    )
+    assert "AUTOMATIC_MIGRATION true" in sqlite_attach_statement
+
+
+def test_ducklake_attach_statement_without_automatic_migration() -> None:
+    # flag off by default: option absent for both postgres and sqlite/duckdb branches
+    postgres_attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data"),
+        ducklake_name="foo",
+        storage_url="/path/to/storage",
+    )
+    assert "AUTOMATIC_MIGRATION" not in postgres_attach_statement
+    sqlite_attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("sqlite:///catalog.sqlite"),
+        ducklake_name="foo",
+        storage_url="/path/to/storage",
+    )
+    assert "AUTOMATIC_MIGRATION" not in sqlite_attach_statement
 
 
 def test_ducklake_attach_statement_with_metadata_schema() -> None:

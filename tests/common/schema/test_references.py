@@ -409,21 +409,27 @@ def test_create_load_table_reference_from_child(schema: dlt.Schema) -> None:
     they have no parent.
     """
     with pytest.raises(ValueError) as e:
-        create_load_table_reference(schema.tables["root_table1__child1"])
+        create_load_table_reference(schema.tables["root_table1__child1"], naming=schema.naming)
     assert e.match(
         "Table `root_table1__child1` is not a root table and has no `_dlt_load_id` column."
     )
 
     with pytest.raises(ValueError) as e:
-        create_load_table_reference(schema.tables["root_table1__child1__child2"])
+        create_load_table_reference(
+            schema.tables["root_table1__child1__child2"], naming=schema.naming
+        )
     assert e.match(
         "Table `root_table1__child1__child2` is not a root table and has no `_dlt_load_id` column."
     )
 
 
 def test_create_load_reference_from_root(schema: dlt.Schema) -> None:
-    root1_to_load_ref = create_load_table_reference(schema.tables["root_table1"])
-    root2_to_load_ref = create_load_table_reference(schema.tables["root_table2"])
+    root1_to_load_ref = create_load_table_reference(
+        schema.tables["root_table1"], naming=schema.naming
+    )
+    root2_to_load_ref = create_load_table_reference(
+        schema.tables["root_table2"], naming=schema.naming
+    )
 
     assert root1_to_load_ref == EXPECTED_ROOT1_TO_LOAD_REF
     assert root2_to_load_ref == EXPECTED_ROOT2_TO_LOAD_REF

@@ -1,6 +1,7 @@
 import os
-import pytest
 from typing import Iterator
+
+import pytest
 
 from tests.load.utils import (
     ALL_BUCKETS,

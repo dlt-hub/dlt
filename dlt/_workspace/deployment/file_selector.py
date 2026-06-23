@@ -1,9 +1,14 @@
-from typing import Iterable, Iterator, Optional, List, Tuple
+from typing import Iterable, Iterator, Optional, List, Tuple, TYPE_CHECKING
 from pathlib import Path
-from pathspec import PathSpec
-from pathspec.util import iter_tree_files
+
+
+if TYPE_CHECKING:
+    from pathspec import PathSpec
+
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.profile import LOCAL_PROFILES
+
 
 # fallback ignore patterns used when no ignore file is found in the workspace
 DEFAULT_IGNORES: List[str] = [
@@ -51,10 +56,12 @@ class WorkspaceFileSelector(BaseFileSelector):
         self.settings_dir: Path = Path(context.settings_dir).resolve()
         self.ignore_file: str = ignore_file
         self.ignore_file_found: bool = False
-        self.ignore_spec: PathSpec = self._build_pathspec(additional_excludes or [])
+        self.ignore_spec: "PathSpec" = self._build_pathspec(additional_excludes or [])
 
-    def _build_pathspec(self, additional_excludes: List[str]) -> PathSpec:
+    def _build_pathspec(self, additional_excludes: List[str]) -> "PathSpec":
         """Build PathSpec from ignore file + defaults + additional excludes"""
+        from pathspec import PathSpec
+
         patterns: List[str] = [f"{self.settings_dir.relative_to(self.root_path)}/"]
 
         # load ignore file if exists, otherwise fall back to default ignores
@@ -69,10 +76,12 @@ class WorkspaceFileSelector(BaseFileSelector):
         # Add caller-provided excludes
         patterns.extend(additional_excludes)
 
-        return PathSpec.from_lines("gitwildmatch", patterns)
+        return PathSpec.from_lines("gitignore", patterns)
 
     def __iter__(self) -> Iterator[Tuple[Path, Path]]:
         """Yield paths of files eligible for deployment"""
+        from pathspec.util import iter_tree_files
+
         root_path = Path(self.root_path)
         for file_path in iter_tree_files(self.root_path):
             if not self.ignore_spec.match_file(file_path):
@@ -80,16 +89,31 @@ class WorkspaceFileSelector(BaseFileSelector):
 
 
 class ConfigurationFileSelector(BaseFileSelector):
-    """Iterates config and secrets files in workspace"""
+    """Iterates top-level config/secrets TOMLs from the workspace settings dir."""
 
     def __init__(
         self,
         context: WorkspaceRunContext,
+        local_profiles: Optional[List[str]] = None,
     ) -> None:
         self.settings_dir: Path = Path(context.settings_dir).resolve()
+        # files belonging to local-only profiles (`dev`, `tests` by default) are excluded
+        if local_profiles is None:
+            local_profiles = LOCAL_PROFILES
+        # filter out files starting with ie. "dev"
+        self._excluded_prefixes: Tuple[str, ...] = tuple(f"{p}." for p in local_profiles)
 
     def __iter__(self) -> Iterator[Tuple[Path, Path]]:
-        """Yield paths of config and secrets paths"""
-        for file_path in iter_tree_files(self.settings_dir):
-            if file_path.endswith("config.toml") or file_path.endswith("secrets.toml"):
-                yield self.settings_dir / file_path, Path(file_path)
+        """Yield paths of config and secrets files (flat, profile-filtered)."""
+        if not self.settings_dir.exists():
+            return
+        # picks only files directly under `<workspace>/.dlt/`
+        for entry in sorted(self.settings_dir.iterdir()):
+            if not entry.is_file():
+                continue
+            name = entry.name
+            if not (name.endswith("config.toml") or name.endswith("secrets.toml")):
+                continue
+            if name.startswith(self._excluded_prefixes):
+                continue
+            yield entry, Path(name)

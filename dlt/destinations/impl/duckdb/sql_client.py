@@ -21,6 +21,7 @@ from typing import (
     Tuple,
     Generator,
     Type,
+    TYPE_CHECKING,
     cast,
 )
 
@@ -29,6 +30,8 @@ from dlt.common.configuration.specs.hf_credentials import HfCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.configuration.specs import (
     AwsCredentials,
+    AzureCredentials,
+    AzureServicePrincipalCredentials,
     AzureServicePrincipalCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
@@ -46,7 +49,7 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
 )
 from dlt.destinations.impl.duckdb.exceptions import IcebergViewException
-from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
+from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
@@ -54,6 +57,10 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
+    from pyarrow import Table as ArrowTable
 
 from dlt.destinations.impl.duckdb.configuration import (
     DuckDbBaseCredentials,
@@ -74,7 +81,7 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             return 1
         return math.floor(chunk_size / self.vector_size)
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator["DataFrame", None, None]:
         # full frame
         if not chunk_size:
             yield self.native_cursor.fetch_df()
@@ -86,10 +93,13 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
                 break
             yield df
 
-    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+    def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
         if not chunk_size:
             yield self.native_cursor.fetch_arrow_table()
             return
+        # resolve pa at runtime; `ArrowTable` is a TYPE_CHECKING-only alias above
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
         # iterate
         method = (
             "to_arrow_reader"
@@ -97,7 +107,7 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             else "fetch_record_batch"
         )
         for item in getattr(self.native_cursor, method)(chunk_size):
-            yield ArrowTable.from_batches([item])
+            yield pa.Table.from_batches([item])
 
     def close(self, *args: Any, **kwargs: Any) -> None:
         # duckdb cursor is just original connection so we cannot close it
@@ -303,6 +313,28 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         if "@" in scope:
             scope = scope.split("@")[0]
 
+        sql = self._build_secret_statements(
+            scope, credentials, secret_name, persistent_stmt, persist_secrets
+        )
+        if not sql:
+            # could not create secret - the filesystem client falls back to fsspec
+            return False
+        self._conn.sql(";\n".join(sql))
+        return True
+
+    @staticmethod
+    def _build_secret_statements(
+        scope: str,
+        credentials: FileSystemCredentials,
+        secret_name: str,
+        persistent_stmt: str,
+        persist_secrets: bool,
+    ) -> List[str]:
+        """Builds `CREATE SECRET` statements for `scope`/`credentials`, empty when none apply.
+
+        Default credentials hand over to DuckDB's `credential_chain` (which refreshes); static
+        and external-session credentials are frozen.
+        """
         protocol = urlparse(scope).scheme
         sql: List[str] = []
 
@@ -320,12 +352,21 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
             s3_url_style = aws_creds.s3_url_style or "path"
 
-            if isinstance(aws_creds, AwsCredentials) and aws_creds.has_default_credentials():
-                # let DuckDB resolve credentials from botocore's default chain
+            if (
+                isinstance(aws_creds, AwsCredentials)
+                and aws_creds.has_default_credentials()
+                and not aws_creds.is_external_session()
+            ):
+                # hand over to DuckDB's credential_chain (REFRESH auto re-resolves the AWS
+                # chain on expiry, added in 1.1.0); external sessions are frozen below
+                refresh_stmt = (
+                    "REFRESH auto," if Version(duckdb.__version__) >= Version("1.1.0") else ""
+                )
                 sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE S3,
                     PROVIDER credential_chain,
+                    {refresh_stmt}
                     REGION '{aws_creds.region_name}',
                     ENDPOINT '{endpoint}',
                     SCOPE '{scope}',
@@ -354,7 +395,37 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             # see duckdb docs
             sql.append("SET azure_transport_option_type = 'curl'")
 
-            if isinstance(credentials, AzureCredentialsWithoutDefaults):
+            if (
+                isinstance(credentials, (AzureCredentials, AzureServicePrincipalCredentials))
+                and credentials.has_default_credentials()
+            ):
+                if credentials.is_external_session():
+                    # DuckDB's chain cannot resolve a user-passed credential, so freeze a bearer
+                    access_token = (
+                        credentials.default_credentials()
+                        .get_token("https://storage.azure.com/.default")
+                        .token
+                    )
+                    sql.append(f"""
+                    CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                        TYPE AZURE,
+                        PROVIDER access_token,
+                        ACCESS_TOKEN '{access_token}',
+                        ACCOUNT_NAME '{credentials.azure_storage_account_name}',
+                        SCOPE '{scope}'
+                    )""")
+                else:
+                    # hand over to DuckDB's azure credential_chain (env / workload / managed
+                    # identity / az-cli), which refreshes; static branches can't express defaults
+                    sql.append(f"""
+                    CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                        TYPE AZURE,
+                        PROVIDER credential_chain,
+                        ACCOUNT_NAME '{credentials.azure_storage_account_name}',
+                        SCOPE '{scope}'
+                    )""")
+
+            elif isinstance(credentials, AzureCredentialsWithoutDefaults):
                 sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE AZURE,
@@ -389,11 +460,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 f" `{protocol}`. If you are trying to use persistent secrets"
                 " with gs/gcs, please use the s3 compatibility layer."
             )
-        else:
-            # could not create secret
-            return False
-        self._conn.sql(";\n".join(sql))
-        return True
+
+        return sql
 
     def use_dataset(self) -> None:
         """Makes duckdb schema corresponding to dataset_name the default"""
@@ -601,6 +669,9 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         ``UNION ALL BY NAME``.
         """
         existing_tables = set(tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall())
+
+        # TODO: existing table schemas and sql statements can be cached so we do not have to recompute everything
+        #  with every query
         tables_with_data: set[str] = set()
         for s in self.schemas.values():
             tables_with_data.update(s.dlt_table_names())
@@ -683,8 +754,8 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             if not table.this:
                 continue
             schema = table.db
-            # add only tables from the dataset schema
-            if schema or schema.lower() != self.dataset_name.lower():
+            # add only tables that do not have schema prefix or schema prefix is actual dataset
+            if not schema or schema.lower() == self.dataset_name.lower():
                 load_tables[table.name] = table.name
 
         if load_tables:

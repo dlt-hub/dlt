@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast
 
 import sqlglot.expressions as sge
 
-from sqlglot.errors import OptimizeError
+from sqlglot.errors import OptimizeError, SchemaError
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
@@ -137,7 +137,7 @@ def compute_columns_schema(
                 expand_stars=True,
             ),
         )
-    except OptimizeError as e:
+    except (OptimizeError, SchemaError) as e:
         raise LineageFailedException(
             f"Failed to resolve SQL query against the schema received: {e}"
         ) from e

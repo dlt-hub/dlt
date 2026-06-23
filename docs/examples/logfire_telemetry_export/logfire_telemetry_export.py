@@ -57,10 +57,11 @@ async def metrics(
         pyarrow.Table: A batch of metric rows as an Arrow table.
     """
     async with AsyncLogfireQueryClient(read_token=read_token) as client:
-        yield client.query_arrow(
+        batch = await client.query_arrow(
             sql=f"SELECT * FROM metrics LIMIT {batch_size}",
             min_timestamp=min_timestamp.start_value,
         )
+        yield batch.to_pylist()
 
 
 @dlt.resource
@@ -91,10 +92,11 @@ async def records(
         pyarrow.Table: A batch of span/log rows as an Arrow table.
     """
     async with AsyncLogfireQueryClient(read_token=read_token) as client:
-        yield client.query_arrow(
-            sql=f"SELECT * FROM metrics LIMIT {batch_size}",
+        batch = await client.query_arrow(
+            sql=f"SELECT * FROM records LIMIT {batch_size}",
             min_timestamp=min_timestamp.start_value,
         )
+        yield batch.to_pylist()
 
 
 @dlt.source

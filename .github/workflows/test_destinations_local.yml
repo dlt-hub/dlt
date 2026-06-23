@@ -1,7 +1,7 @@
 # Tests destinations that can run without credentials.
 # i.e. local postgres, duckdb, filesystem (with local fs/memory bucket)
 
-name: dest | postgres, duckdb, fs, weaviate, qdrant
+name: local
 
 on:
   workflow_call:
@@ -15,7 +15,7 @@ env:
 jobs:
 
   run_destinations_local:
-    name: dest | local
+    name: ${{ matrix.display_name }}
 
     strategy:
       fail-fast: false
@@ -23,7 +23,7 @@ jobs:
         include:
 
           # Duckdb, Postgres, Filesystem, Weaviate, Qdrant (could be split?)
-          - name: filesystem, weaviate
+          - display_name: filesystem, weaviate
             destinations: "[\"filesystem\", \"weaviate\"]"
             filesystem_drivers: "[\"memory\", \"file\", \"sftp\"]"
             extras: "--extra parquet --extra cli --extra filesystem --extra weaviate --extra deltalake --extra pyiceberg --extra sftp"
@@ -32,7 +32,7 @@ jobs:
             post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
           # Qdrant runs test serially, concurrency is problematic
-          - name: qdrant
+          - display_name: qdrant
             destinations: "[\"qdrant\"]"
             filesystem_drivers: "[\"memory\", \"file\", \"sftp\"]"
             extras: "--extra parquet --extra cli --extra qdrant --extra sftp"
@@ -41,7 +41,7 @@ jobs:
             pytest_xdist_n: 1
 
           # TODO: also test ducklake in remote mode with a buckets and remote postgres
-          - name: postgres, duckdb, ducklake, and dummy
+          - display_name: postgres, duckdb, ducklake, and dummy
             destinations: "[\"postgres\", \"duckdb\", \"ducklake\", \"dummy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "--group adbc --extra postgres --extra postgis --extra parquet --extra duckdb --extra cli --extra filesystem"
@@ -49,7 +49,8 @@ jobs:
             needs_postgres: true
 
           # Clickhouse OSS (TODO: test with minio s3)
-          - name: clickhouse
+          # NOTE: runs on the newest clickhouse-connect from uv.lock, remote tests pin the old driver
+          - display_name: clickhouse
             destinations: "[\"clickhouse\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "--extra clickhouse --extra parquet"
@@ -58,7 +59,7 @@ jobs:
             excluded_destination_configurations: "[\"clickhouse-parquet-staging-s3-authorization\", \"clickhouse-parquet-staging-az-authorization\", \"clickhouse-jsonl-staging-az-authorization\", \"clickhouse-jsonl-staging-s3-authorization\"]"
 
           # Dremio
-          - name: dremio
+          - display_name: dremio
             destinations: "[\"dremio\"]"
             filesystem_drivers: "[\"memory\"]"
             extras: "--extra s3 --extra gs --extra az --extra parquet"
@@ -66,7 +67,7 @@ jobs:
 
             
           # SQLAlchemy 1.4
-          - name: sqlalchemy
+          - display_name: sqlalchemy-1.4
             destinations: "[\"sqlalchemy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "--extra sqlalchemy --extra filesystem --extra parquet --extra postgres --extra oracle --group adbc"
@@ -74,7 +75,7 @@ jobs:
             post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==1.4 && uv run dbc install mysql && uv run dbc install sqlite"
 
           # SQLAlchemy 2.0 (same as above but with sqlalchemy 2.0)
-          - name: sqlalchemy
+          - display_name: sqlalchemy-2.0
             destinations: "[\"sqlalchemy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "--extra sqlalchemy --extra filesystem --extra parquet --extra postgres --extra oracle --group adbc"
@@ -89,7 +90,7 @@ jobs:
     defaults:
       run:
         shell: bash
-    runs-on: "ubuntu-latest"
+    runs-on: blacksmith-8vcpu-ubuntu-2404
 
     # Service containers to run with `container-job`
     services:

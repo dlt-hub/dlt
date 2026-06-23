@@ -112,8 +112,8 @@ def with_telemetry(
             # look for additional arguments in call arguments
             bound_args = sig.bind(*f_args, **f_kwargs)
             props = {p: bound_args.arguments[p] for p in args if p in bound_args.arguments}
-            # append additional props from kwargs
-            props.update(kwargs)
+            # append additional props from kwargs, accepts callables for lazy evaluation
+            props.update({k: v() if callable(v) else v for k, v in kwargs.items()})
             start_ts = time.monotonic()
 
             def _track(success: bool) -> None:

@@ -115,3 +115,10 @@ def test_wei_value(client: PostgresClient, file_storage: FileStorage) -> None:
         f" '{str(pendulum.now())}', {Wei.from_int256(2*256-1, 78)});"
     )
     expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
+
+
+def test_postgres_adbc_copy_job_keeps_streaming_ingest() -> None:
+    from dlt.destinations.impl.postgres.postgres import PostgresParquetCopyJob
+
+    # postgres ADBC driver streams incrementally; default single-call ingest is correct
+    assert PostgresParquetCopyJob._ingest_per_rowgroup is False

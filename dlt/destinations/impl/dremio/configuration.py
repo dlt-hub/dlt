@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Final, Optional, Any, Dict, ClassVar, List
+from typing import Optional, Any, Dict, ClassVar, Final, List
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -38,7 +38,13 @@ class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     """The name of the staging data source"""
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+        """Returns a fingerprint of the configured host."""
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
+        return ""
+
+    def physical_location(self) -> str:
+        """Returns host:port."""
+        if self.credentials and self.credentials.host:
+            return f"{self.credentials.host}:{self.credentials.port}"
         return ""

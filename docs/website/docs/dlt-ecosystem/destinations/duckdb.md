@@ -104,18 +104,18 @@ dlt.config["schema.naming"] = "duck_case"
 
 ## Supported file formats
 You can configure the following file formats to load data into duckdb:
-* [insert-values](../file-formats/insert-format.md) is used by default.
-* [Parquet](../file-formats/parquet.md) is supported.
+* [insert-values](../file-formats.md#sql-insert) is used by default.
+* [Parquet](../file-formats.md#parquet) is supported.
 :::note
 `duckdb` cannot COPY many Parquet files to a single table from multiple threads. In this situation, dlt serializes the loads. Still, that may be faster than INSERT.
 :::
-* [JSONL](../file-formats/jsonl.md)
+* [JSONL](../file-formats.md#jsonl)
 
 :::tip
 `duckdb` has [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html) with resolutions from milliseconds to nanoseconds. However,
 only the microseconds resolution (the most commonly used) is time zone aware. `dlt` generates timestamps with timezones by default, so loading parquet files
 with default settings will fail (`duckdb` does not coerce tz-aware timestamps to naive timestamps).
-Disable the timezones by changing the `dlt` [Parquet writer settings](../file-formats/parquet.md#writer-settings) as follows:
+Disable the timezones by changing the `dlt` [Parquet writer settings](../file-formats.md#writer-settings) as follows:
 ```sh
 DATA_WRITER__TIMESTAMP_TIMEZONE=""
 ```

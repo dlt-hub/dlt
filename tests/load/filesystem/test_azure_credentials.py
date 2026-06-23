@@ -15,6 +15,7 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
+from dlt.common.configuration.specs.exceptions import UnsupportedAuthenticationMethodException
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 
@@ -38,14 +39,9 @@ def az_service_principal_config() -> Optional[FilesystemConfiguration]:
     R/W/E access to the bucket (via ACL of particular container)
 
     """
-    credentials = AzureServicePrincipalCredentialsWithoutDefaults(
-        azure_tenant_id=dlt.config.get("tests.az_sp_tenant_id", str),
-        azure_client_id=dlt.config.get("tests.az_sp_client_id", str),
-        azure_client_secret=dlt.config.get("tests.az_sp_client_secret", str),
-        azure_storage_account_name=dlt.config.get("tests.az_sp_storage_account_name", str),
+    credentials = resolve_configuration(
+        AzureServicePrincipalCredentials(), sections=("destination", "fsazureprincipal")
     )
-    #
-    credentials = resolve_configuration(credentials, sections=("destination", "fsazureprincipal"))
     cfg = FilesystemConfiguration(bucket_url=AZ_BUCKET, credentials=credentials)
 
     return resolve_configuration(cfg)
@@ -131,6 +127,65 @@ def test_azure_credentials_from_default(environment: Dict[str, str]) -> None:
         "anon": False,
         "account_host": None,
     }
+
+
+def _azure_default_credentials(default: Any = None) -> AzureCredentials:
+    creds = AzureCredentials()
+    creds.azure_storage_account_name = "fake_account_name"
+    # handover branches never call the credential, so a placeholder is enough there
+    creds._set_default_credentials(default if default is not None else object())
+    return creds
+
+
+def test_azure_object_store_hands_over_default(environment: Dict[str, str]) -> None:
+    """Default credentials are handed over: object_store resolves and refreshes the env
+    service principal / workload identity / managed identity itself, so we never freeze a token."""
+    os_creds = _azure_default_credentials().to_object_store_rs_credentials()
+    assert "azure_storage_token" not in os_creds
+    assert os_creds == {"account_name": "fake_account_name"}
+
+    # pyiceberg is handed the bare account name so adlfs resolves & refreshes via its own
+    # DefaultAzureCredential (the read environment must set AZURE_STORAGE_ANON=false, since
+    # pyiceberg passes no `anon` flag to adlfs)
+    assert _azure_default_credentials().to_pyiceberg_fileio_config() == {
+        "adls.account-name": "fake_account_name"
+    }
+
+
+def _fake_token_credential(token: str = "frozen-bearer-token") -> Any:
+    from azure.core.credentials import AccessToken
+
+    class _FakeCredential:
+        def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+            return AccessToken(token, 9999999999)
+
+    return _FakeCredential()
+
+
+@pytest.mark.parametrize(
+    "creds_cls", [AzureCredentials, AzureServicePrincipalCredentials], ids=["account", "principal"]
+)
+def test_azure_external_session_always_frozen(creds_cls: Any) -> None:
+    """A user-passed azure-identity credential is an external session: frozen to a bearer token for
+    the object_store crate, passed live to adlfs, and rejected by pyiceberg (no bearer field)."""
+    creds = creds_cls.from_credential(_fake_token_credential())
+    creds.azure_storage_account_name = "fake_account_name"
+    assert creds.is_external_session() and creds.has_default_credentials()
+
+    # object_store: frozen bearer token, no live credential object
+    os_creds = creds.to_object_store_rs_credentials()
+    assert os_creds["azure_storage_token"] == "frozen-bearer-token"
+    assert os_creds["account_name"] == "fake_account_name"
+    assert "credential" not in os_creds
+
+    # adlfs: the live credential object is passed so it refreshes in-process
+    adlfs_creds = creds.to_adlfs_credentials()
+    assert adlfs_creds["credential"] is creds.default_credentials()
+    assert "anon" not in adlfs_creds
+
+    # pyiceberg ADLS cannot express a bearer token / live credential
+    with pytest.raises(UnsupportedAuthenticationMethodException):
+        creds.to_pyiceberg_fileio_config()
 
 
 def test_azure_service_principal_credentials(environment: Dict[str, str]) -> None:

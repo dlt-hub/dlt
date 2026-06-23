@@ -8,7 +8,7 @@ keywords: [how to, deploy a pipeline, github actions]
 
 Before you can deploy a pipeline, you will need to:
   1. [Install dlt](../../reference/installation.md);
-  2. [Create a pipeline](../create-a-pipeline.md);
+  2. [Create a pipeline](../../tutorial/load-data-from-an-api.md);
   3. Sign up for a [GitHub](https://github.com) account, since you will be deploying using
 [GitHub Actions](https://github.com/features/actions).
 
@@ -68,6 +68,21 @@ The pipeline is now running every 30 minutes as you have scheduled. The `dlt dep
 tool printed out a `github.com/.../actions/workflows/run_chess_workflow.yml` link where you can
 monitor (and manually trigger) the GitHub Actions workflow that runs your pipeline in your
 repository.
+
+## Monitoring
+
+In GitHub Actions, at the top level, we can monitor:
+
+- The workflows scheduled to (not) run.
+- Run history (e.g., success/failure).
+
+GitHub Actions workflows:
+
+![GitHub Actions workflows](../../running-in-production/images/github_actions_workflows.png)
+
+GitHub Actions workflow DAG:
+
+![GitHub Actions workflow DAG](../../running-in-production/images/github_actions_workflow_dag.png)
 
 ## Known limitations
 

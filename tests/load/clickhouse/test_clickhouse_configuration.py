@@ -1,8 +1,10 @@
 from typing import Iterator
 
 import pytest
+from pytest_mock import MockerFixture
 
 from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.libs.sql_alchemy_compat import make_url
 from dlt.common.utils import custom_environ, digest128
 from dlt.destinations import clickhouse
@@ -76,15 +78,33 @@ def test_clickhouse_factory_select_sequential_consistency() -> None:
     assert "select_sequential_consistency" not in dest.config_params
 
 
-def test_clickhouse_configuration() -> None:
-    # def empty fingerprint
-    assert ClickHouseClientConfiguration().fingerprint() == ""
-    # based on host
-    config = resolve_configuration(
-        ClickHouseCredentials(),
-        explicit_value="clickhouse://user1:pass1@host1:9000/db1",
-    )
-    assert ClickHouseClientConfiguration(credentials=config).fingerprint() == digest128("host1")
+@pytest.mark.parametrize(
+    "connection_string,expected_fingerprint",
+    [
+        pytest.param("", "", id="empty"),
+        pytest.param(
+            "clickhouse://user1:pass1@host1:9000/db1",
+            digest128("host1"),
+            id="legacy_host_only_custom_port",
+        ),
+        pytest.param(
+            "clickhouse://user1:pass1@host1:9440/db1",
+            digest128("host1"),
+            id="legacy_host_only_default_port",
+        ),
+    ],
+)
+def test_clickhouse_fingerprint(connection_string: str, expected_fingerprint: str) -> None:
+    if connection_string:
+        credentials = resolve_configuration(
+            ClickHouseCredentials(),
+            explicit_value=connection_string,
+        )
+        config = ClickHouseClientConfiguration(credentials=credentials)
+    else:
+        config = ClickHouseClientConfiguration()
+
+    assert config.fingerprint() == expected_fingerprint
 
 
 def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
@@ -146,3 +166,28 @@ def test_client_table_name_and_paths(client: ClickHouseClient) -> None:
     parts = client.sql_client.make_qualified_table_name_path("test_table", quote=False)
     assert parts[0] in databases
     assert parts[1] == f"{dataset_name}###test_table"
+
+
+@pytest.mark.parametrize("engine", ["Atomic", "Shared"])
+def test_staging_optimized_accepts_supported_engines(
+    client: ClickHouseClient, mocker: MockerFixture, engine: str
+) -> None:
+    mocker.patch.object(client.sql_client, "execute_sql", return_value=[(engine,)])
+    client._verify_database_supports_exchange()
+
+
+@pytest.mark.parametrize("engine", ["Ordinary", "Replicated", "Lazy"])
+def test_staging_optimized_rejects_unsupported_engines(
+    client: ClickHouseClient, mocker: MockerFixture, engine: str
+) -> None:
+    mocker.patch.object(client.sql_client, "execute_sql", return_value=[(engine,)])
+    with pytest.raises(DestinationTerminalException, match="Atomic or Shared"):
+        client._verify_database_supports_exchange()
+
+
+def test_staging_optimized_rejects_missing_engine(
+    client: ClickHouseClient, mocker: MockerFixture
+) -> None:
+    mocker.patch.object(client.sql_client, "execute_sql", return_value=[])
+    with pytest.raises(DestinationTerminalException, match="unknown"):
+        client._verify_database_supports_exchange()

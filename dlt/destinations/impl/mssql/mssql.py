@@ -76,7 +76,13 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
         )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
         return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t"
 
     @classmethod
@@ -86,6 +92,9 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
 
 class MssqlParquetCopyJob(AdbcParquetCopyJob):
     _config: MsSqlClientConfiguration
+    # mssql ADBC driver buffers the full input stream in memory; flush per row-group
+    # to bound peak memory and avoid OOM on large parquet files
+    _ingest_per_rowgroup: bool = True
 
     if TYPE_CHECKING:
         from adbc_driver_manager.dbapi import Connection

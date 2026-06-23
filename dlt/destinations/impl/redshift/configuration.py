@@ -22,14 +22,21 @@ class RedshiftCredentials(PostgresCredentials):
 
 @configspec
 class RedshiftClientConfiguration(PostgresClientConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="redshift", init=False, repr=False, compare=False)  # type: ignore
+    destination_type: Final[str] = dataclasses.field(default="redshift", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: RedshiftCredentials = None
 
     staging_iam_role: Optional[str] = None
     has_case_sensitive_identifiers: bool = False
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+        """Returns a fingerprint of the configured host."""
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
+        return ""
+
+    def physical_location(self) -> str:
+        """Returns host:port."""
+        if self.credentials and self.credentials.host:
+            port = self.credentials.port or 5439
+            return f"{self.credentials.host}:{port}"
         return ""

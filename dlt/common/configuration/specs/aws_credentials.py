@@ -29,6 +29,8 @@ class AwsCredentialsWithoutDefaults(
     endpoint_url: Optional[str] = None
     s3_url_style: Optional[str] = None
     """Only needed for duckdb sql_client s3 access, for minio this needs to be set to path for example."""
+    aws_sts_token_expiration_hours: float = 24.0
+    """Lifetime in hours of session tokens minted via STS `get_session_token`. Minted tokens do not auto-refresh."""
 
     def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
         """Dict of keyword arguments that can be passed to s3fs"""
@@ -63,17 +65,20 @@ class AwsCredentialsWithoutDefaults(
         )
 
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        return self._to_object_store_rs_credentials(self.to_session_credentials())
+
+    def _to_object_store_rs_credentials(self, sess_creds: Dict[str, str]) -> Dict[str, str]:
+        """Create object store credentials from `sess_creds`"""
         # https://docs.rs/object_store/latest/object_store/aws
         # NOTE: delta rs will set the values below in env variables of the current process
         # https://github.com/delta-io/delta-rs/blob/bdf1c4e765ca457e49d4fa53335d42736220f57f/rust/src/storage/s3.rs#L257
-        sess_creds = self.to_session_credentials()
         creds = cast(
             Dict[str, str],
             without_none(
                 dict(
-                    aws_access_key_id=sess_creds["aws_access_key_id"],
-                    aws_secret_access_key=sess_creds["aws_secret_access_key"],
-                    aws_session_token=sess_creds["aws_session_token"],
+                    aws_access_key_id=sess_creds.get("aws_access_key_id"),
+                    aws_secret_access_key=sess_creds.get("aws_secret_access_key"),
+                    aws_session_token=sess_creds.get("aws_session_token"),
                     region=self.region_name,
                     endpoint_url=self.endpoint_url,
                 )
@@ -131,6 +136,61 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             )
         return super().to_session_credentials()
 
+    def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
+        # on default credentials omit static key/secret/token so s3fs resolves and refreshes
+        # via its own aiobotocore default chain
+        return self._strip_on_default(super().to_s3fs_credentials(), "key", "secret", "token")
+
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        # only plain refreshable creds (EC2 IMDS / ECS) can be resolved and refreshed by
+        # object_store itself, so we hand over without freezing them. deferred creds
+        # (IRSA/SSO/assume-role) and static creds cannot, so they are passed frozen.
+        # external sessions are always frozen (see `is_external_session`)
+        if (
+            self.has_default_credentials()
+            and not self.is_external_session()
+            and self._default_credentials_self_refresh()
+        ):
+            return self._to_object_store_rs_credentials({})
+        return super().to_object_store_rs_credentials()
+
+    def _default_credentials_self_refresh(self) -> bool:
+        try:
+            from botocore.credentials import (
+                RefreshableCredentials,
+                DeferredRefreshableCredentials,
+            )
+        except ImportError:
+            return False
+        current = self.default_credentials().get_credentials()
+        return isinstance(current, RefreshableCredentials) and not isinstance(
+            current, DeferredRefreshableCredentials
+        )
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        # on default credentials omit static s3 keys so pyarrow's S3FileSystem resolves and
+        # refreshes via the AWS default chain. region/endpoint/timeout are preserved
+        return self._strip_on_default(
+            super().to_pyiceberg_fileio_config(),
+            "s3.access-key-id",
+            "s3.secret-access-key",
+            "s3.session-token",
+        )
+
+    def is_external_session(self) -> bool:
+        """Tells if default credentials come from a boto3/botocore session passed by the user"""
+        return getattr(self, "_external_session", False)
+
+    def _strip_on_default(self, config: Dict[str, Any], *secret_keys: str) -> Dict[str, Any]:
+        """Removes `secret_keys` from `config` for refreshable default credentials so the
+        consumer resolves and refreshes them via its own default chain. Static config and
+        external sessions (see `is_external_session`) are kept frozen.
+        """
+        if self.has_default_credentials() and not self.is_external_session():
+            for k in secret_keys:
+                config.pop(k, None)
+        return config
+
     def to_sts_credentials(self) -> Dict[str, str]:
         """Return session credentials with a session token, generating one via STS if needed."""
         sess_creds = self.to_session_credentials()
@@ -138,7 +198,9 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             return sess_creds
         sess = self._to_botocore_session()
         client = sess.create_client("sts")
-        token = client.get_session_token()
+        token = client.get_session_token(
+            DurationSeconds=int(self.aws_sts_token_expiration_hours * 3600)
+        )
         return dict(
             aws_access_key_id=token["Credentials"]["AccessKeyId"],
             aws_secret_access_key=token["Credentials"]["SecretAccessKey"],
@@ -201,6 +263,8 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             session = self._from_session(native_value)
             if session.get_credentials():
                 self._set_default_credentials(session)
+                # mark as external so we never strip its keys for refresh-capable consumers
+                self._external_session = True
                 self.__is_resolved__ = True
         except Exception:
             raise InvalidBoto3Session(self.__class__, native_value)

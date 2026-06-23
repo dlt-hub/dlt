@@ -1,12 +1,8 @@
 """Pipeline info, config resolution, destination details, and misc pipeline helpers."""
 
-import os
-import platform
-import shutil
-import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
-from dlt._workspace.helpers.dashboard.typing import TNameValueItem, TPipelineListItem
+from dlt._workspace.helpers.dashboard.typing import TNameValueItem
 
 import dlt
 import marimo as mo
@@ -142,42 +138,6 @@ def get_local_data_path(pipeline: dlt.Pipeline) -> str:
     except (PipelineConfigMissing, ConfigFieldMissingException, ConfigurationValueError):
         pass
     return None
-
-
-def open_local_folder(folder: str) -> None:
-    """Open a folder in the file explorer"""
-    system = platform.system()
-    if system == "Windows":
-        os.startfile(folder)  # type: ignore[attr-defined,unused-ignore]
-    elif system == "Darwin":
-        subprocess.run(["open", folder], check=True)
-    elif shutil.which("wslview"):
-        subprocess.run(["wslview", folder], check=True)
-    else:
-        subprocess.run(["xdg-open", folder], check=True)
-
-
-def pipeline_link_list(config: DashboardConfiguration, pipelines: List[TPipelineListItem]) -> str:
-    """Build a markdown list of links to pipelines."""
-    if not pipelines:
-        return strings.overview_no_pipelines
-
-    count = 0
-    link_list: str = ""
-    for _p in pipelines:
-        link = f"* [{_p['name']}](?pipeline={_p['name']})"
-        link = (
-            link
-            + strings.overview_last_executed_label
-            + cli_utils.date_from_timestamp_with_ago(_p["timestamp"], config.datetime_format)
-        )
-
-        link_list += f"{link}\n"
-        count += 1
-        if count == 10:
-            break
-
-    return link_list
 
 
 def exception_section(p: dlt.Pipeline) -> List[mo.Html]:

@@ -78,7 +78,13 @@ class AthenaMergeJob(SqlMergeFollowupJob):
             )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
         # regular table because Athena does not support temporary tables
         return f"CREATE TABLE {temp_table_name} AS {select_sql}"
 
@@ -393,8 +399,11 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update=expected_update)
+        applied_update = super().update_stored_schema(
+            only_tables, expected_update=expected_update, force=force
+        )
         # here we could apply tags only if any migration happened, right now we do it on each run
         # NOTE: tags are applied before any data is loaded
         if (

@@ -111,6 +111,8 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
 1. Create the `fetch_average_price()` function as follows:
    ```py
+   import datetime
+
    import requests
 
    # Uncomment transformer function if it is to be used as a transformer,
@@ -215,9 +217,8 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
    processing.
 
-   `Transformers` are used to process a resource and are ideal for post-load data transformations in a
-   pipeline, compatible with tools like `dbt`, the `dlt SQL client`, or Pandas for intricate data
-   manipulation. To read more:
+   `Transformers` are a form of `dlt resource` that takes input from other resources
+   via the `data_from` argument to enrich or transform the data. To read more:
    [Click here.](../../general-usage/resource#process-resources-with-dlttransformer)
 
    Conversely, `add_map` is used to customize a resource and applies transformations at an item level

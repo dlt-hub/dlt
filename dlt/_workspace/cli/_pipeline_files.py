@@ -3,6 +3,7 @@ import hashlib
 import os
 import yaml
 import posixpath
+from importlib.resources import files
 from pathlib import Path
 from typing import Dict, NamedTuple, Sequence, Tuple, List, Literal
 from dlt._workspace.cli.exceptions import VerifiedSourceRepoError
@@ -314,13 +315,8 @@ def get_core_sources_storage() -> FileStorage:
 
 
 def get_single_file_templates_storage() -> FileStorage:
-    """Get FileStorage for single file templates"""
-    # look up init storage in core
-    init_path = (
-        Path(os.path.dirname(os.path.realpath(__file__))).parent
-        / TEMPLATES_MODULE_NAME
-        / SINGLE_FILE_TEMPLATE_MODULE_NAME
-    )
+    """Get FileStorage for single file templates."""
+    init_path = files("dlt._workspace._templates._single_file_templates")
     return FileStorage(str(init_path))
 
 

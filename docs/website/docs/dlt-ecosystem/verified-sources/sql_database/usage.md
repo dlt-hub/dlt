@@ -118,7 +118,7 @@ read_table = sql_table(
 customize subquery with query adapter as in the example above.
 
 ## Transforming the data before load
-You have direct access to the extracted data through the resource objects (`sql_table()` or `sql_database().with_resource())`), each of which represents a single SQL table. These objects are generators that yield individual rows of the table, which can be modified by using custom Python functions. These functions can be applied to the resource using `add_map`.
+You have direct access to the extracted data through the resource objects (`sql_table()` or `sql_database().with_resources()`), each of which represents a single SQL table. These objects are generators that yield individual rows of the table, which can be modified by using custom Python functions. These functions can be applied to the resource using `add_map`.
 
 :::note
 The PyArrow backend does not yield individual rows but loads chunks of data as `ndarray`. In this case, the transformation function that goes into `add_map` should be configured to expect an `ndarray` input.

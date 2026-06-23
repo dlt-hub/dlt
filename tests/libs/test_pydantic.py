@@ -47,6 +47,8 @@ from dlt.common.libs.pydantic import (
 )
 from dlt.common.warnings import Dlt100DeprecationWarning
 from pydantic import (
+    AfterValidator,
+    VERSION as PYDANTIC_VERSION,
     UUID4,
     BaseModel,
     Field,
@@ -1124,6 +1126,178 @@ def test_apply_contract_root_model_discriminator_preserved() -> None:
     assert purchase.model_dump() == {"kind": "purchase", "id": 2, "amount": 9.99}
     with pytest.raises(ValidationError):
         mutated.model_validate({"kind": "unknown", "id": 3})
+
+
+def test_apply_contract_root_model_preserves_root_after_validator() -> None:
+    """Root-level validator metadata must survive RootModel reconstruction."""
+
+    def validate_click(value: Any) -> Any:
+        if isinstance(value, Click) and value.element_id == "forbidden":
+            raise ValueError("forbidden element")
+        return value
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[
+        Union[Click, Purchase],
+        Field(discriminator="kind"),
+        AfterValidator(validate_click),
+    ]
+
+    class Event(RootModel[U]):
+        pass
+
+    mutated: Any = apply_schema_contract_to_model(Event, "freeze", "freeze")
+    validated = mutated.model_validate({"kind": "click", "element_id": "btn_1"})
+
+    assert isinstance(validated.root, Click)
+    assert validated.root.kind == "click"
+    with pytest.raises(ValidationError, match="forbidden element"):
+        mutated.model_validate({"kind": "click", "element_id": "forbidden"})
+
+
+def test_apply_contract_preserves_non_root_after_validator() -> None:
+    """Non-root Annotated validator metadata must survive model reconstruction."""
+
+    def reject_negative(value: int) -> int:
+        if value < 0:
+            raise ValueError("negative value")
+        return value
+
+    class ModelWithAnnotatedValidator(BaseModel):
+        value: Annotated[int, AfterValidator(reject_negative)]
+
+    mutated: Any = apply_schema_contract_to_model(ModelWithAnnotatedValidator, "freeze", "freeze")
+    validated = mutated.model_validate({"value": 1})
+
+    assert validated.value == 1
+    with pytest.raises(ValidationError, match="negative value"):
+        mutated.model_validate({"value": -1})
+
+
+def test_apply_contract_preserves_multiple_annotated_metadata_entries() -> None:
+    """Annotated metadata entries stay separate after model reconstruction."""
+
+    class Child(BaseModel):
+        x: int
+
+    class ModelWithAnnotatedMetadata(BaseModel):
+        field: Annotated[Child, "meta1", "meta2"]
+
+    mutated: Any = apply_schema_contract_to_model(ModelWithAnnotatedMetadata, "freeze", "freeze")
+    rebuilt = mutated.model_fields["field"].rebuild_annotation()
+
+    assert get_origin(rebuilt) is Annotated
+    assert get_args(rebuilt)[1:] == ("meta1", "meta2")
+
+
+def test_apply_contract_preserves_nested_annotated_metadata_entries() -> None:
+    """Nested Annotated metadata entries must remain separate slots, not be packed
+    into a single tuple, when _process_annotation recurses through containers."""
+
+    class Child(BaseModel):
+        x: int
+
+    class M(BaseModel):
+        items: List[Annotated[Child, "meta1", "meta2"]]
+
+    mutated: Any = apply_schema_contract_to_model(M, "freeze", "freeze")
+    inner = get_args(mutated.model_fields["items"].annotation)[0]
+    inner_args = get_args(inner)
+
+    assert inner_args[0].__name__.endswith("ExtraForbid")
+    assert inner_args[1:] == ("meta1", "meta2")
+
+
+def test_apply_contract_non_root_discriminated_union_with_validator() -> None:
+    """Non-root field with a discriminated union plus extra metadata keeps both
+    the discriminator and the validator after model reconstruction."""
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    def reject_forbidden(value: Any) -> Any:
+        if isinstance(value, Click) and value.element_id == "forbidden":
+            raise ValueError("forbidden element")
+        return value
+
+    class Container(BaseModel):
+        event: Annotated[
+            Union[Click, Purchase],
+            Field(discriminator="kind"),
+            AfterValidator(reject_forbidden),
+        ]
+
+    mutated: Any = apply_schema_contract_to_model(Container, "freeze", "freeze")
+
+    ok = mutated.model_validate({"event": {"kind": "click", "element_id": "btn_1"}})
+    assert ok.event.kind == "click"
+    with pytest.raises(ValidationError):
+        mutated.model_validate({"event": {"kind": "unknown", "element_id": "btn_1"}})
+
+    with pytest.raises(ValidationError, match="forbidden element"):
+        mutated.model_validate({"event": {"kind": "click", "element_id": "forbidden"}})
+
+
+@pytest.mark.skipif(
+    tuple(int(part) for part in PYDANTIC_VERSION.split(".")[:2]) < (2, 13),
+    reason="Requires pydantic >= 2.13 field.discriminator behavior",
+)
+def test_build_discriminator_map_preserves_new_root_discriminator_with_extra_metadata() -> None:
+    """Discriminator extraction works when pydantic stores it on the root field."""
+
+    def validate_event(value: Any) -> Any:
+        return value
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[
+        Union[Click, Purchase],
+        AfterValidator(validate_event),
+        Field(discriminator="kind"),
+    ]
+
+    class Event(RootModel[U]):
+        pass
+
+    root_field = Event.model_fields["root"]
+    assert root_field.discriminator == "kind"
+
+    result = _build_discriminator_map(Event)
+    assert result is not None
+    disc_field, mapping = result
+    assert disc_field == "kind"
+    assert set(mapping.keys()) == {"click", "purchase"}
+
+    mutated: Any = apply_schema_contract_to_model(Event, "freeze", "freeze")
+    root_field = mutated.model_fields["root"]
+    assert root_field.discriminator == "kind"
+
+    result = _build_discriminator_map(mutated)
+    assert result is not None
+    disc_field, mapping = result
+    assert disc_field == "kind"
+    assert set(mapping.keys()) == {"click", "purchase"}
+
+    validated = mutated.model_validate({"kind": "click", "element_id": "btn_1"})
+    assert validated.model_dump() == {"kind": "click", "element_id": "btn_1"}
 
 
 def test_extra_schema_contract_conflict_warning() -> None:

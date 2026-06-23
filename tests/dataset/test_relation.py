@@ -6,8 +6,12 @@ import pytest
 from sqlglot import expressions as sge
 
 import dlt
-from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.common.utils import uniq_id
+from dlt.common.schema.schema import Schema
+from dlt.common.schema.typing import C_DLT_LOAD_ID, LOADS_TABLE_NAME, VERSION_TABLE_NAME
+from dlt.common.schema.utils import new_table
 from dlt.dataset.dataset import _get_load_ids, _get_latest_load_id
+from dlt.dataset.exceptions import LineageFailedException
 from tests.dataset.utils import TLoadsFixture, crm
 
 # TODO move destination-independent tests from `test_read_interfaces.py` to this module
@@ -192,6 +196,45 @@ def test_relation_with_load_id(
     assert list(df.columns) == expected_columns
 
 
+def test_relation_with_load_id_on_parallel_child_branch(tmp_path) -> None:
+    data = [
+        {
+            "id": 1,
+            "orders": [{"order_id": 101, "total_amount": 100.0}],
+            "profiles": [{"type": "personal"}],
+        },
+        {
+            "id": 2,
+            "orders": [{"order_id": 102, "total_amount": 200.0}],
+            "profiles": [{"type": "work"}],
+        },
+    ]
+
+    @dlt.resource(name="users")
+    def users():
+        yield data
+
+    pipeline = dlt.pipeline(
+        pipeline_name="parallel_child_branch_" + uniq_id(),
+        pipelines_dir=str(tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(tmp_path / "parallel_child_branch.duckdb")),
+        dev_mode=True,
+    )
+    pipeline.run(users(), dataset_name="test")
+
+    table = pipeline.dataset().table("users__profiles")
+    output = table.with_load_id_col()
+    expected_columns = table.columns + [C_DLT_LOAD_ID]
+
+    assert output.columns == expected_columns
+
+    df = output.df()
+
+    assert len(df) == len(data)
+    assert list(df.columns) == expected_columns
+    assert set(df[C_DLT_LOAD_ID]) == {pipeline.last_trace.last_normalize_info.loads_ids[0]}
+
+
 @pytest.mark.parametrize("selected_load_id_idx", [[0], [1], [0, 1]])
 @pytest.mark.parametrize("table_name", ["products", "users__orders", "users__orders__items"])
 @pytest.mark.parametrize("add_load_id_column", [True, False])
@@ -317,16 +360,7 @@ def multi_schema_pipeline(module_tmp_path: pathlib.Path) -> dlt.Pipeline:
 
 @pytest.fixture(scope="module")
 def multi_schema_dataset(multi_schema_pipeline: dlt.Pipeline) -> dlt.Dataset:
-    ds = multi_schema_pipeline.dataset()
-    # we need to reset max_length here to avoid IncompatibleSchemaException
-    # down the line in unify_schemas: max_length is resolved from
-    # DestinationCapabilitiesContext at schema construction time
-    # The deactivate_pipeline autouse fixture removes caps from the Container
-    # between tests, so clone() inside unify_schemas would create schemas without
-    # max_length.
-    for s in ds.schemas:
-        s.naming.max_length = None
-    return ds
+    return multi_schema_pipeline.dataset()
 
 
 def test_multi_schema_schemas_property(multi_schema_dataset: dlt.Dataset) -> None:
@@ -539,10 +573,7 @@ def overlapping_tables_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
     )
     pipeline.run(src_a())
     pipeline.run(src_b())
-    ds = pipeline.dataset()
-    for s in ds.schemas:
-        s.naming.max_length = None
-    return ds
+    return pipeline.dataset()
 
 
 def test_shared_table_merge(overlapping_tables_dataset: dlt.Dataset) -> None:
@@ -579,3 +610,226 @@ def test_multi_schema_row_counts_by_load_id(
         "items": 2,
         "warehouses": 1,
     }
+
+
+def test_unify_schemas_across_naming_conventions(
+    module_tmp_path: pathlib.Path,
+) -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="multi_naming",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(
+            str(module_tmp_path / "multi_naming.db"),
+            enable_dataset_name_normalization=False,
+        ),
+        dataset_name="multi_naming_ds",
+    )
+    # default snake_case schema
+    pipeline.run([{"id": 1, "name": "alice"}, {"id": 2, "name": "bob"}], table_name="users")
+
+    upper_schema = dlt.Schema("events")
+    upper_schema._configure_normalizers(
+        {"names": "tests.common.cases.normalizers.sql_upper", "json": None}
+    )
+    pipeline.run(
+        [{"id": 7, "value": "hello"}],
+        table_name="events📊",
+        schema=upper_schema,
+    )
+    assert "users" in pipeline.schemas["multi_naming"].data_table_names()
+    assert "EVENTS📊" in pipeline.schemas["events"].data_table_names()
+
+    dataset = pipeline.dataset()
+    users = sorted(row[:2] for row in dataset.users.fetchall())
+    assert users == [(1, "alice"), (2, "bob")]
+    events = [row[:2] for row in dataset["EVENTS📊"].fetchall()]
+    assert events == [(7, "hello")]
+
+
+@pytest.fixture
+def mock_dataset() -> dlt.Dataset:
+    s = Schema("my_schema")
+    t = new_table(
+        "my_table",
+        columns=[
+            {"name": "col1", "data_type": "text"},
+            {"name": "col2", "data_type": "text"},
+        ],
+    )
+    s.update_table(t)
+    return dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        schema=s,
+    )
+
+
+def test_dataset_autocompletion(mock_dataset: dlt.Dataset) -> None:
+    expected_suggestions = ["my_table", LOADS_TABLE_NAME, VERSION_TABLE_NAME]
+    suggestions = mock_dataset._ipython_key_completions_()
+    assert set(expected_suggestions) == set(suggestions)
+
+
+def test_relation_autocompletion(mock_dataset: dlt.Dataset) -> None:
+    expected_suggestions = ["col1", "col2"]
+    suggestions = mock_dataset["my_table"]._ipython_key_completions_()
+    assert set(expected_suggestions) == set(suggestions)
+
+
+def test_query_builder(mock_dataset: dlt.Dataset) -> None:
+    relation = mock_dataset.my_table
+
+    # default query for a table
+    assert (
+        relation.to_sql().strip()
+        == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
+        ' "pipeline_dataset"."my_table" AS "my_table"'
+    )
+
+    # head query
+    assert (
+        relation.head().to_sql().strip()
+        == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
+        ' "pipeline_dataset"."my_table" AS "my_table" LIMIT 5'
+    )
+
+    # limit query
+    assert (
+        relation.limit(24).to_sql().strip()
+        == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
+        ' "pipeline_dataset"."my_table" AS "my_table" LIMIT 24'
+    )
+
+    # select columns
+    assert (
+        relation.select("col1").to_sql().strip()
+        == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
+    )
+    # also indexer notation
+    assert (
+        relation[["col2"]].to_sql().strip()
+        == 'SELECT "my_table"."col2" AS "col2" FROM "pipeline_dataset"."my_table" AS "my_table"'
+    )
+
+    # limit and select chained
+    assert (
+        relation.select("col1").limit(24).to_sql().strip()
+        == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
+        " LIMIT 24"
+    )
+
+
+def test_copy_and_chaining() -> None:
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+    )
+
+    dataset.schema.tables["items"] = new_table(
+        "items",
+        columns=[{"data_type": "text", "name": "one"}, {"data_type": "json", "name": "two"}],
+    )
+
+    # create relation and set some stuff on it
+    relation = dataset.items
+    relation = relation.limit(34)
+    relation = relation[["one", "two"]]
+
+    relation2 = relation.__copy__()
+    assert relation != relation2
+    assert relation.sqlglot_expression == relation2.sqlglot_expression
+
+    # test copy while chaining limit
+    relation3 = relation2.limit(22)
+    assert relation2 != relation3
+    assert relation2.sqlglot_expression != relation3.sqlglot_expression
+
+    # test last setting prevails chaining
+    limit_expr = relation.limit(23).limit(67).limit(11).sqlglot_expression.args["limit"]
+    literal_expr = limit_expr.args["expression"]
+    assert int(literal_expr.this) == 11
+
+
+def test_computed_schema_columns() -> None:
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+    )
+
+    # missing attribute should raise Attribute error
+    with pytest.raises(AttributeError):
+        dataset.items
+
+    # missing key should raise KeyError
+    with pytest.raises(KeyError):
+        dataset["items"]
+
+    with pytest.raises(ValueError):
+        dataset.table("items")
+
+    dataset.schema.tables["items"] = new_table(
+        "items",
+        columns=[{"data_type": "text", "name": "one"}, {"data_type": "json", "name": "two"}],
+    )
+
+    # now add columns
+    relation = dataset.items
+
+    # computed columns are same as above
+    assert relation.columns_schema == {
+        "one": {"data_type": "text", "name": "one"},
+        "two": {"data_type": "json", "name": "two"},
+    }
+
+    # when selecting only one column, computing schema columns will only show that one
+    assert relation.select("one").columns_schema == {"one": {"data_type": "text", "name": "one"}}
+    assert relation["one"].columns_schema == {"one": {"data_type": "text", "name": "one"}}
+    assert relation[["one"]].columns_schema == {"one": {"data_type": "text", "name": "one"}}
+
+    # selecting unknown column fails
+    with pytest.raises(KeyError):
+        relation[["unknown_columns"]]
+    with pytest.raises(KeyError):
+        relation["unknown_columns"]
+
+
+def test_changing_relation_with_query() -> None:
+    s = Schema("my_schema")
+    t = new_table(
+        "something",
+        columns=[
+            {"name": "this", "data_type": "text"},
+            {"name": "that", "data_type": "text"},
+        ],
+    )
+
+    s.update_table(t)
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        schema=s,
+    )
+
+    relation = dataset("SELECT * FROM something")
+    query = relation.to_sql()
+    assert (
+        'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
+        ' "pipeline_dataset"."something" AS "something"'
+        == query
+    )
+
+    query = dataset("SELECT this, that FROM something").limit(5).to_sql()
+    assert (
+        'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
+        ' "pipeline_dataset"."something" AS "something" LIMIT 5'
+        == query
+    )
+
+    query = relation.select("this").to_sql()
+    assert (
+        'SELECT "something"."this" AS "this" FROM "pipeline_dataset"."something" AS "something"'
+        == query
+    )
+
+    with pytest.raises(LineageFailedException):
+        relation.select("hello", "hillo").to_sql()

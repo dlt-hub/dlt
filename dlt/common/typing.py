@@ -33,6 +33,7 @@ from typing_extensions import (
     ForwardRef,
     Annotated,
     Never,
+    NotRequired,
     ParamSpec,
     TypeAlias,
     Concatenate,
@@ -41,7 +42,6 @@ from typing_extensions import (
     Generic,
     get_args,
     TypeVar,
-    get_origin,
     get_type_hints,
     get_origin,
     get_original_bases,
@@ -51,18 +51,9 @@ from typing_extensions import is_typeddict as _is_typeddict
 
 from typing_extensions import TypedDict  # noqa: I251
 
-try:
-    from types import UnionType  # type: ignore[attr-defined]
-except ImportError:
-    # Since new Union syntax was introduced in Python 3.10
-    # we need to substitute it here for older versions.
-    # it is defined as type(int | str) but for us having it
-    # as shown here should suffice because it is valid only
-    # in versions of Python>=3.10.
-    UnionType = Never
 
 from typing import _SpecialGenericAlias, _GenericAlias  # type: ignore[attr-defined]
-from types import GenericAlias
+from types import GenericAlias, UnionType
 
 typingGenericAlias: Tuple[Any, ...] = (_GenericAlias, _SpecialGenericAlias, GenericAlias)
 
@@ -124,8 +115,14 @@ TDataItem: TypeAlias = Any
 """A single data item as extracted from data source"""
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
 "A single data item or a list as extracted from the data source"
+TDataRecord = dict[str, Any]
+"""Table row dictionary. Not guaranteed to be JSON serializable without custom encoding."""
+TDataRecordBatch = list[TDataRecord]
+"""List of table row dictionaries. Not guaranteed to be JSON serializable without custom encoding."""
 TAnyDateTime = Union[pendulum.DateTime, pendulum.Date, datetime, date, str, float, int]
 """DateTime represented as pendulum/python object, ISO string or unix timestamp"""
+TTimeInterval = Tuple[datetime, datetime]
+"""Half-open time interval `[start, end)` as timezone-aware datetimes."""
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
@@ -515,7 +512,7 @@ def copy_sig_any(
     """
 
     def decorator(
-        func: Callable[..., TReturnVal]
+        func: Callable[..., TReturnVal],
     ) -> Callable[Concatenate[Any, TInputArgs], TReturnVal]:
         func.__doc__ = wrapper.__doc__
         return func

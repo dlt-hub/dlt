@@ -101,40 +101,38 @@ Let's examine a synthetic dataset created for this article. It includes:
 Here's the resource that yields the sample data as discussed above:
 
 ```py
-    import dlt
+import dlt
 
-    @dlt.resource(write_disposition="append")
-    def tracked_data():
-        """
-        A generator function that yields a series of dictionaries, each representing
-        user tracking data.
+@dlt.resource(write_disposition="append")
+def tracked_data():
+    """
+    A generator function that yields a series of dictionaries, each representing
+    user tracking data.
 
-        This function is decorated with `dlt.resource` to integrate into the DLT (Data
-        Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
-        ensure that data from this generator is appended to the existing data in the
-        destination table.
+    This function is decorated with `dlt.resource` to integrate into the DLT (Data
+    Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
+    ensure that data from this generator is appended to the existing data in the
+    destination table.
 
-        Yields:
-            dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
-            representing the user's tracking data including their device and the page
-            they were referred from.
-        """
+    Yields:
+        dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
+        representing the user's tracking data including their device and the page
+        they were referred from.
+    """
 
-        # Sample data representing tracked user data
-        sample_data = [
+    # Sample data representing tracked user data
+    sample_data = [
         {
-                "user_id": 1,
-                "device_name": "Sony Experia XZ",
-                "page_referer": "https://b2venture.lightning.force.com/"
+            "user_id": 1,
+            "device_name": "Sony Experia XZ",
+            "page_referer": "https://b2venture.lightning.force.com/"
         },
-            """
-            Data for other users
-            """
-        ]
+        # ... similar data for the other users
+    ]
 
-        # Yielding each user's data as a dictionary
-        for user_data in sample_data:
-            yield user_data
+    # Yielding each user's data as a dictionary
+    for user_data in sample_data:
+        yield user_data
 ```
 
 ### 2. Create `url_parser` function
@@ -144,6 +142,8 @@ need to register to use this service nor get an API key.
 
 1. Create a `url_parser` function as follows:
    ```py
+   import requests
+
    def url_parser(record):
        """
        Send a URL to a parsing service and return the parsed data.
@@ -151,7 +151,7 @@ need to register to use this service nor get an API key.
        This function sends a URL to a specified API endpoint for URL parsing.
 
        Parameters:
-       url (str): The URL to be parsed.
+       record (dict): A dictionary containing the 'page_referer' key with the URL to be parsed.
 
        Returns:
        dict: Parsed URL data in JSON format if the request is successful.
@@ -214,7 +214,7 @@ need to register to use this service nor get an API key.
    `pipeline.run`, you can use the following code:
 
    ```py
-   # using fetch_average_price as a transformer function
+   # using url_parser as a transformer function
    load_info = pipeline.run(
        tracked_data | url_parser,
        table_name="url_parser"

@@ -1,6 +1,21 @@
+import functools
 import os
 import warnings
-from typing import Any, ClassVar, Dict, List, Optional, Protocol, Sequence, Set
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Protocol,
+    Sequence,
+    Set,
+    Type,
+    Union,
+)
 import pluggy
 import argparse
 import importlib.metadata
@@ -11,6 +26,10 @@ from dlt.common.known_env import DLT_DISABLE_PLUGINS
 
 hookspec = pluggy.HookspecMarker("dlt")
 hookimpl = pluggy.HookimplMarker("dlt")
+
+
+TCliCommandCompose = Literal["replace", "extend", "additive"]
+"""How a CLI command merges with other plugins' commands of the same `(parent, command)`."""
 
 
 class PluginContext(ContainerInjectableContext):
@@ -41,38 +60,32 @@ def manager() -> pluggy.PluginManager:
 
 
 def load_setuptools_entrypoints(m: pluggy.PluginManager) -> List[str]:
-    """Scans setuptools distributions that are path or have name starting with `dlt`
-    loads entry points in group `dlt` and instantiates them to initialize plugins.
+    """Loads entry points in group `dlt` and instantiates them to initialize plugins.
 
-    returns a list of names of top level modules/packages from detected entry points.
+    Returns a list of names of top level modules/packages from detected entry points.
     """
 
-    plugin_modules = []
+    plugin_modules: List[str] = []
 
     if os.environ.get(DLT_DISABLE_PLUGINS, "False").lower() == "false":
-        distributions = list(importlib.metadata.distributions())
+        distributions = importlib.metadata.distributions()
     else:
         # always plug itself
-        distributions = [importlib.metadata.distribution("dlt")]
+        distributions = iter([importlib.metadata.distribution("dlt")])
 
     for dist in distributions:
-        # skip named dists that do not start with dlt-
-        package_name = dist.metadata.get("Name")
-
-        if not package_name or not package_name.startswith("dlt"):
-            continue
-
+        # filter by group on entry_points which is cheaper than looking into dist metadata
         for ep in dist.entry_points:
-            if (
-                ep.group != "dlt"
-                # already registered
-                or m.get_plugin(ep.name)
-                or m.is_blocked(ep.name)
-            ):
+            if ep.group != "dlt":
+                continue
+            if m.get_plugin(ep.name) or m.is_blocked(ep.name):
                 continue
             try:
                 plugin = ep.load()
             except Exception as e:
+                # only resolve dist name on failure to keep the happy path fast
+                # (`Distribution.name` is 3.10+; fall back to `metadata['Name']` on 3.9)
+                package_name = getattr(dist, "name", None) or dist.metadata["Name"] or "?"
                 warnings.warn(
                     f"Plugin {ep.name} from {package_name} failed to load: {e}",
                     stacklevel=1,
@@ -103,7 +116,7 @@ def plug_run_context(
 
 
 class SupportsCliCommand(Protocol):
-    """Protocol for defining one dlt cli command"""
+    """Protocol for defining one dlt cli command."""
 
     command: str
     """name of the command"""
@@ -114,8 +127,18 @@ class SupportsCliCommand(Protocol):
     docs_url: Optional[str]
     """the default docs url to be printed in case of an exception"""
 
+    parent: Optional[str] = None
+    """When set, this command is registered as a subcommand under the top-level `parent` command"""
+    compose: TCliCommandCompose = "replace"
+    """How this command merges when multiple plugins register the same `(parent, command)`.
+
+    - `replace` (default): first registered wins; rest dropped.
+    - `extend`: first plugin's `configure_parser` runs; ALL plugins' `execute` fire in order.
+    - `additive`: additional subparsers may be added to top level command
+    """
+
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
-        """Configures the parser for the given argument"""
+        """Configures the parser for the given argument."""
         ...
 
     def execute(self, args: argparse.Namespace) -> None:
@@ -123,9 +146,37 @@ class SupportsCliCommand(Protocol):
         ...
 
 
+_TCommandDefFunc = Callable[[str], Optional[Type[SupportsCliCommand]]]
+
+
+def only_host(hosts: Union[str, Iterable[str]]) -> Callable[[_TCommandDefFunc], _TCommandDefFunc]:
+    """Emits cli command only if one if `hosts` was requested via plugin hook."""
+    allowed = frozenset({hosts} if isinstance(hosts, str) else hosts)
+
+    def decorator(fn: _TCommandDefFunc) -> _TCommandDefFunc:
+        @functools.wraps(fn)
+        def wrapper(host: str) -> Optional[Type[SupportsCliCommand]]:
+            if host not in allowed:
+                return None
+            return fn(host)
+
+        return wrapper
+
+    return decorator
+
+
 @hookspec()
-def plug_cli() -> SupportsCliCommand:
-    """Spec for plugin hook that returns current run context."""
+def plug_cli(host: str) -> Optional[Type[SupportsCliCommand]]:
+    """Spec for plugin hook that returns a CLI command class for a given CLI host.
+
+    Args:
+        host: Name of the CLI host requesting commands (e.g. `"dlt"`, `"dlthub"`).
+            Plugins return their command class only if they contribute to this host;
+
+    Returns:
+        Optional[Type[SupportsCliCommand]]: Command class to register, or `None` when
+        the plugin does not contribute to the requested host.
+    """
 
 
 class SupportsMcpFeatures(Protocol):

@@ -38,7 +38,7 @@ The data store where data from the source is loaded (e.g., Google BigQuery).
 Moves the data from the source to the destination, according to instructions provided in the schema
 (i.e., extracting, normalizing, and loading the data).
 
-## [Verified source](../walkthroughs/add-a-verified-source)
+## Verified source
 
 A Python module distributed with `dlt init` that allows creating pipelines that extract data from a
 particular **Source**. Such a module is intended to be published in order for others to use it to
@@ -61,4 +61,3 @@ in production).
 ## [Credentials](credentials/complex_types)
 
 A subset of configuration whose elements are kept secret and never shared in plain text.
-

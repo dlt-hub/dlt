@@ -1,0 +1,851 @@
+import io
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, List, Set
+from unittest.mock import patch
+
+import pytest
+from packaging.requirements import Requirement
+
+from dlt._workspace.deployment.launchers import (
+    LAUNCHER_DASHBOARD,
+    LAUNCHER_JOB,
+    LAUNCHER_MARIMO,
+    LAUNCHER_MCP,
+    LAUNCHER_MODULE,
+    LAUNCHER_STREAMLIT,
+)
+from dlt._workspace.cli.dlthub._init_command import init_dlthub_workspace
+from dlt._workspace.cli.dlthub.utils import fetch_init_plan
+from dlt._workspace.deployment.manifest import default_dashboard_job
+from dlt._workspace.deployment.requirements import (
+    MAIN_GROUP,
+    REQUIREMENTS_ENGINE_VERSION,
+    WorkspaceRequirementsError,
+    _BASE_LAUNCHER_SPECS,
+    build_dashboard_group,
+    build_launcher_requirements,
+    default_requirements_manifest,
+    export_workspace_requirements,
+    get_dlt_requirement_spec,
+    load_requirements,
+    migrate_requirements,
+    python_version,
+    save_requirements,
+    _collect_package_names,
+)
+from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF
+
+from tests.workspace.utils import isolated_workspace
+
+
+_SHUTIL_WHICH = "dlt._workspace.deployment.requirements.shutil.which"
+
+
+def _uv_lock(run_dir: str) -> None:
+    """Generate uv.lock inside an isolated workspace copy."""
+    subprocess.run(["uv", "lock"], cwd=run_dir, check=True, capture_output=True)
+
+
+def test_get_dlt_requirement_spec() -> None:
+    spec = get_dlt_requirement_spec()
+    req = Requirement(spec)
+    assert req.name == "dlt"
+    assert spec.startswith("dlt==") or spec.startswith("dlt @ ")
+
+
+def test_empty_workspace_dlt_in_every_launcher() -> None:
+    with isolated_workspace("deps_none") as ctx:
+        result = export_workspace_requirements(Path(ctx.run_dir))
+    assert result["engine_version"] == REQUIREMENTS_ENGINE_VERSION
+    assert result["default_groups"] == [MAIN_GROUP]
+    # main is empty — no dep files in the workspace
+    assert result["groups"][MAIN_GROUP] == []
+    # dlt got injected into every launcher entry (including dashboard)
+    dlt_spec = get_dlt_requirement_spec()
+    for launcher, specs in result["launcher_requirements"].items():
+        assert dlt_spec in specs, f"dlt missing from {launcher!r}"
+
+
+@pytest.mark.parametrize(
+    "fixture_name, expected_user_groups",
+    [
+        (
+            "deps_pyproject",
+            {
+                "main": ["packaging>=23.0", "tomlkit>=0.12"],
+                "dev": ["pytest>=7.0"],
+                "gpu": ["numpy>=1.24"],
+            },
+        ),
+        ("deps_pyproject_minimal", {"main": ["requests>=2.0"]}),
+    ],
+    ids=["with-groups", "minimal"],
+)
+def test_pyproject_no_lock(fixture_name: str, expected_user_groups: Dict[str, List[str]]) -> None:
+    with isolated_workspace(fixture_name) as ctx:
+        result = export_workspace_requirements(Path(ctx.run_dir))
+    assert result["engine_version"] == REQUIREMENTS_ENGINE_VERSION
+    assert result["default_groups"] == [MAIN_GROUP]
+    for name, specs in expected_user_groups.items():
+        assert result["groups"][name] == specs
+    assert DASHBOARD_JOB_REF in result["groups"]
+
+
+def test_pyproject_with_lock_resolves_all_groups() -> None:
+    with isolated_workspace("deps_pyproject") as ctx:
+        _uv_lock(ctx.run_dir)
+        result = export_workspace_requirements(Path(ctx.run_dir))
+
+    groups = result["groups"]
+    user_groups = {k: v for k, v in groups.items() if k != DASHBOARD_JOB_REF}
+    assert set(user_groups.keys()) == {"main", "dev", "gpu"}
+
+    # every user spec must be pinned, and free of hashes / local paths
+    for group, specs in user_groups.items():
+        assert specs, f"group {group!r} is empty"
+        for spec in specs:
+            assert "==" in spec, f"unpinned spec in {group!r}: {spec}"
+            assert "file://" not in spec, f"local path in {group!r}: {spec}"
+            assert "sha256:" not in spec, f"hash leaked into {group!r}: {spec}"
+
+    # named packages landed in the right groups
+    main_names = {Requirement(s).name for s in groups["main"]}
+    assert {"tomlkit", "packaging"}.issubset(main_names)
+
+    dev_names = {Requirement(s).name for s in groups["dev"]}
+    assert "pytest" in dev_names
+
+    gpu_names = {Requirement(s).name for s in groups["gpu"]}
+    assert "numpy" in gpu_names
+
+
+def test_pyproject_lock_out_of_sync_raises() -> None:
+    with isolated_workspace("deps_pyproject") as ctx:
+        # empty lockfile is guaranteed to be out of sync
+        (Path(ctx.run_dir) / "uv.lock").write_text("")
+        with pytest.raises(WorkspaceRequirementsError):
+            export_workspace_requirements(Path(ctx.run_dir))
+
+
+@pytest.mark.parametrize(
+    "fixture_name, required_names",
+    [
+        ("deps_requirements_txt", {"dlt", "requests", "pydantic"}),
+        ("deps_requirements_in", {"dlt", "s3fs"}),
+    ],
+    ids=["txt", "in"],
+)
+def test_requirements_file_resolved_with_uv(fixture_name: str, required_names: Set[str]) -> None:
+    with isolated_workspace(fixture_name) as ctx:
+        result = export_workspace_requirements(Path(ctx.run_dir))
+
+    user_group_names = [k for k in result["groups"] if k != DASHBOARD_JOB_REF]
+    assert user_group_names == [MAIN_GROUP]
+    specs = result["groups"][MAIN_GROUP]
+    assert specs
+    # every spec is pinned by uv pip compile --universal
+    for spec in specs:
+        assert "==" in spec, f"unpinned spec: {spec}"
+
+    resolved_names = {Requirement(s).name for s in specs}
+    assert required_names.issubset(resolved_names)
+
+
+def test_requirements_txt_fallback_without_uv() -> None:
+    with isolated_workspace("deps_requirements_txt") as ctx:
+        with patch(_SHUTIL_WHICH, return_value=None):
+            result = export_workspace_requirements(Path(ctx.run_dir))
+    # parsed as authored (sorted, normalized through Requirement())
+    assert result["groups"][MAIN_GROUP] == ["dlt>=1.0", "pydantic", "requests==2.31.0"]
+
+
+def test_requirements_fallback_drops_flag_lines(tmp_path: Path) -> None:
+    # marker so `isolated_workspace` is not needed — this targets the pure parser
+    (tmp_path / ".dlt").mkdir()
+    (tmp_path / ".dlt" / ".workspace").touch()
+    (tmp_path / "requirements.txt").write_text(
+        "# a leading comment\n"
+        "\n"
+        "-e .\n"
+        "-r other.txt\n"
+        "--index-url https://example.com/simple\n"
+        "requests>=2.0  # inline comment\n"
+        "pydantic \\\n"
+        ">=2.0\n"
+    )
+    with patch(_SHUTIL_WHICH, return_value=None):
+        result = export_workspace_requirements(tmp_path)
+    # both real specs survive; flags/comments dropped; line-continuation joined
+    assert result["groups"][MAIN_GROUP] == ["pydantic>=2.0", "requests>=2.0"]
+
+
+def test_pyproject_with_lock_missing_uv_raises_friendly_error() -> None:
+    with isolated_workspace("deps_pyproject") as ctx:
+        _uv_lock(ctx.run_dir)
+        with patch(_SHUTIL_WHICH, return_value=None):
+            with pytest.raises(WorkspaceRequirementsError) as exc_info:
+                export_workspace_requirements(Path(ctx.run_dir))
+    message = str(exc_info.value)
+    assert "astral.sh/uv/install" in message
+    assert "docs.astral.sh/uv" in message
+
+
+def test_output_is_json_serializable_and_deterministic() -> None:
+    with isolated_workspace("deps_pyproject") as ctx:
+        _uv_lock(ctx.run_dir)
+        first = export_workspace_requirements(Path(ctx.run_dir))
+        second = export_workspace_requirements(Path(ctx.run_dir))
+
+    assert first == second
+    # JSON round-trip must not lose anything
+    assert json.loads(json.dumps(first)) == first
+    # group keys sorted
+    groups = first["groups"]
+    assert list(groups.keys()) == sorted(groups.keys())
+    # each group's specs sorted
+    for specs in groups.values():
+        assert specs == sorted(specs)
+
+
+def test_export_default_groups_override() -> None:
+    with isolated_workspace("deps_pyproject") as ctx:
+        result = export_workspace_requirements(Path(ctx.run_dir), default_groups=["main", "gpu"])
+    assert result["default_groups"] == ["main", "gpu"]
+    # override does not affect the `groups` map itself
+    assert "main" in result["groups"]
+    assert "gpu" in result["groups"]
+
+
+def test_save_load_roundtrip() -> None:
+    with isolated_workspace("deps_pyproject") as ctx:
+        original = export_workspace_requirements(Path(ctx.run_dir))
+
+    buf = io.BytesIO()
+    save_requirements(original, buf)
+    buf.seek(0)
+    restored = load_requirements(buf)
+
+    assert restored == original
+    assert restored["engine_version"] == REQUIREMENTS_ENGINE_VERSION
+    assert restored["default_groups"] == [MAIN_GROUP]
+    assert MAIN_GROUP in restored["groups"]
+
+
+def test_migrate_requirements_same_version_is_noop() -> None:
+    manifest = {
+        "engine_version": REQUIREMENTS_ENGINE_VERSION,
+        "default_groups": [MAIN_GROUP],
+        "groups": {MAIN_GROUP: ["dlt==1.0.0"]},
+    }
+    result = migrate_requirements(
+        manifest, REQUIREMENTS_ENGINE_VERSION, REQUIREMENTS_ENGINE_VERSION
+    )
+    assert result == manifest
+
+
+def test_migrate_requirements_unknown_path_raises() -> None:
+    with pytest.raises(ValueError, match="no requirements migration path"):
+        migrate_requirements({}, 99, REQUIREMENTS_ENGINE_VERSION)
+
+
+def test_load_unknown_engine_version_raises() -> None:
+    data = json.dumps(
+        {
+            "engine_version": 99,
+            "default_groups": [MAIN_GROUP],
+            "groups": {MAIN_GROUP: ["dlt==1.0.0"]},
+        }
+    ).encode("utf-8")
+    with pytest.raises(WorkspaceRequirementsError, match="migration path"):
+        load_requirements(io.BytesIO(data))
+
+
+def test_load_invalid_shape_raises_validation_error() -> None:
+    # missing required `groups` field — other required fields present
+    data = json.dumps(
+        {
+            "engine_version": REQUIREMENTS_ENGINE_VERSION,
+            "python_version": python_version(),
+            "default_groups": [MAIN_GROUP],
+            "launcher_requirements": {"": []},
+        }
+    ).encode("utf-8")
+    with pytest.raises(WorkspaceRequirementsError, match="invalid requirements manifest"):
+        load_requirements(io.BytesIO(data))
+
+
+def test_launcher_requirements_shape() -> None:
+    lreq = build_launcher_requirements()
+    assert set(lreq.keys()) == {
+        LAUNCHER_JOB,
+        LAUNCHER_MODULE,
+        LAUNCHER_MARIMO,
+        LAUNCHER_MCP,
+        LAUNCHER_STREAMLIT,
+        LAUNCHER_DASHBOARD,
+    }
+    # every launcher gets the base specs
+    for specs in lreq.values():
+        for base in _BASE_LAUNCHER_SPECS:
+            assert base in specs
+        assert specs == sorted(specs)
+    # dlt is NOT in the bare launcher dict — it's injected conditionally
+    # by export_workspace_requirements / default_requirements_manifest
+    assert lreq[LAUNCHER_JOB] == sorted(set(["botocore", "s3fs"] + _BASE_LAUNCHER_SPECS))
+    assert lreq[LAUNCHER_MODULE] == sorted(set(["botocore", "s3fs"] + _BASE_LAUNCHER_SPECS))
+    assert lreq[LAUNCHER_MARIMO] == sorted(set(["marimo", "uvicorn"] + _BASE_LAUNCHER_SPECS))
+    assert lreq[LAUNCHER_MCP] == sorted(set(["fastmcp", "uvicorn"] + _BASE_LAUNCHER_SPECS))
+    assert lreq[LAUNCHER_STREAMLIT] == sorted(set(["streamlit"] + _BASE_LAUNCHER_SPECS))
+    assert lreq[LAUNCHER_DASHBOARD] == sorted(_BASE_LAUNCHER_SPECS)
+
+
+def test_interactive_launchers_omit_botocore_and_s3fs() -> None:
+    lreq = build_launcher_requirements()
+    for launcher in (LAUNCHER_MARIMO, LAUNCHER_MCP, LAUNCHER_STREAMLIT, LAUNCHER_DASHBOARD):
+        per_launcher = [s for s in lreq[launcher] if s not in _BASE_LAUNCHER_SPECS]
+        assert "botocore" not in per_launcher
+        assert "s3fs" not in per_launcher
+
+
+def test_export_injects_dlt_when_absent_from_default_group() -> None:
+    # deps_pyproject declares packaging+tomlkit in main; no dlt there
+    with isolated_workspace("deps_pyproject") as ctx:
+        result = export_workspace_requirements(Path(ctx.run_dir))
+    dlt_spec = get_dlt_requirement_spec()
+    for specs in result["launcher_requirements"].values():
+        assert dlt_spec in specs
+
+
+def test_export_skips_dlt_injection_when_present_in_default_group() -> None:
+    # deps_requirements_txt fixture already lists dlt>=1.0 in main
+    with isolated_workspace("deps_requirements_txt") as ctx:
+        with patch(_SHUTIL_WHICH, return_value=None):
+            result = export_workspace_requirements(Path(ctx.run_dir))
+    for specs in result["launcher_requirements"].values():
+        assert not any(Requirement(s).name == "dlt" for s in specs)
+
+
+def test_dashboard_group_always_present() -> None:
+    dashboard_specs = build_dashboard_group()
+    # dashboard runner gate (marimo, pyarrow, ibis-framework) + s3fs for artifacts
+    assert dashboard_specs == sorted(["ibis-framework", "marimo", "pyarrow", "s3fs"])
+
+    # present in every export path
+    with isolated_workspace("deps_none") as ctx:
+        result = export_workspace_requirements(Path(ctx.run_dir))
+    assert result["groups"][DASHBOARD_JOB_REF] == dashboard_specs
+
+
+def test_default_dashboard_job_declares_dashboard_group() -> None:
+    job = default_dashboard_job()
+    assert job["require"]["dependency_groups"] == [DASHBOARD_JOB_REF]
+    # matches the group injected by export_workspace_requirements
+    with isolated_workspace("deps_none") as ctx:
+        result = export_workspace_requirements(Path(ctx.run_dir))
+    for group in job["require"]["dependency_groups"]:
+        assert group in result["groups"]
+
+
+def test_default_requirements_manifest_shape() -> None:
+    manifest = default_requirements_manifest()
+    assert manifest["engine_version"] == REQUIREMENTS_ENGINE_VERSION
+    assert manifest["default_groups"] == [MAIN_GROUP]
+    # empty main + dashboard group
+    assert manifest["groups"] == {
+        MAIN_GROUP: [],
+        DASHBOARD_JOB_REF: build_dashboard_group(),
+    }
+    # dlt injected into every launcher entry
+    dlt_spec = get_dlt_requirement_spec()
+    lreq = manifest["launcher_requirements"]
+    for specs in lreq.values():
+        assert dlt_spec in specs
+        assert specs == sorted(specs)
+    # base specs in every launcher
+    for base in _BASE_LAUNCHER_SPECS:
+        for specs in lreq.values():
+            assert base in specs
+    # batch launchers still carry botocore/s3fs; interactive don't
+    assert "botocore" in lreq[LAUNCHER_JOB]
+    assert "s3fs" in lreq[LAUNCHER_JOB]
+    assert "botocore" not in lreq[LAUNCHER_MARIMO]
+    # dashboard has base specs + dlt (extras come from DASHBOARD_JOB_REF group)
+    assert lreq[LAUNCHER_DASHBOARD] == sorted(set(_BASE_LAUNCHER_SPECS + [dlt_spec]))
+
+
+def test_default_requirements_manifest_is_save_load_stable() -> None:
+    original = default_requirements_manifest()
+    buf = io.BytesIO()
+    save_requirements(original, buf)
+    buf.seek(0)
+    assert load_requirements(buf) == original
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "dlt",
+        "dlt==1.14.0",
+        "dlt>=1.0,<2.0",
+        "dlt[hub]",
+        "dlt[hub]==1.14.0",
+        "dlt @ https://github.com/dlt-hub/dlt/archive/refs/heads/devel.zip",
+        (
+            "dlt[hub] @"
+            " https://github.com/dlt-hub/dlt/archive/refs/heads/feat/workspace-manifest-concept.zip"
+        ),
+        "dlt[workspace,providers] @ https://example.com/dlt.zip",
+        "  dlt[hub] @ https://example.com/dlt.zip  ",
+    ],
+)
+def test_contains_package_recognizes_dlt_in_every_form(spec: str) -> None:
+    from dlt._workspace.deployment.requirements import _contains_package
+
+    assert _contains_package([spec], "dlt") is True
+
+
+@pytest.mark.parametrize(
+    "spec, needle, expected",
+    [
+        ("ibis-framework>=12", "ibis-framework", True),
+        ("ibis_framework>=12", "ibis-framework", True),  # PEP 503 separator norm
+        ("ibis.framework>=12", "ibis-framework", True),
+        ("pytz==2024.1", "ibis-framework", False),
+        ("", "dlt", False),
+        ("# comment", "dlt", False),
+    ],
+)
+def test_contains_package_name_normalization(spec: str, needle: str, expected: bool) -> None:
+    from dlt._workspace.deployment.requirements import _contains_package
+
+    assert _contains_package([spec], needle) is expected
+
+
+@pytest.mark.parametrize(
+    "spec, names, kept",
+    [
+        ("s3fs", {"s3fs"}, False),
+        ("s3fs==2024.1", {"s3fs"}, False),
+        ("ibis-framework[duckdb]", {"ibis-framework"}, False),
+        ("ibis_framework>=12", {"ibis-framework"}, False),
+        ('s3fs ; python_version > "3.8"', {"s3fs"}, False),
+        ("Pandas", {"pandas"}, False),
+        ("marimo", {"s3fs"}, True),
+        ("croniter", set(), True),
+        ("", {"s3fs"}, True),
+        ("# comment", {"s3fs"}, True),
+    ],
+    ids=[
+        "bare-name",
+        "pinned",
+        "extras",
+        "underscore-separator",
+        "marker",
+        "case-insensitive",
+        "no-match",
+        "empty-set",
+        "empty-line",
+        "comment-line",
+    ],
+)
+def test_prune_specs_normalization(spec: str, names: Set[str], kept: bool) -> None:
+    from dlt._workspace.deployment.requirements import _prune_specs
+
+    assert _prune_specs([spec], names) == ([spec] if kept else [])
+
+
+def test_export_prunes_launcher_specs_against_default_group() -> None:
+    # deps_requirements_in declares dlt + s3fs in main
+    with isolated_workspace("deps_requirements_in") as ctx:
+        with patch(_SHUTIL_WHICH, return_value=None):
+            result = export_workspace_requirements(Path(ctx.run_dir))
+    lreq = result["launcher_requirements"]
+    for launcher in (LAUNCHER_JOB, LAUNCHER_MODULE):
+        assert "s3fs" not in lreq[launcher]
+        # botocore is implied by s3fs and pruned with it
+        assert "botocore" not in lreq[launcher]
+    # dlt in main — no dlt spec injected anywhere
+    for specs in lreq.values():
+        assert not any(Requirement(s).name == "dlt" for s in specs)
+        assert specs == sorted(specs)
+    # dashboard group pruned against main too
+    dashboard = result["groups"][DASHBOARD_JOB_REF]
+    assert "s3fs" not in dashboard
+    assert "marimo" in dashboard
+    assert "pyarrow" in dashboard
+
+
+def test_export_prunes_dashboard_group_with_normalized_names() -> None:
+    with isolated_workspace("deps_none") as ctx:
+        Path(ctx.run_dir, "requirements.txt").write_text(
+            "ibis_framework>=12\nPandas\nnumpy>=1.24\n"
+        )
+        with patch(_SHUTIL_WHICH, return_value=None):
+            result = export_workspace_requirements(Path(ctx.run_dir))
+    dashboard = result["groups"][DASHBOARD_JOB_REF]
+    assert "ibis-framework" not in dashboard
+    # rest of the synthesized group survives
+    for kept in ("marimo", "pyarrow", "s3fs"):
+        assert kept in dashboard
+    # launcher lists share none of these names — untouched except dlt injection
+    dlt_spec = get_dlt_requirement_spec()
+    assert result["launcher_requirements"][LAUNCHER_JOB] == sorted(
+        set(["botocore", "s3fs", dlt_spec] + _BASE_LAUNCHER_SPECS)
+    )
+
+
+@pytest.mark.parametrize(
+    "default_groups, pyarrow_pruned",
+    [(None, False), (["main", "extras"], True)],
+    ids=["main-only", "main-and-extras"],
+)
+def test_export_prunes_only_against_default_groups(
+    default_groups: List[str], pyarrow_pruned: bool
+) -> None:
+    with isolated_workspace("deps_none") as ctx:
+        Path(ctx.run_dir, "pyproject.toml").write_text(
+            "[project]\n"
+            'name = "deps-groups"\n'
+            'version = "0.0.1"\n'
+            'dependencies = ["requests>=2.0"]\n'
+            "\n"
+            "[dependency-groups]\n"
+            'extras = ["pyarrow>=16.0.0"]\n'
+        )
+        result = export_workspace_requirements(Path(ctx.run_dir), default_groups=default_groups)
+    dashboard = result["groups"][DASHBOARD_JOB_REF]
+    assert ("pyarrow" not in dashboard) is pyarrow_pruned
+    # user groups are never modified by pruning
+    assert result["groups"]["extras"] == ["pyarrow>=16.0.0"]
+
+
+@pytest.mark.parametrize(
+    "spec, expected",
+    [
+        ("dlt>=1.0", {"dlt"}),
+        ("dlt[hub]==1.2", {"dlt", "dlt[hub]"}),
+        ("dlt[Hub , providers]>=1.0", {"dlt", "dlt[hub]", "dlt[providers]"}),
+        ("dlt[hub] @ https://example.com/dlt.zip", {"dlt", "dlt[hub]"}),
+    ],
+    ids=["no-extras", "single-extra", "multiple-extras-normalized", "extras-with-direct-ref"],
+)
+def test_collect_package_names_extras_tokens(spec: str, expected: Set[str]) -> None:
+    assert _collect_package_names([spec]) == expected
+
+
+@pytest.mark.parametrize(
+    "spec, pruned, kept, dlt_injected",
+    [
+        ("dlt[hub]>=1.0", {"dlthub", "croniter"}, set(), False),
+        ("dlthub>=0.1", {"dlthub"}, {"croniter"}, True),
+        ("dlthub-client", {"croniter"}, {"dlthub"}, True),
+        ("dlt>=1.0", set(), {"dlthub", "croniter"}, False),
+    ],
+    ids=["dlt-hub-extra", "dlthub", "dlthub-client", "plain-dlt"],
+)
+def test_export_prunes_implied_packages(
+    spec: str, pruned: Set[str], kept: Set[str], dlt_injected: bool
+) -> None:
+    """`dlt[hub]` pulls dlthub + croniter; dlthub / dlthub-client pull croniter."""
+    with isolated_workspace("deps_none") as ctx:
+        Path(ctx.run_dir, "requirements.txt").write_text(f"{spec}\n")
+        with patch(_SHUTIL_WHICH, return_value=None):
+            result = export_workspace_requirements(Path(ctx.run_dir))
+    job_specs = result["launcher_requirements"][LAUNCHER_JOB]
+    for name in pruned:
+        assert name not in job_specs
+    for name in kept:
+        assert name in job_specs
+    has_dlt = any(Requirement(s).name == "dlt" for s in job_specs)
+    assert has_dlt is dlt_injected
+
+
+def test_export_scaffolded_workspace_prunes_all_launcher_specs() -> None:
+    """A `dlthub init` workspace declares every launcher dep except streamlit."""
+    with isolated_workspace("deps_none") as ctx:
+        plan = fetch_init_plan(ctx.run_dir, dependencies="pyproject")
+        init_dlthub_workspace(plan)
+        result = export_workspace_requirements(Path(ctx.run_dir))
+    for launcher, specs in result["launcher_requirements"].items():
+        if launcher == LAUNCHER_STREAMLIT:
+            assert specs == ["streamlit"]
+        else:
+            assert specs == [], f"{launcher!r} not fully pruned: {specs}"
+    assert result["groups"][DASHBOARD_JOB_REF] == []
+
+
+def test_export_prunes_marker_guarded_specs() -> None:
+    """Marker-guarded user specs count toward the prune set — name-level only."""
+    with isolated_workspace("deps_none") as ctx:
+        Path(ctx.run_dir, "requirements.txt").write_text('s3fs ; python_version >= "3.8"\n')
+        with patch(_SHUTIL_WHICH, return_value=None):
+            result = export_workspace_requirements(Path(ctx.run_dir))
+    assert "s3fs" not in result["launcher_requirements"][LAUNCHER_JOB]
+    assert "s3fs" not in result["groups"][DASHBOARD_JOB_REF]
+
+
+def test_python_version_shape() -> None:
+    version = python_version()
+    assert re.fullmatch(r"\d+\.\d+", version)
+    assert version == f"{sys.version_info.major}.{sys.version_info.minor}"
+
+
+def test_export_includes_python_version() -> None:
+    with isolated_workspace("deps_pyproject") as ctx:
+        result = export_workspace_requirements(Path(ctx.run_dir))
+    assert result["python_version"] == python_version()
+
+
+def test_default_manifest_includes_python_version() -> None:
+    manifest = default_requirements_manifest()
+    assert manifest["python_version"] == python_version()
+
+
+def _make_dist(direct_url_payload):
+    """Return a fake `importlib.metadata.Distribution`-like object."""
+    from unittest.mock import MagicMock
+
+    dist = MagicMock()
+    dist.metadata = {"Version": "9.9.9"}
+    if direct_url_payload is None:
+        dist.read_text.return_value = None
+    else:
+        dist.read_text.return_value = json.dumps(direct_url_payload)
+    return dist
+
+
+def _patch_distribution(monkeypatch: pytest.MonkeyPatch, payload) -> None:
+    monkeypatch.setattr(
+        "dlt._workspace.deployment.requirements.importlib.metadata.distribution",
+        lambda _name: _make_dist(payload),
+    )
+
+
+def test_get_pkg_install_spec_pypi(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No `direct_url.json` -> pypi install with version from metadata."""
+    from dlt._workspace.deployment.requirements import get_pkg_install_spec
+
+    _patch_distribution(monkeypatch, None)
+    spec = get_pkg_install_spec("dlt", extras=["hub"])
+    assert spec["mode"] == "pypi"
+    assert spec["version"] == "9.9.9"
+    assert spec["extras"] == ["hub"]
+    assert "path" not in spec and "git_url" not in spec
+
+
+def test_get_pkg_install_spec_editable(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dlt._workspace.deployment.requirements import get_pkg_install_spec
+
+    _patch_distribution(
+        monkeypatch,
+        {"url": "file:///abs/path", "dir_info": {"editable": True}},
+    )
+    spec = get_pkg_install_spec("dlthub-client")
+    assert spec["mode"] == "editable"
+    assert spec["path"] == "/abs/path"
+
+
+def test_get_pkg_install_spec_path_non_editable(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dlt._workspace.deployment.requirements import get_pkg_install_spec
+
+    _patch_distribution(
+        monkeypatch,
+        {"url": "file:///abs/path", "dir_info": {"editable": False}},
+    )
+    spec = get_pkg_install_spec("dlthub")
+    assert spec["mode"] == "path"
+    assert spec["path"] == "/abs/path"
+
+
+def test_get_pkg_install_spec_git(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dlt._workspace.deployment.requirements import get_pkg_install_spec
+
+    _patch_distribution(
+        monkeypatch,
+        {
+            "url": "https://github.com/dlt-hub/dlt.git",
+            "vcs_info": {"vcs": "git", "commit_id": "abc123"},
+        },
+    )
+    spec = get_pkg_install_spec("dlt")
+    assert spec["mode"] == "git"
+    assert spec["git_url"] == "https://github.com/dlt-hub/dlt.git"
+    assert spec["git_rev"] == "abc123"
+
+
+@pytest.mark.parametrize(
+    "url,extra_block",
+    [
+        (
+            "https://github.com/dlt-hub/dlt/archive/refs/heads/main.zip?v=13",
+            {"archive_info": {"hashes": {"sha256": "deadbeef"}}},
+        ),
+        ("https://files.pythonhosted.org/packages/dlt-1.0.0-py3-none-any.whl", {}),
+    ],
+    ids=["github-archive-with-query", "https-wheel-no-archive-info"],
+)
+def test_get_pkg_install_spec_archive(
+    monkeypatch: pytest.MonkeyPatch, url: str, extra_block: Dict[str, object]
+) -> None:
+    """`pip install https://...zip|whl` with or without `archive_info` becomes mode=archive."""
+    from dlt._workspace.deployment.requirements import get_pkg_install_spec
+
+    payload = {"url": url, **extra_block}
+    _patch_distribution(monkeypatch, payload)
+    spec = get_pkg_install_spec("dlt")
+    assert spec["mode"] == "archive"
+    assert spec["archive_url"] == url
+
+
+def _spec(name, mode, **extra):
+    """Build a minimal `TInstallSpec` dict for render-helper tests."""
+    base = {"name": name, "extras": [], "version": "9.9.9", "mode": mode}
+    base.update(extra)
+    return base
+
+
+@pytest.mark.parametrize(
+    "spec,for_deployment,expected",
+    [
+        (_spec("dlt", "pypi"), True, "dlt==9.9.9"),
+        (_spec("dlt", "pypi", extras=["hub"]), True, "dlt[hub]==9.9.9"),
+        (_spec("dlt", "editable", path="/abs"), True, "dlt==9.9.9"),
+        (_spec("dlt", "editable", path="/abs"), False, "dlt==9.9.9"),
+        (_spec("dlt", "path", path="/abs"), True, "dlt @ file:///abs"),
+        (_spec("dlt", "path", path="/abs"), False, "dlt==9.9.9"),
+        (
+            _spec("dlt", "git", git_url="https://example.com/dlt.git", git_rev="abc"),
+            True,
+            "dlt @ git+https://example.com/dlt.git@abc",
+        ),
+        (
+            _spec("dlt", "git", git_url="https://example.com/dlt.git", git_rev="abc"),
+            False,
+            "dlt==9.9.9",
+        ),
+        (
+            _spec(
+                "dlt",
+                "archive",
+                archive_url="https://github.com/dlt-hub/dlt/archive/main.zip?v=13",
+            ),
+            True,
+            "dlt @ https://github.com/dlt-hub/dlt/archive/main.zip?v=13",
+        ),
+        (
+            _spec(
+                "dlt",
+                "archive",
+                extras=["hub"],
+                archive_url="https://github.com/dlt-hub/dlt/archive/main.zip?v=13",
+            ),
+            False,
+            "dlt[hub] @ https://github.com/dlt-hub/dlt/archive/main.zip?v=13",
+        ),
+    ],
+    ids=[
+        "pypi-deployment",
+        "pypi-with-extras",
+        "editable-deployment",
+        "editable-scaffold",
+        "path-deployment-direct-ref",
+        "path-scaffold-version-pin",
+        "git-deployment-direct-ref",
+        "git-scaffold-version-pin",
+        "archive-deployment-direct-ref",
+        "archive-scaffold-direct-ref-with-extras",
+    ],
+)
+def test_render_pep508(spec, for_deployment, expected) -> None:
+    from dlt._workspace.deployment.requirements import render_pep508
+
+    assert render_pep508(spec, for_deployment=for_deployment) == expected
+
+
+@pytest.mark.parametrize(
+    "spec,expected",
+    [
+        (_spec("dlt", "pypi"), None),
+        (_spec("dlt", "path", path="/abs"), {"path": "/abs"}),
+        (_spec("dlt", "editable", path="/abs"), {"path": "/abs", "editable": True}),
+        (
+            _spec("dlt", "git", git_url="https://x/dlt.git", git_rev="abc"),
+            {"git": "https://x/dlt.git", "rev": "abc"},
+        ),
+        (
+            _spec("dlt", "git", git_url="https://x/dlt.git"),
+            {"git": "https://x/dlt.git"},
+        ),
+        # archive direct refs go inline in dependencies — no override needed
+        (_spec("dlt", "archive", archive_url="https://x/dlt.zip"), None),
+    ],
+    ids=["pypi-none", "path", "editable", "git-with-rev", "git-no-rev", "archive-none"],
+)
+def test_render_uv_source(spec, expected) -> None:
+    from dlt._workspace.deployment.requirements import render_uv_source
+
+    assert render_uv_source(spec) == expected
+
+
+@pytest.mark.parametrize(
+    "spec,expected",
+    [
+        (_spec("dlt", "pypi"), ["dlt==9.9.9"]),
+        (_spec("dlt", "pypi", extras=["hub"]), ["dlt[hub]==9.9.9"]),
+        (_spec("dlt", "editable", path="/abs"), ["-e /abs"]),
+        (_spec("dlt", "path", path="/abs"), ["dlt @ file:///abs"]),
+        (
+            _spec("dlt", "git", git_url="https://x/dlt.git", git_rev="abc"),
+            ["dlt @ git+https://x/dlt.git@abc"],
+        ),
+        (
+            _spec("dlt", "archive", archive_url="https://x/dlt.zip?v=13"),
+            ["dlt @ https://x/dlt.zip?v=13"],
+        ),
+    ],
+    ids=[
+        "pypi",
+        "pypi-with-extras",
+        "editable-dash-e",
+        "path-direct-ref",
+        "git",
+        "archive-direct-ref",
+    ],
+)
+def test_render_requirements_lines(spec, expected) -> None:
+    from dlt._workspace.deployment.requirements import render_requirements_lines
+
+    assert render_requirements_lines(spec) == expected
+
+
+def test_get_workspace_install_specs_includes_dlt_with_hub_extra() -> None:
+    from dlt._workspace.deployment.requirements import get_workspace_install_specs
+
+    specs = get_workspace_install_specs()
+    # dlt is always present (we're running inside it)
+    dlt_spec = next((s for s in specs if s["name"] == "dlt"), None)
+    assert dlt_spec is not None
+    assert dlt_spec["extras"] == ["hub"]
+
+
+def test_get_workspace_install_specs_skips_uninstalled_packages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When dlthub / dlthub-client aren't installed, they're omitted (PyPI-via-extra fallback)."""
+    from dlt._workspace.deployment import requirements as req_mod
+
+    real_dist = req_mod.importlib.metadata.distribution
+
+    def _missing_for_hubs(name: str):
+        if name in ("dlthub", "dlthub-client"):
+            raise req_mod.importlib.metadata.PackageNotFoundError(name)
+        return real_dist(name)
+
+    monkeypatch.setattr(req_mod.importlib.metadata, "distribution", _missing_for_hubs)
+    specs = req_mod.get_workspace_install_specs()
+    names = {s["name"] for s in specs}
+    assert names == {"dlt"}

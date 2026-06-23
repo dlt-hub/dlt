@@ -697,20 +697,21 @@ class WeaviateClient(JobClientBase, WithStateSync):
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update)
+        applied_update = super().update_stored_schema(only_tables, expected_update, force)
         # Retrieve the schema from Weaviate
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         except DestinationUndefinedEntity:
             schema_info = None
-        if schema_info is None:
+        if schema_info is None or force:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
-                "not found in the storage. upgrading"
+                "not found in the storage (or update enforced). upgrading"
             )
             # TODO: return a real updated table schema (like in SQL job client)
-            self._execute_schema_update(only_tables)
+            self._execute_schema_update(only_tables, store_schema=schema_info is None)
         else:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
@@ -720,7 +721,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
         return applied_update
 
-    def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
+    def _execute_schema_update(self, only_tables: Iterable[str], store_schema: bool = True) -> None:
         for table_name in only_tables or self.schema.tables.keys():
             exists, existing_columns = self.get_storage_table(table_name)
             # TODO: detect columns where vectorization was added or removed and modify it. currently we ignore change of hints
@@ -741,7 +742,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 else:
                     collection_config = self.make_weaviate_collection_schema(table_name)
                     self.create_collection(collection_config)
-        self._update_schema_in_storage(self.schema)
+        # skip writing the version row when the schema is already stored (enforced update)
+        if store_schema:
+            self._update_schema_in_storage(self.schema)
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_schema: TTableSchemaColumns = {}

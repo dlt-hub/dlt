@@ -1,5 +1,5 @@
 ---
-title: Google BigQuery
+title: BigQuery
 description: Google BigQuery `dlt` destination
 keywords: [bigquery, destination, data warehouse]
 ---
@@ -196,13 +196,13 @@ If you yield data as Python objects (dicts) and load this data as Parquet, the n
 
 You can configure the following file formats to load data to BigQuery:
 
-* [JSONL](../file-formats/jsonl.md) is used by default.
-* [Parquet](../file-formats/parquet.md) is supported.
+* [JSONL](../file-formats.md#jsonl) is used by default.
+* [Parquet](../file-formats.md#parquet) is supported.
 
 When staging is enabled:
 
-* [JSONL](../file-formats/jsonl.md) is used by default.
-* [Parquet](../file-formats/parquet.md) is supported.
+* [JSONL](../file-formats.md#jsonl) is used by default.
+* [Parquet](../file-formats.md#parquet) is supported.
 
 :::warning
 **BigQuery cannot load JSON columns from Parquet files**. `dlt` will fail such jobs permanently. Instead:
@@ -366,4 +366,3 @@ Refer to the [full API specification](../../api_reference/dlt/destinations/impl/
 :::
 
 <!--@@@DLT_TUBA bigquery-->
-

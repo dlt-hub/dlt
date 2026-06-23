@@ -92,8 +92,15 @@ class BaseDocProvider(ConfigProvider):
             if not isinstance(master, dict):
                 raise KeyError(k)
             if k not in master:
+                if value is None:
+                    # nothing to delete, and don't materialise empty intermediate sections
+                    return
                 master[k] = {}
             master = master[k]
+        # value=None is the unambiguous "delete this key" signal — TOML can't represent None
+        if value is None:
+            master.pop(key, None)
+            return
         if isinstance(value, dict):
             # remove none values, TODO: we need recursive None removal
             value = {k: v for k, v in value.items() if v is not None}

@@ -1,7 +1,9 @@
 import os
-from typing import Optional
+from typing import Dict, Optional
 
 import pytest
+from lance.namespace import DirectoryNamespace, RestNamespace
+from lance_namespace import LanceNamespace
 from lancedb.embeddings import CohereEmbeddingFunction, OllamaEmbeddings, OpenAIEmbeddings
 
 import dlt
@@ -10,7 +12,7 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.runtime.run_context import active
-from dlt.common.utils import uniq_id
+from dlt.common.utils import digest128, uniq_id
 
 from dlt.destinations.impl.lance.configuration import (
     DEFAULT_LANCE_BUCKET_URL,
@@ -20,6 +22,9 @@ from dlt.destinations.impl.lance.configuration import (
     LanceClientConfiguration,
     LanceEmbeddingsConfiguration,
     LanceEmbeddingsCredentials,
+    LanceNamespacePool,
+    RestCatalogCapabilities,
+    RestCatalogCredentials,
     LanceStorageConfiguration,
     TEmbeddingProvider,
 )
@@ -60,6 +65,30 @@ def test_lance_storage_configuration_namespace_uri() -> None:
     config = LanceStorageConfiguration(bucket_url="foo", namespace_name="bar")
     config.call_method_in_mro("on_partial")  # to resolve config.local_dir
     assert config.namespace_uri == f"{local_dir_uri}/foo/bar"
+
+
+@pytest.mark.parametrize(
+    "storage,expected_fingerprint",
+    [
+        pytest.param(None, "", id="empty"),
+        pytest.param(
+            LanceStorageConfiguration(bucket_url="data/lance"),
+            digest128(""),
+            id="storage_local",
+        ),
+        pytest.param(
+            LanceStorageConfiguration(bucket_url="s3://my-bucket/path"),
+            digest128("s3://my-bucket"),
+            id="storage_remote_bucket_only",
+        ),
+    ],
+)
+def test_lance_fingerprint(
+    storage: Optional[LanceStorageConfiguration], expected_fingerprint: str
+) -> None:
+    config = LanceClientConfiguration(storage=storage)
+
+    assert config.fingerprint() == expected_fingerprint
 
 
 def test_lance_storage_configuration_options() -> None:
@@ -214,6 +243,21 @@ def test_lance_client_configuration_catalog_dispatch() -> None:
     assert isinstance(c.storage, LanceStorageConfiguration)
     assert c.capabilities.manifest_enabled is True
     assert c.capabilities.dir_listing_enabled is True
+    assert isinstance(c.make_namespace(), DirectoryNamespace)
+
+    # catalog_type "rest" routes to RestCatalog* resolved types
+    c = resolve_configuration(
+        LanceClientConfiguration(
+            catalog_type="rest",
+            credentials=RestCatalogCredentials(uri="http://127.0.0.1:2333"),
+        )._bind_dataset_name(dataset_name="test_dataset"),
+        sections=("destination", "lance"),
+    )
+    assert c.catalog_type == "rest"
+    assert isinstance(c.credentials, RestCatalogCredentials)
+    assert isinstance(c.capabilities, RestCatalogCapabilities)
+    assert c.storage is None
+    assert isinstance(c.make_namespace(), RestNamespace)
 
 
 def test_directory_catalog_credentials_inherit_from_storage() -> None:
@@ -224,6 +268,7 @@ def test_directory_catalog_credentials_inherit_from_storage() -> None:
         )._bind_dataset_name(dataset_name="test_dataset"),
         sections=("destination", "lance"),
     )
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
     assert c.storage.bucket_url == "s3://my-bucket"
     assert c.storage.namespace_uri == "s3://my-bucket/my-ns"
     assert c.credentials.bucket_url == c.storage.namespace_uri
@@ -242,6 +287,7 @@ def test_directory_catalog_credentials_override_storage() -> None:
         LanceClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
         sections=("destination", "lance"),
     )
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
     assert c.storage.bucket_url == "s3://data-bucket"
     assert c.credentials.bucket_url == "s3://catalog-bucket/catalog"
     # catalog credentials ran their own merge — options carry AWS creds + cloud timeouts
@@ -275,6 +321,7 @@ def test_lance_follows_local_dir(
         )._bind_dataset_name(dataset_name="test_dataset"),
         sections=("destination", "lance"),
     )
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
     assert c.storage.bucket_url == f"file://{abs_local_dir}"
     assert c.storage.namespace_uri == f"file://{abs_local_dir}/{DEFAULT_LANCE_NAMESPACE_NAME}"
     if inherits_from_storage:
@@ -291,6 +338,7 @@ def test_lance_follows_local_dir(
         )._bind_dataset_name(dataset_name="test_dataset"),
         sections=("destination", "lance"),
     )
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
     expected_storage = os.path.join(abs_local_dir, "my_lance_data")
     assert c.storage.bucket_url == f"file://{expected_storage}"
     assert c.storage.namespace_uri == f"file://{expected_storage}/{DEFAULT_LANCE_NAMESPACE_NAME}"
@@ -310,6 +358,7 @@ def test_lance_follows_local_dir(
         ),
         sections=("destination", "lance"),
     )
+    assert isinstance(c.credentials, DirectoryCatalogCredentials)
     assert c.storage.pipeline_name == "test_lance_follows_local_dir"
     assert c.storage.bucket_url == f"file://{abs_local_dir}"
     assert c.storage.namespace_uri == f"file://{abs_local_dir}/{DEFAULT_LANCE_NAMESPACE_NAME}"
@@ -319,3 +368,74 @@ def test_lance_follows_local_dir(
     else:
         expected_catalog = os.path.join(abs_local_dir, catalog_bucket_url)
         assert c.credentials.bucket_url == f"file://{expected_catalog}"
+
+
+def _resolved_config() -> LanceClientConfiguration:
+    return resolve_configuration(
+        LanceClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
+        sections=("destination", "lance"),
+    )
+
+
+def test_lance_namespace_pool_shared_handle() -> None:
+    c = _resolved_config()
+    assert isinstance(c.namespace_pool, LanceNamespacePool)
+
+    handle_1 = c.namespace_pool.borrow()
+    handle_2 = c.namespace_pool.borrow()
+    # same namespace and session dispensed to all borrowers
+    assert handle_1.namespace is handle_2.namespace
+    assert handle_1.session is handle_2.session
+    assert c.namespace_pool._borrows == 2
+
+    c.namespace_pool.return_handle(handle_1)
+    c.namespace_pool.return_handle(handle_2)
+    assert c.namespace_pool._borrows == 0
+    # handle retained at zero borrows for reuse across load steps
+    assert c.namespace_pool.borrow().namespace is handle_1.namespace
+
+
+def test_lance_namespace_pool_copy_isolation() -> None:
+    c = _resolved_config()
+    handle = c.namespace_pool.borrow()
+
+    c_copy = c.copy()
+    assert c_copy.namespace_pool is not c.namespace_pool
+    assert c_copy.namespace_pool.borrow().namespace is not handle.namespace
+
+
+def test_lance_namespace_pool_rebuilds_on_credential_rotation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    c = _resolved_config()
+
+    creds = {"value": {"aws_access_key_id": "key_1"}}
+    monkeypatch.setattr(
+        LanceClientConfiguration, "_fresh_storage_creds", lambda self: dict(creds["value"])
+    )
+    builds = []
+    orig_make_namespace = LanceClientConfiguration.make_namespace
+
+    def counting_make_namespace(
+        self: LanceClientConfiguration, fresh_creds: Optional[Dict[str, str]] = None
+    ) -> "LanceNamespace":
+        builds.append(fresh_creds)
+        # build without the fake creds, the local object store does not accept them
+        return orig_make_namespace(self)
+
+    monkeypatch.setattr(LanceClientConfiguration, "make_namespace", counting_make_namespace)
+
+    # same snapshot borrows the same handle
+    handle_1 = c.namespace_pool.borrow()
+    handle_2 = c.namespace_pool.borrow()
+    assert len(builds) == 1
+    assert handle_1.namespace is handle_2.namespace
+
+    # rotated credentials rebuild the handle and overlay storage options
+    creds["value"] = {"aws_access_key_id": "key_2"}
+    handle_3 = c.namespace_pool.borrow()
+    assert len(builds) == 2
+    assert builds[-1] == {"aws_access_key_id": "key_2"}
+    assert handle_3.namespace is not handle_1.namespace
+    assert handle_3.session is not handle_1.session
+    assert handle_3.storage_options["aws_access_key_id"] == "key_2"

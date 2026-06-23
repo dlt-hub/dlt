@@ -1,8 +1,8 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Type, Union
 
-from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.data_writers.escape import escape_databricks_identifier, escape_databricks_literal
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination.typing import PreparedTableSchema
@@ -12,15 +12,30 @@ from dlt.common.typing import TLoaderFileFormat
 
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.databricks.configuration import (
-    DatabricksCredentials,
+    DEFAULT_DATABRICKS_INSERT_API,
     DatabricksClientConfiguration,
+    DatabricksCredentials,
+    DatabricksZerobusConfiguration,
 )
+from dlt.destinations.impl.databricks.databricks_adapter import INSERT_API_HINT
+from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.databricks.databricks import DatabricksClient
 
 
 class DatabricksTypeMapper(TypeMapperImpl):
+    UNSUPPORTED_TYPES: ClassVar[
+        dict[tuple[TDatabricksInsertApi, TLoaderFileFormat], frozenset[TDataType]]
+    ] = {
+        (DEFAULT_DATABRICKS_INSERT_API, "parquet"): frozenset({"time"}),
+        (DEFAULT_DATABRICKS_INSERT_API, "jsonl"): frozenset({"decimal", "wei", "binary", "date"}),
+        (DEFAULT_DATABRICKS_INSERT_API, "model"): frozenset(),
+        ("zerobus", "parquet"): frozenset({"decimal", "wei"}),
+        ("zerobus", "jsonl"): frozenset({"decimal", "wei", "binary", "json"}),
+        ("zerobus", "model"): frozenset(),
+    }
+
     sct_to_unbound_dbt = {
         "json": "STRING",  # Json type stored as string
         "text": "STRING",
@@ -60,26 +75,29 @@ class DatabricksTypeMapper(TypeMapperImpl):
         table: PreparedTableSchema,
         loader_file_format: TLoaderFileFormat,
     ) -> None:
-        if loader_file_format == "jsonl":
-            if column["data_type"] in {
-                "decimal",
-                "wei",
-                "binary",
-                "json",
-                "date",
-            }:
-                raise TerminalValueError("", column["data_type"])
-            if column["data_type"] == "timestamp" and column.get("timezone") is False:
-                raise TerminalValueError(
-                    "Cannot load naive timestamps from json, use parquet", column["data_type"]
-                )
-        if loader_file_format == "parquet":
-            if column["data_type"] in {"time"}:
-                raise TerminalValueError(
-                    "Spark can't read Time from parquet. Convert your time column to string or"
-                    " change file format.",
-                    column["data_type"],
-                )
+        insert_api = table[INSERT_API_HINT]  # type: ignore[typeddict-item]
+        unsupported_types = self.UNSUPPORTED_TYPES[(insert_api, loader_file_format)]
+
+        if insert_api == "copy_into":
+            if loader_file_format == "jsonl":
+                if column["data_type"] == "timestamp" and column.get("timezone") is False:
+                    raise TerminalValueError(
+                        "Cannot load naive timestamps from json, use parquet", column["data_type"]
+                    )
+            elif loader_file_format == "parquet":
+                if column["data_type"] == "time":
+                    raise TerminalValueError(
+                        "Spark can't read Time from parquet. Convert your time column to string"
+                        " or change file format.",
+                        column["data_type"],
+                    )
+
+        if column["data_type"] in unsupported_types:
+            raise TerminalValueError(
+                f"The `{insert_api}` insert API does not support data type"
+                f" `{column['data_type']}` with loader file format `{loader_file_format}`.",
+                column["data_type"],
+            )
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
@@ -102,18 +120,7 @@ class DatabricksTypeMapper(TypeMapperImpl):
         column: TColumnSchema,
         table: PreparedTableSchema = None,
     ) -> str:
-        column_name = column["name"]
-        table_name = table["name"]
-        timezone = column.get("timezone", True)
-        precision = column.get("precision")
-
-        if precision and precision != self.capabilities.timestamp_precision:
-            logger.warn(
-                f"Databricks does not support precision {precision} for column '{column_name}' in"
-                f" table '{table_name}'. Will default to 6."
-            )
-
-        return "TIMESTAMP" if timezone else "TIMESTAMP_NTZ"
+        return "TIMESTAMP" if column.get("timezone", True) else "TIMESTAMP_NTZ"
 
     def from_destination_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
@@ -153,6 +160,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         caps.has_case_sensitive_identifiers = False
         caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
         caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
+        caps.supports_timestamp_precision_configuration = False
+        caps.supports_binary_precision_configuration = False
         caps.max_identifier_length = 255
         caps.max_column_identifier_length = 255
         caps.max_query_length = 2 * 1024 * 1024
@@ -172,6 +181,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             "staging-optimized",
         ]
         caps.sqlglot_dialect = "databricks"
+        # Databricks timestamps always have microsecond precision
+        caps.parquet_format = ParquetFormatConfiguration(coerce_timestamps="us")
 
         return caps
 
@@ -190,6 +201,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         environment: str = None,
         staging_volume_name: str = None,
         create_indexes: bool = False,
+        insert_api: TDatabricksInsertApi = DEFAULT_DATABRICKS_INSERT_API,
+        zerobus: DatabricksZerobusConfiguration = None,
         **kwargs: Any,
     ) -> None:
         """Configure the Databricks destination to use in a pipeline.
@@ -205,6 +218,9 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             environment (str, optional): Environment of the destination
             staging_volume_name (str, optional): Name of the staging volume to use
             create_indexes (bool, optional): Whether PRIMARY KEY or FOREIGN KEY constrains should be created
+            insert_api (TDatabricksInsertApi, optional): Ingestion backend for `append` write
+                disposition. Can be overridden per resource via `databricks_adapter`.
+            zerobus (DatabricksZerobusConfiguration, optional): Zerobus configuration including Zerobus endpoint, credentials, batch size, and optional Arrow stream settings.
             **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
@@ -215,6 +231,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             environment=environment,
             staging_volume_name=staging_volume_name,
             create_indexes=create_indexes,
+            insert_api=insert_api,
+            zerobus=zerobus,
             **kwargs,
         )
 
