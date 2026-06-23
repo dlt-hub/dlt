@@ -19,6 +19,10 @@ Users authenticate against the dltHub platform in the following ways:
 
 ## Inviting people to your organization and workspaces
 
+:::info Public preview
+This feature is available as a preliminary public preview to all dltHub customers.
+:::
+
 You can invite teammates by email into a whole organization or into a specific workspace, and control what each person can do with [roles](#roles).
 
 ### Inviting someone
