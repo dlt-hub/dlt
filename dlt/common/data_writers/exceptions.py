@@ -1,10 +1,8 @@
-from typing import TYPE_CHECKING, Any, NamedTuple, Sequence
+from typing import Any, NamedTuple, Sequence
 
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import DltException
-
-if TYPE_CHECKING:
-    from dlt.common.libs.pyarrow import pyarrow
+from dlt.common.typing import TDataItem
 
 
 class DataWriterException(DltException):
@@ -94,15 +92,32 @@ class InvalidDataItem(DataWriterException):
         )
 
 
-class SchemaEvolutionRequired(DataWriterException):
-    """Cross-batch schema widened; signals file rotation."""
+class FileRotationRequired(DataWriterException):
+    """Signals that buffered items cannot be written to the current file because their schema
+    does not fit schema of the writer file
+    """
 
-    def __init__(
-        self, unified_schema: "pyarrow.Schema", table: "pyarrow.Table"
-    ) -> None:
-        self.unified_schema = unified_schema
-        self.table = table
+    def __init__(self, items: Sequence[TDataItem]) -> None:
+        self.items = items
         super().__init__(
-            "Schema evolved across flush batches, rotating to new file with"
-            " unified schema."
+            "Data items could not be written to the current file because their schema widens the"
+            " schema already locked on the file. The file must be rotated and the items rewritten."
+        )
+
+
+class IncompatibleArrowSchema(DataWriterException):
+    """Arrow data cannot be combined into a single parquet schema while type promotion is off."""
+
+    def __init__(self, reason: str, details: str) -> None:
+        self.reason = reason
+        super().__init__(
+            f"{reason} while arrow type promotion is disabled"
+            " (`arrow_concat_promote_options='none'`)."
+            " Set `data_writer.arrow_concat_promote_options` (env"
+            " variable `DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS`) to one of:\n"
+            "  - `default`: lossless. Safe differences are merged and incompatible batches are"
+            " written to a separate file; data is never altered.\n"
+            "  - `permissive`: applies full type promotion which MAY alter data or lose precision"
+            " (e.g. `int64` -> `double` or decimal rescale).\n"
+            f"Detailed message\n{details}"
         )

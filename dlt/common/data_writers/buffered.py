@@ -1,6 +1,6 @@
 import gzip
 import contextlib
-from typing import ClassVar, Iterator, List, IO, Any, Optional, Type, Generic
+from typing import ClassVar, Iterator, List, IO, Any, Optional, Sequence, Type, Generic
 
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.typing import TDataItem, TDataItems
@@ -9,7 +9,7 @@ from dlt.common.data_writers.exceptions import (
     DestinationCapabilitiesRequired,
     FileImportNotFound,
     InvalidFileNameTemplateException,
-    SchemaEvolutionRequired,
+    FileRotationRequired,
 )
 from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec, count_rows_in_items
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -248,16 +248,18 @@ class BufferedDataWriter(Generic[TWriter]):
                 items = self._buffered_items
                 self._buffered_items = []
                 self._buffered_items_count = 0
-                try:
-                    self._writer.write_data(items)
-                except SchemaEvolutionRequired as sc:
-                    # cross-batch schema widened - rotate to new file.
-                    # items list was already cleared inside write_data;
-                    # the materialized table is on the exception.
-                    self._rotate_file()
-                    self._open_writer()
-                    table = sc.table.cast(sc.unified_schema)
-                    self._writer.write_data([table])
+                pending: Sequence[TDataItem] = items
+                while True:
+                    try:
+                        self._writer.write_data(pending)
+                        break
+                    except FileRotationRequired as sc:
+                        self._rotate_file()
+                        self._open_writer()
+                        pending = sc.items
+                        # items did not fit the current file - rotate and write the rest
+                        self._last_modified = self._clock()
+                # self._last_modified = self._clock()
                 items.clear()
             else:
                 self._buffered_items_count = 0
