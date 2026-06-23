@@ -375,12 +375,14 @@ def _main() -> None:
     # when workspace is active, dlt commands mirrors dlthub
     if is_workspace_active():
         host = "dlthub"
-        fmt.note(
-            "Please use %s as top level command. Check `%s` for former dlt commands. "
+        fmt.secho(
+            "NOTE: Please use %s as top level command. Check `%s` for former dlt commands. "
             "Falling back to dlthub command set."
-            % (fmt.bold("dlthub"), fmt.bold("dlthub local --help"))
+            % (fmt.bold("dlthub"), fmt.bold("dlthub local --help")),
+            fg="green",
+            err=True,
         )
-        fmt.echo()
+        fmt.echo(err=True)
     else:
         host = "dlt"
     exit(main(host))
