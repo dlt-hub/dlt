@@ -13,4 +13,4 @@
 - Subject line only for the vast majority of commits; add a body line only for a non-obvious *why* (max ~3 lines total).
 - No footers — no `Co-Authored-By`, no "Generated with ...". No emojis.
 - When squash-merging, clean the squash message down to a single subject line.
-- Full rules + Claude Code enforcement (git/gh hook + `/commit` skill): @.claude/rules/git-github.md
+- Full rules (enforced per-agent via git/gh hooks under `.claude/`, `.cursor/`, `.codex/`): @.agents/rules/git-github.md

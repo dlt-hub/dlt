@@ -24,12 +24,12 @@
           {
             "type": "command",
             "if": "Bash(git *)",
-            "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/rules/git-github.md\"; [ -r \"$f\" ] && jq -n --rawfile c \"$f\" '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:$c}}' || true"
+            "command": "f=\"$CLAUDE_PROJECT_DIR/.agents/rules/git-github.md\"; [ -r \"$f\" ] && jq -n --rawfile c \"$f\" '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:$c}}' || true"
           },
           {
             "type": "command",
             "if": "Bash(gh *)",
-            "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/rules/git-github.md\"; [ -r \"$f\" ] && jq -n --rawfile c \"$f\" '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:$c}}' || true"
+            "command": "f=\"$CLAUDE_PROJECT_DIR/.agents/rules/git-github.md\"; [ -r \"$f\" ] && jq -n --rawfile c \"$f\" '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:$c}}' || true"
           }
         ]
       },

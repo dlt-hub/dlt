@@ -7,7 +7,7 @@ set -euo pipefail
 input=$(cat)
 cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
 root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-rule="$root/.claude/rules/git-github.md"
+rule="$root/.agents/rules/git-github.md"
 
 case "$cmd" in
   git\ *|gh\ *)

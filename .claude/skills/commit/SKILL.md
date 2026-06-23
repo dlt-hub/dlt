@@ -6,7 +6,7 @@ argument-hint: [-- <optional subject hint or scope>]
 
 # Commit
 
-Create a commit that follows `.claude/rules/git-github.md`. Invoke as `/commit`, or
+Create a commit that follows `.agents/rules/git-github.md`. Invoke as `/commit`, or
 use these steps whenever you are about to commit.
 
 Parse `$ARGUMENTS`: anything after `--` is an optional hint (a subject, a scope, or
@@ -23,19 +23,19 @@ git diff
 ```
 
 Decide what belongs in the commit. If nothing is staged, stage the relevant changes
-with `git add <paths>` (or `git add -A` when everything belongs together). **Never
+with `git add <paths>` (or `git add -A` when everything belongs together). **NEVER
 stage secret-looking files** (`.env`, `*secrets.toml`, credentials) — they are also
 denied in `settings.json`.
 
 ### 2. Compose the message
 
-Apply `.claude/rules/git-github.md`:
+Apply `.agents/rules/git-github.md`:
 
 - One line: `{type}: subject` or `{type}({scope}): subject` — lowercase, imperative,
   no trailing period. Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`.
 - **Subject line only** for the vast majority of commits. Add a body line *only* for a
   non-obvious *why*, max 3 lines total. Never narrate *what* the diff does.
-- **No footers** — no `Co-Authored-By`, no "Generated with Claude Code".
+- **No footers** — no `Co-Authored-By`, no "Generated with ..." trailers.
 - **No emojis** anywhere in the message.
 
 ### 3. Commit

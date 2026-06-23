@@ -5,7 +5,7 @@ description: Rules for using git and the GitHub CLI in dlt. Read when committing
 
 # dlt — Git & GitHub
 
-Rules for git and GitHub CLI usage in this repo. They override the harness defaults where they differ. See `CONTRIBUTING.md` for the human-facing version.
+Rules for git and GitHub CLI usage in this repo, for any coding agent. They override the agent's defaults where they differ. See `CONTRIBUTING.md` for the human-facing version.
 
 ## When to use
 
@@ -28,10 +28,10 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 - **Subject line only for the vast majority of commits.**
 - **Max 3 lines total** including any body. If you can't say it in 3 lines, the commit is probably too big — split it.
 - **Code-comment rules apply to commit bodies too.** Don't explain *what* the diff does (the diff shows that). Add a body line only when the *why* is non-obvious and not already in the PR description.
-- **No footers.** No `Co-Authored-By: Claude ...`, no "Generated with Claude Code". Treat the model as a dev tool, not a co-author. This overrides the harness default.
+- **No footers.** No `Co-Authored-By` lines, no "Generated with ..." trailers. Treat the agent as a dev tool, not a co-author. This overrides the agent's default.
 - **No references to the task/ticket/caller** in the message unless the user asks ("as discussed", "per review feedback", etc.).
 
-Format (HEREDOC, as in the harness default):
+Format (HEREDOC):
 
 ```
 git commit -m "$(cat <<'EOF'
@@ -52,7 +52,7 @@ into the merge.
 ## When to commit
 
 - **Only when the user explicitly asks.** Finishing a task is not a trigger; "looks good" is not a trigger. Wait for an explicit "commit this" / "make a commit".
-- `git add -A` is fine — but never stage anything secret-looking (`.env`, `*secrets.toml`, credentials).
+- `git add -A` is fine — but NEVER stage anything secret-looking (`.env`, `*secrets.toml`, credentials).
 
 ## Branches
 
@@ -75,7 +75,7 @@ feat/4922-add-avro-support
 - **Creating a PR requires the branch to be pushed already.** If `gh pr create` would need a push, stop and ask the user to push.
 - Confirm the title and body with the user before running `gh pr create`.
 
-## Hard rules for Claude (never without an explicit ask)
+## Hard rules for the coding agent (never without an explicit ask)
 
 - **Don't push.** No `git push`/`git push -u`. The user pushes.
 - **Don't merge PRs.** No `gh pr merge`, no auto-merge.
