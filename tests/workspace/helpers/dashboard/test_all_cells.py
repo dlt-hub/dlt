@@ -108,7 +108,7 @@ def test_home_no_pipeline_selected(success_pipeline_duckdb: dlt.Pipeline):
         dlt_all_pipelines=[{"name": success_pipeline_duckdb.pipeline_name}],
         dlt_pipelines_dir=success_pipeline_duckdb.pipelines_dir,
     )
-    assert strings.home_no_pipeline_selected in html
+    assert strings.home_no_pipeline_selected.strip() in html
     assert NO_PIPELINES_TEXT not in html
 
 
@@ -116,7 +116,7 @@ def test_home_no_pipelines_at_all():
     """Empty workspace: the cell picks the no-pipelines landing."""
     html = _run_home(dlt_pipeline_name=None, dlt_all_pipelines=[])
     assert NO_PIPELINES_TEXT in html
-    assert strings.home_no_pipeline_selected not in html
+    assert strings.home_no_pipeline_selected.strip() not in html
 
 
 def test_home_phantom_pipeline_shows_empty_landing():
@@ -127,7 +127,7 @@ def test_home_phantom_pipeline_shows_empty_landing():
         dlt_local_pipeline_names=[],
     )
     assert NO_PIPELINES_TEXT in html
-    assert strings.home_no_pipeline_selected not in html
+    assert strings.home_no_pipeline_selected.strip() not in html
 
 
 def test_home_pipeline_selected(success_pipeline_duckdb: dlt.Pipeline):
@@ -138,7 +138,7 @@ def test_home_pipeline_selected(success_pipeline_duckdb: dlt.Pipeline):
         dlt_pipelines_dir=success_pipeline_duckdb.pipelines_dir,
     )
     assert NO_PIPELINES_TEXT not in html
-    assert strings.home_no_pipeline_selected not in html
+    assert strings.home_no_pipeline_selected.strip() not in html
     assert strings.app_refresh_button in html
 
 
@@ -192,4 +192,4 @@ def test_home_selected_pipeline_never_ran_stays_on_selected_path(
     )
     assert NO_TRACE_TEXT in html
     assert NO_PIPELINES_TEXT not in html
-    assert strings.home_no_pipeline_selected not in html
+    assert strings.home_no_pipeline_selected.strip() not in html

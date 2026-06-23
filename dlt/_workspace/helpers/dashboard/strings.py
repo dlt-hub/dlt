@@ -51,10 +51,9 @@ home_no_pipelines = f"""
 No pipelines found yet. A pipeline shows up here once it has run, or after you restore one \
 from its destination (see the [sync docs]({_sync_help_url})).
 """
-
-home_no_pipeline_selected = (
-    "No pipeline selected. Choose a pipeline from the dropdown above to inspect it."
-)
+home_no_pipeline_selected = """
+Select a pipeline to inspect from the dropdown above.
+"""
 
 home_workspace_label = " Workspace: {}"
 home_open_working_dir_button = "Open pipeline working directory"

@@ -37,6 +37,7 @@ with app.setup:
 
 @app.cell(hide_code=True)
 def home(
+    dlt_all_pipelines: List[TPipelineListItem],
     dlt_profile_select: mo.ui.dropdown,
     dlt_pipeline_select: mo.ui.multiselect,
     dlt_local_pipeline_names: List[str],
