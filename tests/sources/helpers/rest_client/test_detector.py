@@ -386,19 +386,27 @@ def test_find_next_page_key(test_case):
 
 @pytest.mark.parametrize("test_case", TEST_RESPONSES)
 def test_find_paginator(test_case) -> None:
+    response = test_case["response"]
     factory = PaginatorFactory()
-    mock_response = PaginatorResponse(test_case["response"], test_case.get("links"))
+    mock_response = PaginatorResponse(response, test_case.get("links"))
     paginator, _ = factory.create_paginator(mock_response)  # type: ignore[arg-type]
     expected_paginator = test_case["expected"]["type"]
     if expected_paginator is OffsetPaginator:
         expected_paginator = SinglePagePaginator
     assert type(paginator) is expected_paginator
     if isinstance(paginator, PageNumberPaginator):
-        assert str(paginator.total_path) == ".".join(test_case["expected"]["total_path"])
+        assert paginator.total_path is not None
+        assert jsonpath.resolve_paths(paginator.total_path, response) == [
+            ".".join(test_case["expected"]["total_path"])
+        ]
     if isinstance(paginator, JSONLinkPaginator):
-        assert str(paginator.next_url_path) == ".".join(test_case["expected"]["next_path"])
+        assert jsonpath.resolve_paths(paginator.next_url_path, response) == [
+            ".".join(test_case["expected"]["next_path"])
+        ]
     if isinstance(paginator, JSONResponseCursorPaginator):
-        assert str(paginator.cursor_path) == ".".join(test_case["expected"]["next_path"])
+        assert jsonpath.resolve_paths(paginator.cursor_path, response) == [
+            ".".join(test_case["expected"]["next_path"])
+        ]
 
 
 @pytest.mark.parametrize(

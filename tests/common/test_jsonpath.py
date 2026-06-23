@@ -146,7 +146,9 @@ def test_resolve_paths_roundtrips_to_matching_paths(
 
     roundtripped_data = [jp.find_values(path, data) for path in resolved_paths]
     assert all(len(values) == 1 for values in roundtripped_data)
-    assert [value for values in roundtripped_data for value in values] == jp.find_values(selector, data)
+    assert [value for values in roundtripped_data for value in values] == jp.find_values(
+        selector, data
+    )
 
 
 @pytest.mark.parametrize(
