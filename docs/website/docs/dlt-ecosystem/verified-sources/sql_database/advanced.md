@@ -184,7 +184,7 @@ most of the coercion problems.
 
 ### Adapt reflected types to your needs
 
-You can also override the SQL type by passing a `type_adapter_callback` function. This function takes a `SQLAlchemy` data type as input and returns a new type (or `None` to force the column to be inferred from the data) as output.
+You can also override the SQL type by passing a `type_adapter_callback` function. This function takes a `SQLAlchemy` data type as input and returns a new type as output. Return the input type to leave a column unchanged. Returning `None` drops the reflected type information and forces the column to be inferred from the data.
 
 This is useful, for example, when:
 - You're loading a data type that is not supported by the destination (e.g., you need JSON type columns to be coerced to string).
