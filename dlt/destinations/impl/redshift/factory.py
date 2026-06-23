@@ -193,7 +193,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
                 a connection string in the format `redshift://user:password@host:port/database`. Defaults to None.
             staging_iam_role (Optional[str], optional): IAM role to use for staging data in S3. Defaults to None.
             has_case_sensitive_identifiers (bool, optional): Whether case sensitive identifiers are enabled for the database. Defaults to False.
-            additional_copy_options (list[str], optional): Additional Redshift COPY options.
+            additional_copy_options (Optional[list[str]], optional): Additional Redshift COPY options.
             destination_name (str, optional): Name of the destination. Defaults to None.
             environment (str, optional): Environment name. Defaults to None.
             **kwargs (Any): Additional arguments passed to the destination config.
