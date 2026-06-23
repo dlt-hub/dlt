@@ -10,11 +10,8 @@ from typing import (
     Dict,
     FrozenSet,
     List,
-    Literal,
     Optional,
     Tuple,
-    Union,
-    overload,
 )
 
 import dlt
@@ -97,37 +94,12 @@ def _get_pipeline_initial_cwd(pipelines_dir: str, pipeline_name: str) -> Optiona
         return None
 
 
-@overload
 def list_local_pipelines(
     pipelines_dir: str = None,
     sort_by_trace: bool = True,
     additional_pipelines: List[str] = None,
     run_dir: Optional[str] = None,
-    include_local_pipeline_names: Literal[False] = False,
-) -> Tuple[str, List[TPipelineListItem]]:
-    ...
-
-
-@overload
-def list_local_pipelines(
-    pipelines_dir: str = None,
-    sort_by_trace: bool = True,
-    additional_pipelines: List[str] = None,
-    run_dir: Optional[str] = None,
-    include_local_pipeline_names: Literal[True] = True,
 ) -> Tuple[str, List[TPipelineListItem], List[str]]:
-    ...
-
-
-def list_local_pipelines(
-    pipelines_dir: str = None,
-    sort_by_trace: bool = True,
-    additional_pipelines: List[str] = None,
-    run_dir: Optional[str] = None,
-    include_local_pipeline_names: bool = False,
-) -> Union[
-    Tuple[str, List[TPipelineListItem]], Tuple[str, List[TPipelineListItem], List[str]]
-]:
     """Get the local pipelines directory and the list of pipeline names in it.
 
     Args:
@@ -135,7 +107,10 @@ def list_local_pipelines(
         sort_by_trace: Whether to sort the pipelines by the latest timestamp of trace.
         additional_pipelines: Extra pipeline names to include in the list.
         run_dir: When set, only return pipelines whose initial_cwd matches this path.
-        include_local_pipeline_names: Return the names discovered on disk before adding extras.
+
+    Returns:
+        The pipelines directory, the pipeline list items, and the names discovered on
+        disk before extras are merged in.
     """
     pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
     storage = FileStorage(pipelines_dir)
@@ -173,10 +148,7 @@ def list_local_pipelines(
     if sort_by_trace:
         pipelines_with_timestamps.sort(key=lambda x: x["timestamp"], reverse=True)
 
-    if include_local_pipeline_names:
-        return pipelines_dir, pipelines_with_timestamps, local_pipeline_names
-
-    return pipelines_dir, pipelines_with_timestamps
+    return pipelines_dir, pipelines_with_timestamps, local_pipeline_names
 
 
 def date_from_timestamp_with_ago(

@@ -683,7 +683,6 @@ def utils_discover_pipelines(
     dlt_pipelines_dir, dlt_all_pipelines, dlt_local_pipeline_names = list_local_pipelines(
         mo_cli_arg_pipelines_dir,
         additional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
-        include_local_pipeline_names=True,
     )
 
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(

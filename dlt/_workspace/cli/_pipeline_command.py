@@ -35,7 +35,7 @@ def list_pipelines(pipelines_dir: str = None, verbosity: int = 1) -> None:
                    - 0: Only show count summary
                    - 1+: Show full list with last run times
     """
-    pipelines_dir, pipelines = utils.list_local_pipelines(pipelines_dir)
+    pipelines_dir, pipelines, _ = utils.list_local_pipelines(pipelines_dir)
 
     if len(pipelines) > 0:
         if verbosity == 0:
