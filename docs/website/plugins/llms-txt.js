@@ -83,19 +83,7 @@ function buildSlugMap(sourceDir) {
   return slugMap;
 }
 
-/**
- * Clean MDX/React artifacts from markdown source.
- *
- * - Strips `import ... from '...'` lines (MDX imports)
- * - Strips single-line self-closing React component tags: <Component />
- * - Strips multi-line self-closing React component tags that start with
- *   <Component on one line and end with /> on a later line
- *
- * When `expandCtx` is provided, `<DocCardList />` is expanded to a markdown
- * list of the category's children instead of being stripped. The context
- * shape is `{ docId, childrenMap, sourceDir, baseUrl, routePrefix }`. If
- * children can't be resolved, falls through to the strip behavior.
- */
+/** Strip MDX imports and self-closing React tags. With `expandCtx`, expand `<DocCardList />` to a markdown list instead. */
 function cleanMarkdown(content, expandCtx) {
   const lines = content.split("\n");
   const result = [];
@@ -138,15 +126,7 @@ function cleanMarkdown(content, expandCtx) {
   return result.join("\n");
 }
 
-/**
- * If the given line is a `<DocCardList />` tag, return a markdown list of
- * the current category's children (in sidebar order). Returns null otherwise
- * or when no children resolve, so the caller falls back to stripping.
- *
- * Children are read from the parent's source dir at expansion time, so a
- * version with a different docs surface (e.g. devel vs master) lists only
- * the docs that actually exist there.
- */
+/** Expand `<DocCardList />` to a markdown list of children, or return null to fall back to stripping. */
 function expandDocCardList(line, ctx) {
   if (!/^\s*<DocCardList[\s/]/.test(line)) return null;
 
@@ -170,10 +150,7 @@ function expandDocCardList(line, ctx) {
   return items.length > 0 ? items.join("\n") : null;
 }
 
-/**
- * Read a child doc's frontmatter (title, description). Returns null if no
- * source file exists in the given sourceDir.
- */
+/** Read a child doc's frontmatter from `sourceDir`, or null if no source file exists. */
 function readChildFrontmatter(docId, sourceDir) {
   const candidates = [path.join(sourceDir, `${docId}.md`), path.join(sourceDir, `${docId}.mdx`)];
   for (const candidate of candidates) {
@@ -188,16 +165,7 @@ function readChildFrontmatter(docId, sourceDir) {
   return null;
 }
 
-/**
- * Walk a Docusaurus sidebar tree and build a mapping from category anchor
- * docIds to their children. The "anchor" is whatever doc the index page
- * lives at — either the category's `link.id` (Cookbook pattern) or an
- * `/index` doc inside `items[]` (Destinations pattern). Both anchors point
- * to the same flat list of children docIds in sidebar order.
- *
- * Subcategories without a `link:` are skipped — they don't correspond to a
- * single doc URL and can't be represented as one markdown link.
- */
+/** Map each category's index docId to its children, in sidebar order. */
 function buildCategoryChildrenMap(sidebarItems) {
   const map = {};
 
@@ -223,9 +191,11 @@ function buildCategoryChildrenMap(sidebarItems) {
       if (item.type === "category" && Array.isArray(item.items)) {
         const children = flatten(item.items);
         const anchors = new Set();
+        // Cookbook-style anchor: category's link.id points at the index doc.
         if (item.link && item.link.type === "doc" && item.link.id) {
           anchors.add(item.link.id);
         }
+        // Destinations-style anchor: an /index doc listed inside items[].
         for (const c of children) {
           if (c.endsWith("/index")) anchors.add(c);
         }
