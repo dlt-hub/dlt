@@ -60,6 +60,23 @@ def test_get_local_pipelines_nonexistent_dir():
     assert pipelines == []
 
 
+def test_get_local_pipelines_returns_local_names_without_additional(temp_pipelines_dir):
+    """Returned local names only include pipeline directories discovered on disk."""
+    pipelines_dir, pipelines, local_pipeline_names = cli_utils.list_local_pipelines(
+        temp_pipelines_dir,
+        additional_pipelines=["ghost", "..", "/etc"],
+        include_local_pipeline_names=True,
+    )
+
+    assert pipelines_dir == temp_pipelines_dir
+    assert "ghost" in {p["name"] for p in pipelines}
+    assert set(local_pipeline_names) == {
+        "success_pipeline_1",
+        "success_pipeline_2",
+        "_dlt_internal",
+    }
+
+
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
 def test_get_pipeline_last_run(pipeline: dlt.Pipeline):
     """Test getting the last run of a pipeline"""

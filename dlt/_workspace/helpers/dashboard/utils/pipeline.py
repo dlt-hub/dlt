@@ -2,9 +2,7 @@
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from dlt.common.storages.file_storage import FileStorage
-
-from dlt._workspace.helpers.dashboard.typing import TNameValueItem, TPipelineListItem
+from dlt._workspace.helpers.dashboard.typing import TNameValueItem
 
 import dlt
 import marimo as mo
@@ -65,20 +63,6 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
     p = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
     p.config.use_single_dataset = False
     return p
-
-
-def has_local_pipelines(pipelines: List[TPipelineListItem], pipelines_dir: str) -> bool:
-    """Whether any listed pipeline actually exists on disk.
-
-    Names injected from the `?pipeline=` URL param or `--pipeline` argument are
-    listed even when no such pipeline exists, so membership is checked against the
-    real pipeline directories discovered under `pipelines_dir`.
-    """
-    try:
-        local_pipelines = set(FileStorage(pipelines_dir).list_folder_dirs(".", to_root=False))
-    except Exception:
-        return False
-    return any(p["name"] in local_pipelines for p in pipelines)
 
 
 def get_destination_config(pipeline: dlt.Pipeline) -> DestinationClientConfiguration:

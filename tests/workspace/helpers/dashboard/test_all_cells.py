@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
 
 import pytest
 
@@ -37,6 +37,7 @@ global_defaults = {
     "dlt_query": "",
     "dlt_loads_table": None,
     "dlt_all_pipelines": [],
+    "dlt_local_pipeline_names": [],
     "mo_cli_arg_with_test_identifiers": True,
 }
 
@@ -75,18 +76,22 @@ def _run_home(
     *,
     dlt_pipeline_name: Any,
     dlt_all_pipelines: List[Dict[str, str]],
+    dlt_local_pipeline_names: Optional[List[str]] = None,
     dlt_pipelines_dir: str = _DEFAULT_PIPELINES_DIR,
 ) -> str:
     """Run the home cell with the given selection state and return its rendered text."""
+    if dlt_local_pipeline_names is None:
+        dlt_local_pipeline_names = [p["name"] for p in dlt_all_pipelines]
+
     output, _ = cast(
         Any,
         dlt_dashboard.home.run(
-            dlt_all_pipelines=dlt_all_pipelines,
             dlt_profile_select=mo.ui.dropdown(["dev"]),
             dlt_pipeline_select=mo.ui.multiselect(
                 [p["name"] for p in dlt_all_pipelines],
                 label=strings.app_pipeline_select_label,
             ),
+            dlt_local_pipeline_names=dlt_local_pipeline_names,
             dlt_pipelines_dir=dlt_pipelines_dir,
             dlt_refresh_button=mo.ui.run_button(label=strings.app_refresh_button),
             dlt_pipeline_name=dlt_pipeline_name,
@@ -116,7 +121,11 @@ def test_home_no_pipelines_at_all():
 
 def test_home_phantom_pipeline_shows_empty_landing():
     """A ?pipeline= name with no directory on disk is not treated as an existing pipeline."""
-    html = _run_home(dlt_pipeline_name=None, dlt_all_pipelines=[{"name": "ghost"}])
+    html = _run_home(
+        dlt_pipeline_name=None,
+        dlt_all_pipelines=[{"name": "ghost"}],
+        dlt_local_pipeline_names=[],
+    )
     assert NO_PIPELINES_TEXT in html
     assert strings.home_no_pipeline_selected not in html
 
