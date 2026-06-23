@@ -206,7 +206,12 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     def has_dataset(self) -> bool:
         with self._ensure_transaction():
             schema_names = self.engine.dialect.get_schema_names(self._current_connection)  # type: ignore[attr-defined]
-        return self.dataset_name in schema_names
+        if self.dataset_name in schema_names:
+            return True
+        if self.dialect_name == "duckdb" and self.database_name:
+            duckdb_database_name = Path(self.database_name).stem
+            return f"{duckdb_database_name}.{self.dataset_name}" in schema_names
+        return False
 
     def _sqlite_dataset_filename(self, dataset_name: str) -> str:
         current_file_path = Path(self.database_name)
