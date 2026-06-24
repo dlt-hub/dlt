@@ -42,6 +42,7 @@ class MsSqlTypeMapper(TypeMapperImpl):
 
     dbt_to_sct = {
         "nvarchar": "text",
+        "varchar": "text",
         "float": "double",
         "bit": "bool",
         "datetimeoffset": "timestamp",
