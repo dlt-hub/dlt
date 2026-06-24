@@ -117,6 +117,9 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     def native_connection(self) -> "snowflake_lib.SnowflakeConnection":
         return self._conn
 
+    def create_dataset(self) -> None:
+        self.execute_sql("CREATE SCHEMA IF NOT EXISTS %s" % self.fully_qualified_dataset_name())
+
     def drop_tables(self, *tables: str) -> None:
         # Tables are drop with `IF EXISTS`, but snowflake raises when the schema doesn't exist.
         # Multi statement exec is safe and the error can be ignored since all tables are in the same schema.

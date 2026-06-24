@@ -21,6 +21,7 @@ from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeClientConfiguration,
     SnowflakeCredentials,
 )
+from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import TColumnSchema
@@ -55,6 +56,31 @@ def create_client(schema: Schema, use_decfloat: bool = False) -> SnowflakeClient
             credentials=creds, use_decfloat=use_decfloat
         )._bind_dataset_name(dataset_name="test_" + uniq_id()),
     )
+
+
+def test_create_dataset_uses_idempotent_schema_sql(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    credentials = SnowflakeCredentials()
+    credentials.database = "test_db"
+    sql_client = SnowflakeSqlClient(
+        "test_dataset",
+        "test_dataset_staging",
+        credentials,
+        snowflake().capabilities(),
+    )
+    executed_sql: list[str] = []
+
+    def capture_sql(sql: str, *args: object, **kwargs: object) -> None:
+        executed_sql.append(sql)
+
+    monkeypatch.setattr(sql_client, "execute_sql", capture_sql)
+
+    sql_client.create_dataset()
+
+    assert executed_sql == [
+        "CREATE SCHEMA IF NOT EXISTS %s" % sql_client.fully_qualified_dataset_name()
+    ]
 
 
 def test_create_table(snowflake_client: SnowflakeClient) -> None:
