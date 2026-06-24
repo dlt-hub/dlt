@@ -26,6 +26,7 @@ from dlt.destinations.impl.sqlalchemy.dialect import (
     MssqlDialectCapabilities,
     TrinoDialectCapabilities,
     OracleDialectCapabilities,
+    _format_oracle_datetime_literal,
     register_dialect_capabilities,
     get_dialect_capabilities,
     DIALECT_CAPS_REGISTRY,
@@ -37,6 +38,7 @@ from dlt.destinations.impl.sqlalchemy.type_mapper import (
     TrinoVariantTypeMapper,
 )
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
+from dlt.destinations.impl.sqlalchemy.merge_job import SqlalchemyMergeFollowupJob
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DatabaseTerminalException
 
 from tests.load.utils import (
@@ -193,6 +195,7 @@ def test_factory_caps_oracle() -> None:
     assert caps.sqlglot_dialect == "oracle"
     assert caps.max_identifier_length == 128
     assert caps.max_column_identifier_length == 128
+    assert caps.format_datetime_literal is _format_oracle_datetime_literal
     assert isinstance(caps.dialect_capabilities, OracleDialectCapabilities)
     assert issubclass(caps.type_mapper, SqlalchemyTypeMapper)
 
@@ -209,6 +212,78 @@ def test_oracle_dialect_caps() -> None:
     assert dc.is_undefined_relation(Exception("relation does not exist")) is True
     # unrelated error returns None
     assert dc.is_undefined_relation(Exception("syntax error")) is None
+
+
+def test_oracle_scd2_sql_uses_timestamp_expression() -> None:
+    engine = sa.create_mock_engine("oracle://", executor=None)
+    metadata = sa.MetaData()
+    reports_table = sa.Table(
+        "reports",
+        metadata,
+        sa.Column("_dlt_valid_from", sa.TIMESTAMP(timezone=True)),
+        sa.Column("_dlt_valid_to", sa.TIMESTAMP(timezone=True)),
+        sa.Column("id", sa.BigInteger()),
+        sa.Column("_dlt_id", sa.String()),
+        schema="aqua_biomass",
+    )
+
+    class FakeSqlClient:
+        staging_dataset_name = "dlt_user"
+
+        def __init__(self) -> None:
+            self.engine = engine
+            self.metadata = metadata
+            self.capabilities = DestinationCapabilitiesContext.generic_capabilities()
+            OracleDialectCapabilities("oracle").adjust_capabilities(
+                self.capabilities,
+                self.engine.dialect,
+            )
+            self.capabilities.timestamp_precision = 6
+
+        def get_existing_table(self, name: str) -> sa.Table:
+            assert name == "reports"
+            return reports_table
+
+        def fully_qualified_dataset_name(self, staging: bool = False) -> str:
+            return "dlt_user" if staging else "aqua_biomass"
+
+    table_chain: list[PreparedTableSchema] = [
+        {
+            "name": "reports",
+            "columns": {
+                "_dlt_valid_from": {
+                    "name": "_dlt_valid_from",
+                    "data_type": "timestamp",
+                    "x-valid-from": True,
+                },
+                "_dlt_valid_to": {
+                    "name": "_dlt_valid_to",
+                    "data_type": "timestamp",
+                    "x-valid-to": True,
+                    "x-active-record-timestamp": None,
+                    "nullable": True,
+                },
+                "id": {
+                    "name": "id",
+                    "data_type": "bigint",
+                    "primary_key": True,
+                },
+                "_dlt_id": {
+                    "name": "_dlt_id",
+                    "data_type": "text",
+                    "x-row-version": True,
+                },
+            },
+            "x-boundary-timestamp": "2026-04-09T12:49:16.835364+00:00",
+        }
+    ]
+
+    statements = SqlalchemyMergeFollowupJob.gen_scd2_sql(table_chain, FakeSqlClient())
+    sql = "\n".join(statements)
+
+    assert "TO_TIMESTAMP_TZ(" in sql
+    assert "'TO_TIMESTAMP_TZ(" not in sql
+    assert "YYYY-MM-DD HH24:MI:SS.FF6 TZH:TZM" in sql
 
 
 def test_sqlglot_dialect_explicit_mappings() -> None:
@@ -602,7 +677,8 @@ def test_type_mapper_param_overrides_dialect_caps(
             return CustomJsonStr(length=256)
 
     dest_ = dlt.destinations.sqlalchemy(
-        credentials=destination_config.credentials, type_mapper=DirectMapper  # type: ignore[arg-type]
+        credentials=destination_config.credentials,
+        type_mapper=DirectMapper,  # type: ignore[arg-type]
     )
     pipeline = destination_config.setup_pipeline(
         "test_type_mapper_override", destination=dest_, dev_mode=True
