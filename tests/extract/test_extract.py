@@ -1,4 +1,5 @@
 from typing import Dict, List, NamedTuple, Optional, Any
+import io
 import pytest
 import os
 
@@ -11,6 +12,7 @@ from dlt.common.storages import (
     SchemaStorageConfiguration,
     NormalizeStorageConfiguration,
 )
+from dlt.common.runtime.collector import LogCollector
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 from dlt.common.typing import TTableNames, TDataItems
@@ -89,6 +91,24 @@ def test_storage_reuse_package() -> None:
         load_id_3,
         load_id_4,
     }
+
+
+def test_resource_log_time_includes_wait_before_first_item(extract_step: Extract) -> None:
+    clock = [0.0]
+    buffer = io.StringIO()
+    collector = LogCollector(log_period=1000.0, logger=buffer, dump_system_stats=False)
+    collector._clock = lambda: clock[0]  # type: ignore[assignment]
+    extract_step.collector = collector
+
+    @dlt.resource
+    def slow_resource():
+        clock[0] = 5.0
+        yield [{"id": 1}]
+
+    source = DltSource(dlt.Schema("timed"), "module", [slow_resource()])
+    extract_step.extract(source, 20, 1)
+
+    assert "slow_resource: 1  | Time: 5.00s" in buffer.getvalue()
 
 
 def test_extract_select_tables_mark(extract_step: Extract) -> None:

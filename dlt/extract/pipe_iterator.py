@@ -2,8 +2,10 @@ import inspect
 import types
 from typing import (
     AsyncIterator,
+    Callable,
     ClassVar,
     Dict,
+    Optional,
     Sequence,
     Union,
     Iterator,
@@ -61,11 +63,14 @@ class PipeIterator(Iterator[PipeItem]):
         futures_poll_interval: float,
         sources: List[SourcePipeItem],
         next_item_mode: TPipeNextItemMode,
+        on_source_started: Optional[Callable[[Pipe], None]] = None,
     ) -> None:
         self._sources = sources
         self._next_item_mode: TPipeNextItemMode = next_item_mode
         self._initial_sources_count = len(sources)
         self._current_source_index: int = 0
+        self._started_pipes: set[str] = set()
+        self._on_source_started = on_source_started
         self._futures_pool = FuturesPool(
             workers=workers,
             poll_interval=futures_poll_interval,
@@ -82,6 +87,7 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5,
         futures_poll_interval: float = 0.01,
         next_item_mode: TPipeNextItemMode = "round_robin",
+        on_source_started: Optional[Callable[[Pipe], None]] = None,
     ) -> "PipeIterator":
         # join all dependent pipes
         if pipe.parent:
@@ -95,7 +101,14 @@ class PipeIterator(Iterator[PipeItem]):
 
         # create extractor
         sources = [SourcePipeItem(pipe.gen, 0, pipe, None)]
-        return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
+        return cls(
+            max_parallel_items,
+            workers,
+            futures_poll_interval,
+            sources,
+            next_item_mode,
+            on_source_started,
+        )
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
@@ -109,6 +122,7 @@ class PipeIterator(Iterator[PipeItem]):
         futures_poll_interval: float = 0.01,
         copy_on_fork: bool = False,
         next_item_mode: TPipeNextItemMode = "round_robin",
+        on_source_started: Optional[Callable[[Pipe], None]] = None,
     ) -> "PipeIterator":
         # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
         sources: List[SourcePipeItem] = []
@@ -141,7 +155,14 @@ class PipeIterator(Iterator[PipeItem]):
             _fork_pipeline(pipe)
 
         # create extractor
-        return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
+        return cls(
+            max_parallel_items,
+            workers,
+            futures_poll_interval,
+            sources,
+            next_item_mode,
+            on_source_started,
+        )
 
     def __next__(self) -> PipeItem:
         pipe_item: Union[ResolvablePipeItem, SourcePipeItem] = None
@@ -270,6 +291,12 @@ class PipeIterator(Iterator[PipeItem]):
                     return None
                 # get next item from the current source
                 gen, step, pipe, meta = self._sources[self._current_source_index]
+                if (
+                    self._on_source_started is not None
+                    and pipe.instance_id not in self._started_pipes
+                ):
+                    self._started_pipes.add(pipe.instance_id)
+                    self._on_source_started(pipe)
                 with pipe_context(pipe):
                     pipe_item = next(gen)
                 if pipe_item is not None:
