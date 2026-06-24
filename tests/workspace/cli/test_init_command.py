@@ -4,9 +4,11 @@ from copy import deepcopy
 import hashlib
 import os
 import contextlib
+from pathlib import Path
 from subprocess import CalledProcessError
 from typing import List, Tuple, Optional
 import pytest
+import tomlkit
 from pytest_console_scripts import ScriptRunner
 from unittest import mock
 from pytest import MonkeyPatch
@@ -259,6 +261,13 @@ def test_init_command_core_source_requirements_with_extras(
     )
     canonical_name = source_name.replace("_", "-")
     assert canonical_name in source_requirements.dlt_requirement.extras
+
+
+def test_filesystem_extra_installs_read_csv_dependency() -> None:
+    pyproject = tomlkit.parse(Path(__file__).parents[3].joinpath("pyproject.toml").read_text())
+    filesystem_deps = pyproject["project"]["optional-dependencies"]["filesystem"]
+
+    assert any(Requirement(dep).name == "pandas" for dep in filesystem_deps)
 
 
 @pytest.mark.parametrize(

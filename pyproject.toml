@@ -102,6 +102,7 @@ ducklake = [
 filesystem = [
     "s3fs>=2022.4.0",
     "botocore>=1.28",
+    "pandas>=2.3.0,<3",
 ]
 s3 = [
     "s3fs>=2022.4.0",
