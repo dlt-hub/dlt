@@ -42,7 +42,7 @@ from dlt.extract.incremental.exceptions import (
     IncrementalPrimaryKeyMissing,
 )
 from dlt.extract.incremental.lag import apply_lag
-from dlt.extract.items_transform import ValidateItem
+from dlt.extract.items_transform import MetricsItem, ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
@@ -2967,6 +2967,34 @@ def test_cursor_date_coercion(item_type: TestDataItemFormat) -> None:
         pipeline.run(updated_is_int())
     assert isinstance(pip_ex.value.__cause__, IncrementalCursorInvalidCoercion)
     assert pip_ex.value.__cause__.cursor_path == "updated_at"
+
+
+def test_clone_preserves_inserted_step_after_hints_incremental() -> None:
+    @dlt.source
+    def my_source():
+        @dlt.resource
+        def events():
+            yield [
+                {"id": 1, "updated_at": 1},
+                {"id": 2, "updated_at": 2},
+                {"id": 3, "updated_at": 3},
+            ]
+
+        return events
+
+    def count_rows(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
+        if isinstance(items, list):
+            metrics["row_count"] = metrics.get("row_count", 0) + len(items)
+
+    resource = my_source().events
+    resource.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=2))
+    resource.add_metrics(count_rows, insert_at=len(resource._pipe))
+
+    assert resource._pipe.find(Incremental) < resource._pipe.find(MetricsItem)
+
+    cloned_resource = resource._clone()
+
+    assert cloned_resource._pipe.find(Incremental) < cloned_resource._pipe.find(MetricsItem)
 
 
 def test_incremental_merge_native_representation():
