@@ -137,22 +137,26 @@ def test_filesystem_follows_local_dir(location: str) -> None:
 @pytest.mark.parametrize(
     "layout", ("{table_name}/{load_id}.{file_id}.{ext}", "{table_name}.{load_id}.{file_id}.{ext}")
 )
-def test_trailing_separators(layout: str, with_gdrive_buckets_env: str) -> None:
+def test_filesystem_dirs_do_not_have_trailing_separators(
+    layout: str, with_gdrive_buckets_env: str
+) -> None:
     os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     load = setup_loader("_data")
     client: FilesystemClient = load.get_destination_client(Schema("empty"))  # type: ignore[assignment]
-    # assert separators
-    assert client.dataset_path.endswith("_data/")
-    assert client.get_table_dir("_dlt_versions").endswith("_dlt_versions/")
-    assert client.get_table_dir("_dlt_versions", remote=True).endswith("_dlt_versions/")
+    # dataset and table dirs are queried directly with fsspec and must not end
+    # in a separator: some backends reject trailing-separator directory probes.
+    assert client.dataset_path.endswith("_data")
+    assert not client.dataset_path.endswith("/")
+    assert client.get_table_dir("_dlt_versions").endswith("_dlt_versions")
+    assert client.get_table_dir("_dlt_versions", remote=True).endswith("_dlt_versions")
     is_folder = layout.startswith("{table_name}/")
     if is_folder:
-        assert client.get_table_dir("letters").endswith("_data/letters/")
-        assert client.get_table_dir("letters", remote=True).endswith("_data/letters/")
+        assert client.get_table_dir("letters").endswith("_data/letters")
+        assert client.get_table_dir("letters", remote=True).endswith("_data/letters")
     else:
         # strip prefix
-        assert client.get_table_dir("letters").endswith("_data/")
-        assert client.get_table_dir("letters", remote=True).endswith("_data/")
+        assert client.get_table_dir("letters").endswith("_data")
+        assert client.get_table_dir("letters", remote=True).endswith("_data")
     if is_folder:
         assert client.get_table_prefix("letters").endswith("_data/letters/")
     else:
