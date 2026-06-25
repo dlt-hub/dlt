@@ -408,6 +408,7 @@ def _export_from_pyproject(
                     "export",
                     "--no-hashes",
                     "--no-emit-project",
+                    "--no-emit-local",
                     "--no-default-groups",
                     "--format",
                     "requirements.txt",
