@@ -507,6 +507,7 @@ const sidebars = {
         "hub/pipeline-operations/profiles",
         "hub/pipeline-operations/overview",
         "hub/pipeline-operations/workspace-setup",
+        "hub/pipeline-operations/secrets-management",
         "hub/pipeline-operations/deployments",
         "hub/pipeline-operations/triggers",
         "hub/pipeline-operations/job-configuration",

@@ -130,7 +130,7 @@ enable_google_secrets = true  # google secrets provider is disabled by default
 [providers.google_secrets]
 only_secrets = false
 only_toml_fragments = false
-list_secrets = true  # we recommend pre-listing secrets to minimize calls to google backend
+list_secrets = false  # listing not available: dlt does direct lookups, needs only secretAccessor
 ```
   </TabItem>
   <TabItem value="env">
@@ -140,7 +140,7 @@ PROVIDERS__ENABLE_GOOGLE_SECRETS="true"
 
 PROVIDERS__GOOGLE_SECRETS__ONLY_SECRETS="false"
 PROVIDERS__GOOGLE_SECRETS__ONLY_TOML_FRAGMENTS="false"
-PROVIDERS__GOOGLE_SECRETS__LIST_SECRETS="true"
+PROVIDERS__GOOGLE_SECRETS__LIST_SECRETS="false"
 ```
   </TabItem>
 </Tabs>
@@ -159,11 +159,29 @@ Secret names are normalized to contain letters, digits, hyphens (-), and undersc
    * `destination.bigquery` → `destination-bigquery`
    * `my_pipeline.dlt_secrets_toml` → `my_pipeline-dlt_secrets_toml`
    
- Below you will find a few examples.
+Below you will find examples grouped by storage type, simplest first.
+
+### Store your whole `secrets.toml` (simplest)
+
+**secret name: `dlt_secrets_toml`**
+
+One secret holding your `secrets.toml` content, written exactly as you would locally. dlt probes this key first, so no naming convention is needed.
+
+```toml
+[destination.motherduck.credentials]
+password = "<motherduck_token>"
+database = "<database>"
+```
+
+The value can hold as many sections as you like, your whole `secrets.toml` or just the one credential block you need (as above). You can also scope it to a single pipeline with a secret named `<pipeline_name>-dlt_secrets_toml`.
+
+### Store per-section fragments
+
+Each secret's value is a TOML block with its own `[section]` header.
 
 **secret name: `destination`**
 
-```toml 
+```toml
 [destination]
 postgres.credentials = "postgresql://loader:***@host:5432/postgres"
 ```
@@ -177,10 +195,10 @@ private_key = "-----BEGIN PRIVATE KEY-----\n....\n-----END PRIVATE KEY-----\n"
 client_email = "....gserviceaccount.com"
 ```
 
-
 **secret name: `destination-filesystem`**
 
 (whole `filesystem` destination configuration)
+
 ```toml
 [destination.filesystem]
 bucket_url = "s3://bucket/path"
@@ -198,7 +216,9 @@ aws_secret_access_key = "..."
 connection_url = "mongodb+srv://user:***@host/db?authSource=admin&tls=true"
 ```
 
-You can also store single values (more calls required):
+### Store single values
+
+Each secret's value is a bare string with no TOML header. This requires more vault calls.
 
 For example, the following keys would be fetched similarly to environment variables:
 
@@ -207,18 +227,6 @@ For example, the following keys would be fetched similarly to environment variab
 * `destination-bigquery-credentials-private_key`
 * `destination-bigquery-credentials-client_email`
 * `destination-bigquery-location`
-
-**Naming convention for Google Secrets**
-
-Secret names are normalized to contain letters, digits, hyphens (-), and underscores (_).
-
-* Punctuation (except `-` and `_`) and whitespace are removed.
-* Sections are joined with hyphens, for example:
-   * `destination.bigquery.credentials.project_id` → `destination-bigquery-credentials-project_id`
-   * `sources.pipedrive.pipedrive_api_key` → `sources-pipedrive-pipedrive_api_key`
-   * `destination.bigquery` → `destination-bigquery`
-   * `my_pipeline.dlt_secrets_toml` → `my_pipeline-dlt_secrets_toml`
-:::
 
 ### Notes on `list_secrets`
 
