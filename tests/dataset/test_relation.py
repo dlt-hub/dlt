@@ -833,3 +833,75 @@ def test_changing_relation_with_query() -> None:
 
     with pytest.raises(LineageFailedException):
         relation.select("hello", "hillo").to_sql()
+
+
+# row_factory (#4128)
+
+
+def test_fetchall_row_factory_dict(purchases: dlt.Relation) -> None:
+    rows = purchases.select("id", "name", "city").order_by("id").fetchall(row_factory=dict)
+    assert rows == [
+        {"id": 1, "name": "alice", "city": "berlin"},
+        {"id": 2, "name": "bob", "city": "paris"},
+        {"id": 3, "name": "charlie", "city": "barcelona"},
+    ]
+
+
+def test_fetchone_row_factory_dict(purchases: dlt.Relation) -> None:
+    row = purchases.select("id", "name", "city").order_by("id").fetchone(row_factory=dict)
+    assert row == {"id": 1, "name": "alice", "city": "berlin"}
+
+
+def test_fetchmany_row_factory_dict(purchases: dlt.Relation) -> None:
+    rows = purchases.select("id", "name", "city").order_by("id").fetchmany(2, row_factory=dict)
+    assert len(rows) == 2
+    assert rows[0] == {"id": 1, "name": "alice", "city": "berlin"}
+    assert rows[1] == {"id": 2, "name": "bob", "city": "paris"}
+
+
+def test_iter_fetch_row_factory_dict(purchases: dlt.Relation) -> None:
+    chunks = list(
+        purchases.select("id", "name", "city").order_by("id").iter_fetch(2, row_factory=dict)
+    )
+    assert len(chunks) == 2
+    assert chunks[0] == [
+        {"id": 1, "name": "alice", "city": "berlin"},
+        {"id": 2, "name": "bob", "city": "paris"},
+    ]
+    assert chunks[1] == [{"id": 3, "name": "charlie", "city": "barcelona"}]
+
+
+def test_select_row_factory_dict(purchases: dlt.Relation) -> None:
+    rows = purchases.select("name").order_by("name").fetchall(row_factory=dict)
+    assert rows == [
+        {"name": "alice"},
+        {"name": "bob"},
+        {"name": "charlie"},
+    ]
+
+
+def test_query_relation_row_factory_dict(dataset: dlt.Dataset) -> None:
+    rows = dataset.query("SELECT id, name FROM purchases ORDER BY id").fetchall(row_factory=dict)
+    assert rows == [
+        {"id": 1, "name": "alice"},
+        {"id": 2, "name": "bob"},
+        {"id": 3, "name": "charlie"},
+    ]
+
+
+def test_row_factory_fetchall_default_unchanged(purchases: dlt.Relation) -> None:
+    rows = purchases.select("id", "name", "city").order_by("id").fetchall()
+    assert len(rows) == 3
+    assert rows[0][0] == 1
+    assert rows[0][1] == "alice"
+
+
+def test_row_factory_dict_preserves_column_order(purchases: dlt.Relation) -> None:
+    relation = purchases.select("id", "name")
+    rows = relation.order_by("id").fetchall(row_factory=dict)
+    assert list(rows[0].keys()) == relation.columns
+
+
+def test_row_factory_invalid_factory_raises(purchases: dlt.Relation) -> None:
+    with pytest.raises(ValueError, match="Unsupported row_factory"):
+        purchases.fetchall(row_factory=list)
