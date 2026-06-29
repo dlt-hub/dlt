@@ -52,7 +52,7 @@ from dlt.common.destination.exceptions import (
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.typing import TDataRecordBatch
 from dlt.common.schema import Schema, TColumnSchema, TTableSchema
-from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.typing import TColumnType, TSchemaTables
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.common.storages.configuration import ensure_canonical_az_url
@@ -68,7 +68,11 @@ from dlt.common.storages.load_package import (
     group_jobs_by_table_name,
 )
 from dlt.common.utils import uniq_id
-from dlt.destinations.exceptions import LoadJobTerminalException, LoadJobTransientException
+from dlt.destinations.exceptions import (
+    DatabaseTerminalException,
+    LoadJobTerminalException,
+    LoadJobTransientException,
+)
 from dlt.destinations.file_batching import (
     JsonlFileBatchIterator,
     ParquetFileBatchIterator,
@@ -671,6 +675,36 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             return constraints_sql
 
         return ""
+
+    def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
+        # IF NOT EXISTS for all tables (not just dlt system tables) so concurrent loads
+        # racing to create the same new table do not fail; columns missed by a no-op
+        # create are reconciled in _execute_schema_update_sql
+        if self.capabilities.supports_create_table_if_not_exists:
+            return f"CREATE TABLE IF NOT EXISTS {qualified_name}"
+        return f"CREATE TABLE {qualified_name}"
+
+    def _execute_schema_update_sql(
+        self, only_tables: Iterable[str], store_schema: bool = True
+    ) -> TSchemaTables:
+        applied_update = super()._execute_schema_update_sql(only_tables, store_schema)
+        self._reconcile_columns_after_create(only_tables)
+        return applied_update
+
+    def _reconcile_columns_after_create(self, only_tables: Iterable[str]) -> None:
+        # a CREATE TABLE IF NOT EXISTS becomes a no-op when a concurrent load wins the
+        # race to create a new table, leaving this run's columns unapplied. Databricks
+        # has no ADD COLUMN IF NOT EXISTS, so re-read the destination and add whatever
+        # is still missing, tolerating a column another load added in the meantime
+        storage_tables = self.get_storage_tables(only_tables or self.schema.tables.keys())
+        sql_scripts, _ = self._build_schema_update_sql(list(storage_tables))
+        for sql in sql_scripts:
+            try:
+                self.sql_client.execute_sql(sql)
+            except DatabaseTerminalException as e:
+                if "FIELDS_ALREADY_EXISTS" not in str(e):
+                    raise
+                logger.info(f"Column added by a concurrent load, skipping: {sql}")
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
