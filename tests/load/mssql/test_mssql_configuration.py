@@ -1,14 +1,21 @@
 import os
+import struct
 
 import pyodbc
 import pytest
 
 from dlt.common.configuration import ConfigFieldMissingException, resolve_configuration
+from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.schema import Schema
 from dlt.common.utils import digest128
 from dlt.destinations import mssql
-from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, MsSqlCredentials
+from dlt.destinations.impl.mssql.configuration import (
+    MsSqlClientConfiguration,
+    MsSqlCredentials,
+    uses_token_authentication,
+    validate_authentication,
+)
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -208,3 +215,162 @@ def test_to_odbc_dsn_driver_not_specified() -> None:
         }
         for d in MsSqlCredentials.SUPPORTED_DRIVERS
     ]
+
+
+# ---------------------------------------------------------------------------
+# Authentication methods
+# ---------------------------------------------------------------------------
+
+
+class _FakeAccessToken:
+    token = "fake-access-token"
+
+
+class _FakeTokenCredential:
+    """Minimal azure-identity-like credential, avoids hitting Azure in unit tests."""
+
+    def get_token(self, *scopes: str, **kwargs: object) -> _FakeAccessToken:
+        return _FakeAccessToken()
+
+
+def _mssql_credentials(authentication: object = None, **kwargs: object) -> MsSqlCredentials:
+    creds = MsSqlCredentials()
+    creds.host = "sql.example.com"
+    creds.database = "test_db"
+    creds.driver = "ODBC Driver 18 for SQL Server"  # avoid probing for an installed driver
+    if authentication is not None:
+        creds.authentication = authentication  # type: ignore[assignment]
+    for key, value in kwargs.items():
+        setattr(creds, key, value)
+    return creds
+
+
+def test_mssql_authentication_defaults_to_sql_login() -> None:
+    assert MsSqlCredentials().authentication is None
+
+
+def test_mssql_sql_login_dsn_uses_uid_pwd() -> None:
+    creds = _mssql_credentials(username="loader", password="secret")
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+    assert dsn["UID"] == "loader"
+    assert dsn["PWD"] == "secret"
+    assert creds.to_odbc_attrs_before() is None
+
+
+@pytest.mark.parametrize(
+    "authentication,expected",
+    [
+        ("auto", "DefaultAzureCredential"),
+        ("default", "DefaultAzureCredential"),
+        ("cli", "AzureCliCredential"),
+        ("environment", "EnvironmentCredential"),
+        ("interactive", "InteractiveBrowserCredential"),
+        ("devicecode", "DeviceCodeCredential"),
+        ("msi", "ManagedIdentityCredential"),
+        ("managedidentity", "ManagedIdentityCredential"),
+    ],
+)
+def test_mssql_azure_identity_credential_mapping(authentication: str, expected: str) -> None:
+    creds = _mssql_credentials(authentication)
+    creds.on_partial()
+
+    assert type(creds.default_credentials()).__name__ == expected
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+
+
+def test_mssql_service_principal_driver_native() -> None:
+    creds = _mssql_credentials(
+        "ActiveDirectoryServicePrincipal",
+        azure_tenant_id="t",
+        azure_client_id="c",
+        azure_client_secret="s",
+    )
+    creds.on_partial()
+
+    assert uses_token_authentication(creds) is False
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+    assert dsn["UID"] == "c@t"
+    assert dsn["PWD"] == "s"
+    assert creds.to_odbc_attrs_before() is None
+
+
+def test_mssql_service_principal_without_secret_falls_back_to_token() -> None:
+    creds = _mssql_credentials("ActiveDirectoryServicePrincipal")
+    creds.on_partial()
+
+    assert uses_token_authentication(creds) is True
+    assert type(creds.default_credentials()).__name__ == "DefaultAzureCredential"
+    assert "AUTHENTICATION" not in creds.get_odbc_dsn_dict()
+
+
+@pytest.mark.parametrize(
+    "authentication", ["ActiveDirectoryIntegrated", "ActiveDirectoryInteractive"]
+)
+def test_mssql_driver_native_passthrough(authentication: str) -> None:
+    creds = _mssql_credentials(authentication)
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == authentication
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+    assert creds.to_odbc_attrs_before() is None
+
+
+def test_mssql_active_directory_password() -> None:
+    creds = _mssql_credentials(
+        "ActiveDirectoryPassword", username="user@contoso.com", password="pwd"
+    )
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryPassword"
+    assert dsn["UID"] == "user@contoso.com"
+    assert dsn["PWD"] == "pwd"
+
+
+def test_mssql_active_directory_password_requires_username_password() -> None:
+    creds = _mssql_credentials("ActiveDirectoryPassword")
+    with pytest.raises(ConfigurationException):
+        validate_authentication(creds)
+
+
+def test_mssql_unsupported_authentication_raises() -> None:
+    creds = _mssql_credentials("SqlPassword", username="u", password="p")
+    with pytest.raises(ConfigurationException):
+        creds.on_partial()  # resolves (all present) -> on_resolved -> validate raises
+
+
+def test_mssql_to_odbc_attrs_before_token_struct() -> None:
+    creds = _mssql_credentials("cli")
+    creds._set_default_credentials(_FakeTokenCredential())
+
+    attrs = creds.to_odbc_attrs_before()
+    assert attrs is not None
+    token_struct = attrs[1256]  # SQL_COPT_SS_ACCESS_TOKEN
+    length = struct.unpack("<I", token_struct[:4])[0]
+    assert length == len(token_struct) - 4
+    assert token_struct[4:].decode("utf-16-le") == "fake-access-token"
+
+
+def test_mssql_resolve_configuration_token_authentication() -> None:
+    creds = MsSqlCredentials()
+    creds.host = "sql.example.com"
+    creds.database = "test_db"
+    creds.driver = "ODBC Driver 18 for SQL Server"
+    creds.authentication = "cli"
+
+    resolved = resolve_configuration(creds)
+
+    assert resolved.is_resolved()
+    assert uses_token_authentication(resolved) is True
+    assert type(resolved.default_credentials()).__name__ == "AzureCliCredential"
+    assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
