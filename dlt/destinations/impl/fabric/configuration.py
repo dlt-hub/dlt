@@ -1,11 +1,11 @@
 """Configuration for Fabric Warehouse destination - extends Synapse configuration with COPY INTO support"""
 
 from typing import Optional, Final, ClassVar, Dict, Any, List
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
-from dlt.common.typing import TSecretStrValue
+from dlt.common.typing import TSecretStrValue, Annotated
 from dlt.common.utils import digest128
 from dlt.destinations.impl.mssql.configuration import (
     apply_authentication_to_dsn,
@@ -34,6 +34,9 @@ class FabricCredentials(AzureServicePrincipalCredentials):
 
     When `authentication` is left at its default but no Service Principal secret is configured,
     dlt falls back to `ActiveDirectoryDefault` and injects its token.
+
+    Alternatively, `access_token` or `azure_credential` can be injected directly, bypassing
+    `authentication` entirely (see their docstrings for precedence).
 
     Inherits from AzureServicePrincipalCredentials for the Service Principal fields.
     """
@@ -64,6 +67,16 @@ class FabricCredentials(AzureServicePrincipalCredentials):
 
     password: TSecretStrValue | None = None
     """Password, used with `ActiveDirectoryPassword` authentication."""
+
+    access_token: Optional[TSecretStrValue] = None
+    """Pre-acquired Entra ID access token. When set, dlt injects it directly via `attrs_before`
+    without acquiring anything. Takes precedence over `azure_credential` and `authentication`."""
+
+    azure_credential: Annotated[Optional[Any], NotResolved()] = None
+    """An externally constructed `azure.core.credentials.TokenCredential` (e.g.
+    `DefaultAzureCredential()`) injected at runtime, not resolved from config providers. dlt
+    calls its `get_token()` to acquire an access token. Takes precedence over `authentication`,
+    but `access_token` takes precedence over this."""
 
     # Override to make optional - not needed for Fabric Warehouse credentials (only for staging)
     azure_storage_account_name: Optional[str] = None
