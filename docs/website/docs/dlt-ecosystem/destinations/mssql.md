@@ -97,6 +97,51 @@ destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?TrustSer
 destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?LongAsMax=yes"
 ```
 
+### Microsoft Entra ID authentication
+
+For Azure-hosted SQL Server (Azure SQL Database, Managed Instance) you can authenticate with
+Entra ID instead of a SQL login. Set the `authentication` credential option.
+
+With the **azure-identity** methods, `dlt` acquires an access token and injects it into the
+connection, so they work cross-platform (including macOS) and need no password in `secrets.toml`.
+They require the `azure-identity` package (installed with `pip install "dlt[az]"`).
+
+| `authentication` | How it authenticates |
+|---|---|
+| _(empty, default)_ | SQL login with `username`/`password` |
+| `cli` | `AzureCliCredential` (uses `az login`) |
+| `auto` / `default` | `DefaultAzureCredential` (managed identity, env, CLI, …) |
+| `environment` | `EnvironmentCredential` |
+| `interactive` | `InteractiveBrowserCredential` |
+| `devicecode` | `DeviceCodeCredential` |
+| `msi` / `managedidentity` | `ManagedIdentityCredential` |
+| `ActiveDirectoryServicePrincipal` | Service Principal (`azure_tenant_id`, `azure_client_id`, `azure_client_secret`) |
+| `ActiveDirectoryPassword` | Entra ID `username`/`password` (handled by the ODBC driver) |
+| `ActiveDirectoryIntegrated` | Integrated Windows authentication (handled by the ODBC driver) |
+| `ActiveDirectoryInteractive` | Interactive prompt (handled by the ODBC driver) |
+
+Passwordless example using the Azure CLI:
+```toml
+[destination.mssql.credentials]
+database = "dlt_data"
+host = "loader.database.windows.net"
+authentication = "cli"
+```
+
+Service Principal example:
+```toml
+[destination.mssql.credentials]
+database = "dlt_data"
+host = "loader.database.windows.net"
+authentication = "ActiveDirectoryServicePrincipal"
+azure_tenant_id = "your-tenant-id"
+azure_client_id = "your-client-id"
+azure_client_secret = "your-client-secret"
+```
+
+When `authentication` is left empty but no `password` is set, `dlt` falls back to
+`DefaultAzureCredential`.
+
 **To pass credentials directly**, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
 ```py
 pipeline = dlt.pipeline(

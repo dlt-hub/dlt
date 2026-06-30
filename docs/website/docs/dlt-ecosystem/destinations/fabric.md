@@ -29,20 +29,43 @@ Supported driver versions:
 
 You can also [configure the driver name](#additional-destination-options) explicitly.
 
-### Service Principal Authentication
+### Authentication
 
-Fabric Warehouse requires Azure Active Directory Service Principal authentication. You'll need:
-
-1. **Tenant ID**: Your Azure AD tenant ID (GUID)
-2. **Client ID**: Application (service principal) client ID (GUID)
-3. **Client Secret**: Application client secret
-4. **Host**: Your Fabric warehouse SQL endpoint
-5. **Database**: The database name within your warehouse
+Fabric Warehouse authenticates with Microsoft Entra ID. Whichever method you choose, you always set the warehouse SQL endpoint as the `host` (`<guid>.datawarehouse.fabric.microsoft.com`) and the warehouse name as the `database`.
 
 **Finding your SQL endpoint:**
 - In the Fabric portal, go to your warehouse **Settings**
 - Select **SQL endpoint**
 - Copy the **SQL connection string** - it should be in the format: `<guid>.datawarehouse.fabric.microsoft.com`
+
+The authentication method is selected with the `authentication` credential option. `dlt` supports
+two families of methods.
+
+With the **driver-native** methods, the ODBC driver performs the Entra ID sign-in:
+
+| `authentication` | Description | Required fields |
+|---|---|---|
+| `ActiveDirectoryServicePrincipal` (default) | Service Principal | `azure_tenant_id`, `azure_client_id`, `azure_client_secret` |
+| `ActiveDirectoryPassword` | Entra ID username/password | `username`, `password` |
+| `ActiveDirectoryIntegrated` | Integrated Windows authentication | None |
+| `ActiveDirectoryInteractive` | Interactive browser prompt (driver) | None |
+
+With the **azure-identity** methods, `dlt` acquires an access token with
+[azure-identity](https://learn.microsoft.com/python/api/overview/azure/identity-readme) and injects
+it into the connection. These work cross-platform (including macOS, where the ODBC driver's built-in
+Entra ID modes are unreliable) and need no secret in `secrets.toml`:
+
+| `authentication` | azure-identity credential |
+|---|---|
+| `auto` / `default` | `DefaultAzureCredential` |
+| `cli` | `AzureCliCredential` (uses `az login`) |
+| `environment` | `EnvironmentCredential` |
+| `interactive` | `InteractiveBrowserCredential` |
+| `devicecode` | `DeviceCodeCredential` |
+| `msi` / `managedidentity` | `ManagedIdentityCredential` |
+
+When `authentication` is left at its default but no Service Principal secret is configured, `dlt`
+falls back to `DefaultAzureCredential`.
 
 ### Create a pipeline
 
@@ -62,6 +85,8 @@ pip install "dlt[fabric]"
 
 **3. Enter your credentials into `.dlt/secrets.toml`.**
 
+Service Principal (default):
+
 ```toml
 [destination.fabric.credentials]
 host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
@@ -71,6 +96,15 @@ azure_client_id = "your-client-id"
 azure_client_secret = "your-client-secret"
 port = 1433
 connect_timeout = 30
+```
+
+azure-identity, e.g. the Azure CLI (`az login`), which needs no secret:
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+authentication = "cli"
 ```
 
 ## Write disposition
@@ -207,7 +241,7 @@ driver="ODBC Driver 18 for SQL Server"
 
 While Fabric Warehouse is based on SQL Server, there are key differences:
 
-1. **Authentication**: Fabric requires Service Principal; username/password auth is not supported
+1. **Authentication**: Fabric uses Entra ID; in addition to Service Principal, `dlt` supports several azure-identity methods (see [Authentication](#authentication))
 2. **Type System**: Uses `varchar` and `datetime2` instead of `nvarchar` and `datetimeoffset`
 3. **Collation**: Optimized for UTF-8 collations with automatic `LongAsMax` configuration
 4. **SQL Dialect**: Uses `fabric` SQLglot dialect for proper SQL generation
@@ -234,7 +268,7 @@ sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
 Ensure your Service Principal has:
 - Proper permissions on the Fabric workspace
 - Access to the target database/warehouse  
-- Correct tenant ID (your Azure AD tenant, not the workspace/capacity ID)
+- Correct tenant ID (your Entra ID tenant, not the workspace/capacity ID)
 
 ### UTF-8 Character Issues
 

@@ -5,20 +5,37 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
-from dlt import version
+from dlt.destinations.impl.mssql.configuration import (
+    apply_authentication_to_dsn,
+    build_token_attrs_before,
+    setup_token_credential,
+    validate_authentication,
+)
 
-_AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
+# Fabric Warehouse only supports Entra ID authentication, so it defaults to Service Principal
+# (the shared MsSql auth machinery additionally enables azure-identity token methods).
+_DEFAULT_AUTHENTICATION = "ActiveDirectoryServicePrincipal"
 
 
 @configspec(init=False)
 class FabricCredentials(AzureServicePrincipalCredentials):
-    """Credentials for Microsoft Fabric Warehouse with Service Principal authentication.
+    """Credentials for Microsoft Fabric Warehouse.
 
-    Fabric Warehouse requires Azure AD Service Principal authentication.
-    Inherits from AzureServicePrincipalCredentials for Service Principal fields and
-    automatic fallback to DefaultAzureCredential.
+    Supports several Entra ID authentication methods, selected through `authentication`:
+
+    * **Driver-native** (the ODBC driver authenticates): `ActiveDirectoryServicePrincipal`
+      (default), `ActiveDirectoryPassword`, `ActiveDirectoryIntegrated`,
+      `ActiveDirectoryInteractive`.
+    * **azure-identity** (dlt acquires an access token and injects it, works cross-platform):
+      `auto`/`default` (DefaultAzureCredential), `cli`, `environment`, `interactive`,
+      `devicecode`, `msi`/`managedidentity`.
+
+    When `authentication` is left at its default but no Service Principal secret is configured,
+    dlt falls back to `DefaultAzureCredential` and injects its token.
+
+    Inherits from AzureServicePrincipalCredentials for the Service Principal fields.
     """
 
     drivername: str = "mssql+pyodbc"
@@ -36,42 +53,54 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     connect_timeout: int = 15
     """Connection timeout in seconds (default: 15)"""
 
+    authentication: str = _DEFAULT_AUTHENTICATION
+    """Authentication method. Driver-native: `ActiveDirectoryServicePrincipal` (default),
+    `ActiveDirectoryPassword`, `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`.
+    azure-identity (token injected by dlt): `auto`/`default`, `cli`, `environment`,
+    `interactive`, `devicecode`, `msi`/`managedidentity`."""
+
+    username: str | None = None
+    """User principal name, used with `ActiveDirectoryPassword` authentication."""
+
+    password: TSecretStrValue | None = None
+    """Password, used with `ActiveDirectoryPassword` authentication."""
+
     # Override to make optional - not needed for Fabric Warehouse credentials (only for staging)
     azure_storage_account_name: Optional[str] = None
     """Not used for Fabric Warehouse credentials (only staging credentials need this)"""
 
     def on_partial(self) -> None:
-        """Enable fallback to DefaultAzureCredential if explicit credentials not provided."""
-        try:
-            from azure.identity import DefaultAzureCredential
-        except ModuleNotFoundError:
-            raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
+        """Set up token-based credentials and resolve once host and database are known.
 
-        # If no explicit Service Principal credentials, use default credentials
-        if not self.azure_client_id or not self.azure_client_secret or not self.azure_tenant_id:
-            self._set_default_credentials(DefaultAzureCredential())
-            # Resolve if we have warehouse connection details (not storage account name)
-            if self.host and self.database:
-                self.resolve()
+        Token-based methods (and the default Service Principal method without a secret) get an
+        azure-identity credential whose token is injected into the connection. Driver-native
+        methods need no token and resolve as-is. Auth logic is shared with `MsSqlCredentials`.
+        """
+        setup_token_credential(self)
+        # Resolve if we have the warehouse connection details (not the storage account name)
+        if self.host and self.database:
+            self.resolve()
+
+    def on_resolved(self) -> None:
+        """Validate the configured authentication method."""
+        validate_authentication(self)
 
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
         """Build ODBC DSN dictionary with Fabric-specific settings."""
-        params = {
+        params: dict[str, Any] = {
             "DRIVER": "{ODBC Driver 18 for SQL Server}",
             "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,
-            "AUTHENTICATION": "ActiveDirectoryServicePrincipal",
             "LongAsMax": "yes",  # Required for UTF-8 collation support
             "Encrypt": "yes",
             "TrustServerCertificate": "no",
         }
-
-        # Add Service Principal credentials if provided
-        if self.azure_client_id and self.azure_tenant_id and self.azure_client_secret:
-            params["UID"] = f"{self.azure_client_id}@{self.azure_tenant_id}"
-            params["PWD"] = str(self.azure_client_secret)
-
+        apply_authentication_to_dsn(self, params)
         return params
+
+    def to_odbc_attrs_before(self) -> dict[int, bytes] | None:
+        """Return pyodbc `attrs_before` with an Entra ID access token, or None for driver-native auth."""
+        return build_token_attrs_before(self)
 
     def to_odbc_dsn(self) -> str:
         """Build ODBC connection string for pyodbc."""
