@@ -1,12 +1,10 @@
 import os
 import struct
 
-import pyodbc
 import pytest
 
 from dlt.common.configuration import ConfigFieldMissingException, resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationException
-from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.schema import Schema
 from dlt.common.utils import digest128
 from dlt.destinations import mssql
@@ -91,24 +89,14 @@ def test_mssql_fingerprint(connection_string: str, expected_fingerprint: str) ->
 
 
 def test_parse_native_representation() -> None:
-    # Case: unsupported driver specified.
-    with pytest.raises(SystemConfigurationException):
-        resolve_configuration(
-            MsSqlCredentials(
-                "mssql://test_user:test_pwd@sql.example.com/test_db?DRIVER=ODBC+Driver+13+for+SQL+Server"
-            )
-        )
     # Case: password not specified.
     with pytest.raises(ConfigFieldMissingException):
-        resolve_configuration(
-            MsSqlCredentials(
-                "mssql://test_user@sql.example.com/test_db?DRIVER=ODBC+Driver+18+for+SQL+Server"
-            )
-        )
+        resolve_configuration(MsSqlCredentials("mssql://test_user@sql.example.com/test_db"))
 
 
-def test_to_odbc_dsn_supported_driver_specified() -> None:
-    # Case: supported driver specified — ODBC Driver 18 for SQL Server.
+def test_to_odbc_dsn() -> None:
+    # mssql-python bundles its own driver, so the DSN carries no DRIVER and any `driver`
+    # query parameter (legacy pyodbc config) is ignored.
     creds = resolve_configuration(
         MsSqlCredentials(
             "mssql://test_user:test_pwd@sql.example.com/test_db?DRIVER=ODBC+Driver+18+for+SQL+Server"
@@ -117,39 +105,19 @@ def test_to_odbc_dsn_supported_driver_specified() -> None:
     dsn = creds.to_odbc_dsn()
     result = {k: v for k, v in (param.split("=") for param in dsn.split(";"))}
     assert result == {
-        "DRIVER": "ODBC Driver 18 for SQL Server",
         "SERVER": "sql.example.com,1433",
         "DATABASE": "test_db",
         "UID": "test_user",
         "PWD": "test_pwd",
     }
 
-    # Case: supported driver specified — ODBC Driver 17 for SQL Server.
+    # Case: custom port.
     creds = resolve_configuration(
-        MsSqlCredentials(
-            "mssql://test_user:test_pwd@sql.example.com/test_db?DRIVER=ODBC+Driver+17+for+SQL+Server"
-        )
+        MsSqlCredentials("mssql://test_user:test_pwd@sql.example.com:12345/test_db")
     )
     dsn = creds.to_odbc_dsn()
     result = {k: v for k, v in (param.split("=") for param in dsn.split(";"))}
     assert result == {
-        "DRIVER": "ODBC Driver 17 for SQL Server",
-        "SERVER": "sql.example.com,1433",
-        "DATABASE": "test_db",
-        "UID": "test_user",
-        "PWD": "test_pwd",
-    }
-
-    # Case: port and supported driver specified.
-    creds = resolve_configuration(
-        MsSqlCredentials(
-            "mssql://test_user:test_pwd@sql.example.com:12345/test_db?DRIVER=ODBC+Driver+18+for+SQL+Server"
-        )
-    )
-    dsn = creds.to_odbc_dsn()
-    result = {k: v for k, v in (param.split("=") for param in dsn.split(";"))}
-    assert result == {
-        "DRIVER": "ODBC Driver 18 for SQL Server",
         "SERVER": "sql.example.com,12345",
         "DATABASE": "test_db",
         "UID": "test_user",
@@ -158,34 +126,15 @@ def test_to_odbc_dsn_supported_driver_specified() -> None:
 
 
 def test_to_odbc_dsn_arbitrary_keys_specified() -> None:
-    # Case: arbitrary query keys (and supported driver) specified.
+    # Arbitrary query keys are passed through (the `driver` key is dropped).
     creds = resolve_configuration(
         MsSqlCredentials(
-            "mssql://test_user:test_pwd@sql.example.com:12345/test_db?FOO=a&BAR=b&DRIVER=ODBC+Driver+18+for+SQL+Server"
+            "mssql://test_user:test_pwd@sql.example.com:12345/test_db?FOO=a&BAR=b&Driver=ODBC+Driver+18+for+SQL+Server"
         )
     )
     dsn = creds.to_odbc_dsn()
     result = {k: v for k, v in (param.split("=") for param in dsn.split(";"))}
     assert result == {
-        "DRIVER": "ODBC Driver 18 for SQL Server",
-        "SERVER": "sql.example.com,12345",
-        "DATABASE": "test_db",
-        "UID": "test_user",
-        "PWD": "test_pwd",
-        "FOO": "a",
-        "BAR": "b",
-    }
-
-    # Case: arbitrary capitalization.
-    creds = resolve_configuration(
-        MsSqlCredentials(
-            "mssql://test_user:test_pwd@sql.example.com:12345/test_db?FOO=a&bar=b&Driver=ODBC+Driver+18+for+SQL+Server"
-        )
-    )
-    dsn = creds.to_odbc_dsn()
-    result = {k: v for k, v in (param.split("=") for param in dsn.split(";"))}
-    assert result == {
-        "DRIVER": "ODBC Driver 18 for SQL Server",
         "SERVER": "sql.example.com,12345",
         "DATABASE": "test_db",
         "UID": "test_user",
@@ -195,27 +144,26 @@ def test_to_odbc_dsn_arbitrary_keys_specified() -> None:
     }
 
 
-available_drivers = [d for d in pyodbc.drivers() if d in MsSqlCredentials.SUPPORTED_DRIVERS]
-
-
-@pytest.mark.skipif(not available_drivers, reason="no supported driver available")
-def test_to_odbc_dsn_driver_not_specified() -> None:
-    # Case: driver not specified, but supported driver is available.
+def test_to_odbc_dsn_connect_timeout_and_longasmax_dropped() -> None:
+    # mssql-python's connection-string parser rejects unknown keywords, so `connect_timeout`
+    # (passed via the connect() `timeout=` parameter instead) and `LongAsMax` (the driver
+    # handles long/max types natively) must never end up in the DSN.
     creds = resolve_configuration(
-        MsSqlCredentials("mssql://test_user:test_pwd@sql.example.com/test_db")
+        MsSqlCredentials(
+            "mssql://test_user:test_pwd@sql.example.com/test_db?connect_timeout=15&LongAsMax=yes&Encrypt=yes"
+        )
     )
     dsn = creds.to_odbc_dsn()
+    assert "connect_timeout" not in dsn.lower()
+    assert "longasmax" not in dsn.lower()
     result = {k: v for k, v in (param.split("=") for param in dsn.split(";"))}
-    assert result in [
-        {
-            "DRIVER": d,
-            "SERVER": "sql.example.com,1433",
-            "DATABASE": "test_db",
-            "UID": "test_user",
-            "PWD": "test_pwd",
-        }
-        for d in MsSqlCredentials.SUPPORTED_DRIVERS
-    ]
+    assert result == {
+        "SERVER": "sql.example.com,1433",
+        "DATABASE": "test_db",
+        "UID": "test_user",
+        "PWD": "test_pwd",
+        "ENCRYPT": "yes",
+    }
 
 
 class _FakeAccessToken:
@@ -233,7 +181,6 @@ def _mssql_credentials(authentication: object = None, **kwargs: object) -> MsSql
     creds = MsSqlCredentials()
     creds.host = "sql.example.com"
     creds.database = "test_db"
-    creds.driver = "ODBC Driver 18 for SQL Server"  # avoid probing for an installed driver
     if authentication is not None:
         creds.authentication = authentication  # type: ignore[assignment]
     for key, value in kwargs.items():
@@ -368,7 +315,6 @@ def test_mssql_resolve_configuration_token_authentication() -> None:
     creds = MsSqlCredentials()
     creds.host = "sql.example.com"
     creds.database = "test_db"
-    creds.driver = "ODBC Driver 18 for SQL Server"
     creds.authentication = "ActiveDirectoryDeviceCode"
 
     resolved = resolve_configuration(creds)

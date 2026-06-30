@@ -44,9 +44,6 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     Inherits from AzureServicePrincipalCredentials for the Service Principal fields.
     """
 
-    drivername: str = "mssql+pyodbc"
-    """SQLAlchemy driver name for SQL Server/Fabric."""
-
     host: str = None
     """Fabric Warehouse host (e.g., abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com)"""
 
@@ -99,12 +96,15 @@ class FabricCredentials(AzureServicePrincipalCredentials):
         validate_authentication(self)
 
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
-        """Build ODBC DSN dictionary with Fabric-specific settings."""
+        """Build ODBC DSN dictionary with Fabric-specific settings.
+
+        mssql-python bundles its own driver, so no DRIVER key is emitted.
+        """
         params: dict[str, Any] = {
-            "DRIVER": "{ODBC Driver 18 for SQL Server}",
             "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,
-            "LongAsMax": "yes",  # Required for UTF-8 collation support
+            # The mssql-python driver handles long/max types (e.g. varchar(max)) natively,
+            # so no LongAsMax keyword is needed.
             "Encrypt": "yes",
             "TrustServerCertificate": "no",
         }
@@ -112,11 +112,11 @@ class FabricCredentials(AzureServicePrincipalCredentials):
         return params
 
     def to_odbc_attrs_before(self) -> dict[int, bytes] | None:
-        """Return pyodbc `attrs_before` with an Entra ID access token, or None for driver-native auth."""
+        """Return `attrs_before` with an Entra ID access token, or None for driver-native auth."""
         return build_token_attrs_before(self)
 
     def to_odbc_dsn(self) -> str:
-        """Build ODBC connection string for pyodbc."""
+        """Build the ODBC connection string."""
         params = self.get_odbc_dsn_dict()
         return ";".join(f"{k}={v}" for k, v in params.items())
 
@@ -206,7 +206,7 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     - Latin1_General_100_BIN2_UTF8 (default, case-sensitive)
     - Latin1_General_100_CI_AS_KS_WS_SC_UTF8 (case-insensitive)
 
-    Both have UTF-8 encoding. LongAsMax=yes is automatically configured.
+    Both have UTF-8 encoding. Long/max types are handled natively by the driver.
     """
 
     def data_location(self) -> str:

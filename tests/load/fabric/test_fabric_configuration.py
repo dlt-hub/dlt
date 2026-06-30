@@ -79,10 +79,11 @@ def test_fabric_credentials_odbc_dsn() -> None:
 
     # Verify Fabric-specific parameters are added
     assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
-    assert dsn_dict["LongAsMax"] == "yes"
+    assert "LongAsMax" not in dsn_dict
     assert dsn_dict["UID"] == "test-client-id@test-tenant-id"
     assert dsn_dict["PWD"] == "test-client-secret"
-    assert dsn_dict["DRIVER"] == "{ODBC Driver 18 for SQL Server}"
+    # mssql-python bundles its own driver, so the DSN carries no DRIVER key
+    assert "DRIVER" not in dsn_dict
     assert (
         dsn_dict["SERVER"]
         == "abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com,1433"
@@ -154,13 +155,6 @@ def test_fabric_type_mapper() -> None:
     assert "datetimeoffset" not in result.lower()
 
 
-def test_fabric_credentials_drivername() -> None:
-    """Test that Fabric credentials use mssql+pyodbc drivername"""
-    creds = FabricCredentials()
-    # FabricCredentials uses mssql+pyodbc for SQLAlchemy compatibility
-    assert creds.drivername == "mssql+pyodbc"
-
-
 def test_fabric_credentials_missing_service_principal() -> None:
     """Test that Service Principal fields can trigger default credentials fallback"""
     creds = FabricCredentials()
@@ -205,8 +199,9 @@ def test_fabric_credentials_no_driver_validation() -> None:
     assert creds.database == "test_db"
 
 
-def test_fabric_credentials_longasmax_always_yes() -> None:
-    """Test that LONGASMAX is always set to 'yes' for UTF-8 support"""
+def test_fabric_credentials_longasmax_absent() -> None:
+    """Test that LongAsMax is never emitted: mssql-python handles long/max types natively
+    and rejects unknown DSN keywords."""
     creds = FabricCredentials()
     creds.host = "test.datawarehouse.fabric.microsoft.com"
     creds.database = "testdb"
@@ -214,9 +209,9 @@ def test_fabric_credentials_longasmax_always_yes() -> None:
     creds.azure_client_id = "test-client"
     creds.azure_client_secret = "test-secret"
 
-    # Get ODBC DSN and verify LONGASMAX is set to yes
+    # Get ODBC DSN and verify LongAsMax is absent
     dsn_dict = creds.get_odbc_dsn_dict()
-    assert dsn_dict["LongAsMax"] == "yes"
+    assert "LongAsMax" not in dsn_dict
 
 
 def test_fabric_credentials_authentication_method() -> None:
@@ -315,7 +310,7 @@ def test_fabric_azure_identity_credential_mapping(authentication: str, expected:
     assert "AUTHENTICATION" not in dsn
     assert "UID" not in dsn
     assert "PWD" not in dsn
-    assert dsn["LongAsMax"] == "yes"
+    assert "LongAsMax" not in dsn
 
 
 @pytest.mark.parametrize(

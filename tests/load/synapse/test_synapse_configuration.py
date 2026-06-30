@@ -3,7 +3,6 @@ import os
 import pytest
 
 from dlt.common.configuration import resolve_configuration
-from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.schema import Schema
 from dlt.common.utils import digest128
 from dlt.destinations import synapse
@@ -82,18 +81,20 @@ def test_synapse_factory() -> None:
     assert client.capabilities.casefold_identifier is str
 
 
-def test_parse_native_representation() -> None:
-    # Case: unsupported driver specified.
-    with pytest.raises(SystemConfigurationException):
-        resolve_configuration(
-            SynapseCredentials(
-                "synapse://test_user:test_pwd@test.sql.azuresynapse.net/test_db?DRIVER=ODBC+Driver+17+for+SQL+Server"
-            )
+def test_driver_query_parameter_is_ignored() -> None:
+    # mssql-python bundles its own driver, so a legacy `driver` query parameter is ignored
+    # and the DSN carries no DRIVER key.
+    creds = resolve_configuration(
+        SynapseCredentials(
+            "synapse://test_user:test_pwd@test.sql.azuresynapse.net/test_db?DRIVER=ODBC+Driver+17+for+SQL+Server"
         )
+    )
+    assert "DRIVER=" not in creds.to_odbc_dsn()
 
 
-def test_to_odbc_dsn_longasmax() -> None:
-    # Case: LONGASMAX not specified in query (this is the expected scenario).
+def test_to_odbc_dsn_longasmax_absent() -> None:
+    # The mssql-python driver handles long/max types natively, so LONGASMAX must never
+    # appear in the DSN, regardless of what the user passes in the query.
     creds = resolve_configuration(
         SynapseCredentials(
             "synapse://test_user:test_pwd@test.sql.azuresynapse.net/test_db?DRIVER=ODBC+Driver+18+for+SQL+Server"
@@ -101,14 +102,14 @@ def test_to_odbc_dsn_longasmax() -> None:
     )
     dsn = creds.to_odbc_dsn()
     result = {k: v for k, v in (param.split("=") for param in dsn.split(";"))}
-    assert result["LONGASMAX"] == "yes"
+    assert "LONGASMAX" not in result
 
-    # Case: LONGASMAX specified in query; specified value should be overridden.
+    # Case: LongAsMax specified in query; it is still dropped from the DSN.
     creds = resolve_configuration(
         SynapseCredentials(
-            "synapse://test_user:test_pwd@test.sql.azuresynapse.net/test_db?DRIVER=ODBC+Driver+18+for+SQL+Server&LONGASMAX=no"
+            "synapse://test_user:test_pwd@test.sql.azuresynapse.net/test_db?DRIVER=ODBC+Driver+18+for+SQL+Server&LongAsMax=yes"
         )
     )
     dsn = creds.to_odbc_dsn()
     result = {k: v for k, v in (param.split("=") for param in dsn.split(";"))}
-    assert result["LONGASMAX"] == "yes"
+    assert "LONGASMAX" not in result
