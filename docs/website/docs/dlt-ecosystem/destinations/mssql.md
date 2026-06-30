@@ -18,14 +18,9 @@ pip install "dlt[mssql]"
 
 ### Prerequisites
 
-The _Microsoft ODBC Driver for SQL Server_ must be installed to use this destination.
-This cannot be included with `dlt`'s Python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
-
-Supported driver versions:
-* `ODBC Driver 18 for SQL Server`
-* `ODBC Driver 17 for SQL Server`
-
-You can also [configure the driver name](#additional-destination-options) explicitly.
+This destination uses the [mssql-python](https://github.com/microsoft/mssql-python) driver, which is
+installed automatically with `dlt[mssql]` and bundles the SQL Server client libraries. No separate
+ODBC driver installation is required.
 
 ### Create a pipeline
 
@@ -60,14 +55,12 @@ connect_timeout = 15
 TrustServerCertificate="yes"
 # require SSL connection
 Encrypt="yes"
-# send large string as VARCHAR, not legacy TEXT
-LongAsMax="yes"
 ```
 
 You can also pass a SQLAlchemy-like database connection:
 ```toml
 # Keep it at the top of your TOML file, before any section starts
-destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes"
+destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?TrustServerCertificate=yes&Encrypt=yes"
 ```
 
 You can place any ODBC-specific settings into the query string or **destination.mssql.credentials.query** TOML table as in the example above.
@@ -92,10 +85,7 @@ destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?encrypt=
 destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?TrustServerCertificate=yes"
 ```
 
-**To use long strings (>8k) and avoid collation errors**:
-```toml
-destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?LongAsMax=yes"
-```
+Long strings (>8k) are handled automatically by the driver, no extra configuration is needed.
 
 ### Microsoft Entra ID authentication
 
@@ -231,18 +221,8 @@ The **mssql** destination **does not** create UNIQUE indexes by default on colum
 create_indexes=true
 ```
 
-You can explicitly set the ODBC driver name:
-```toml
-[destination.mssql.credentials]
-driver="ODBC Driver 18 for SQL Server"
-```
-
-When using a SQLAlchemy connection string, replace spaces with `+`:
-
-```toml
-# Keep it at the top of your TOML file, before any section starts
-destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?driver=ODBC+Driver+18+for+SQL+Server"
-```
+The `driver` credential option is deprecated and ignored: mssql-python bundles its own driver, so
+no ODBC driver name needs to be configured.
 
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-sqlserver](https://github.com/dbt-msft/dbt-sqlserver).

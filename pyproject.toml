@@ -146,15 +146,15 @@ weaviate = [
     "weaviate-client>=4.0.0,<5.0.0"
 ]
 mssql = [
-    "pyodbc>=4.0.39"
+    "mssql-python>=1.4.0,!=1.7.0,!=1.7.1"
 ]
 synapse = [
-    "pyodbc>=4.0.39",
+    "mssql-python>=1.4.0,!=1.7.0,!=1.7.1",
     "adlfs>=2024.7.0",
     "pyarrow>=16.0.0",
 ]
 fabric = [
-    "pyodbc>=4.0.39",
+    "mssql-python>=1.4.0,!=1.7.0,!=1.7.1",
     "adlfs>=2024.7.0",
     "pyarrow>=16.0.0",
 ]
@@ -486,6 +486,7 @@ module = [
     # TODO: Stubs are included but seem to not be installed correctly with pyodbc 4.x.x
     # Might be fixed in pyodbc 5
     "pyodbc.*",
+    "mssql_python.*",
     "prometheus_client.*",
     "weaviate.*",
     "psycopg2cffi.*",

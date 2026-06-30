@@ -18,15 +18,13 @@ pip install "dlt[synapse]"
 
 ### Prerequisites
 
-* **Microsoft ODBC Driver for SQL Server**
+* **SQL Server driver**
 
-    The _Microsoft ODBC Driver for SQL Server_ must be installed to use this destination.
-    This cannot be included with `dlt`'s Python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
-
-    Supported driver versions:
-    * `ODBC Driver 18 for SQL Server`
-
-    > 💡 Older driver versions do not work properly because they do not support the `LongAsMax` keyword that was [introduced](https://learn.microsoft.com/en-us/sql/connect/odbc/windows/features-of-the-microsoft-odbc-driver-for-sql-server-on-windows?view=sql-server-ver15#microsoft-odbc-driver-180-for-sql-server-on-windows) in `ODBC Driver 18 for SQL Server`. Synapse does not support the legacy ["long data types"](https://learn.microsoft.com/en-us/sql/t-sql/data-types/ntext-text-and-image-transact-sql), and requires "max data types" instead. `dlt` uses the `LongAsMax` keyword to automatically do the conversion.
+    This destination uses the [mssql-python](https://github.com/microsoft/mssql-python) driver, which
+    is installed automatically with `dlt[synapse]` and bundles the SQL Server client libraries. No
+    separate ODBC driver installation is required. The driver handles legacy "long data types"
+    (which Synapse does not support) as "max data types" natively, so no `LongAsMax` keyword
+    is needed.
 * **Azure Synapse Workspace and dedicated SQL pool**
 
     You need an Azure Synapse workspace with a dedicated SQL pool to load data into. If you do not have one yet, you can use this [quickstart](https://learn.microsoft.com/en-us/azure/synapse-analytics/quickstart-create-sql-pool-studio).
