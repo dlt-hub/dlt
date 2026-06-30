@@ -58,6 +58,14 @@ jobs:
             # NOTE: we only run non-staging tests, as staging tests require credentials for s3 and azure
             excluded_destination_configurations: "[\"clickhouse-parquet-staging-s3-authorization\", \"clickhouse-parquet-staging-az-authorization\", \"clickhouse-jsonl-staging-az-authorization\", \"clickhouse-jsonl-staging-s3-authorization\"]"
 
+          # MSSQL (local SQL Server in Docker, no cloud credentials required).
+          # The mssql-python driver bundles its client libraries, so no ODBC driver install is needed.
+          - display_name: mssql
+            destinations: "[\"mssql\"]"
+            filesystem_drivers: "[\"memory\"]"
+            extras: "--extra mssql --extra parquet"
+            needs_mssql: true
+
           # Dremio
           - display_name: dremio
             destinations: "[\"dremio\"]"
@@ -169,6 +177,15 @@ jobs:
         name: Start ClickHouse OSS
         if: ${{ matrix.needs_clickhouse }}
 
+      - name: Start SQL Server and create database
+        if: ${{ matrix.needs_mssql }}
+        run: |
+          docker compose -f "tests/load/mssql/docker-compose.yml" up -d
+          echo "Waiting for SQL Server to accept connections..."
+          timeout 90s bash -c 'until docker exec dlt_test_mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Strong!Passw0rd" -C -Q "SELECT 1" >/dev/null 2>&1; do sleep 2; done'
+          docker exec dlt_test_mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Strong!Passw0rd" -C -Q "IF DB_ID('dlt_data') IS NULL CREATE DATABASE dlt_data"
+          echo "SQL Server is up and dlt_data is ready"
+
       #
       # Setup python and run tests
       #
@@ -218,3 +235,7 @@ jobs:
       - name: Stop ClickHouse OSS
         if: always()
         run: docker compose -f "tests/load/clickhouse/docker-compose.yml" down -v
+
+      - name: Stop SQL Server
+        if: always()
+        run: docker compose -f "tests/load/mssql/docker-compose.yml" down -v
