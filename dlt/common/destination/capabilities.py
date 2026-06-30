@@ -183,6 +183,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_create_table_if_not_exists: bool = True
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
+    text_data_type: str = None
     timestamp_precision: int = DEFAULT_TIMESTAMP_PRECISION
     """Default precision of the timestamp type"""
     max_timestamp_precision: int = DEFAULT_TIMESTAMP_PRECISION

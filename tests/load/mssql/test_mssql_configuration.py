@@ -26,24 +26,28 @@ def test_mssql_factory() -> None:
     # MSSQL uses ADBC for parquet loading which doesn't support dictionary-encoded arrays
     assert client.capabilities.parquet_format is not None
     assert client.capabilities.parquet_format.supports_dictionary_encoding is False
+    assert client.capabilities.text_data_type is None
 
     # set args explicitly
-    dest = mssql(has_case_sensitive_identifiers=True, create_indexes=True)
+    dest = mssql(has_case_sensitive_identifiers=True, create_indexes=True, text_data_type="varchar")
     client = dest.client(schema, MsSqlClientConfiguration()._bind_dataset_name("dataset"))
     assert client.config.create_indexes is True
     assert client.config.has_case_sensitive_identifiers is True
     assert client.capabilities.has_case_sensitive_identifiers is True
     assert client.capabilities.casefold_identifier is str
+    assert client.capabilities.text_data_type == "varchar"
 
     # set args via config
     os.environ["DESTINATION__CREATE_INDEXES"] = "True"
     os.environ["DESTINATION__HAS_CASE_SENSITIVE_IDENTIFIERS"] = "True"
+    os.environ["DESTINATION__TEXT_DATA_TYPE"] = "varchar"
     dest = mssql()
     client = dest.client(schema, MsSqlClientConfiguration()._bind_dataset_name("dataset"))
     assert client.config.create_indexes is True
     assert client.config.has_case_sensitive_identifiers is True
     assert client.capabilities.has_case_sensitive_identifiers is True
     assert client.capabilities.casefold_identifier is str
+    assert client.capabilities.text_data_type == "varchar"
 
 
 def test_mssql_credentials_defaults() -> None:

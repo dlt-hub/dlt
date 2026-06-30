@@ -69,6 +69,10 @@ class TypeMapperImpl(DataTypeMapper):
             return self.sct_to_unbound_dbt["decimal"]
         return self.sct_to_dbt["decimal"] % (precision_tup[0], precision_tup[1])
 
+    def to_db_text_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
+        # Override in subclass if db supports other string types (e.g. varchar, char, text, etc.)
+        return None
+
     # TODO: refactor lancedb and weaviate to make table object required
     def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
         sc_t = column["data_type"]
@@ -80,6 +84,8 @@ class TypeMapperImpl(DataTypeMapper):
             db_t = self.to_db_time_type(column, table)
         elif sc_t == "decimal":
             db_t = self.to_db_decimal_type(column)
+        elif sc_t == "text":
+            db_t = self.to_db_text_type(column, table)
         else:
             db_t = None
         if db_t:

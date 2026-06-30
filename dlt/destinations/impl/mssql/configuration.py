@@ -134,6 +134,7 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     create_indexes: bool = False
     has_case_sensitive_identifiers: bool = False
+    text_data_type: str = "nvarchar"
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the configured host."""

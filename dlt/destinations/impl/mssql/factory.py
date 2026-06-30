@@ -42,6 +42,7 @@ class MsSqlTypeMapper(TypeMapperImpl):
 
     dbt_to_sct = {
         "nvarchar": "text",
+        "varchar": "text",
         "float": "double",
         "bit": "bool",
         "datetimeoffset": "timestamp",
@@ -56,6 +57,16 @@ class MsSqlTypeMapper(TypeMapperImpl):
         "int": "bigint",
         "json": "json",
     }
+
+    def to_db_text_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
+        if self.capabilities.text_data_type == 'varchar':
+            # MsSQL has a limit of 8000 for varchar and 4000 for nvarchar
+            if column.get("precision") is not None and column["precision"] <= 8000:
+                return f"varchar({column['precision']})"
+            return "varchar(max)"
+        if column.get("precision") is not None and column["precision"] <= 4000:
+            return self.sct_to_dbt["text"] % column["precision"]
+        return self.sct_to_unbound_dbt["text"]
 
     def to_db_datetime_type(
         self,
@@ -211,6 +222,8 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         if config.has_case_sensitive_identifiers:
             caps.has_case_sensitive_identifiers = True
             caps.casefold_identifier = str
+        if config.text_data_type == 'varchar':
+            caps.text_data_type = 'varchar'
         return super().adjust_capabilities(caps, config, naming)
 
 
