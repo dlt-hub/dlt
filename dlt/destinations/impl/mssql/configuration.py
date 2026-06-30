@@ -3,10 +3,10 @@ import struct
 from typing import ClassVar, Any, Final, List, Dict, Optional, TYPE_CHECKING
 
 from dlt import version
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.configuration.specs import ConnectionStringCredentials, CredentialsWithDefault
-from dlt.common.typing import TSecretStrValue
+from dlt.common.typing import TSecretStrValue, Annotated
 from dlt.common.exceptions import MissingDependencyException, SystemConfigurationException
 
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
@@ -77,9 +77,13 @@ def create_token_credential(authentication: str) -> "TokenCredential":
 def uses_token_authentication(credentials: Any) -> bool:
     """True when dlt must acquire an access token and inject it into the connection.
 
-    Derived from the configured method, not from `has_default_credentials`: cooperative
-    `on_partial` calls up the MRO may set a default credential even for driver-native methods.
+    `access_token`/`azure_credential` take precedence over `authentication`: when either is
+    set, dlt injects that token directly regardless of the configured method. Otherwise derived
+    from the configured method, not from `has_default_credentials`: cooperative `on_partial`
+    calls up the MRO may set a default credential even for driver-native methods.
     """
+    if credentials.access_token or credentials.azure_credential:
+        return True
     authentication = credentials.authentication
     if not authentication:
         return False
@@ -96,6 +100,10 @@ def uses_token_authentication(credentials: Any) -> bool:
 
 def setup_token_credential(credentials: Any) -> None:
     """Create and store the azure-identity credential for token-injection authentication."""
+    if credentials.access_token or credentials.azure_credential:
+        # The token (or a credential able to fetch one) was injected directly: no
+        # DefaultAzureCredential fallback is needed.
+        return
     authentication = credentials.authentication or ""
     normalized = _normalize_authentication(authentication)
     if normalized in AZURE_IDENTITY_INJECTION_AUTHENTICATION:
@@ -122,11 +130,27 @@ def get_token_credential(credentials: Any) -> "TokenCredential":
     return create_token_credential(authentication)
 
 
+def get_access_token(credentials: Any) -> Optional[str]:
+    """Return a directly usable Entra ID access token, bypassing `authentication` resolution.
+
+    Prefers a pre-fetched `access_token`, then a token fetched from an injected
+    `azure_credential`. Returns None when neither is set, so callers fall back to the
+    `authentication` named-method resolution.
+    """
+    if credentials.access_token:
+        return str(credentials.access_token)
+    if credentials.azure_credential:
+        return credentials.azure_credential.get_token(SQL_TOKEN_SCOPE).token  # type: ignore[no-any-return]
+    return None
+
+
 def build_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
     """Return pyodbc `attrs_before` with an Entra ID access token, or None for driver-native auth."""
-    if not uses_token_authentication(credentials):
-        return None
-    token = get_token_credential(credentials).get_token(SQL_TOKEN_SCOPE).token
+    token = get_access_token(credentials)
+    if token is None:
+        if not uses_token_authentication(credentials):
+            return None
+        token = get_token_credential(credentials).get_token(SQL_TOKEN_SCOPE).token
     encoded_token = token.encode("utf-16-le")
     token_struct = struct.pack(f"<I{len(encoded_token)}s", len(encoded_token), encoded_token)
     return {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
@@ -134,6 +158,10 @@ def build_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
 
 def validate_authentication(credentials: Any) -> None:
     """Validate the configured authentication method."""
+    if credentials.access_token or credentials.azure_credential:
+        # A token (or a credential able to fetch one) was injected directly: it takes
+        # precedence over `authentication`, whose value does not need to be validated.
+        return
     authentication = credentials.authentication
     if not authentication:
         return  # plain SQL login (username/password)
@@ -253,6 +281,16 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
     azure_client_secret: TSecretStrValue | None = None
     """Service Principal client secret, used with `ActiveDirectoryServicePrincipal` authentication."""
 
+    access_token: Optional[TSecretStrValue] = None
+    """Pre-acquired Entra ID access token. When set, dlt injects it directly via `attrs_before`
+    without acquiring anything. Takes precedence over `azure_credential` and `authentication`."""
+
+    azure_credential: Annotated[Optional[Any], NotResolved()] = None
+    """An externally constructed `azure.core.credentials.TokenCredential` (e.g.
+    `DefaultAzureCredential()`) injected at runtime, not resolved from config providers. dlt
+    calls its `get_token()` to acquire an access token. Takes precedence over `authentication`,
+    but `access_token` takes precedence over this."""
+
     __config_gen_annotations__: ClassVar[List[str]] = ["port", "connect_timeout"]
 
     SUPPORTED_DRIVERS: ClassVar[List[str]] = [
@@ -285,7 +323,7 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
     def on_partial(self) -> None:
         self.driver = self._get_driver()
         setup_token_credential(self)
-        if self.authentication:
+        if self.authentication or self.access_token or self.azure_credential:
             # Entra ID methods (token or driver-native) supply their own credentials and do not
             # rely on username/password; resolve once we have a target. `on_resolved` validates.
             if self.host and self.database:
