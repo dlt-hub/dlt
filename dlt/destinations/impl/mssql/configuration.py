@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 _AZURE_AUTH_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 
-# pyodbc connection attribute used to inject a pre-acquired Entra ID access token.
+# ODBC connection attribute used to inject a pre-acquired Entra ID access token.
 # https://learn.microsoft.com/sql/connect/odbc/using-azure-active-directory#authenticating-with-an-access-token
 SQL_COPT_SS_ACCESS_TOKEN = 1256
 SQL_TOKEN_SCOPE = "https://database.windows.net/.default"
@@ -145,7 +145,7 @@ def get_access_token(credentials: Any) -> Optional[str]:
 
 
 def build_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
-    """Return pyodbc `attrs_before` with an Entra ID access token, or None for driver-native auth."""
+    """Return `attrs_before` with an Entra ID access token, or None for driver-native auth."""
     token = get_access_token(credentials)
     if token is None:
         if not uses_token_authentication(credentials):
@@ -262,7 +262,8 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
     host: str = None
     port: int = 1433
     connect_timeout: int = 30
-    driver: str = None
+    driver: Optional[str] = None
+    """Deprecated and ignored: mssql-python bundles its driver, so no ODBC driver name is needed."""
 
     authentication: str | None = None
     """Authentication method. Empty (default) uses plain SQL login (`username`/`password`).
@@ -289,11 +290,6 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
 
     __config_gen_annotations__: ClassVar[List[str]] = ["port", "connect_timeout"]
 
-    SUPPORTED_DRIVERS: ClassVar[List[str]] = [
-        "ODBC Driver 18 for SQL Server",
-        "ODBC Driver 17 for SQL Server",
-    ]
-
     def parse_native_representation(self, native_value: Any) -> None:
         # TODO: Support ODBC connection string or sqlalchemy URL
         super().parse_native_representation(native_value)
@@ -304,11 +300,6 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
 
     def on_resolved(self) -> None:
         validate_authentication(self)
-        if self.driver not in self.SUPPORTED_DRIVERS:
-            raise SystemConfigurationException(
-                f"The specified driver `{self.driver}` is not supported."
-                f" Choose one of the supported drivers: {', '.join(self.SUPPORTED_DRIVERS)}."
-            )
         self.database = self.database.lower()
 
     def get_query(self) -> Dict[str, Any]:
@@ -317,7 +308,6 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
         return query
 
     def on_partial(self) -> None:
-        self.driver = self._get_driver()
         setup_token_credential(self)
         if self.authentication or self.access_token or self.azure_credential:
             # Entra ID methods (token or driver-native) supply their own credentials and do not
@@ -328,32 +318,22 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
             # Plain SQL login needs username/password.
             self.resolve()
 
-    def _get_driver(self) -> str:
-        if self.driver:
-            return self.driver
-
-        # Pick a default driver if available
-        import pyodbc
-
-        available_drivers = pyodbc.drivers()
-        for d in self.SUPPORTED_DRIVERS:
-            if d in available_drivers:
-                return d
-        docs_url = "https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16"
-        raise SystemConfigurationException(
-            f"No supported ODBC driver found for MS SQL Server.  See {docs_url} for information on"
-            f" how to install the `{self.SUPPORTED_DRIVERS[0]}` on your platform."
-        )
-
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
+        # mssql-python bundles its own driver, so no DRIVER key is emitted.
         params: dict[str, Any] = {
-            "DRIVER": self.driver,
             "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,
         }
         apply_authentication_to_dsn(self, params)
         if self.query is not None:
-            params.update({k.upper(): v for k, v in self.query.items()})
+            # mssql-python's connection-string parser rejects unknown keywords. `connect_timeout`
+            # is passed separately via the connect() `timeout=` parameter, and `longasmax` is
+            # unnecessary since the driver handles long/max types natively, so neither belongs
+            # in the DSN.
+            skip_keys = {"driver", "connect_timeout", "longasmax"}
+            params.update(
+                {k.upper(): v for k, v in self.query.items() if k.lower() not in skip_keys}
+            )
         return params
 
     def to_odbc_dsn(self) -> str:
@@ -361,7 +341,7 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
         return build_odbc_dsn(params)
 
     def to_odbc_attrs_before(self) -> dict[int, bytes] | None:
-        """Return pyodbc `attrs_before` with an Entra ID access token, or None for driver-native auth."""
+        """Return `attrs_before` with an Entra ID access token, or None for driver-native auth."""
         return build_token_attrs_before(self)
 
 
