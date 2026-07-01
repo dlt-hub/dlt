@@ -490,6 +490,7 @@ const sidebars = {
         "hub/ingestion/init",
         "hub/ingestion/rest-api-source",
         "hub/ingestion/dashboard",
+        "hub/ingestion/playground",
         "hub/ingestion/ms-sql",
         "hub/ingestion/delta",
         "hub/ingestion/iceberg",
