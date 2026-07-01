@@ -15,6 +15,7 @@ from typing import (
     Union,
 )
 
+import dlt.common.validation as validation_module
 from dlt.common import Decimal, jsonpath
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import (
@@ -32,7 +33,6 @@ from dlt.common.typing import (
     TColumnNames,
     TypedDict,
 )
-
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
 
 
@@ -154,6 +154,22 @@ def test_validate_schema_cases() -> None:
 
 def test_validate_doc() -> None:
     validate_dict(TTestRecord, TEST_DOC, ".")
+
+
+def test_validate_dict_caches_type_hints() -> None:
+    class TCacheRecord(TypedDict):
+        name: str
+
+    validation_module._get_cached_type_hints.cache_clear()
+    try:
+        validate_dict(TCacheRecord, {"name": "first"}, ".")
+        validate_dict(TCacheRecord, {"name": "second"}, ".")
+
+        cache_info = validation_module._get_cached_type_hints.cache_info()
+        assert cache_info.hits == 1
+        assert cache_info.misses == 1
+    finally:
+        validation_module._get_cached_type_hints.cache_clear()
 
 
 def test_missing_values(test_doc: TTestRecord) -> None:

@@ -26,6 +26,12 @@ TFilterFunc = Callable[[str], bool]
 TCustomValidator = Callable[[str, str, Any, Any], bool]
 
 
+@functools.lru_cache(maxsize=256)
+def _get_cached_type_hints(spec: Type[_TypedDict]) -> dict[str, Any]:
+    module = sys.modules.get(spec.__module__)
+    return get_type_hints(spec, globalns=module.__dict__ if module else None)
+
+
 def validate_dict(
     spec: Type[_TypedDict],
     doc: StrAny,
@@ -59,13 +65,7 @@ def validate_dict(
     # can't validate anything
     validator_f = validator_f or (lambda p, pk, pv, t: False)
 
-    # TODO: get_type_hints is very slow and we possibly should cache the result
-    # even better option is to rewrite "verify_prop" so we can cache annotations mapper to validators
-    # so we do not check the types of typeddict keys all the time
-    allowed_props = get_type_hints(
-        spec,
-        globalns=sys.modules[spec.__module__].__dict__ if spec.__module__ in sys.modules else None,
-    )
+    allowed_props = _get_cached_type_hints(spec)
     # exclude NotRequired[T] via __required_keys__ and Optional[T] via is_optional_type.
     # Optional[T] treated as not-required for backward compat (existing schemas use it to mean "key may be absent").
     required_keys = getattr(spec, "__required_keys__", None)
