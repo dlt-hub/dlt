@@ -28,12 +28,11 @@ Use the Playground workspace to get started with dltHub:
 
 Create a dedicated workspace instead of using the Playground when any of these apply:
 
-| Situation | Why a new workspace                                                                                                                                                                               |
-|---|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Real projects** | For actual work, create a dedicated workspace with a name that fits the project. Unlike the Playground, you can rename or delete it, so it is easier to organize and clean up. |
+| Situation | Why a new workspace                                                                                                                                                                                   |
+|---|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Real projects** | For actual work, create a dedicated workspace with a name that fits the project. Unlike the Playground, you can rename or delete it, so it is easier to organize and clean up.                        |
 | **Team or collaboration** | Workspaces have [roles](../platform-capabilities/users-and-roles.md) (Owner, Viewer). Shared team work belongs in an organization workspace with proper access control, not your personal Playground. |
-| **Environment isolation** | Separate workspaces (or profiles) keep dev, staging, and prod data and credentials apart.                                                                                                         |
-| **Governance and credentials** | When you must own and rotate cloud credentials, manage members, schedules, and public links.                                                                                                      |
+| **Environment isolation** | If you need to isolate a pipeline's environment, such as its dependencies, credentials, or configuration, you can give it its own workspace.                                                                                    |
 
 You can create a workspace in the platform UI at [app.dlthub.com](https://app.dlthub.com), or from the CLI:
 
