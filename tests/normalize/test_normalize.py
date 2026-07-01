@@ -436,35 +436,45 @@ def test_normalize_drops_empty_package_keeps_refresh(raw_normalize: Normalize) -
 
 @pytest.mark.parametrize("caps", INSERT_CAPS + JSONL_CAPS, indirect=True)
 @pytest.mark.parametrize("write_disposition", ["append", "replace", "merge"])
-def test_normalize_contract_discard_all_rows_writes_empty_job(
-    caps: DestinationCapabilitiesContext, write_disposition: str, raw_normalize: Normalize
+@pytest.mark.parametrize("seen_data", [True, False], ids=["seen_data", "never_seen"])
+def test_normalize_contract_discard_all_rows(
+    caps: DestinationCapabilitiesContext,
+    write_disposition: str,
+    seen_data: bool,
+    raw_normalize: Normalize,
 ) -> None:
     """When a `columns: discard_row` contract eliminates ALL rows of a root table, an empty job is
-    still written (so a `replace` table is truncated) with a post-filter row count of 0 - for every
-    write disposition and output writer."""
+    written only if the table has already seen data (so an existing table is truncated). A table
+    that never seen data is not materialized - no job is produced for it."""
     schema = Schema("contracts")
-    schema.update_table(
-        new_table(
-            "items",
-            write_disposition=write_disposition,  # type: ignore[arg-type]
-            schema_contract={"columns": "discard_row"},
-            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
-        )
+    table = new_table(
+        "items",
+        write_disposition=write_disposition,  # type: ignore[arg-type]
+        schema_contract={"columns": "discard_row"},
+        columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
     )
+    if seen_data:
+        table["x-normalizer"] = {"seen-data": True}
+    schema.update_table(table)
     # every row carries a NEW column `name` so `discard_row` drops all of them
     items = [{"id": i, "name": f"n{i}"} for i in range(5)]
     load_id = extract_items(raw_normalize.normalize_storage, items, schema, "items")
     normalize_pending(raw_normalize)
 
-    # an empty root-table job is written, physically present, and the package is retained
-    files = raw_normalize.load_storage.list_new_jobs(load_id)
-    assert [ParsedLoadJobFileName.parse(f).table_name for f in files] == ["items"]
-    assert raw_normalize.load_storage.normalized_packages.storage.has_file(files[0])
-    assert load_id in raw_normalize.load_storage.list_normalized_packages()
-    # per-job row count is the post-filter value: 0
-    step_info = raw_normalize.get_step_info(MockPipeline("contracts_pipeline", True))  # type: ignore[abstract]
-    assert step_info.row_counts["items"] == 0
-    assert step_info.metrics[load_id][0]["table_metrics"]["items"].items_count == 0
+    normalized = raw_normalize.load_storage.list_normalized_packages()
+    if seen_data:
+        # existing table is truncated via an empty job with a post-filter row count of 0
+        assert load_id in normalized
+        files = raw_normalize.load_storage.list_new_jobs(load_id)
+        assert [ParsedLoadJobFileName.parse(f).table_name for f in files] == ["items"]
+        assert raw_normalize.load_storage.normalized_packages.storage.has_file(files[0])
+        step_info = raw_normalize.get_step_info(MockPipeline("contracts_pipeline", True))  # type: ignore[abstract]
+        assert step_info.row_counts["items"] == 0
+        assert step_info.metrics[load_id][0]["table_metrics"]["items"].items_count == 0
+    else:
+        # never-seen table is not materialized: no job is produced for it
+        files = raw_normalize.load_storage.list_new_jobs(load_id) if load_id in normalized else []
+        assert "items" not in [ParsedLoadJobFileName.parse(f).table_name for f in files]
 
 
 @pytest.mark.parametrize("caps", INSERT_CAPS + JSONL_CAPS, indirect=True)
