@@ -10,7 +10,7 @@ from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema import Schema
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.client import LoadJob
+from dlt.common.destination.client import LoadJob, FollowupJobRequest
 from dlt.destinations.impl.synapse.synapse import (
     SynapseClient,
     HINT_TO_SYNAPSE_ATTR,
@@ -18,6 +18,7 @@ from dlt.destinations.impl.synapse.synapse import (
 )
 from dlt.destinations.impl.fabric.configuration import FabricClientConfiguration
 from dlt.destinations.impl.fabric.sql_client import FabricSqlClient
+from dlt.destinations.impl.mssql.mssql import MsSqlStagingReplaceJob
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.configuration.specs import (
@@ -211,6 +212,22 @@ class FabricClient(SynapseClient):
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
+
+    def _create_replace_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> list[FollowupJobRequest]:
+        """Override to restore the `staging-optimized` replace job that `SynapseClient` bypasses.
+
+        `SynapseClient` always falls back to the generic `SqlJobClientBase` replace job
+        because Synapse dedicated SQL pools don't support DDL transactions. Fabric does
+        support DDL transactions and `ALTER SCHEMA ... TRANSFER`, so for the
+        `staging-optimized` strategy we use the same job as `mssql`, which transfers the
+        staging table into the destination schema instead of copying rows.
+        """
+        root_table = table_chain[0]
+        if root_table["x-replace-strategy"] == "staging-optimized":  # type: ignore[typeddict-item]
+            return [MsSqlStagingReplaceJob.from_table_chain(table_chain, self.sql_client)]
+        return SqlJobClientBase._create_replace_followup_jobs(self, table_chain)
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
