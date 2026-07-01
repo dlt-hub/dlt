@@ -263,14 +263,9 @@ def test_mssql_sql_login_dsn_uses_uid_pwd() -> None:
 @pytest.mark.parametrize(
     "authentication,expected",
     [
-        ("auto", "DefaultAzureCredential"),
         ("default", "DefaultAzureCredential"),
-        ("cli", "AzureCliCredential"),
-        ("environment", "EnvironmentCredential"),
-        ("interactive", "InteractiveBrowserCredential"),
-        ("devicecode", "DeviceCodeCredential"),
-        ("msi", "ManagedIdentityCredential"),
-        ("managedidentity", "ManagedIdentityCredential"),
+        ("ActiveDirectoryDefault", "DefaultAzureCredential"),
+        ("ActiveDirectoryDeviceCode", "DeviceCodeCredential"),
     ],
 )
 def test_mssql_azure_identity_credential_mapping(authentication: str, expected: str) -> None:
@@ -283,6 +278,17 @@ def test_mssql_azure_identity_credential_mapping(authentication: str, expected: 
     assert "AUTHENTICATION" not in dsn
     assert "UID" not in dsn
     assert "PWD" not in dsn
+
+
+@pytest.mark.parametrize(
+    "authentication",
+    ["auto", "cli", "environment", "interactive", "devicecode", "msi", "managedidentity"],
+)
+def test_mssql_removed_dlt_custom_alias_raises(authentication: str) -> None:
+    """The old dlt-custom lowercase aliases were replaced by native ODBC/azure-identity names."""
+    creds = _mssql_credentials(authentication)
+    with pytest.raises(ConfigurationException):
+        validate_authentication(creds)
 
 
 def test_mssql_service_principal_driver_native() -> None:
@@ -312,7 +318,8 @@ def test_mssql_service_principal_without_secret_falls_back_to_token() -> None:
 
 
 @pytest.mark.parametrize(
-    "authentication", ["ActiveDirectoryIntegrated", "ActiveDirectoryInteractive"]
+    "authentication",
+    ["ActiveDirectoryIntegrated", "ActiveDirectoryInteractive", "ActiveDirectoryMsi"],
 )
 def test_mssql_driver_native_passthrough(authentication: str) -> None:
     creds = _mssql_credentials(authentication)
@@ -350,7 +357,7 @@ def test_mssql_unsupported_authentication_raises() -> None:
 
 
 def test_mssql_to_odbc_attrs_before_token_struct() -> None:
-    creds = _mssql_credentials("cli")
+    creds = _mssql_credentials("default")
     creds._set_default_credentials(_FakeTokenCredential())
 
     attrs = creds.to_odbc_attrs_before()
@@ -366,11 +373,11 @@ def test_mssql_resolve_configuration_token_authentication() -> None:
     creds.host = "sql.example.com"
     creds.database = "test_db"
     creds.driver = "ODBC Driver 18 for SQL Server"
-    creds.authentication = "cli"
+    creds.authentication = "ActiveDirectoryDeviceCode"
 
     resolved = resolve_configuration(creds)
 
     assert resolved.is_resolved()
     assert uses_token_authentication(resolved) is True
-    assert type(resolved.default_credentials()).__name__ == "AzureCliCredential"
+    assert type(resolved.default_credentials()).__name__ == "DeviceCodeCredential"
     assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
