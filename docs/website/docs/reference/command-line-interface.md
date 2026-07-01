@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
     [--disable-telemetry] [--enable-telemetry] [--no-pwd]
-    {telemetry,schema,pipeline,init,deploy,dashboard,ai} ...
+    {ai,dashboard,deploy,init,pipeline,schema,telemetry} ...
 ```
 
 <details>
@@ -50,28 +50,28 @@ dlt [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 * `--no-pwd` - Do not add current working directory to sys.path. by default $pwd is added to reproduce python behavior when running scripts.
 
 **Available subcommands**
-* [`telemetry`](#dlt-telemetry) - Shows telemetry status
-* [`schema`](#dlt-schema) - Shows, converts and upgrades schemas
-* [`pipeline`](#dlt-pipeline) - Inspects pipeline state, trace, load packages, provides basic maintenance
-* [`init`](#dlt-init) - Creates a pipeline in the current folder by adding existing verified source or creating a new one from template.
-* [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
-* [`dashboard`](#dlt-dashboard) - Shows the dlthub workspace dashboard
 * [`ai`](#dlt-ai) - Moved to `dlthub ai` (run `pip install dlt[hub]`)
+* [`dashboard`](#dlt-dashboard) - Shows the dlthub workspace dashboard
+* [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
+* [`init`](#dlt-init) - Creates a pipeline in the current folder by adding existing verified source or creating a new one from template.
+* [`pipeline`](#dlt-pipeline) - Inspects pipeline state, trace, load packages, provides basic maintenance
+* [`schema`](#dlt-schema) - Shows, converts and upgrades schemas
+* [`telemetry`](#dlt-telemetry) - Shows telemetry status
 
 </details>
 
-## `dlt telemetry`
+## `dlt ai`
 
-Shows telemetry status.
+Moved to `dlthub ai` (run `pip install dlt[hub]`).
 
 **Usage**
 ```sh
-dlt telemetry [-h]
+dlt ai [-h]
 ```
 
 **Description**
 
-Shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
+`ai` command moved to dlthub, pip install dlt[hub] and `dlthub ai` to use.
 
 <details>
 
@@ -84,18 +84,49 @@ Inherits arguments from [`dlt`](#dlt).
 
 </details>
 
-## `dlt schema`
+## `dlt dashboard`
 
-Shows, converts and upgrades schemas.
+Shows the dlthub workspace dashboard.
 
 **Usage**
 ```sh
-dlt schema [-h] [--format {json,yaml,dbml,dot,mermaid}] [--remove-defaults] file
+dlt dashboard [-h] [--pipelines-dir PIPELINES_DIR] [--edit]
 ```
 
 **Description**
 
-Loads, validates and prints out a dlt schema from a yaml or json file.
+This command shows the dlt workspace dashboard. You can use the dashboard:
+
+* to list and inspect local pipelines
+* browse the full pipeline schema and all hints
+* browse the data in the destination
+* inspect the pipeline state.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--pipelines-dir PIPELINES_DIR` - Pipelines working directory
+* `--edit` - Eject dashboard and start editable version
+
+</details>
+
+## `dlt deploy`
+
+Creates a deployment package for a selected pipeline script.
+
+**Usage**
+```sh
+dlt deploy [-h] pipeline-script-path {github-action,airflow-composer} ...
+```
+
+**Description**
+
+Prepares your pipeline for deployment and gives you step-by-step instructions on how to accomplish it. To enable this functionality, please first execute `pip install "dlt[cli]"` which adds additional packages to the current environment.
 
 <details>
 
@@ -104,12 +135,134 @@ Loads, validates and prints out a dlt schema from a yaml or json file.
 Inherits arguments from [`dlt`](#dlt).
 
 **Positional arguments**
-* `file` - Schema file name, in yaml or json format, will autodetect based on extension
+* `pipeline-script-path` - Path to a pipeline script
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--format {json,yaml,dbml,dot,mermaid}` - Display schema in this format
-* `--remove-defaults` - Does not show default hint values
+
+**Available subcommands**
+* [`github-action`](#dlt-deploy-github-action) - Deploys the pipeline to github actions
+* [`airflow-composer`](#dlt-deploy-airflow-composer) - Deploys the pipeline to airflow
+
+</details>
+
+### `dlt deploy github-action`
+
+Deploys the pipeline to Github Actions.
+
+**Usage**
+```sh
+dlt deploy pipeline-script-path github-action [-h] [--location LOCATION]
+    [--branch BRANCH] --schedule SCHEDULE [--run-manually] [--run-on-push]
+```
+
+**Description**
+
+Deploys the pipeline to GitHub Actions.
+
+GitHub Actions (https://github.com/features/actions) is a CI/CD runner with a large free tier which you can use to run your pipelines.
+
+You must specify when the GitHub Action should run using a cron schedule expression. The command also takes additional flags:
+`--run-on-push` (default is False) and `--run-manually` (default is True). Remember to put the cron
+schedule expression in quotation marks.
+
+For the chess.com API example from our docs, you can deploy it with `dlt deploy chess.py github-action --schedule "*/30 * * * *"`.
+
+Follow the guide on how to deploy a pipeline with GitHub Actions in our documentation for more information.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt deploy`](#dlt-deploy).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
+* `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
+* `--schedule SCHEDULE` - A schedule with which to run the pipeline, in cron format. example: '*/30 * * * *' will run the pipeline every 30 minutes. remember to enclose the scheduler expression in quotation marks!
+* `--run-manually` - Allows the pipeline to be run manually form github actions ui.
+* `--run-on-push` - Runs the pipeline with every push to the repository.
+
+</details>
+
+### `dlt deploy airflow-composer`
+
+Deploys the pipeline to Airflow.
+
+**Usage**
+```sh
+dlt deploy pipeline-script-path airflow-composer [-h] [--location LOCATION]
+    [--branch BRANCH] [--secrets-format {env,toml}]
+```
+
+**Description**
+
+Google Composer (https://cloud.google.com/composer?hl=en) is a managed Airflow environment provided by Google. Follow the guide in our docs on how to deploy a pipeline with Airflow to learn more. This command will:
+
+
+* create an Airflow DAG for your pipeline script that you can customize. The DAG uses
+the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py#L37) to make this process trivial.
+
+* provide you with the environment variables and secrets that you must add to Airflow.
+
+* provide you with a cloudbuild file to sync your GitHub repository with the `dag` folder of your Airflow Composer instance.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt deploy`](#dlt-deploy).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
+* `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
+* `--secrets-format {env,toml}` - Format of the secrets
+
+</details>
+
+## `dlt init`
+
+Creates a pipeline in the current folder by adding existing verified source or creating a new one from template.
+
+**Usage**
+```sh
+dlt init [-h] [--list-sources] [--list-destinations] [--location LOCATION]
+    [--branch BRANCH] [--eject] [source] [destination]
+```
+
+**Description**
+
+This command creates a new dlt pipeline script that loads data from `source` to `destination`. When you run the command, several things happen:
+
+1. Creates a basic project structure if the current folder is empty by adding `.dlt/config.toml`, `.dlt/secrets.toml`, and `.gitignore` files.
+2. Checks if the `source` argument matches one of our verified sources and, if so, adds it to your project.
+3. If the `source` is unknown, uses a generic template to get you started.
+4. Rewrites the pipeline scripts to use your `destination`.
+5. Creates sample config and credentials in `secrets.toml` and `config.toml` for the specified source and destination.
+6. Creates `requirements.txt` with dependencies required by the source and destination. If one exists, prints instructions on what to add to it.
+
+This command can be used several times in the same folder to add more sources, destinations, and pipelines. It will also update the verified source code to the newest
+version if run again with an existing `source` name. You will be warned if files will be overwritten or if the `dlt` version needs an upgrade to run a particular pipeline.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Positional arguments**
+* `source` - Name of data source for which to create a pipeline. adds existing verified source or creates a new pipeline template if verified source for your data source is not yet implemented.
+* `destination` - Name of a destination i.e. bigquery or redshift
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--list-sources, -l` - Shows all available verified sources and their short descriptions. for each source, it checks if your local `dlt` version requires an update and prints the relevant warning.
+* `--list-destinations` - Shows the name of all core dlt destinations.
+* `--location LOCATION` - Advanced. uses a specific url or local path to verified sources repository.
+* `--branch BRANCH` - Advanced. uses specific branch of the verified sources repository to fetch the template.
+* `--eject` - Ejects the source code of the core source like sql_database or rest_api so they will be editable by you.
 
 </details>
 
@@ -520,29 +673,18 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 </details>
 
-## `dlt init`
+## `dlt schema`
 
-Creates a pipeline in the current folder by adding existing verified source or creating a new one from template.
+Shows, converts and upgrades schemas.
 
 **Usage**
 ```sh
-dlt init [-h] [--list-sources] [--list-destinations] [--location LOCATION]
-    [--branch BRANCH] [--eject] [source] [destination]
+dlt schema [-h] [--format {json,yaml,dbml,dot,mermaid}] [--remove-defaults] file
 ```
 
 **Description**
 
-This command creates a new dlt pipeline script that loads data from `source` to `destination`. When you run the command, several things happen:
-
-1. Creates a basic project structure if the current folder is empty by adding `.dlt/config.toml`, `.dlt/secrets.toml`, and `.gitignore` files.
-2. Checks if the `source` argument matches one of our verified sources and, if so, adds it to your project.
-3. If the `source` is unknown, uses a generic template to get you started.
-4. Rewrites the pipeline scripts to use your `destination`.
-5. Creates sample config and credentials in `secrets.toml` and `config.toml` for the specified source and destination.
-6. Creates `requirements.txt` with dependencies required by the source and destination. If one exists, prints instructions on what to add to it.
-
-This command can be used several times in the same folder to add more sources, destinations, and pipelines. It will also update the verified source code to the newest
-version if run again with an existing `source` name. You will be warned if files will be overwritten or if the `dlt` version needs an upgrade to run a particular pipeline.
+Loads, validates and prints out a dlt schema from a yaml or json file.
 
 <details>
 
@@ -551,169 +693,27 @@ version if run again with an existing `source` name. You will be warned if files
 Inherits arguments from [`dlt`](#dlt).
 
 **Positional arguments**
-* `source` - Name of data source for which to create a pipeline. adds existing verified source or creates a new pipeline template if verified source for your data source is not yet implemented.
-* `destination` - Name of a destination i.e. bigquery or redshift
+* `file` - Schema file name, in yaml or json format, will autodetect based on extension
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--list-sources, -l` - Shows all available verified sources and their short descriptions. for each source, it checks if your local `dlt` version requires an update and prints the relevant warning.
-* `--list-destinations` - Shows the name of all core dlt destinations.
-* `--location LOCATION` - Advanced. uses a specific url or local path to verified sources repository.
-* `--branch BRANCH` - Advanced. uses specific branch of the verified sources repository to fetch the template.
-* `--eject` - Ejects the source code of the core source like sql_database or rest_api so they will be editable by you.
+* `--format {json,yaml,dbml,dot,mermaid}` - Display schema in this format
+* `--remove-defaults` - Does not show default hint values
 
 </details>
 
-## `dlt deploy`
+## `dlt telemetry`
 
-Creates a deployment package for a selected pipeline script.
+Shows telemetry status.
 
 **Usage**
 ```sh
-dlt deploy [-h] pipeline-script-path {github-action,airflow-composer} ...
+dlt telemetry [-h]
 ```
 
 **Description**
 
-Prepares your pipeline for deployment and gives you step-by-step instructions on how to accomplish it. To enable this functionality, please first execute `pip install "dlt[cli]"` which adds additional packages to the current environment.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt`](#dlt).
-
-**Positional arguments**
-* `pipeline-script-path` - Path to a pipeline script
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`github-action`](#dlt-deploy-github-action) - Deploys the pipeline to github actions
-* [`airflow-composer`](#dlt-deploy-airflow-composer) - Deploys the pipeline to airflow
-
-</details>
-
-### `dlt deploy github-action`
-
-Deploys the pipeline to Github Actions.
-
-**Usage**
-```sh
-dlt deploy pipeline-script-path github-action [-h] [--location LOCATION]
-    [--branch BRANCH] --schedule SCHEDULE [--run-manually] [--run-on-push]
-```
-
-**Description**
-
-Deploys the pipeline to GitHub Actions.
-
-GitHub Actions (https://github.com/features/actions) is a CI/CD runner with a large free tier which you can use to run your pipelines.
-
-You must specify when the GitHub Action should run using a cron schedule expression. The command also takes additional flags:
-`--run-on-push` (default is False) and `--run-manually` (default is True). Remember to put the cron
-schedule expression in quotation marks.
-
-For the chess.com API example from our docs, you can deploy it with `dlt deploy chess.py github-action --schedule "*/30 * * * *"`.
-
-Follow the guide on how to deploy a pipeline with GitHub Actions in our documentation for more information.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt deploy`](#dlt-deploy).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
-* `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
-* `--schedule SCHEDULE` - A schedule with which to run the pipeline, in cron format. example: '*/30 * * * *' will run the pipeline every 30 minutes. remember to enclose the scheduler expression in quotation marks!
-* `--run-manually` - Allows the pipeline to be run manually form github actions ui.
-* `--run-on-push` - Runs the pipeline with every push to the repository.
-
-</details>
-
-### `dlt deploy airflow-composer`
-
-Deploys the pipeline to Airflow.
-
-**Usage**
-```sh
-dlt deploy pipeline-script-path airflow-composer [-h] [--location LOCATION]
-    [--branch BRANCH] [--secrets-format {env,toml}]
-```
-
-**Description**
-
-Google Composer (https://cloud.google.com/composer?hl=en) is a managed Airflow environment provided by Google. Follow the guide in our docs on how to deploy a pipeline with Airflow to learn more. This command will:
-
-
-* create an Airflow DAG for your pipeline script that you can customize. The DAG uses
-the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py#L37) to make this process trivial.
-
-* provide you with the environment variables and secrets that you must add to Airflow.
-
-* provide you with a cloudbuild file to sync your GitHub repository with the `dag` folder of your Airflow Composer instance.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt deploy`](#dlt-deploy).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
-* `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
-* `--secrets-format {env,toml}` - Format of the secrets
-
-</details>
-
-## `dlt dashboard`
-
-Shows the dlthub workspace dashboard.
-
-**Usage**
-```sh
-dlt dashboard [-h] [--pipelines-dir PIPELINES_DIR] [--edit]
-```
-
-**Description**
-
-This command shows the dlt workspace dashboard. You can use the dashboard:
-
-* to list and inspect local pipelines
-* browse the full pipeline schema and all hints
-* browse the data in the destination
-* inspect the pipeline state.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt`](#dlt).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--pipelines-dir PIPELINES_DIR` - Pipelines working directory
-* `--edit` - Eject dashboard and start editable version
-
-</details>
-
-## `dlt ai`
-
-Moved to `dlthub ai` (run `pip install dlt[hub]`).
-
-**Usage**
-```sh
-dlt ai [-h]
-```
-
-**Description**
-
-`ai` command moved to dlthub, pip install dlt[hub] and `dlthub ai` to use.
+Shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
 
 <details>
 

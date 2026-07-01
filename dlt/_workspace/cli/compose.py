@@ -39,6 +39,12 @@ def group_commands(
                     " (single-level nesting)."
                 )
             sub.setdefault((inst.parent, inst.command), []).append(inst)
+    # Return commands in a deterministic (alphabetical) order. Plugin discovery
+    # order varies across systems, which otherwise leaks into the CLI help and
+    # the generated docs reference. Group contents keep their insertion order so
+    # the primary command (and `extend` execute order) is unaffected. See #3454.
+    top = {name: top[name] for name in sorted(top)}
+    sub = {key: sub[key] for key in sorted(sub)}
     return top, sub
 
 
