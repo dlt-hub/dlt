@@ -1,6 +1,6 @@
 ---
 title: "Destination: Playground"
-description: Zero-config Playground destination for tests and experiments on the dltHub platform
+description: Zero-config Playground destination for non-production example pipelines on the dltHub platform
 keywords: [playground, destination, delta, testing, experiments]
 ---
 
@@ -12,21 +12,24 @@ Use of the dltHub platform and toolkits is subject to a commercial dltHub Licens
 
 The **Playground** is a zero-config destination managed by the dltHub platform. When you run pipelines on the platform, you can load data with `destination="playground"` without configuring any credentials or storage of your own. The platform provisions isolated storage for each [workspace](../getting-started/installation.md#what-is-a-dlthub-workspace) and writes your data as [Delta tables](delta.md) to a managed S3 bucket.
 
-It is meant for testing, demos, and a fast first run on the platform.
+It is meant for quick testing, demos, and a fast first run on the platform.
 
 :::warning
-The Playground is intended for tests and experiments, not for production. For production workloads, use a destination you own and control, such as [Delta](delta.md), [Iceberg](iceberg.md), [Snowflake Plus](snowflake-plus.md), or any of the [dlt destinations](../../dlt-ecosystem/destinations/index.md).
+The Playground is intended for demos and a quick start, not for production. For production workloads, use a destination you own and control, such as [Delta](delta.md), [Iceberg](iceberg.md), [Snowflake Plus](snowflake-plus.md), or any of the [dlt destinations](../../dlt-ecosystem/destinations/index.md).
 :::
 
 ## Why use it
 
-When you run a pipeline on the platform with a local-style destination such as `duckdb`, the data is written to the runtime's ephemeral storage, which is erased after the run, so it can't be explored afterwards. The Playground instead **persists** your data in managed storage, so you can query it from the platform UI once the run finishes.
+When you run a pipeline on the platform with a local-style destination such as `duckdb`, the data is written to the dltHub's ephemeral storage, which is erased after the run, so it can't be explored afterwards. The Playground instead **persists** your data in managed storage, so you can query it from the platform UI once the run finishes.
 
 Use it for:
 
 * A quick first run on the dltHub platform without setting up a bucket or credentials.
-* Trying out a new pipeline before pointing it at a destination you own.
-* Running examples, demos, and one-off experiments.
+* Running examples and demos.
+
+:::warning
+Do not load sensitive or confidential data into the Playground.
+:::
 
 ## Prerequisites
 
@@ -34,8 +37,8 @@ Use it for:
 * You must be logged in and connected to a workspace:
 
   ```sh
-  dlthub login
-  dlthub workspace connect <workspace-name>
+  uv run dlthub login
+  uv run dlthub workspace connect <workspace-name>
   ```
 
 * The `deltalake` package must be installed in your project. The Playground writes Delta tables, and the runtime image installs your project dependencies, so add it to your `pyproject.toml`:
@@ -98,9 +101,3 @@ The platform dashboard is itself a deployed job, provisioned when you run `dlthu
 The Playground behaves like the [Delta destination](delta.md): it is a `filesystem` destination that writes Delta tables to a dltHub-managed S3 bucket. Each workspace gets its own isolated prefix (`s3://.../<org_id>/<workspace_id>/...`), so data from different workspaces never mixes. Storage and write dispositions follow the behavior of the [Delta destination](delta.md).
 
 dlt is destination-agnostic, so anything you prototype against the Playground can later be moved to any destination you own with minimal changes. You swap the destination and provide your own storage and credentials.
-
-## Limitations
-
-* Available only when running on the dltHub platform; it is not a destination you configure with your own storage.
-* Requires the `deltalake` package in your project.
-* Intended for tests and experiments, not for production data.
