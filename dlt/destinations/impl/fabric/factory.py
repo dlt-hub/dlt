@@ -129,6 +129,16 @@ class fabric(synapse):
         caps.type_mapper = FabricTypeMapper
         # Fabric only supports precision 0-6 for datetime2/time (not 7 like SQL Server)
         caps.max_timestamp_precision = 6
+        # Unlike Synapse dedicated SQL pools, Fabric Warehouse supports DDL transactions
+        # and `ALTER SCHEMA ... TRANSFER`, so the `staging-optimized` replace strategy
+        # (drop the target table, then transfer the freshly loaded staging table into
+        # its place) can be enabled here on top of what's inherited from synapse.
+        caps.supports_ddl_transactions = True
+        caps.supported_replace_strategies = [
+            "truncate-and-insert",
+            "insert-from-staging",
+            "staging-optimized",
+        ]
         return caps
 
     @classmethod
