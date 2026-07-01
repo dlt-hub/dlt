@@ -27,13 +27,13 @@ class FabricCredentials(AzureServicePrincipalCredentials):
 
     * **Driver-native** (the ODBC driver authenticates): `ActiveDirectoryServicePrincipal`
       (default), `ActiveDirectoryPassword`, `ActiveDirectoryIntegrated`,
-      `ActiveDirectoryInteractive`.
+      `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`.
     * **azure-identity** (dlt acquires an access token and injects it, works cross-platform):
-      `auto`/`default` (DefaultAzureCredential), `cli`, `environment`, `interactive`,
-      `devicecode`, `msi`/`managedidentity`.
+      `ActiveDirectoryDefault` (alias `default`, uses `DefaultAzureCredential`),
+      `ActiveDirectoryDeviceCode` (uses `DeviceCodeCredential`).
 
     When `authentication` is left at its default but no Service Principal secret is configured,
-    dlt falls back to `DefaultAzureCredential` and injects its token.
+    dlt falls back to `ActiveDirectoryDefault` and injects its token.
 
     Inherits from AzureServicePrincipalCredentials for the Service Principal fields.
     """
@@ -55,9 +55,9 @@ class FabricCredentials(AzureServicePrincipalCredentials):
 
     authentication: str = _DEFAULT_AUTHENTICATION
     """Authentication method. Driver-native: `ActiveDirectoryServicePrincipal` (default),
-    `ActiveDirectoryPassword`, `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`.
-    azure-identity (token injected by dlt): `auto`/`default`, `cli`, `environment`,
-    `interactive`, `devicecode`, `msi`/`managedidentity`."""
+    `ActiveDirectoryPassword`, `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`,
+    `ActiveDirectoryMsi`. azure-identity (token injected by dlt): `ActiveDirectoryDefault`
+    (alias `default`), `ActiveDirectoryDeviceCode`."""
 
     username: str | None = None
     """User principal name, used with `ActiveDirectoryPassword` authentication."""

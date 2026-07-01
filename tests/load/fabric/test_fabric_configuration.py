@@ -294,14 +294,9 @@ def test_fabric_authentication_default_is_service_principal() -> None:
 @pytest.mark.parametrize(
     "authentication,expected",
     [
-        ("auto", "DefaultAzureCredential"),
         ("default", "DefaultAzureCredential"),
-        ("cli", "AzureCliCredential"),
-        ("environment", "EnvironmentCredential"),
-        ("interactive", "InteractiveBrowserCredential"),
-        ("devicecode", "DeviceCodeCredential"),
-        ("msi", "ManagedIdentityCredential"),
-        ("managedidentity", "ManagedIdentityCredential"),
+        ("ActiveDirectoryDefault", "DefaultAzureCredential"),
+        ("ActiveDirectoryDeviceCode", "DeviceCodeCredential"),
     ],
 )
 def test_fabric_azure_identity_credential_mapping(authentication: str, expected: str) -> None:
@@ -316,6 +311,17 @@ def test_fabric_azure_identity_credential_mapping(authentication: str, expected:
     assert "UID" not in dsn
     assert "PWD" not in dsn
     assert dsn["LongAsMax"] == "yes"
+
+
+@pytest.mark.parametrize(
+    "authentication",
+    ["auto", "cli", "environment", "interactive", "devicecode", "msi", "managedidentity"],
+)
+def test_fabric_removed_dlt_custom_alias_raises(authentication: str) -> None:
+    """The old dlt-custom lowercase aliases were replaced by native ODBC/azure-identity names."""
+    creds = _warehouse_credentials(authentication)
+    with pytest.raises(ConfigurationException):
+        creds.on_partial()  # resolves (host+database present) -> on_resolved -> validate raises
 
 
 def test_fabric_service_principal_without_secret_falls_back_to_token() -> None:
@@ -344,7 +350,8 @@ def test_fabric_service_principal_with_secret_is_driver_native() -> None:
 
 
 @pytest.mark.parametrize(
-    "authentication", ["ActiveDirectoryIntegrated", "ActiveDirectoryInteractive"]
+    "authentication",
+    ["ActiveDirectoryIntegrated", "ActiveDirectoryInteractive", "ActiveDirectoryMsi"],
 )
 def test_fabric_driver_native_passthrough(authentication: str) -> None:
     creds = _warehouse_credentials(authentication)
@@ -384,7 +391,7 @@ def test_fabric_unsupported_authentication_raises() -> None:
 
 def test_fabric_to_odbc_attrs_before_token_struct() -> None:
     """The injected token follows the SQL_COPT_SS_ACCESS_TOKEN struct layout."""
-    creds = _warehouse_credentials("cli")
+    creds = _warehouse_credentials("default")
     creds._set_default_credentials(_FakeTokenCredential())
 
     attrs = creds.to_odbc_attrs_before()
@@ -400,11 +407,11 @@ def test_fabric_resolve_configuration_token_authentication() -> None:
     creds = FabricCredentials()
     creds.host = "abc.datawarehouse.fabric.microsoft.com"
     creds.database = "mydb"
-    creds.authentication = "cli"
+    creds.authentication = "ActiveDirectoryDeviceCode"
 
     resolved = resolve_configuration(creds)
 
     assert resolved.is_resolved()
     assert uses_token_authentication(resolved) is True
-    assert type(resolved.default_credentials()).__name__ == "AzureCliCredential"
+    assert type(resolved.default_credentials()).__name__ == "DeviceCodeCredential"
     assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
