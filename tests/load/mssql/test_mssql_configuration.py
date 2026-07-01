@@ -1,5 +1,4 @@
 import os
-import struct
 
 import pytest
 
@@ -203,38 +202,35 @@ def test_mssql_sql_login_dsn_uses_uid_pwd() -> None:
     assert creds.to_odbc_attrs_before() is None
 
 
-@pytest.mark.parametrize(
-    "authentication,expected",
-    [
-        ("default", "DefaultAzureCredential"),
-        ("ActiveDirectoryDefault", "DefaultAzureCredential"),
-        ("ActiveDirectoryDeviceCode", "DeviceCodeCredential"),
-    ],
-)
-def test_mssql_azure_identity_credential_mapping(authentication: str, expected: str) -> None:
-    creds = _mssql_credentials(authentication)
+def test_mssql_default_alias_normalizes_in_dsn() -> None:
+    """The `default` alias resolves to the canonical name mssql-python recognizes.
+
+    mssql-python only understands `ActiveDirectoryDefault` in the `Authentication=` DSN keyword,
+    not the thin dlt-side alias, so this must be written to the DSN in its normalized form.
+    """
+    creds = _mssql_credentials("default")
     creds.on_partial()
 
-    assert type(creds.default_credentials()).__name__ == expected
-
     dsn = creds.get_odbc_dsn_dict()
-    assert "AUTHENTICATION" not in dsn
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryDefault"
     assert "UID" not in dsn
     assert "PWD" not in dsn
+    assert creds.to_odbc_attrs_before() is None
+    assert creds.has_default_credentials() is False
 
 
 @pytest.mark.parametrize(
     "authentication",
     ["auto", "cli", "environment", "interactive", "devicecode", "msi", "managedidentity"],
 )
-def test_mssql_removed_dlt_custom_alias_raises(authentication: str) -> None:
-    """The old dlt-custom lowercase aliases were replaced by native ODBC/azure-identity names."""
+def test_mssql_unsupported_alias_raises(authentication: str) -> None:
+    """Only the canonical `ActiveDirectory*` names (and the `default` alias) are supported."""
     creds = _mssql_credentials(authentication)
     with pytest.raises(ConfigurationException):
         validate_authentication(creds)
 
 
-def test_mssql_service_principal_driver_native() -> None:
+def test_mssql_service_principal_with_secret() -> None:
     creds = _mssql_credentials(
         "ActiveDirectoryServicePrincipal",
         azure_tenant_id="t",
@@ -243,7 +239,6 @@ def test_mssql_service_principal_driver_native() -> None:
     )
     creds.on_partial()
 
-    assert uses_token_authentication(creds) is False
     dsn = creds.get_odbc_dsn_dict()
     assert dsn["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
     assert dsn["UID"] == "c@t"
@@ -251,20 +246,34 @@ def test_mssql_service_principal_driver_native() -> None:
     assert creds.to_odbc_attrs_before() is None
 
 
-def test_mssql_service_principal_without_secret_falls_back_to_token() -> None:
+def test_mssql_service_principal_without_secret_passes_through() -> None:
+    """No secret configured: dlt does not fall back to anything else, same as any other method."""
     creds = _mssql_credentials("ActiveDirectoryServicePrincipal")
     creds.on_partial()
 
-    assert uses_token_authentication(creds) is True
-    assert type(creds.default_credentials()).__name__ == "DefaultAzureCredential"
-    assert "AUTHENTICATION" not in creds.get_odbc_dsn_dict()
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+    assert creds.to_odbc_attrs_before() is None
+    assert creds.has_default_credentials() is False
 
 
 @pytest.mark.parametrize(
     "authentication",
-    ["ActiveDirectoryIntegrated", "ActiveDirectoryInteractive", "ActiveDirectoryMsi"],
+    [
+        "ActiveDirectoryIntegrated",
+        "ActiveDirectoryInteractive",
+        "ActiveDirectoryMsi",
+        "ActiveDirectoryDefault",
+        "ActiveDirectoryDeviceCode",
+    ],
 )
-def test_mssql_driver_native_passthrough(authentication: str) -> None:
+def test_mssql_authentication_method_passthrough(authentication: str) -> None:
+    """Written straight to `Authentication=`; dlt builds no credential or attrs_before.
+
+    mssql-python performs the sign-in for every supported method itself.
+    """
     creds = _mssql_credentials(authentication)
     creds.on_partial()
 
@@ -273,6 +282,7 @@ def test_mssql_driver_native_passthrough(authentication: str) -> None:
     assert "UID" not in dsn
     assert "PWD" not in dsn
     assert creds.to_odbc_attrs_before() is None
+    assert creds.has_default_credentials() is False
 
 
 def test_mssql_active_directory_password() -> None:
@@ -299,19 +309,36 @@ def test_mssql_unsupported_authentication_raises() -> None:
         creds.on_partial()  # resolves (all present) -> on_resolved -> validate raises
 
 
-def test_mssql_to_odbc_attrs_before_token_struct() -> None:
-    creds = _mssql_credentials("default")
-    creds._set_default_credentials(_FakeTokenCredential())
+def test_mssql_to_odbc_attrs_before_always_none() -> None:
+    """mssql-python signs in for every supported authentication method itself: dlt injects
+    nothing, regardless of what's configured."""
+    creds = _mssql_credentials("ActiveDirectoryDefault")
+    assert creds.to_odbc_attrs_before() is None
 
-    attrs = creds.to_odbc_attrs_before()
-    assert attrs is not None
-    token_struct = attrs[1256]  # SQL_COPT_SS_ACCESS_TOKEN
-    length = struct.unpack("<I", token_struct[:4])[0]
-    assert length == len(token_struct) - 4
-    assert token_struct[4:].decode("utf-16-le") == "fake-access-token"
+    creds = _mssql_credentials(username="loader", password="secret")
+    assert creds.to_odbc_attrs_before() is None
 
 
-def test_mssql_resolve_configuration_token_authentication() -> None:
+def test_mssql_resolve_configuration_service_principal_without_secret() -> None:
+    """Resolution succeeds without a Service Principal secret; dlt does not fall back to
+    anything — the DSN just carries the method with no credentials attached."""
+    creds = MsSqlCredentials()
+    creds.host = "sql.example.com"
+    creds.database = "test_db"
+    creds.authentication = "ActiveDirectoryServicePrincipal"
+
+    resolved = resolve_configuration(creds)
+
+    assert resolved.is_resolved()
+    assert resolved.to_odbc_attrs_before() is None
+    dsn = resolved.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+
+
+def test_mssql_resolve_configuration_authentication_passthrough() -> None:
+    """A full `resolve_configuration()` round-trip writes the method straight to the DSN."""
     creds = MsSqlCredentials()
     creds.host = "sql.example.com"
     creds.database = "test_db"
