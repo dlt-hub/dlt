@@ -109,23 +109,20 @@ They require the `azure-identity` package (installed with `pip install "dlt[az]"
 | `authentication` | How it authenticates |
 |---|---|
 | _(empty, default)_ | SQL login with `username`/`password` |
-| `cli` | `AzureCliCredential` (uses `az login`) |
-| `auto` / `default` | `DefaultAzureCredential` (managed identity, env, CLI, …) |
-| `environment` | `EnvironmentCredential` |
-| `interactive` | `InteractiveBrowserCredential` |
-| `devicecode` | `DeviceCodeCredential` |
-| `msi` / `managedidentity` | `ManagedIdentityCredential` |
-| `ActiveDirectoryServicePrincipal` | Service Principal (`azure_tenant_id`, `azure_client_id`, `azure_client_secret`) |
+| `ActiveDirectoryServicePrincipal` | Service Principal (`azure_tenant_id`, `azure_client_id`, `azure_client_secret`), handled by the ODBC driver |
 | `ActiveDirectoryPassword` | Entra ID `username`/`password` (handled by the ODBC driver) |
 | `ActiveDirectoryIntegrated` | Integrated Windows authentication (handled by the ODBC driver) |
 | `ActiveDirectoryInteractive` | Interactive prompt (handled by the ODBC driver) |
+| `ActiveDirectoryMsi` | Managed identity (handled by the ODBC driver) |
+| `ActiveDirectoryDefault` (alias `default`) | `DefaultAzureCredential` (managed identity, environment, Azure CLI, …), token injected by dlt |
+| `ActiveDirectoryDeviceCode` | `DeviceCodeCredential`, token injected by dlt |
 
-Passwordless example using the Azure CLI:
+Passwordless example using `DefaultAzureCredential` (e.g. after `az login`):
 ```toml
 [destination.mssql.credentials]
 database = "dlt_data"
 host = "loader.database.windows.net"
-authentication = "cli"
+authentication = "default"
 ```
 
 Service Principal example:

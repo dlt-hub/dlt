@@ -99,7 +99,8 @@ pipeline = dlt.pipeline(
 ```
 **Microsoft Entra ID authentication** is supported through the same `authentication` credential
 option as the [mssql destination](./mssql.md#microsoft-entra-id-authentication), including the
-passwordless azure-identity methods (`cli`, `default`, `msi`, …) that inject an access token.
+passwordless azure-identity methods (`ActiveDirectoryDefault`, `ActiveDirectoryDeviceCode`) that
+inject an access token.
 
 To use **Active Directory Principal**, you can use the `sqlalchemy.engine.URL.create` method to create the connection URL using your Active Directory Service Principal credentials. First, create the connection string as:
 ```py

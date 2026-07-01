@@ -49,6 +49,7 @@ With the **driver-native** methods, the ODBC driver performs the Entra ID sign-i
 | `ActiveDirectoryPassword` | Entra ID username/password | `username`, `password` |
 | `ActiveDirectoryIntegrated` | Integrated Windows authentication | None |
 | `ActiveDirectoryInteractive` | Interactive browser prompt (driver) | None |
+| `ActiveDirectoryMsi` | Managed identity (driver) | None |
 
 With the **azure-identity** methods, `dlt` acquires an access token with
 [azure-identity](https://learn.microsoft.com/python/api/overview/azure/identity-readme) and injects
@@ -57,15 +58,11 @@ Entra ID modes are unreliable) and need no secret in `secrets.toml`:
 
 | `authentication` | azure-identity credential |
 |---|---|
-| `auto` / `default` | `DefaultAzureCredential` |
-| `cli` | `AzureCliCredential` (uses `az login`) |
-| `environment` | `EnvironmentCredential` |
-| `interactive` | `InteractiveBrowserCredential` |
-| `devicecode` | `DeviceCodeCredential` |
-| `msi` / `managedidentity` | `ManagedIdentityCredential` |
+| `ActiveDirectoryDefault` (alias `default`) | `DefaultAzureCredential` (managed identity, environment, Azure CLI, …) |
+| `ActiveDirectoryDeviceCode` | `DeviceCodeCredential` |
 
 When `authentication` is left at its default but no Service Principal secret is configured, `dlt`
-falls back to `DefaultAzureCredential`.
+falls back to `ActiveDirectoryDefault` (`DefaultAzureCredential`).
 
 ### Create a pipeline
 
@@ -98,13 +95,13 @@ port = 1433
 connect_timeout = 30
 ```
 
-azure-identity, e.g. the Azure CLI (`az login`), which needs no secret:
+azure-identity, e.g. `DefaultAzureCredential` after `az login`, which needs no secret:
 
 ```toml
 [destination.fabric.credentials]
 host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
 database = "mydb"
-authentication = "cli"
+authentication = "default"
 ```
 
 ## Write disposition
