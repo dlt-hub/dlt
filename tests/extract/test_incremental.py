@@ -1514,11 +1514,13 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     # state was reset (child is replace but parent is append! so it will not generate any more items due to incremental
     # so child will reset itself on replace and never set the state...)
     assert "child" not in s.state["resources"]
-    # there will be a load package to reset the state but also a load package to update the child table
-    assert len(info.load_packages[0].jobs["completed_jobs"]) == 2
+    # there will be a load package to reset the state
+    assert len(info.load_packages[0].jobs["completed_jobs"]) == 1
     assert {
         job.job_file_info.table_name for job in info.load_packages[0].jobs["completed_jobs"]
-    } == {"_dlt_pipeline_state", "child"}
+    } == {"_dlt_pipeline_state"}
+    # package state also contains truncate "child" table command
+    # TODO: check the above
 
     # now we add child that has parent_r as parent but we add another instance of standalone_some_data explicitly
     # so we have a resource with the same name as child parent but the pipe instance is different

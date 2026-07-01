@@ -10,6 +10,7 @@ from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefre
 
 from dlt.destinations.sql_client import DBApiCursor
 from dlt.extract.source import DltSource
+from dlt.extract.resource import DltResource
 from dlt.extract.state import resource_state
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
@@ -801,3 +802,52 @@ def test_refresh_truncates_or_drops_when_no_data(
     if destination_config.destination_type != "filesystem":
         for table in ("items", "items__children"):
             assert table_exists(pipeline, table) is (refresh == "drop_data")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_refresh_drop_resources_incremental_empty_package_drops_all(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Makes sure that emitting empty package (no jobs) drops all resources"""
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    def items_resource(initial_value: int, end_value: int) -> DltResource:
+        @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+        def items(
+            updated: Any = dlt.sources.incremental(
+                "ts", initial_value=initial_value, end_value=end_value
+            )
+        ) -> Any:
+            yield [
+                {"id": 1, "ts": 1, "children": [{"cid": 1}]},
+                {"id": 2, "ts": 2, "children": [{"cid": 2}]},
+            ]
+
+        return items()
+
+    pipeline = destination_config.setup_pipeline("refresh_inc_empty" + uniq_id(), dev_mode=True)
+
+    # first refresh loads all data (ts within the [0, 10) window)
+    info = pipeline.run(
+        items_resource(0, 10), refresh="drop_resources", **destination_config.run_kwargs
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items", "items__children") == {
+        "items": 2,
+        "items__children": 2,
+    }
+    # the hint-only primary key was typed from the data
+    assert "primary_key" in pipeline.default_schema.tables["items"]["columns"]["id"]
+
+    # second refresh: the [100, 200) window selects nothing -> fully empty package
+    info = pipeline.run(
+        items_resource(100, 200), refresh="drop_resources", **destination_config.run_kwargs
+    )
+    assert_load_info(info)
+    # all tables are dropped and not recreated by the empty/replace run
+    assert table_exists(pipeline, "items") is False
+    assert table_exists(pipeline, "items__children") is False

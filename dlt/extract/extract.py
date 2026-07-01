@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any, Optional, cast
+from typing import Iterator, List, Dict, Any, Optional
 import yaml
 
 from dlt.common import logger
@@ -24,7 +24,6 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import (
     TAnySchemaColumns,
-    TPartialTableSchema,
     TSchemaContract,
     TTableFormat,
     TTableSchema,
@@ -307,6 +306,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     _last_extractors: Dict[TDataItemFormat, Extractor] = None
     """Most recently used extractors"""
 
+    _tables_to_truncate: List[TTableSchema]
+    """Tables to truncate via package state"""
+
     def __init__(
         self,
         schema_storage: SchemaStorage,
@@ -419,8 +421,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         json_extractor = extractors["object"]
         tables_with_items = set().union(*[e.tables_with_items for e in extractors.values()])
         computed_tables = set().union(*[e.computed_tables for e in extractors.values()])
-        # find REPLACE resources that did not yield any pipe items and create empty jobs for them
-        # do not include tables that have never seen data
+        # find REPLACE resources that yielded no data and register their tables for truncation;
+        # tables that never saw data are excluded (nothing to truncate)
         data_tables = {t["name"]: t for t in schema.data_tables(seen_data_only=True)}
         tables_by_resources = utils.group_tables_by_resource(data_tables)
         for resource in source.resources.selected.values():
@@ -431,7 +433,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             if callable(resource_write_disposition_dict):
                 continue
 
-            # disposition shorthand used for comparisons and the replace gate below
+            # disposition shorthand (string) used for the replace check below
             resource_write_disposition = (
                 resource_write_disposition_dict["disposition"]
                 if isinstance(resource_write_disposition_dict, dict)
@@ -443,27 +445,30 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 if utils.is_nested_table(table) or table_name in tables_with_items:
                     continue
 
-                # apply the fresh disposition as a partial table so hint columns (eg. scd2
-                # validity columns) are normalized and merged like on the data path
-                if table_name not in computed_tables and (
-                    wd_config := get_fresh_write_disposition(schema, resource, table)
-                ):
-                    partial_table: Dict[str, Any] = {
-                        "name": table_name,
-                        "columns": {},
-                        "write_disposition": wd_config,
-                    }
-                    resource._merge_write_disposition_dict(partial_table)
-                    schema.update_table(cast(TPartialTableSchema, partial_table))
-
                 # truncate tables only for resources marked as "replace"
                 if resource_write_disposition != "replace":
                     continue
 
+                # compute the current write disposition in memory
+                if table_name not in computed_tables:
+                    wd_config = get_fresh_write_disposition(schema, resource, table)
+                    disposition = (
+                        wd_config["disposition"]
+                        if isinstance(wd_config, dict)
+                        # fall back to the stored disposition when it can't be re-derived
+                        else (wd_config or table.get("write_disposition"))
+                    )
+                else:
+                    disposition = table.get("write_disposition")
+
                 # table itself must accept replace
-                if table.get("write_disposition") == "replace":
-                    # write empty files so a replace root is truncated even though it received no data
-                    json_extractor.write_empty_items_file(table_name)
+                if disposition == "replace":
+                    # collect tables to truncate via package state
+                    self._tables_to_truncate.extend(
+                        nested_table
+                        for nested_table in utils.get_nested_tables(schema.tables, table_name)
+                        if utils.has_table_seen_data(nested_table)
+                    )
 
         # collect tables that received empty materialized lists and had no items
         tables_with_empty = (
@@ -483,6 +488,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         workers: int,
     ) -> None:
         schema = source.schema
+        self._tables_to_truncate = []
         collector = self.collector
         extractors: Dict[TDataItemFormat, Extractor] = {
             "object": ObjectExtractor(
@@ -595,6 +601,14 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     max_parallel_items=max_parallel_items,
                     workers=workers,
                 )
+                # register replace tables that yielded no data for truncation via the load package
+                if self._tables_to_truncate:
+                    truncated = load_package.state.setdefault("truncated_tables", [])
+                    existing_names = {table["name"] for table in truncated}
+                    for table in self._tables_to_truncate:
+                        if table["name"] not in existing_names:
+                            existing_names.add(table["name"])
+                            truncated.append(table)
                 commit_load_package_state()
         return load_id
 
