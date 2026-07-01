@@ -405,7 +405,9 @@ def test_replace_sql_queries(
 
         destination_spy = mocker.spy(PostgresStagingReplaceJob, "generate_sql")
 
-    elif dest_type == "mssql":
+    elif dest_type in ("mssql", "fabric"):
+        # fabric reuses mssql's ALTER SCHEMA ... TRANSFER-based replace job for
+        # staging-optimized (see FabricClient._create_replace_followup_jobs)
         from dlt.destinations.impl.mssql.mssql import MsSqlStagingReplaceJob
 
         destination_spy = mocker.spy(MsSqlStagingReplaceJob, "generate_sql")
@@ -446,7 +448,7 @@ def test_replace_sql_queries(
             )
 
     elif replace_strategy == "staging-optimized":
-        if dest_type in ["postgres", "mssql", "clickhouse"]:
+        if dest_type in ["postgres", "mssql", "clickhouse", "fabric"]:
             assert destination_spy.call_count == 1
         else:
             assert clone_sql_generator_spy.call_count == 1
