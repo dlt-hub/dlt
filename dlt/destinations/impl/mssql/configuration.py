@@ -1,45 +1,29 @@
 import dataclasses
-import struct
-from typing import ClassVar, Any, Final, List, Dict, Optional, TYPE_CHECKING
+from typing import ClassVar, Any, Final, List, Dict, Optional
 
-from dlt import version
 from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.configuration.specs import ConnectionStringCredentials, CredentialsWithDefault
 from dlt.common.typing import TSecretStrValue, Annotated
-from dlt.common.exceptions import MissingDependencyException, SystemConfigurationException
 
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.utils import digest128
 
-if TYPE_CHECKING:
-    from azure.core.credentials import TokenCredential
-
-_AZURE_AUTH_EXTRA = f"{version.DLT_PKG_NAME}[az]"
-
-# ODBC connection attribute used to inject a pre-acquired Entra ID access token.
+# ODBC attribute used to inject a pre-acquired Entra ID access token, kept for a future explicit
+# access-token feature. Not used by any authentication method today.
 # https://learn.microsoft.com/sql/connect/odbc/using-azure-active-directory#authenticating-with-an-access-token
 SQL_COPT_SS_ACCESS_TOKEN = 1256
 SQL_TOKEN_SCOPE = "https://database.windows.net/.default"
 
-# Authentication methods the ODBC driver performs natively (passed as `Authentication=` in the
-# DSN). Poolable: the driver signs in itself, so no token needs to be reacquired and injected
-# per connection.
-DRIVER_NATIVE_AUTHENTICATION = frozenset(
+# Entra ID authentication methods supported by mssql-python's `Authentication=` connection
+# option. mssql-python performs the sign-in for all of them; dlt only builds the DSN.
+SUPPORTED_AUTHENTICATION = frozenset(
     {
         "ActiveDirectoryServicePrincipal",
         "ActiveDirectoryPassword",
         "ActiveDirectoryIntegrated",
         "ActiveDirectoryInteractive",
         "ActiveDirectoryMsi",
-    }
-)
-
-# Authentication methods pyodbc/msodbcsql does not support natively. dlt acquires the access
-# token itself with azure-identity and injects it into the connection (`attrs_before`), so these
-# work cross-platform but are not poolable.
-AZURE_IDENTITY_INJECTION_AUTHENTICATION = frozenset(
-    {
         "ActiveDirectoryDefault",
         "ActiveDirectoryDeviceCode",
     }
@@ -56,104 +40,18 @@ def _normalize_authentication(authentication: str) -> str:
     return _AUTHENTICATION_ALIASES.get(authentication.lower(), authentication)
 
 
-def create_token_credential(authentication: str) -> "TokenCredential":
-    """Create an azure-identity credential for a token-injection authentication method.
-
-    Expects the canonical name (`ActiveDirectoryDefault` or `ActiveDirectoryDeviceCode`), as
-    already resolved by `_normalize_authentication`.
-    """
-    try:
-        from azure.identity import DefaultAzureCredential, DeviceCodeCredential
-    except ModuleNotFoundError:
-        raise MissingDependencyException("MsSqlCredentials", [_AZURE_AUTH_EXTRA])
-
-    credential_factories = {
-        "ActiveDirectoryDefault": DefaultAzureCredential,
-        "ActiveDirectoryDeviceCode": DeviceCodeCredential,
-    }
-    return credential_factories[authentication]()  # type: ignore[no-any-return]
-
-
-def uses_token_authentication(credentials: Any) -> bool:
-    """True when dlt must acquire an access token and inject it into the connection.
-
-    `access_token`/`azure_credential` take precedence over `authentication`: when either is
-    set, dlt injects that token directly regardless of the configured method. Otherwise derived
-    from the configured method, not from `has_default_credentials`: cooperative `on_partial`
-    calls up the MRO may set a default credential even for driver-native methods.
-    """
-    if credentials.access_token or credentials.azure_credential:
-        return True
-    authentication = credentials.authentication
-    if not authentication:
-        return False
-    if _normalize_authentication(authentication) in AZURE_IDENTITY_INJECTION_AUTHENTICATION:
-        return True
-    # ActiveDirectoryServicePrincipal without a secret cannot authenticate through the ODBC
-    # driver, so dlt falls back to a DefaultAzureCredential token.
-    return authentication == "ActiveDirectoryServicePrincipal" and not (
-        credentials.azure_client_id
-        and credentials.azure_client_secret
-        and credentials.azure_tenant_id
-    )
-
-
-def setup_token_credential(credentials: Any) -> None:
-    """Create and store the azure-identity credential for token-injection authentication."""
-    if credentials.access_token or credentials.azure_credential:
-        # The token (or a credential able to fetch one) was injected directly: no
-        # DefaultAzureCredential fallback is needed.
-        return
-    authentication = credentials.authentication or ""
-    normalized = _normalize_authentication(authentication)
-    if normalized in AZURE_IDENTITY_INJECTION_AUTHENTICATION:
-        credentials._set_default_credentials(create_token_credential(normalized))
-    elif authentication == "ActiveDirectoryServicePrincipal" and not (
-        credentials.azure_client_id
-        and credentials.azure_client_secret
-        and credentials.azure_tenant_id
-    ):
-        credentials._set_default_credentials(create_token_credential("ActiveDirectoryDefault"))
-
-
-def get_token_credential(credentials: Any) -> "TokenCredential":
-    """Return the azure-identity credential used for token authentication.
-
-    Reuses the credential created during resolution (so azure-identity can cache tokens
-    across connections) and creates one on demand otherwise.
-    """
-    if credentials.has_default_credentials():
-        return credentials.default_credentials()  # type: ignore[no-any-return]
-    authentication = _normalize_authentication(credentials.authentication or "")
-    if authentication not in AZURE_IDENTITY_INJECTION_AUTHENTICATION:
-        authentication = "ActiveDirectoryDefault"
-    return create_token_credential(authentication)
-
-
-def get_access_token(credentials: Any) -> Optional[str]:
-    """Return a directly usable Entra ID access token, bypassing `authentication` resolution.
-
-    Prefers a pre-fetched `access_token`, then a token fetched from an injected
-    `azure_credential`. Returns None when neither is set, so callers fall back to the
-    `authentication` named-method resolution.
-    """
-    if credentials.access_token:
-        return str(credentials.access_token)
-    if credentials.azure_credential:
-        return credentials.azure_credential.get_token(SQL_TOKEN_SCOPE).token  # type: ignore[no-any-return]
-    return None
-
-
 def build_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
-    """Return `attrs_before` with an Entra ID access token, or None for driver-native auth."""
-    token = get_access_token(credentials)
-    if token is None:
-        if not uses_token_authentication(credentials):
-            return None
-        token = get_token_credential(credentials).get_token(SQL_TOKEN_SCOPE).token
+    """Return `attrs_before` with a directly injected Entra ID access token, or None."""
+    if credentials.access_token:
+        token = str(credentials.access_token)
+    elif credentials.azure_credential:
+        token = credentials.azure_credential.get_token(SQL_TOKEN_SCOPE).token
+    else:
+        return None
     encoded_token = token.encode("utf-16-le")
     token_struct = struct.pack(f"<I{len(encoded_token)}s", len(encoded_token), encoded_token)
     return {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+
 
 
 def validate_authentication(credentials: Any) -> None:
@@ -166,16 +64,10 @@ def validate_authentication(credentials: Any) -> None:
     if not authentication:
         return  # plain SQL login (username/password)
     normalized = _normalize_authentication(authentication)
-    if (
-        normalized not in DRIVER_NATIVE_AUTHENTICATION
-        and normalized not in AZURE_IDENTITY_INJECTION_AUTHENTICATION
-    ):
-        supported = sorted(DRIVER_NATIVE_AUTHENTICATION) + sorted(
-            AZURE_IDENTITY_INJECTION_AUTHENTICATION
-        )
+    if normalized not in SUPPORTED_AUTHENTICATION:
         raise ConfigurationException(
             f"Unsupported `authentication` method `{authentication}`."
-            f" Supported methods: {', '.join(supported)}."
+            f" Supported methods: {', '.join(sorted(SUPPORTED_AUTHENTICATION))}."
         )
     if authentication == "ActiveDirectoryPassword" and not (
         credentials.username and credentials.password
@@ -187,15 +79,15 @@ def validate_authentication(credentials: Any) -> None:
 
 def apply_authentication_to_dsn(credentials: Any, params: dict[str, Any]) -> None:
     """Add UID/PWD/Authentication keys to an ODBC DSN dict based on the authentication method."""
-    if uses_token_authentication(credentials):
-        # The access token is injected via attrs_before, so the DSN carries no credentials.
-        return
     authentication = credentials.authentication
     if not authentication:
         # Plain SQL login.
         params["UID"] = credentials.username
         params["PWD"] = credentials.password
         return
+    # Write the canonical name, not the thin `default` alias — mssql-python only recognizes the
+    # canonical `ActiveDirectory*` values in the `Authentication=` DSN keyword.
+    authentication = _normalize_authentication(authentication)
     params["AUTHENTICATION"] = authentication
     if (
         authentication == "ActiveDirectoryServicePrincipal"
@@ -212,6 +104,15 @@ def apply_authentication_to_dsn(credentials: Any, params: dict[str, Any]) -> Non
     ):
         params["UID"] = credentials.username
         params["PWD"] = credentials.password
+
+
+def build_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
+    """Return `attrs_before` with a directly injected Entra ID access token, or None.
+
+    mssql-python performs the sign-in for every supported authentication method itself, so there
+    is nothing to inject here today. Kept as the hook for a future explicit access-token feature.
+    """
+    return None
 
 
 def escape_mssql_odbc_value(value: Optional[str]) -> str:
@@ -267,11 +168,10 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
 
     authentication: str | None = None
     """Authentication method. Empty (default) uses plain SQL login (`username`/`password`).
-    Driver-native (passed as `Authentication=` in the DSN, poolable):
+    Supported Entra ID methods, passed straight through as `Authentication=` in the DSN:
     `ActiveDirectoryServicePrincipal`, `ActiveDirectoryPassword`, `ActiveDirectoryIntegrated`,
-    `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`. azure-identity (token acquired and
-    injected by dlt, not poolable): `ActiveDirectoryDefault` (alias `default`),
-    `ActiveDirectoryDeviceCode`."""
+    `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`, `ActiveDirectoryDefault` (alias
+    `default`), `ActiveDirectoryDeviceCode`."""
 
     azure_tenant_id: str | None = None
     """Entra ID tenant id, used with `ActiveDirectoryServicePrincipal` authentication."""
@@ -308,10 +208,9 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
         return query
 
     def on_partial(self) -> None:
-        setup_token_credential(self)
         if self.authentication or self.access_token or self.azure_credential:
-            # Entra ID methods (token or driver-native) supply their own credentials and do not
-            # rely on username/password; resolve once we have a target. `on_resolved` validates.
+            # Entra ID methods supply their own credentials and do not rely on username/password;
+            # resolve once we have a target. `on_resolved` validates.
             if self.host and self.database:
                 self.resolve()
         elif not self.is_partial():
@@ -341,7 +240,7 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
         return build_odbc_dsn(params)
 
     def to_odbc_attrs_before(self) -> dict[int, bytes] | None:
-        """Return `attrs_before` with an Entra ID access token, or None for driver-native auth."""
+        """Return `attrs_before` with a directly injected Entra ID access token, or None."""
         return build_token_attrs_before(self)
 
 

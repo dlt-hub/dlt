@@ -90,15 +90,15 @@ Long strings (>8k) are handled automatically by the driver, no extra configurati
 ### Microsoft Entra ID authentication
 
 For Azure-hosted SQL Server (Azure SQL Database, Managed Instance) you can authenticate with
-Entra ID instead of a SQL login. Set the `authentication` credential option.
+Entra ID instead of a SQL login. Set the `authentication` credential option to one of the methods
+below; `dlt` writes it to the connection string as `Authentication=`, and the
+[mssql-python](https://github.com/microsoft/mssql-python) driver performs the sign-in.
 
-With the **azure-identity** methods, `dlt` acquires an access token and injects it into the
-connection, so they work cross-platform (including macOS) and need no password in `secrets.toml`.
-They require the `azure-identity` package (installed with `pip install "dlt[az]"`).
+`dlt` writes the method to the connection string as `Authentication=` and the [mssql-python](https://github.com/microsoft/mssql-python) driver performs the sign-in, so no separate `azure-identity` install is needed.
 
-Leaving `authentication` empty keeps the plain SQL login with `username` and `password`. The ODBC driver signs in itself for `ActiveDirectoryServicePrincipal` (`azure_tenant_id`, `azure_client_id`, `azure_client_secret`), `ActiveDirectoryPassword` (`username`, `password`), `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive` and `ActiveDirectoryMsi`. `dlt` injects the token itself for `ActiveDirectoryDefault` (alias `default`, uses `DefaultAzureCredential`) and `ActiveDirectoryDeviceCode`.
+Leaving `authentication` empty keeps the plain SQL login with `username` and `password`. `ActiveDirectoryServicePrincipal` needs `azure_tenant_id`, `azure_client_id` and `azure_client_secret`; `ActiveDirectoryPassword` needs `username` and `password`. `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`, `ActiveDirectoryDefault` (alias `default`, which covers managed identity, environment and Azure CLI) and `ActiveDirectoryDeviceCode` need no further fields.
 
-Passwordless example using `DefaultAzureCredential` (e.g. after `az login`):
+Passwordless example (e.g. after `az login`):
 ```toml
 [destination.mssql.credentials]
 database = "dlt_data"
@@ -116,9 +116,6 @@ azure_tenant_id = "your-tenant-id"
 azure_client_id = "your-client-id"
 azure_client_secret = "your-client-secret"
 ```
-
-When `authentication` is left empty but no `password` is set, `dlt` falls back to
-`DefaultAzureCredential`.
 
 **To pass credentials directly**, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
 ```py

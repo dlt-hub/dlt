@@ -33,18 +33,11 @@ Fabric Warehouse authenticates with Microsoft Entra ID. Whichever method you cho
 - Select **SQL endpoint**
 - Copy the **SQL connection string** - it should be in the format: `<guid>.datawarehouse.fabric.microsoft.com`
 
-The method is selected with the `authentication` credential option. Fabric Warehouse accepts these
-authentication types:
+The method is selected with the `authentication` credential option. For every method except one, `dlt` writes it to the connection string as `Authentication=` and the [mssql-python](https://github.com/microsoft/mssql-python) driver performs the Entra ID sign-in.
 
-- Service Principal, and the other methods the ODBC driver signs in with itself
-- [azure-identity](https://learn.microsoft.com/python/api/overview/azure/identity-readme) methods, where `dlt` acquires the token
-- `fab_notebookutils`, for pipelines running inside a Fabric notebook
+`ActiveDirectoryServicePrincipal` is the default and needs `azure_tenant_id`, `azure_client_id` and `azure_client_secret`. `ActiveDirectoryPassword` needs `username` and `password`. `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`, `ActiveDirectoryDefault` (alias `default`, which covers managed identity, environment and Azure CLI) and `ActiveDirectoryDeviceCode` need no further fields.
 
-With the **driver-native** methods the ODBC driver performs the Entra ID sign-in. `ActiveDirectoryServicePrincipal` is the default and needs `azure_tenant_id`, `azure_client_id` and `azure_client_secret`; `ActiveDirectoryPassword` needs `username` and `password`. `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive` and `ActiveDirectoryMsi` need no further fields.
-
-With the **azure-identity** methods `dlt` acquires an access token and injects it into the connection, so no secret is needed in `secrets.toml`. These work cross-platform, including macOS, where the ODBC driver's built-in Entra ID modes are unreliable. Use `ActiveDirectoryDefault` (alias `default`) for `DefaultAzureCredential`, or `ActiveDirectoryDeviceCode` for `DeviceCodeCredential`. When `authentication` is left at its default but no Service Principal secret is configured, `dlt` falls back to `ActiveDirectoryDefault`.
-
-**`fab_notebookutils`** authenticates as whoever runs the notebook through [NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials), so that identity needs write access to the warehouse. A Fabric notebook has no environment variables, managed identity or Azure CLI login, so `DefaultAzureCredential` cannot sign in there:
+The exception is **`fab_notebookutils`**, for pipelines running inside a Fabric notebook. There is no environment, managed identity or Azure CLI login to sign in with there, so `dlt` acquires the token itself from the notebook runtime through [NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials) and injects it into the connection. It authenticates as whoever runs the notebook, so that identity needs write access to the warehouse:
 
 ```toml
 [destination.fabric.credentials]
@@ -86,7 +79,7 @@ port = 1433
 connect_timeout = 30
 ```
 
-azure-identity, e.g. `DefaultAzureCredential` after `az login`, which needs no secret:
+Passwordless, e.g. `DefaultAzureCredential` after `az login`:
 
 ```toml
 [destination.fabric.credentials]
@@ -250,7 +243,7 @@ no ODBC driver name needs to be configured.
 
 While Fabric Warehouse is based on SQL Server, there are key differences:
 
-1. **Authentication**: Fabric uses Entra ID; in addition to Service Principal, `dlt` supports several azure-identity methods (see [Authentication](#authentication))
+1. **Authentication**: Fabric uses Entra ID; in addition to Service Principal, `dlt` supports several other methods (see [Authentication](#authentication))
 2. **Type System**: Uses `varchar` and `datetime2` instead of `nvarchar` and `datetimeoffset`
 3. **Collation**: Optimized for UTF-8 collations, with long/max types handled natively by the driver
 4. **SQL Dialect**: Uses `fabric` SQLglot dialect for proper SQL generation
