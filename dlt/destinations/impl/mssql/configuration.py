@@ -22,57 +22,56 @@ _AZURE_AUTH_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 SQL_COPT_SS_ACCESS_TOKEN = 1256
 SQL_TOKEN_SCOPE = "https://database.windows.net/.default"
 
-# Authentication methods handled by the ODBC driver itself (passed as `Authentication=` in the DSN).
+# Authentication methods the ODBC driver performs natively (passed as `Authentication=` in the
+# DSN). Poolable: the driver signs in itself, so no token needs to be reacquired and injected
+# per connection.
 DRIVER_NATIVE_AUTHENTICATION = frozenset(
     {
         "ActiveDirectoryServicePrincipal",
         "ActiveDirectoryPassword",
         "ActiveDirectoryIntegrated",
         "ActiveDirectoryInteractive",
+        "ActiveDirectoryMsi",
     }
 )
 
-# Authentication methods backed by azure-identity. dlt acquires the access token and injects it
-# into the connection, so these work cross-platform without relying on ODBC driver support.
-AZURE_IDENTITY_AUTHENTICATION = frozenset(
+# Authentication methods pyodbc/msodbcsql does not support natively. dlt acquires the access
+# token itself with azure-identity and injects it into the connection (`attrs_before`), so these
+# work cross-platform but are not poolable.
+AZURE_IDENTITY_INJECTION_AUTHENTICATION = frozenset(
     {
-        "auto",
-        "default",
-        "cli",
-        "environment",
-        "interactive",
-        "devicecode",
-        "msi",
-        "managedidentity",
+        "ActiveDirectoryDefault",
+        "ActiveDirectoryDeviceCode",
     }
 )
+
+# Thin alias for `ActiveDirectoryDefault`, resolved by `_normalize_authentication`.
+_AUTHENTICATION_ALIASES = {
+    "default": "ActiveDirectoryDefault",
+}
+
+
+def _normalize_authentication(authentication: str) -> str:
+    """Resolve the thin `default` alias to the canonical `ActiveDirectoryDefault` name."""
+    return _AUTHENTICATION_ALIASES.get(authentication.lower(), authentication)
 
 
 def create_token_credential(authentication: str) -> "TokenCredential":
-    """Create an azure-identity credential for a token-based authentication method."""
+    """Create an azure-identity credential for a token-injection authentication method.
+
+    Expects the canonical name (`ActiveDirectoryDefault` or `ActiveDirectoryDeviceCode`), as
+    already resolved by `_normalize_authentication`.
+    """
     try:
-        from azure.identity import (
-            AzureCliCredential,
-            DefaultAzureCredential,
-            DeviceCodeCredential,
-            EnvironmentCredential,
-            InteractiveBrowserCredential,
-            ManagedIdentityCredential,
-        )
+        from azure.identity import DefaultAzureCredential, DeviceCodeCredential
     except ModuleNotFoundError:
         raise MissingDependencyException("MsSqlCredentials", [_AZURE_AUTH_EXTRA])
 
     credential_factories = {
-        "auto": DefaultAzureCredential,
-        "default": DefaultAzureCredential,
-        "cli": AzureCliCredential,
-        "environment": EnvironmentCredential,
-        "interactive": InteractiveBrowserCredential,
-        "devicecode": DeviceCodeCredential,
-        "msi": ManagedIdentityCredential,
-        "managedidentity": ManagedIdentityCredential,
+        "ActiveDirectoryDefault": DefaultAzureCredential,
+        "ActiveDirectoryDeviceCode": DeviceCodeCredential,
     }
-    return credential_factories[authentication.lower()]()  # type: ignore[no-any-return]
+    return credential_factories[authentication]()  # type: ignore[no-any-return]
 
 
 def uses_token_authentication(credentials: Any) -> bool:
@@ -84,7 +83,7 @@ def uses_token_authentication(credentials: Any) -> bool:
     authentication = credentials.authentication
     if not authentication:
         return False
-    if authentication.lower() in AZURE_IDENTITY_AUTHENTICATION:
+    if _normalize_authentication(authentication) in AZURE_IDENTITY_INJECTION_AUTHENTICATION:
         return True
     # ActiveDirectoryServicePrincipal without a secret cannot authenticate through the ODBC
     # driver, so dlt falls back to a DefaultAzureCredential token.
@@ -96,16 +95,17 @@ def uses_token_authentication(credentials: Any) -> bool:
 
 
 def setup_token_credential(credentials: Any) -> None:
-    """Create and store the azure-identity credential for token-based authentication."""
+    """Create and store the azure-identity credential for token-injection authentication."""
     authentication = credentials.authentication or ""
-    if authentication.lower() in AZURE_IDENTITY_AUTHENTICATION:
-        credentials._set_default_credentials(create_token_credential(authentication))
+    normalized = _normalize_authentication(authentication)
+    if normalized in AZURE_IDENTITY_INJECTION_AUTHENTICATION:
+        credentials._set_default_credentials(create_token_credential(normalized))
     elif authentication == "ActiveDirectoryServicePrincipal" and not (
         credentials.azure_client_id
         and credentials.azure_client_secret
         and credentials.azure_tenant_id
     ):
-        credentials._set_default_credentials(create_token_credential("default"))
+        credentials._set_default_credentials(create_token_credential("ActiveDirectoryDefault"))
 
 
 def get_token_credential(credentials: Any) -> "TokenCredential":
@@ -116,9 +116,9 @@ def get_token_credential(credentials: Any) -> "TokenCredential":
     """
     if credentials.has_default_credentials():
         return credentials.default_credentials()  # type: ignore[no-any-return]
-    authentication = credentials.authentication or ""
-    if authentication.lower() not in AZURE_IDENTITY_AUTHENTICATION:
-        authentication = "default"
+    authentication = _normalize_authentication(credentials.authentication or "")
+    if authentication not in AZURE_IDENTITY_INJECTION_AUTHENTICATION:
+        authentication = "ActiveDirectoryDefault"
     return create_token_credential(authentication)
 
 
@@ -137,11 +137,14 @@ def validate_authentication(credentials: Any) -> None:
     authentication = credentials.authentication
     if not authentication:
         return  # plain SQL login (username/password)
+    normalized = _normalize_authentication(authentication)
     if (
-        authentication not in DRIVER_NATIVE_AUTHENTICATION
-        and authentication.lower() not in AZURE_IDENTITY_AUTHENTICATION
+        normalized not in DRIVER_NATIVE_AUTHENTICATION
+        and normalized not in AZURE_IDENTITY_INJECTION_AUTHENTICATION
     ):
-        supported = sorted(DRIVER_NATIVE_AUTHENTICATION) + sorted(AZURE_IDENTITY_AUTHENTICATION)
+        supported = sorted(DRIVER_NATIVE_AUTHENTICATION) + sorted(
+            AZURE_IDENTITY_INJECTION_AUTHENTICATION
+        )
         raise ConfigurationException(
             f"Unsupported `authentication` method `{authentication}`."
             f" Supported methods: {', '.join(supported)}."
@@ -235,10 +238,11 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
 
     authentication: str | None = None
     """Authentication method. Empty (default) uses plain SQL login (`username`/`password`).
-    Driver-native: `ActiveDirectoryServicePrincipal`, `ActiveDirectoryPassword`,
-    `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`. azure-identity (token injected by
-    dlt): `auto`/`default`, `cli`, `environment`, `interactive`, `devicecode`,
-    `msi`/`managedidentity`."""
+    Driver-native (passed as `Authentication=` in the DSN, poolable):
+    `ActiveDirectoryServicePrincipal`, `ActiveDirectoryPassword`, `ActiveDirectoryIntegrated`,
+    `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`. azure-identity (token acquired and
+    injected by dlt, not poolable): `ActiveDirectoryDefault` (alias `default`),
+    `ActiveDirectoryDeviceCode`."""
 
     azure_tenant_id: str | None = None
     """Entra ID tenant id, used with `ActiveDirectoryServicePrincipal` authentication."""
