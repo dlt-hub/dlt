@@ -8,6 +8,7 @@ from typing import (
     ClassVar,
     Generic,
     Iterator,
+    List,
     Mapping,
     Optional,
     Union,
@@ -74,6 +75,12 @@ class ItemTransform(BaseItemTransform[TCustomMetrics], ABC, Generic[TAny, TCusto
         pass
 
 
+class FilteredEmptyList(List[Any]):
+    """A list variant that was consumed by a filter"""
+
+    pass
+
+
 class FilterItem(ItemTransform[bool, Dict[str, Any]]):
     # mypy needs those to type correctly
     _f_meta: ItemTransformFunctionWithMeta[bool]
@@ -91,7 +98,7 @@ class FilterItem(ItemTransform[bool, Dict[str, Any]]):
                 item = [i for i in item if self._f(i)]
             if not item:
                 # item was fully consumed by the filter
-                return None
+                return FilteredEmptyList()
             return item
         else:
             if self._f_meta:
@@ -217,8 +224,10 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         if self.count_rows:
             self.count += count_rows_in_items(item)
         else:
-            # NOTE: we count empty batches/pages in this mode
-            self.count += 1
+            # NOTE: we count empty batches/pages in this mode as long as they are not
+            #  marked as filtered
+            if not isinstance(item, FilteredEmptyList):
+                self.count += 1
 
         # detect when the limit is reached, max time or yield count
         if (
