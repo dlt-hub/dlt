@@ -94,12 +94,15 @@ def init_client(
     # get dlt/internal tables
     dlt_tables = set(schema.dlt_table_names())
 
-    # tables without data (TODO: normalizer removes such jobs, write tests and remove the line below)
+    # tables that never seen data are not created or verified - the normalizer does not emit jobs
+    # for them, this guards against any stale job still referencing such a table
     tables_no_data = set(
         table["name"] for table in schema.data_tables() if not has_table_seen_data(table)
     )
     # get all tables that actually have load jobs with data
     tables_with_jobs = set(job.table_name for job in new_jobs) - tables_no_data
+    # TODO: remove after full test run
+    assert tables_with_jobs - tables_no_data == tables_with_jobs
 
     # initial tables contain child tables already
     initial_truncate_names = (
