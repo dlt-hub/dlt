@@ -15,12 +15,12 @@ The **Playground** is a zero-config destination managed by the dltHub platform. 
 It is meant for testing, demos, and a fast first run on the platform.
 
 :::warning
-The Playground is intended for tests and experiments, not for production. For production workloads, use a destination you own and control — such as [Delta](delta.md), [Iceberg](iceberg.md), [Snowflake Plus](snowflake-plus.md), or any of the [dlt destinations](../../dlt-ecosystem/destinations/index.md).
+The Playground is intended for tests and experiments, not for production. For production workloads, use a destination you own and control, such as [Delta](delta.md), [Iceberg](iceberg.md), [Snowflake Plus](snowflake-plus.md), or any of the [dlt destinations](../../dlt-ecosystem/destinations/index.md).
 :::
 
 ## Why use it
 
-When you run a pipeline on the platform with a local-style destination such as `duckdb`, the data is written to the runtime's ephemeral storage, which is erased after the run — so it can't be explored afterwards. The Playground instead **persists** your data in managed storage, so you can query it from the platform UI once the run finishes.
+When you run a pipeline on the platform with a local-style destination such as `duckdb`, the data is written to the runtime's ephemeral storage, which is erased after the run, so it can't be explored afterwards. The Playground instead **persists** your data in managed storage, so you can query it from the platform UI once the run finishes.
 
 Use it for:
 
@@ -83,7 +83,7 @@ See [deployments](../pipeline-operations/deployments.md) for more on the `__depl
 
 ## Working with the data
 
-Once a run completes, open the platform dashboard to explore the persisted data — it includes a SQL query editor against your dataset:
+Once a run completes, open the platform dashboard to explore the persisted data. It includes a SQL query editor against your dataset:
 
 ```sh
 uv run dlthub dashboard
@@ -97,8 +97,7 @@ The platform dashboard is itself a deployed job, provisioned when you run `dlthu
 
 The Playground behaves like the [Delta destination](delta.md): it is a `filesystem` destination that writes Delta tables to a dltHub-managed S3 bucket. Each workspace gets its own isolated prefix (`s3://.../<org_id>/<workspace_id>/...`), so data from different workspaces never mixes. Storage and write dispositions follow the behavior of the [Delta destination](delta.md).
 
-dlt is destination-agnostic, so anything you prototype against the Playground can later be moved to any destination you own with minimal changes — you swap the destination and provide your own storage and credentials.
-
+dlt is destination-agnostic, so anything you prototype against the Playground can later be moved to any destination you own with minimal changes. You swap the destination and provide your own storage and credentials.
 
 ## Limitations
 
