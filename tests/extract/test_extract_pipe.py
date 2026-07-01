@@ -11,7 +11,7 @@ from dlt.common import sleep
 from dlt.common.typing import TDataItems
 from dlt.extract.exceptions import CreatePipeException, ResourceExtractionError, UnclosablePipe
 from dlt.extract.items import DataItemWithMeta
-from dlt.extract.items_transform import FilterItem, FilteredEmptyList, MapItem, YieldMapItem
+from dlt.extract.items_transform import FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe
 from dlt.extract.pipe_iterator import PipeIterator, ManagedPipeIterator, PipeItem
 
@@ -469,9 +469,7 @@ def test_filter_step() -> None:
     # also should work on the list which if fully filtered must become None
     p = Pipe.from_data("data", [[1, 3], 2, [3, 4]])
     p.append_step(FilterItem(lambda item, _: item % 2 == 0))
-    filtered_list = _f_items(list(PipeIterator.from_pipe(p)))
-    assert filtered_list == [[], 2, [4]]
-    assert isinstance(filtered_list[0], FilteredEmptyList)
+    assert _f_items(list(PipeIterator.from_pipe(p))) == [2, [4]]
     # also should filter based on meta
     data = [1, 2, 3]
     meta = [True, True, False]
@@ -488,7 +486,7 @@ def test_filter_step() -> None:
     # also should work on the list which if fully filtered must become None
     p = Pipe.from_data("data", [[1, 3], 2, [3, 4]])
     p.append_step(FilterItem(lambda item: item % 2 == 0))
-    assert _f_items(list(PipeIterator.from_pipe(p))) == [[], 2, [4]]
+    assert _f_items(list(PipeIterator.from_pipe(p))) == [2, [4]]
 
 
 def test_map_step() -> None:

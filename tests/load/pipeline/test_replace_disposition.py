@@ -344,8 +344,8 @@ def test_replace_table_clearing(
             "static_items__sub_items": 2,
         }
         assert_empty_tables(pipeline, "items", "other_items", "other_items__sub_items")
-        # check trace
-        assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 0, "other_items": 0}
+        # check trace (no tables - they are truncated via package state)
+        assert pipeline.last_trace.last_normalize_info.row_counts == {}
 
     # see if yielding something next to other none entries still goes into db
     pipeline.run(items_with_subitems_yield_none, **destination_config.run_kwargs)

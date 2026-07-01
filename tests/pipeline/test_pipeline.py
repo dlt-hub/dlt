@@ -5952,9 +5952,9 @@ def test_no_coercion_normalizer_creates_variant_columns() -> None:
 
 def test_upsert_on_seen_data_table_empty_incremental_run() -> None:
     """A merge/delete-insert resource loads a row without a primary key (only a warning), then the
-    resource switches to upsert and an incremental run selects no rows. The empty run must not turn
-    the seen-data table into a keyless upsert table: it stays delete-insert and loads cleanly, and
-    the upsert key is applied only once data arrives.
+    resource switches to upsert but an incremental run selects no rows. The fully-filtered run
+    yields None, so the table is not recomputed: the stored delete-insert strategy and keyless `id`
+    are left unchanged and the run still loads cleanly.
     """
     pipeline = dlt.pipeline(
         pipeline_name="upsert_seen_data" + uniq_id(),
@@ -5984,7 +5984,8 @@ def test_upsert_on_seen_data_table_empty_incremental_run() -> None:
 
     info = pipeline.run(store_upsert())
     assert_load_info(info)
-    # the empty run left the stored merge strategy unchanged and did not apply the primary key
+    # the fully-filtered incremental yields None, so the table is not recomputed: the stored
+    # delete-insert strategy stays and the primary key is not applied
     store = pipeline.default_schema.tables["store"]
     assert store.get("x-merge-strategy") != "upsert"
     assert store["columns"]["id"].get("primary_key") is None
