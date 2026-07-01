@@ -1,7 +1,8 @@
+from typing import Set
+
 import pytest
 import marimo as mo
 import dlt
-from typing import Set
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.pipeline import (

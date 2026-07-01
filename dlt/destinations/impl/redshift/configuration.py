@@ -27,6 +27,7 @@ class RedshiftClientConfiguration(PostgresClientConfiguration):
 
     staging_iam_role: Optional[str] = None
     has_case_sensitive_identifiers: bool = False
+    additional_copy_options: Optional[list[str]] = None
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the configured host."""

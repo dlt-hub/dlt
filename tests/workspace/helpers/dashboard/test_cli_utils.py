@@ -17,7 +17,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
 def test_get_pipelines(pipeline: dlt.Pipeline):
     """Test getting local pipelines"""
-    pipelines_dir, pipelines = cli_utils.list_local_pipelines(pipeline.pipelines_dir)
+    pipelines_dir, pipelines, _ = cli_utils.list_local_pipelines(pipeline.pipelines_dir)
     assert pipelines_dir == pipeline.pipelines_dir
     assert len(pipelines) == 1
     assert pipelines[0]["name"] == pipeline.pipeline_name
@@ -25,7 +25,7 @@ def test_get_pipelines(pipeline: dlt.Pipeline):
 
 def test_get_local_pipelines_with_temp_dir(temp_pipelines_dir):
     """Test getting local pipelines with temporary directory"""
-    pipelines_dir, pipelines = cli_utils.list_local_pipelines(temp_pipelines_dir)
+    pipelines_dir, pipelines, _ = cli_utils.list_local_pipelines(temp_pipelines_dir)
 
     assert pipelines_dir == temp_pipelines_dir
     assert len(pipelines) == 3  # success_pipeline_1, success_pipeline_2, _dlt_internal
@@ -45,7 +45,7 @@ def test_get_local_pipelines_with_temp_dir(temp_pipelines_dir):
 def test_get_local_pipelines_empty_dir():
     """Test getting local pipelines from empty directory"""
     with tempfile.TemporaryDirectory() as temp_dir:
-        pipelines_dir, pipelines = cli_utils.list_local_pipelines(temp_dir)
+        pipelines_dir, pipelines, _ = cli_utils.list_local_pipelines(temp_dir)
 
         assert pipelines_dir == temp_dir
         assert pipelines == []
@@ -54,10 +54,26 @@ def test_get_local_pipelines_empty_dir():
 def test_get_local_pipelines_nonexistent_dir():
     """Test getting local pipelines from nonexistent directory"""
     nonexistent_dir = "/nonexistent/directory"
-    pipelines_dir, pipelines = cli_utils.list_local_pipelines(nonexistent_dir)
+    pipelines_dir, pipelines, _ = cli_utils.list_local_pipelines(nonexistent_dir)
 
     assert pipelines_dir == nonexistent_dir
     assert pipelines == []
+
+
+def test_get_local_pipelines_returns_local_names_without_additional(temp_pipelines_dir):
+    """Returned local names only include pipeline directories discovered on disk."""
+    pipelines_dir, pipelines, local_pipeline_names = cli_utils.list_local_pipelines(
+        temp_pipelines_dir,
+        additional_pipelines=["ghost", "..", "/etc"],
+    )
+
+    assert pipelines_dir == temp_pipelines_dir
+    assert "ghost" in {p["name"] for p in pipelines}
+    assert set(local_pipeline_names) == {
+        "success_pipeline_1",
+        "success_pipeline_2",
+        "_dlt_internal",
+    }
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
@@ -76,7 +92,7 @@ def test_get_pipeline_last_run(pipeline: dlt.Pipeline):
 
 def test_integration_get_local_pipelines_with_sorting(temp_pipelines_dir):
     """Test integration scenario with multiple pipelines sorted by timestamp"""
-    pipelines_dir, pipelines = cli_utils.list_local_pipelines(
+    pipelines_dir, pipelines, _ = cli_utils.list_local_pipelines(
         temp_pipelines_dir, sort_by_trace=True
     )
 

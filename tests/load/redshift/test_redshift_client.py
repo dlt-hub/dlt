@@ -61,24 +61,32 @@ def test_redshift_factory() -> None:
     assert client.config.has_case_sensitive_identifiers is False
     assert client.capabilities.has_case_sensitive_identifiers is False
     assert client.capabilities.casefold_identifier is str.lower
+    assert client.config.additional_copy_options is None
 
     # set args explicitly
-    dest = redshift(has_case_sensitive_identifiers=True, staging_iam_role="LOADER")
+    dest = redshift(
+        has_case_sensitive_identifiers=True,
+        staging_iam_role="LOADER",
+        additional_copy_options=["FILLRECORD"],
+    )
     client = dest.client(schema, RedshiftClientConfiguration()._bind_dataset_name("dataset"))
     assert client.config.staging_iam_role == "LOADER"
     assert client.config.has_case_sensitive_identifiers is True
     assert client.capabilities.has_case_sensitive_identifiers is True
     assert client.capabilities.casefold_identifier is str
+    assert client.config.additional_copy_options == ["FILLRECORD"]
 
     # set args via config
     os.environ["DESTINATION__STAGING_IAM_ROLE"] = "LOADER"
     os.environ["DESTINATION__HAS_CASE_SENSITIVE_IDENTIFIERS"] = "True"
+    os.environ["DESTINATION__REDSHIFT__ADDITIONAL_COPY_OPTIONS"] = '["FILLRECORD"]'
     dest = redshift()
     client = dest.client(schema, RedshiftClientConfiguration()._bind_dataset_name("dataset"))
     assert client.config.staging_iam_role == "LOADER"
     assert client.config.has_case_sensitive_identifiers is True
     assert client.capabilities.has_case_sensitive_identifiers is True
     assert client.capabilities.casefold_identifier is str
+    assert client.config.additional_copy_options == ["FILLRECORD"]
 
 
 @skipifpypy

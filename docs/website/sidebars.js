@@ -423,6 +423,11 @@ const sidebars = {
           label: "Orchestrators",
           items: [
             {
+              type: "doc",
+              id: "walkthroughs/deploy-a-pipeline/orchestrate-with-dlthub",
+              label: "dltHub",
+            },
+            {
               id: "walkthroughs/deploy-a-pipeline/deploy-with-github-actions",
               type: "doc",
               label: "GitHub Actions",
@@ -485,6 +490,7 @@ const sidebars = {
         "hub/ingestion/init",
         "hub/ingestion/rest-api-source",
         "hub/ingestion/dashboard",
+        "hub/ingestion/playground",
         "hub/ingestion/ms-sql",
         "hub/ingestion/delta",
         "hub/ingestion/iceberg",
@@ -507,6 +513,7 @@ const sidebars = {
         "hub/pipeline-operations/profiles",
         "hub/pipeline-operations/overview",
         "hub/pipeline-operations/workspace-setup",
+        "hub/pipeline-operations/secrets-management",
         "hub/pipeline-operations/deployments",
         "hub/pipeline-operations/triggers",
         "hub/pipeline-operations/job-configuration",
@@ -522,6 +529,11 @@ const sidebars = {
       type: "category",
       label: "Data discovery & serving",
       items: ["hub/data-discovery/datasets", { type: "doc", id: "general-usage/dataset-access/marimo" }],
+    },
+    {
+      type: "category",
+      label: "Notifications",
+      items: ["hub/notifications/slack", "hub/notifications/email"],
     },
     {
       type: "category",

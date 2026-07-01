@@ -69,6 +69,22 @@ def _close_sections(page: Page, skip_section: str = None) -> None:
             page.get_by_role("switch", name=s).uncheck()
 
 
+def _pipeline_selector(page: Page) -> Any:
+    """Locator for the pipeline multiselect trigger (a popover button in shadow DOM)."""
+    return page.locator("marimo-multiselect").locator('[aria-haspopup="dialog"]')
+
+
+def _toggle_pipeline(page: Page, pipeline_name: str) -> None:
+    """Open the pipeline multiselect and toggle the given option.
+
+    With `max_selections=1` this selects the pipeline when it is not the current
+    one and deselects it when it is, so it covers both selecting and clearing.
+    """
+    _pipeline_selector(page).click()
+    page.get_by_role("option", name=pipeline_name, exact=True).click()
+    page.keyboard.press("Escape")
+
+
 def test_page_overview(page: Page, fruit_pipeline: Any):
     _open_pipeline(page, "fruit_pipeline")
 
@@ -474,3 +490,97 @@ def test_no_pipelines_home(page: Page):
             expect(page.get_by_text("No pipelines found yet").first).to_be_visible(timeout=20000)
             # the (empty) pipeline dropdown is hidden
             expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(0)
+
+
+def test_deselect_pipeline_keeps_selector(page: Page):
+    """Clearing the pipeline keeps the dropdown and shows a neutral hint, not the empty landing."""
+    test_port = 2723
+    with isolated_workspace("pipelines"):
+        alpha = dlt.pipeline(pipeline_name="alpha", destination="duckdb")
+        alpha.run(fruitshop_source().with_resources("customers"))
+        time.sleep(1)
+        beta = dlt.pipeline(pipeline_name="beta", destination="duckdb")
+        beta.run(fruitshop_source().with_resources("inventory"))
+
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}")
+            expect(page.get_by_role("heading", name=re.compile(r"Pipeline\s+beta"))).to_be_visible(
+                timeout=20000
+            )
+
+            _toggle_pipeline(page, "beta")
+
+            expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(1)
+            expect(page.get_by_text("No pipeline selected").first).to_be_visible(timeout=15000)
+            expect(page.get_by_text("No pipelines found yet")).to_have_count(0)
+            expect(page.get_by_text(app_strings.browse_data.title)).to_have_count(0)
+
+            _toggle_pipeline(page, "alpha")
+            expect(page.get_by_role("heading", name=re.compile(r"Pipeline\s+alpha"))).to_be_visible(
+                timeout=15000
+            )
+
+
+def test_switch_pipeline_no_error_flash(page: Page):
+    """Switching A->B (a transient empty selection) lands on B with no error or stale hint."""
+    test_port = 2724
+    with isolated_workspace("pipelines"):
+        alpha = dlt.pipeline(pipeline_name="alpha", destination="duckdb")
+        alpha.run(fruitshop_source().with_resources("customers"))
+        time.sleep(1)
+        beta = dlt.pipeline(pipeline_name="beta", destination="duckdb")
+        beta.run(fruitshop_source().with_resources("inventory"))
+
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}")
+            expect(page.get_by_role("heading", name=re.compile(r"Pipeline\s+beta"))).to_be_visible(
+                timeout=20000
+            )
+
+            _toggle_pipeline(page, "alpha")
+
+            expect(page.get_by_role("heading", name=re.compile(r"Pipeline\s+alpha"))).to_be_visible(
+                timeout=15000
+            )
+            expect(
+                page.get_by_text(app_strings.home_error_attach_pipeline.format("alpha"))
+            ).to_have_count(0)
+            expect(page.get_by_text("No pipeline selected")).to_have_count(0)
+
+
+def test_empty_workspace_bad_url_deselect_shows_no_pipelines(page: Page):
+    """An empty workspace opened with a bad ?pipeline= must show the no-pipelines landing once cleared."""
+    test_port = 2726
+    with isolated_workspace("pipelines"):
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}/?pipeline=ghost")
+            expect(
+                page.get_by_text(app_strings.home_error_attach_pipeline.format("ghost")).first
+            ).to_be_visible(timeout=20000)
+
+            _toggle_pipeline(page, "ghost")
+
+            expect(page.get_by_text("No pipelines found yet").first).to_be_visible(timeout=15000)
+            expect(page.get_by_text("No pipeline selected")).to_have_count(0)
+            expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(0)
+
+
+def test_bad_pipeline_url_keeps_selector(page: Page):
+    """An unknown ?pipeline= shows an attach error but keeps the dropdown so the user recovers."""
+    test_port = 2725
+    with isolated_workspace("pipelines"):
+        beta = dlt.pipeline(pipeline_name="beta", destination="duckdb")
+        beta.run(fruitshop_source().with_resources("inventory"))
+
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}/?pipeline=ghost")
+            expect(
+                page.get_by_text(app_strings.home_error_attach_pipeline.format("ghost")).first
+            ).to_be_visible(timeout=20000)
+            expect(page.get_by_text(app_strings.app_pipeline_select_label)).to_have_count(1)
+            expect(page.get_by_role("button", name=app_strings.app_refresh_button)).to_have_count(0)
+
+            _toggle_pipeline(page, "beta")
+            expect(page.get_by_role("heading", name=re.compile(r"Pipeline\s+beta"))).to_be_visible(
+                timeout=15000
+            )

@@ -4,7 +4,15 @@ import os
 import platform
 import shutil
 import subprocess
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    FrozenSet,
+    List,
+    Optional,
+    Tuple,
+)
 
 import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
@@ -91,7 +99,7 @@ def list_local_pipelines(
     sort_by_trace: bool = True,
     additional_pipelines: List[str] = None,
     run_dir: Optional[str] = None,
-) -> Tuple[str, List[TPipelineListItem]]:
+) -> Tuple[str, List[TPipelineListItem], List[str]]:
     """Get the local pipelines directory and the list of pipeline names in it.
 
     Args:
@@ -99,14 +107,20 @@ def list_local_pipelines(
         sort_by_trace: Whether to sort the pipelines by the latest timestamp of trace.
         additional_pipelines: Extra pipeline names to include in the list.
         run_dir: When set, only return pipelines whose initial_cwd matches this path.
+
+    Returns:
+        The pipelines directory, the pipeline list items, and the names discovered on
+        disk before extras are merged in.
     """
     pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
     storage = FileStorage(pipelines_dir)
 
     try:
-        pipelines = storage.list_folder_dirs(".", to_root=False)
+        local_pipeline_names = storage.list_folder_dirs(".", to_root=False)
     except Exception:
-        pipelines = []
+        local_pipeline_names = []
+
+    pipelines = list(local_pipeline_names)
 
     if additional_pipelines:
         for pipeline in additional_pipelines:
@@ -117,6 +131,11 @@ def list_local_pipelines(
         abs_project_dir = os.path.abspath(run_dir)
         pipelines = [
             p for p in pipelines if _get_pipeline_initial_cwd(pipelines_dir, p) == abs_project_dir
+        ]
+        local_pipeline_names = [
+            p
+            for p in local_pipeline_names
+            if _get_pipeline_initial_cwd(pipelines_dir, p) == abs_project_dir
         ]
 
     # check last trace timestamp and create dict
@@ -129,7 +148,7 @@ def list_local_pipelines(
     if sort_by_trace:
         pipelines_with_timestamps.sort(key=lambda x: x["timestamp"], reverse=True)
 
-    return pipelines_dir, pipelines_with_timestamps
+    return pipelines_dir, pipelines_with_timestamps, local_pipeline_names
 
 
 def date_from_timestamp_with_ago(
