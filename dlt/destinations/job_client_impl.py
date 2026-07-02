@@ -2,7 +2,9 @@ import os
 from abc import abstractmethod
 import base64
 import contextlib
+import random
 from copy import copy
+from time import sleep
 from types import TracebackType
 from typing import (
     Any,
@@ -68,7 +70,7 @@ from dlt.common.destination.client import (
     CredentialsConfiguration,
 )
 
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.destinations.exceptions import DatabaseException, DatabaseUndefinedRelation
 from dlt.destinations.job_impl import (
     ReferenceFollowupJobRequest,
 )
@@ -247,6 +249,9 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 
 class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
+    SCHEMA_UPDATE_MAX_ATTEMPTS: ClassVar[int] = 1
+    """Attempts to converge the destination schema when concurrent loads modify it, 1 disables retries"""
+
     def __init__(
         self,
         schema: Schema,
@@ -649,20 +654,49 @@ WHERE """
             fields += ["numeric_precision", "numeric_scale"]
         return fields
 
+    def _should_retry_schema_update(self, ex: Exception) -> bool:
+        """Tells if a schema update that failed with `ex` may converge when rebuilt from re-read
+        storage. Destinations where concurrent loads modify table metadata without ddl
+        transactions detect their conflict errors here.
+        """
+        return False
+
     def _execute_schema_update_sql(
         self, only_tables: Iterable[str], store_schema: bool = True
     ) -> TSchemaTables:
         # Only `only_tables` are included, or all if None.
-        sql_scripts, schema_update = self._build_schema_update_sql(
-            list(self.get_storage_tables(only_tables or self.schema.tables.keys()))
-        )
-        # Stay within max query size when doing DDL.
-        # Some DB backends use bytes not characters, so decrease the limit by half,
-        # assuming most of the characters in DDL encoded into single bytes.
-        self.sql_client.execute_many(sql_scripts)
-        # skip writing the version row when the schema is already stored (enforced update)
+        table_names = list(only_tables or self.schema.tables.keys())
+        attempts = max(1, self.SCHEMA_UPDATE_MAX_ATTEMPTS)
+        schema_update: TSchemaTables = {}
+        for attempt in range(attempts):
+            sql_scripts, update = self._build_schema_update_sql(
+                list(self.get_storage_tables(table_names))
+            )
+            schema_update = schema_update or update
+            if not sql_scripts:
+                break
+            try:
+                self.sql_client.execute_many(sql_scripts)
+                if attempts == 1:
+                    break
+            except DatabaseException as ex:
+                if attempt == attempts - 1 or not self._should_retry_schema_update(ex):
+                    raise
+                logger.warning(
+                    "Schema update failed due to a concurrent schema modification, retrying"
+                    f" ({attempt + 1}/{attempts}): {ex}"
+                )
+                # add jitter prevent lockstep in concurrent loads
+                sleep(random.uniform(0.05, 0.25 * (attempt + 1)))
         if store_schema:
-            self._update_schema_in_storage(self.schema)
+            # under concurrency an identical schema may have been stored by another load
+            if attempts > 1 and self.get_stored_schema_by_hash(self.schema.stored_version_hash):
+                logger.info(
+                    f"Schema with hash {self.schema.stored_version_hash} was stored by a"
+                    " concurrent load, skipping version row"
+                )
+            else:
+                self._update_schema_in_storage(self.schema)
         return schema_update
 
     def _build_schema_update_sql(

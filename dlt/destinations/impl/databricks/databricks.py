@@ -486,6 +486,8 @@ class DatabricksZerobusParquetLoadJob(DatabricksZerobusLoadJob["pyarrow.RecordBa
 
 
 class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
+    SCHEMA_UPDATE_MAX_ATTEMPTS: ClassVar[int] = 10
+
     def __init__(
         self,
         schema: Schema,
@@ -672,6 +674,18 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
         return ""
 
+    def _should_retry_schema_update(self, ex: Exception) -> bool:
+        msg = str(ex)
+        return any(
+            marker in msg
+            for marker in ("ALREADY_EXISTS", "DELTA_METADATA_CHANGED", "DELTA_CONCURRENT")
+        )
+
+    def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
+        if self.capabilities.supports_create_table_if_not_exists:
+            return f"CREATE TABLE IF NOT EXISTS {qualified_name}"
+        return f"CREATE TABLE {qualified_name}"
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -755,6 +769,9 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                         )
         # Note: DELTA is the default format, no explicit USING clause needed
 
+        comment = table.get(TABLE_COMMENT_HINT) or table.get("description")
+        escaped_comment = escape_databricks_literal(comment) if comment else None
+
         # For CREATE TABLE, we need custom generation if we have any custom clauses or non-DELTA format
         if not generate_alter and (
             cluster_clause or partition_clause or tblproperties_clause or using_clause
@@ -778,6 +795,10 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             # Add CLUSTER BY clause
             if cluster_clause:
                 sql += f" {cluster_clause}"
+            # comment is inlined: a standalone COMMENT ON TABLE is a separate metadata write
+            # that conflicts with concurrent loads initializing the same schema
+            if escaped_comment:
+                sql += f" COMMENT {escaped_comment}"
             # Add TBLPROPERTIES clause (comes after CLUSTER BY)
             if tblproperties_clause:
                 sql += f" {tblproperties_clause}"
@@ -792,11 +813,12 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                 qualified_name = self.sql_client.make_qualified_table_name(table_name)
                 sql_result.append(f"ALTER TABLE {qualified_name} {cluster_clause}")
 
+            if not generate_alter and escaped_comment:
+                sql_result[0] += f" COMMENT {escaped_comment}"
+
         qualified_name = self.sql_client.make_qualified_table_name(table_name)
 
-        if table.get(TABLE_COMMENT_HINT) or table.get("description"):
-            comment = table.get(TABLE_COMMENT_HINT) or table.get("description")
-            escaped_comment = escape_databricks_literal(comment)
+        if generate_alter and escaped_comment:
             sql_result.append(f"COMMENT ON TABLE {qualified_name} IS {escaped_comment}")
 
         if table.get(TABLE_TAGS_HINT):
