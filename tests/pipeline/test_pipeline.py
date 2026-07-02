@@ -3737,8 +3737,11 @@ def test_replace_empty_resource_truncates_variant_tables() -> None:
     assert load_table_counts(pipeline, "items", "other_items") == {"items": 1, "other_items": 1}
 
     # the resource yields no data: the root and the variant are both truncated
-    pipeline.run(items_resource(False))
+    info = pipeline.run(items_resource(False))
     assert load_table_counts(pipeline, "items", "other_items") == {"items": 0, "other_items": 0}
+    package = info.load_packages[0]
+    assert set(package.truncated_tables) == {"items", "other_items"}
+    assert package.dropped_tables is None
 
 
 def test_replace_empty_resource_truncates_via_package_state() -> None:
@@ -3767,10 +3770,17 @@ def test_replace_empty_resource_truncates_via_package_state() -> None:
     # instead `items` is registered for truncation via the package state
     state = pipeline.get_load_package_state(load_id)
     assert "items" in [table["name"] for table in state.get("truncated_tables", [])]
+    # package info exposes the requested truncation, no refresh was set
+    assert package.refresh is None
+    assert package.truncated_tables == ["items"]
 
     # finishing the load truncates the table
-    pipeline.load()
+    info = pipeline.load()
     assert load_table_counts(pipeline, "items") == {"items": 0}
+    # the load step recorded the actually truncated table, still without refresh
+    loaded_package = info.load_packages[0]
+    assert loaded_package.refresh is None
+    assert loaded_package.truncated_tables == ["items"]
 
 
 def test_replace_empty_resource_keeps_append_pseudo_root() -> None:
@@ -3819,10 +3829,12 @@ def test_replace_empty_resource_keeps_append_pseudo_root() -> None:
 
     # empty run: the replace roots (default and variant) are emptied, but their append pseudo-roots
     # are kept - we cannot re-derive a pseudo-root's effective disposition, so it is not truncated
-    pipeline.run(items_resource(False))
+    info = pipeline.run(items_resource(False))
     assert load_table_counts(
         pipeline, "items", "items__sub_items", "other_items", "other_items__sub_items"
     ) == {"items": 0, "items__sub_items": 1, "other_items": 0, "other_items__sub_items": 1}
+    # only the replace roots appear in the truncated tables record
+    assert set(info.load_packages[0].truncated_tables) == {"items", "other_items"}
 
 
 def test_replace_keeps_pseudo_root_when_root_has_data() -> None:

@@ -736,3 +736,44 @@ def test_engine_8_upsert_seen_data_migration_update(test_storage: FileStorage) -
             rows = client.execute_sql("SELECT id, ts, val FROM renamed_store WHERE id = 1")
         assert len(rows) == 1
         assert rows[0][0] == 1 and rows[0][2] == "c"
+
+
+def test_load_normalized_refresh_package_from_1_25(test_storage: FileStorage) -> None:
+    """read refresh_normalized_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace(
+        {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_refresh_normalized.duckdb"}
+    ):
+        # dlt 1.25.0 leaves a normalized package with refresh `dropped_tables` in its state
+        with Venv.create(tempfile.mkdtemp(), ["dlt[duckdb]==1.25.0"]) as venv:
+            # force a compatible duckdb so the current version can open the same database file
+            venv.install_deps(venv.context, ["duckdb==" + pkg_version("duckdb")])
+            try:
+                print(venv.run_script("refresh_normalized_pipeline.py", "old"))
+            except CalledProcessError as cpe:
+                print(f"script output: {cpe.output}")
+                raise
+
+        # the current dlt loads the pending package: drops are applied and recorded. the old
+        # package state has no `refresh` key so it stays None
+        venv = Venv.restore_current()
+        try:
+            output = venv.run_script("refresh_normalized_pipeline.py", "load")
+            print(output)
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+        assert "REFRESH: None" in output
+        assert "DROPPED: ['items']" in output
+        assert "TRUNCATED: []" in output
+
+        # the loaded package state records the applied drops
+        pipeline = dlt.attach("refresh_normalized")
+        load_id = pipeline.list_completed_load_packages()[-1]
+        package_state = pipeline.get_load_package_state(load_id)
+        assert package_state["applied_dropped_tables"] == ["items"]
+        # `items` was dropped and re-created with only the second run's row
+        assert load_table_counts(pipeline, "items") == {"items": 1}

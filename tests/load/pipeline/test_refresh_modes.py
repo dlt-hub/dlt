@@ -145,6 +145,10 @@ def test_refresh_drop_sources(
         refresh="drop_sources",
         **destination_config.run_kwargs,
     )
+    # the load package exposes the refresh mode and the tables dropped at the destination
+    package = info.load_packages[0]
+    assert package.refresh == "drop_sources"
+    assert {"some_data_one", "some_data_two", "some_data_three"} <= set(package.dropped_tables)
 
     assert set(t["name"] for t in pipeline.default_schema.data_tables(include_incomplete=True)) == {
         "some_data_one",
@@ -318,6 +322,11 @@ def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
+    # the load package exposes the refresh mode and the tables truncated at the destination
+    package = info.load_packages[0]
+    assert package.refresh == "drop_data"
+    assert set(package.truncated_tables) == {"some_data_one", "some_data_two"}
+    assert package.dropped_tables is None
 
     # Schema should not be mutated
     assert pipeline.default_schema.version_hash == first_schema_hash
@@ -848,6 +857,10 @@ def test_refresh_drop_resources_incremental_empty_package_drops_all(
         items_resource(100, 200), refresh="drop_resources", **destination_config.run_kwargs
     )
     assert_load_info(info)
+    # the empty package still reports the refresh mode and the dropped table chain
+    package = info.load_packages[0]
+    assert package.refresh == "drop_resources"
+    assert set(package.dropped_tables) == {"items", "items__children"}
     # all tables are dropped and not recreated by the empty/replace run
     assert table_exists(pipeline, "items") is False
     assert table_exists(pipeline, "items__children") is False

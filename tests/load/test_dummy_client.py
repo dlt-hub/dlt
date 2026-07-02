@@ -1298,7 +1298,12 @@ def test_init_client_initial_truncate_tables_from_package_state() -> None:
             dummy_impl.DummyClient, "update_stored_schema", return_value={}
         ) as update_stored_schema,
     ):
-        load.initialize_package(load_id, schema, new_jobs)
+        with Container().injectable_context(
+            LoadPackageStateInjectableContext(
+                storage=load.load_storage.normalized_packages, load_id=load_id
+            )
+        ):
+            load.initialize_package(load_id, schema, new_jobs)
 
     # schema migration is forced because there are tables to truncate via refresh
     assert update_stored_schema.call_args_list[0].kwargs["force"] is True
@@ -1310,6 +1315,10 @@ def test_init_client_initial_truncate_tables_from_package_state() -> None:
         if "truncate_tables" in c.kwargs
     ]
     assert truncate_calls == [{"event_bot"}]
+    # the actually truncated tables are recorded in the package state
+    state = packages.get_load_package_state(load_id)
+    assert state["applied_truncated_tables"] == ["event_bot"]
+    assert "applied_dropped_tables" not in state
 
 
 def test_init_client_staging_ddl_includes_jobless_tables() -> None:

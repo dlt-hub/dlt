@@ -170,11 +170,17 @@ def test_replace_disposition(
         "append_items": 36,
     }
     assert_empty_tables(pipeline, "items", "items__sub_items", "items__sub_items__sub_sub_items")
-    # check trace
+    # check trace: `items` produces no jobs, the whole chain is truncated via the package state
     assert pipeline.last_trace.last_normalize_info.row_counts == {
         "append_items": 12,
-        "items": 0,
     }
+    package = info.load_packages[0]
+    assert set(package.truncated_tables) == {
+        "items",
+        "items__sub_items",
+        "items__sub_items__sub_sub_items",
+    }
+    assert package.dropped_tables is None
 
     # create a pipeline with different name but loading to the same dataset as above - this is to provoke truncating non existing tables
     pipeline_2 = destination_config.setup_pipeline(
@@ -338,7 +344,7 @@ def test_replace_table_clearing(
     # see if yield none clears everything
     for empty_resource in [yield_none, no_yield, yield_empty_list]:
         pipeline.run(items_with_subitems, **destination_config.run_kwargs)
-        pipeline.run(empty_resource, **destination_config.run_kwargs)
+        info = pipeline.run(empty_resource, **destination_config.run_kwargs)
         assert load_table_counts(pipeline, "static_items", "static_items__sub_items") == {
             "static_items": 1,
             "static_items__sub_items": 2,
@@ -346,6 +352,15 @@ def test_replace_table_clearing(
         assert_empty_tables(pipeline, "items", "other_items", "other_items__sub_items")
         # check trace (no tables - they are truncated via package state)
         assert pipeline.last_trace.last_normalize_info.row_counts == {}
+        # both dispatched table chains are truncated, tables of unselected resources are not
+        package = info.load_packages[0]
+        assert set(package.truncated_tables) == {
+            "items",
+            "items__sub_items",
+            "other_items",
+            "other_items__sub_items",
+        }
+        assert package.dropped_tables is None
 
     # see if yielding something next to other none entries still goes into db
     pipeline.run(items_with_subitems_yield_none, **destination_config.run_kwargs)

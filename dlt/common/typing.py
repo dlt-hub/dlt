@@ -128,6 +128,7 @@ TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
 TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
+TRefreshMode = Literal["drop_sources", "drop_resources", "drop_data"]
 TLoaderFileFormat = Literal[
     "jsonl", "typed-jsonl", "insert_values", "parquet", "csv", "reference", "model"
 ]

@@ -72,7 +72,7 @@ def init_client(
     drop_staging_filter: Callable[[TTableSchema], bool],
     drop_tables: Optional[List[TTableSchema]] = None,
     truncate_tables: Optional[List[TTableSchema]] = None,
-) -> TSchemaTables:
+) -> Tuple[TSchemaTables, Set[str], Set[str]]:
     """Initializes destination storage including staging dataset if supported
 
     Will initialize and migrate schema in destination dataset and staging dataset.
@@ -89,7 +89,9 @@ def init_client(
         truncate_tables (Optional[List[TTableSchema]]): List of tables to truncate before initializing storage
 
     Returns:
-        TSchemaTables: Actual migrations done at destination
+        Tuple[TSchemaTables, Set[str], Set[str]]: Actual migrations done at destination and the
+        names of tables actually dropped and truncated in the destination dataset due to the
+        load package state.
     """
     # get dlt/internal tables
     dlt_tables = set(schema.dlt_table_names())
@@ -131,7 +133,7 @@ def init_client(
     job_client.verify_schema(only_tables=tables_with_jobs | dlt_tables, new_jobs=new_jobs)
     # forced migration (re)creates schema-known truncate targets before truncation. targets
     # with old-convention names (after a naming change) are not in the schema
-    applied_update = _init_dataset_and_update_schema(
+    applied_update, applied_dropped, applied_truncated = _init_dataset_and_update_schema(
         job_client,
         expected_update,
         tables_with_jobs | dlt_tables | (initial_truncate_names & set(schema.tables.keys())),
@@ -174,7 +176,7 @@ def init_client(
                     drop_tables=drop_table_names,  # try to drop all the same tables on staging
                 )
 
-    return applied_update
+    return applied_update, applied_dropped, applied_truncated
 
 
 def _init_dataset_and_update_schema(
@@ -186,7 +188,14 @@ def _init_dataset_and_update_schema(
     initial_truncate_tables: Set[str] = None,
     staging_info: bool = False,
     drop_tables: Iterable[str] = None,
-) -> TSchemaTables:
+) -> Tuple[TSchemaTables, Set[str], Set[str]]:
+    """Initializes storage, applies drops/truncates and schema update.
+
+    Returns the applied schema update, the set of table names actually dropped and the subset of
+    `initial_truncate_tables` actually truncated.
+    """
+    applied_dropped: Set[str] = set()
+    applied_truncated: Set[str] = set()
     staging_text = "for staging dataset" if staging_info else ""
     logger.info(
         f"Client for {job_client.config.destination_type} will start initialize storage"
@@ -199,6 +208,7 @@ def _init_dataset_and_update_schema(
                 f" {drop_tables} {staging_text}"
             )
             job_client.drop_tables(*drop_tables, delete_schema=True)
+            applied_dropped = set(drop_tables)
         else:
             logger.warning(
                 f"Client for {job_client.config.destination_type} does not implement drop table."
@@ -224,8 +234,11 @@ def _init_dataset_and_update_schema(
             f"Client for {job_client.config.destination_type} will truncate tables {staging_text}"
         )
         job_client.initialize_storage(truncate_tables=truncate_tables)
+        # report only tables truncated due to the load package state, not the regular
+        # truncation of replace tables that happens on every load
+        applied_truncated = (initial_truncate_tables or set()) & truncate_tables
 
-    return applied_update
+    return applied_update, applied_dropped, applied_truncated
 
 
 def _extend_tables_with_table_chain(
