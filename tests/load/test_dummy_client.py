@@ -1431,8 +1431,10 @@ def test_init_client_staging_dlt_tables_with_jobs() -> None:
         assert staging_truncate == {"event_user", "_dlt_loads"}
 
 
-def test_init_client_unseen_data_tables_excluded() -> None:
-    """Tables without seen-data are excluded from both final and staging datasets."""
+def test_init_client_unseen_data_chain_tables_excluded() -> None:
+    """Tables with jobs always enter final DDL - the normalizer marks seen-data on every table
+    it emits jobs for. Never-seen tables are excluded from table chains (staging DDL, truncation).
+    """
     load = setup_loader()
     _, schema = prepare_load_package(
         load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
@@ -1457,14 +1459,14 @@ def test_init_client_unseen_data_tables_excluded() -> None:
             init_client(client, schema, [event_user, event_bot], {}, nothing_, all_, all_)
 
         assert update_stored_schema.call_count == 2
-        # final DDL: event_user + dlt tables, bot excluded (in tables_no_data)
+        # final DDL: tables with jobs are trusted and migrated, the jobless never-seen
+        # nested bot tables are not
         final_ddl = update_stored_schema.call_args_list[0].kwargs["only_tables"]
-        assert "event_user" in final_ddl
-        assert not (bot_chain & final_ddl)
-        # staging DDL: all data tables EXCEPT bot chain + _dlt_version
+        assert {"event_user", "event_bot"} <= final_ddl
+        assert not ((bot_chain - {"event_bot"}) & final_ddl)
+        # staging DDL: the whole never-seen bot chain is excluded by the chain filter
         staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
         assert staging_ddl == (all_data - bot_chain) | {"_dlt_version"}
-        assert not (bot_chain & staging_ddl)
         # staging truncation: only event_user
         staging_truncate = initialize_storage.call_args_list[2].kwargs["truncate_tables"]
         assert staging_truncate == {"event_user"}
