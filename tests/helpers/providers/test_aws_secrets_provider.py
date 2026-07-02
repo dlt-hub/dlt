@@ -17,6 +17,8 @@ from tests.utils import init_test_logging
 
 
 SECRET_NAME_PREFIX = "dlt-ci/"
+FIXTURES_REGION = "eu-central-1"
+"""Region where the fixture secrets are stored"""
 
 DLT_SECRETS_TOML_CONTENT = """\
 secret_value = 2137
@@ -101,8 +103,10 @@ def test_regular_keys(settings: AwsSecretsProviderConfiguration) -> None:
     init_test_logging()
     CACHED_AWS_SECRETS.clear()
 
-    # copy aws credentials into providers credentials
-    c = resolve_configuration(AwsCredentials())
+    # copy aws credentials into providers credentials, ci secrets keep them for the
+    # filesystem destination
+    c = resolve_configuration(AwsCredentials(), sections=(known_sections.DESTINATION, "filesystem"))
+    c.region_name = FIXTURES_REGION
     secrets[f"{known_sections.PROVIDERS}.aws_secrets.credentials"] = dict(c)
     provider: AwsSecretsManagerProvider = _aws_secrets_provider(settings)  # type: ignore[assignment]
     if settings.list_secrets:
@@ -199,7 +203,8 @@ def provision_fixture_secrets() -> None:
     """Creates or updates FIXTURE_SECRETS in the AWS account resolved from test credentials"""
     from botocore.exceptions import ClientError
 
-    c = resolve_configuration(AwsCredentials())
+    c = resolve_configuration(AwsCredentials(), sections=(known_sections.DESTINATION, "filesystem"))
+    c.region_name = FIXTURES_REGION
     client = c._to_botocore_session().create_client("secretsmanager")
     for name, value in FIXTURE_SECRETS.items():
         secret_id = SECRET_NAME_PREFIX + name
