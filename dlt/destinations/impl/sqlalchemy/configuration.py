@@ -214,6 +214,7 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
 
 
 SQLITE_DB_NAME_PAT = "%s.db"
+DUCKDB_DB_NAME_PAT = "%s.duckdb"
 
 
 @configspec
@@ -257,23 +258,29 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
         if self.engine_kwargs and not self.credentials.engine_kwargs:
             self.credentials.engine_kwargs = self.engine_kwargs
 
-        # resolve local file path for sqlite backends
-        if self.credentials.drivername == "sqlite":
-            if not SqlalchemyCredentials.is_memory_database(
-                self.credentials.database, self.credentials.query
-            ):
-                db = self.credentials.database
+        # resolve local file path for file-based backends
+        if self.credentials.drivername in ("sqlite", "duckdb"):
+            db = self.credentials.database
+            # skip in-memory databases and special locations like motherduck (md:)
+            if not SqlalchemyCredentials.is_memory_database(db, self.credentials.query) and not (
+                db or ""
+            ).startswith("md:"):
                 if not db or not os.path.isabs(db):
+                    name_pat = (
+                        SQLITE_DB_NAME_PAT
+                        if self.credentials.drivername == "sqlite"
+                        else DUCKDB_DB_NAME_PAT
+                    )
                     self.credentials.database = os.path.normpath(
-                        self.make_location(db or None, SQLITE_DB_NAME_PAT)
+                        self.make_location(db or None, name_pat)
                     )
 
     def physical_location(self) -> str:
-        """Returns sqlite database path for sqlite, otherwise host:port."""
+        """Returns database file path for file-based backends, otherwise host:port."""
         if not self.credentials:
             return ""
 
-        if self.get_backend_name() == "sqlite":
+        if self.get_backend_name() in ("sqlite", "duckdb"):
             # each in-memory database is a separate database
             if SqlalchemyCredentials.is_memory_database(
                 self.credentials.database, self.credentials.query

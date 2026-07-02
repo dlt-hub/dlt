@@ -205,6 +205,10 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     def has_dataset(self) -> bool:
         with self._ensure_transaction():
+            if self.dialect_name == "duckdb":
+                # duckdb_engine returns catalog-qualified names from get_schema_names(),
+                # has_schema resolves the dataset within the current catalog
+                return self.dialect.has_schema(self._current_connection, self.dataset_name)  # type: ignore[attr-defined,no-any-return]
             schema_names = self.engine.dialect.get_schema_names(self._current_connection)  # type: ignore[attr-defined]
         return self.dataset_name in schema_names
 

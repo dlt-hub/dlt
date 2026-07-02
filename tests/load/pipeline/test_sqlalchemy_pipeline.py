@@ -48,6 +48,10 @@ def test_sqlalchemy_create_indexes(
 
     from sqlalchemy import inspect
 
+    if destination_config.destination_name == "sqlalchemy_duckdb":
+        # duckdb_engine does not reflect primary key constraints nor indexes
+        return
+
     with pipeline.sql_client() as client:
         with_pk: Table = client.reflect_table("with_pk", metadata=MetaData())
         assert (with_pk.c.id.primary_key or False) is create_primary_keys
@@ -155,4 +159,8 @@ def test_custom_type_mapper(destination_config: DestinationTestConfiguration) ->
 
         # Check that the json field was mapped to String with length 345
         assert isinstance(json_column.type, sa.String)
-        assert json_column.type.length == 345
+        if destination_config.destination_name == "sqlalchemy_duckdb":
+            # duckdb accepts varchar length in DDL but does not store it
+            assert json_column.type.length is None
+        else:
+            assert json_column.type.length == 345
