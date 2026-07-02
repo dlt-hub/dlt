@@ -554,6 +554,13 @@ def destinations_configs(
                 destination_name="sqlalchemy_sqlite",
                 credentials="sqlite:///db.sqlite",
             ),
+            DestinationTestConfiguration(
+                destination_type="sqlalchemy",
+                supports_merge=True,
+                supports_dbt=False,
+                destination_name="sqlalchemy_duckdb",
+                credentials="duckdb:///db.duckdb",
+            ),
             # TODO: enable in sql alchemy destination test, 99% of tests work
             # DestinationTestConfiguration(
             #     destination_type="sqlalchemy",
