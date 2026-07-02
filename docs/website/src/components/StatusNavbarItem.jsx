@@ -12,14 +12,22 @@ export default function StatusNavbarItem() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("https://status.dlthub.com/api/v2/status.json")
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) setIndicator(d?.status?.indicator || "none");
-      })
-      .catch(() => {});
+
+    const fetchStatus = () => {
+      fetch("https://status.dlthub.com/api/v2/status.json")
+        .then((r) => r.json())
+        .then((d) => {
+          if (!cancelled) setIndicator(d?.status?.indicator || "none");
+        })
+        .catch(() => {});
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 60000);
+
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, []);
 
