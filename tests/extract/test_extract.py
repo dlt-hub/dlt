@@ -1207,6 +1207,41 @@ def _extract_resource(
     return table_metrics
 
 
+def test_extract_table_and_resource_metrics_with_file_rotation() -> None:
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "500"
+
+    row_count = 1500
+
+    @dlt.resource
+    def alpha() -> TDataItems:
+        for i in range(row_count):
+            yield {"id": i}
+
+    @dlt.resource
+    def beta() -> TDataItems:
+        for i in range(100):
+            yield {"n": i}
+
+    pipeline = dlt.pipeline(uniq_id(), destination="duckdb", dev_mode=True)
+    extract_info = pipeline.extract([alpha(), beta()])
+    load_id = extract_info.loads_ids[0]
+    metrics = extract_info.metrics[load_id][0]
+    expected_table_counts = _sum_extract_job_metrics_by_table(metrics["job_metrics"])
+
+    assert metrics["table_metrics"]["alpha"].items_count == expected_table_counts["alpha"]
+    assert metrics["table_metrics"]["beta"].items_count == expected_table_counts["beta"]
+    assert metrics["resource_metrics"]["alpha"].items_count == expected_table_counts["alpha"]
+    assert metrics["resource_metrics"]["beta"].items_count == expected_table_counts["beta"]
+
+
+def _sum_extract_job_metrics_by_table(job_metrics: Dict[str, Any]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for job_id, metric in job_metrics.items():
+        table_name = job_id.split(".", 1)[0]
+        counts[table_name] = counts.get(table_name, 0) + metric.items_count
+    return counts
+
+
 @pytest.mark.parametrize(
     "table_name,expected",
     [("items", "items"), ("MyItems", "my_items")],

@@ -1,7 +1,6 @@
 import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
-import itertools
 from typing import Iterator, List, Dict, Any, Optional, cast
 import yaml
 
@@ -10,6 +9,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
 from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS, TDataItemFormat
+from dlt.common.metrics import DataWriterAndCustomMetrics, aggregate_job_metrics
 from dlt.common.pipeline import (
     ExtractDataInfo,
     ExtractInfo,
@@ -53,7 +53,6 @@ from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, Unknown
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.items import TableNameMeta
 from dlt.extract.items_transform import ItemTransform
-from dlt.common.metrics import DataWriterAndCustomMetrics
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.reference import SourceReference, SourceFactory
@@ -329,12 +328,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             for m in self.extract_storage.closed_files(load_id)
         }
         # aggregate by table name
-        table_metrics = {
-            table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
-            for table_name, metrics in itertools.groupby(
-                job_metrics.items(), lambda pair: pair[0].table_name
-            )
-        }
+        table_metrics = aggregate_job_metrics(job_metrics, lambda job: job.table_name)
 
         # aggregate by resource name
         def _get_all_resource_custom_metrics(resource_name: str) -> Dict[str, Any]:
@@ -344,14 +338,16 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     all_custom_metrics = update_dict_nested(all_custom_metrics, step.custom_metrics)
             return all_custom_metrics
 
+        resource_agg = aggregate_job_metrics(
+            table_metrics,
+            lambda table_name: source.schema.get_table(table_name)["resource"],
+        )
         resource_metrics = {
             resource_name: DataWriterAndCustomMetrics(
-                *sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS),
+                *metrics,
                 custom_metrics=_get_all_resource_custom_metrics(resource_name),
             )
-            for resource_name, metrics in itertools.groupby(
-                table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
-            )
+            for resource_name, metrics in resource_agg.items()
         }
         # backfill resources that produced no writer output but carry custom metrics
         # (e.g. every item was filtered out) so `add_metrics` /
