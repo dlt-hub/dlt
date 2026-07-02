@@ -9,6 +9,7 @@ import dlt
 import pytest
 import time
 from typing import Dict, Tuple
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.typing import TDataItems
 from dlt.common.utils import uniq_id
 from dlt.common.schema import TTableSchema
@@ -229,7 +230,7 @@ def test_step_table_metrics_with_file_rotation_and_workers(workers: int) -> None
     assert load_info.loads_ids == normalize_info.loads_ids
 
 
-def _sum_job_metrics_by_table(job_metrics: Dict[str, object]) -> Dict[str, int]:
+def _sum_job_metrics_by_table(job_metrics: Dict[str, DataWriterMetrics]) -> Dict[str, int]:
     counts: Dict[str, int] = {}
     for job_id, metric in job_metrics.items():
         table_name = job_id.split(".", 1)[0]
