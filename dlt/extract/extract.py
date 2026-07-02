@@ -8,8 +8,12 @@ from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
-from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS, TDataItemFormat
-from dlt.common.metrics import DataWriterAndCustomMetrics, aggregate_job_metrics
+from dlt.common.data_writers.writers import TDataItemFormat
+from dlt.common.metrics import (
+    EMPTY_DATA_WRITER_METRICS,
+    DataWriterAndCustomMetrics,
+    aggregate_job_metrics,
+)
 from dlt.common.pipeline import (
     ExtractDataInfo,
     ExtractInfo,

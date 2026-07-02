@@ -35,6 +35,9 @@ class DataWriterMetrics(NamedTuple):
         return NotImplemented
 
 
+EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
+
+
 def aggregate_job_metrics(
     job_metrics: Mapping[TJobKey, DataWriterMetrics],
     key: Callable[[TJobKey], str],
@@ -42,14 +45,13 @@ def aggregate_job_metrics(
     """Sum writer metrics by grouping key.
 
     Unlike `itertools.groupby`, input order does not matter -- each group is fully aggregated.
+    Groups always go through `__add__`, even singleton ones, so `file_path` is reset to `""`
+    consistently regardless of how many jobs a group has.
     """
     result: Dict[str, DataWriterMetrics] = {}
     for job_key, metrics in job_metrics.items():
         group_key = key(job_key)
-        if group_key in result:
-            result[group_key] = result[group_key] + metrics
-        else:
-            result[group_key] = metrics
+        result[group_key] = result.get(group_key, EMPTY_DATA_WRITER_METRICS) + metrics
     return result
 
 

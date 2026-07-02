@@ -9,6 +9,7 @@ import dlt
 import pytest
 import time
 from typing import Dict, Tuple
+
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.typing import TDataItems
 from dlt.common.utils import uniq_id
