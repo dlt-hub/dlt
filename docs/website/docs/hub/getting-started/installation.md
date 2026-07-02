@@ -26,7 +26,7 @@ For the wider feature surface that a workspace unlocks — [profiles](../pipelin
 
 ### Playground destination
 
-When you deploy and run pipelines on the dltHub platform, you can use `destination="playground"` without configuring credentials or storage. The platform provisions isolated storage for each workspace and loads your pipeline data as [Delta tables](../ingestion/delta.md). Use it for testing and for a faster introduction to the platform — set `destination="playground"` in your pipeline and run.
+When you deploy and run pipelines on the dltHub platform, you can use `destination="playground"` without configuring credentials or storage. The platform provisions isolated storage for each workspace and loads your pipeline data as [Delta tables](../ingestion/delta.md). Use it for testing and for a faster introduction to the platform — set `destination="playground"` in your pipeline and run. Read more about [playground destination](../ingestion/playground.md).
 
 ## Quickstart
 

@@ -941,27 +941,87 @@ def concat_batches_and_tables_in_order(
 ) -> pyarrow.Table:
     """Concatenate iterable of tables and batches into a single table, preserving row order.
 
+    Each record batch is converted to a table individually - they are never grouped via
+    `Table.from_batches` (which rejects differing nullability/schemas that `concat_tables` can
+    otherwise reconcile). All reconciliation happens in `concat_tables` per `promote_options`.
+
     Args:
         promote_options: PyArrow concat_tables promote_options. "none" (default) requires identical
-            schemas and enables zero-copy concat. "default" promotes within type families (e.g.
-            int32→int64). "permissive" promotes across families (e.g. int64→double).
+            schemas and enables zero-copy concat. "default" reconciles nullability and fills missing
+            columns. "permissive" additionally promotes across type families (e.g. int64→double).
     """
-    batches = []
     tables = []
     for item in tables_or_batches:
-        if isinstance(item, pyarrow.RecordBatch):
-            batches.append(item)
-        elif isinstance(item, pyarrow.Table):
-            if batches:
-                tables.append(pyarrow.Table.from_batches(batches))
-                batches = []
+        if isinstance(item, pyarrow.Table):
             tables.append(item)
+        elif isinstance(item, pyarrow.RecordBatch):
+            tables.append(pyarrow.Table.from_batches([item]))
         else:
             raise ValueError(f"Unsupported type: `{type(item)}`")
-    if batches:
-        tables.append(pyarrow.Table.from_batches(batches))
-    # "none" ensures 0 copy concat; "default"/"permissive" allow type promotion
+    # "none" ensures 0 copy concat; "default"/"permissive" reconcile/promote
     return pyarrow.concat_tables(tables, promote_options=promote_options)
+
+
+# errors raised when arrow schemas cannot be merged/promoted (ArrowTypeError is not an ArrowInvalid)
+ARROW_SCHEMA_MERGE_ERRORS = (
+    pyarrow.lib.ArrowInvalid,
+    pyarrow.lib.ArrowTypeError,
+    pyarrow.lib.ArrowNotImplementedError,
+)
+
+
+def reconcile_schema_and_cast(
+    target_schema: pyarrow.Schema, table: pyarrow.Table, promote_options: str
+) -> Optional[pyarrow.Table]:
+    """Computes the unified schema of `target_schema` and `table` under `promote_options`. If a
+    unified schema exists, casts `table` to `target_schema` (the first/locked schema) and returns
+    it - the cast is unsafe for "permissive" and may lose data. Returns None when no unified schema
+    exists, so the caller rotates to a new file. Column sets and order are assumed aligned."""
+    safe_cast = promote_options != "permissive"
+    try:
+        # only validates compatibility (raises e.g. on timestamp vs int64, which a bare cast would
+        # silently reinterpret); the unified type itself is not used - we always cast to the target
+        pyarrow.unify_schemas(
+            [target_schema.remove_metadata(), table.schema.remove_metadata()],
+            promote_options=promote_options,
+        )
+        return table.cast(target_schema, safe=safe_cast)
+    except ARROW_SCHEMA_MERGE_ERRORS:
+        return None
+
+
+def concat_and_group_in_compatible_schemas(
+    tables_or_batches: Iterable[Union[pyarrow.Table, pyarrow.RecordBatch]],
+    promote_options: str,
+) -> List[pyarrow.Table]:
+    """Groups items into tables. "permissive" locks group schema at
+    its first item and unsafe-casts later items into it (accepting data loss) or starts a new table -
+    "default" merges runs with safe symmetric concat."""
+    tables: List[pyarrow.Table] = []
+    current: Optional[pyarrow.Table] = None
+    for item in tables_or_batches:
+        table = pyarrow.table(item)
+        if current is None:
+            current = table
+            continue
+        if promote_options == "permissive":
+            fitted = reconcile_schema_and_cast(current.schema, table, promote_options)
+            merged = (
+                None if fitted is None else concat_batches_and_tables_in_order([current, fitted])
+            )
+        else:
+            try:
+                merged = concat_batches_and_tables_in_order([current, table], promote_options)
+            except ARROW_SCHEMA_MERGE_ERRORS:
+                merged = None
+        if merged is None:
+            tables.append(current)
+            current = table
+        else:
+            current = merged
+    if current is not None:
+        tables.append(current)
+    return tables
 
 
 def transpose_rows_to_columns(

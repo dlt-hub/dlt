@@ -28,6 +28,8 @@ from dlt.common.data_writers.exceptions import (
     FileFormatForItemFormatNotFound,
     FileSpecNotFound,
     InvalidDataItem,
+    FileRotationRequired,
+    IncompatibleArrowSchema,
     InvalidEncoding,
     InvalidEncodingErrors,
 )
@@ -622,28 +624,72 @@ class ArrowToParquetWriter(ParquetDataWriter):
         self._column_schema = columns_schema
 
     def write_data(self, items: Sequence[TDataItem]) -> None:
-        from dlt.common.libs.pyarrow import concat_batches_and_tables_in_order
+        from dlt.common.libs.pyarrow import (
+            ARROW_SCHEMA_MERGE_ERRORS,
+            concat_batches_and_tables_in_order,
+            concat_and_group_in_compatible_schemas,
+            reconcile_schema_and_cast,
+        )
 
         if not items:
             return
-        # concat batches and tables into a single one, preserving order
-        # pyarrow writer starts a row group for each item it writes (even with 0 rows)
-        # it also converts batches into tables internally. by creating a single table
-        # we allow the user rudimentary control over row group size via max buffered items
-        table = concat_batches_and_tables_in_order(
-            items, promote_options=self.parquet_format.arrow_concat_promote_options
-        )
-        # release batch references - concat is zero-copy so table shares the
-        # underlying buffers via Arrow refcounting. clearing the input list
-        # drops the Python-level RecordBatch/Table references so only the
-        # concatenated table keeps the buffers alive
+
+        promote_options = self.parquet_format.arrow_concat_promote_options
+
+        remaining_tables: List["pa.Table"] = []
+        if promote_options == "permissive":
+            # permissive accepts data loss: never symmetric-concat. a run's schema is locked at its
+            # first item and items are unsafe-cast into it or rotated - same as a written file
+            concat_tables = concat_and_group_in_compatible_schemas(items, promote_options)
+            table, remaining_tables = concat_tables[0], concat_tables[1:]
+        else:
+            # concat the buffer; "none" requires identical schemas, "default" promotes safely
+            try:
+                table = concat_batches_and_tables_in_order(items, promote_options=promote_options)
+            except ARROW_SCHEMA_MERGE_ERRORS as exc:
+                if promote_options == "none":
+                    # "none" requires identical schemas within a single buffer
+                    raise IncompatibleArrowSchema(
+                        "Arrow tables and batches buffered together have incompatible schemas that"
+                        " could not be concatenated",
+                        str(exc),
+                    ) from exc
+                # split the buffer into compatible runs, each written to its own file
+                concat_tables = concat_and_group_in_compatible_schemas(items, promote_options)
+                table, remaining_tables = concat_tables[0], concat_tables[1:]
+        # release batch references to cleanup memory of tables that just got concatenated
         if isinstance(items, list):
             items.clear()
-        self.items_count += table.num_rows
+
         if not self.writer:
             self.writer = self._create_writer(table.schema)
-        # write concatenated tables
-        self.writer.write_table(table, row_group_size=self.parquet_format.row_group_size)
+        elif promote_options != "none" and not table.schema.equals(
+            self.writer.schema, check_metadata=False
+        ):
+            # cross-batch schema mismatch: cast into the current file or rotate
+            cast_table = reconcile_schema_and_cast(self.writer.schema, table, promote_options)
+            if cast_table is None:
+                # run does not fit the current file - rotate, carrying the remaining runs too
+                raise FileRotationRequired([table, *remaining_tables])
+            table = cast_table
+
+        try:
+            self.writer.write_table(table, row_group_size=self.parquet_format.row_group_size)
+        except ValueError as exc:
+            # under "none" a batch not matching the locked file schema fails here
+            if promote_options == "none" and not table.schema.equals(
+                self.writer.schema, check_metadata=False
+            ):
+                raise IncompatibleArrowSchema(
+                    "Arrow data has a schema incompatible with the schema already written to the"
+                    " current file",
+                    str(exc),
+                ) from exc
+            raise
+        self.items_count += table.num_rows
+        if remaining_tables:
+            # remaining runs widen the schema - write them to a new file
+            raise FileRotationRequired(remaining_tables)
 
     def write_footer(self) -> None:
         if not self.writer:

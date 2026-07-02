@@ -1,6 +1,6 @@
 import gzip
 import contextlib
-from typing import ClassVar, Iterator, List, IO, Any, Optional, Type, Generic
+from typing import ClassVar, Iterator, List, IO, Any, Optional, Sequence, Type, Generic
 
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.typing import TDataItem, TDataItems
@@ -9,6 +9,7 @@ from dlt.common.data_writers.exceptions import (
     DestinationCapabilitiesRequired,
     FileImportNotFound,
     InvalidFileNameTemplateException,
+    FileRotationRequired,
 )
 from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec, count_rows_in_items
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -239,13 +240,7 @@ class BufferedDataWriter(Generic[TWriter]):
         if self._buffered_items or allow_empty_file:
             # we only open a writer when there are any items in the buffer and first flush is requested
             if not self._writer:
-                # create new writer and write header
-                if self.writer_spec.is_binary_format:
-                    self._file = self.open(self._file_name, "wb")  # type: ignore
-                else:
-                    self._file = self.open(self._file_name, "wt", encoding="utf-8", newline="")
-                self._writer = self.writer_cls(self._file, caps=self._caps)  # type: ignore[assignment]
-                self._writer.write_header(self._current_columns)
+                self._open_writer()
             # swap out buffer before writing so batch references are released
             # as soon as write_data returns, without waiting for the next
             # write_data_item call.
@@ -253,10 +248,30 @@ class BufferedDataWriter(Generic[TWriter]):
                 items = self._buffered_items
                 self._buffered_items = []
                 self._buffered_items_count = 0
-                self._writer.write_data(items)
+                pending: Sequence[TDataItem] = items
+                while True:
+                    try:
+                        self._writer.write_data(pending)
+                        break
+                    except FileRotationRequired as sc:
+                        self._rotate_file()
+                        self._open_writer()
+                        pending = sc.items
+                        # items did not fit the current file - rotate and write the rest
+                        self._last_modified = self._clock()
+                # self._last_modified = self._clock()
                 items.clear()
             else:
                 self._buffered_items_count = 0
+
+    def _open_writer(self) -> None:
+        """Open the current file and create a writer."""
+        if self.writer_spec.is_binary_format:
+            self._file = self.open(self._file_name, "wb")  # type: ignore
+        else:
+            self._file = self.open(self._file_name, "wt", encoding="utf-8", newline="")
+        self._writer = self.writer_cls(self._file, caps=self._caps)  # type: ignore[assignment]
+        self._writer.write_header(self._current_columns)
 
     def _flush_and_close_file(
         self, allow_empty_file: bool = False, skip_flush: bool = False
