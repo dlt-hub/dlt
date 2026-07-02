@@ -1,4 +1,5 @@
 import os
+from typing import Any, List, Tuple
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
@@ -9,9 +10,11 @@ import math
 from dlt.common import pendulum, Decimal, json
 from dlt.common.configuration import inject_section
 from dlt.common.data_writers.writers import ArrowToParquetWriter, ParquetDataWriter
+from dlt.common.data_writers.exceptions import IncompatibleArrowSchema
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.schema.utils import new_column
+from dlt.common.schema.typing import TDataType
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 
 from tests.common.data_writers.utils import get_writer
@@ -395,84 +398,170 @@ def _caps_with_promote(promote_options: str) -> DestinationCapabilitiesContext:
     return caps
 
 
-@pytest.mark.parametrize("promote_options", ["none", "default"])
-def test_arrow_concat_promote_options_rejects_mismatched_types(promote_options: str) -> None:
-    """promote_options="none" and "default" both reject int64/float64 schema mismatch."""
-    c1 = {"col1": new_column("col1", "bigint")}
-    table_int = pa.Table.from_pydict({"col1": pa.array([1, 2], type=pa.int64())})
-    table_float = pa.Table.from_pydict({"col1": pa.array([3.0, 4.0], type=pa.float64())})
+@pytest.mark.parametrize(
+    "first,second,flush_between",
+    [
+        # within one buffer: a concrete type difference (int64 vs float64)
+        (([1, 2], pa.int64(), True), ([3, 4], pa.float64(), True), False),
+        # within one buffer: a nullability difference only
+        (([1, 2], pa.int64(), False), ([3, 4], pa.int64(), True), False),
+        # across an already-locked file: float widening is still rejected
+        (([1], pa.float64(), True), ([2], pa.float32(), True), True),
+        # across an already-locked file: a decimal precision difference is rejected
+        (([1], pa.decimal128(38, 9), True), ([2], pa.decimal128(10, 2), True), True),
+    ],
+    ids=[
+        "within-batch-type",
+        "within-batch-nullability",
+        "cross-file-float",
+        "cross-file-decimal",
+    ],
+)
+def test_none_rejects_any_schema_difference(
+    first: Tuple[List[Any], "pa.DataType", bool],
+    second: Tuple[List[Any], "pa.DataType", bool],
+    flush_between: bool,
+) -> None:
+    """`none` requires identical schemas: any type or nullability difference - within a single
+    buffer or across an already-locked file - fails with an actionable dlt error and no rotation.
+    """
+    c1 = {"val": new_column("val", "double")}
 
-    with pytest.raises((pa.lib.ArrowInvalid, pa.lib.ArrowTypeError)):
+    def _table(values: List[Any], arrow_type: "pa.DataType", nullable: bool) -> "pa.Table":
+        return pa.table(
+            [_cross_batch_array(values, arrow_type)],
+            schema=pa.schema([pa.field("val", arrow_type, nullable=nullable)]),
+        )
+
+    with pytest.raises(IncompatibleArrowSchema) as exc_info:
         with get_writer(
-            ArrowToParquetWriter,
-            buffer_max_items=10,
-            caps=_caps_with_promote(promote_options),
+            ArrowToParquetWriter, buffer_max_items=10, caps=_caps_with_promote("none")
         ) as writer:
-            writer.write_data_item(table_int, columns=c1)
-            writer.write_data_item(table_float, columns=c1)
+            writer.write_data_item(_table(*first), columns=c1)
+            if flush_between:
+                writer._flush_items()
+            writer.write_data_item(_table(*second), columns=c1)
+
+    assert "arrow_concat_promote_options" in str(exc_info.value)
 
 
-def test_arrow_concat_promote_options_permissive() -> None:
-    """promote_options="permissive" promotes int64 to double on cross-family mismatch."""
+@pytest.mark.parametrize(
+    "promote,items,expected",
+    [
+        # default: a cross-family mismatch splits into one file per type
+        (
+            "default",
+            [([1, 2], pa.int64()), ([3, 4], pa.float64())],
+            [(pa.int64(), 2), (pa.float64(), 2)],
+        ),
+        # permissive: genuinely incompatible types still split rather than fail
+        (
+            "permissive",
+            [([1, 2], pa.int64()), (["a", "b"], pa.string())],
+            [(pa.int64(), 2), (pa.string(), 2)],
+        ),
+        # compatible items are grouped into the same file; only the odd one rotates
+        (
+            "default",
+            [([1], pa.int64()), ([2], pa.int64()), ([3], pa.float64())],
+            [(pa.int64(), 2), (pa.float64(), 1)],
+        ),
+        # permissive casts a later (wider) type into the first/locked schema, accepting loss
+        (
+            "permissive",
+            [([1], pa.int64()), ([2.0], pa.float64())],
+            [(pa.int64(), 2)],
+        ),
+        # less precise decimal coerces into the first (more precise) schema
+        (
+            "permissive",
+            [([Decimal("1.1")], pa.decimal128(10, 1)), ([Decimal("1.2")], pa.decimal128(10, 2))],
+            [(pa.decimal128(10, 1), 2)],
+        ),
+    ],
+    ids=[
+        "default-int-float",
+        "permissive-int-string",
+        "default-largest-run",
+        "permissive-cast-into-first",
+        "permissive-less-precise-decimal",
+    ],
+)
+def test_within_batch_split(promote: str, items: Any, expected: Any) -> None:
+    """default splits a buffer into one file per type; permissive casts everything into the first
+    schema (rotating only when no unified schema exists)."""
     c1 = {"col1": new_column("col1", "bigint")}
-    table_int = pa.Table.from_pydict({"col1": pa.array([1, 2], type=pa.int64())})
-    table_float = pa.Table.from_pydict({"col1": pa.array([3.0, 4.0], type=pa.float64())})
-
     with get_writer(
-        ArrowToParquetWriter,
-        buffer_max_items=10,
-        caps=_caps_with_promote("permissive"),
+        ArrowToParquetWriter, buffer_max_items=10, caps=_caps_with_promote(promote)
     ) as writer:
-        writer.write_data_item(table_int, columns=c1)
-        writer.write_data_item(table_float, columns=c1)
+        for values, arrow_type in items:
+            table = pa.Table.from_pydict({"col1": pa.array(values, type=arrow_type)})
+            writer.write_data_item(table, columns=c1)
 
-    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
-        table = reader.read()
-        assert table.schema.field("col1").type == pa.float64()
-        assert table.column("col1").to_pylist() == [1.0, 2.0, 3.0, 4.0]
-
-
-@pytest.mark.parametrize("promote_options", ["default", "permissive"])
-def test_arrow_concat_promote_options_null_column(promote_options: str) -> None:
-    """Both "default" and "permissive" promote null + string to string."""
-    cols = {"col1": new_column("col1", "text")}
-    table_str = pa.Table.from_pydict({"col1": pa.array(["a", "b"], type=pa.string())})
-    table_null = pa.Table.from_pydict({"col1": pa.array([None, None], type=pa.null())})
-
-    with get_writer(
-        ArrowToParquetWriter,
-        buffer_max_items=10,
-        caps=_caps_with_promote(promote_options),
-    ) as writer:
-        writer.write_data_item(table_str, columns=cols)
-        writer.write_data_item(table_null, columns=cols)
-
-    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
-        table = reader.read()
-        assert table.schema.field("col1").type == pa.string()
-        assert table.column("col1").to_pylist() == ["a", "b", None, None]
+    assert len(writer.closed_files) == len(expected)
+    for closed, (exp_type, exp_rows) in zip(writer.closed_files, expected):
+        result = pq.read_table(closed.file_path)
+        assert result.schema.field("col1").type == exp_type
+        assert result.num_rows == exp_rows
 
 
-def test_arrow_concat_promote_options_permissive_missing_column() -> None:
-    """promote_options="permissive" fills missing columns with null."""
+def test_within_batch_split_over_locked_file() -> None:
+    """A buffer whose first item also does not fit the already-locked file rotates per item,
+    preserving every row and a valid `last_modified` on each produced file."""
     c1 = {"col1": new_column("col1", "bigint")}
-    table_two_cols = pa.Table.from_pydict(
-        {"col1": pa.array([1], type=pa.int64()), "col2": pa.array(["x"], type=pa.string())}
-    )
-    table_one_col = pa.Table.from_pydict({"col1": pa.array([2], type=pa.int64())})
-
     with get_writer(
-        ArrowToParquetWriter,
-        buffer_max_items=10,
-        caps=_caps_with_promote("permissive"),
+        ArrowToParquetWriter, buffer_max_items=10, caps=_caps_with_promote("default")
     ) as writer:
-        writer.write_data_item(table_two_cols, columns=c1)
-        writer.write_data_item(table_one_col, columns=c1)
+        # lock the first file to int64
+        writer.write_data_item(
+            pa.Table.from_pydict({"col1": pa.array([1], pa.int64())}), columns=c1
+        )
+        writer._flush_items()
+        # one buffer whose two items are incompatible with each other AND with the locked file
+        writer.write_data_item(
+            pa.Table.from_pydict({"col1": pa.array([2.0], pa.float64())}), columns=c1
+        )
+        writer.write_data_item(
+            pa.Table.from_pydict({"col1": pa.array(["x"], pa.string())}), columns=c1
+        )
 
-    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
-        table = reader.read()
-        assert table.column("col1").to_pylist() == [1, 2]
-        assert table.column("col2").to_pylist() == ["x", None]
+    assert len(writer.closed_files) == 3
+    types = [pq.read_table(f.file_path).schema.field("col1").type for f in writer.closed_files]
+    assert types == [pa.int64(), pa.float64(), pa.string()]
+    # regression guard: every produced file must have a non-None last_modified (metrics summing)
+    assert all(f.last_modified is not None for f in writer.closed_files)
+    assert sum(f.items_count for f in writer.closed_files) == 3
+
+
+def test_within_batch_record_batch_groups_preserve_order_over_locked_file() -> None:
+    """default: yield 1 locks a file; yield 2's three record batches split into two runs (the
+    string batch is incompatible with the two double batches), and the double run also widens the
+    locked int64 file - forcing two rotations. All records are preserved in original order."""
+    c1 = {"v": new_column("v", "bigint")}
+    with get_writer(
+        ArrowToParquetWriter, buffer_max_items=10, caps=_caps_with_promote("default")
+    ) as writer:
+        # yield 1 -> file 0 locked to int64
+        writer.write_data_item(pa.record_batch({"v": pa.array([1, 2], pa.int64())}), columns=c1)
+        writer._flush_items()
+        # yield 2: three record batches in one buffer. batch 3 (string) is incompatible with
+        # batches 1 & 2 (double) -> two runs [double(3, 4, 5), string("a")]; the double run also
+        # widens the locked int64 file, so writing it rotates first
+        writer.write_data_item(
+            [
+                pa.record_batch({"v": pa.array([3.0, 4.0], pa.float64())}),
+                pa.record_batch({"v": pa.array([5.0], pa.float64())}),
+                pa.record_batch({"v": pa.array(["a"], pa.string())}),
+            ],
+            columns=c1,
+        )
+
+    files = [pq.read_table(f.file_path) for f in writer.closed_files]
+    assert [f.schema.field("v").type for f in files] == [pa.int64(), pa.float64(), pa.string()]
+    # each file holds exactly its run, and records keep their original order across files
+    assert files[0].column("v").to_pylist() == [1, 2]
+    assert files[1].column("v").to_pylist() == [3.0, 4.0, 5.0]
+    assert files[2].column("v").to_pylist() == ["a"]
 
 
 def test_empty_tables_get_flushed() -> None:
@@ -489,3 +578,198 @@ def test_empty_tables_get_flushed() -> None:
         assert len(writer._buffered_items) == 1
         writer.write_data_item(single_elem_table, columns=c1)
         assert len(writer._buffered_items) == 0
+
+
+def test_concat_batches_reconciles_nullability() -> None:
+    """default must reconcile nullability across consecutive record batches - they must not be
+    grouped via `Table.from_batches`, which rejects differing nullability."""
+    from dlt.common.libs.pyarrow import concat_batches_and_tables_in_order
+
+    s_notnull = pa.schema([pa.field("v", pa.int64(), nullable=False)])
+    s_nullable = pa.schema([pa.field("v", pa.int64(), nullable=True)])
+    rb_notnull = pa.record_batch([pa.array([1, 2], pa.int64())], schema=s_notnull)
+    rb_nullable = pa.record_batch([pa.array([3, 4], pa.int64())], schema=s_nullable)
+
+    out = concat_batches_and_tables_in_order([rb_notnull, rb_nullable], promote_options="default")
+    assert out.column("v").to_pylist() == [1, 2, 3, 4]
+
+
+def _cross_batch_array(values: List[Any], arrow_type: "pa.DataType") -> "pa.Array":
+    if pa.types.is_decimal(arrow_type):
+        values = [Decimal(str(v)) for v in values]
+    return pa.array(values, type=arrow_type)
+
+
+@pytest.mark.parametrize(
+    "promote,writer_type,incoming_type,expected_types",
+    [
+        # permissive always casts the incoming batch into the first (locked) schema -> one file,
+        # whether the cast widens (lossless) or narrows (lossy)
+        ("permissive", pa.float64(), pa.float32(), [pa.float64()]),
+        ("permissive", pa.int32(), pa.int8(), [pa.int32()]),
+        ("permissive", pa.decimal128(38, 9), pa.decimal128(10, 2), [pa.decimal128(38, 9)]),
+        ("permissive", pa.float32(), pa.float64(), [pa.float32()]),
+        ("permissive", pa.int8(), pa.int64(), [pa.int8()]),
+        ("permissive", pa.decimal128(10, 2), pa.decimal128(38, 9), [pa.decimal128(10, 2)]),
+        ("permissive", pa.decimal128(38, 2), pa.decimal128(38, 9), [pa.decimal128(38, 2)]),
+        # cross-family: an int batch is cast into a float file (default would reject)
+        ("permissive", pa.float64(), pa.int64(), [pa.float64()]),
+        # default rejects any concrete type difference -> always rotates to a new file
+        ("default", pa.float32(), pa.float64(), [pa.float32(), pa.float64()]),
+        (
+            "default",
+            pa.decimal128(10, 2),
+            pa.decimal128(20, 2),
+            [pa.decimal128(10, 2), pa.decimal128(20, 2)],
+        ),
+        (
+            "default",
+            pa.decimal128(38, 9),
+            pa.decimal128(10, 2),
+            [pa.decimal128(38, 9), pa.decimal128(10, 2)],
+        ),
+    ],
+    ids=[
+        "permissive-float-up",
+        "permissive-int-up",
+        "permissive-decimal-up",
+        "permissive-float-down",
+        "permissive-int-down",
+        "permissive-decimal-down",
+        "permissive-decimal-overflow-down",
+        "permissive-int-into-float",
+        "default-float-rotate",
+        "default-decimal-rotate",
+        "default-decimal-narrower-rotate",
+    ],
+)
+def test_cross_batch_promotion(
+    promote: str,
+    writer_type: "pa.DataType",
+    incoming_type: "pa.DataType",
+    expected_types: List[Any],
+) -> None:
+    """permissive casts every later batch into the first/locked schema (one file). default rotates
+    to a new file on any type difference. First schema always wins."""
+    col_type: TDataType = "decimal" if pa.types.is_decimal(writer_type) else "double"
+    c1 = {"val": new_column("val", col_type)}
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=1,
+        caps=_caps_with_promote(promote),
+    ) as writer:
+        t1 = pa.Table.from_pydict({"val": _cross_batch_array([1], writer_type)})
+        writer.write_data_item(t1, columns=c1)
+        writer._flush_items()
+
+        t2 = pa.Table.from_pydict({"val": _cross_batch_array([2], incoming_type)})
+        writer.write_data_item(t2, columns=c1)
+
+    assert len(writer.closed_files) == len(expected_types)
+    for closed, expected in zip(writer.closed_files, expected_types):
+        assert pq.read_table(closed.file_path).schema.field("val").type == expected
+    # all rows are preserved across the produced files, no nulls introduced
+    rows = [
+        v for f in writer.closed_files for v in pq.read_table(f.file_path).column("val").to_pylist()
+    ]
+    assert len(rows) == 2 and None not in rows
+
+
+def test_cross_batch_schema_mixed_columns_cast_into_first() -> None:
+    """permissive casts every column of a later batch into the first/locked schema - one file."""
+    c1 = {
+        "a": new_column("a", "double"),
+        "b": new_column("b", "bigint"),
+    }
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=1,
+        caps=_caps_with_promote("permissive"),
+    ) as writer:
+        t1 = pa.Table.from_pydict(
+            {
+                "a": pa.array([1.5], type=pa.float64()),
+                "b": pa.array([1], type=pa.int8()),
+            }
+        )
+        writer.write_data_item(t1, columns=c1)
+        writer._flush_items()
+
+        # a narrows (float32 -> float64, lossless) and b narrows (int16 -> int8, value fits);
+        # both are cast into the first schema, so it stays one file with the first schema
+        t2 = pa.Table.from_pydict(
+            {
+                "a": pa.array([2.5], type=pa.float32()),
+                "b": pa.array([100], type=pa.int16()),
+            }
+        )
+        writer.write_data_item(t2, columns=c1)
+
+    assert len(writer.closed_files) == 1
+    result = pq.read_table(writer.closed_files[0].file_path)
+    assert result.schema.field("a").type == pa.float64()
+    assert result.schema.field("b").type == pa.int8()
+    assert result.column("a").to_pylist() == [1.5, 2.5]
+    assert result.column("b").to_pylist() == [1, 100]
+
+
+def test_cross_batch_schema_metadata_only_diff_no_rotation() -> None:
+    c1 = {"val": new_column("val", "double")}
+
+    with get_writer(
+        ArrowToParquetWriter,
+        buffer_max_items=1,
+        caps=_caps_with_promote("permissive"),
+    ) as writer:
+        schema1 = pa.schema([pa.field("val", pa.float64(), metadata={b"source": b"file1"})])
+        t1 = pa.Table.from_pydict({"val": pa.array([1.5], type=pa.float64())}, schema=schema1)
+        writer.write_data_item(t1, columns=c1)
+        writer._flush_items()
+
+        schema2 = pa.schema([pa.field("val", pa.float64(), metadata={b"source": b"file2"})])
+        t2 = pa.Table.from_pydict({"val": pa.array([2.5], type=pa.float64())}, schema=schema2)
+        writer.write_data_item(t2, columns=c1)
+
+    assert len(writer.closed_files) == 1
+    table = pq.read_table(writer.closed_files[0].file_path)
+    assert table.column("val").to_pylist() == [1.5, 2.5]
+
+
+@pytest.mark.parametrize("promote_options", ["none", "default", "permissive"])
+def test_first_schema_metadata_preserved(promote_options: str) -> None:
+    """In every mode the first batch's schema metadata wins on the written file."""
+    c1 = {"val": new_column("val", "double")}
+    s1 = pa.schema([pa.field("val", pa.float64())], metadata={b"src": b"first"})
+    s2 = pa.schema([pa.field("val", pa.float64())], metadata={b"src": b"second"})
+
+    with get_writer(
+        ArrowToParquetWriter, buffer_max_items=10, caps=_caps_with_promote(promote_options)
+    ) as writer:
+        writer.write_data_item(pa.table([pa.array([1.5], pa.float64())], schema=s1), columns=c1)
+        writer._flush_items()
+        writer.write_data_item(pa.table([pa.array([2.5], pa.float64())], schema=s2), columns=c1)
+
+    assert len(writer.closed_files) == 1
+    assert pq.read_table(writer.closed_files[0].file_path).schema.metadata == {b"src": b"first"}
+
+
+def test_default_reconciles_nullability_into_one_file() -> None:
+    """default merges batches that differ only in nullability into a single file (symmetric)."""
+    c1 = {"val": new_column("val", "bigint")}
+    s_notnull = pa.schema([pa.field("val", pa.int64(), nullable=False)])
+    s_nullable = pa.schema([pa.field("val", pa.int64(), nullable=True)])
+
+    with get_writer(
+        ArrowToParquetWriter, buffer_max_items=10, caps=_caps_with_promote("default")
+    ) as writer:
+        writer.write_data_item(
+            pa.table([pa.array([1, 2], pa.int64())], schema=s_notnull), columns=c1
+        )
+        writer.write_data_item(
+            pa.table([pa.array([3, 4], pa.int64())], schema=s_nullable), columns=c1
+        )
+
+    assert len(writer.closed_files) == 1
+    assert pq.read_table(writer.closed_files[0].file_path).column("val").to_pylist() == [1, 2, 3, 4]
