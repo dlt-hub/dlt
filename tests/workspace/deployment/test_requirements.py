@@ -123,6 +123,43 @@ def test_pyproject_with_lock_resolves_all_groups() -> None:
     assert "numpy" in gpu_names
 
 
+def test_pyproject_with_lock_export_uses_default_uv_format(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        "[project]\n"
+        'name = "deps-locked"\n'
+        'version = "0.0.1"\n'
+        'dependencies = ["requests>=2.0"]\n'
+        "\n"
+        "[dependency-groups]\n"
+        'dev = ["pytest>=7.0"]\n'
+    )
+    (tmp_path / "uv.lock").write_text("")
+
+    commands: List[List[str]] = []
+
+    def fake_run_uv(args: List[str], cwd: Path) -> str:
+        commands.append(args)
+        if args[0] == "lock":
+            return ""
+        if "--only-group" in args:
+            return "pytest==7.4.0\n"
+        return "requests==2.31.0\n"
+
+    monkeypatch.setattr("dlt._workspace.deployment.requirements._require_uv", lambda: None)
+    monkeypatch.setattr("dlt._workspace.deployment.requirements._run_uv", fake_run_uv)
+
+    result = export_workspace_requirements(tmp_path)
+
+    assert result["groups"][MAIN_GROUP] == ["requests==2.31.0"]
+    assert result["groups"]["dev"] == ["pytest==7.4.0"]
+    export_commands = [command for command in commands if command[0] == "export"]
+    assert len(export_commands) == 2
+    for command in export_commands:
+        assert "--format" not in command
+
+
 def test_pyproject_lock_out_of_sync_raises() -> None:
     with isolated_workspace("deps_pyproject") as ctx:
         # empty lockfile is guaranteed to be out of sync

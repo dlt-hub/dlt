@@ -409,8 +409,6 @@ def _export_from_pyproject(
                     "--no-hashes",
                     "--no-emit-project",
                     "--no-default-groups",
-                    "--format",
-                    "requirements.txt",
                 ],
                 cwd=workspace_root,
             )
@@ -425,8 +423,6 @@ def _export_from_pyproject(
                         "--no-default-groups",
                         "--only-group",
                         name,
-                        "--format",
-                        "requirements.txt",
                     ],
                     cwd=workspace_root,
                 )
