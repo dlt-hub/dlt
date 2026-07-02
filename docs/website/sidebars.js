@@ -245,11 +245,12 @@ const sidebars = {
     {
       type: "category",
       label: "Configuration & secrets",
-      link: {
-        type: "doc",
-        id: "general-usage/credentials/index",
-      },
       items: [
+        {
+          type: "doc",
+          id: "general-usage/credentials/index",
+          label: "Overview",
+        },
         "general-usage/credentials/setup",
         "general-usage/credentials/advanced",
         "general-usage/credentials/vaults",
