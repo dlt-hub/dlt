@@ -208,6 +208,34 @@ def test_sqlalchemy_file_db_follows_local_dir(driver: str, ext: str) -> None:
         assert c.credentials.database == "md:my_db"
 
 
+def test_external_engine_database_not_relocated() -> None:
+    """A user-provided engine is never rebuilt from credentials: its relative database
+    path must not be relocated to the local dir and physical_location() must report
+    the file the engine actually writes to.
+    """
+    local_dir = os.path.join(get_test_storage_root(), uniq_id())
+    os.makedirs(local_dir)
+    os.environ[DLT_LOCAL_DIR] = local_dir
+
+    engine = sa.create_engine("sqlite:///relative_data.db")
+    c = resolve_configuration(
+        SqlalchemyClientConfiguration(credentials=SqlalchemyCredentials(engine))._bind_dataset_name(
+            dataset_name="test_dataset"
+        )
+    )
+    assert c.credentials.is_external_engine
+    assert c.credentials.database == os.path.abspath("relative_data.db")
+    assert c.physical_location() == os.path.abspath("relative_data.db")
+
+    # in-memory external engine has no physical identity
+    c = resolve_configuration(
+        SqlalchemyClientConfiguration(
+            credentials=SqlalchemyCredentials(sa.create_engine("sqlite:///:memory:"))
+        )._bind_dataset_name(dataset_name="test_dataset")
+    )
+    assert c.physical_location() == ""
+
+
 def test_engine_kwargs_forwarded_to_credentials() -> None:
     """engine_kwargs set on the configuration should be forwarded to credentials."""
     c = resolve_configuration(

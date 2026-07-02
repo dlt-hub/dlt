@@ -343,6 +343,16 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         key = self.dataset_name + "." + table_name
         return self.metadata.tables.get(key)  # type: ignore[no-any-return]
 
+    def to_dataset_table(self, table_obj: sa.Table, staging: bool = False) -> sa.Table:
+        """Returns table_obj copied into the current or staging dataset in the shared metadata.
+        Reuses a copy already registered there to avoid duplicate table warnings.
+        """
+        dataset_name = self.staging_dataset_name if staging else self.dataset_name
+        existing: Optional[sa.Table] = self.metadata.tables.get(dataset_name + "." + table_obj.name)
+        if existing is not None:
+            return existing
+        return table_obj.to_metadata(self.metadata, schema=dataset_name)  # type: ignore[no-any-return]
+
     def create_table(self, table_obj: sa.Table) -> None:
         with self._ensure_transaction():
             table_obj.create(self._current_connection)

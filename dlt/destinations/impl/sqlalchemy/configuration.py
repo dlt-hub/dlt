@@ -167,6 +167,11 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         self._external_engine = value
         self.managed_engine = ManagedEngine(self, engine=value)
 
+    @property
+    def is_external_engine(self) -> bool:
+        """True when credentials wrap a user-provided engine that dlt does not own."""
+        return self.managed_engine is not None and not self.managed_engine._conn_owner
+
     def get_dialect_class(self) -> Optional[Type["Dialect"]]:
         if not self.drivername:
             return None
@@ -265,7 +270,12 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
             if not SqlalchemyCredentials.is_memory_database(db, self.credentials.query) and not (
                 db or ""
             ).startswith("md:"):
-                if not db or not os.path.isabs(db):
+                if self.credentials.is_external_engine:
+                    # external engines are never rebuilt from credentials: keep the engine's
+                    # database so physical_location() reports the file actually written to
+                    if db and not os.path.isabs(db):
+                        self.credentials.database = os.path.abspath(db)
+                elif not db or not os.path.isabs(db):
                     name_pat = (
                         SQLITE_DB_NAME_PAT
                         if self.credentials.drivername == "sqlite"
