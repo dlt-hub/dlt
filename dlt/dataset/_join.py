@@ -508,29 +508,23 @@ def _is_flat_select(query: sge.Select) -> bool:
 def _qualify_unscoped_predicate_columns(query: sge.Select, source_qualifier: str) -> None:
     """Bind unqualified WHERE/ORDER BY columns to the single source.
 
-    ORDER BY references to select output aliases are expanded to their source
-    expressions first, so qualification cannot produce nonexistent columns.
+    ORDER BY references to select output aliases stay bare; `bind_query` resolves them.
     """
     if query.args.get("joins"):
         return
     qualifier_identifier = sge.to_identifier(source_qualifier, quoted=False)
-    alias_sources = {
-        sel.output_name: sel.this for sel in query.selects if isinstance(sel, sge.Alias)
-    }
-    order_clause = query.args.get("order")
-    if order_clause is not None and alias_sources:
-        for col in list(order_clause.find_all(sge.Column)):
-            if col.args.get("table") is None and col.parent_select is query:
-                source = alias_sources.get(col.name)
-                if source is not None:
-                    col.replace(source.copy())
+    output_aliases = {sel.output_name for sel in query.selects if isinstance(sel, sge.Alias)}
     for clause_key in ("where", "order"):
         clause = query.args.get(clause_key)
         if clause is None:
             continue
         for col in clause.find_all(sge.Column):
-            if col.args.get("table") is None and col.parent_select is query:
-                col.set("table", qualifier_identifier.copy())
+            if col.args.get("table") is not None or col.parent_select is not query:
+                continue
+            # ORDER BY resolves output aliases first; WHERE is pre-projection and sees columns
+            if clause_key == "order" and col.name in output_aliases:
+                continue
+            col.set("table", qualifier_identifier.copy())
 
 
 def _aliased_subquery(query: sge.Query, qualifier: str) -> sge.Subquery:
