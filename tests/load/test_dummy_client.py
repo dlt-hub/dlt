@@ -4,7 +4,7 @@ from time import sleep, monotonic
 from unittest import mock
 import pytest
 from unittest.mock import patch
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 from dlt.common import pendulum
 from dlt.common.destination.exceptions import DestinationTerminalException
@@ -15,7 +15,8 @@ from dlt.common.storages.load_package import LoadPackageStateInjectableContext, 
 from dlt.common.configuration.container import Container
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination import AnyDestination
-from dlt.common.destination.client import RunnableLoadJob
+from dlt.common.destination.client import JobClientBase, RunnableLoadJob
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_nested_tables,
@@ -1396,6 +1397,48 @@ def test_init_client_staging_selective_filter() -> None:
         # main has no truncation (bare init at index 0); staging bare init (1) + truncate (2)
         staging_truncate = initialize_storage.call_args_list[2].kwargs["truncate_tables"]
         assert staging_truncate == {"event_bot"}
+
+
+def test_init_client_staging_trimmed_schema() -> None:
+    """Checks if staging dataset holds schemas trimmed to only the tables that
+    are actually materialized in it.
+    """
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    nothing_ = lambda _: False
+    event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
+    event_bot = ParsedLoadJobFileName("event_bot", "event_bot_id", 0, "jsonl")
+    bot_chain = {t["name"] for t in get_nested_tables(schema.tables, "event_bot")}
+    bot_only = lambda table_name: table_name in bot_chain
+
+    # capture the client schema at the time of each update_stored_schema call
+    seen_schemas: List[Schema] = []
+    clients: List[JobClientBase] = []
+
+    def capture_schema(*args: Any, **kwargs: Any) -> TSchemaTables:
+        seen_schemas.append(clients[0].schema)
+        return {}
+
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage"),
+        patch.object(dummy_impl.DummyClient, "update_stored_schema", side_effect=capture_schema),
+    ):
+        with load.get_destination_client(schema) as client:
+            clients.append(client)
+            init_client(client, schema, [event_user, event_bot], {}, nothing_, bot_only, nothing_)
+        # full schema restored on the client after staging init
+        assert client.schema is schema
+
+    main_schema, staging_schema = seen_schemas
+    # main dataset update uses the full package schema
+    assert main_schema is schema
+    # staging schema holds only the staging-eligible chain and dlt tables
+    assert set(staging_schema.tables.keys()) == bot_chain | set(schema.dlt_table_names())
+    # trimmed schema has consistent version and hash of its own content
+    assert not staging_schema.is_modified
+    assert staging_schema.stored_version_hash != schema.stored_version_hash
 
 
 def test_init_client_staging_dlt_tables_with_jobs() -> None:

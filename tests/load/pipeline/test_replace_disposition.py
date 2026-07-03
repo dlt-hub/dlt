@@ -638,3 +638,39 @@ def test_replace_chain_truncate_consistent_with_package_jobs(
     # nested table is truncated
     assert truncate_spy.call_count == 1
     assert truncate_spy.call_args.args[1] == ["items__children"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("replace_strategy", ["insert-from-staging", "staging-optimized"])
+def test_replace_strategy_switch_creates_staging_tables(
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
+) -> None:
+    """switching to a staging replace strategy on an existing dataset must create
+    the now-required staging tables even though the schema version hash is unchanged.
+    """
+    skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
+
+    pipeline = destination_config.setup_pipeline("replace_strategy_switch", dev_mode=True)
+
+    @dlt.resource(write_disposition="replace")
+    def items():
+        yield [{"id": 1, "val": "a"}, {"id": 2, "val": "b"}]
+
+    # the merge table makes the first run create the staging dataset without the replace table
+    @dlt.resource(write_disposition="merge", primary_key="id")
+    def merge_items():
+        yield [{"id": 1, "val": "m"}]
+
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = "truncate-and-insert"
+    info = pipeline.run([items(), merge_items()], **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # same schema, replace table now goes through the staging dataset
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+    info = pipeline.run([items(), merge_items()], **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items", "merge_items") == {"items": 2, "merge_items": 1}

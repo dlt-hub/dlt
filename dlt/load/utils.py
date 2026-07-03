@@ -158,15 +158,23 @@ def init_client(
 
         # if there are tables to drop, we should also drop them in the staging dataset
         if all_staging_tables or drop_table_names:
+            # the staging dataset holds only staging-eligible tables so the stored schema is
+            # trimmed to that subset. version hash then detects when the subset grows without
+            # a schema change ie. after a switch to a staging replace strategy (#4152)
+            job_client_schema = job_client.schema
             with job_client.with_staging_dataset():
-                _init_dataset_and_update_schema(
-                    job_client,
-                    expected_update,
-                    all_staging_tables | {schema.version_table_name},
-                    truncate_tables=staging_tables_with_jobs,  # only truncate tables with jobs in this load
-                    staging_info=True,
-                    drop_tables=drop_table_names,  # try to drop all the same tables on staging
-                )
+                job_client.schema = _trim_schema_to_tables(schema, all_staging_tables)
+                try:
+                    _init_dataset_and_update_schema(
+                        job_client,
+                        expected_update,
+                        all_staging_tables | {schema.version_table_name},
+                        truncate_tables=staging_tables_with_jobs,  # only truncate tables with jobs in this load
+                        staging_info=True,
+                        drop_tables=drop_table_names,  # try to drop all the same tables on staging
+                    )
+                finally:
+                    job_client.schema = job_client_schema
 
     return applied_update, applied_dropped, applied_truncated
 
@@ -231,6 +239,23 @@ def _init_dataset_and_update_schema(
         applied_truncated = (initial_truncate_tables or set()) & truncate_tables
 
     return applied_update, applied_dropped, applied_truncated
+
+
+def _trim_schema_to_tables(schema: Schema, table_names: Iterable[str]) -> Schema:
+    """Clones `schema` keeping only `table_names` and dlt tables, with version and hash bumped
+    to the trimmed content.
+    """
+    keep_tables = set(table_names)
+    trimmed_schema = schema.clone()
+    trimmed_schema.drop_tables(
+        [
+            name
+            for name in trimmed_schema.data_table_names(include_incomplete=True)
+            if name not in keep_tables
+        ]
+    )
+    trimmed_schema._bump_version()
+    return trimmed_schema
 
 
 def _extend_tables_with_table_chain(
