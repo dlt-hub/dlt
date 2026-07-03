@@ -11,7 +11,6 @@ from .vault import VaultDocProvider, normalize_key
 from .provider import get_key_name
 
 SECRET_NAME_SEPARATOR = "/"
-DEFAULT_SECRET_NAME_PREFIX = "dlt/"
 
 
 class AwsSecretsManagerProvider(VaultDocProvider):
@@ -21,7 +20,7 @@ class AwsSecretsManagerProvider(VaultDocProvider):
         only_secrets: bool = True,
         only_toml_fragments: bool = True,
         list_secrets: bool = False,
-        secret_name_prefix: str = DEFAULT_SECRET_NAME_PREFIX,
+        secret_name_prefix: str = "dlt/",
     ) -> None:
         """Initialize an AWS Secrets Manager Provider to access secrets stored in AWS Secrets Manager
 
